@@ -2,9 +2,7 @@ use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
-    network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     pubdata_da::PubdataSendingMode,
     secrets::{APIKey, SeedPhrase},
@@ -27,26 +25,6 @@ use crate::{
     },
     AvailConfig,
 };
-
-trait Sample {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> Self;
-}
-
-impl Sample for Network {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> Network {
-        type T = Network;
-        match rng.gen_range(0..8) {
-            0 => T::Mainnet,
-            1 => T::Rinkeby,
-            2 => T::Ropsten,
-            3 => T::Goerli,
-            4 => T::Sepolia,
-            5 => T::Localhost,
-            6 => T::Unknown,
-            _ => T::Test,
-        }
-    }
-}
 
 impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::FeeModelVersion {
@@ -73,9 +51,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::Web3JsonRpcConfig {
         configs::api::Web3JsonRpcConfig {
             http_port: self.sample(rng),
-            http_url: self.sample(rng),
             ws_port: self.sample(rng),
-            ws_url: self.sample(rng),
             req_entities_limit: self.sample(rng),
             filters_disabled: self.sample(rng),
             filters_limit: self.sample(rng),
@@ -154,16 +130,6 @@ impl Distribution<configs::PrometheusConfig> for EncodeDist {
             listener_port: self.sample(rng),
             pushgateway_url: self.sample(rng),
             push_interval_ms: self.sample(rng),
-        }
-    }
-}
-
-impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::NetworkConfig {
-        configs::chain::NetworkConfig {
-            network: Sample::sample(rng),
-            zksync_network: self.sample(rng),
-            zksync_network_id: L2ChainId::max(),
         }
     }
 }
@@ -371,8 +337,6 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
             statement_timeout_sec: self.sample(rng),
             long_connection_threshold_ms: self.sample(rng),
             slow_query_threshold_ms: self.sample(rng),
-            test_server_url: self.sample(rng),
-            test_prover_url: self.sample(rng),
         }
     }
 }
@@ -404,6 +368,16 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
     }
 }
 
+impl Distribution<configs::eth_sender::GasLimitMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::GasLimitMode {
+        type T = configs::eth_sender::GasLimitMode;
+        match rng.gen_range(0..2) {
+            0 => T::Maximum,
+            _ => T::Calculated,
+        }
+    }
+}
+
 impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::SenderConfig {
         configs::eth_sender::SenderConfig {
@@ -427,6 +401,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             tx_aggregation_only_prove_and_execute: false,
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
             is_verifier_pre_fflonk: self.sample(rng),
+            gas_limit_mode: self.sample(rng),
         }
     }
 }
@@ -495,15 +470,6 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
-        }
-    }
-}
-
-impl Sample for CircuitIdRoundTuple {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> CircuitIdRoundTuple {
-        CircuitIdRoundTuple {
-            circuit_id: rng.gen(),
-            aggregation_round: rng.gen(),
         }
     }
 }

@@ -274,7 +274,7 @@ impl EthSenderDal<'_, '_> {
         raw_tx: Vec<u8>,
         tx_type: AggregatedActionType,
         contract_address: Address,
-        predicted_gas_cost: Option<u32>,
+        predicted_gas_cost: Option<u64>,
         from_address: Option<Address>,
         blob_sidecar: Option<EthTxBlobSidecar>,
         is_gateway: bool,
@@ -305,7 +305,7 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost.map(|c| i64::from(c)),
+            predicted_gas_cost.map(|c| c as i64),
             from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
@@ -327,6 +327,7 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         raw_signed_tx: &[u8],
         sent_at_block: u32,
+        predicted_gas_limit: Option<u64>,
     ) -> anyhow::Result<Option<u32>> {
         let priority_fee_per_gas =
             i64::try_from(priority_fee_per_gas).context("Can't convert u64 to i64")?;
@@ -347,11 +348,12 @@ impl EthSenderDal<'_, '_> {
                 updated_at,
                 blob_base_fee_per_gas,
                 max_gas_per_pubdata,
+                predicted_gas_limit,
                 sent_at_block,
                 sent_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW())
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
             id
@@ -363,6 +365,7 @@ impl EthSenderDal<'_, '_> {
             raw_signed_tx,
             blob_base_fee_per_gas.map(|v| v as i64),
             max_gas_per_pubdata.map(|v| v as i64),
+            predicted_gas_limit.map(|v| v as i64),
             sent_at_block as i32
         )
         .fetch_optional(self.storage.conn())
@@ -468,6 +471,27 @@ impl EthSenderDal<'_, '_> {
         .execute(self.storage.conn())
         .await?;
         Ok(())
+    }
+
+    pub async fn get_batch_commit_chain_id(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<SLChainId>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT eth_txs.chain_id
+            FROM l1_batches
+            JOIN eth_txs ON eth_txs.id = l1_batches.eth_commit_tx_id
+            WHERE
+                number = $1
+            "#,
+            i64::from(batch_number.0),
+        )
+        .instrument("get_batch_commit_chain_id")
+        .with_arg("batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+        Ok(row.and_then(|r| r.chain_id).map(|id| SLChainId(id as u64)))
     }
 
     pub async fn get_batch_execute_chain_id(

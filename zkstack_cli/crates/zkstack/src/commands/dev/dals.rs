@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use url::Url;
 use xshell::Shell;
-use zkstack_cli_config::{raw::RawConfig, EcosystemConfig};
+use zkstack_cli_config::{EcosystemConfig, SecretsConfig};
 
 use super::{commands::database::args::DalUrls, messages::MSG_CHAIN_NOT_FOUND_ERR};
 
@@ -49,7 +49,9 @@ pub async fn get_prover_dal(shell: &Shell, url: Option<String>) -> anyhow::Resul
         Url::parse(&url)?
     } else {
         let secrets = get_secrets(shell).await?;
-        secrets.get("database.prover_url")?
+        secrets
+            .prover_database_url()?
+            .context("missing prover database URL")?
     };
 
     Ok(Dal {
@@ -63,7 +65,9 @@ pub async fn get_core_dal(shell: &Shell, url: Option<String>) -> anyhow::Result<
         Url::parse(&url)?
     } else {
         let secrets = get_secrets(shell).await?;
-        secrets.get("database.server_url")?
+        secrets
+            .core_database_url()?
+            .context("missing core database URL")?
     };
 
     Ok(Dal {
@@ -72,7 +76,7 @@ pub async fn get_core_dal(shell: &Shell, url: Option<String>) -> anyhow::Result<
     })
 }
 
-async fn get_secrets(shell: &Shell) -> anyhow::Result<RawConfig> {
+async fn get_secrets(shell: &Shell) -> anyhow::Result<SecretsConfig> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
