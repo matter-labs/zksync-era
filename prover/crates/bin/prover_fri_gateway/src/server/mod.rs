@@ -52,7 +52,7 @@ impl Api {
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!("Stop signal sender for prover gateway API server was dropped without sending a signal");
-            } 
+            }
             tracing::info!("Stop signal received, prover gateway API server is shutting down");
         })
         .await

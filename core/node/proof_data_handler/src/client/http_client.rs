@@ -1,5 +1,8 @@
 use serde::{de::DeserializeOwned, Serialize};
-use zksync_prover_interface::{api::{NextProof, ProofGenerationData, SubmitProofRequest}, outputs::L1BatchProofForL1};
+use zksync_prover_interface::{
+    api::{NextProof, ProofGenerationData, SubmitProofRequest},
+    outputs::L1BatchProofForL1,
+};
 use zksync_types::L1BatchNumber;
 
 pub(crate) struct HttpClient {
@@ -37,9 +40,7 @@ impl HttpClient {
 
         let endpoint = self.api_url.clone() + FETCH_PROOF_ENDPOINT;
 
-
-        let response: Option<NextProof> =
-            self.send_http_request((), &endpoint).await?;
+        let response: Option<NextProof> = self.send_http_request((), &endpoint).await?;
 
         if let Some(next_proof) = response {
             let l1_batch_number = next_proof.l1_batch_number;
