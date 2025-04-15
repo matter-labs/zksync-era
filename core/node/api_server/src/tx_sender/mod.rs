@@ -41,7 +41,8 @@ use zksync_types::{
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
     vm::FastVmMode,
-    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256, U256,
+    AccountTreeId, Address, L2ChainId, Nonce, NonceKey, ProtocolVersionId, Transaction, H160, H256,
+    U256,
 };
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVmBaseSystemContracts, OneshotEnvParameters,
@@ -473,7 +474,7 @@ impl TxSender {
             L2TxSubmissionResult::AlreadyExecuted => {
                 let initiator_account = tx.initiator_account();
                 let Nonce(expected_nonce) = self
-                    .get_expected_nonce(initiator_account)
+                    .get_expected_nonce(initiator_account, tx.nonce().key())
                     .await
                     .with_context(|| {
                         format!("failed getting expected nonce for {initiator_account:?}")
@@ -584,7 +585,7 @@ impl TxSender {
 
     async fn validate_account_nonce(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
         let Nonce(expected_nonce) = self
-            .get_expected_nonce(tx.initiator_account())
+            .get_expected_nonce(tx.initiator_account(), tx.nonce().key())
             .await
             .with_context(|| {
                 format!(
@@ -613,7 +614,11 @@ impl TxSender {
         }
     }
 
-    async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
+    async fn get_expected_nonce(
+        &self,
+        initiator_account: Address,
+        nonce_key: NonceKey,
+    ) -> anyhow::Result<Nonce> {
         let mut storage = self.acquire_replica_connection().await?;
         let latest_block_number = storage
             .blocks_dal()
@@ -623,14 +628,12 @@ impl TxSender {
 
         let nonce = storage
             .storage_web3_dal()
-            .get_address_historical_nonce(initiator_account, latest_block_number)
+            .get_address_historical_nonce(initiator_account, latest_block_number, Some(nonce_key))
             .await
             .with_context(|| {
                 format!("failed getting nonce for address {initiator_account:?} at L2 block #{latest_block_number}")
             })?;
-        let nonce = u32::try_from(nonce)
-            .map_err(|err| anyhow::anyhow!("failed converting nonce to u32: {err}"))?;
-        Ok(Nonce(nonce))
+        Ok(nonce)
     }
 
     async fn validate_enough_balance(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {

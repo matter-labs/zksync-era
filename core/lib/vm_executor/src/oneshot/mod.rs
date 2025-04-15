@@ -388,7 +388,7 @@ impl<S: ReadStorage> VmSandbox<S> {
             let nonce_key = get_nonce_key(&execution_args.transaction.initiator_account());
             let full_nonce = storage.read_value(&nonce_key);
             let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-            let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
+            let enforced_full_nonce = nonces_to_full_nonce(nonce.0, deployment_nonce);
             storage.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
         }
 
@@ -452,9 +452,9 @@ impl<S: ReadStorage> VmSandbox<S> {
 
         let transaction = self.execution_args.transaction;
         let tx_id = format!(
-            "{:?}-{}",
+            "{:?}-{:?}",
             transaction.initiator_account(),
-            transaction.nonce().unwrap_or(Nonce(0))
+            transaction.nonce().unwrap_or(Nonce(0.into()))
         );
 
         let storage_view = StorageView::new(self.storage).to_rc_ptr();

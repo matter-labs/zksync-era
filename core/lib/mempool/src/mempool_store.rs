@@ -1,16 +1,16 @@
 use std::collections::{hash_map, BTreeSet, HashMap};
 
 use zksync_types::{
-    l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
-    TransactionTimeRangeConstraint,
+    l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, NonceKey, NonceValue, PriorityOpId,
+    Transaction, TransactionTimeRangeConstraint,
 };
 
 use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
 
 #[derive(Debug)]
 pub struct MempoolInfo {
-    pub stashed_accounts: Vec<Address>,
-    pub purged_accounts: Vec<Address>,
+    pub stashed_accounts: Vec<(Address, NonceKey)>,
+    pub purged_accounts: Vec<(Address, NonceKey)>,
 }
 
 #[derive(Debug)]
@@ -25,12 +25,12 @@ pub struct MempoolStore {
     /// Pending L1 transactions
     l1_transactions: HashMap<PriorityOpId, L1Tx>,
     /// Pending L2 transactions grouped by initiator address
-    l2_transactions_per_account: HashMap<Address, AccountTransactions>,
+    l2_transactions_per_account: HashMap<(Address, NonceKey), AccountTransactions>,
     /// Global priority queue for L2 transactions. Used for scoring
     l2_priority_queue: BTreeSet<MempoolScore>,
     /// Next priority operation
     next_priority_id: PriorityOpId,
-    stashed_accounts: Vec<Address>,
+    stashed_accounts: Vec<(Address, NonceKey)>,
     /// Number of L2 transactions in the mempool.
     size: u64,
     capacity: u64,
@@ -56,7 +56,7 @@ impl MempoolStore {
     pub fn insert(
         &mut self,
         transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
-        initial_nonces: HashMap<Address, Nonce>,
+        initial_nonces: HashMap<(Address, NonceKey), NonceValue>,
     ) {
         for (transaction, constraint) in transactions {
             let Transaction {
@@ -78,7 +78,7 @@ impl MempoolStore {
                     );
                 }
                 ExecuteTransactionCommon::L2(data) => {
-                    tracing::trace!("inserting L2 transaction {}", data.nonce);
+                    tracing::trace!("inserting L2 transaction {:?}", data.nonce);
                     self.insert_l2_transaction(
                         L2Tx {
                             execute,
@@ -101,7 +101,7 @@ impl MempoolStore {
     pub fn insert_without_constraints(
         &mut self,
         transactions: Vec<Transaction>,
-        initial_nonces: HashMap<Address, Nonce>,
+        initial_nonces: HashMap<(Address, NonceKey), NonceValue>,
     ) {
         self.insert(
             transactions
@@ -116,14 +116,18 @@ impl MempoolStore {
         &mut self,
         transaction: L2Tx,
         constraint: TransactionTimeRangeConstraint,
-        initial_nonces: &HashMap<Address, Nonce>,
+        initial_nonces: &HashMap<(Address, NonceKey), NonceValue>,
     ) {
+        // TODO: for DefaultAccount, only insert into mempool if nonce_key == 0
         let account = transaction.initiator_account();
-
-        let metadata = match self.l2_transactions_per_account.entry(account) {
+        let nonce_key = transaction.nonce().key();
+        let metadata = match self.l2_transactions_per_account.entry((account, nonce_key)) {
             hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction, constraint),
             hash_map::Entry::Vacant(entry) => {
-                let account_nonce = initial_nonces.get(&account).cloned().unwrap_or(Nonce(0));
+                let account_nonce = initial_nonces
+                    .get(&(account, nonce_key))
+                    .cloned()
+                    .unwrap_or(NonceValue(0));
                 entry
                     .insert(AccountTransactions::new(account_nonce))
                     .insert(transaction, constraint)
@@ -183,11 +187,12 @@ impl MempoolStore {
         {
             removed += self
                 .l2_transactions_per_account
-                .remove(&stashed_pointer.account)
+                .remove(&(stashed_pointer.account, stashed_pointer.nonce_key))
                 .expect("mempool: dangling pointer in priority queue")
                 .len();
 
-            self.stashed_accounts.push(stashed_pointer.account);
+            self.stashed_accounts
+                .push((stashed_pointer.account, stashed_pointer.nonce_key));
         }
 
         tracing::debug!(
@@ -199,7 +204,7 @@ impl MempoolStore {
         // insert pointer to the next transaction if it exists
         let (transaction, constraint, score) = self
             .l2_transactions_per_account
-            .get_mut(&tx_pointer.account)
+            .get_mut(&(tx_pointer.account, tx_pointer.nonce_key))
             .expect("mempool: dangling pointer in priority queue")
             .next();
 
@@ -224,10 +229,10 @@ impl MempoolStore {
                 self.next_priority_id = self.next_priority_id.min(data.serial_id);
                 TransactionTimeRangeConstraint::default()
             }
-            ExecuteTransactionCommon::L2(_) => {
+            ExecuteTransactionCommon::L2(l2_common_data) => {
                 if let Some((score, constraint)) = self
                     .l2_transactions_per_account
-                    .get_mut(&tx.initiator_account())
+                    .get_mut(&(tx.initiator_account(), l2_common_data.nonce.key()))
                     .expect("account is not available in mempool")
                     .reset(tx)
                 {
@@ -257,7 +262,7 @@ impl MempoolStore {
         }
     }
 
-    fn gc(&mut self) -> Vec<Address> {
+    fn gc(&mut self) -> Vec<(Address, NonceKey)> {
         if self.size > self.capacity {
             let mut transactions = std::mem::take(&mut self.l2_transactions_per_account);
             let mut possibly_kept: Vec<_> = self
@@ -266,8 +271,8 @@ impl MempoolStore {
                 .rev()
                 .filter_map(|pointer| {
                     transactions
-                        .remove(&pointer.account)
-                        .map(|txs| (pointer.account, txs))
+                        .remove(&(pointer.account, pointer.nonce_key))
+                        .map(|txs| ((pointer.account, pointer.nonce_key), txs))
                 })
                 .collect();
 
@@ -291,7 +296,7 @@ impl MempoolStore {
                 let also_drained = possibly_kept
                     .split_off(number_of_accounts_kept)
                     .into_iter()
-                    .map(|(address, _)| address);
+                    .map(|((address, nonce_key), _)| (address, nonce_key));
                 drained.extend(also_drained);
 
                 (possibly_kept, drained)

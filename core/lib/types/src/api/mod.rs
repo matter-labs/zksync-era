@@ -538,7 +538,10 @@ pub struct Transaction {
     /// Hash
     pub hash: H256,
     /// Nonce
-    pub nonce: U256,
+    pub nonce: U64,
+    /// Nonce Key
+    #[serde(rename = "nonceKey", default, skip_serializing_if = "Option::is_none")]
+    pub nonce_key: Option<U256>,
     /// Block hash. None when pending.
     #[serde(rename = "blockHash")]
     pub block_hash: Option<H256>,

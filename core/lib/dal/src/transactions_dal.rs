@@ -12,7 +12,7 @@ use zksync_db_connection::{
 use zksync_types::{
     block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    L1BlockNumber, L2BlockNumber, NonceKey, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -318,7 +318,8 @@ impl TransactionsDal<'_, '_> {
         let gas_per_pubdata_limit = u256_to_big_decimal(tx.common_data.fee.gas_per_pubdata_limit);
         let tx_format = tx.common_data.transaction_type as i32;
         let signature = &tx.common_data.signature;
-        let nonce = i64::from(tx.common_data.nonce.0);
+        let nonce_key = u256_to_big_decimal(tx.common_data.nonce.key().0);
+        let nonce_value = tx.common_data.nonce.value().0 as i64;
         let input_data = &tx
             .common_data
             .input
@@ -373,6 +374,7 @@ impl TransactionsDal<'_, '_> {
                 received_at,
                 timestamp_asserter_range_start,
                 timestamp_asserter_range_end,
+                nonce_key,
                 created_at,
                 updated_at
             )
@@ -405,10 +407,11 @@ impl TransactionsDal<'_, '_> {
                 NOW(),
                 $19,
                 $20,
+                $21,
                 NOW(),
                 NOW()
             )
-            ON CONFLICT (initiator_address, nonce) DO
+            ON CONFLICT (initiator_address, nonce_key, nonce) DO
             UPDATE
             SET
             hash = $1,
@@ -456,7 +459,7 @@ impl TransactionsDal<'_, '_> {
             "#,
             tx_hash.as_bytes(),
             initiator_address.as_bytes(),
-            nonce,
+            nonce_value,
             &signature,
             gas_limit,
             max_fee_per_gas,
@@ -475,6 +478,7 @@ impl TransactionsDal<'_, '_> {
             exec_info.vm.contracts_used as i32,
             timestamp_asserter_range_start,
             timestamp_asserter_range_end,
+            nonce_key
         )
         .instrument("insert_transaction_l2")
         .with_arg("tx_hash", &tx_hash)
@@ -514,7 +518,7 @@ impl TransactionsDal<'_, '_> {
             l2_tx_insertion_result,
             tx_hash,
             initiator_address,
-            nonce,
+            tx.common_data.nonce,
             l2_tx_insertion_result
         );
 
@@ -602,10 +606,12 @@ impl TransactionsDal<'_, '_> {
                     DELETE FROM transactions
                     WHERE
                         initiator_address = $1
-                        AND nonce = $2
+                        AND nonce_key = $2
+                        AND nonce = $3
                     "#,
                     initiator.as_bytes(),
-                    nonce.0 as i32,
+                    u256_to_big_decimal(nonce.key().0),
+                    nonce.value().0 as i64
                 )
                 .instrument("mark_txs_as_executed_in_l2_block#remove_old_txs_with_addr_and_nonce")
                 .execute(&mut transaction)
@@ -709,6 +715,7 @@ impl TransactionsDal<'_, '_> {
         let mut l2_hashes = Vec::with_capacity(l2_txs_len);
         let mut l2_initiators = Vec::with_capacity(l2_txs_len);
         let mut l2_nonces = Vec::with_capacity(l2_txs_len);
+        let mut l2_nonce_keys = Vec::with_capacity(l2_txs_len);
         let mut l2_signatures = Vec::with_capacity(l2_txs_len);
         let mut l2_gas_limits = Vec::with_capacity(l2_txs_len);
         let mut l2_max_fees_per_gas = Vec::with_capacity(l2_txs_len);
@@ -759,7 +766,8 @@ impl TransactionsDal<'_, '_> {
             l2_hashes.push(tx_res.hash.as_bytes());
             l2_indices_in_block.push(index_in_block as i32);
             l2_initiators.push(transaction.initiator_account().0);
-            l2_nonces.push(common_data.nonce.0 as i32);
+            l2_nonces.push(common_data.nonce.value().0 as i64);
+            l2_nonce_keys.push(u256_to_big_decimal(common_data.nonce.key().0));
             l2_signatures.push(&common_data.signature[..]);
             l2_tx_formats.push(common_data.transaction_type as i32);
             l2_errors.push(Self::map_transaction_error(tx_res));
@@ -788,6 +796,7 @@ impl TransactionsDal<'_, '_> {
                 hash,
                 is_priority,
                 initiator_address,
+                nonce_key,
                 nonce,
                 signature,
                 gas_limit,
@@ -815,6 +824,7 @@ impl TransactionsDal<'_, '_> {
                 data_table.hash,
                 FALSE,
                 data_table.initiator_address,
+                data_table.nonce_key,
                 data_table.nonce,
                 data_table.signature,
                 data_table.gas_limit,
@@ -829,7 +839,7 @@ impl TransactionsDal<'_, '_> {
                 data_table.paymaster,
                 data_table.paymaster_input,
                 data_table.new_execution_info,
-                $21,
+                $22,
                 data_table.index_in_block,
                 NULLIF(data_table.error, ''),
                 data_table.effective_gas_price,
@@ -842,7 +852,7 @@ impl TransactionsDal<'_, '_> {
                     SELECT
                         UNNEST($1::bytea []) AS hash,
                         UNNEST($2::bytea []) AS initiator_address,
-                        UNNEST($3::int []) AS nonce,
+                        UNNEST($3::bigint []) AS nonce,
                         UNNEST($4::bytea []) AS signature,
                         UNNEST($5::numeric []) AS gas_limit,
                         UNNEST($6::numeric []) AS max_fee_per_gas,
@@ -859,7 +869,8 @@ impl TransactionsDal<'_, '_> {
                         UNNEST($17::integer []) AS index_in_block,
                         UNNEST($18::varchar []) AS error,
                         UNNEST($19::numeric []) AS effective_gas_price,
-                        UNNEST($20::bigint []) AS refunded_gas
+                        UNNEST($20::bigint []) AS refunded_gas,
+                        UNNEST($21::numeric []) AS nonce_key
                 ) AS data_table
             "#,
             &l2_hashes as &[&[u8]],
@@ -882,6 +893,7 @@ impl TransactionsDal<'_, '_> {
             &l2_errors as &[&str],
             &l2_effective_gas_prices,
             &l2_refunded_gas,
+            &l2_nonce_keys,
             l2_block_number.0 as i32,
         );
 
@@ -920,6 +932,7 @@ impl TransactionsDal<'_, '_> {
         let mut l2_indices_in_block = Vec::with_capacity(l2_txs_len);
         let mut l2_initiators = Vec::with_capacity(l2_txs_len);
         let mut l2_nonces = Vec::with_capacity(l2_txs_len);
+        let mut l2_nonce_keys = Vec::with_capacity(l2_txs_len);
         let mut l2_signatures = Vec::with_capacity(l2_txs_len);
         let mut l2_tx_formats = Vec::with_capacity(l2_txs_len);
         let mut l2_errors = Vec::with_capacity(l2_txs_len);
@@ -965,7 +978,8 @@ impl TransactionsDal<'_, '_> {
             l2_hashes.push(tx_res.hash.as_bytes());
             l2_indices_in_block.push(index_in_block as i32);
             l2_initiators.push(transaction.initiator_account().0);
-            l2_nonces.push(common_data.nonce.0 as i32);
+            l2_nonces.push(common_data.nonce.value().0 as i64);
+            l2_nonce_keys.push(u256_to_big_decimal(common_data.nonce.key().0));
             l2_signatures.push(&common_data.signature[..]);
             l2_tx_formats.push(common_data.transaction_type as i32);
             l2_errors.push(Self::map_transaction_error(tx_res));
@@ -1004,7 +1018,7 @@ impl TransactionsDal<'_, '_> {
                 input = data_table.input,
                 data = data_table.data,
                 tx_format = data_table.tx_format,
-                miniblock_number = $21,
+                miniblock_number = $22,
                 index_in_block = data_table.index_in_block,
                 error = NULLIF(data_table.error, ''),
                 effective_gas_price = data_table.effective_gas_price,
@@ -1024,7 +1038,7 @@ impl TransactionsDal<'_, '_> {
                         (
                             SELECT
                                 UNNEST($1::bytea []) AS initiator_address,
-                                UNNEST($2::int []) AS nonce,
+                                UNNEST($2::bigint []) AS nonce,
                                 UNNEST($3::bytea []) AS hash,
                                 UNNEST($4::bytea []) AS signature,
                                 UNNEST($5::numeric []) AS gas_limit,
@@ -1042,18 +1056,21 @@ impl TransactionsDal<'_, '_> {
                                 UNNEST($17::numeric []) AS value,
                                 UNNEST($18::bytea []) AS contract_address,
                                 UNNEST($19::bytea []) AS paymaster,
-                                UNNEST($20::bytea []) AS paymaster_input
+                                UNNEST($20::bytea []) AS paymaster_input,
+                                UNNEST($21::numeric []) AS nonce_key
                         ) AS data_table_temp
                     JOIN transactions
                         ON
                             transactions.initiator_address
                             = data_table_temp.initiator_address
+                            AND transactions.nonce_key = data_table_temp.nonce_key
                             AND transactions.nonce = data_table_temp.nonce
                     ORDER BY
                         transactions.hash
                 ) AS data_table
             WHERE
                 transactions.initiator_address = data_table.initiator_address
+                AND transactions.nonce_key = data_table.nonce_key
                 AND transactions.nonce = data_table.nonce
             "#,
             &l2_initiators as &[[u8; 20]],
@@ -1076,6 +1093,7 @@ impl TransactionsDal<'_, '_> {
             &l2_contract_addresses as &[Option<Vec<u8>>],
             &l2_paymaster as &[&[u8]],
             &l2_paymaster_input as &[&[u8]],
+            &l2_nonce_keys,
             l2_block_number.0 as i32,
         );
 
@@ -1802,26 +1820,34 @@ impl TransactionsDal<'_, '_> {
     /// the latter are only used to bootstrap mempool for given account.
     pub async fn sync_mempool(
         &mut self,
-        stashed_accounts: &[Address],
-        purged_accounts: &[Address],
+        stashed_accounts: &[(Address, NonceKey)],
+        purged_accounts: &[(Address, NonceKey)],
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         allow_l1_txs: bool,
         limit: usize,
     ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
-        let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
+        let (stashed_addresses, nonce_keys): (Vec<_>, Vec<_>) = stashed_accounts
+            .iter()
+            .map(|(addr, key)| (Address::as_bytes(addr), u256_to_big_decimal(key.0)))
+            .unzip();
         let result = sqlx::query!(
             r#"
             UPDATE transactions
             SET
                 in_mempool = FALSE
-            FROM
-                UNNEST($1::bytea []) AS s (address)
+            FROM (
+                SELECT
+                    UNNEST($1::bytea []) AS address,
+                    UNNEST($2::numeric []) AS nonce_key
+            ) AS s
             WHERE
                 transactions.in_mempool = TRUE
                 AND transactions.initiator_address = s.address
+                AND transactions.nonce_key = s.nonce_key
             "#,
             &stashed_addresses as &[&[u8]],
+            &nonce_keys
         )
         .instrument("sync_mempool#update_stashed")
         .with_arg("stashed_addresses.len", &stashed_addresses.len())
@@ -1832,18 +1858,27 @@ impl TransactionsDal<'_, '_> {
             "Updated {} transactions for stashed accounts, stashed accounts amount: {}, stashed_accounts: {:?}",
             result.rows_affected(),
             stashed_addresses.len(),
-            stashed_accounts.iter().map(|a|format!("{:x}", a)).collect::<Vec<_>>()
+            stashed_accounts.iter().map(|(a, _)|format!("{:x}", a)).collect::<Vec<_>>()
         );
 
-        let purged_addresses: Vec<_> = purged_accounts.iter().map(Address::as_bytes).collect();
+        let (purged_addresses, nonce_keys): (Vec<_>, Vec<_>) = purged_accounts
+            .iter()
+            .map(|(addr, key)| (Address::as_bytes(addr), u256_to_big_decimal(key.0)))
+            .unzip();
         let result = sqlx::query!(
             r#"
             DELETE FROM transactions
+            USING
+                unnest($1::bytea [], $2::numeric []) AS purged (
+                    initiator_address, nonce_key
+                )
             WHERE
                 in_mempool = TRUE
-                AND initiator_address = ANY($1)
+                AND transactions.initiator_address = purged.initiator_address
+                AND transactions.nonce_key = purged.nonce_key
             "#,
-            &purged_addresses as &[&[u8]]
+            &purged_addresses as &[&[u8]],
+            &nonce_keys
         )
         .instrument("sync_mempool#delete_purged")
         .with_arg("purged_addresses.len", &purged_addresses.len())

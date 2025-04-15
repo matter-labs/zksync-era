@@ -57,7 +57,7 @@ where
 
         let nonce = match self.nonce {
             Some(nonce) => nonce,
-            None => Nonce(self.wallet.get_nonce().await?),
+            None => Nonce(self.wallet.get_nonce().await?.into()),
         };
 
         let main_contract_hash = BytecodeHash::for_bytecode(&bytecode).value();
@@ -147,7 +147,7 @@ where
         let l2_tx = L2Tx::new(
             Some(CONTRACT_DEPLOYER_ADDRESS),
             Execute::encode_deploy_params_create(Default::default(), main_contract_hash, calldata),
-            Nonce(0),
+            Nonce(0.into()),
             Default::default(),
             self.wallet.address(),
             self.value.unwrap_or_default(),

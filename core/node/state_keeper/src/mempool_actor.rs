@@ -11,7 +11,10 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{
+    get_keyed_nonce_key, get_nonce_key, h256_to_u256, vm::VmVersion, Address, NonceKey, NonceValue,
+    Transaction,
+};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::v26_utils::find_unsafe_deposit;
@@ -209,29 +212,37 @@ impl MempoolFetcher {
 async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
     transactions: &[&Transaction],
-) -> anyhow::Result<HashMap<Address, Nonce>> {
-    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+) -> anyhow::Result<HashMap<(Address, NonceKey), NonceValue>> {
+    let (nonce_storage_keys, address_by_storage_key): (Vec<_>, HashMap<_, _>) = transactions
         .iter()
-        .map(|tx| {
-            let address = tx.initiator_account();
-            let nonce_key = get_nonce_key(&address).hashed_key();
-            (nonce_key, (nonce_key, address))
+        .filter_map(|tx| {
+            tx.nonce().map(|nonce| {
+                let nonce_storage_key = if nonce.key().0.is_zero() {
+                    get_nonce_key(&tx.initiator_account()).hashed_key()
+                } else {
+                    get_keyed_nonce_key(&tx.initiator_account(), nonce.key().0).hashed_key()
+                };
+                (
+                    nonce_storage_key,
+                    (nonce_storage_key, (tx.initiator_account(), nonce.key())),
+                )
+            })
         })
         .unzip();
 
     let nonce_values = storage
         .storage_web3_dal()
-        .get_values(&nonce_keys)
+        .get_values(&nonce_storage_keys)
         .await
         .context("failed getting nonces from storage")?;
 
     Ok(nonce_values
         .into_iter()
-        .map(|(nonce_key, nonce_value)| {
-            // `unwrap()` is safe by construction.
-            let be_u32_bytes: [u8; 4] = nonce_value[28..].try_into().unwrap();
-            let nonce = Nonce(u32::from_be_bytes(be_u32_bytes));
-            (address_by_nonce_key[&nonce_key], nonce)
+        .map(|(nonce_storage_key, nonce_value)| {
+            (
+                address_by_storage_key[&nonce_storage_key],
+                NonceValue(h256_to_u256(nonce_value).low_u64()),
+            )
         })
         .collect())
 }
@@ -243,7 +254,8 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
-        u256_to_h256, L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog, H256,
+        u256_to_h256, L2BlockNumber, Nonce, NonceKey, NonceValue, PriorityOpId, ProtocolVersionId,
+        StorageLog, H256,
     };
 
     use super::*;
@@ -290,8 +302,11 @@ mod tests {
         assert_eq!(
             nonces,
             HashMap::from([
-                (transaction_initiator, Nonce(42)),
-                (other_transaction_initiator, Nonce(0)),
+                ((transaction_initiator, NonceKey(0.into())), NonceValue(42)),
+                (
+                    (other_transaction_initiator, NonceKey(0.into())),
+                    NonceValue(0)
+                ),
             ])
         );
     }
@@ -434,7 +449,7 @@ mod tests {
 
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee * 2, gas_per_pubdata * 2);
-        assert_eq!(transaction.nonce(), Nonce(0));
+        assert_eq!(transaction.nonce(), Nonce(0.into()));
         let transaction_hash = transaction.hash();
         let nonce_key = get_nonce_key(&transaction.initiator_account());
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));

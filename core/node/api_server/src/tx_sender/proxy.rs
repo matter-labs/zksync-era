@@ -54,7 +54,7 @@ impl TxCacheInner {
             let stored_nonce = nonces_for_accounts
                 .get(address)
                 .copied()
-                .unwrap_or(Nonce(0));
+                .unwrap_or(Nonce(0.into()));
             // Retain only nonces starting from the stored one, and remove transactions with all past nonces;
             // this includes both successfully executed and replaced transactions.
             let retained_nonces = account_nonces.split_off(&stored_nonce);
@@ -267,9 +267,9 @@ impl TxProxy {
     async fn next_nonce_by_initiator_account(
         &self,
         account_address: Address,
-        current_nonce: u32,
+        current_nonce: Nonce,
     ) -> Nonce {
-        let mut pending_nonce = Nonce(current_nonce);
+        let mut pending_nonce = current_nonce;
         let nonces = self.tx_cache.get_nonces_for_account(account_address).await;
         for nonce in nonces.range(pending_nonce + 1..) {
             // If nonce is not sequential, then we should not increment nonce.
@@ -328,7 +328,7 @@ impl TxSink for TxProxy {
     async fn lookup_pending_nonce(
         &self,
         account_address: Address,
-        last_known_nonce: u32,
+        last_known_nonce: Nonce,
     ) -> Result<Option<Nonce>, Web3Error> {
         // EN: get pending nonces from the transaction cache
         // We don't have mempool in EN, it's safe to use the proxy cache as a mempool
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(found_tx.hash, tx.hash());
 
         let pending_nonce = proxy
-            .lookup_pending_nonce(tx.initiator_account(), 0)
+            .lookup_pending_nonce(tx.initiator_account(), Nonce(0.into()))
             .await
             .unwrap()
             .expect("no nonce");
@@ -463,7 +463,7 @@ mod tests {
             tx_cache
                 .get_nonces_for_account(tx.initiator_account())
                 .await,
-            BTreeSet::from([Nonce(0)])
+            BTreeSet::from([Nonce(0.into())])
         );
 
         tx_cache.remove(tx_hash).await;
@@ -502,7 +502,7 @@ mod tests {
             tx_cache
                 .get_nonces_for_account(tx.initiator_account())
                 .await,
-            BTreeSet::from([Nonce(0)])
+            BTreeSet::from([Nonce(0.into())])
         );
 
         tx_cache.remove(tx_hash).await;
@@ -511,7 +511,7 @@ mod tests {
             tx_cache
                 .get_nonces_for_account(tx.initiator_account())
                 .await,
-            BTreeSet::from([Nonce(0)])
+            BTreeSet::from([Nonce(0.into())])
         );
     }
 
@@ -611,7 +611,7 @@ mod tests {
                 .contains_key(&tx.initiator_account()));
             assert!(cache_inner
                 .tx_hashes_by_initiator
-                .contains_key(&(tx.initiator_account(), Nonce(0))));
+                .contains_key(&(tx.initiator_account(), Nonce(0.into()))));
         }
 
         // Emulate the transaction getting sealed.
@@ -640,7 +640,7 @@ mod tests {
                 .contains_key(&tx.initiator_account()));
             assert!(!cache_inner
                 .tx_hashes_by_initiator
-                .contains_key(&(tx.initiator_account(), Nonce(0))));
+                .contains_key(&(tx.initiator_account(), Nonce(0.into()))));
         }
 
         let looked_up_tx = proxy
@@ -669,7 +669,7 @@ mod tests {
         replacing_tx.common_data.initiator_address = tx.initiator_account();
         let mut future_tx = create_l2_transaction(10, 100);
         future_tx.common_data.initiator_address = tx.initiator_account();
-        future_tx.common_data.nonce = Nonce(1);
+        future_tx.common_data.nonce = Nonce(1.into());
 
         let main_node_client = MockClient::builder(L2::default())
             .method("eth_sendRawTransaction", |_bytes: Bytes| Ok(H256::zero()))
@@ -703,14 +703,17 @@ mod tests {
             let cache_inner = proxy.tx_cache.inner.read().await;
             assert_eq!(cache_inner.nonces_by_account.len(), 1);
             let account_nonces = &cache_inner.nonces_by_account[&tx.initiator_account()];
-            assert_eq!(*account_nonces, BTreeSet::from([Nonce(0), Nonce(1)]));
+            assert_eq!(
+                *account_nonces,
+                BTreeSet::from([Nonce(0.into()), Nonce(1.into())])
+            );
             assert_eq!(cache_inner.tx_hashes_by_initiator.len(), 2);
             assert_eq!(
-                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(0))],
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(0.into()))],
                 HashSet::from([tx.hash(), replacing_tx.hash()])
             );
             assert_eq!(
-                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1.into()))],
                 HashSet::from([future_tx.hash()])
             );
         }
@@ -742,13 +745,13 @@ mod tests {
                 .contains_key(&replacing_tx.hash()));
             assert_eq!(
                 cache_inner.nonces_by_account[&tx.initiator_account()],
-                BTreeSet::from([Nonce(1)])
+                BTreeSet::from([Nonce(1.into())])
             );
             assert!(!cache_inner
                 .tx_hashes_by_initiator
-                .contains_key(&(tx.initiator_account(), Nonce(0))));
+                .contains_key(&(tx.initiator_account(), Nonce(0.into()))));
             assert_eq!(
-                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1))],
+                cache_inner.tx_hashes_by_initiator[&(tx.initiator_account(), Nonce(1.into()))],
                 HashSet::from([future_tx.hash()])
             );
         }

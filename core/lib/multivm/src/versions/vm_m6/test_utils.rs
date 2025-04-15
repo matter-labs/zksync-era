@@ -161,7 +161,7 @@ pub fn get_create_execute(code: &[u8], calldata: &[u8]) -> Execute {
 pub fn get_create_zksync_address(sender_address: Address, sender_nonce: Nonce) -> Address {
     let prefix = keccak256("zksyncCreate".as_bytes());
     let address = address_to_h256(&sender_address);
-    let nonce = u256_to_h256(U256::from(sender_nonce.0));
+    let nonce = u256_to_h256(sender_nonce.0);
 
     let digest = prefix
         .iter()

@@ -160,7 +160,7 @@ impl EthTxManager {
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
             tracing::info!(
-                "Resending {operator_type:?} tx {} (nonce {}) \
+                "Resending {operator_type:?} tx {} (nonce {:?}) \
                 at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
@@ -182,7 +182,7 @@ impl EthTxManager {
             );
         } else {
             tracing::info!(
-                "Sending {operator_type:?} tx {} (nonce {}) \
+                "Sending {operator_type:?} tx {} (nonce {:?}) \
                 at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
@@ -246,7 +246,7 @@ impl EthTxManager {
                 .await
             {
                 tracing::warn!(
-                    "Error Sending {operator_type:?} tx {} (nonce {}) at block {current_block} with \
+                    "Error Sending {operator_type:?} tx {} (nonce {:?}) at block {current_block} with \
                     base_fee_per_gas {base_fee_per_gas:?}, \
                     priority_fee_per_gas {priority_fee_per_gas:?}, \
                     blob_fee_per_gas {blob_base_fee_per_gas:?},\
@@ -380,7 +380,7 @@ impl EthTxManager {
         tracing::trace!(
             "Going through not confirmed txs. \
              Block numbers: latest {}, finalized {}, \
-             operator's nonce: latest {}, finalized {}",
+             operator's nonce: latest {:?}, finalized {:?}",
             l1_block_numbers.latest,
             l1_block_numbers.finalized,
             operator_nonce.latest,
@@ -390,7 +390,7 @@ impl EthTxManager {
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
             tracing::info!(
-                "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {}",
+                "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {:?}",
                 tx.id,
                 operator_nonce,
                 tx.nonce,
@@ -432,13 +432,13 @@ impl EthTxManager {
 
             tracing::trace!(
                 "Sender's nonce on finalized block is greater than current tx's nonce. \
-                 Checking transaction with id {}. Tx nonce is equal to {}",
+                 Checking transaction with id {} and nonce {:?}",
                 tx.id,
                 tx.nonce,
             );
 
             tracing::info!(
-                "Updating status of tx {} of type {} with nonce {}",
+                "Updating status of tx {} of type {} with nonce {:?}",
                 tx.id,
                 tx.tx_type,
                 tx.nonce

@@ -15,7 +15,8 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     u256_to_h256, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    L2TxCommonData, Nonce, NonceKey, NonceValue, PriorityOpId, ProtocolVersionId, Transaction,
+    H256,
 };
 
 use super::*;
@@ -378,9 +379,15 @@ impl ProtoRepr for proto::Transaction {
                 }
                 proto::transaction::CommonData::L2(common_data) => {
                     ExecuteTransactionCommon::L2(L2TxCommonData {
-                        nonce: required(&common_data.nonce)
-                            .map(|x| Nonce(*x))
-                            .context("common_data.nonce")?,
+                        nonce: Nonce::combine(
+                            NonceKey(match common_data.nonce_key.as_ref() {
+                                None => Default::default(), // zero nonce key
+                                Some(nonce_key) => parse_h256(nonce_key)
+                                    .map(h256_to_u256)
+                                    .context("common_data.nonce_key")?,
+                            }),
+                            NonceValue(*required(&common_data.nonce).context("common_data.nonce")?),
+                        ),
                         fee: Fee {
                             gas_limit: required(&common_data.gas_limit)
                                 .and_then(|x| parse_h256(x))
@@ -513,7 +520,9 @@ impl ProtoRepr for proto::Transaction {
             }
             ExecuteTransactionCommon::L2(data) => {
                 proto::transaction::CommonData::L2(proto::L2TxCommonData {
-                    nonce: Some(data.nonce.0),
+                    nonce: Some(data.nonce.value().0),
+                    nonce_key: (!data.nonce.key().0.is_zero())
+                        .then(|| u256_to_h256(data.nonce.key().0).as_bytes().into()),
                     gas_limit: Some(u256_to_h256(data.fee.gas_limit).as_bytes().into()),
                     max_fee_per_gas: Some(u256_to_h256(data.fee.max_fee_per_gas).as_bytes().into()),
                     max_priority_fee_per_gas: Some(

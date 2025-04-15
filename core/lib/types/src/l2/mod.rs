@@ -58,9 +58,9 @@ pub struct L2TxCommonData {
     pub initiator_address: Address,
     pub signature: Vec<u8>,
     pub transaction_type: TransactionType,
-    /// This input consists of raw transaction bytes when we receive it from API.    
+    /// This input consists of raw transaction bytes when we receive it from API.
     /// But we still use this structure for zksync-rs and tests, and we don't have raw tx before
-    /// creating the structure. We setup this field manually later for consistency.    
+    /// creating the structure. We setup this field manually later for consistency.
     /// We need some research on how to change it
     pub input: Option<InputData>,
 
@@ -132,7 +132,7 @@ impl L2TxCommonData {
 impl Default for L2TxCommonData {
     fn default() -> Self {
         Self {
-            nonce: Nonce(0),
+            nonce: Default::default(),
             fee: Default::default(),
             initiator_address: Address::zero(),
             signature: Default::default(),
@@ -325,7 +325,7 @@ impl From<L2Tx> for TransactionRequest {
         let (v, r, s) = signature_to_vrs(&tx.common_data.signature, tx_type);
 
         let mut base_tx_req = TransactionRequest {
-            nonce: U256::from(tx.common_data.nonce.0),
+            nonce: tx.common_data.nonce.0,
             from: Some(tx.common_data.initiator_address),
             to: tx.recipient_account(),
             value: tx.execute.value,
@@ -405,10 +405,13 @@ impl From<L2Tx> for api::Transaction {
             _ => v,
         };
 
+        let (nonce_key, nonce_value) = tx.common_data.nonce.split();
+
         Self {
             hash: tx.hash(),
             chain_id: U256::from(tx.common_data.extract_chain_id().unwrap_or_default()),
-            nonce: U256::from(tx.common_data.nonce.0),
+            nonce: nonce_value.0.into(),
+            nonce_key: (!nonce_key.0.is_zero()).then_some(nonce_key.0),
             from: Some(tx.common_data.initiator_address),
             to: tx.recipient_account(),
             value: tx.execute.value,
@@ -474,7 +477,7 @@ impl EIP712TypedStructure for L2Tx {
             "maxPriorityFeePerGas",
             &self.common_data.fee.max_priority_fee_per_gas,
         );
-        builder.add_member("nonce", &U256::from(self.common_data.nonce.0));
+        builder.add_member("nonce", &self.common_data.nonce.0);
     }
 }
 
@@ -500,7 +503,7 @@ mod tests {
                 factory_deps: vec![],
             },
             common_data: L2TxCommonData {
-                nonce: Nonce(0),
+                nonce: Nonce(0.into()),
                 fee: Fee::default(),
                 initiator_address: Default::default(),
                 signature: signature.clone(),
