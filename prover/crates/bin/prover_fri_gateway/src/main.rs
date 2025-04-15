@@ -90,7 +90,9 @@ async fn main() -> anyhow::Result<()> {
             ]
         }
         ApiMode::ProverCluster => {
-            let port = config.port.expect("Port must be specified in ProverCluster mode");
+            let port = config
+                .port
+                .expect("Port must be specified in ProverCluster mode");
 
             let processor = Processor::new(store_factory.create_store().await?, pool);
 

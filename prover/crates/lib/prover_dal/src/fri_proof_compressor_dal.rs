@@ -225,7 +225,10 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) -> Result<(), DalError> {
+    pub async fn mark_proof_sent_to_server(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> Result<(), DalError> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri

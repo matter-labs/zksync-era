@@ -23,7 +23,6 @@ impl FriProverGatewayConfig {
     }
 }
 
-
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub enum ApiMode {
     /// The legacy API mode, which is compatible with the old prover API.
