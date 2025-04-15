@@ -163,13 +163,17 @@ impl ExternalIO {
     }
 }
 
+#[async_trait]
 impl IoSealCriteria for ExternalIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, _manager: &UpdatesManager) -> bool {
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        _manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
         if !matches!(self.actions.peek_action(), Some(SyncAction::SealBatch)) {
-            return false;
+            return Ok(false);
         }
         self.actions.pop_action();
-        true
+        Ok(true)
     }
 
     fn should_seal_l2_block(&mut self, _manager: &UpdatesManager) -> bool {
