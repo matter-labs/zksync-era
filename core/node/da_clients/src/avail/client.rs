@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -146,8 +146,8 @@ impl AvailClient {
                 let sdk_client = RawAvailClient::new(
                     conf.app_id,
                     seed_phrase.0.expose_secret(),
-                    conf.finality_state()?,
-                    conf.dispatch_timeout(),
+                    conf.finality_state,
+                    conf.dispatch_timeout,
                 )
                 .await?;
 
@@ -252,7 +252,7 @@ impl DataAvailabilityClient for AvailClient {
         let response = self
             .api_client
             .get(url)
-            .timeout(Duration::from_millis(self.config.timeout_ms as u64))
+            .timeout(self.config.timeout)
             .send()
             .await
             .map_err(to_retriable_da_error)?;
