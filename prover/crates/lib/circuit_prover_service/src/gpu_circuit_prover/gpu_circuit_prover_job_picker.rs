@@ -56,7 +56,7 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .await
             .context("no witness vector generators are available, stopping...")?;
         let WitnessVectorGeneratorExecutionOutput {
-            circuit,
+            circuit_wrapper,
             witness_vector,
         } = wvg_output;
 
@@ -72,7 +72,7 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .clone();
 
         let payload = GpuCircuitProverPayload {
-            circuit,
+            circuit_wrapper,
             witness_vector,
             setup_data,
         };

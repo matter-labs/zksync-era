@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use zksync_prover_task::Task;
+
 use super::{
     queuer,
     scaler::{Scaler, ScalerConfig, ScalerTrait},
@@ -11,7 +13,6 @@ use crate::{
     config::{ProverAutoscalerScalerConfig, QueueReportFields, ScalerTargetType},
     key::{GpuKey, NoKey},
     metrics::AUTOSCALER_METRICS,
-    task_wiring::Task,
 };
 
 pub struct Manager {

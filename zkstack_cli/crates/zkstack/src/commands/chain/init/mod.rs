@@ -2,11 +2,9 @@ use anyhow::Context;
 use clap::{command, Parser, Subcommand};
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
-use zkstack_cli_config::{
-    get_da_client_type, traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig,
-};
+use zkstack_cli_config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
-use zksync_types::Address;
+use zksync_basic_types::Address;
 
 use crate::{
     accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},
@@ -255,7 +253,7 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
         L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
         L1BatchCommitmentMode::Validium => {
             let general_config = chain_config.get_general_config().await?;
-            match get_da_client_type(&general_config) {
+            match general_config.da_client_type() {
                 Some("avail") => contracts_config.l1.avail_l1_da_validator_addr,
                 Some("no_da") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
                 Some("eigen") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1

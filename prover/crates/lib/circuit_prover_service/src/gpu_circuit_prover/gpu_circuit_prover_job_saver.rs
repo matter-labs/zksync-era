@@ -80,6 +80,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .fri_prover_jobs_dal()
                     .save_proof(metadata.id, metadata.pick_time.elapsed(), &blob_url)
                     .await;
+
                 if is_scheduler_proof {
                     transaction
                         .fri_proof_compressor_dal()
@@ -87,6 +88,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
                             metadata.block_number,
                             &blob_url,
                             self.protocol_version,
+                            metadata.batch_sealed_at,
                         )
                         .await;
                 }
