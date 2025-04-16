@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use xshell::Shell;
-use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId, SLChainId};
+use zksync_basic_types::{L1ChainId, L2ChainId, SLChainId};
 
 use crate::raw::PatchedConfig;
 

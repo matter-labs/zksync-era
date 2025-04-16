@@ -418,9 +418,7 @@ impl Aggregator {
         )
         .await;
 
-        let Some(batches) = batches else {
-            return None;
-        };
+        let batches = batches?;
 
         // Note: the line below only works correctly during rollup <-> validium transitions
         // if the limit of commit operation is set to 1.
