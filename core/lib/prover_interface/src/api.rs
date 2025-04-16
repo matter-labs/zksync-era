@@ -73,7 +73,7 @@ pub struct PollGeneratedProofsRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GetNextProofResponse {
+pub struct PollGeneratedProofsResponse {
     pub l1_batch_number: L1BatchNumber,
     pub proof: JsonL1BatchProofForL1,
 }
