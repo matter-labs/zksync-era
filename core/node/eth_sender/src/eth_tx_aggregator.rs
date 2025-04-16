@@ -21,6 +21,7 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
+    server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
@@ -35,12 +36,6 @@ use crate::{
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
-
-#[derive(Debug, PartialEq)]
-pub enum GatewayMigrationState {
-    InProgress,
-    NotInProgress,
-}
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
@@ -880,43 +875,13 @@ impl EthTxAggregator {
     }
 
     async fn gateway_status(&self, storage: &mut Connection<'_, Core>) -> GatewayMigrationState {
-        let to_gateway = self
-            .functions
-            .server_notifier_contract
-            .event("MigrateToGateway")
-            .unwrap()
-            .signature();
-        let from_gateway = self
-            .functions
-            .server_notifier_contract
-            .event("MigrateFromGateway")
-            .unwrap()
-            .signature();
-
         let notification = storage
             .server_notifications_dal()
-            .get_last_notification_by_topics(&[to_gateway, from_gateway])
+            .get_latest_gateway_migration_notification()
             .await
             .unwrap();
 
-        notification
-            .map(|a| match self.settlement_layer {
-                SettlementLayer::L1(_) => {
-                    if a.main_topic == to_gateway {
-                        GatewayMigrationState::InProgress
-                    } else {
-                        GatewayMigrationState::NotInProgress
-                    }
-                }
-                SettlementLayer::Gateway(_) => {
-                    if a.main_topic == from_gateway {
-                        GatewayMigrationState::InProgress
-                    } else {
-                        GatewayMigrationState::NotInProgress
-                    }
-                }
-            })
-            .unwrap_or(GatewayMigrationState::NotInProgress)
+        GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 }
 
