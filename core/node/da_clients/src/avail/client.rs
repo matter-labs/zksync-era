@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use http::StatusCode;
 use jsonrpsee::ws_client::WsClientBuilder;
@@ -126,7 +126,9 @@ impl AvailClient {
         let api_client = Arc::new(reqwest::Client::new());
         match config.config.clone() {
             AvailClientConfig::GasRelay(conf) => {
-                let gas_relay_api_key = secrets.gas_relay_api_key;
+                let gas_relay_api_key = secrets
+                    .gas_relay_api_key
+                    .context("Gas relay API key is missing")?;
                 let gas_relay_client = GasRelayClient::new(
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
@@ -141,7 +143,7 @@ impl AvailClient {
                 })
             }
             AvailClientConfig::FullClient(conf) => {
-                let seed_phrase = secrets.seed_phrase;
+                let seed_phrase = secrets.seed_phrase.context("Seed phrase is missing")?;
 
                 let sdk_client = RawAvailClient::new(
                     conf.app_id,

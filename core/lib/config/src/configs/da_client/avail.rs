@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use smart_config::{
-    de::{FromSecretString, WellKnown},
+    de::{FromSecretString, Optional, WellKnown},
     DescribeConfig, DeserializeConfig, Serde,
 };
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
@@ -67,8 +67,8 @@ pub struct AvailGasRelayConfig {
 
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 pub struct AvailSecrets {
-    #[config(with = FromSecretString)]
-    pub seed_phrase: SeedPhrase,
-    #[config(with = FromSecretString)]
-    pub gas_relay_api_key: APIKey,
+    #[config(with = Optional(FromSecretString))]
+    pub seed_phrase: Option<SeedPhrase>,
+    #[config(with = Optional(FromSecretString))]
+    pub gas_relay_api_key: Option<APIKey>,
 }

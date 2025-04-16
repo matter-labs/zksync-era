@@ -123,10 +123,13 @@ mod tests {
             panic!("unexpected DA secrets");
         };
         assert_eq!(
-            avail.seed_phrase.0.expose_secret(),
+            avail.seed_phrase.unwrap().0.expose_secret(),
             "correct horse battery staple"
         );
-        assert_eq!(avail.gas_relay_api_key.0.expose_secret(), "SUPER_SECRET");
+        assert_eq!(
+            avail.gas_relay_api_key.unwrap().0.expose_secret(),
+            "SUPER_SECRET"
+        );
     }
 
     // Migration path: shorten `DA_SECRETS_*` -> `DA_*`.
