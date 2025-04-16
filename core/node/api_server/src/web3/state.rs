@@ -27,8 +27,9 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::SettlementLayer,
+    transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -175,6 +176,7 @@ pub struct InternalApiConfig {
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl InternalApiConfig {
@@ -183,6 +185,7 @@ impl InternalApiConfig {
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         Self {
             l1_chain_id: base.l1_chain_id,
@@ -217,6 +220,7 @@ impl InternalApiConfig {
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l2_multicall3: l2_contracts.multicall3,
             l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
+            settlement_layer,
         }
     }
 
@@ -227,6 +231,7 @@ impl InternalApiConfig {
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
         l1_to_l2_txs_paused: bool,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         let base = InternalApiConfigBase::new(genesis_config, web3_config)
             .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
@@ -235,6 +240,7 @@ impl InternalApiConfig {
             l1_contracts_config,
             l1_ecosystem_contracts,
             l2_contracts,
+            settlement_layer,
         )
     }
 }

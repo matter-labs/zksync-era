@@ -174,6 +174,7 @@ impl ContractsConfig {
             shared_bridge: self.bridges.shared.l1_address,
             erc_20_bridge: self.bridges.erc20.l1_address,
             base_token_address: self.l1.base_token_addr,
+            chain_admin: Some(self.l1.chain_admin_addr),
         }
     }
 
@@ -207,7 +208,6 @@ impl ContractsConfig {
             },
             chain_contracts_config: ChainContracts {
                 diamond_proxy_addr: self.l1.diamond_proxy_addr,
-                chain_admin: Some(self.l1.chain_admin_addr),
             },
         }
     }
@@ -231,7 +231,6 @@ impl ContractsConfig {
 #[derive(Debug, Clone)]
 pub struct ChainContracts {
     pub diamond_proxy_addr: Address,
-    pub chain_admin: Option<Address>,
 }
 
 #[cfg(test)]
