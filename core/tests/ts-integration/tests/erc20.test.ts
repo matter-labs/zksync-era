@@ -17,7 +17,6 @@ import {
     ArtifactL2MessageVerification,
     ETH_ADDRESS_IN_CONTRACTS
 } from '../src/constants';
-import { RetryProvider } from '../src/retry-provider';
 
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
