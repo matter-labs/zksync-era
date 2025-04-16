@@ -50,7 +50,6 @@ http.workspace = true
 bincode.workspace = true
 celestia-types.workspace = true
 secp256k1.workspace = true
-sp1-sdk.workspace = true
 sha2.workspace = true
 prost.workspace = true
 bech32.workspace = true

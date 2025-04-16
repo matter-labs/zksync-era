@@ -1839,7 +1839,7 @@
     sinon-chai "^3.7.0"
     undici "^6.18.2"
 
-"@matterlabs/hardhat-zksync-solc@^1.2.5", "@matterlabs/hardhat-zksync-solc@^1.2.6":
+"@matterlabs/hardhat-zksync-solc@^1.2.6":
   version "1.2.6"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.2.6.tgz#fb2d7b585d4551af01ef7a1af3d3e0d4ff6b90ba"
   integrity sha512-9hje3aOKsW90hDxL7THW8ZuJGnGSS1rcaRNPkDXP7ROCgcF5AYKYpf+NPa6zXZRpVexxJM1e2HKyLgos2Fe8ZQ==

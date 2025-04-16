@@ -17,7 +17,6 @@ use eq_sdk::{
     EqClient,
     KeccakInclusionToDataRootProofOutput,
 };
-use sp1_sdk::SP1ProofWithPublicValues;
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_types::{
@@ -91,7 +90,7 @@ impl CelestiaClient {
     async fn get_proof_data(
         &self,
         blob_id: &str,
-    ) -> Result<Option<(FixedBytes, FixedBytes, SP1ProofWithPublicValues)>, DAError> {
+    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, DAError> {
         tracing::debug!("Parsing blob id: {}", blob_id);
         let blob_id_struct = blob_id
             .parse::<BlobId>()
@@ -145,17 +144,13 @@ impl CelestiaClient {
         };
         tracing::debug!("Got proof data from eq-service: {:?}", proof_data);
 
-        let proof: SP1ProofWithPublicValues = bincode::deserialize(&proof_data).unwrap();
-        let public_values_bytes = proof.public_values.to_vec();
-        //let (keccak_hash, data_root) = 
-        let proof_outputs = KeccakInclusionToDataRootProofOutput::from_bytes(&public_values_bytes).map_err(to_non_retriable_da_error)?;
-        tracing::debug!(
-            "Decoded public values from SP1 proof {:?} {:?}",
-            proof_outputs.keccak_hash,
-            proof_outputs.data_root
-        );
+        /*let data_root = proof_data[0..32].to_vec();
+        let keccak_hash = proof_data[32..64].to_vec();
+        let proof = proof_data[64..].to_vec();*/
 
-        Ok(Some((FixedBytes::from(proof_outputs.keccak_hash), FixedBytes::from(proof_outputs.data_root), proof)))
+        let proof = proof_data.proof_data;
+        let public_values = proof_data.public_values;
+        Ok(Some((public_values, proof)))
     }
 }
 
@@ -300,15 +295,15 @@ impl DataAvailabilityClient for CelestiaClient {
             proof: binary_merkle_proof,
         };
 
-        let (keccak_hash, data_root, proof) = match self.get_proof_data(blob_id).await? {
+        let (public_values, proof) = match self.get_proof_data(blob_id).await? {
             Some(p) => p,
             None => return Ok(None),
         };
 
         let celestia_zkstack_input = CelestiaZKStackInput {
             attestation_proof: attestation_proof,
-            equivalence_proof: Bytes::from(proof.bytes()),
-            public_values: Bytes::from(proof.public_values.to_vec()),
+            equivalence_proof: Bytes::from(proof),
+            public_values: Bytes::from(public_values),
         };
 
         Ok(Some(InclusionData {
