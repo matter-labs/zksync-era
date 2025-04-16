@@ -23,7 +23,8 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
         chain_config
             .get_genesis_config()
             .await?
-            .get::<u64>("l2_chain_id")?
+            .l2_chain_id()?
+            .as_u64()
             .to_string(),
     )
     .env(
@@ -37,14 +38,8 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
                 .address
         ),
     )
-    .env(
-        "L2_RPC_ADDRESS",
-        general_config.get::<String>("api.web3_json_rpc.http_url")?,
-    )
-    .env(
-        "L2_WS_RPC_ADDRESS",
-        general_config.get::<String>("api.web3_json_rpc.ws_url")?,
-    );
+    .env("L2_RPC_ADDRESS", general_config.l2_http_url()?)
+    .env("L2_WS_RPC_ADDRESS", general_config.l2_ws_url()?);
 
     if global_config().verbose {
         command = command.env("RUST_LOG", "loadnext=info")

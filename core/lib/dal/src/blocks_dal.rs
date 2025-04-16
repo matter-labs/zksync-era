@@ -1717,6 +1717,14 @@ impl BlocksDal<'_, '_> {
         &mut self,
         batch_number: L1BatchNumber,
     ) -> DalResult<Option<usize>> {
+        let Some((from_l2_block, to_l2_block)) = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_block_range_of_l1_batch(batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
         let row = sqlx::query!(
             r#"
             SELECT
@@ -1724,10 +1732,11 @@ impl BlocksDal<'_, '_> {
             FROM
                 transactions
             WHERE
-                l1_batch_number = $1
+                miniblock_number BETWEEN $1 AND $2
                 AND is_priority = TRUE
             "#,
-            i64::from(batch_number.0),
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_batch_first_priority_op_id")
         .with_arg("batch_number", &batch_number)
@@ -2372,6 +2381,15 @@ impl BlocksDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<HashMap<H256, Vec<u8>>> {
+        let Some((from_l2_block, to_l2_block)) = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(Default::default());
+        };
+
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -2379,11 +2397,11 @@ impl BlocksDal<'_, '_> {
                 bytecode
             FROM
                 factory_deps
-            INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
             WHERE
-                miniblocks.l1_batch_number = $1
+                miniblock_number BETWEEN $1 AND $2
             "#,
-            i64::from(l1_batch_number.0)
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_l1_batch_factory_deps")
         .with_arg("l1_batch_number", &l1_batch_number)
@@ -2881,6 +2899,14 @@ impl BlocksDal<'_, '_> {
     where
         L: From<StorageL2ToL1Log>,
     {
+        let Some((from_l2_block, to_l2_block)) = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
         let results = sqlx::query_as!(
             StorageL2ToL1Log,
             r#"
@@ -2889,7 +2915,7 @@ impl BlocksDal<'_, '_> {
                 log_index_in_miniblock,
                 log_index_in_tx,
                 tx_hash,
-                l1_batch_number,
+                miniblocks.l1_batch_number,
                 shard_id,
                 is_service,
                 tx_index_in_miniblock,
@@ -2901,12 +2927,13 @@ impl BlocksDal<'_, '_> {
                 l2_to_l1_logs
             JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
             WHERE
-                l1_batch_number = $1
+                miniblock_number BETWEEN $1 AND $2
             ORDER BY
                 miniblock_number,
                 log_index_in_miniblock
             "#,
-            i64::from(l1_batch_number.0)
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_l2_to_l1_logs_by_number")
         .with_arg("l1_batch_number", &l1_batch_number)

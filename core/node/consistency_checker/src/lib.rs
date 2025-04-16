@@ -135,6 +135,7 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
 struct LocalL1BatchCommitData {
     l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
+    commit_chain_id: Option<SLChainId>,
     commitment_mode: L1BatchCommitmentMode,
 }
 
@@ -188,10 +189,16 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         };
 
+        let commit_chain_id = storage
+            .eth_sender_dal()
+            .get_batch_commit_chain_id(batch_number)
+            .await?;
+
         let this = Self {
             l1_batch,
             commit_tx_hash,
             commitment_mode: pubdata_params.pubdata_type.into(),
+            commit_chain_id,
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -406,7 +413,7 @@ impl ConsistencyChecker {
         })
     }
 
-    pub fn with_l1_diamond_proxy_addr(mut self, address: Address) -> Self {
+    pub fn with_sl_diamond_proxy_addr(mut self, address: Address) -> Self {
         self.chain_data.diamond_proxy_addr = Some(address);
         self
     }
@@ -722,6 +729,27 @@ impl ConsistencyChecker {
                 continue;
             };
             drop(storage);
+
+            if let Some(commit_chain_id) = local.commit_chain_id {
+                if commit_chain_id != self.chain_data.chain_id {
+                    if batch_number < last_committed_batch {
+                        // It's ok to skip check for old batches.
+                        tracing::info!(
+                            "Skip checking batch #{batch_number}, it was committed to chain with id {commit_chain_id} \
+                            while node is configured to check on chain with id {}",
+                            self.chain_data.chain_id
+                        );
+                    } else {
+                        // Chain migrated to different SL, throw error so it can restart and reload SL data.
+                        anyhow::bail!(
+                            "Batch #{batch_number} was committed to chain with id {commit_chain_id} \
+                            while node is configured to check chain with id {}. Error is thrown so node can restart and reload SL data. \
+                            If node doesn't make any progress after restart, then it's bug, please contact developers.",
+                            self.chain_data.chain_id
+                        );
+                    }
+                }
+            }
 
             match self.check_commitments(batch_number, &local).await {
                 Ok(()) => {

@@ -76,6 +76,7 @@ mod tests {
                     tx_aggregation_paused: false,
                     time_in_mempool_in_l1_blocks_cap: 2000,
                     is_verifier_pre_fflonk: true,
+                    gas_limit_mode: Default::default(),
                 }),
                 Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,

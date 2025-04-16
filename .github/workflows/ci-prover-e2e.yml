@@ -11,6 +11,7 @@ jobs:
           compressor-mode: ["fflonk", "plonk"]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
+      YQ_VERSION: "4.45.1"
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -37,6 +38,9 @@ jobs:
           ci_run sccache --start-server
           ci_run git config --global --add safe.directory "*"
 
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
       - name: Init
         run: |
           ci_run chmod -R +x ./bin
@@ -61,14 +65,16 @@ jobs:
           ci_run zkstack ecosystem init --dev --update-submodules=true --verbose
 
           ci_run zkstack prover init --dev --verbose
-          echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
+          WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
+          echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
+          echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
 
       - name: Switch verifier to FFLONK interface
         working-directory: ./chains/proving_chain/configs
         if: matrix.compressor-mode == 'fflonk'
         run: |
-          sudo sed -i 's/is_verifier_pre_fflonk: true/is_verifier_pre_fflonk: false/' general.yaml
-          grep "is_verifier_pre_fflonk" general.yaml | awk '{ print $2 }'
+          sudo yq -e -i '.eth.sender.is_verifier_pre_fflonk = false' general.yaml
+          yq '.eth.sender.is_verifier_pre_fflonk' < general.yaml
 
       - name: Prepare prover subsystem
         run: |

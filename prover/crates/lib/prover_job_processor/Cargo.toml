@@ -18,5 +18,3 @@ tokio = { workspace = true, features = ["rt"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
-vise.workspace = true
-strum.workspace = true
