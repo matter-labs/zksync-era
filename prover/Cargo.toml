@@ -102,6 +102,7 @@ zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_prover_dal = { version = "=20.2.0", path = "crates/lib/prover_dal" }
 zksync_prover_fri_types = { version = "=20.2.0", path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { version = "=20.2.0", path = "crates/lib/prover_fri_utils" }
+zksync_prover_task = { version = "=20.2.0", path = "crates/lib/prover_task" }
 zksync_prover_keystore = { version = "=20.2.0", path = "crates/lib/keystore" }
 zksync_vk_setup_data_generator_server_fri = { version = "=20.2.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
 zksync_prover_job_processor = { version = "=20.2.0", path = "crates/lib/prover_job_processor" }

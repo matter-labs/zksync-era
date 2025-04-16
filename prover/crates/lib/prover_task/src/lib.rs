@@ -28,7 +28,6 @@ impl PeriodicTask {
         );
 
         let mut interval = tokio::time::interval(self.interval);
-
         while !*stop_receiver.borrow_and_update() {
             interval.tick().await;
             self.job
