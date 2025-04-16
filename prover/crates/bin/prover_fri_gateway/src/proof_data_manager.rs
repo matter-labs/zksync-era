@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
-use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
+use zksync_types::{
+    protocol_version::ProtocolSemanticVersion, prover_dal::ProofCompressionJobStatus, L1BatchNumber,
+};
 
 use super::error::ProcessorError;
 
@@ -47,6 +49,30 @@ impl ProofDataManager {
         };
 
         Ok(Some((l1_batch_number, proof)))
+    }
+
+    pub(crate) async fn get_proof_for_batch(
+        &self,
+        batch_number: L1BatchNumber,
+        protocol_version: ProtocolSemanticVersion,
+    ) -> Result<Option<L1BatchProofForL1>, ProcessorError> {
+        let proof = match self
+            .blob_store
+            .get::<L1BatchProofForL1>((batch_number, protocol_version))
+            .await
+        {
+            Ok(proof) => {
+                self.save_successful_sent_proof(batch_number).await?;
+                Some(proof)
+            }
+            Err(ObjectStoreError::KeyNotFound(_)) => None, // proof was not generated yet, nothing to send
+            Err(e) => {
+                tracing::error!("Failed to get proof for batch {batch_number}: {e}");
+                return Err(ProcessorError::ObjectStoreErr(e));
+            }
+        };
+
+        Ok(proof)
     }
 
     pub(crate) async fn save_successful_sent_proof(

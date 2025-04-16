@@ -7,8 +7,9 @@ use axum::{
     Json, Router,
 };
 use tokio::sync::watch;
-use zksync_prover_interface::api::{GetNextProofResponse, ProofGenerationData};
-use zksync_types::L1BatchNumber;
+use zksync_prover_interface::api::{
+    GetNextProofResponse, PollGeneratedProofsRequest, ProofGenerationData,
+};
 
 use crate::{error::ProcessorError, proof_data_manager::ProofDataManager};
 
@@ -20,14 +21,10 @@ pub struct Api {
 impl Api {
     pub fn new(processor: ProofDataManager, port: u16) -> Self {
         let router = Router::new()
-            .route("/poll_generated_proofs", get(Api::get_next_proof))
+            .route("/poll_generated_proofs", get(Api::get_generated_proofs))
             .route(
-                "/submit_prove_request",
+                "/submit_request_for_proofs",
                 post(Api::save_proof_generation_data),
-            )
-            .route(
-                "/acknowledge_received_proof",
-                post(Api::save_successful_sent_proof),
             )
             .with_state(processor);
 
@@ -57,21 +54,23 @@ impl Api {
         Ok(())
     }
 
-    async fn get_next_proof(
+    async fn get_generated_proofs(
         State(processor): State<ProofDataManager>,
+        Json(request): Json<PollGeneratedProofsRequest>,
     ) -> Result<Json<Option<GetNextProofResponse>>, ProcessorError> {
-        let proof = processor.get_next_proof().await;
+        let l1_batch_number = request.batch_number;
+        let protocol_version = request.protocol_version;
 
-        if let Some((l1_batch_number, proof)) = proof? {
-            let response = GetNextProofResponse {
-                l1_batch_number,
-                proof: proof.into(),
-            };
+        let proof = processor
+            .get_proof_for_batch(l1_batch_number, protocol_version)
+            .await?;
 
-            Ok(Json(Some(response)))
-        } else {
-            Ok(Json(None))
-        }
+        let response = proof.map(|proof| GetNextProofResponse {
+            l1_batch_number,
+            proof: proof.into(),
+        });
+
+        Ok(Json(response))
     }
 
     async fn save_proof_generation_data(
@@ -79,12 +78,5 @@ impl Api {
         Json(data): Json<ProofGenerationData>,
     ) -> Result<(), ProcessorError> {
         processor.save_proof_gen_data(data).await
-    }
-
-    async fn save_successful_sent_proof(
-        State(processor): State<ProofDataManager>,
-        Json(l1_batch_number): Json<L1BatchNumber>,
-    ) -> Result<(), ProcessorError> {
-        processor.save_successful_sent_proof(l1_batch_number).await
     }
 }
