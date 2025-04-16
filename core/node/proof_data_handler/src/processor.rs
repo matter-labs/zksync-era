@@ -1,39 +1,52 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, StoredObject};
 use zksync_prover_interface::{
-    api::{
-        ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-        SubmitProofRequest, SubmitProofResponse,
-    },
+    api::ProofGenerationData,
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
     outputs::L1BatchProofForL1,
-    Bincode,
+    Bincode, CBOR,
 };
 use zksync_types::{
     basic_fri_types::Eip4844Blobs,
     commitment::{serialize_commitments, L1BatchCommitmentMode},
+    protocol_version::ProtocolSemanticVersion,
     web3::keccak256,
     L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
-use crate::{errors::RequestProcessorError, metrics::METRICS};
+use crate::{errors::ProcessorError, metrics::METRICS};
+
+pub trait ProcessorMode {}
+
+/// Use this mode if you want to use the processor for testing.
+/// It will not lock the batch for proving and perform all the operations in read-only mode.
+#[derive(Clone)]
+pub struct Readonly;
+
+/// Use this mode if you want to use the processor for actual proving.
+/// It will lock the batch for proving and unlock it if the proof generation fails.
+#[derive(Clone)]
+pub struct Locking;
+
+impl ProcessorMode for Readonly {}
+impl ProcessorMode for Locking {}
 
 #[derive(Clone)]
-pub(crate) struct RequestProcessor {
+pub struct Processor<PM: ProcessorMode> {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    _marker: std::marker::PhantomData<PM>,
 }
 
-impl RequestProcessor {
-    pub(crate) fn new(
+impl<PM: ProcessorMode> Processor<PM> {
+    pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
@@ -44,62 +57,8 @@ impl RequestProcessor {
             pool,
             config,
             commitment_mode,
+            _marker: std::marker::PhantomData,
         }
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub(crate) async fn get_proof_generation_data(
-        &self,
-        request: Json<ProofGenerationDataRequest>,
-    ) -> Result<Json<ProofGenerationDataResponse>, RequestProcessorError> {
-        tracing::info!("Received request for proof generation data: {:?}", request);
-
-        let l1_batch_number = match self.lock_batch_for_proving().await? {
-            Some(number) => number,
-            None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
-        };
-
-        let proof_generation_data = self
-            .proof_generation_data_for_existing_batch(l1_batch_number)
-            .await;
-
-        // If we weren't able to fetch all the data, we should unlock the batch before returning.
-        match proof_generation_data {
-            Ok(data) => Ok(Json(ProofGenerationDataResponse::Success(Some(Box::new(
-                data,
-            ))))),
-            Err(err) => {
-                self.unlock_batch(l1_batch_number).await?;
-                Err(err)
-            }
-        }
-    }
-
-    /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
-    async fn lock_batch_for_proving(&self) -> Result<Option<L1BatchNumber>, RequestProcessorError> {
-        self.pool
-            .connection()
-            .await
-            .map_err(RequestProcessorError::Dal)?
-            .proof_generation_dal()
-            .lock_batch_for_proving(self.config.proof_generation_timeout())
-            .await
-            .map_err(RequestProcessorError::Dal)
-    }
-
-    /// Marks the batch as 'unpicked', allowing it to be picked up by another prover.
-    async fn unlock_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<(), RequestProcessorError> {
-        self.pool
-            .connection()
-            .await
-            .map_err(RequestProcessorError::Dal)?
-            .proof_generation_dal()
-            .unlock_batch(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::Dal)
     }
 
     /// Will fetch all the required data for the batch and return it.
@@ -109,18 +68,17 @@ impl RequestProcessor {
     /// Expects all the data to be present in the database.
     /// Will panic if any of the required data is missing.
     #[tracing::instrument(skip(self))]
-    async fn proof_generation_data_for_existing_batch(
+    pub async fn proof_generation_data_for_existing_batch(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<ProofGenerationData, RequestProcessorError> {
+    ) -> Result<ProofGenerationData, ProcessorError> {
         let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
             Ok(data) => data,
             Err(_) => self
                 .blob_store
                 .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
                 .await
-                .map(Into::into)
-                .map_err(RequestProcessorError::ObjectStore)?,
+                .map(Into::into)?,
         };
 
         let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
@@ -130,37 +88,29 @@ impl RequestProcessor {
                 .blob_store
                 .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
                 .await
-                .map(Into::into)
-                .map_err(RequestProcessorError::ObjectStore)?,
+                .map(Into::into)?,
         };
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
-        let mut conn = self
-            .pool
-            .connection()
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+        let mut conn = self.pool.connection().await?;
 
         let previous_batch_metadata = conn
             .blocks_dal()
             .get_l1_batch_metadata(L1BatchNumber(l1_batch_number.checked_sub(1).unwrap()))
-            .await
-            .map_err(RequestProcessorError::Dal)?
+            .await?
             .expect("No metadata for previous batch");
 
         let header = conn
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::Dal)?
+            .await?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let minor_version = header.protocol_version.unwrap();
         let protocol_version = conn
             .protocol_versions_dal()
             .get_protocol_version_with_latest_patch(minor_version)
-            .await
-            .map_err(RequestProcessorError::Dal)?
+            .await?
             .unwrap_or_else(|| {
                 panic!("Missing l1 verifier info for protocol version {minor_version}")
             });
@@ -168,8 +118,7 @@ impl RequestProcessor {
         let batch_header = conn
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::Dal)?
+            .await?
             .unwrap_or_else(|| panic!("Missing header for {}", l1_batch_number));
 
         let eip_4844_blobs = match self.commitment_mode {
@@ -201,7 +150,7 @@ impl RequestProcessor {
             .blocks_dal()
             .get_batch_sealed_at(l1_batch_number)
             .await?
-            .ok_or(RequestProcessorError::GeneralError(format!(
+            .ok_or(ProcessorError::GeneralError(format!(
                 "Batch {l1_batch_number} not found in blocks_dal"
             )))?;
 
@@ -213,21 +162,71 @@ impl RequestProcessor {
             l1_verifier_config: protocol_version.l1_verifier_config,
         })
     }
+}
 
-    pub(crate) async fn submit_proof(
+impl Processor<Locking> {
+    #[tracing::instrument(skip_all)]
+    pub(crate) async fn get_proof_generation_data(
         &self,
-        Path(l1_batch_number): Path<u32>,
-        Json(payload): Json<SubmitProofRequest>,
-    ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
+    ) -> Result<Option<ProofGenerationData>, ProcessorError> {
+        let l1_batch_number = match self
+            .lock_batch_for_proving(self.config.proof_generation_timeout())
+            .await?
+        {
+            Some(number) => number,
+            None => return Ok(None), // no batches pending to be proven
+        };
+
+        let proof_generation_data = self
+            .proof_generation_data_for_existing_batch(l1_batch_number)
+            .await;
+
+        // If we weren't able to fetch all the data, we should unlock the batch before returning.
+        match proof_generation_data {
+            Ok(data) => Ok(Some(data)),
+            Err(err) => {
+                self.unlock_batch(l1_batch_number).await?;
+                Err(err)
+            }
+        }
+    }
+
+    /// Will choose a batch that has all the required data and isn't picked up by any prover yet.
+    async fn lock_batch_for_proving(
+        &self,
+        proof_generation_timeout: Duration,
+    ) -> Result<Option<L1BatchNumber>, ProcessorError> {
+        self.pool
+            .connection()
+            .await?
+            .proof_generation_dal()
+            .lock_batch_for_proving(proof_generation_timeout)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Marks the batch as 'unpicked', allowing it to be picked up by another prover.
+    async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
+        self.pool
+            .connection()
+            .await?
+            .proof_generation_dal()
+            .unlock_batch(l1_batch_number)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn save_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        proof: L1BatchProofForL1,
+    ) -> Result<(), ProcessorError> {
         tracing::info!("Received proof for block number: {:?}", l1_batch_number);
-        let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let SubmitProofRequest::Proof(proof) = payload;
-        let proof: L1BatchProofForL1 = (*proof).into();
+
         let blob_url = self
             .blob_store
             .put((l1_batch_number, proof.protocol_version()), &proof)
-            .await
-            .map_err(RequestProcessorError::ObjectStore)?;
+            .await?;
 
         let aggregation_coords = proof.aggregation_result_coords();
 
@@ -241,8 +240,7 @@ impl RequestProcessor {
         let l1_batch = storage
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
-            .await
-            .unwrap()
+            .await?
             .expect("Proved block without metadata");
 
         let protocol_version = l1_batch
@@ -305,9 +303,75 @@ impl RequestProcessor {
         storage
             .proof_generation_dal()
             .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+            .await?;
+        Ok(())
+    }
 
-        Ok(Json(SubmitProofResponse::Success))
+    pub async fn save_skipped_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(), ProcessorError> {
+        tracing::info!(
+            "Received skipped proof for block number: {:?}",
+            l1_batch_number
+        );
+        self.pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .mark_proof_generation_job_as_skipped(l1_batch_number)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+impl Processor<Readonly> {
+    pub async fn get_proof_generation_data(&self) -> Result<ProofGenerationData, ProcessorError> {
+        tracing::debug!("Received request for proof generation data");
+        let latest_available_batch = self.latest_available_batch().await?;
+        self.proof_generation_data_for_existing_batch(latest_available_batch)
+            .await
+    }
+
+    async fn latest_available_batch(&self) -> Result<L1BatchNumber, ProcessorError> {
+        Ok(self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .get_latest_proven_batch()
+            .await?)
+    }
+
+    pub async fn verify_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        binary_proof: Vec<u8>,
+        protocol_version: ProtocolSemanticVersion,
+    ) -> Result<(), ProcessorError> {
+        let expected_proof: L1BatchProofForL1<CBOR> = match self
+            .blob_store
+            .get((l1_batch_number, protocol_version))
+            .await
+        {
+            Ok(proof) => proof,
+            Err(_) => self
+                .blob_store
+                .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, protocol_version))
+                .await
+                .map(Into::into)?,
+        };
+
+        if expected_proof.protocol_version() != protocol_version {
+            return Err(ProcessorError::InvalidProof);
+        }
+
+        if <L1BatchProofForL1 as StoredObject>::serialize(&expected_proof)? != binary_proof {
+            return Err(ProcessorError::InvalidProof);
+        }
+
+        Ok(())
     }
 }
