@@ -9,7 +9,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof, PubdataType},
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
@@ -414,19 +414,21 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| {
-            // Note: the line below only works correctly during rollup <-> validium transitions
-            // if the limit of commit operation is set to 1.
-            let (pubdata_sending_mode, commitment_mode) =
-                self.get_commitment_modes(batches.first().unwrap(), storage);
+        let Some(batches) = batches else {
+            return None;
+        };
 
-            AggregatedOperation::Commit(
-                last_committed_l1_batch,
-                batches,
-                pubdata_sending_mode,
-                commitment_mode,
-            )
-        })
+        // Note: the line below only works correctly during rollup <-> validium transitions
+        // if the limit of commit operation is set to 1.
+        let (pubdata_sending_mode, commitment_mode) =
+            self.get_commitment_modes(batches.first()?, storage).await;
+
+        Some(AggregatedOperation::Commit(
+            last_committed_l1_batch,
+            batches,
+            pubdata_sending_mode,
+            commitment_mode,
+        ))
     }
 
     async fn get_commitment_modes(

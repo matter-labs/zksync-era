@@ -474,7 +474,7 @@ impl DataAvailabilityDal<'_, '_> {
                     ORDER BY miniblocks.number
                     LIMIT 1
                 )
-            ) AS "da_is_missing!"
+            ) AS "da_is_missing"
             FROM data_availability
             WHERE l1_batch_number = $1
             "#,
@@ -484,6 +484,10 @@ impl DataAvailabilityDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.map(|row| row.da_is_missing).unwrap_or(false))
+        let Some(row) = row else {
+            return Ok(false);
+        };
+
+        Ok(row.da_is_missing.unwrap_or(false))
     }
 }
