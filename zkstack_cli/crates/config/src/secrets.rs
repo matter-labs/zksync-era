@@ -77,7 +77,8 @@ impl SecretsConfigPatch {
     }
 
     pub fn set_avail_secrets(&mut self, secrets: &AvailSecrets) -> anyhow::Result<()> {
-        self.0.insert_yaml("da.avail", secrets)
+        self.0.insert_yaml("da", secrets)?;
+        self.0.insert("da.client", "Avail")
     }
 
     pub fn set_consensus_keys(&mut self, consensus_keys: RawConsensusKeys) -> anyhow::Result<()> {
