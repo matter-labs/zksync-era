@@ -36,13 +36,11 @@ pub enum GatewayMigrationNotification {
 
 pub static MIGRATE_FROM_GATEWAY_NOTIFICATION_SIGNATURE: Lazy<H256> = Lazy::new(|| {
     let contract = server_notifier_contract();
-
     contract.event("MigrateFromGateway").unwrap().signature()
 });
 
 pub static MIGRATE_TO_GATEWAY_NOTIFICATION_SIGNATURE: Lazy<H256> = Lazy::new(|| {
     let contract = server_notifier_contract();
-
     contract.event("MigrateToGateway").unwrap().signature()
 });
 

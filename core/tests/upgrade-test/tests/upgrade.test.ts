@@ -482,8 +482,8 @@ describe('Upgrade test', function () {
     async function sendChainAdminOperation(call: Call) {
         const executeMulticallData = l1ChainAdminContract.interface.encodeFunctionData('multicall', [[call], true]);
 
-        const transaction = await l1EcosystemGovWallet.sendTransaction({
-            to: await l1ChainAdminContract.getAddress(),
+        const transaction = await slAdminGovWallet.sendTransaction({
+            to: gatewayInfo ? gatewayInfo.l2ChainAdmin : await l1ChainAdminContract.getAddress(),
             data: executeMulticallData,
             type: 0
         });
