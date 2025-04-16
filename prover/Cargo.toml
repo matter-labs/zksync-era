@@ -65,35 +65,22 @@ tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.2.0"
 
-#circuit_definitions = "=0.151.4"
-#circuit_sequencer_api = "=0.151.4"
-#zkevm_test_harness = "=0.151.4"
-circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "circuit_definitions" }
-zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "zkevm_test_harness" }
-circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol.git", branch = "feature/ec_precompiles", package = "circuit_definitions" }
+circuit_definitions = "=0.152.0"
+circuit_sequencer_api = "=0.152.0"
+zkevm_test_harness = "=0.152.0"
 
-
-
-#fflonk = "=0.31.0"
-fflonk = { git = "https://github.com/matter-labs/zksync-crypto.git", branch = "feature/ec_precompiles", package = "fflonk" }
-#franklin-crypto = "=0.31.0"
-franklin-crypto = { git = "https://github.com/matter-labs/zksync-crypto.git", branch = "feature/ec_precompiles", package = "franklin-crypto" }
-
+fflonk = "=0.32.0"
+franklin-crypto = "=0.32.0"
 
 # GPU proving dependencies
 
-#proof-compression-gpu = { package = "proof-compression", version = "=0.153.2" }
-proof-compression-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles", package = "proof-compression" }
+proof-compression-gpu = { package = "proof-compression", version = "=0.154.0" }
 
-#fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.2" }
-fflonk-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles", package = "fflonk-cuda" }
-#wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.2" }
-wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles", package = "zksync-wrapper-prover" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.0" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.0" }
 
-#shivini = "=0.153.2"
-shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles" }
-#boojum-cuda = "=0.153.2"
-boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "feature/ec_precompiles" }
+shivini = "=0.154.0"
+boojum-cuda = "=0.154.0"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
