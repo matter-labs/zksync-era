@@ -271,6 +271,7 @@ jobs:
           ci_run rm -rf ./chains/era/configs/*
           ci_run rm -rf ./chains/second/configs/*
           ci_run rm -rf ./chains/gateway/configs/*
+          ci_run cat ./etc/env/file_based/genesis.yaml
 
 
       - name: Initialize ecosystem 3
