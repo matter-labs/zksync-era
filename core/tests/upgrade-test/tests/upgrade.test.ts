@@ -56,9 +56,7 @@ describe('Upgrade test', function () {
     let alice: zksync.Wallet;
 
     // The wallet that controls the ecosystem governance on L1.
-    let l1EcosystemGovWallet: ethers.Wallet;
-    // The wallet that controls the ecosystem governance on L1.
-    let slEcosystemGovWallet: ethers.Wallet;
+    let ecosystemGovWallet: ethers.Wallet;
     // The wallet that controls the chain admin on the settlement layer.
     // The settlement layer can be either Gateway or L1. Depending on this,
     // the provider changes.
@@ -163,12 +161,10 @@ describe('Upgrade test', function () {
         // sending transactions from the same account while using different `Wallet` objects
         // could lead to flacky issues.
         if (chainWalletConfig.governor.private_key == ecosystemWalletConfig.governor.private_key && !gatewayInfo) {
-            slEcosystemGovWallet = slAdminGovWallet;
+            ecosystemGovWallet = slAdminGovWallet;
         } else {
-            slEcosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
+            ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         }
-
-        l1EcosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
 
         upgradeAddress = await deployDefaultUpgradeImpl(slAdminGovWallet);
         forceDeployBytecode = contracts.counterBytecode;
@@ -444,7 +440,7 @@ describe('Upgrade test', function () {
         value: BigNumberish,
         providerForPriorityOp: zksync.Provider | null
     ) {
-        const transaction = await slEcosystemGovWallet.sendTransaction({
+        const transaction = await ecosystemGovWallet.sendTransaction({
             to: ecosystemGovernance,
             value: value,
             data: data,
