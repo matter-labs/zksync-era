@@ -8,7 +8,7 @@ use axum::{
 };
 use tokio::sync::watch;
 use zksync_prover_interface::api::{
-    GetNextProofResponse, PollGeneratedProofsRequest, ProofGenerationData,
+    PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
 };
 
 use crate::{error::ProcessorError, proof_data_manager::ProofDataManager};
@@ -57,7 +57,7 @@ impl Api {
     async fn get_generated_proofs(
         State(processor): State<ProofDataManager>,
         Json(request): Json<PollGeneratedProofsRequest>,
-    ) -> Result<Json<Option<GetNextProofResponse>>, ProcessorError> {
+    ) -> Result<Json<Option<PollGeneratedProofsResponse>>, ProcessorError> {
         let l1_batch_number = request.batch_number;
         let protocol_version = request.protocol_version;
 
@@ -65,7 +65,7 @@ impl Api {
             .get_proof_for_batch(l1_batch_number, protocol_version)
             .await?;
 
-        let response = proof.map(|proof| GetNextProofResponse {
+        let response = proof.map(|proof| PollGeneratedProofsResponse {
             l1_batch_number,
             proof: proof.into(),
         });
