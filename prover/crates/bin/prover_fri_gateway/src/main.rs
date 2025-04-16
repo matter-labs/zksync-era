@@ -15,11 +15,11 @@ use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 mod client;
+mod error;
 mod metrics;
+mod proof_data_manager;
 mod server;
 mod traits;
-mod error;
-mod proof_data_manager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

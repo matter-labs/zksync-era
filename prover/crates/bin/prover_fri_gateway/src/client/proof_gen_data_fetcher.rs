@@ -3,16 +3,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_interface::api::{
-    ProofGenerationDataRequest, ProofGenerationDataResponse,
-};
+use zksync_prover_interface::api::{ProofGenerationDataRequest, ProofGenerationDataResponse};
 
 use crate::{client::ProverApiClient, proof_data_manager::ProofDataManager, traits::PeriodicApi};
 
 /// Poller structure that will periodically check the prover API for new proof generation data.
 /// Fetched data is stored to the database/object store for further processing.
 #[derive(Debug)]
-pub struct ProofGenDataFetcher{
+pub struct ProofGenDataFetcher {
     manager: ProofDataManager,
     client: ProverApiClient,
 }
@@ -29,10 +27,7 @@ impl ProofGenDataFetcher {
         let api_url = format!("{base_url}{PROOF_GENERATION_DATA_PATH}");
         let client = ProverApiClient::new(api_url);
         let manager = ProofDataManager::new(blob_store.clone(), pool.clone());
-        Self{
-            manager,
-            client
-        }
+        Self { manager, client }
     }
 }
 
@@ -53,7 +48,9 @@ impl PeriodicApi for ProofGenDataFetcher {
         _: (),
         request: ProofGenerationDataRequest,
     ) -> reqwest::Result<Self::Response> {
-        self.client.send_http_request(request, &self.client.api_url).await
+        self.client
+            .send_http_request(request, &self.client.api_url)
+            .await
     }
 
     async fn handle_response(&self, _: (), response: Self::Response) {

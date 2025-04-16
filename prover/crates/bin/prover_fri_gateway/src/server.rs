@@ -6,12 +6,11 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use crate::error::ProcessorError;
 use tokio::sync::watch;
 use zksync_prover_interface::api::{GetNextProofResponse, ProofGenerationData};
 use zksync_types::L1BatchNumber;
 
-use crate::proof_data_manager::ProofDataManager;
+use crate::{error::ProcessorError, proof_data_manager::ProofDataManager};
 
 pub struct Api {
     router: Router,

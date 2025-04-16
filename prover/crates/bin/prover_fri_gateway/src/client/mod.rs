@@ -12,9 +12,7 @@ pub(crate) struct ProverApiClient {
 }
 
 impl ProverApiClient {
-    pub(crate) fn new(
-        api_url: String,
-    ) -> Self {
+    pub(crate) fn new(api_url: String) -> Self {
         Self {
             api_url,
             client: reqwest::Client::new(),

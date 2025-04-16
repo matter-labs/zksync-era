@@ -34,17 +34,18 @@ impl ProofDataManager {
         };
 
         let proof = if status == ProofCompressionJobStatus::Successful {
-                let proof: L1BatchProofForL1 = self
-                    .blob_store
-                    .get((l1_batch_number, protocol_version))
-                    .await
-                    .expect("Failed to get compressed snark proof from blob store");
-                proof
-            }
-            else
-            {
-                unreachable!("Trying to send proof that are not successful status: {:?}",status);
-            };
+            let proof: L1BatchProofForL1 = self
+                .blob_store
+                .get((l1_batch_number, protocol_version))
+                .await
+                .expect("Failed to get compressed snark proof from blob store");
+            proof
+        } else {
+            unreachable!(
+                "Trying to send proof that are not successful status: {:?}",
+                status
+            );
+        };
 
         Ok(Some((l1_batch_number, proof)))
     }

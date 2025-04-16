@@ -14,7 +14,7 @@ const SUBMIT_PROOF_PATH: &str = "/submit_proof";
 /// Poller structure that will periodically check the database for new proofs to submit.
 /// Once a new proof is detected, it will be sent to the prover API.
 #[derive(Debug)]
-pub struct ProofSubmitter{
+pub struct ProofSubmitter {
     manager: ProofDataManager,
     client: ProverApiClient,
 }
@@ -28,10 +28,7 @@ impl ProofSubmitter {
         let api_url = format!("{base_url}{SUBMIT_PROOF_PATH}");
         let client = ProverApiClient::new(api_url);
         let manager = ProofDataManager::new(blob_store.clone(), pool.clone());
-        Self {
-            manager,
-            client
-        }
+        Self { manager, client }
     }
 }
 
@@ -47,7 +44,10 @@ impl PeriodicApi for ProofSubmitter {
             return None;
         };
 
-        Some((l1_batch_number, SubmitProofRequest::Proof(Box::new(proof.into()))))
+        Some((
+            l1_batch_number,
+            SubmitProofRequest::Proof(Box::new(proof.into())),
+        ))
     }
 
     async fn send_request(
@@ -61,6 +61,9 @@ impl PeriodicApi for ProofSubmitter {
 
     async fn handle_response(&self, job_id: L1BatchNumber, response: Self::Response) {
         tracing::info!("Received response: {:?}", response);
-        self.manager.save_successful_sent_proof(job_id).await.unwrap();
+        self.manager
+            .save_successful_sent_proof(job_id)
+            .await
+            .unwrap();
     }
 }
