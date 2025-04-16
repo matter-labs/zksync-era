@@ -11668,18 +11668,6 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 0.151.3",
-]
-
-[[package]]
-name = "zk_evm_abstractions"
 version = "0.151.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c91ea662a71ec92c72f5d1628486d1e68c1a50fd13e07ef57dcd2a6d4161b68f"
@@ -11815,23 +11803,6 @@ dependencies = [
  "lazy_static",
  "sha2 0.10.8",
  "sha3 0.10.8",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "0.151.3"
-source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=feature/ec_precompiles#7aefdd38a9a4668cc2b28c69aef5ca4d293019aa"
-dependencies = [
- "bitflags 2.9.0",
- "blake2 0.10.6",
- "ethereum-types",
- "k256 0.13.4",
- "lazy_static",
- "p256 0.13.2",
- "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
- "zksync_pairing 0.31.0 (git+https://github.com/matter-labs/zksync-crypto.git?branch=feature/ec_precompiles)",
 ]
 
 [[package]]
@@ -13708,19 +13679,19 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.3.0"
-source = "git+https://github.com/matter-labs/vm2.git?branch=zk/v28-precompiles#44e58e2826edea87a930d930e233621d0290ac9b"
+source = "git+https://github.com/matter-labs/vm2.git?branch=elliptic-curve#65c0d30638baf55a850529ebc8294827093e4cb0"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.151.3",
- "zkevm_opcode_defs 0.151.3",
+ "zk_evm_abstractions 0.152.0",
+ "zkevm_opcode_defs 0.152.0",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.3.0"
-source = "git+https://github.com/matter-labs/vm2.git?branch=zk/v28-precompiles#44e58e2826edea87a930d930e233621d0290ac9b"
+source = "git+https://github.com/matter-labs/vm2.git?branch=elliptic-curve#65c0d30638baf55a850529ebc8294827093e4cb0"
 dependencies = [
  "primitive-types",
 ]
