@@ -2,12 +2,16 @@
 
 use std::{
     fmt,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant, SystemTime},
 };
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::{runtime::Handle, task::spawn_blocking};
+use tokio::{runtime::Handle, task::spawn_blocking, sync::Mutex};
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
@@ -16,14 +20,17 @@ use zksync_multivm::{
         tracer::TimestampAsserterParams,
         Call, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
         TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
+        utils::{DivergenceHandler, VmDump},
+        DeduplicatedWritesMetrics,
     },
     utils::StorageWritesDeduplicator,
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId,
-    StorageKey, StorageLog, StorageLogKind, Transaction,
+    StorageKey, StorageLog, StorageLogKind, Transaction, vm::FastVmMode
 };
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 #[cfg(feature = "zkos")]
 use {
@@ -83,7 +90,7 @@ impl SandboxAction {
 
 /// Output of [`SandboxExecutor::execute_in_sandbox()`].
 #[derive(Debug, Clone)]
-pub(crate) struct SandboxExecutionOutput {
+pub struct SandboxExecutionOutput {
     /// Output of the VM.
     pub result: ExecutionResult,
     /// Write logs produced by the VM.
@@ -96,6 +103,24 @@ pub(crate) struct SandboxExecutionOutput {
     pub metrics: TransactionExecutionMetrics,
     /// Were published bytecodes OK?
     pub are_published_bytecodes_ok: bool,
+}
+
+impl SandboxExecutionOutput {
+    pub fn mock_success() -> Self {
+        Self {
+            result: ExecutionResult::Success { output: Vec::new() },
+            write_logs: Vec::new(),
+            events: Vec::new(),
+            call_traces: Vec::new(),
+            metrics: TransactionExecutionMetrics {
+                writes: DeduplicatedWritesMetrics::default(),
+                vm: Default::default(),
+                gas_remaining: 0,
+                gas_refunded: 0,
+            },
+            are_published_bytecodes_ok: true,
+        }
+    }
 }
 
 type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
@@ -163,6 +188,7 @@ pub(crate) struct SandboxExecutor {
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
     pub(super) timestamp_asserter_params: Option<TimestampAsserterParams>,
+    vm_divergence_counter: Arc<AtomicUsize>,
 }
 
 impl SandboxExecutor {
@@ -174,8 +200,33 @@ impl SandboxExecutor {
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor.set_fast_vm_mode(options.fast_vm_mode);
-        #[cfg(test)]
-        executor.panic_on_divergence();
+
+        let vm_divergence_counter = Arc::<AtomicUsize>::default();
+        if cfg!(test) {
+            // Panic on divergence in order to fail the running test.
+            executor.set_divergence_handler(DivergenceHandler::new(|err, _| {
+                panic!("{err}");
+            }));
+        } else {
+            let rt_handle = Handle::current();
+            let store = options.vm_dump_store.clone();
+            let vm_divergence_counter_for_handler = vm_divergence_counter.clone();
+            let last_dump_timestamp = Mutex::new(None);
+
+            executor.set_divergence_handler(DivergenceHandler::new(move |_, vm_dump| {
+                vm_divergence_counter_for_handler.fetch_add(1, Ordering::Relaxed);
+                if let Some(store) = &store {
+                    if let Err(err) = rt_handle.block_on(Self::dump_vm_state(
+                        &last_dump_timestamp,
+                        store.as_ref(),
+                        vm_dump,
+                    )) {
+                        tracing::error!("Saving VM dump failed: {err:#}");
+                    }
+                }
+            }));
+        }
+
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
 
@@ -184,7 +235,53 @@ impl SandboxExecutor {
             options,
             storage_caches: Some(caches),
             timestamp_asserter_params,
+            vm_divergence_counter,
         }
+    }
+
+    pub(crate) fn vm_mode(&self) -> FastVmMode {
+        self.options.fast_vm_mode
+    }
+
+    pub(crate) fn vm_divergence_counter(&self) -> Arc<AtomicUsize> {
+        self.vm_divergence_counter.clone()
+    }
+
+    async fn dump_vm_state(
+        last_dump_timestamp: &Mutex<Option<Instant>>,
+        store: &dyn ObjectStore,
+        vm_dump: VmDump,
+    ) -> anyhow::Result<()> {
+        /// Minimum interval between VM dumps.
+        const DUMP_INTERVAL: Duration = Duration::from_secs(600); // 10 minutes
+
+        let mut last_dump_timestamp = last_dump_timestamp.lock().await;
+        let now = Instant::now();
+        let should_dump = last_dump_timestamp.map_or(true, |ts| {
+            now.checked_duration_since(ts)
+                .is_some_and(|elapsed| elapsed >= DUMP_INTERVAL)
+        });
+        if !should_dump {
+            return Ok(());
+        }
+        *last_dump_timestamp = Some(now);
+        drop(last_dump_timestamp); // We don't need to hold a lock any longer, in particular across the `await` point below
+
+        let ts = SystemTime::UNIX_EPOCH
+            .elapsed()
+            .context("invalid wall clock time")?
+            .as_millis();
+        let dump_filename = format!("shadow_vm_dump_api_{ts}.json");
+        let vm_dump = serde_json::to_vec(&vm_dump).context("failed serializing VM dump")?;
+        store
+            .put_raw(Bucket::VmDumps, &dump_filename, vm_dump)
+            .await
+            .context("failed saving VM dump to object store")?;
+        tracing::info!(
+            dump_filename,
+            "Saved VM dump for diverging VM execution in object store"
+        );
+        Ok(())
     }
 
     pub(crate) async fn mock(executor: MockOneshotExecutor) -> Self {
@@ -200,6 +297,7 @@ impl SandboxExecutor {
             options,
             storage_caches: None,
             timestamp_asserter_params: None,
+            vm_divergence_counter: Arc::default(),
         }
     }
 
@@ -224,7 +322,7 @@ impl SandboxExecutor {
             gas_per_pubdata: Default::default(),
             block_number: (env.l1_batch.number.0 + 1) as u64,
             timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
+                .duration_since(SystemTime::UNIX_EPOCH)
                 .expect("Incorrect system time")
                 .as_secs(),
             chain_id: env.system.chain_id.as_u64(),

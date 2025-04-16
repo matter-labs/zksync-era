@@ -48,6 +48,7 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
+    utils::AccountTypesCache,
     web3::state::BridgeAddressesHandle,
 };
 
@@ -386,6 +387,7 @@ impl ApiServer {
             api_config: self.config,
             start_info,
             mempool_cache: self.optional.mempool_cache,
+            account_types_cache: AccountTypesCache::default(),
             last_sealed_l2_block: self.sealed_l2_block_handle,
             bridge_addresses_handle: self.bridge_addresses_handle,
             tree_api: self.optional.tree_api,

@@ -6,7 +6,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::{outputs::L1BatchProofForL1, Bincode};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -45,6 +45,7 @@ pub struct Aggregator {
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
+    settlement_layer: SettlementLayer,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -194,6 +195,7 @@ impl Aggregator {
             commitment_mode,
             priority_merkle_tree: None,
             pool,
+            settlement_layer,
         })
     }
 
@@ -292,6 +294,7 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await
         else {
@@ -413,6 +416,7 @@ impl Aggregator {
             &mut self.commit_criteria,
             ready_for_commit_l1_batches,
             last_sealed_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await;
 
@@ -575,6 +579,7 @@ impl Aggregator {
             &mut self.proof_criteria,
             ready_for_proof_l1_batches,
             last_sealed_l1_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await?;
 
@@ -663,11 +668,17 @@ async fn extract_ready_subrange(
     publish_criteria: &mut [Box<dyn L1BatchPublishCriterion>],
     unpublished_l1_batches: Vec<L1BatchWithMetadata>,
     last_sealed_l1_batch: L1BatchNumber,
+    is_gateway: bool,
 ) -> Option<Vec<L1BatchWithMetadata>> {
     let mut last_l1_batch: Option<L1BatchNumber> = None;
     for criterion in publish_criteria {
         let l1_batch_by_criterion = criterion
-            .last_l1_batch_to_publish(storage, &unpublished_l1_batches, last_sealed_l1_batch)
+            .last_l1_batch_to_publish(
+                storage,
+                &unpublished_l1_batches,
+                last_sealed_l1_batch,
+                is_gateway,
+            )
             .await;
         if let Some(l1_batch) = l1_batch_by_criterion {
             last_l1_batch = Some(last_l1_batch.map_or(l1_batch, |number| number.min(l1_batch)));
@@ -694,7 +705,19 @@ pub async fn load_wrapped_fri_proofs_for_range(
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(ObjectStoreError::KeyNotFound(_)) => {
+                match blob_store
+                    .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, *version))
+                    .await
+                {
+                    Ok(proof) => return Some(proof.into()),
+                    Err(ObjectStoreError::KeyNotFound(_)) => continue, // proof is not ready yet, continue
+                    Err(err) => panic!(
+                        "Failed to load proof for batch {}: {}",
+                        l1_batch_number.0, err
+                    ),
+                }
+            }
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
                 l1_batch_number.0, err

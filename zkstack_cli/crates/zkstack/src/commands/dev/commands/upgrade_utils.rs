@@ -4,8 +4,8 @@ use ethers::{
     utils::hex,
 };
 use serde::Serialize;
+use zksync_basic_types::{ethabi, web3::Bytes, U256};
 use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{ethabi, web3::Bytes, U256};
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct AdminCall {
@@ -48,6 +48,7 @@ pub struct AdminCallBuilder {
     chain_admin_abi: ethabi::Contract,
 }
 
+#[allow(dead_code)] // `append_validator`, `append_set_da_validator_pair`, and `append_make_permanent_rollup` are never used
 impl AdminCallBuilder {
     pub fn new() -> Self {
         Self {

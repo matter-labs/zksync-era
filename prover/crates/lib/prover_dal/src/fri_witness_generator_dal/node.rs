@@ -1,5 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::ProtocolSemanticVersion,
@@ -77,7 +78,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_sealed_at ASC,
                         depth ASC,
                         id ASC
                     LIMIT
@@ -138,6 +140,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_node_aggregation_jobs(
         &mut self,
         block_number: L1BatchNumber,
@@ -146,6 +149,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         depth: u16,
         aggregations_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -160,10 +164,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
+            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7, $8)
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
@@ -176,6 +181,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             number_of_dependent_jobs,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_sealed_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -285,7 +291,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             SET
                 status = 'queued',
                 updated_at = NOW(),
-                processing_started_at = NOW()
+                processing_started_at = NOW(),
+                priority = priority + 1
             WHERE
                 (
                     status = 'in_progress'

@@ -21,12 +21,11 @@ use zkstack_cli_config::{
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
         script_params::GATEWAY_PREPARATION,
     },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig,
+    traits::{ReadConfig, SaveConfig},
+    ChainConfig, EcosystemConfig, GatewayChainConfigPatch,
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
@@ -84,10 +83,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
 
     let genesis_config = chain_config.get_genesis_config().await?;
 
@@ -175,7 +171,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     .governance_l2_tx_hash;
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let l2_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = Provider::<Http>::try_from(l2_rpc_url.clone())?;
 
     if hash == H256::zero() {
@@ -209,7 +205,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
     let is_rollup = matches!(
-        genesis_config.get("l1_batch_commit_data_generator_mode")?,
+        genesis_config.l1_batch_commitment_mode()?,
         L1BatchCommitmentMode::Rollup
     );
 
@@ -356,16 +352,18 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let gateway_url = l2_rpc_url;
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.insert("l1.gateway_rpc_url", gateway_url)?;
+    chain_secrets_config.set_gateway_rpc_url(gateway_url)?;
     chain_secrets_config.save().await?;
 
-    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
+    let mut gateway_chain_config =
+        GatewayChainConfigPatch::empty(shell, chain_config.path_to_gateway_chain_config());
+    gateway_chain_config.init(
         &gateway_gateway_config,
         new_diamond_proxy_address,
         l2_chain_admin,
         gateway_chain_id.into(),
-    );
-    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    )?;
+    gateway_chain_config.save().await?;
 
     Ok(())
 }
@@ -413,10 +411,7 @@ pub(crate) async fn notify_server(
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let contracts = chain_config.get_contracts_config()?;
     let server_notifier = contracts
         .ecosystem_contracts

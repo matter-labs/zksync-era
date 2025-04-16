@@ -12,11 +12,11 @@
 pub use zksync_vm_interface::storage as interface;
 
 pub use self::{
-    cache::sequential_cache::SequentialCache,
     catchup::{AsyncCatchupTask, KeepUpdatedTask, RocksdbCell},
     postgres::{
         PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask, PostgresStorageForZkOs,
     },
+    cache::{lru_cache::LruCache, sequential_cache::SequentialCache},
     rocksdb::{
         RocksdbStorage, RocksdbStorageBuilder, RocksdbStorageOptions, StateKeeperColumnFamily,
     },

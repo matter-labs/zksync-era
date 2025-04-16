@@ -280,9 +280,11 @@ mod tests {
             factory_deps: vec![
                 SnapshotFactoryDependency {
                     bytecode: Bytes(vec![1, 51, 101, 201, 255]),
+                    hash: None,
                 },
                 SnapshotFactoryDependency {
                     bytecode: Bytes(vec![2, 52, 102, 202, 255]),
+                    hash: Some(H256::repeat_byte(1)),
                 },
             ],
         };

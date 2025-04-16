@@ -276,7 +276,7 @@ fn adjust_eth_sender_config(
     settlement_layer: SettlementLayer,
 ) -> SenderConfig {
     if settlement_layer.is_gateway() {
-        config.max_aggregated_tx_gas = 4294967295;
+        config.max_aggregated_tx_gas = 30000000000;
         config.max_eth_tx_data_size = 550_000;
         tracing::warn!(
             "Settling to Gateway requires to adjust ETH sender configs: \

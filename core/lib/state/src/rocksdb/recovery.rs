@@ -68,13 +68,17 @@ impl InitParameters {
         })
     }
 
-    #[tracing::instrument(level = "debug", skip_all)]
+    #[tracing::instrument(skip_all, ret)]
     async fn is_genesis_recovery_needed(
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<bool> {
-        let sealed_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
-        if sealed_l1_batch != Some(L1BatchNumber(0)) {
-            tracing::debug!(?sealed_l1_batch, "Latest sealed L1 batch mismatch");
+        let earliest_l2_block = storage.blocks_dal().get_earliest_l2_block_number().await?;
+        tracing::debug!(?earliest_l2_block, "Got earliest L2 block from Postgres");
+        if earliest_l2_block != Some(L2BlockNumber(0)) {
+            tracing::info!(
+                ?earliest_l2_block,
+                "There is no genesis block in Postgres; genesis recovery is impossible"
+            );
             return Ok(false);
         }
 
@@ -95,14 +99,16 @@ impl RocksdbStorage {
     /// # Return value
     ///
     /// Returns the next L1 batch that should be fed to the storage.
+    #[tracing::instrument(skip_all)]
     pub(super) async fn ensure_ready(
         &mut self,
         storage: &mut Connection<'_, Core>,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(Strategy, L1BatchNumber), RocksdbSyncError> {
-        if let Some(number) = self.l1_batch_number().await {
-            return Ok((Strategy::Complete, number));
+        if let Some(l1_batch_number) = self.l1_batch_number().await {
+            tracing::trace!(?l1_batch_number, "RocksDB storage is ready");
+            return Ok((Strategy::Complete, l1_batch_number));
         }
 
         let init_params = InitParameters::new(storage, desired_log_chunk_size).await?;
@@ -111,6 +117,7 @@ impl RocksdbStorage {
                 .await?;
             (Strategy::Recovery, init_params.l1_batch + 1)
         } else {
+            tracing::info!("Initializing RocksDB storage from genesis");
             // No recovery snapshot; we're initializing the cache from the genesis
             (Strategy::Genesis, L1BatchNumber(0))
         })

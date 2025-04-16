@@ -33,7 +33,7 @@ impl GatewayChainUpgradeInput {
             .get_genesis_config()
             .await
             .context("failed loading genesis config")?
-            .get::<L1BatchCommitmentMode>("l1_batch_commit_data_generator_mode")?
+            .l1_batch_commitment_mode()?
             == L1BatchCommitmentMode::Validium;
 
         Ok(Self {

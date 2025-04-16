@@ -23,7 +23,7 @@
     ],
     "nohoist": [
       "**/@types/jest",
-      "**/@types/jasmine"
+      "**/@types/mocha"
     ]
   },
   "scripts": {
