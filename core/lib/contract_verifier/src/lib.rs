@@ -271,7 +271,7 @@ impl ContractVerifier {
             .context("invalid stored EVM bytecode")?,
         };
         let mut deployed_code = deployed_bytecode.to_vec();
-        
+
         // patch immutable references if any
         artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
 

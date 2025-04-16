@@ -258,11 +258,7 @@ impl CompilationArtifacts {
 
     /// Patches the provided `compiled_code` and `deployed_code` slices by zeroing
     /// out the bytes corresponding to each immutable reference.
-    pub fn patch_immutable_bytecodes(
-        &self,
-        compiled_code: &mut [u8],
-        deployed_code: &mut [u8],
-    ) {
+    pub fn patch_immutable_bytecodes(&self, compiled_code: &mut [u8], deployed_code: &mut [u8]) {
         for (_placeholder, spans) in &self.immutable_refs {
             for span in spans {
                 let start = span.start;

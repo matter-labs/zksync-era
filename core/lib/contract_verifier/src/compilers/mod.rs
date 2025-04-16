@@ -67,7 +67,9 @@ fn process_contract_name(original_name: &str, extension: &str) -> (String, Strin
 
 /// Parses `/evm/deployedBytecode/immutableReferences`
 /// If the path doesn't exist or isn't an object, returns `None`.
-fn parse_immutable_refs(refs_val: Option<&Value>) -> Option<HashMap<String, Vec<ImmutableReference>>> {
+fn parse_immutable_refs(
+    refs_val: Option<&Value>,
+) -> Option<HashMap<String, Vec<ImmutableReference>>> {
     let obj = refs_val?.as_object()?;
 
     let mut map = HashMap::new();
@@ -159,9 +161,10 @@ fn parse_standard_json_output(
         None
     };
 
-    // Need to extract immutable references if any are present 
-    let immutable_refs = parse_immutable_refs(contract.pointer("/evm/deployedBytecode/immutableReferences"))
-    .unwrap_or_default();
+    // Need to extract immutable references if any are present
+    let immutable_refs =
+        parse_immutable_refs(contract.pointer("/evm/deployedBytecode/immutableReferences"))
+            .unwrap_or_default();
 
     let mut abi = contract["abi"].clone();
     if abi.is_null() {

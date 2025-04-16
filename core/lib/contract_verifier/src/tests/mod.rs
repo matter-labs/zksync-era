@@ -9,7 +9,9 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     address_to_h256,
     bytecode::{pad_evm_bytecode, BytecodeHash},
-    contract_verification::api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest, ImmutableReference},
+    contract_verification::api::{
+        CompilerVersions, ImmutableReference, SourceCodeData, VerificationIncomingRequest,
+    },
     get_code_key, get_known_code_key,
     l2::L2Tx,
     tx::IncludedTxLocation,
@@ -843,7 +845,7 @@ async fn verifying_evm_with_immutables() {
 
     let mut req = test_request(address, COUNTER_CONTRACT_WITH_IMMUTABLE);
     req.compiler_versions = CompilerVersions::Solc {
-        compiler_solc_version:SOLC_VERSION.to_owned(),
+        compiler_solc_version: SOLC_VERSION.to_owned(),
         compiler_zksolc_version: None,
     };
     let request_id = storage
@@ -858,7 +860,10 @@ async fn verifying_evm_with_immutables() {
     let mut imm_map = HashMap::new();
     imm_map.insert(
         "somePlaceholder".to_string(),
-        vec![ImmutableReference { start: 4, length: 2 }],
+        vec![ImmutableReference {
+            start: 4,
+            length: 2,
+        }],
     );
 
     let artifacts = CompilationArtifacts {
@@ -868,9 +873,7 @@ async fn verifying_evm_with_immutables() {
         immutable_refs: imm_map,
     };
 
-    let mock_resolver = MockCompilerResolver::solc(move |_| {
-        artifacts.clone()
-    });
+    let mock_resolver = MockCompilerResolver::solc(move |_| artifacts.clone());
 
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
