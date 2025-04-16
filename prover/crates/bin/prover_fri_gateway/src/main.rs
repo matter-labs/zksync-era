@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use clap::Parser;
 use client::{proof_gen_data_fetcher::ProofGenDataFetcher, proof_submitter::ProofSubmitter};
-use server::Processor;
+use proof_data_manager::ProofDataManager;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
 use zksync_config::configs::fri_prover_gateway::ApiMode;
@@ -18,6 +18,8 @@ mod client;
 mod metrics;
 mod server;
 mod traits;
+mod error;
+mod proof_data_manager;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -94,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
                 .port
                 .expect("Port must be specified in ProverCluster mode");
 
-            let processor = Processor::new(store_factory.create_store().await?, pool);
+            let processor = ProofDataManager::new(store_factory.create_store().await?, pool);
 
             let api = server::Api::new(processor.clone(), port);
 

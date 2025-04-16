@@ -6,15 +6,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use error::ProcessorError;
+use crate::error::ProcessorError;
 use tokio::sync::watch;
 use zksync_prover_interface::api::{GetNextProofResponse, ProofGenerationData};
 use zksync_types::L1BatchNumber;
 
-mod error;
-mod processor;
-
-pub use processor::Processor;
+use crate::proof_data_manager::ProofDataManager;
 
 pub struct Api {
     router: Router,
@@ -22,7 +19,7 @@ pub struct Api {
 }
 
 impl Api {
-    pub fn new(processor: Processor, port: u16) -> Self {
+    pub fn new(processor: ProofDataManager, port: u16) -> Self {
         let router = Router::new()
             .route("/get_next_proof", get(Api::get_next_proof))
             .route(
@@ -62,14 +59,14 @@ impl Api {
     }
 
     async fn get_next_proof(
-        State(processor): State<Processor>,
+        State(processor): State<ProofDataManager>,
     ) -> Result<Json<Option<GetNextProofResponse>>, ProcessorError> {
         let proof = processor.get_next_proof().await;
 
         if let Some((l1_batch_number, proof)) = proof? {
             let response = GetNextProofResponse {
                 l1_batch_number,
-                proof: proof.map(Into::into),
+                proof: proof.into(),
             };
 
             Ok(Json(Some(response)))
@@ -79,14 +76,14 @@ impl Api {
     }
 
     async fn submit_proof_generation_data(
-        State(processor): State<Processor>,
+        State(processor): State<ProofDataManager>,
         Json(data): Json<ProofGenerationData>,
     ) -> Result<(), ProcessorError> {
         processor.save_proof_gen_data(data).await
     }
 
     async fn save_successful_sent_proof(
-        State(processor): State<Processor>,
+        State(processor): State<ProofDataManager>,
         Json(l1_batch_number): Json<L1BatchNumber>,
     ) -> Result<(), ProcessorError> {
         processor.save_successful_sent_proof(l1_batch_number).await

@@ -2,15 +2,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::{
-    api::{SubmitProofRequest, SubmitProofResponse},
-    outputs::L1BatchProofForL1,
-    Bincode,
-};
-use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
+use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
+use zksync_types::L1BatchNumber;
 
-use crate::{client::ProverApiClient, traits::PeriodicApi};
+use crate::{client::ProverApiClient, proof_data_manager::ProofDataManager, traits::PeriodicApi};
 
 /// The path to the API endpoint that submits the proof.
 const SUBMIT_PROOF_PATH: &str = "/submit_proof";
@@ -18,7 +14,10 @@ const SUBMIT_PROOF_PATH: &str = "/submit_proof";
 /// Poller structure that will periodically check the database for new proofs to submit.
 /// Once a new proof is detected, it will be sent to the prover API.
 #[derive(Debug)]
-pub struct ProofSubmitter(ProverApiClient);
+pub struct ProofSubmitter{
+    manager: ProofDataManager,
+    client: ProverApiClient,
+}
 
 impl ProofSubmitter {
     pub(crate) fn new(
@@ -27,63 +26,12 @@ impl ProofSubmitter {
         pool: ConnectionPool<Prover>,
     ) -> Self {
         let api_url = format!("{base_url}{SUBMIT_PROOF_PATH}");
-        let inner = ProverApiClient::new(blob_store, pool, api_url);
-        Self(inner)
-    }
-}
-
-impl ProofSubmitter {
-    async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
-        let (l1_batch_number, protocol_version, status) = self
-            .0
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .fri_proof_compressor_dal()
-            .get_least_proven_block_not_sent_to_server()
-            .await?;
-
-        let request = match status {
-            ProofCompressionJobStatus::Successful => {
-                let proof: L1BatchProofForL1 = match self
-                    .0
-                    .blob_store
-                    .get((l1_batch_number, protocol_version))
-                    .await
-                {
-                    Ok(proof) => proof,
-                    Err(_) => self
-                        .0
-                        .blob_store
-                        .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, protocol_version))
-                        .await
-                        .map(Into::into)
-                        .expect("Failed to get proof from blob store"),
-                };
-
-                SubmitProofRequest::Proof(Box::new(proof.into()))
-            }
-            ProofCompressionJobStatus::Skipped => SubmitProofRequest::SkippedProofGeneration,
-            _ => panic!(
-                "Trying to send proof that are not successful status: {:?}",
-                status
-            ),
-        };
-
-        Some((l1_batch_number, request))
-    }
-
-    async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) {
-        self.0
-            .pool
-            .connection()
-            .await
-            .unwrap()
-            .fri_proof_compressor_dal()
-            .mark_proof_sent_to_server(l1_batch_number)
-            .await
-            .unwrap();
+        let client = ProverApiClient::new(api_url);
+        let manager = ProofDataManager::new(blob_store.clone(), pool.clone());
+        Self {
+            manager,
+            client
+        }
     }
 }
 
@@ -95,8 +43,11 @@ impl PeriodicApi for ProofSubmitter {
     const SERVICE_NAME: &'static str = "ProofSubmitter";
 
     async fn get_next_request(&self) -> Option<(Self::JobId, SubmitProofRequest)> {
-        let (l1_batch_number, request) = self.next_submit_proof_request().await?;
-        Some((l1_batch_number, request))
+        let Some((l1_batch_number, proof)) = self.manager.get_next_proof().await.unwrap() else {
+            return None;
+        };
+
+        Some((l1_batch_number, SubmitProofRequest::Proof(Box::new(proof.into()))))
     }
 
     async fn send_request(
@@ -104,12 +55,12 @@ impl PeriodicApi for ProofSubmitter {
         job_id: Self::JobId,
         request: SubmitProofRequest,
     ) -> reqwest::Result<Self::Response> {
-        let endpoint = format!("{}/{job_id}", self.0.api_url);
-        self.0.send_http_request(request, &endpoint).await
+        let endpoint = format!("{}/{job_id}", self.client.api_url);
+        self.client.send_http_request(request, &endpoint).await
     }
 
     async fn handle_response(&self, job_id: L1BatchNumber, response: Self::Response) {
         tracing::info!("Received response: {:?}", response);
-        self.save_successful_sent_proof(job_id).await;
+        self.manager.save_successful_sent_proof(job_id).await.unwrap();
     }
 }

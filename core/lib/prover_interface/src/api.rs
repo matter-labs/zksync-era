@@ -64,14 +64,12 @@ pub struct TeeProofGenerationDataRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
     Proof(Box<JsonL1BatchProofForL1>),
-    // The proof generation was skipped due to sampling
-    SkippedProofGeneration,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetNextProofResponse {
     pub l1_batch_number: L1BatchNumber,
-    pub proof: Option<JsonL1BatchProofForL1>,
+    pub proof: JsonL1BatchProofForL1,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

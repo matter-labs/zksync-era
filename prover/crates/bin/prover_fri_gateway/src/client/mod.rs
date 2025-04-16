@@ -1,8 +1,4 @@
-use std::sync::Arc;
-
 use serde::{de::DeserializeOwned, Serialize};
-use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
 
 pub mod proof_gen_data_fetcher;
 pub mod proof_submitter;
@@ -11,21 +7,15 @@ pub mod proof_submitter;
 /// the objects commonly needed when interacting with prover API.
 #[derive(Debug)]
 pub(crate) struct ProverApiClient {
-    pub(crate) blob_store: Arc<dyn ObjectStore>,
-    pub(crate) pool: ConnectionPool<Prover>,
     pub(crate) api_url: String,
     pub(crate) client: reqwest::Client,
 }
 
 impl ProverApiClient {
     pub(crate) fn new(
-        blob_store: Arc<dyn ObjectStore>,
-        pool: ConnectionPool<Prover>,
         api_url: String,
     ) -> Self {
         Self {
-            blob_store,
-            pool,
             api_url,
             client: reqwest::Client::new(),
         }
