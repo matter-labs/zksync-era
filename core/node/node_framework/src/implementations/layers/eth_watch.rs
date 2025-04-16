@@ -1,12 +1,8 @@
 use zksync_config::{
-    configs::{
-        contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
-        gateway::GatewayChainConfig,
-    },
+    configs::contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
     EthWatchConfig,
 };
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
-use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{DynClient, Network};
 

@@ -317,7 +317,7 @@ impl Aggregator {
             return Ok(Some(ExecuteBatches {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
-                dependency_roots: dependency_roots,
+                dependency_roots,
             }));
         };
 

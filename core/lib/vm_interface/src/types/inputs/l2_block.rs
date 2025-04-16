@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{block::L2BlockExecutionData, MessageRoot, H256};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct L2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
@@ -9,7 +9,6 @@ pub struct L2BlockEnv {
     pub max_virtual_blocks_to_create: u32,
     pub msg_roots: Vec<MessageRoot>,
 }
-
 impl L2BlockEnv {
     pub fn from_l2_block_data(execution_data: &L2BlockExecutionData) -> Self {
         Self {
@@ -20,8 +19,10 @@ impl L2BlockEnv {
             msg_roots: execution_data.msg_roots.clone(),
         }
     }
+}
 
-    pub fn clone(&self) -> Self {
+impl Clone for L2BlockEnv {
+    fn clone(&self) -> Self {
         Self {
             number: self.number,
             timestamp: self.timestamp,
@@ -34,7 +35,7 @@ impl L2BlockEnv {
 
 /// Current block information stored in the system context contract. Can be used to set up
 /// oneshot transaction / call execution.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct StoredL2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
@@ -42,8 +43,8 @@ pub struct StoredL2BlockEnv {
     pub msg_roots: Vec<MessageRoot>,
 }
 
-impl StoredL2BlockEnv {
-    pub fn clone(&self) -> Self {
+impl Clone for StoredL2BlockEnv {
+    fn clone(&self) -> Self {
         Self {
             number: self.number,
             timestamp: self.timestamp,

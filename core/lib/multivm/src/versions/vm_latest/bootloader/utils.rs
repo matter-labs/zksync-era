@@ -170,7 +170,7 @@ pub(crate) fn apply_message_root(
         U256::from(message_root.sides.len()),
     ];
 
-    u256_words.extend(message_root.sides.into_iter());
+    u256_words.extend(message_root.sides);
     // println!("u256_words: {:?}", u256_words);
     // println!(
     //     "zipped 0 {:?}",

@@ -120,12 +120,10 @@ impl EventProcessor for MessageRootProcessor {
                 // we ignore our chainBatchRoots
                 continue;
             }
-            if self.event_source == EventsSource::L1 && self.sl_chain_id.is_some() {
-                if self.sl_chain_id.unwrap().0 == chain_id {
-                    // we ignore the chainBatchRoot of GW.
-                    // GW -> chain interop not allowed.
-                    continue;
-                }
+            if self.event_source == EventsSource::L1 && self.sl_chain_id.is_some() && self.sl_chain_id.unwrap().0 == chain_id {
+                // we ignore the chainBatchRoot of GW.
+                // GW -> chain interop not allowed.
+                continue;
             }
 
             println!("block_number in global {:?}", block_number);
