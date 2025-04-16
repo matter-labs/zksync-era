@@ -39,8 +39,10 @@ impl PeriodicApi for ProofGenDataFetcher {
 
     const SERVICE_NAME: &'static str = "ProofGenDataFetcher";
 
-    async fn get_next_request(&self) -> Option<(Self::JobId, ProofGenerationDataRequest)> {
-        Some(((), ProofGenerationDataRequest {}))
+    async fn get_next_request(
+        &self,
+    ) -> anyhow::Result<Option<(Self::JobId, ProofGenerationDataRequest)>> {
+        Ok(Some(((), ProofGenerationDataRequest {})))
     }
 
     async fn send_request(
@@ -53,11 +55,11 @@ impl PeriodicApi for ProofGenDataFetcher {
             .await
     }
 
-    async fn handle_response(&self, _: (), response: Self::Response) {
+    async fn handle_response(&self, _: (), response: Self::Response) -> anyhow::Result<()> {
         match response {
             ProofGenerationDataResponse::Success(Some(data)) => {
                 tracing::info!("Received proof gen data for: {:?}", data.l1_batch_number);
-                self.manager.save_proof_gen_data(*data).await.unwrap();
+                self.manager.save_proof_gen_data(*data).await?;
             }
             ProofGenerationDataResponse::Success(None) => {
                 tracing::info!("There are currently no pending batches to be proven");
@@ -66,5 +68,7 @@ impl PeriodicApi for ProofGenDataFetcher {
                 tracing::error!("Failed to get proof gen data: {:?}", err);
             }
         }
+
+        Ok(())
     }
 }

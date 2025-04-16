@@ -39,15 +39,20 @@ impl PeriodicApi for ProofSubmitter {
     type Response = SubmitProofResponse;
     const SERVICE_NAME: &'static str = "ProofSubmitter";
 
-    async fn get_next_request(&self) -> Option<(Self::JobId, SubmitProofRequest)> {
-        let Some((l1_batch_number, proof)) = self.manager.get_next_proof().await.unwrap() else {
-            return None;
+    async fn get_next_request(&self) -> anyhow::Result<Option<(Self::JobId, SubmitProofRequest)>> {
+        let Some((l1_batch_number, proof)) = self
+            .manager
+            .get_next_proof()
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?
+        else {
+            return Ok(None);
         };
 
-        Some((
+        Ok(Some((
             l1_batch_number,
             SubmitProofRequest::Proof(Box::new(proof.into())),
-        ))
+        )))
     }
 
     async fn send_request(
@@ -59,11 +64,13 @@ impl PeriodicApi for ProofSubmitter {
         self.client.send_http_request(request, &endpoint).await
     }
 
-    async fn handle_response(&self, job_id: L1BatchNumber, response: Self::Response) {
+    async fn handle_response(
+        &self,
+        job_id: L1BatchNumber,
+        response: Self::Response,
+    ) -> anyhow::Result<()> {
         tracing::info!("Received response: {:?}", response);
-        self.manager
-            .save_successful_sent_proof(job_id)
-            .await
-            .unwrap();
+        self.manager.save_successful_sent_proof(job_id).await?;
+        Ok(())
     }
 }

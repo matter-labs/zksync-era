@@ -37,8 +37,7 @@ impl ProofDataManager {
             let proof: L1BatchProofForL1 = self
                 .blob_store
                 .get((l1_batch_number, protocol_version))
-                .await
-                .expect("Failed to get compressed snark proof from blob store");
+                .await?;
             proof
         } else {
             unreachable!(
