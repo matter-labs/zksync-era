@@ -38,7 +38,7 @@ async fn test_leaf_witness_gen() {
 
     let object_store_config = ObjectStoreConfig {
         mode: ObjectStoreMode::FileBacked {
-            file_backed_base_path: "./tests/data/leaf/".to_owned(),
+            file_backed_base_path: "./tests/data/leaf/".into(),
         },
         max_retries: 5,
         local_mirror_path: None,
@@ -61,7 +61,7 @@ async fn test_leaf_witness_gen() {
 
     let expected_results_object_store_config = ObjectStoreConfig {
         mode: ObjectStoreMode::FileBacked {
-            file_backed_base_path: "./tests/expected_data/leaf/".to_owned(),
+            file_backed_base_path: "./tests/expected_data/leaf/".into(),
         },
         max_retries: 5,
         local_mirror_path: None,
@@ -113,7 +113,7 @@ async fn test_leaf_witness_gen() {
 async fn test_node_witness_gen() {
     let object_store_config = ObjectStoreConfig {
         mode: ObjectStoreMode::FileBacked {
-            file_backed_base_path: "./tests/data/node/".to_owned(),
+            file_backed_base_path: "./tests/data/node/".into(),
         },
         max_retries: 5,
         local_mirror_path: None,
@@ -147,7 +147,7 @@ async fn test_node_witness_gen() {
 
     let expected_results_object_store_config = ObjectStoreConfig {
         mode: ObjectStoreMode::FileBacked {
-            file_backed_base_path: "./tests/expected_data/leaf/".to_owned(),
+            file_backed_base_path: "./tests/expected_data/leaf/".into(),
         },
         max_retries: 5,
         local_mirror_path: None,

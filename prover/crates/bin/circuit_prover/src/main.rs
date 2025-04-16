@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
 use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
 use zksync_config::{
-    configs::{DatabaseSecrets, FriProverConfig, GeneralConfig, ObservabilityConfig},
+    configs::{DatabaseSecrets, GeneralConfig, ObservabilityConfig},
     full_config_schema,
     sources::ConfigFilePaths,
     ConfigRepository, ObjectStoreConfig, ParseResultExt,
@@ -21,7 +21,7 @@ use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::{prometheus::PrometheusExporterConfig, ObservabilityGuard};
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// On most commodity hardware, WVG can take ~30 seconds to complete.
 /// GPU processing is ~1 second.
@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
         database_secrets,
         opt.max_allocation,
         object_store_config,
-        prover_config.setup_data_path.into(),
+        prover_config.setup_data_path,
     )
     .await
     .context("failed to load configs")?;

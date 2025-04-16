@@ -123,17 +123,14 @@ async fn main() -> anyhow::Result<()> {
         .witness_generator_config
         .context("witness generator config")?
         .clone();
-    let keystore =
-        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
     let prometheus_config = general_config
         .prometheus_config
         .context("missing prometheus config")?;
 
-    let prometheus_exporter_config = if prometheus_config.pushgateway_url.is_some() {
-        let url = prometheus_config
-            .gateway_endpoint()
-            .context("missing prometheus gateway endpoint")?;
+    let prometheus_exporter_config = if let Some(base_url) = &prometheus_config.pushgateway_url {
+        let url = PrometheusExporterConfig::gateway_endpoint(base_url);
         tracing::info!("Using Prometheus push gateway: {}", url);
         PrometheusExporterConfig::push(url, prometheus_config.push_interval())
     } else {

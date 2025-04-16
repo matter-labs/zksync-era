@@ -3014,16 +3014,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
-name = "humantime-serde"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57a3db5ea5923d99402c94e9feb261dc5ee9b4efa158b0315f788cf549cc200c"
-dependencies = [
- "humantime",
- "serde",
-]
-
-[[package]]
 name = "hyper"
 version = "0.14.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9161,7 +9151,6 @@ dependencies = [
  "ctrlc",
  "debug-map-sorted",
  "futures 0.3.31",
- "humantime-serde",
  "k8s-openapi",
  "kube",
  "reqwest 0.12.9",
@@ -9169,6 +9158,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "smart-config",
  "structopt",
  "strum",
  "strum_macros",

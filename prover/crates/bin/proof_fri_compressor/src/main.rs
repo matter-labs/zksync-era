@@ -80,8 +80,7 @@ async fn main() -> anyhow::Result<()> {
         .create_store()
         .await?;
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-    let keystore =
-        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
     let l1_verifier_config = pool
         .connection()
