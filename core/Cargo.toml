@@ -259,7 +259,8 @@ fflonk = "=0.32.0"
 bellman = { package = "zksync_bellman", version = "=0.32.0" }
 
 # New VM; pinned to a specific version because of instability
-zksync_vm2 = "=0.3.0"
+# zksync_vm2 = "=0.3.0"
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", branch = "elliptic-curve", package = "zksync_vm2" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.9.0"
