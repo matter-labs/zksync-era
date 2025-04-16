@@ -27,11 +27,6 @@ impl ExternalNodeConfigPatch {
         Ok(())
     }
 
-    pub fn set_batch_commitment_mode(&mut self, mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
-        self.0
-            .insert_yaml("l1_batch_commit_data_generator_mode", mode)
-    }
-
     pub fn set_main_node_url(&mut self, url: &str) -> anyhow::Result<()> {
         self.0.insert("main_node_url", url)
     }
