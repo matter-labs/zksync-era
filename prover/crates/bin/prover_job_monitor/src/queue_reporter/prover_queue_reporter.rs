@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Context;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountStatistics};
 
 use crate::metrics::{ProverJobsLabels, FRI_PROVER_METRICS};
@@ -11,7 +11,13 @@ use crate::metrics::{ProverJobsLabels, FRI_PROVER_METRICS};
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
 pub struct ProverQueueReporter {
-    pub pool: ConnectionPool<Prover>,
+    pool: ConnectionPool<Prover>,
+}
+
+impl ProverQueueReporter {
+    pub fn new(pool: ConnectionPool<Prover>) -> Self {
+        Self { pool }
+    }
 }
 
 #[async_trait::async_trait]

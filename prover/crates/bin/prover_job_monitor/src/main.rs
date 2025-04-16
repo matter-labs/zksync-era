@@ -21,7 +21,7 @@ use zksync_prover_job_monitor::{
     },
     witness_job_queuer::WitnessJobQueuer,
 };
-use zksync_prover_utils::task_wiring::TaskRunner;
+use zksync_prover_task::TaskRunner;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -183,27 +183,23 @@ fn get_tasks(
     );
 
     // queue reporters
-    let proof_compressor_queue_reporter = ProofCompressorQueueReporter {
-        pool: connection_pool.clone(),
-    };
+    let proof_compressor_queue_reporter =
+        ProofCompressorQueueReporter::new(connection_pool.clone());
     task_runner.add(
         "ProofCompressorQueueReporter",
         prover_job_monitor_config.proof_compressor_queue_reporter_run_interval(),
         proof_compressor_queue_reporter,
     );
 
-    let prover_queue_reporter = ProverQueueReporter {
-        pool: connection_pool.clone(),
-    };
+    let prover_queue_reporter = ProverQueueReporter::new(connection_pool.clone());
     task_runner.add(
         "ProverQueueReporter",
         prover_job_monitor_config.prover_queue_reporter_run_interval(),
         prover_queue_reporter,
     );
 
-    let witness_generator_queue_reporter = WitnessGeneratorQueueReporter {
-        pool: connection_pool.clone(),
-    };
+    let witness_generator_queue_reporter =
+        WitnessGeneratorQueueReporter::new(connection_pool.clone());
     task_runner.add(
         "WitnessGeneratorQueueReporter",
         prover_job_monitor_config.witness_generator_queue_reporter_run_interval(),
@@ -211,9 +207,7 @@ fn get_tasks(
     );
 
     // witness job queuer
-    let witness_job_queuer = WitnessJobQueuer {
-        pool: connection_pool.clone(),
-    };
+    let witness_job_queuer = WitnessJobQueuer::new(connection_pool.clone());
     task_runner.add(
         "WitnessJobQueuer",
         prover_job_monitor_config.witness_job_queuer_run_interval(),
@@ -221,12 +215,12 @@ fn get_tasks(
     );
 
     // Reporter for reaching max attempts of jobs
-    let attempts_reporter = ProverJobAttemptsReporter {
-        pool: connection_pool.clone(),
-        prover_config: prover_config.clone(),
-        witness_generator_config: witness_generator_config.clone(),
-        compressor_config: proof_compressor_config.clone(),
-    };
+    let attempts_reporter = ProverJobAttemptsReporter::new(
+        connection_pool,
+        prover_config,
+        witness_generator_config,
+        proof_compressor_config,
+    );
     task_runner.add(
         "ProverJobAttemptsReporter",
         Duration::from_millis(ProverJobMonitorConfig::default_attempts_reporter_run_interval_ms()),

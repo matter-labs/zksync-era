@@ -1,5 +1,5 @@
 [package]
-name = "zksync_prover_utils"
+name = "zksync_prover_task"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

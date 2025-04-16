@@ -8,7 +8,7 @@ use reqwest::{
 };
 use tokio::sync::Mutex;
 use url::Url;
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 
 use crate::{
     agent::{ScaleRequest, ScaleResponse},

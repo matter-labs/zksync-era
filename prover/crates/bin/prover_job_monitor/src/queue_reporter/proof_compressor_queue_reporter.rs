@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Context;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::JobCountStatistics};
 
 use crate::metrics::{JobStatus, PROVER_FRI_METRICS};
@@ -11,10 +11,14 @@ use crate::metrics::{JobStatus, PROVER_FRI_METRICS};
 /// Note: these values will be used for auto-scaling proof compressor.
 #[derive(Debug)]
 pub struct ProofCompressorQueueReporter {
-    pub pool: ConnectionPool<Prover>,
+    pool: ConnectionPool<Prover>,
 }
 
 impl ProofCompressorQueueReporter {
+    pub fn new(pool: ConnectionPool<Prover>) -> Self {
+        Self { pool }
+    }
+
     async fn get_job_statistics(
         connection: &mut Connection<'_, Prover>,
     ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::JobCountStatistics,
@@ -14,10 +14,14 @@ use crate::metrics::SERVER_METRICS;
 /// (Basic, Leaf, Node, Recursion Tip and Scheduler).
 #[derive(Debug)]
 pub struct WitnessGeneratorQueueReporter {
-    pub pool: ConnectionPool<Prover>,
+    pool: ConnectionPool<Prover>,
 }
 
 impl WitnessGeneratorQueueReporter {
+    pub fn new(pool: ConnectionPool<Prover>) -> Self {
+        Self { pool }
+    }
+
     fn emit_metrics_for_round(
         round: AggregationRound,
         protocol_version: ProtocolSemanticVersion,

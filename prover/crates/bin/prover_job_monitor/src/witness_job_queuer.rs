@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 
 use crate::metrics::SERVER_METRICS;
 
@@ -8,10 +8,14 @@ use crate::metrics::SERVER_METRICS;
 /// Note: this task is the backbone of scheduling/getting ready witness jobs to execute.
 #[derive(Debug)]
 pub struct WitnessJobQueuer {
-    pub pool: ConnectionPool<Prover>,
+    pool: ConnectionPool<Prover>,
 }
 
 impl WitnessJobQueuer {
+    pub fn new(pool: ConnectionPool<Prover>) -> Self {
+        Self { pool }
+    }
+
     /// Marks leaf witness jobs as queued.
     /// The trigger condition is all prover jobs on round 0 for a given circuit, per batch, have been completed.
     async fn queue_leaf_jobs(&self, connection: &mut Connection<'_, Prover>) {

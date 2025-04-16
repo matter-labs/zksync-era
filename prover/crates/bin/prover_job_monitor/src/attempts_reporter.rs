@@ -4,19 +4,33 @@ use zksync_config::configs::{
 };
 use zksync_db_connection::connection::Connection;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::metrics::{JobType, PROVER_JOB_MONITOR_METRICS};
 
 pub struct ProverJobAttemptsReporter {
-    pub pool: ConnectionPool<Prover>,
-    pub prover_config: FriProverConfig,
-    pub witness_generator_config: FriWitnessGeneratorConfig,
-    pub compressor_config: FriProofCompressorConfig,
+    pool: ConnectionPool<Prover>,
+    prover_config: FriProverConfig,
+    witness_generator_config: FriWitnessGeneratorConfig,
+    compressor_config: FriProofCompressorConfig,
 }
 
 impl ProverJobAttemptsReporter {
+    pub fn new(
+        pool: ConnectionPool<Prover>,
+        prover_config: FriProverConfig,
+        witness_generator_config: FriWitnessGeneratorConfig,
+        compressor_config: FriProofCompressorConfig,
+    ) -> Self {
+        Self {
+            pool,
+            prover_config,
+            witness_generator_config,
+            compressor_config,
+        }
+    }
+
     pub async fn check_witness_generator_job_attempts(
         &self,
         connection: &mut Connection<'_, Prover>,

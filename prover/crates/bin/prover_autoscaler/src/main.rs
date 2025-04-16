@@ -14,7 +14,7 @@ use zksync_prover_autoscaler::{
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
 };
-use zksync_prover_utils::task_wiring::TaskRunner;
+use zksync_prover_task::TaskRunner;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 

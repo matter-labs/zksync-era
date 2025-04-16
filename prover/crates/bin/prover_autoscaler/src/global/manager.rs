@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 
 use super::{
     queuer,

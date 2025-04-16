@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 use zksync_types::prover_dal::StuckJobs;
 
 use crate::metrics::{WitnessType, SERVER_METRICS};

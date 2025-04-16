@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_utils::task_wiring::Task;
+use zksync_prover_task::Task;
 
 use crate::metrics::PROVER_FRI_METRICS;
 
