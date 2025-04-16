@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use anyhow::Context;
-use zksync_prover_dal::ProverDal;
-use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_utils::task_wiring::Task;
 
 use crate::metrics::PROVER_JOB_MONITOR_METRICS;
 
@@ -12,26 +12,28 @@ use crate::metrics::PROVER_JOB_MONITOR_METRICS;
 /// Note: This component speeds up provers, in their absence, queries would slow down due to state growth.
 #[derive(Debug)]
 pub struct ProverJobsArchiver {
+    pool: ConnectionPool<Prover>,
     /// duration after which a prover job can be archived
     archive_jobs_after: Duration,
 }
 
 impl ProverJobsArchiver {
-    pub fn new(archive_jobs_after: Duration) -> Self {
-        Self { archive_jobs_after }
+    pub fn new(pool: ConnectionPool<Prover>, archive_jobs_after: Duration) -> Self {
+        Self {
+            pool,
+            archive_jobs_after,
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl Task for ProverJobsArchiver {
-    async fn invoke(
-        &self,
-        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
-    ) -> anyhow::Result<()> {
-        let mut connection = connection_provider
-            .context("requires a connection provider")?
-            .get()
-            .await?;
+    async fn invoke(&self) -> anyhow::Result<()> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get database connection")?;
         let archived_jobs = connection
             .fri_prover_jobs_dal()
             .archive_old_jobs(self.archive_jobs_after)

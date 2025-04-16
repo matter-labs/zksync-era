@@ -9185,8 +9185,8 @@ dependencies = [
  "url",
  "vise",
  "zksync_config",
- "zksync_prover_fri_utils",
  "zksync_prover_job_monitor",
+ "zksync_prover_utils",
  "zksync_task_management",
  "zksync_vlog",
 ]
@@ -9240,12 +9240,7 @@ dependencies = [
 name = "zksync_prover_fri_utils"
 version = "20.2.0"
 dependencies = [
- "anyhow",
- "async-trait",
- "tokio",
- "tracing",
  "vise",
- "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_types",
 ]
@@ -9283,7 +9278,7 @@ dependencies = [
  "zksync_core_leftovers",
  "zksync_db_connection",
  "zksync_prover_dal",
- "zksync_prover_fri_utils",
+ "zksync_prover_utils",
  "zksync_task_management",
  "zksync_types",
  "zksync_vlog",
@@ -9326,6 +9321,16 @@ dependencies = [
  "zksync_basic_types",
  "zksync_prover_fri_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_prover_utils"
+version = "20.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

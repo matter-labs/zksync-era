@@ -1,16 +1,16 @@
 use anyhow::Context;
-use async_trait::async_trait;
 use zksync_config::configs::{
     FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
 };
 use zksync_db_connection::connection::Connection;
-use zksync_prover_dal::{Prover, ProverDal};
-use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_utils::task_wiring::Task;
 use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::metrics::{JobType, PROVER_JOB_MONITOR_METRICS};
 
 pub struct ProverJobAttemptsReporter {
+    pub pool: ConnectionPool<Prover>,
     pub prover_config: FriProverConfig,
     pub witness_generator_config: FriWitnessGeneratorConfig,
     pub compressor_config: FriProofCompressorConfig,
@@ -109,16 +109,14 @@ impl ProverJobAttemptsReporter {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Task for ProverJobAttemptsReporter {
-    async fn invoke(
-        &self,
-        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
-    ) -> anyhow::Result<()> {
-        let mut connection = connection_provider
-            .context("requires a connection provider")?
-            .get()
-            .await?;
+    async fn invoke(&self) -> anyhow::Result<()> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get database connection")?;
         self.check_witness_generator_job_attempts(&mut connection, AggregationRound::BasicCircuits)
             .await?;
         self.check_witness_generator_job_attempts(

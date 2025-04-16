@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+use zksync_prover_utils::task_wiring::Task;
 
 use super::{
     queuer,
@@ -95,10 +95,7 @@ impl Manager {
 
 #[async_trait::async_trait]
 impl Task for Manager {
-    async fn invoke(
-        &self,
-        _connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
-    ) -> anyhow::Result<()> {
+    async fn invoke(&self) -> anyhow::Result<()> {
         let queue = self.queuer.get_queue(&self.jobs).await.unwrap();
 
         let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();

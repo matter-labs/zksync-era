@@ -1,14 +1,15 @@
 use anyhow::Context;
-use async_trait::async_trait;
-use zksync_prover_dal::{Connection, Prover, ProverDal};
-use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_prover_utils::task_wiring::Task;
 
 use crate::metrics::SERVER_METRICS;
 
 /// `WitnessJobQueuer` is a task that moves witness generator jobs from 'waiting_for_proofs' to 'queued'.
 /// Note: this task is the backbone of scheduling/getting ready witness jobs to execute.
 #[derive(Debug)]
-pub struct WitnessJobQueuer;
+pub struct WitnessJobQueuer {
+    pub pool: ConnectionPool<Prover>,
+}
 
 impl WitnessJobQueuer {
     /// Marks leaf witness jobs as queued.
@@ -106,16 +107,14 @@ impl WitnessJobQueuer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Task for WitnessJobQueuer {
-    async fn invoke(
-        &self,
-        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
-    ) -> anyhow::Result<()> {
-        let mut connection = connection_provider
-            .context("requires a connection provider")?
-            .get()
-            .await?;
+    async fn invoke(&self) -> anyhow::Result<()> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get database connection")?;
         // Note that there's no basic jobs here; basic witness generation is ready by the time it reaches prover subsystem.
         // It doesn't need to wait for any proof to start, as it is the process that maps the future execution (how many proofs and future witness generators).
         self.queue_leaf_jobs(&mut connection).await;

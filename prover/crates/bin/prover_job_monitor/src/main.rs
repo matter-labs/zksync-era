@@ -139,8 +139,10 @@ fn get_tasks(
     task_runner.with_pool(connection_pool);
 
     // archivers
-    let prover_jobs_archiver =
-        ProverJobsArchiver::new(prover_job_monitor_config.archive_prover_jobs_duration());
+    let prover_jobs_archiver = ProverJobsArchiver::new(
+        connection_pool.clone(),
+        prover_job_monitor_config.archive_prover_jobs_duration(),
+    );
     task_runner.add(
         "ProverJobsArchiver",
         prover_job_monitor_config.prover_jobs_archiver_run_interval(),
@@ -149,6 +151,7 @@ fn get_tasks(
 
     // job re-queuers
     let proof_compressor_job_requeuer = ProofCompressorJobRequeuer::new(
+        connection_pool.clone(),
         proof_compressor_config.max_attempts,
         proof_compressor_config.generation_timeout(),
     );
@@ -159,6 +162,7 @@ fn get_tasks(
     );
 
     let prover_job_requeuer = ProverJobRequeuer::new(
+        connection_pool.clone(),
         prover_config.max_attempts,
         prover_config.proof_generation_timeout(),
     );
@@ -169,6 +173,7 @@ fn get_tasks(
     );
 
     let witness_generator_job_requeuer = WitnessGeneratorJobRequeuer::new(
+        connection_pool.clone(),
         witness_generator_config.max_attempts,
         witness_generator_config.witness_generation_timeouts(),
     );
@@ -179,21 +184,27 @@ fn get_tasks(
     );
 
     // queue reporters
-    let proof_compressor_queue_reporter = ProofCompressorQueueReporter {};
+    let proof_compressor_queue_reporter = ProofCompressorQueueReporter {
+        pool: connection_pool.clone(),
+    };
     task_runner.add(
         "ProofCompressorQueueReporter",
         prover_job_monitor_config.proof_compressor_queue_reporter_run_interval(),
         proof_compressor_queue_reporter,
     );
 
-    let prover_queue_reporter = ProverQueueReporter;
+    let prover_queue_reporter = ProverQueueReporter {
+        pool: connection_pool.clone(),
+    };
     task_runner.add(
         "ProverQueueReporter",
         prover_job_monitor_config.prover_queue_reporter_run_interval(),
         prover_queue_reporter,
     );
 
-    let witness_generator_queue_reporter = WitnessGeneratorQueueReporter {};
+    let witness_generator_queue_reporter = WitnessGeneratorQueueReporter {
+        pool: connection_pool.clone(),
+    };
     task_runner.add(
         "WitnessGeneratorQueueReporter",
         prover_job_monitor_config.witness_generator_queue_reporter_run_interval(),
@@ -201,7 +212,9 @@ fn get_tasks(
     );
 
     // witness job queuer
-    let witness_job_queuer = WitnessJobQueuer {};
+    let witness_job_queuer = WitnessJobQueuer {
+        pool: connection_pool.clone(),
+    };
     task_runner.add(
         "WitnessJobQueuer",
         prover_job_monitor_config.witness_job_queuer_run_interval(),
@@ -210,6 +223,7 @@ fn get_tasks(
 
     // Reporter for reaching max attempts of jobs
     let attempts_reporter = ProverJobAttemptsReporter {
+        pool: connection_pool.clone(),
         prover_config: prover_config.clone(),
         witness_generator_config: witness_generator_config.clone(),
         compressor_config: proof_compressor_config.clone(),

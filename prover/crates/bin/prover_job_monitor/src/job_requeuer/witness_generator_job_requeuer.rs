@@ -1,8 +1,7 @@
 use anyhow::Context;
-use async_trait::async_trait;
 use zksync_config::configs::fri_witness_generator::WitnessGenerationTimeouts;
-use zksync_prover_dal::{Connection, Prover, ProverDal};
-use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
+use zksync_prover_utils::task_wiring::Task;
 use zksync_types::prover_dal::StuckJobs;
 
 use crate::metrics::{WitnessType, SERVER_METRICS};
@@ -10,6 +9,7 @@ use crate::metrics::{WitnessType, SERVER_METRICS};
 /// `WitnessGeneratorJobRequeuer` s a task that requeues witness generator jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
 pub struct WitnessGeneratorJobRequeuer {
+    pool: ConnectionPool<Prover>,
     /// max attempts before giving up on the job
     max_attempts: u32,
     /// the amount of time that must have passed before a job is considered to have not made progress
@@ -17,8 +17,13 @@ pub struct WitnessGeneratorJobRequeuer {
 }
 
 impl WitnessGeneratorJobRequeuer {
-    pub fn new(max_attempts: u32, processing_timeouts: WitnessGenerationTimeouts) -> Self {
+    pub fn new(
+        pool: ConnectionPool<Prover>,
+        max_attempts: u32,
+        processing_timeouts: WitnessGenerationTimeouts,
+    ) -> Self {
         Self {
+            pool,
             max_attempts,
             processing_timeouts,
         }
@@ -75,16 +80,14 @@ impl WitnessGeneratorJobRequeuer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Task for WitnessGeneratorJobRequeuer {
-    async fn invoke(
-        &self,
-        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
-    ) -> anyhow::Result<()> {
-        let mut connection = connection_provider
-            .context("requires a connection provider")?
-            .get()
-            .await?;
+    async fn invoke(&self) -> anyhow::Result<()> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get database connection")?;
         self.requeue_stuck_basic_jobs(&mut connection).await;
         self.requeue_stuck_leaf_jobs(&mut connection).await;
         self.requeue_stuck_node_jobs(&mut connection).await;

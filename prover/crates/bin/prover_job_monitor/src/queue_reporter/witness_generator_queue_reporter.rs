@@ -1,7 +1,6 @@
 use anyhow::Context;
-use async_trait::async_trait;
-use zksync_prover_dal::ProverDal;
-use zksync_prover_fri_utils::task_wiring::{ProvideConnection, Task};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_utils::task_wiring::Task;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::JobCountStatistics,
@@ -14,7 +13,9 @@ use crate::metrics::SERVER_METRICS;
 /// Note: these values will be used for auto-scaling witness generators
 /// (Basic, Leaf, Node, Recursion Tip and Scheduler).
 #[derive(Debug)]
-pub struct WitnessGeneratorQueueReporter;
+pub struct WitnessGeneratorQueueReporter {
+    pub pool: ConnectionPool<Prover>,
+}
 
 impl WitnessGeneratorQueueReporter {
     fn emit_metrics_for_round(
@@ -54,16 +55,14 @@ impl WitnessGeneratorQueueReporter {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Task for WitnessGeneratorQueueReporter {
-    async fn invoke(
-        &self,
-        connection_provider: Option<&(dyn ProvideConnection + Send + Sync)>,
-    ) -> anyhow::Result<()> {
-        let mut connection = connection_provider
-            .context("requires a connection provider")?
-            .get()
-            .await?;
+    async fn invoke(&self) -> anyhow::Result<()> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get database connection")?;
         for round in AggregationRound::ALL_ROUNDS {
             let stats = connection
                 .fri_witness_generator_dal()

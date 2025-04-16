@@ -15,9 +15,3 @@ categories.workspace = true
 vise.workspace = true
 zksync_types.workspace = true
 zksync_prover_fri_types.workspace = true
-zksync_prover_dal.workspace = true
-
-anyhow.workspace = true
-async-trait.workspace = true
-tokio = { workspace = true, features = ["time", "macros"] }
-tracing.workspace = true
