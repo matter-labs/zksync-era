@@ -8,7 +8,7 @@ use axum::{
 };
 use tokio::sync::watch;
 use zksync_prover_interface::api::{
-    PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData
+    PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
 };
 
 use crate::{error::ProcessorError, proof_data_manager::ProofDataManager};
