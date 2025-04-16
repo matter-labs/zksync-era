@@ -11,7 +11,6 @@ use zksync_config::configs::{
 };
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_utils::task_wiring::TaskRunner;
 use zksync_prover_job_monitor::{
     attempts_reporter::ProverJobAttemptsReporter,
     autoscaler_queue_reporter::get_queue_reporter_router,
@@ -22,6 +21,7 @@ use zksync_prover_job_monitor::{
     },
     witness_job_queuer::WitnessJobQueuer,
 };
+use zksync_prover_utils::task_wiring::TaskRunner;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -136,7 +136,6 @@ fn get_tasks(
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     let mut task_runner = TaskRunner::default();
-    task_runner.with_pool(connection_pool);
 
     // archivers
     let prover_jobs_archiver = ProverJobsArchiver::new(
