@@ -184,18 +184,16 @@ fn test_proof_request_serialization() {
     }"#;
     let decoded_obj: SubmitProofRequest = serde_json::from_str(&encoded_obj).unwrap();
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
-    match (decoded_obj, decoded_json) {
-        (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
-            let decoded_obj: L1BatchProofForL1 = (*decoded_obj).into();
-            let decoded_json: L1BatchProofForL1 = (*decoded_json).into();
+    let (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) =
+        (decoded_obj, decoded_json);
 
-            let obj_coords = decoded_obj.aggregation_result_coords();
-            let json_coords = decoded_json.aggregation_result_coords();
+    let decoded_obj: L1BatchProofForL1 = (*decoded_obj).into();
+    let decoded_json: L1BatchProofForL1 = (*decoded_json).into();
 
-            assert_eq!(obj_coords, json_coords);
-        }
-        _ => panic!("Either decoded_obj or decoded_json is not SubmitProofRequest::Proof"),
-    }
+    let obj_coords = decoded_obj.aggregation_result_coords();
+    let json_coords = decoded_json.aggregation_result_coords();
+
+    assert_eq!(obj_coords, json_coords);
 }
 
 #[test]

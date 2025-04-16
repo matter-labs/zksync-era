@@ -20,13 +20,13 @@ pub struct Api {
 impl Api {
     pub fn new(processor: ProofDataManager, port: u16) -> Self {
         let router = Router::new()
-            .route("/get_next_proof", get(Api::get_next_proof))
+            .route("/poll_generated_proofs", get(Api::get_next_proof))
             .route(
-                "/submit_proof_generation_data",
-                post(Api::submit_proof_generation_data),
+                "/submit_prove_request",
+                post(Api::save_proof_generation_data),
             )
             .route(
-                "/notify_about_received_proof",
+                "/acknowledge_received_proof",
                 post(Api::save_successful_sent_proof),
             )
             .with_state(processor);
@@ -74,7 +74,7 @@ impl Api {
         }
     }
 
-    async fn submit_proof_generation_data(
+    async fn save_proof_generation_data(
         State(processor): State<ProofDataManager>,
         Json(data): Json<ProofGenerationData>,
     ) -> Result<(), ProcessorError> {
