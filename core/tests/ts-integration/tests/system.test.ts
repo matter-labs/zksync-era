@@ -14,8 +14,7 @@ import * as ethers from 'ethers';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForL2ToL1LogProof } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
 import { BigNumberish } from 'ethers';
-import { Bytes, BytesLike } from '@ethersproject/bytes';
-import * as hre from 'hardhat';
+import { BytesLike } from '@ethersproject/bytes';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -54,7 +53,6 @@ describe('System behavior checks', () => {
     });
 
     test('Should check that createEVM is callable and executes successfully', async () => {
-        const contractBytecode: BytesLike = ethers.hexlify('0x602a60005260206000f3');
         const contractInitcode: BytesLike = ethers.hexlify('0x69602a60005260206000f3600052600a6016f3');
 
         const abi = ['function createEVM(bytes _initCode)'];
@@ -90,7 +88,6 @@ describe('System behavior checks', () => {
     });
 
     test('Should check that create2EVM is callable and executes successfully', async () => {
-        const contractBytecode: BytesLike = '0x602a60005260206000f3';
         const contractInitcode: BytesLike = '0x69602a60005260206000f3600052600a6016f3';
 
         const abi = ['function create2EVM(bytes32 _salt, bytes _initCode)'];
