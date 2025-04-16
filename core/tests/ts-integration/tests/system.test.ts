@@ -15,7 +15,7 @@ import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForL2ToL1LogProof } from '
 import { DataAvailabityMode } from '../src/types';
 import { BigNumberish } from 'ethers';
 import { Bytes, BytesLike } from '@ethersproject/bytes';
-import * as hre from "hardhat";
+import * as hre from 'hardhat';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -54,18 +54,14 @@ describe('System behavior checks', () => {
     });
 
     test('Should check that createEVM is callable and executes successfully', async () => {
-        const contractBytecode: BytesLike = ethers.hexlify("0x602a60005260206000f3");
-        const contractInitcode: BytesLike = ethers.hexlify("0x69602a60005260206000f3600052600a6016f3");
+        const contractBytecode: BytesLike = ethers.hexlify('0x602a60005260206000f3');
+        const contractInitcode: BytesLike = ethers.hexlify('0x69602a60005260206000f3600052600a6016f3');
 
-        const abi = [
-            "function createEVM(bytes _initCode)"
-        ];
+        const abi = ['function createEVM(bytes _initCode)'];
 
         const iface = new ethers.Interface(abi);
 
-        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData("createEVM", [
-            contractInitcode
-        ]);
+        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('createEVM', [contractInitcode]);
 
         let chainId = testMaster.environment().l2ChainId;
 
@@ -83,7 +79,7 @@ describe('System behavior checks', () => {
         let priorityOpHandle = await alice.requestExecute({
             contractAddress: await composedCall.target,
             calldata: await String(composedCall.data),
-            overrides:{
+            overrides: {
                 gasPrice: 100000000
             }
         });
@@ -91,25 +87,19 @@ describe('System behavior checks', () => {
         await priorityOpHandle.waitL1Commit();
 
         expect(priorityOpHandle).toBeAccepted();
-
     });
 
     test('Should check that create2EVM is callable and executes successfully', async () => {
-        const contractBytecode: BytesLike = "0x602a60005260206000f3";
-        const contractInitcode: BytesLike = "0x69602a60005260206000f3600052600a6016f3";
+        const contractBytecode: BytesLike = '0x602a60005260206000f3';
+        const contractInitcode: BytesLike = '0x69602a60005260206000f3600052600a6016f3';
 
-        const abi = [
-            "function create2EVM(bytes32 _salt, bytes _initCode)"
-        ];
+        const abi = ['function create2EVM(bytes32 _salt, bytes _initCode)'];
 
         const iface = new ethers.Interface(abi);
 
-        const salt: BytesLike = "0x0000000000000000000000000000000000000000000000000000000000000000";
+        const salt: BytesLike = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
-        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData("create2EVM", [
-            salt,
-            contractInitcode
-        ]);
+        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('create2EVM', [salt, contractInitcode]);
 
         let chainId = testMaster.environment().l2ChainId;
 
@@ -127,7 +117,7 @@ describe('System behavior checks', () => {
         let priorityOpHandle = await alice.requestExecute({
             contractAddress: await composedCall.target,
             calldata: await String(composedCall.data),
-            overrides:{
+            overrides: {
                 gasPrice: 100000000
             }
         });
@@ -135,7 +125,6 @@ describe('System behavior checks', () => {
         await priorityOpHandle.waitL1Commit();
 
         expect(priorityOpHandle).toBeAccepted();
-
     });
 
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {
