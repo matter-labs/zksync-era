@@ -209,10 +209,8 @@ function describeEvm(providerKind: ProviderKind) {
         expect(counterAddress).toEqual(expectedAddress);
 
         const txCount = await alice.provider!!.getTransactionCount(factoryAddress);
-        // L2 strips off the deployment part of a nonce, making `getTransactionCount()` always return 0 for contracts.
-        // L1 returns 2 since the nonce is initially set to 1 on deployment, and then incremented on the CREATE2 call.
-        const expectedTxCount = providerKind === ProviderKind.L1_ETHERS ? 2 : 0;
-        expect(txCount).toEqual(expectedTxCount);
+        // The nonce is initially set to 1 on deployment, and then incremented on the CREATE2 call.
+        expect(txCount).toEqual(2);
 
         // Check that the created contract can be called.
         const counter = new ethers.Contract(counterAddress, counterContractData.abi, alice);
