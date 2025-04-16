@@ -204,9 +204,20 @@ describe('Interop checks', () => {
                 }
             ]
         );
+        console.log("Interop tx hash: ", tx.hash);
 
         // Broadcast interop transaction from Interop1 to Interop2
-        await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
+        // await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
+
+        const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, interop1Provider);
+        const txReceipt = await interop1Provider.getTransactionReceipt(tx.hash);
+        await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
+        await waitUntilInteropTxProcessed(
+            tx.hash,
+            (await interop1Provider.getNetwork()).chainId.toString(),
+            interop1Provider.pollingInterval,
+        );
+        console.log("Interop tx completed");
 
         tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
         console.log('Token A info:', tokenA);
@@ -217,7 +228,7 @@ describe('Interop checks', () => {
             tokenAddress: tokenA.l2AddressSecondChain!,
             address: aliasedInterop1WalletAddress
         });
-        expect(interop1WalletSecondChainBalance).toBe(transferAmount);
+        expect(interop1WalletSecondChainBalance.toString()).toBe(transferAmount.toString());
     });
 
     // Types for interop call starters and gas fields.
@@ -346,7 +357,7 @@ describe('Interop checks', () => {
         await broadcastTx.wait();
 
         // Recursive broadcast
-        await readAndBroadcastInteropTx(broadcastTx.realInteropHash!, receiverProvider, senderProvider);
+        // await readAndBroadcastInteropTx(broadcastTx.realInteropHash!, receiverProvider, senderProvider);
     }
 
     /**
@@ -370,5 +381,25 @@ describe('Interop checks', () => {
         }
         const tokenContract = new zksync.Contract(tokenAddress, ArtifactMintableERC20.abi, provider);
         return await tokenContract.balanceOf(address);
+    }
+
+    async function waitUntilInteropTxProcessed(
+        transactionHash: string,
+        senderChainId: string | number,
+        pollingInterval: number = 250
+    ) {
+        while (true) {
+            const interopStatus = await fetch(`http://localhost:3030/api/interop-transaction-status/?transactionHash=${transactionHash}&senderChainId=${senderChainId}`)
+                .then((res) => res.json())
+                .then((data) => data.status);
+            if (interopStatus === "not_found") {
+                throw new Error(`Interop transaction not found: ${transactionHash}`);
+            }
+            if (interopStatus === "completed") {
+                break;
+            }
+            console.log(`Interop transaction status: ${interopStatus}`);
+            await new Promise((resolve) => setTimeout(resolve, pollingInterval));
+        }
     }
 });
