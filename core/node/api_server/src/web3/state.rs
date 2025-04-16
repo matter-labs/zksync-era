@@ -46,6 +46,7 @@ use super::{
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
+    utils::AccountTypesCache,
     web3::metrics::FilterMetrics,
 };
 
@@ -323,6 +324,7 @@ pub(crate) struct RpcState {
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
+    pub(super) account_types_cache: AccountTypesCache,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
