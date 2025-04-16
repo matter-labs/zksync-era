@@ -1,4 +1,5 @@
 <!--- WIP --->
+
 # Contracts
 
 Contracts are used throughout the codebase. The core or the L2 system is coded in smart contracts, these can be found in [l2_system_contracts][TODO]

@@ -61,6 +61,14 @@ Each single ZK Chain has a set of the following contracts that, while not belong
 - L2NativeTokenVault. The Native token vault on L2.
 - MessageRoot (the source code is identical to the L1 one). Similar to bridgehub, it facilitates cross-chain communication, but is practically unused on all chains except for L1/GW.
 
+It should be noted that those contracts are deployed at genesis and have the same address on all ZK Chains. 
+
+The exact addresses for those contracts are (with links to ZKsync Era explorer):
+- Bridgehub – [`0x0000000000000000000000000000000000010002`](https://explorer.zksync.io/address/0000000000000000000000000000000000010002#contract).
+- L2AssetRouter – [`0x0000000000000000000000000000000000010003`](https://explorer.zksync.io/address/0000000000000000000000000000000000010003#contract).
+- L2NativeTokenVault – [`0x0000000000000000000000000000000000010004`](https://explorer.zksync.io/address/0000000000000000000000000000000000010004#contract).
+- MessageRoot – [`0x0000000000000000000000000000000000010005`](https://explorer.zksync.io/address/0000000000000000000000000000000000010005#contract).
+
 To reuse as much code as possible from L1 and also to allow easier initialization, most of these contracts are not initialized as just part of the genesis storage root. Instead, the data for their initialization is part of the original diamondcut for the chain. In the same initial upgrade transaction when the chainId is initialized, these contracts are force-deployed and initialized also. An important part in it plays the new `L2GenesisUpgrade` contract, which is pre-deployed in a user-space contract, but it is delegate-called by the `ComplexUpgrader` system contract (already exists as part of genesis and existed before this upgrade).
 
 ## Additional limitations for the current version

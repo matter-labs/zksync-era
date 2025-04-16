@@ -1,4 +1,5 @@
 <!--- WIP --->
+
 # Safe ChainAdmin management
 
 While the ecosystem does a [decentralized trusted governance](https://blog.zknation.io/introducing-zk-nation/), each chain has its own Chain Admin. While the upgrade parameters are chosen by the governance, chain admin is still a powerful role and should be managed carefully.
