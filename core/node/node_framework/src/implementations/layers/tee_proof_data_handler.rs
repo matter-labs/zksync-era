@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -18,9 +18,10 @@ use crate::{
 
 /// Wiring layer for proof data handler server.
 #[derive(Debug)]
-pub struct ProofDataHandlerLayer {
-    proof_data_handler_config: ProofDataHandlerConfig,
+pub struct TeeProofDataHandlerLayer {
+    proof_data_handler_config: TeeProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -37,20 +38,22 @@ pub struct Output {
     pub task: ProofDataHandlerTask,
 }
 
-impl ProofDataHandlerLayer {
+impl TeeProofDataHandlerLayer {
     pub fn new(
-        proof_data_handler_config: ProofDataHandlerConfig,
+        proof_data_handler_config: TeeProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             proof_data_handler_config,
             commitment_mode,
+            l2_chain_id,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for ProofDataHandlerLayer {
+impl WiringLayer for TeeProofDataHandlerLayer {
     type Input = Input;
     type Output = Output;
 
@@ -67,6 +70,7 @@ impl WiringLayer for ProofDataHandlerLayer {
             blob_store,
             main_pool,
             commitment_mode: self.commitment_mode,
+            l2_chain_id: self.l2_chain_id,
         };
 
         Ok(Output { task })
@@ -75,10 +79,11 @@ impl WiringLayer for ProofDataHandlerLayer {
 
 #[derive(Debug)]
 pub struct ProofDataHandlerTask {
-    proof_data_handler_config: ProofDataHandlerConfig,
+    proof_data_handler_config: TeeProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -88,11 +93,12 @@ impl Task for ProofDataHandlerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_proof_data_handler::run_server(
+        zksync_tee_proof_data_handler::run_server(
             self.proof_data_handler_config,
             self.blob_store,
             self.main_pool,
             self.commitment_mode,
+            self.l2_chain_id,
             stop_receiver.0,
         )
         .await

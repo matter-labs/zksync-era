@@ -2,20 +2,19 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use chrono::{Duration as ChronoDuration, Utc};
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{
     tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
     ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::{
+use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
+use zksync_tee_prover_interface::{
     api::{
-        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
-        SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
+        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitTeeProofRequest,
+        SubmitTeeProofResponse, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
     },
-    inputs::{
-        TeeVerifierInput, V1TeeVerifierInput, VMRunWitnessInputData, WitnessInputMerklePaths,
-    },
+    inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
@@ -26,7 +25,7 @@ use crate::{errors::ProcessorError, metrics::METRICS};
 pub(crate) struct TeeRequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
-    config: ProofDataHandlerConfig,
+    config: TeeProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
 }
 
@@ -34,7 +33,7 @@ impl TeeRequestProcessor {
     pub(crate) fn new(
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
-        config: ProofDataHandlerConfig,
+        config: TeeProofDataHandlerConfig,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
@@ -52,9 +51,7 @@ impl TeeRequestProcessor {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
         let batch_ignored_timeout = ChronoDuration::from_std(
-            self.config
-                .tee_config
-                .tee_batch_permanently_ignored_timeout(),
+            self.config.tee_batch_permanently_ignored_timeout(),
         )
         .map_err(|err| {
             ProcessorError::GeneralError(format!(
@@ -62,7 +59,7 @@ impl TeeRequestProcessor {
                 err
             ))
         })?;
-        let min_batch_number = self.config.tee_config.first_tee_processed_batch;
+        let min_batch_number = self.config.first_processed_batch;
 
         loop {
             let Some(locked_batch) = self
@@ -176,7 +173,7 @@ impl TeeRequestProcessor {
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
                 tee_type,
-                self.config.tee_config.tee_proof_generation_timeout(),
+                self.config.tee_proof_generation_timeout(),
                 min_batch_number,
             )
             .await
@@ -202,7 +199,7 @@ impl TeeRequestProcessor {
         &self,
         Path(l1_batch_number): Path<u32>,
         Json(proof): Json<SubmitTeeProofRequest>,
-    ) -> Result<Json<SubmitProofResponse>, ProcessorError> {
+    ) -> Result<Json<SubmitTeeProofResponse>, ProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
         let mut dal = connection.tee_proof_generation_dal();
@@ -237,7 +234,7 @@ impl TeeRequestProcessor {
             proof
         );
 
-        Ok(Json(SubmitProofResponse::Success))
+        Ok(Json(SubmitTeeProofResponse::Success))
     }
 
     pub(crate) async fn register_tee_attestation(
