@@ -26,6 +26,7 @@ mod errors;
 mod metrics;
 mod processor;
 mod tee_request_processor;
+mod client;
 
 pub async fn run_server(
     config: ProofDataHandlerConfig,
