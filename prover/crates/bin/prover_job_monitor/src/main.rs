@@ -92,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection pool")?;
 
-    let graceful_shutdown_timeout = prover_job_monitor_config.graceful_shutdown_timeout();
+    let graceful_shutdown_timeout = prover_job_monitor_config.graceful_shutdown_timeout;
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver.clone()))];
 
@@ -151,7 +151,7 @@ fn get_tasks(
 
     // archivers
     let prover_jobs_archiver =
-        ProverJobsArchiver::new(prover_job_monitor_config.archive_prover_jobs_duration());
+        ProverJobsArchiver::new(prover_job_monitor_config.prover_jobs_archiver_archive_jobs_after);
     task_runner.add(
         "ProverJobsArchiver",
         prover_job_monitor_config.prover_jobs_archiver_run_interval,

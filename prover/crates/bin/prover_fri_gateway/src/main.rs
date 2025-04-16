@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
         .prover_gateway
         .context("prover gateway config")?;
 
-    let postgres_config = general_config.postgres_config.context("postgres config")?;
+    let postgres_config = general_config.postgres_config;
     let pool = ConnectionPool::<Prover>::builder(
         database_secrets.prover_url()?,
         postgres_config.max_connections()?,
@@ -90,8 +90,10 @@ async fn main() -> anyhow::Result<()> {
             PrometheusExporterConfig::pull(config.prometheus_listener_port)
                 .run(stop_receiver.clone()),
         ),
-        tokio::spawn(proof_gen_data_fetcher.run(config.api_poll_duration(), stop_receiver.clone())),
-        tokio::spawn(proof_submitter.run(config.api_poll_duration(), stop_receiver)),
+        tokio::spawn(
+            proof_gen_data_fetcher.run(config.api_poll_duration_secs, stop_receiver.clone()),
+        ),
+        tokio::spawn(proof_submitter.run(config.api_poll_duration_secs, stop_receiver)),
     ];
 
     let mut tasks = ManagedTasks::new(tasks);

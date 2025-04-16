@@ -120,7 +120,7 @@ async fn main() -> anyhow::Result<()> {
 
     let prometheus_config = PrometheusExporterConfig::push(
         config.prometheus_pushgateway_url,
-        Duration::from_millis(config.prometheus_push_interval_ms.unwrap_or(100)),
+        config.prometheus_push_interval_ms,
     );
     let tasks = vec![
         tokio::spawn(prometheus_config.run(stop_receiver.clone())),
