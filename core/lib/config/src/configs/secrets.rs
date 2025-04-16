@@ -60,7 +60,7 @@ pub struct Secrets {
     pub database: DatabaseSecrets,
     #[config(alias = "eth_client", nest)]
     pub l1: L1Secrets,
-    #[config(rename = "da", nest)]
+    #[config(rename = "da_client", nest)]
     pub data_availability: Option<DataAvailabilitySecrets>,
     #[config(nest)]
     pub contract_verifier: ContractVerifierSecrets,
@@ -132,7 +132,7 @@ mod tests {
         );
     }
 
-    // Migration path: shorten `DA_SECRETS_*` -> `DA_*`.
+    // Migration path: change `DA_SECRETS_*` -> `DA_CLIENT_*`.
     #[test]
     fn parsing_from_env() {
         let env = r#"
@@ -142,9 +142,9 @@ mod tests {
 
             ETH_CLIENT_WEB3_URL=http://127.0.0.1:8545/
 
-            DA_CLIENT="Avail"
-            DA_SEED_PHRASE="correct horse battery staple"
-            DA_GAS_RELAY_API_KEY="SUPER_SECRET"
+            DA_CLIENT_CLIENT="Avail"
+            DA_CLIENT_SEED_PHRASE="correct horse battery staple"
+            DA_CLIENT_GAS_RELAY_API_KEY="SUPER_SECRET"
 
             CONSENSUS_VALIDATOR_KEY="validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866"
             CONSENSUS_NODE_KEY="node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
@@ -168,7 +168,7 @@ mod tests {
               validator_key: validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866
               node_key: node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3
               attester_key: attester:secret:secp256k1:a32fc914d5131642cf7d7952d95e018c95b1852eafb4204043c4a9614488de2e
-            da:
+            da_client:
               client: Avail
               seed_phrase: 'correct horse battery staple'
               gas_relay_api_key: SUPER_SECRET
