@@ -7,7 +7,7 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import { retryableDepositCheck, scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { IL2NativeTokenVault__factory } from 'zksync-ethers/build/typechain';
 
 const SECONDS = 2000;
@@ -52,23 +52,29 @@ describe('base ERC20 contract checks', () => {
         const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const initialL2Balance = await alice.getBalance();
 
-        const depositTx = await alice.deposit({
-            token: baseTokenDetails.l1Address,
-            amount: amount,
-            approveERC20: true,
-            approveBaseERC20: true,
-            approveBaseOverrides: {
-                gasPrice
+        const depositHash = await retryableDepositCheck(
+            alice,
+            {
+                token: baseTokenDetails.l1Address,
+                amount: amount,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveBaseOverrides: {
+                    gasPrice
+                },
+                approveOverrides: {
+                    gasPrice
+                },
+                overrides: {
+                    gasPrice
+                }
             },
-            approveOverrides: {
-                gasPrice
+            async (deposit) => {
+                await deposit.wait();
+                return deposit.hash;
             },
-            overrides: {
-                gasPrice
-            }
-        });
-        const depositHash = depositTx.hash;
-        await depositTx.wait();
+            testMaster.reporter
+        );
 
         const receipt = await alice._providerL1().getTransactionReceipt(depositHash);
         if (!receipt) {

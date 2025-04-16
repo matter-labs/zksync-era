@@ -8,7 +8,7 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import { retryableDepositCheck, scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 describe('L1 ERC20 contract checks', () => {
@@ -56,8 +56,9 @@ describe('L1 ERC20 contract checks', () => {
             { wallet: alice, change: amount }
         ]);
         const feeCheck = await shouldOnlyTakeFee(alice, true);
-        await expect(
-            alice.deposit({
+        await retryableDepositCheck(
+            alice,
+            {
                 token: tokenDetails.l1Address,
                 amount,
                 approveERC20: true,
@@ -68,8 +69,10 @@ describe('L1 ERC20 contract checks', () => {
                 overrides: {
                     gasPrice
                 }
-            })
-        ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+            },
+            (deposit) => expect(deposit).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]),
+            testMaster.reporter
+        );
     });
 
     test('Can perform a transfer', async () => {
