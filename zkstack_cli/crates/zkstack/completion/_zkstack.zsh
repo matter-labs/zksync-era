@@ -970,11 +970,13 @@ _arguments "${_arguments_options[@]}" : \
 '--external-node[Run tests for external node]' \
 '-n[Do not install or build dependencies]' \
 '--no-deps[Do not install or build dependencies]' \
+'--evm[Expect EVM contracts to be enabled for the chain; fail EVM tests if they are not]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'*::suite -- Test suite(s) to run, e.g. '\''contracts'\'' or '\''erc20'\'':_default' \
 && ret=0
 ;;
 (fees)
@@ -1094,6 +1096,22 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(gateway-migration)
+_arguments "${_arguments_options[@]}" : \
+'-g+[]:GATEWAY_CHAIN:_default' \
+'--gateway-chain=[]:GATEWAY_CHAIN:_default' \
+'--chain=[Chain to use]:CHAIN:_default' \
+'-n[Do not install or build dependencies]' \
+'--no-deps[Do not install or build dependencies]' \
+'--from-gateway[]' \
+'--to-gateway[]' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_zkstack__dev__test__help_commands" \
@@ -1147,6 +1165,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (loadtest)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway-migration)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1715,6 +1737,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(gateway-migration)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
         esac
     ;;
 esac
@@ -1939,10 +1965,8 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (run)
 _arguments "${_arguments_options[@]}" : \
-'--component=[]:COMPONENT:(gateway witness-generator witness-vector-generator prover circuit-prover compressor prover-job-monitor)' \
+'--component=[]:COMPONENT:(gateway witness-generator circuit-prover compressor prover-job-monitor)' \
 '--round=[]:ROUND:(all-rounds basic-circuits leaf-aggregation node-aggregation recursion-tip scheduler)' \
-'--threads=[]:THREADS:_default' \
-'--max-allocation=[Memory allocation limit in bytes (for prover component)]:MAX_ALLOCATION:_default' \
 '-l+[]:LIGHT_WVG_COUNT:_default' \
 '--light-wvg-count=[]:LIGHT_WVG_COUNT:_default' \
 '-h+[]:HEAVY_WVG_COUNT:_default' \
@@ -2845,6 +2869,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (loadtest)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(gateway-migration)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -4095,6 +4123,7 @@ _zkstack__dev__help__test_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
     )
     _describe -t commands 'zkstack dev help test commands' commands "$@"
 }
@@ -4107,6 +4136,11 @@ _zkstack__dev__help__test__build_commands() {
 _zkstack__dev__help__test__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help test fees commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__test__gateway-migration_commands] )) ||
+_zkstack__dev__help__test__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help test gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__test__integration_commands] )) ||
 _zkstack__dev__help__test__integration_commands() {
@@ -4294,6 +4328,7 @@ _zkstack__dev__test_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev test commands' commands "$@"
@@ -4307,6 +4342,11 @@ _zkstack__dev__test__build_commands() {
 _zkstack__dev__test__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev test fees commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__test__gateway-migration_commands] )) ||
+_zkstack__dev__test__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev test gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__test__help_commands] )) ||
 _zkstack__dev__test__help_commands() {
@@ -4322,6 +4362,7 @@ _zkstack__dev__test__help_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'zkstack dev test help commands' commands "$@"
@@ -4335,6 +4376,11 @@ _zkstack__dev__test__help__build_commands() {
 _zkstack__dev__test__help__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev test help fees commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__test__help__gateway-migration_commands] )) ||
+_zkstack__dev__test__help__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev test help gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__test__help__help_commands] )) ||
 _zkstack__dev__test__help__help_commands() {
@@ -5040,6 +5086,7 @@ _zkstack__help__dev__test_commands() {
 'prover:Run prover tests' \
 'wallet:Print test wallets information' \
 'loadtest:Run loadtest' \
+'gateway-migration:Run gateway tests' \
     )
     _describe -t commands 'zkstack help dev test commands' commands "$@"
 }
@@ -5052,6 +5099,11 @@ _zkstack__help__dev__test__build_commands() {
 _zkstack__help__dev__test__fees_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev test fees commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__test__gateway-migration_commands] )) ||
+_zkstack__help__dev__test__gateway-migration_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev test gateway-migration commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__test__integration_commands] )) ||
 _zkstack__help__dev__test__integration_commands() {

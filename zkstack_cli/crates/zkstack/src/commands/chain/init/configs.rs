@@ -24,7 +24,7 @@ use crate::{
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
     },
     utils::{
-        consensus::{generate_consensus_keys, set_consensus_secrets, set_genesis_specs},
+        consensus::{set_consensus_secrets, set_genesis_specs, ConsensusSecretKeys},
         ports::EcosystemPortsScanner,
     },
 };
@@ -68,7 +68,7 @@ pub async fn init_configs(
         general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
     }
 
-    let consensus_keys = generate_consensus_keys();
+    let consensus_keys = ConsensusSecretKeys::generate();
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
     match &init_args.validium_config {
