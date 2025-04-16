@@ -74,7 +74,7 @@ impl Harness {
                 Self::STORAGE_CONTRACT_ADDRESS,
             ),
             storage_contract_abi: &TestContract::storage_test().abi,
-            current_block: l1_batch_env.first_l2_block,
+            current_block: l1_batch_env.first_l2_block.clone(),
         }
     }
 

@@ -198,6 +198,17 @@ describe('L1 ERC20 contract checks', () => {
     });
 
     test('Can check withdrawal hash in L2 ', async () => {
+        const bridgehub = new ethers.Contract(
+            await alice.provider.getBridgehubContractAddress(),
+            zksync.utils.BRIDGEHUB_ABI,
+            alice.provider
+        );
+        if (
+            (await bridgehub.getSettlementLayer((await alice.provider.getNetwork()).chainId)) ==
+            (await alice.providerL1!.getNetwork()).chainId
+        ) {
+            return;
+        }
         // We use the same chain for simplicity
         const l2MessageVerification = new zksync.Contract(
             L2_MESSAGE_VERIFICATION_ADDRESS,

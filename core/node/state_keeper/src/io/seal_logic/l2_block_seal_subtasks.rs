@@ -587,6 +587,7 @@ mod tests {
                 prev_block_hash: Default::default(),
                 virtual_blocks: Default::default(),
                 protocol_version: ProtocolVersionId::latest(),
+                msg_roots: vec![],
             },
             first_tx_index: 0,
             fee_account_address: Default::default(),
