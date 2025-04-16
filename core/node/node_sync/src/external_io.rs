@@ -550,6 +550,7 @@ mod tests {
             first_l2_block: L2BlockParams {
                 timestamp: 1,
                 virtual_blocks: 1,
+                msg_roots: vec![],
             },
             pubdata_params: Default::default(),
         };
