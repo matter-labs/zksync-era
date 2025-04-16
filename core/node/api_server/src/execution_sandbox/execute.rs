@@ -11,26 +11,25 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::{runtime::Handle, task::spawn_blocking, sync::Mutex};
+use tokio::{runtime::Handle, sync::Mutex, task::spawn_blocking};
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::StorageWithOverrides,
         tracer::TimestampAsserterParams,
-        Call, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
-        TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
         utils::{DivergenceHandler, VmDump},
-        DeduplicatedWritesMetrics,
+        Call, DeduplicatedWritesMetrics, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams,
+        TransactionExecutionMetrics, TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
     },
     utils::StorageWritesDeduplicator,
 };
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId,
-    StorageKey, StorageLog, StorageLogKind, Transaction, vm::FastVmMode
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
+    AccountTreeId, StorageKey, StorageLog, StorageLogKind, Transaction,
 };
-use zksync_object_store::{Bucket, ObjectStore};
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 #[cfg(feature = "zkos")]
 use {

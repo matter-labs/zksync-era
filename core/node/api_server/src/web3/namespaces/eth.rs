@@ -21,6 +21,7 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
+use crate::utils::{AccountType, ExternalAccountType};
 // #[cfg(feature = "zkos")]
 // use {
 //     ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
@@ -33,7 +34,6 @@ use crate::{
     utils::{fill_transaction_receipts, open_readonly_transaction},
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
-use crate::utils::{AccountType, ExternalAccountType};
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
@@ -497,8 +497,7 @@ impl EthNamespace {
 
         #[cfg(not(feature = "zkos"))]
         let (account_type, mut nonce) = {
-            self
-                .state
+            self.state
                 .account_types_cache
                 .get_with_nonce(&mut connection, address, block_number)
                 .await?
@@ -512,7 +511,10 @@ impl EthNamespace {
                 .await
                 .map_err(DalError::generalize)?;
             // TODO: account type
-            (AccountType::External(ExternalAccountType::Default), U256::from(nonce))
+            (
+                AccountType::External(ExternalAccountType::Default),
+                U256::from(nonce),
+            )
         };
 
         if account_type.is_external() && matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
