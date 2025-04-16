@@ -50,7 +50,6 @@ impl ExpectedFeeInput {
         self.expect_for_block(api::BlockNumber::Pending, scale);
     }
 
-    #[allow(dead_code)]
     fn expect_custom(&self, expected: BatchFeeInput) {
         *self.0.lock().unwrap() = expected;
     }

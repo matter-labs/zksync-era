@@ -252,7 +252,11 @@ impl Web3JsonRpcConfig {
     /// Ports and some fields that may affect execution are set to the same values used by default in
     /// the localhost environment. Other fields are set to default values.
     pub fn for_tests() -> Self {
-        Self::default()
+        Self {
+            gas_price_scale_factor: 1.2,
+            estimate_gas_scale_factor: 1.5,
+            ..Self::default()
+        }
     }
 
     pub fn http_bind_addr(&self) -> SocketAddr {
