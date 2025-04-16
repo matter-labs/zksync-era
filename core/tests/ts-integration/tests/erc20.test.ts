@@ -15,7 +15,8 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import {
     L2_MESSAGE_VERIFICATION_ADDRESS,
     ArtifactL2MessageVerification,
-    ETH_ADDRESS_IN_CONTRACTS
+    ETH_ADDRESS_IN_CONTRACTS,
+    ArtifactBridgeHub
 } from '../src/constants';
 
 describe('L1 ERC20 contract checks', () => {
@@ -200,11 +201,11 @@ describe('L1 ERC20 contract checks', () => {
     test('Can check withdrawal hash in L2 ', async () => {
         const bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
-            zksync.utils.BRIDGEHUB_ABI,
-            alice.provider
+            ArtifactBridgeHub.abi,
+            alice.providerL1
         );
         if (
-            (await bridgehub.getSettlementLayer((await alice.provider.getNetwork()).chainId)) ==
+            (await bridgehub.settlementLayer((await alice.provider.getNetwork()).chainId)) ==
             (await alice.providerL1!.getNetwork()).chainId
         ) {
             return;
