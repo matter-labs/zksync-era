@@ -17,8 +17,9 @@ use zksync_types::{L2BlockNumber, StorageLog};
 
 use super::*;
 use crate::test_utils::{
-    create_l1_batch, create_l2_block, gen_storage_logs, prepare_postgres,
-    prepare_postgres_for_snapshot_recovery, prepare_postgres_with_log_count, prune_storage,
+    create_l1_batch, create_l2_block, gen_storage_logs, mock_snapshot_recovery_status,
+    prepare_postgres, prepare_postgres_for_snapshot_recovery, prepare_postgres_with_log_count,
+    prune_storage,
 };
 
 #[derive(Clone)]
@@ -409,21 +410,19 @@ async fn recovering_from_snapshot_and_following_logs() {
     sync_test_storage_and_check_recovery(&dir, &mut conn, false).await;
 }
 
-#[test_casing(2, [false, true])]
-#[tokio::test]
-async fn recovery_fault_tolerance(from_genesis: bool) {
-    let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.connection().await.unwrap();
-
+async fn partially_recover_storage(
+    conn: &mut Connection<'_, Core>,
+    temp_dir: &TempDir,
+    from_genesis: bool,
+) -> (Vec<StorageLog>, u64) {
     let storage_logs = if from_genesis {
-        prepare_postgres_with_log_count(&mut conn, 2_000).await
+        prepare_postgres_with_log_count(conn, 2_000).await
     } else {
-        prepare_postgres_for_snapshot_recovery(&mut conn).await.1
+        prepare_postgres_for_snapshot_recovery(conn).await.1
     };
     let log_chunk_size = storage_logs.len() as u64 / 5;
 
-    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
+    let mut storage = RocksdbStorage::new(temp_dir.path().into(), RocksdbStorageOptions::default())
         .await
         .unwrap();
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -437,11 +436,31 @@ async fn recovery_fault_tolerance(from_genesis: bool) {
     }));
 
     let err = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(conn, log_chunk_size, &stop_receiver)
         .await
         .unwrap_err();
     assert_matches!(err, RocksdbSyncError::Interrupted);
-    drop(storage);
+
+    let recovery_l1_batch = storage.recovery_l1_batch_number().await.unwrap();
+    let recovery_l1_batch = recovery_l1_batch.expect("no recovery batch");
+    if from_genesis {
+        assert_eq!(recovery_l1_batch, L1BatchNumber(0));
+    } else {
+        assert!(recovery_l1_batch > L1BatchNumber(0));
+    }
+
+    (storage_logs, log_chunk_size)
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn recovery_fault_tolerance(from_genesis: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+
+    let (storage_logs, log_chunk_size) =
+        partially_recover_storage(&mut conn, &dir, from_genesis).await;
 
     // Resume recovery and check that no chunks are recovered twice.
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -461,6 +480,8 @@ async fn recovery_fault_tolerance(from_genesis: bool) {
     } else {
         assert!(next_l1_batch > L1BatchNumber(1));
     }
+    let recovery_l1_batch = storage.recovery_l1_batch_number().await.unwrap();
+    assert_eq!(recovery_l1_batch, None); // unset at the end of recovery
 
     for log in &storage_logs {
         assert_eq!(storage.read_value(&log.key), log.value);
@@ -493,6 +514,9 @@ async fn entire_workflow_for_genesis_recovery() {
         .unwrap();
     assert_matches!(strategy, Strategy::Recovery);
     assert_eq!(next_l1_batch, L1BatchNumber(1));
+
+    let recovery_l1_batch = storage.recovery_l1_batch_number().await.unwrap();
+    assert_eq!(recovery_l1_batch, None); // should be unset at the end of recovery
 }
 
 #[tokio::test]
@@ -595,4 +619,48 @@ async fn recovery_with_pruning_and_overwritten_logs() {
     for log in &storage_logs {
         assert_eq!(storage.read_value(&log.key), log.value);
     }
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn recovery_detects_additional_pruning(from_genesis: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+
+    let (_, log_chunk_size) = partially_recover_storage(&mut conn, &dir, from_genesis).await;
+
+    // Create 2 batches and prune one of them from the storage. This is required to always prune some data.
+    let (latest_l1_batch, latest_l2_block) = if from_genesis {
+        (L1BatchNumber(0), L2BlockNumber(0))
+    } else {
+        let status = mock_snapshot_recovery_status();
+        (status.l1_batch_number, status.l2_block_number)
+    };
+
+    for i in 1_u32..=2 {
+        let log_start_idx = 10_000 * u64::from(i);
+        let new_logs = gen_storage_logs(log_start_idx..log_start_idx + 50);
+        create_l2_block(&mut conn, latest_l2_block + i, &new_logs).await;
+        create_l1_batch(&mut conn, latest_l1_batch + i, &new_logs).await;
+    }
+
+    prune_storage(&pool, latest_l1_batch + 1).await;
+
+    // Restart recovery. Additional pruning should be detected.
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
+        .await
+        .unwrap();
+    let err = storage
+        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .await
+        .unwrap_err();
+    let RocksdbSyncError::Internal(err) = err else {
+        panic!("Expected internal error");
+    };
+    assert!(
+        format!("{err:#}").contains("Snapshot parameters in Postgres"),
+        "{err:#}"
+    );
 }

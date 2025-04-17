@@ -117,15 +117,8 @@ pub(crate) async fn create_l1_batch(
         .unwrap();
 }
 
-pub(crate) async fn prepare_postgres_for_snapshot_recovery(
-    conn: &mut Connection<'_, Core>,
-) -> (SnapshotRecoveryStatus, Vec<StorageLog>) {
-    conn.protocol_versions_dal()
-        .save_protocol_version_with_tx(&ProtocolVersion::default())
-        .await
-        .unwrap();
-
-    let snapshot_recovery = SnapshotRecoveryStatus {
+pub(crate) fn mock_snapshot_recovery_status() -> SnapshotRecoveryStatus {
+    SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(23),
         l1_batch_timestamp: 23,
         l1_batch_root_hash: H256::zero(), // not used
@@ -134,7 +127,18 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
         l2_block_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![true; 100],
-    };
+    }
+}
+
+pub(crate) async fn prepare_postgres_for_snapshot_recovery(
+    conn: &mut Connection<'_, Core>,
+) -> (SnapshotRecoveryStatus, Vec<StorageLog>) {
+    conn.protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+
+    let snapshot_recovery = mock_snapshot_recovery_status();
     conn.snapshot_recovery_dal()
         .insert_initial_recovery_status(&snapshot_recovery)
         .await
