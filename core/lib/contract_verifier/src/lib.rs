@@ -272,7 +272,10 @@ impl ContractVerifier {
         };
         let mut deployed_code = deployed_bytecode.to_vec();
 
-        // patch immutable references if any
+        // If contract contains immutable references (e.g. places to be filled during constructor execution),
+        // rewrite them with zeroes, as we can't know the values just yet.
+        // We're checking the constructor arguments as well, so assuming tha constructor arguments
+        // are the same, the immutable values should also be the same.
         artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
 
         let compiled_identifier =
