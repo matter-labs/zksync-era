@@ -103,7 +103,7 @@ impl Task for ProofDataHandlerTask {
             self.proof_data_handler_config.clone(),
             self.blob_store.clone(),
             self.main_pool.clone(),
-            self.commitment_mode.clone(),
+            self.commitment_mode,
             self.l2_chain_id,
             self.api_mode.clone(),
             stop_receiver.clone().0,
