@@ -1,6 +1,12 @@
 //! Tests for [`RocksdbStorage`].
 
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -12,7 +18,7 @@ use zksync_types::{L2BlockNumber, StorageLog};
 use super::*;
 use crate::test_utils::{
     create_l1_batch, create_l2_block, gen_storage_logs, prepare_postgres,
-    prepare_postgres_for_snapshot_recovery, prepare_postgres_with_log_count,
+    prepare_postgres_for_snapshot_recovery, prepare_postgres_with_log_count, prune_storage,
 };
 
 #[derive(Clone)]
@@ -487,4 +493,106 @@ async fn entire_workflow_for_genesis_recovery() {
         .unwrap();
     assert_matches!(strategy, Strategy::Recovery);
     assert_eq!(next_l1_batch, L1BatchNumber(1));
+}
+
+#[tokio::test]
+async fn recovery_with_pruning() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    prepare_postgres(&mut conn).await;
+
+    let mut storage_logs = gen_storage_logs(20..40);
+    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+    create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
+
+    // Override a part of storage logs.
+    let mut overwritten_logs = storage_logs.split_off(10);
+    for log in &mut overwritten_logs {
+        log.value = H256::repeat_byte(0xff);
+    }
+    create_l2_block(&mut conn, L2BlockNumber(2), &overwritten_logs).await;
+    create_l1_batch(&mut conn, L1BatchNumber(2), &[]).await;
+
+    prune_storage(&pool, L1BatchNumber(1)).await;
+
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+    let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
+        .await
+        .unwrap();
+
+    let log_chunk_size = 10;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let (strategy, next_l1_batch) = storage
+        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .await
+        .unwrap();
+    assert_matches!(strategy, Strategy::Recovery);
+    assert_eq!(next_l1_batch, L1BatchNumber(2));
+
+    for log in &storage_logs {
+        assert_eq!(storage.read_value(&log.key), log.value);
+    }
+    for log in &overwritten_logs {
+        assert_ne!(storage.read_value(&log.key), log.value);
+    }
+
+    // Synchronize the storage and check overwritten logs.
+    let is_synced = Arc::new(AtomicBool::default());
+    let is_synced_for_listener = is_synced.clone();
+    storage.listener.on_l1_batch_synced = Arc::new(RwLock::new(move |number| {
+        assert_eq!(number, L1BatchNumber(2));
+        is_synced_for_listener.store(true, Ordering::Relaxed);
+    }));
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    storage
+        .update_from_postgres(&mut conn, &stop_receiver, None)
+        .await
+        .unwrap();
+
+    assert!(is_synced.load(Ordering::Relaxed));
+    for log in storage_logs.iter().chain(&overwritten_logs) {
+        assert_eq!(storage.read_value(&log.key), log.value);
+    }
+}
+
+#[tokio::test]
+async fn recovery_with_pruning_and_overwritten_logs() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    prepare_postgres(&mut conn).await;
+
+    let mut storage_logs = gen_storage_logs(20..40);
+    create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
+    create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
+
+    for log in &mut storage_logs {
+        log.value = H256::repeat_byte(0xff);
+    }
+    create_l2_block(&mut conn, L2BlockNumber(2), &storage_logs).await;
+    create_l1_batch(&mut conn, L1BatchNumber(2), &[]).await;
+
+    // Create another batch to not end up with an empty storage after pruning
+    let new_logs = gen_storage_logs(40..60);
+    create_l2_block(&mut conn, L2BlockNumber(3), &new_logs).await;
+    create_l1_batch(&mut conn, L1BatchNumber(3), &new_logs).await;
+
+    let pruning_stats = prune_storage(&pool, L1BatchNumber(2)).await;
+    assert!(pruning_stats.deleted_storage_logs > 0);
+
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+    let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
+        .await
+        .unwrap();
+    let log_chunk_size = 10;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let (strategy, next_l1_batch) = storage
+        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .await
+        .unwrap();
+    assert_matches!(strategy, Strategy::Recovery);
+    assert_eq!(next_l1_batch, L1BatchNumber(3));
+
+    for log in &storage_logs {
+        assert_eq!(storage.read_value(&log.key), log.value);
+    }
 }

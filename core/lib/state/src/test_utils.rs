@@ -2,7 +2,7 @@
 
 use std::ops;
 
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{pruning_dal::HardPruningStats, Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     snapshots::SnapshotRecoveryStatus,
@@ -153,4 +153,40 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
         .await
         .unwrap();
     (snapshot_recovery, snapshot_storage_logs)
+}
+
+pub(crate) async fn prune_storage(
+    pool: &ConnectionPool<Core>,
+    pruned_l1_batch: L1BatchNumber,
+) -> HardPruningStats {
+    // Emulate pruning batches in the storage.
+    let mut storage = pool.connection().await.unwrap();
+    let (_, pruned_l2_block) = storage
+        .blocks_dal()
+        .get_l2_block_range_of_l1_batch(pruned_l1_batch)
+        .await
+        .unwrap()
+        .expect("L1 batch not present in Postgres");
+    let root_hash = H256::zero(); // Doesn't matter for storage recovery
+
+    storage
+        .pruning_dal()
+        .insert_soft_pruning_log(pruned_l1_batch, pruned_l2_block)
+        .await
+        .unwrap();
+    let pruning_stats = storage
+        .pruning_dal()
+        .hard_prune_batches_range(pruned_l1_batch, pruned_l2_block)
+        .await
+        .unwrap();
+    assert!(
+        pruning_stats.deleted_l1_batches > 0 && pruning_stats.deleted_l2_blocks > 0,
+        "{pruning_stats:?}"
+    );
+    storage
+        .pruning_dal()
+        .insert_hard_pruning_log(pruned_l1_batch, pruned_l2_block, root_hash)
+        .await
+        .unwrap();
+    pruning_stats
 }

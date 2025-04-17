@@ -51,6 +51,11 @@ impl InitParameters {
             .get_applied_snapshot_status()
             .await?;
         let pruning_info = storage.pruning_dal().get_pruning_info().await?;
+        tracing::debug!(
+            ?recovery_status,
+            ?pruning_info,
+            "Fetched snapshot / pruning info"
+        );
 
         let (l1_batch, l2_block) = match (recovery_status, pruning_info.last_hard_pruned) {
             (Some(recovery), None) => {
