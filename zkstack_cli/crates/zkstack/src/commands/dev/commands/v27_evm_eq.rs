@@ -19,8 +19,9 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use crate::commands::dev::commands::upgrade_utils::{
-    print_error, set_upgrade_timestamp_calldata, AdminCallBuilder,
+use crate::commands::{
+    chain::admin_call_builder::{AdminCall, AdminCallBuilder},
+    dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
 };
 
 #[derive(Debug, Default)]
@@ -189,23 +190,6 @@ pub async fn fetch_chain_info(
     })
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct AdminCall {
-    description: String,
-    target: Address,
-    #[serde(serialize_with = "serialize_hex")]
-    data: Vec<u8>,
-    value: U256,
-}
-
-fn serialize_hex<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let hex_string = format!("0x{}", hex::encode(bytes));
-    serializer.serialize_str(&hex_string)
-}
-
 #[derive(Parser, Debug, Clone)]
 pub struct V27EvmInterpreterCalldataArgs {
     upgrade_description_path: String,
@@ -286,7 +270,7 @@ pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> a
         };
     }
 
-    let mut admin_calls_finalize = AdminCallBuilder::new();
+    let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
 
     admin_calls_finalize.append_execute_upgrade(
         chain_info.hyperchain_addr,
@@ -296,7 +280,7 @@ pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> a
 
     admin_calls_finalize.display();
 
-    let chain_admin_calldata = admin_calls_finalize.compile_full_calldata();
+    let (chain_admin_calldata, _) = admin_calls_finalize.compile_full_calldata();
 
     println!(
         "Full calldata to call `ChainAdmin` with : {}",

@@ -3,6 +3,9 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use grant_gateway_whitelist::GrantGatewayWhitelistScriptArgs;
+use notify_server_calldata::{NotifyServerCalldataArgs, NotifyServerCalldataScriptArgs};
+use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
 #[cfg(feature = "gateway")]
@@ -16,8 +19,21 @@ mod accept_chain_ownership;
 pub(crate) mod args;
 mod build_transactions;
 pub(crate) mod common;
+
+pub(crate) mod set_transaction_filterer;
+
 #[cfg(feature = "gateway")]
 pub(crate) mod convert_to_gateway;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod grant_gateway_whitelist;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod gateway_migration_calldata;
+
+#[cfg(feature = "gateway")]
+pub(crate) mod admin_call_builder;
+
 pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
@@ -28,6 +44,8 @@ pub mod genesis;
 pub mod init;
 #[cfg(feature = "gateway")]
 mod migrate_from_gateway;
+#[cfg(feature = "gateway")]
+mod notify_server_calldata;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
@@ -74,6 +92,16 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Provides calldata to set transaction filterer for a chain
+    SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
+    #[cfg(feature = "gateway")]
+    GrantGatewayTransactionFiltererWhitelistCalldata(GrantGatewayWhitelistScriptArgs),
+    #[cfg(feature = "gateway")]
+    NotifyAboutToGatewayUpdateCalldata(NotifyServerCalldataScriptArgs),
+    #[cfg(feature = "gateway")]
+    NotifyAboutFromGatewayUpdateCalldata(NotifyServerCalldataScriptArgs),
+    #[cfg(feature = "gateway")]
+    MigrateToGatewayCalldata(gateway_migration_calldata::MigrateToGatewayCalldataScriptArgs),
     /// Prepare chain to be an eligible gateway
     #[cfg(feature = "gateway")]
     ConvertToGateway(ForgeScriptArgs),
@@ -117,6 +145,25 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
+        }
+        ChainCommands::SetTransactionFiltererCalldata(args) => {
+            set_transaction_filterer::run(shell, args).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::GrantGatewayTransactionFiltererWhitelistCalldata(args) => {
+            grant_gateway_whitelist::run(shell, args).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::NotifyAboutToGatewayUpdateCalldata(args) => {
+            notify_server_calldata::run(shell, args, MigrationDirection::ToGateway).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::MigrateToGatewayCalldata(args) => {
+            gateway_migration_calldata::run(shell, args).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::NotifyAboutFromGatewayUpdateCalldata(args) => {
+            notify_server_calldata::run(shell, args, MigrationDirection::FromGateway).await
         }
         #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,

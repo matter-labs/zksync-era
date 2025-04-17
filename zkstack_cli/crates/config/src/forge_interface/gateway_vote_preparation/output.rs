@@ -1,7 +1,8 @@
-use ethers::abi::Address;
+use ethers::{abi::Address, utils::hex};
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::web3::Bytes;
 
-use crate::traits::ZkStackConfig;
+use crate::{traits::ZkStackConfig, GatewayConfig};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMOutput {
@@ -10,6 +11,8 @@ pub struct DeployGatewayCTMOutput {
     pub validium_da_validator: Address,
     pub relayed_sl_da_validator: Address,
     pub diamond_cut_data: String,
+    pub governance_calls_to_execute: String,
+    pub ecosystem_admin_calls_to_execute: String,
 }
 
 impl ZkStackConfig for DeployGatewayCTMOutput {}

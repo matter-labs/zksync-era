@@ -6552,10 +6552,12 @@ dependencies = [
  "zkstack_cli_config",
  "zkstack_cli_types",
  "zksync_basic_types",
+ "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_contracts",
  "zksync_system_constants",
+ "zksync_types",
  "zksync_web3_decl",
 ]
 
@@ -6667,6 +6669,20 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vise",
+]
+
+[[package]]
+name = "zksync_config"
+version = "27.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "rand",
+ "secrecy 0.10.3",
+ "serde",
+ "zksync_basic_types",
+ "zksync_concurrency",
+ "zksync_consensus_utils",
+ "zksync_crypto_primitives",
 ]
 
 [[package]]
