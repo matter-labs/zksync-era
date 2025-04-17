@@ -7,6 +7,7 @@ pub mod temp_config_store;
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
 /// is received.
+#[deprecated(since = "28.0.0", note = "Use SigintHandlerLayer from zksync_node_framework instead")]
 pub fn setup_sigint_handler() -> oneshot::Receiver<()> {
     let (sigint_sender, sigint_receiver) = oneshot::channel();
     let mut sigint_sender = Some(sigint_sender);
