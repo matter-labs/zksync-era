@@ -212,8 +212,8 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-vise = "0.2.0"
-vise-exporter = "0.2.0"
+vise = "0.3.0"
+vise-exporter = "0.3.0"
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies
@@ -256,16 +256,16 @@ bellman = { package = "zksync_bellman", version = "=0.31.0" }
 zksync_vm2 = "=0.3.0"
 
 # Consensus dependencies.
-zksync_concurrency = "=0.9.0"
-zksync_consensus_bft = "=0.9.0"
-zksync_consensus_crypto = "=0.9.0"
-zksync_consensus_executor = "=0.9.0"
-zksync_consensus_network = "=0.9.0"
-zksync_consensus_roles = "=0.9.0"
-zksync_consensus_storage = "=0.9.0"
-zksync_consensus_utils = "=0.9.0"
-zksync_protobuf = "=0.9.0"
-zksync_protobuf_build = "=0.9.0"
+zksync_concurrency = "=0.10.0"
+zksync_consensus_bft = "=0.10.0"
+zksync_consensus_crypto = "=0.10.0"
+zksync_consensus_executor = "=0.10.0"
+zksync_consensus_network = "=0.10.0"
+zksync_consensus_roles = "=0.10.0"
+zksync_consensus_storage = "=0.10.0"
+zksync_consensus_utils = "=0.10.0"
+zksync_protobuf = "=0.10.0"
+zksync_protobuf_build = "=0.10.0"
 
 # "Local" dependencies
 zksync_multivm = { version = "27.4.0-non-semver-compat", path = "lib/multivm" }
@@ -337,7 +337,3 @@ zksync_node_api_server = { version = "27.4.0-non-semver-compat", path = "node/ap
 zksync_base_token_adjuster = { version = "27.4.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "27.4.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "27.4.0-non-semver-compat", path = "node/gateway_migrator" }
-
-[patch.crates-io]
-vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
-vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }

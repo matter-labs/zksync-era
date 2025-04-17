@@ -64,7 +64,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-test = "0.2.5"
 url = "2.5.2"
-vise = "0.2.0"
+vise = "0.3.0"
 
 circuit_definitions = "=0.151.5"
 circuit_sequencer_api = "=0.151.5"
@@ -114,7 +114,3 @@ zksync_prover_job_monitor = { version = "=20.2.0", path = "crates/bin/prover_job
 [profile.perf]
 inherits = "release"
 debug = true
-
-[patch.crates-io]
-vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
-vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
