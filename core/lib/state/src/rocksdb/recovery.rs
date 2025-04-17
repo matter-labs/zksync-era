@@ -46,26 +46,42 @@ impl InitParameters {
         storage: &mut Connection<'_, Core>,
         desired_log_chunk_size: u64,
     ) -> anyhow::Result<Option<Self>> {
-        let snapshot_recovery = storage
+        let recovery_status = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await?;
-        Ok(if let Some(snapshot_recovery) = snapshot_recovery {
-            Some(Self {
-                l1_batch: snapshot_recovery.l1_batch_number,
-                l2_block: snapshot_recovery.l2_block_number,
-                desired_log_chunk_size,
-            })
-        } else {
-            // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
-            // for the chain is very large (order of millions of entries).
-            let is_genesis_recovery_needed = Self::is_genesis_recovery_needed(storage).await?;
-            is_genesis_recovery_needed.then_some(Self {
-                l1_batch: L1BatchNumber(0),
-                l2_block: L2BlockNumber(0),
-                desired_log_chunk_size,
-            })
-        })
+        let pruning_info = storage.pruning_dal().get_pruning_info().await?;
+
+        let (l1_batch, l2_block) = match (recovery_status, pruning_info.last_hard_pruned) {
+            (Some(recovery), None) => {
+                tracing::warn!(
+                    "Snapshot recovery {recovery:?} is present on the node, but pruning info is empty; assuming no pruning happened"
+                );
+                (recovery.l1_batch_number, recovery.l2_block_number)
+            }
+            (Some(recovery), Some(pruned)) => {
+                // We have both recovery and some pruning on top of it.
+                (
+                    pruned.l1_batch,
+                    pruned.l2_block.max(recovery.l2_block_number),
+                )
+            }
+            (None, Some(pruned)) => (pruned.l1_batch, pruned.l2_block),
+            (None, None) => {
+                // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
+                // for the chain is very large (order of millions of entries).
+                let is_genesis_recovery_needed = Self::is_genesis_recovery_needed(storage).await?;
+                if !is_genesis_recovery_needed {
+                    return Ok(None);
+                }
+                (L1BatchNumber(0), L2BlockNumber(0))
+            }
+        };
+        Ok(Some(Self {
+            l1_batch,
+            l2_block,
+            desired_log_chunk_size,
+        }))
     }
 
     #[tracing::instrument(skip_all, ret)]
