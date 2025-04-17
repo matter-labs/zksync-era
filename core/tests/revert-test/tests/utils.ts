@@ -105,7 +105,12 @@ export interface SuggestedValues {
 
 /** Parses output of "print-suggested-values" command of the revert block tool. */
 export function parseSuggestedValues(jsonString: string): SuggestedValues {
-    const json = JSON.parse(jsonString);
+    let json;
+    try {
+        json = JSON.parse(jsonString);
+    } catch {
+        console.log(`Failed to parse string: ${jsonString}`);
+    }
     assert(json && typeof json === 'object');
     assert(Number.isInteger(json.last_executed_l1_batch_number));
     assert(Number.isInteger(json.nonce));

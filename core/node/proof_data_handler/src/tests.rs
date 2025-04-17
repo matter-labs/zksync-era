@@ -100,7 +100,7 @@ async fn submit_tee_proof() {
     // this should fail because we haven't saved the attestation for the pubkey yet
 
     let response = send_submit_tee_proof_request(&app, &uri, &tee_proof_request).await;
-    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
     // save the attestation for the pubkey
 
