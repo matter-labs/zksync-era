@@ -7,15 +7,16 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { retryableDepositCheck, scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { IL2NativeTokenVault__factory } from 'zksync-ethers/build/typechain';
+import { RetryableWallet } from '../src/retry-provider';
 
 const SECONDS = 2000;
 jest.setTimeout(100 * SECONDS);
 
 describe('base ERC20 contract checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
     let bob: zksync.Wallet;
     let baseTokenDetails: Token;
     let isETHBasedChain: boolean;
@@ -52,8 +53,7 @@ describe('base ERC20 contract checks', () => {
         const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
         const initialL2Balance = await alice.getBalance();
 
-        const depositHash = await retryableDepositCheck(
-            alice,
+        const depositHash = await alice.retryableDepositCheck(
             {
                 token: baseTokenDetails.l1Address,
                 amount: amount,
@@ -72,8 +72,7 @@ describe('base ERC20 contract checks', () => {
             async (deposit) => {
                 await deposit.wait();
                 return deposit.hash;
-            },
-            testMaster.reporter
+            }
         );
 
         const receipt = await alice._providerL1().getTransactionReceipt(depositHash);

@@ -11,12 +11,13 @@ import {
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { retryableDepositCheck, scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
+import { RetryableWallet } from '../src/retry-provider';
 
 describe('ETH token checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let l2EthTokenAddressNonBase: string; // Used only for base token implementation
@@ -73,8 +74,7 @@ describe('ETH token checks', () => {
             gasPrice
         });
 
-        const depositFee = await retryableDepositCheck(
-            alice,
+        const depositFee = await alice.retryableDepositCheck(
             {
                 token: zksync.utils.ETH_ADDRESS,
                 amount,
@@ -98,8 +98,7 @@ describe('ETH token checks', () => {
                     }
                     return l1GasFee + expectedL2Costs;
                 });
-            },
-            testMaster.reporter
+            }
         );
 
         const l1EthBalanceAfter = await alice.getBalanceL1();

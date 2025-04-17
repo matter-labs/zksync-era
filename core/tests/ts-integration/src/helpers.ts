@@ -3,7 +3,6 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
-import { Reporter } from './reporter';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -233,27 +232,4 @@ export function bigIntMax(...args: bigint[]) {
 
 export function isLocalHost(network: string): boolean {
     return network.toLowerCase() == 'localhost';
-}
-
-export async function retryableDepositCheck<R>(
-    wallet: zksync.Wallet,
-    depositData: any,
-    check: (deposit: zksync.types.PriorityOpResponse) => Promise<R>,
-    reporter: Reporter,
-    maxAttempts: number = 3
-): Promise<R> {
-    for (let i = 0; i < maxAttempts; i += 1) {
-        const deposit = await wallet.deposit(depositData);
-        try {
-            return await check(deposit);
-        } catch (err: any) {
-            if (i + 1 == maxAttempts) {
-                reporter.debug('Last deposit check failed', deposit, err);
-                throw err;
-            } else {
-                reporter.debug('Retrying deposit check', deposit, err);
-            }
-        }
-    }
-    throw 'unreachable';
 }
