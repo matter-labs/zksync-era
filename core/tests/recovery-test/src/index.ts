@@ -131,7 +131,7 @@ export enum NodeComponents {
 }
 
 export function withDAFetcher(components: NodeComponents): string {
-    return components.toString().concat('da_fetcher');
+    return components.toString().concat(',da_fetcher');
 }
 
 export class NodeProcess {
