@@ -410,7 +410,10 @@ impl RocksdbStorage {
                 .await
                 .with_context(|| format!("failed saving L1 batch #{current_l1_batch_number}"))?;
             #[cfg(test)]
-            (self.listener.on_l1_batch_synced.write().await)(current_l1_batch_number - 1);
+            self.listener
+                .on_l1_batch_synced
+                .handle(current_l1_batch_number - 1)
+                .await;
         }
 
         latency.observe();

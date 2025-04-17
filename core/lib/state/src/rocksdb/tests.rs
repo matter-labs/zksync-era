@@ -3,15 +3,15 @@
 use std::{
     fmt,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
         Arc,
     },
 };
 
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use tempfile::TempDir;
 use test_casing::test_casing;
-use tokio::sync::RwLock;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{L2BlockNumber, StorageLog};
 
@@ -22,12 +22,31 @@ use crate::test_utils::{
     prune_storage,
 };
 
+#[async_trait]
+pub(super) trait AsyncHandler<Arg>: 'static + Send + Sync {
+    async fn handle(&self, arg: Arg);
+}
+
+#[async_trait]
+impl<T: Send + 'static> AsyncHandler<T> for () {
+    async fn handle(&self, _arg: T) {
+        // Do nothing
+    }
+}
+
+#[async_trait]
+impl<T: Send + 'static, F: Fn(T) + Send + Sync + 'static> AsyncHandler<T> for F {
+    async fn handle(&self, arg: T) {
+        self(arg);
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct RocksdbStorageEventListener {
     /// Called when an L1 batch is synced.
-    pub on_l1_batch_synced: Arc<RwLock<dyn FnMut(L1BatchNumber) + Send + Sync>>,
-    /// Called when an storage logs chunk is recovered from a snapshot.
-    pub on_logs_chunk_recovered: Arc<RwLock<dyn FnMut(u64) + Send + Sync>>,
+    pub on_l1_batch_synced: Arc<dyn AsyncHandler<L1BatchNumber>>,
+    /// Called when a storage logs chunk is recovered from a snapshot.
+    pub on_logs_chunk_recovered: Arc<dyn AsyncHandler<u64>>,
 }
 
 impl fmt::Debug for RocksdbStorageEventListener {
@@ -41,8 +60,8 @@ impl fmt::Debug for RocksdbStorageEventListener {
 impl Default for RocksdbStorageEventListener {
     fn default() -> Self {
         Self {
-            on_l1_batch_synced: Arc::new(RwLock::new(|_| { /* do nothing */ })),
-            on_logs_chunk_recovered: Arc::new(RwLock::new(|_| { /* do nothing */ })),
+            on_l1_batch_synced: Arc::new(()),
+            on_logs_chunk_recovered: Arc::new(()),
         }
     }
 }
@@ -160,14 +179,16 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
     let mut storage = RocksdbStorage::builder(dir.path())
         .await
         .expect("Failed initializing RocksDB");
-    let mut expected_l1_batch_number = L1BatchNumber(0);
-    storage.0.listener.on_l1_batch_synced = Arc::new(RwLock::new(move |number| {
-        assert_eq!(number, expected_l1_batch_number);
-        expected_l1_batch_number += 1;
+    let expected_l1_batch_number = AtomicU32::new(0);
+    storage.0.listener.on_l1_batch_synced = Arc::new(move |number: L1BatchNumber| {
+        assert_eq!(
+            number.0,
+            expected_l1_batch_number.fetch_add(1, Ordering::Relaxed)
+        );
         if number == L1BatchNumber(2) {
             stop_sender.send_replace(true);
         }
-    }));
+    });
     let storage = storage
         .synchronize(&mut conn, &stop_receiver, None)
         .await
@@ -426,14 +447,13 @@ async fn partially_recover_storage(
         .await
         .unwrap();
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let mut synced_chunk_count = 0_u64;
-    storage.listener.on_logs_chunk_recovered = Arc::new(RwLock::new(move |chunk_id| {
-        assert_eq!(chunk_id, synced_chunk_count);
-        synced_chunk_count += 1;
-        if synced_chunk_count == 2 {
+    let synced_chunk_count = AtomicU64::new(0);
+    storage.listener.on_logs_chunk_recovered = Arc::new(move |chunk_id| {
+        assert_eq!(chunk_id, synced_chunk_count.fetch_add(1, Ordering::Relaxed));
+        if chunk_id == 2 {
             stop_sender.send_replace(true);
         }
-    }));
+    });
 
     let err = storage
         .ensure_ready(conn, log_chunk_size, &stop_receiver)
@@ -467,9 +487,9 @@ async fn recovery_fault_tolerance(from_genesis: bool) {
     let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
         .await
         .unwrap();
-    storage.listener.on_logs_chunk_recovered = Arc::new(RwLock::new(|chunk_id| {
+    storage.listener.on_logs_chunk_recovered = Arc::new(|chunk_id| {
         assert!(chunk_id >= 2);
-    }));
+    });
     let (strategy, next_l1_batch) = storage
         .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
         .await
@@ -563,10 +583,10 @@ async fn recovery_with_pruning() {
     // Synchronize the storage and check overwritten logs.
     let is_synced = Arc::new(AtomicBool::default());
     let is_synced_for_listener = is_synced.clone();
-    storage.listener.on_l1_batch_synced = Arc::new(RwLock::new(move |number| {
+    storage.listener.on_l1_batch_synced = Arc::new(move |number| {
         assert_eq!(number, L1BatchNumber(2));
         is_synced_for_listener.store(true, Ordering::Relaxed);
-    }));
+    });
     let (_stop_sender, stop_receiver) = watch::channel(false);
     storage
         .update_from_postgres(&mut conn, &stop_receiver, None)
@@ -623,7 +643,7 @@ async fn recovery_with_pruning_and_overwritten_logs() {
 
 #[test_casing(2, [false, true])]
 #[tokio::test]
-async fn recovery_detects_additional_pruning(from_genesis: bool) {
+async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
@@ -661,6 +681,54 @@ async fn recovery_detects_additional_pruning(from_genesis: bool) {
     };
     assert!(
         format!("{err:#}").contains("Snapshot parameters in Postgres"),
+        "{err:#}"
+    );
+}
+
+/// Prunes the storage while recovery is in progress.
+#[derive(Debug)]
+struct PruningHandler(ConnectionPool<Core>);
+
+#[async_trait]
+impl AsyncHandler<u64> for PruningHandler {
+    async fn handle(&self, chunk_id: u64) {
+        assert!(chunk_id <= 2);
+        if chunk_id == 2 {
+            prune_storage(&self.0, L1BatchNumber(1)).await;
+        }
+    }
+}
+
+#[tokio::test]
+async fn recovery_detects_additional_pruning_in_progress() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+
+    prepare_postgres_with_log_count(&mut conn, 2_000).await;
+    for i in 1_u32..=2 {
+        let log_start_idx = 10_000 * u64::from(i);
+        let new_logs = gen_storage_logs(log_start_idx..log_start_idx + 50);
+        create_l2_block(&mut conn, L2BlockNumber(i), &new_logs).await;
+        create_l1_batch(&mut conn, L1BatchNumber(i), &new_logs).await;
+    }
+
+    let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
+        .await
+        .unwrap();
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    storage.listener.on_logs_chunk_recovered = Arc::new(PruningHandler(pool.clone()));
+
+    let log_chunk_size = 10;
+    let err = storage
+        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .await
+        .unwrap_err();
+    let RocksdbSyncError::Internal(err) = err else {
+        panic!("Expected internal error");
+    };
+    assert!(
+        format!("{err:#}").contains("recovery is impossible"),
         "{err:#}"
     );
 }
