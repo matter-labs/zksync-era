@@ -56,7 +56,6 @@ impl InitParameters {
             ?pruning_info,
             "Fetched snapshot / pruning info"
         );
-        dbg!(&pruning_info, &recovery_status);
 
         let (l1_batch, l2_block) = match (recovery_status, pruning_info.last_hard_pruned) {
             (Some(recovery), None) => {
@@ -135,7 +134,6 @@ impl RocksdbStorage {
 
         let init_params = InitParameters::new(storage, desired_log_chunk_size).await?;
         if let Some(recovery_batch_number) = self.recovery_l1_batch_number().await? {
-            dbg!(recovery_batch_number);
             tracing::info!(?recovery_batch_number, "Resuming storage recovery");
             let init_params = init_params.as_ref().context(
                 "Storage is recovering, but Postgres no longer contains necessary metadata",
