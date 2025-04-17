@@ -13179,6 +13179,7 @@ dependencies = [
  "jsonrpsee",
  "reqwest 0.12.9",
  "serde_json",
+ "thiserror 2.0.12",
  "tokio",
  "tower 0.4.13",
  "tower-http 0.5.2",
