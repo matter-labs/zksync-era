@@ -71,7 +71,7 @@ pub fn is_retryable(err: &ClientError) -> bool {
 
             err.code() == ErrorCode::ServerIsBusy.code()
                 || (err.code() == ErrorCode::InternalError.code()
-                    && !err.message().contains("nonce too high"))
+                    && !err.message() == "nonce too high")
         }
         _ => false,
     }
