@@ -190,16 +190,6 @@ impl DataAvailabilityClient for CelestiaClient {
             height,
         };
 
-        tracing::debug!("Calling eq-service...");
-        if let Err(tonic_status) = self.eq_client.get_keccak_inclusion(&blob_id).await {
-            // gRPC error, should be retriable, could be something on the eq-service side
-            return Err(DAError {
-                error: tonic_status.into(),
-                is_retriable: true,
-            });
-        }
-        tracing::debug!("Successfully called eq-service to begin zk equivallence proving");
-
         Ok(DispatchResponse {
             request_id: blob_id.to_string(),
         })
@@ -315,6 +305,21 @@ impl DataAvailabilityClient for CelestiaClient {
         &self,
         dispatch_request_id: String,
     ) -> Result<Option<FinalityResponse>, DAError> {
+
+        let blob_id = dispatch_request_id
+            .parse::<BlobId>()
+            .map_err(to_non_retriable_da_error)?;
+
+        tracing::debug!("Calling eq-service...");
+        if let Err(tonic_status) = self.eq_client.get_keccak_inclusion(&blob_id).await {
+            // gRPC error, should be retriable, could be something on the eq-service side
+            return Err(DAError {
+                error: tonic_status.into(),
+                is_retriable: true,
+            });
+        }
+        tracing::debug!("Successfully called eq-service to begin zk equivallence proving");
+
         // TODO: return a quick confirmation in `dispatch_blob` and await here
         Ok(Some(FinalityResponse {
             blob_id: dispatch_request_id,
