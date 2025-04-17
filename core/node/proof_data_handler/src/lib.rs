@@ -97,18 +97,10 @@ fn create_proof_processing_router(
             post(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
-                    match payload.0 {
-                        SubmitProofRequest::Proof(data) => {
-                            submit_proof_processor
-                                .save_proof(l1_batch_number, (*data).into())
-                                .await
-                        }
-                        SubmitProofRequest::SkippedProofGeneration => {
-                            submit_proof_processor
-                                .save_skipped_proof(l1_batch_number)
-                                .await
-                        }
-                    }
+                    let Json(SubmitProofRequest::Proof(proof)) = payload;
+                    submit_proof_processor
+                        .save_proof(l1_batch_number, (*proof).into())
+                        .await
                 },
             ),
         );
