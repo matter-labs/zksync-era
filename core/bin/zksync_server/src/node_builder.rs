@@ -543,7 +543,7 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(CommitmentGeneratorLayer::new());
+        self.node.add_layer(CommitmentGeneratorLayer::default());
 
         Ok(self)
     }

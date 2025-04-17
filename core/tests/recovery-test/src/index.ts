@@ -130,6 +130,10 @@ export enum NodeComponents {
     WITH_TREE_FETCHER_AND_NO_TREE = 'core,api,tree_fetcher'
 }
 
+export function withDAFetcher(components: NodeComponents): string {
+    return components.toString().concat('da_fetcher');
+}
+
 export class NodeProcess {
     static async stopAll(signal: 'INT' | 'KILL' = 'INT') {
         interface ChildProcessError extends Error {
@@ -180,9 +184,10 @@ export class NodeProcess {
         chain?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
+        let componentsArr = process.env.DEPLOYMENT_MODE === 'Validium' ? [withDAFetcher(components)] : [components];
 
         let childProcess = runExternalNodeInBackground({
-            components: [components],
+            components: componentsArr,
             stdio: ['ignore', logs.fd, logs.fd],
             cwd: pathToHome,
             env,

@@ -16,7 +16,7 @@ use crate::{
 /// Wiring layer for l1 batches commitment generation
 ///
 /// Responsible for initialization and running [`CommitmentGenerator`].
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CommitmentGeneratorLayer {
     max_parallelism: Option<NonZero<u32>>,
 }
@@ -37,21 +37,9 @@ pub struct Output {
 }
 
 impl CommitmentGeneratorLayer {
-    pub fn new() -> Self {
-        Self {
-            max_parallelism: None,
-        }
-    }
-
     pub fn with_max_parallelism(mut self, max_parallelism: Option<NonZero<u32>>) -> Self {
         self.max_parallelism = max_parallelism;
         self
-    }
-}
-
-impl Default for CommitmentGeneratorLayer {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

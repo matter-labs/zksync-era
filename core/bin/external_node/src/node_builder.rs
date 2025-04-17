@@ -305,7 +305,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        let layer = CommitmentGeneratorLayer::new().with_max_parallelism(
+        let layer = CommitmentGeneratorLayer::default().with_max_parallelism(
             self.config
                 .experimental
                 .commitment_generator_max_parallelism,
