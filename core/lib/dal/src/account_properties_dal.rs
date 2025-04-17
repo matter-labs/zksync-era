@@ -146,7 +146,20 @@ impl AccountPropertiesDal<'_, '_> {
         address: Address,
         l2_block_number: Option<L2BlockNumber>,
     ) -> DalResult<Option<StorageAccountProperties>> {
-        let l2_block_number = l2_block_number.map_or(i64::MAX, |n| i64::from(n.0));
+        let l2_block_number = i64::from(if let Some(l2_block_number) = l2_block_number {
+            l2_block_number.0
+        } else {
+            if let Some(number) = self
+                .storage
+                .blocks_dal()
+                .get_sealed_l2_block_number()
+                .await?
+            {
+                number.0
+            } else {
+                return Ok(None);
+            }
+        });
         let result = sqlx::query_as!(
             StorageAccountProperties,
             r#"
@@ -201,6 +214,25 @@ impl AccountPropertiesDal<'_, '_> {
             .map(|p| bigdecimal_to_u256(p.nonce).as_u64())
             .unwrap_or_default();
         Ok(balance)
+    }
+
+    pub async fn get_code(
+        &mut self,
+        address: Address,
+        l2_block_number: Option<L2BlockNumber>,
+    ) -> DalResult<Option<Vec<u8>>> {
+        let Some(bytecode_hash) = self
+            .get_account_properties(address, l2_block_number)
+            .await?
+            .map(|p| H256::from_slice(&p.bytecode_hash))
+        else {
+            return Ok(None);
+        };
+
+        self.storage
+            .factory_deps_dal()
+            .get_sealed_factory_dep(bytecode_hash)
+            .await
     }
 
     pub async fn roll_back_properties(&mut self, block_number: L2BlockNumber) -> DalResult<()> {

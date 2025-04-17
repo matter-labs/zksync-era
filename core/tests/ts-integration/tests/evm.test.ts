@@ -131,10 +131,10 @@ function describeEvm(providerKind: ProviderKind) {
 
         const newNonce = await alice.getNonce();
         expect(newNonce).toEqual(currentNonce + 1);
-        // const code = (await counter.getDeployedCode())!!;
-        // expect(code.length).toBeGreaterThan(100);
-        // const expectedBytecode = extractBytecode(counterContractData.deployedBytecode!!);
-        // expect(code).toEqual(expectedBytecode);
+        const code = (await counter.getDeployedCode())!!;
+        expect(code.length).toBeGreaterThan(100);
+        const expectedBytecode = extractBytecode(counterContractData.deployedBytecode!!);
+        expect(code).toEqual(expectedBytecode);
 
         let currentValue = await counter.getFunction('get').staticCall();
         expect(currentValue).toEqual(0n);

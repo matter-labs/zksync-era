@@ -423,36 +423,51 @@ impl EthNamespace {
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
 
-        let contract_code = connection
-            .storage_web3_dal()
-            .get_contract_code_unchecked(address, block_number)
-            .await
-            .map_err(DalError::generalize)?;
-        let Some(contract_code) = contract_code else {
-            return Ok(Bytes::default());
-        };
-        // Check if the bytecode is an EVM bytecode, and if so, pre-process it correspondingly.
-        let marker = BytecodeMarker::new(contract_code.bytecode_hash);
-        let prepared_bytecode = if marker == Some(BytecodeMarker::Evm) {
-            trim_padded_evm_bytecode(
-                BytecodeHash::try_from(contract_code.bytecode_hash).with_context(|| {
+        #[cfg(not(feature = "zkos"))]
+        let prepared_bytecode = {
+            let contract_code = connection
+                .storage_web3_dal()
+                .get_contract_code_unchecked(address, block_number)
+                .await
+                .map_err(DalError::generalize)?;
+            let Some(contract_code) = contract_code else {
+                return Ok(Bytes::default());
+            };
+            // Check if the bytecode is an EVM bytecode, and if so, pre-process it correspondingly.
+            let marker = BytecodeMarker::new(contract_code.bytecode_hash);
+            if marker == Some(BytecodeMarker::Evm) {
+                trim_padded_evm_bytecode(
+                    BytecodeHash::try_from(contract_code.bytecode_hash).with_context(|| {
+                        format!(
+                            "Invalid bytecode hash at address {address:?}: {:?}",
+                            contract_code.bytecode_hash
+                        )
+                    })?,
+                    &contract_code.bytecode,
+                )
+                .with_context(|| {
                     format!(
-                        "Invalid bytecode hash at address {address:?}: {:?}",
+                        "malformed EVM bytecode at address {address:?}, hash = {:?}",
                         contract_code.bytecode_hash
                     )
-                })?,
-                &contract_code.bytecode,
-            )
-            .with_context(|| {
-                format!(
-                    "malformed EVM bytecode at address {address:?}, hash = {:?}",
-                    contract_code.bytecode_hash
-                )
-            })?
-            .to_vec()
-        } else {
-            contract_code.bytecode
+                })?
+                .to_vec()
+            } else {
+                contract_code.bytecode
+            }
         };
+
+        #[cfg(feature = "zkos")]
+        let prepared_bytecode = {
+            let code = connection
+                .account_properies_dal()
+                .get_code(address, Some(block_number))
+                .await
+                .map_err(DalError::generalize)?;
+
+            Bytes(code.unwrap_or_default())
+        };
+
         Ok(prepared_bytecode.into())
     }
 

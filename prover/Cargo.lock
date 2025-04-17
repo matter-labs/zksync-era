@@ -905,7 +905,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -921,10 +921,9 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "arrayvec 0.7.6",
- "bottom",
  "cfg-if",
  "const_for",
  "crypto",
@@ -1221,11 +1220,6 @@ dependencies = [
  "quote 1.0.37",
  "syn 2.0.90",
 ]
-
-[[package]]
-name = "bottom"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
 
 [[package]]
 name = "bstr"
@@ -1791,7 +1785,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -2466,7 +2460,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -2654,7 +2648,7 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
@@ -4456,7 +4450,7 @@ dependencies = [
 [[package]]
 name = "modexp"
 version = "1.0.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 
 [[package]]
 name = "multimap"
@@ -7127,7 +7121,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "arrayvec 0.7.6",
  "either",
@@ -7320,7 +7314,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -8701,7 +8695,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee?branch=forward-system-tx-result-callback#43d21e37721b09a9bb91e595a9016e2542eeeb97"
+source = "git+https://github.com/matter-labs/zk_ee?branch=bootloader-skip-verify-batch#dc007ef541609ea77b5d41d4b3c800560510444d"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.6.0",
@@ -9356,6 +9350,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_cs_derive"
+version = "0.32.0"
+source = "git+https://github.com/matter-labs/zksync-crypto?branch=main#9e7c307bc97fb7c68d7453cf5bfb5c9a732364fc"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2 1.0.92",
+ "quote 1.0.37",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "zksync_dal"
 version = "27.4.0-non-semver-compat"
 dependencies = [
@@ -9838,8 +9843,8 @@ version = "27.4.0-non-semver-compat"
 dependencies = [
  "chrono",
  "ciborium",
- "circuit_definitions",
- "fflonk",
+ "circuit_definitions 0.151.5 (git+https://github.com/matter-labs/zksync-protocol?branch=debug-compilation-error)",
+ "fflonk 0.32.0",
  "serde",
  "serde_with",
  "zksync_bellman 0.32.0",
@@ -9890,8 +9895,8 @@ dependencies = [
  "anyhow",
  "bincode",
  "boojum-cuda",
- "circuit_definitions",
- "fflonk",
+ "circuit_definitions 0.151.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fflonk 0.31.0",
  "fflonk-cuda",
  "futures 0.3.31",
  "hex",
@@ -10001,7 +10006,7 @@ name = "zksync_vk_setup_data_generator_server_fri"
 version = "20.2.0"
 dependencies = [
  "anyhow",
- "circuit_definitions",
+ "circuit_definitions 0.151.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 4.5.23",
  "indicatif",
  "proof-compression",
@@ -10139,7 +10144,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_zkos_vm_runner"
-version = "27.2.0-non-semver-compat"
+version = "27.4.0-non-semver-compat"
 dependencies = [
  "basic_system",
  "forward_system",
