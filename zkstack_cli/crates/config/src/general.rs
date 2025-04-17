@@ -199,7 +199,7 @@ impl GeneralConfigPatch {
     }
 
     pub fn set_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
-        self.0.insert("proof_data_handler.gateway_api_url", url)
+        self.0.insert("data_handler.gateway_api_url", url)
     }
 
     pub fn proof_compressor_setup_download_url(&self) -> anyhow::Result<String> {
