@@ -11,27 +11,21 @@ let
     extensions = [ "rustfmt" "clippy" "rust-src" ];
   });
 in
-pkgs.mkShell {
+pkgs.mkShell rec {
   inputsFrom = [ tee_prover ];
   packages = [ ];
 
-  inherit (coreCommonArgs) env hardeningEnable;
+  inherit (coreCommonArgs) hardeningEnable;
 
   shellHook = ''
     export ZKSYNC_HOME=$PWD
     export PATH=$ZKSYNC_HOME/bin:$PATH
-
-    if [ "x$NIX_LD" = "x" ]; then
-      export NIX_LD=$(<${pkgs.clangStdenv.cc}/nix-support/dynamic-linker)
-    fi
-    if [ "x$NIX_LD_LIBRARY_PATH" = "x" ]; then
-      export NIX_LD_LIBRARY_PATH="$ZK_NIX_LD_LIBRARY_PATH"
-    else
-      export NIX_LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH:$ZK_NIX_LD_LIBRARY_PATH"
-    fi
+    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$ZK_NIX_LD_LIBRARY_PATH"
   '';
 
-  RUST_SRC_PATH = "${toolchain_with_src}/lib/rustlib/src/rust/library";
-  ZK_NIX_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ ];
+  env = coreCommonArgs.env // {
+    RUST_SRC_PATH = "${toolchain_with_src}/lib/rustlib/src/rust/library";
+    ZK_NIX_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath coreCommonArgs.buildInputs;
+  };
 }
 
