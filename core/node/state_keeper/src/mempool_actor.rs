@@ -210,29 +210,18 @@ async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
     transactions: &[&Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
-    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+    let addresses: Vec<_> = transactions
         .iter()
-        .map(|tx| {
-            let address = tx.initiator_account();
-            let nonce_key = get_nonce_key(&address).hashed_key();
-            (nonce_key, (nonce_key, address))
-        })
-        .unzip();
-
-    let nonce_values = storage
-        .storage_web3_dal()
-        .get_values(&nonce_keys)
+        .map(|tx| tx.initiator_account())
+        .collect();
+    let nonces = storage
+        .account_properies_dal()
+        .get_nonces(&addresses, None)
         .await
         .context("failed getting nonces from storage")?;
-
-    Ok(nonce_values
+    Ok(nonces
         .into_iter()
-        .map(|(nonce_key, nonce_value)| {
-            // `unwrap()` is safe by construction.
-            let be_u32_bytes: [u8; 4] = nonce_value[28..].try_into().unwrap();
-            let nonce = Nonce(u32::from_be_bytes(be_u32_bytes));
-            (address_by_nonce_key[&nonce_key], nonce)
-        })
+        .map(|(a, nonce)| (a, Nonce(u32::try_from(nonce).unwrap())))
         .collect())
 }
 

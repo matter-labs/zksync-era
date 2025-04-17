@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                u.address AS \"address!\",\n                (\n                    SELECT\n                        nonce\n                    FROM\n                        account_properties\n                    WHERE\n                        address = u.address\n                        AND miniblock_number <= $2\n                    ORDER BY\n                        miniblock_number DESC\n                    LIMIT\n                        1\n                ) AS \"nonce?\"\n            FROM\n                UNNEST($1::bytea []) AS u (address)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "address!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "nonce?",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "18b374404d9049aada17d5eb1cf8089eeea6ad0eba0e706a1ae401ddb1eab853"
+}

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use itertools::Itertools;
 use zksync_db_connection::{
     connection::Connection,
@@ -146,20 +146,9 @@ impl AccountPropertiesDal<'_, '_> {
         address: Address,
         l2_block_number: Option<L2BlockNumber>,
     ) -> DalResult<Option<StorageAccountProperties>> {
-        let l2_block_number = i64::from(if let Some(l2_block_number) = l2_block_number {
-            l2_block_number.0
-        } else {
-            if let Some(number) = self
-                .storage
-                .blocks_dal()
-                .get_sealed_l2_block_number()
-                .await?
-            {
-                number.0
-            } else {
-                return Ok(None);
-            }
-        });
+        let Some(l2_block_number) = self.resolve_block_number(l2_block_number).await? else {
+            return Ok(None);
+        };
         let result = sqlx::query_as!(
             StorageAccountProperties,
             r#"
@@ -201,6 +190,54 @@ impl AccountPropertiesDal<'_, '_> {
             .map(|p| bigdecimal_to_u256(p.nominal_token_balance))
             .unwrap_or_default();
         Ok(balance)
+    }
+
+    pub async fn get_nonces(
+        &mut self,
+        addresses: &[Address],
+        l2_block_number: Option<L2BlockNumber>,
+    ) -> DalResult<HashMap<Address, u64>> {
+        let Some(l2_block_number) = self.resolve_block_number(l2_block_number).await? else {
+            return Ok(HashMap::new());
+        };
+        let addresses: Vec<_> = addresses.iter().map(Address::as_bytes).collect();
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                u.address AS "address!",
+                (
+                    SELECT
+                        nonce
+                    FROM
+                        account_properties
+                    WHERE
+                        address = u.address
+                        AND miniblock_number <= $2
+                    ORDER BY
+                        miniblock_number DESC
+                    LIMIT
+                        1
+                ) AS "nonce?"
+            FROM
+                UNNEST($1::bytea []) AS u (address)
+            "#,
+            &addresses as &[&[u8]],
+            l2_block_number
+        )
+        .instrument("get_nonces")
+        .with_arg("l2_block_number", &l2_block_number)
+        .with_arg("addresses.len", &addresses.len())
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let address = Address::from_slice(&row.address);
+                let nonce = row.nonce.map(|n| n.to_u64().unwrap()).unwrap_or_default();
+                (address, nonce)
+            })
+            .collect())
     }
 
     pub async fn get_nonce(
@@ -322,5 +359,27 @@ impl AccountPropertiesDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?
         .map(Into::into))
+    }
+
+    async fn resolve_block_number(
+        &mut self,
+        l2_block_number: Option<L2BlockNumber>,
+    ) -> DalResult<Option<i64>> {
+        let l2_block_number = i64::from(if let Some(l2_block_number) = l2_block_number {
+            l2_block_number.0
+        } else {
+            if let Some(number) = self
+                .storage
+                .blocks_dal()
+                .get_sealed_l2_block_number()
+                .await?
+            {
+                number.0
+            } else {
+                return Ok(None);
+            }
+        });
+
+        Ok(Some(l2_block_number))
     }
 }
