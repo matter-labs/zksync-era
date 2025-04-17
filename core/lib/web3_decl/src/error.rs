@@ -67,7 +67,8 @@ pub fn is_retriable(err: &ClientError) -> bool {
         ClientError::Call(err) => {
             // At least some RPC providers use "internal error" in case of the server being overloaded
             err.code() == ErrorCode::ServerIsBusy.code()
-                || err.code() == ErrorCode::InternalError.code()
+                || (err.code() == ErrorCode::InternalError.code()
+                    && !err.message().contains("nonce too high"))
         }
         _ => false,
     }
