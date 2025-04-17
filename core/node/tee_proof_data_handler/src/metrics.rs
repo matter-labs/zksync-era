@@ -4,15 +4,7 @@ use vise::{EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, Unit};
 use zksync_types::tee_types::TeeType;
 
 #[derive(Debug, Metrics)]
-pub(super) struct ProofDataHandlerMetrics {
-    #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
-    pub vm_run_data_blob_size_in_mb: Histogram<u64>,
-    #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
-    pub merkle_paths_blob_size_in_mb: Histogram<u64>,
-    #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
-    pub eip_4844_blob_size_in_mb: Histogram<u64>,
-    #[metrics(buckets = vise::Buckets::exponential(1.0..=2_048.0, 2.0))]
-    pub total_blob_size_in_mb: Histogram<u64>,
+pub(super) struct TeeProofDataHandlerMetrics {
     #[metrics(buckets = vise::Buckets::LATENCIES, unit = Unit::Seconds)]
     pub tee_proof_roundtrip_time: Family<MetricsTeeType, Histogram<Duration>>,
 }
@@ -34,4 +26,4 @@ impl From<TeeType> for MetricsTeeType {
 }
 
 #[vise::register]
-pub(super) static METRICS: vise::Global<ProofDataHandlerMetrics> = vise::Global::new();
+pub(super) static METRICS: vise::Global<TeeProofDataHandlerMetrics> = vise::Global::new();
