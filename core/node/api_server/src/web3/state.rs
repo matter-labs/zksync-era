@@ -27,8 +27,9 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::SettlementLayer,
+    transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -45,6 +46,8 @@ use super::{
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
+    utils::AccountTypesCache,
+    web3::metrics::FilterMetrics,
 };
 
 #[derive(Debug)]
@@ -161,6 +164,7 @@ pub struct InternalApiConfig {
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
     pub l1_ecosystem_contracts: EcosystemCommonContracts,
+    pub server_notifier_addr: Option<Address>,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_diamond_proxy_addr: Address,
@@ -174,6 +178,7 @@ pub struct InternalApiConfig {
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl InternalApiConfig {
@@ -182,6 +187,7 @@ impl InternalApiConfig {
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         Self {
             l1_chain_id: base.l1_chain_id,
@@ -201,6 +207,7 @@ impl InternalApiConfig {
                 l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             },
             l1_ecosystem_contracts: l1_contracts_config.ecosystem_contracts.clone(),
+            server_notifier_addr: l1_ecosystem_contracts.server_notifier_addr,
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
             l1_diamond_proxy_addr: l1_contracts_config
@@ -216,6 +223,7 @@ impl InternalApiConfig {
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l2_multicall3: l2_contracts.multicall3,
             l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
+            settlement_layer,
         }
     }
 
@@ -226,6 +234,7 @@ impl InternalApiConfig {
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
         l1_to_l2_txs_paused: bool,
+        settlement_layer: SettlementLayer,
     ) -> Self {
         let base = InternalApiConfigBase::new(genesis_config, web3_config)
             .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
@@ -234,6 +243,7 @@ impl InternalApiConfig {
             l1_contracts_config,
             l1_ecosystem_contracts,
             l2_contracts,
+            settlement_layer,
         )
     }
 }
@@ -316,6 +326,7 @@ pub(crate) struct RpcState {
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
+    pub(super) account_types_cache: AccountTypesCache,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
@@ -510,6 +521,7 @@ pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 #[derive(Debug)]
 struct InstalledFilter {
     pub filter: TypedFilter,
+    metrics: &'static FilterMetrics,
     _guard: GaugeGuard,
     created_at: Instant,
     last_request: Instant,
@@ -518,9 +530,11 @@ struct InstalledFilter {
 
 impl InstalledFilter {
     pub fn new(filter: TypedFilter) -> Self {
-        let guard = FILTER_METRICS.filter_count[&FilterType::from(&filter)].inc_guard(1);
+        let metrics = &FILTER_METRICS[&FilterType::from(&filter)];
+        let guard = metrics.filter_count.inc_guard(1);
         Self {
             filter,
+            metrics,
             _guard: guard,
             created_at: Instant::now(),
             last_request: Instant::now(),
@@ -535,17 +549,18 @@ impl InstalledFilter {
         self.last_request = now;
         self.request_count += 1;
 
-        let filter_type = FilterType::from(&self.filter);
-        FILTER_METRICS.request_frequency[&filter_type].observe(now - previous_request_timestamp);
+        self.metrics
+            .request_frequency
+            .observe(now - previous_request_timestamp);
     }
 }
 
 impl Drop for InstalledFilter {
     fn drop(&mut self) {
-        let filter_type = FilterType::from(&self.filter);
-
-        FILTER_METRICS.request_count[&filter_type].observe(self.request_count);
-        FILTER_METRICS.filter_lifetime[&filter_type].observe(self.created_at.elapsed());
+        self.metrics.request_count.observe(self.request_count);
+        self.metrics
+            .filter_lifetime
+            .observe(self.created_at.elapsed());
     }
 }
 

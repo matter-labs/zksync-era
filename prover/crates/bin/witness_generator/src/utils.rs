@@ -6,6 +6,7 @@ use std::{
 use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit;
 use once_cell::sync::Lazy;
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
+use zksync_circuit_prover_service::types::circuit_wrapper::CircuitWrapper;
 use zksync_multivm::utils::get_used_bootloader_memory_bytes;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
@@ -22,7 +23,7 @@ use zksync_prover_fri_types::{
         zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
     },
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper, FriProofWrapper,
+    FriProofWrapper,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 

@@ -15,12 +15,13 @@ use zksync_l1_contract_interface::{
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, SerializeCommitment},
+    commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
+    server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
@@ -35,12 +36,6 @@ use crate::{
     zksync_functions::ZkSyncFunctions,
     Aggregator, EthSenderError,
 };
-
-#[derive(Debug, PartialEq)]
-pub enum GatewayMigrationState {
-    InProgress,
-    NotInProgress,
-}
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
@@ -797,28 +792,32 @@ impl EthTxAggregator {
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
-        let eth_tx_predicted_gas = match (op_type, is_gateway, self.aggregator.mode()) {
-            (AggregatedActionType::Execute, false, _) => Some(
+        let eth_tx_predicted_gas = match op_type {
+            AggregatedActionType::Execute => {
                 L1GasCriterion::total_execute_gas_amount(
                     &mut transaction,
                     l1_batch_number_range.clone(),
+                    is_gateway,
                 )
-                .await,
+                .await
+            }
+            AggregatedActionType::PublishProofOnchain => {
+                L1GasCriterion::total_proof_gas_amount(is_gateway)
+            }
+            AggregatedActionType::Commit => L1GasCriterion::total_commit_validium_gas_amount(
+                l1_batch_number_range.clone(),
+                is_gateway,
             ),
-            (AggregatedActionType::Commit, false, L1BatchCommitmentMode::Validium) => Some(
-                L1GasCriterion::total_validium_commit_gas_amount(l1_batch_number_range.clone()),
-            ),
-            _ => None,
         };
 
-        let eth_tx = transaction
+        let mut eth_tx = transaction
             .eth_sender_dal()
             .save_eth_tx(
                 nonce,
                 encoded_aggregated_op.calldata,
                 op_type,
                 timelock_contract_address,
-                eth_tx_predicted_gas,
+                Some(eth_tx_predicted_gas),
                 sender_addr,
                 encoded_aggregated_op.sidecar,
                 is_gateway,
@@ -831,7 +830,7 @@ impl EthTxAggregator {
             .set_chain_id(eth_tx.id, self.sl_chain_id.0)
             .await
             .unwrap();
-
+        eth_tx.chain_id = Some(self.sl_chain_id);
         transaction
             .blocks_dal()
             .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
@@ -876,43 +875,13 @@ impl EthTxAggregator {
     }
 
     async fn gateway_status(&self, storage: &mut Connection<'_, Core>) -> GatewayMigrationState {
-        let to_gateway = self
-            .functions
-            .server_notifier_contract
-            .event("MigrateToGateway")
-            .unwrap()
-            .signature();
-        let from_gateway = self
-            .functions
-            .server_notifier_contract
-            .event("MigrateFromGateway")
-            .unwrap()
-            .signature();
-
         let notification = storage
             .server_notifications_dal()
-            .get_last_notification_by_topics(&[to_gateway, from_gateway])
+            .get_latest_gateway_migration_notification()
             .await
             .unwrap();
 
-        notification
-            .map(|a| match self.settlement_layer {
-                SettlementLayer::L1(_) => {
-                    if a.main_topic == to_gateway {
-                        GatewayMigrationState::InProgress
-                    } else {
-                        GatewayMigrationState::NotInProgress
-                    }
-                }
-                SettlementLayer::Gateway(_) => {
-                    if a.main_topic == from_gateway {
-                        GatewayMigrationState::InProgress
-                    } else {
-                        GatewayMigrationState::NotInProgress
-                    }
-                }
-            })
-            .unwrap_or(GatewayMigrationState::NotInProgress)
+        GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 }
 

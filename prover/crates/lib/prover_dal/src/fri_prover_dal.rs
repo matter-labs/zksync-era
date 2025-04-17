@@ -6,7 +6,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use sqlx::QueryBuilder;
+use sqlx::{
+    types::chrono::{DateTime, Utc},
+    QueryBuilder,
+};
 use zksync_basic_types::{
     basic_fri_types::{
         AggregationRound, CircuitProverStatsEntry, ProtocolVersionedCircuitProverStats,
@@ -22,6 +25,35 @@ use zksync_db_connection::{
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
+
+/// Among the zoo of circuits each circuit type has its own peak RAM utilization,
+/// average execution time and proportional share. Here we pay attention to
+/// the most resource/time consuming circuits.
+///
+/// For example:
+/// basic_1 - 1.7GB RAM, 13s execution time, 74.5% share
+/// basic_2 - 3.43GB RAM, 22s execution time, 0.03% share
+/// basic_4 - 3.02GB RAM, 16s execution time, 0.15% share
+/// basic_8 - 3.51GB RAM, 30s execution time, 2.5% share
+/// basic_9 - 3.47GB RAM, 30s execution time, 0.14% share
+/// basic_10 - 1.44GB RAM, 24s execution time, 6.62% share
+/// basic_11 - 2.89GB RAM, 19s execution time, 0.03% share
+/// basic_12 - 2.88GB RAM, 16s execution time, 0.01% share
+/// leaves - 2.24GB RAM, 7s execution time, 3.05% share
+/// nodes - 2.18GB RAM, 12s execution time, 0.19% share
+///
+/// The goal is to provide maximum throughput for the prover (1 completed jobs per 1s)
+/// whilst the total RAM usage is under 60GB. (generic hardware available internally)
+/// We consider the following basic circuits as heavy jobs: [2, 4, 8, 9, 10, 11, 12]
+/// Given the parameters of light/heavy jobs are -l=13, -h=3, we can garantee that:
+/// 1) For the basic circuits all the heavy jobs will be completed before the light jobs.
+/// 2) We provide optimal throughput for the prover.
+/// 3) We keep the total RAM usage under 60GB.
+///
+/// The total RAM usage will be:
+/// 21.8GB (setup) + 1.7GB * 13 + 3.51GB * 3 = 54.43GB - for basic circuits
+/// 21.8GB (setup) + 2.24GB * 16 = 57.64GB - for leaves
+pub const HEAVY_BASIC_CIRCUIT_IDS: [i16; 7] = [2, 4, 8, 9, 10, 11, 12];
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
@@ -42,6 +74,7 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         depth: u16,
         protocol_version_id: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         let _latency = MethodLatency::new("save_fri_prover_jobs");
         if circuit_ids_and_urls.is_empty() {
@@ -67,7 +100,8 @@ impl FriProverDal<'_, '_> {
                     status,
                     created_at,
                     updated_at,
-                    protocol_version_patch
+                    protocol_version_patch,
+                    batch_sealed_at
                 )
                 "#,
             );
@@ -86,7 +120,8 @@ impl FriProverDal<'_, '_> {
                         .push_bind("queued") // status
                         .push("NOW()") // created_at
                         .push("NOW()") // updated_at
-                        .push_bind(protocol_version_id.patch.0 as i32);
+                        .push_bind(protocol_version_id.patch.0 as i32)
+                        .push_bind(batch_sealed_at.naive_utc()); // batch_sealed_at
                 },
             );
 
@@ -115,9 +150,9 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_light_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
+    /// The 2 differ in the type of jobs they will load. Some Basic jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves only node jobs.
+    /// NOTE: This function retrieves only HEAVY_BASIC_CIRCUIT_IDS jobs.
     pub async fn get_heavy_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -143,8 +178,10 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                         AND aggregation_round = $4
+                        AND circuit_id = ANY($5)
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_sealed_at ASC,
                         circuit_id ASC,
                         id ASC
                     LIMIT
@@ -159,12 +196,14 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64,
+            AggregationRound::BasicCircuits as i64,
+            &HEAVY_BASIC_CIRCUIT_IDS[..],
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -172,6 +211,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -192,9 +232,8 @@ impl FriProverDal<'_, '_> {
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// Most of this function is similar to `get_heavy_job()`.
-    /// The 2 differ in the type of jobs they will load. Node jobs are heavy in resource utilization.
     ///
-    /// NOTE: This function retrieves all jobs but nodes.
+    /// NOTE: This function retrieves all job but HEAVY_BASIC_CIRCUIT_IDS.
     pub async fn get_light_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
@@ -219,9 +258,10 @@ impl FriProverDal<'_, '_> {
                         status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
-                        AND aggregation_round != $4
+                        AND NOT (aggregation_round = $4 AND circuit_id = ANY($5))
                     ORDER BY
-                        l1_batch_number ASC,
+                        priority DESC,
+                        batch_sealed_at ASC,
                         aggregation_round ASC,
                         circuit_id ASC,
                         id ASC
@@ -237,12 +277,14 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
             picked_by,
-            AggregationRound::NodeAggregation as i64
+            AggregationRound::BasicCircuits as i64,
+            &HEAVY_BASIC_CIRCUIT_IDS[..],
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -250,6 +292,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -305,7 +348,8 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri.aggregation_round,
             prover_jobs_fri.sequence_number,
             prover_jobs_fri.depth,
-            prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.is_node_final_proof,
+            prover_jobs_fri.batch_sealed_at
             "#,
             duration_to_naive_time(time_taken),
             blob_url,
@@ -320,6 +364,7 @@ impl FriProverDal<'_, '_> {
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
+            batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
                 .unwrap(),
@@ -344,7 +389,8 @@ impl FriProverDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     id IN (
                         SELECT
@@ -402,6 +448,7 @@ impl FriProverDal<'_, '_> {
         circuit_blob_url: &str,
         is_node_final_proof: bool,
         protocol_version: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -418,10 +465,11 @@ impl FriProverDal<'_, '_> {
                 status,
                 created_at,
                 updated_at,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9, $10)
             ON CONFLICT (
                 l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
             ) DO
@@ -438,6 +486,7 @@ impl FriProverDal<'_, '_> {
             is_node_final_proof,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
+            batch_sealed_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await
@@ -879,6 +928,7 @@ impl FriProverDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use sqlx::types::chrono::{DateTime, Utc};
     use zksync_basic_types::protocol_version::L1VerifierConfig;
     use zksync_db_connection::connection_pool::ConnectionPool;
 
@@ -905,13 +955,23 @@ mod tests {
             )
             .await;
         transaction
+            .fri_basic_witness_generator_dal()
+            .save_witness_inputs(
+                L1BatchNumber(1),
+                "",
+                ProtocolSemanticVersion::default(),
+                DateTime::<Utc>::default(),
+            )
+            .await;
+        transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(1),
-                mock_circuit_ids_and_urls(10000),
+                mock_circuit_ids_and_urls(5000),
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),
+                DateTime::<Utc>::default(),
             )
             .await;
 

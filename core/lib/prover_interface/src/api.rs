@@ -11,7 +11,7 @@ use zksync_types::{
 
 use crate::{
     inputs::{TeeVerifierInput, WitnessInputData},
-    outputs::{L1BatchProofForL1, L1BatchTeeProofForL1},
+    outputs::{JsonL1BatchProofForL1, L1BatchTeeProofForL1},
 };
 
 // Structs for holding data returned in HTTP responses
@@ -19,6 +19,8 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
+    #[serde(default = "chrono::Utc::now")]
+    pub batch_sealed_at: chrono::DateTime<chrono::Utc>,
     pub witness_input_data: WitnessInputData,
     pub protocol_version: ProtocolSemanticVersion,
     pub l1_verifier_config: L1VerifierConfig,
@@ -61,13 +63,23 @@ pub struct TeeProofGenerationDataRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
-    Proof(Box<L1BatchProofForL1>),
-    // The proof generation was skipped due to sampling
-    SkippedProofGeneration,
+    Proof(Box<JsonL1BatchProofForL1>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct VerifyProofRequest(pub Box<L1BatchProofForL1>);
+pub struct PollGeneratedProofsRequest {
+    pub batch_number: L1BatchNumber,
+    pub protocol_version: ProtocolSemanticVersion,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PollGeneratedProofsResponse {
+    pub l1_batch_number: L1BatchNumber,
+    pub proof: JsonL1BatchProofForL1,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VerifyProofRequest(pub Box<JsonL1BatchProofForL1>);
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);

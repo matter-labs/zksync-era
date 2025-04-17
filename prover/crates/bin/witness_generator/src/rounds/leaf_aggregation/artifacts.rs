@@ -92,6 +92,11 @@ impl ArtifactsManager for LeafAggregation {
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.block_number)
             .await;
+        let batch_sealed_at = transaction
+            .fri_basic_witness_generator_dal()
+            .get_batch_sealed_at_timestamp(artifacts.block_number)
+            .await;
+
         tracing::info!(
             "Inserting {} prover jobs for job_id {}, block {} with circuit id {}",
             blob_urls.circuit_ids_and_urls.len(),
@@ -107,6 +112,7 @@ impl ArtifactsManager for LeafAggregation {
                 AggregationRound::LeafAggregation,
                 0,
                 protocol_version_id,
+                batch_sealed_at,
             )
             .await;
         tracing::info!(

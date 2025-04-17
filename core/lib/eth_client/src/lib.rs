@@ -1,9 +1,11 @@
-use std::fmt;
+use std::{cmp::max, fmt};
 
 use async_trait::async_trait;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
-    ethabi, web3,
+    ethabi,
+    transaction_request::PaymasterParams,
+    web3,
     web3::{
         AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,
@@ -51,6 +53,13 @@ pub struct Options {
     pub blob_versioned_hashes: Option<Vec<H256>>,
     /// Blob sidecar
     pub blob_tx_sidecar: Option<EthTxBlobSidecar>,
+    // EIP 712 params
+    // Max Gas per pubdata
+    pub max_gas_per_pubdata: Option<U256>,
+    // Factory deps
+    pub factory_deps: Option<Vec<Vec<u8>>>,
+    // Paymaster params
+    pub paymaster_params: Option<PaymasterParams>,
 }
 
 impl Options {
@@ -73,6 +82,14 @@ pub struct BaseFees {
     pub base_fee_per_blob_gas: U256,
     // The price (in wei) for relaying the pubdata to L1. It is non-zero only for L2 settlement layers.
     pub l2_pubdata_price: U256,
+}
+
+impl BaseFees {
+    pub fn gas_per_pubdata(&self) -> u64 {
+        self.l2_pubdata_price
+            .as_u64()
+            .div_ceil(max(1, self.base_fee_per_gas))
+    }
 }
 
 /// Common Web3 interface, as seen by the core applications.

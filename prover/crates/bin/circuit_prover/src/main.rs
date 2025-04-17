@@ -77,9 +77,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to load configs")?;
 
-    PROVER_BINARY_METRICS
-        .startup_time
-        .observe(start_time.elapsed());
+    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
 
     let cancellation_token = CancellationToken::new();
 

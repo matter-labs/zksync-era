@@ -13,7 +13,7 @@ use test_casing::test_casing;
 use zksync_types::{L2ChainId, U64};
 
 use super::{
-    metrics::{HttpErrorLabels, RequestLabels, RpcErrorLabels},
+    metrics::{HttpErrorLabels, RpcErrorLabels},
     *,
 };
 
@@ -232,18 +232,14 @@ async fn wrapping_mock_client() {
     client.batch_request::<String>(batch_request).await.unwrap();
 
     // Check that the batch hit the rate limit.
-    let labels = RequestLabels {
-        network: "l2_270".to_string(),
-        component: "test",
-        method: "ok".to_string(),
-    };
-    assert!(metrics.rate_limit_latency.contains(&labels), "{metrics:?}");
-    let labels = RequestLabels {
-        network: "l2_270".to_string(),
-        component: "test",
-        method: "slow".to_string(),
-    };
-    assert!(metrics.rate_limit_latency.contains(&labels), "{metrics:?}");
+    assert!(
+        metrics.rate_limit_latency.contains(&"ok".to_owned()),
+        "{metrics:?}"
+    );
+    assert!(
+        metrics.rate_limit_latency.contains(&"slow".to_owned()),
+        "{metrics:?}"
+    );
 
     // Check error reporting.
     let err = client
@@ -252,8 +248,6 @@ async fn wrapping_mock_client() {
         .unwrap_err();
     assert_matches!(err, Error::Call(_));
     let labels = RpcErrorLabels {
-        network: "l2_270".to_string(),
-        component: "test",
         method: "unknown".to_string(),
         code: ErrorCode::MethodNotFound.code(),
     };
@@ -265,8 +259,6 @@ async fn wrapping_mock_client() {
         .unwrap_err();
     assert_matches!(err, Error::Transport(_));
     let labels = HttpErrorLabels {
-        network: "l2_270".to_string(),
-        component: "test",
         method: "rate_limit".to_string(),
         status: Some(429),
     };

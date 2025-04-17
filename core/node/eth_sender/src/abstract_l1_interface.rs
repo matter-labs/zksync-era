@@ -11,7 +11,7 @@ use zksync_types::web3;
 use zksync_types::{
     eth_sender::{EthTx, EthTxBlobSidecar},
     web3::{BlockId, BlockNumber},
-    Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
+    Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, EIP_712_TX_TYPE, H256, U256,
 };
 
 use crate::EthSenderError;
@@ -76,6 +76,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
         operator_type: OperatorType,
     ) -> Result<Option<OperatorNonce>, EthSenderError>;
 
+    #[allow(clippy::too_many_arguments)]
     async fn sign_tx(
         &self,
         tx: &EthTx,
@@ -84,6 +85,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
         blob_gas_price: Option<U256>,
         max_aggregated_tx_gas: U256,
         operator_type: OperatorType,
+        pubdata_limit: Option<U256>,
     ) -> SignedCallResult;
 
     async fn get_l1_block_numbers(
@@ -209,20 +211,29 @@ impl AbstractL1Interface for RealL1Interface {
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
         blob_gas_price: Option<U256>,
-        max_aggregated_tx_gas: U256,
+        gas: U256,
         operator_type: OperatorType,
+        max_gas_per_pubdata: Option<U256>,
     ) -> SignedCallResult {
         self.bound_query_client(operator_type)
             .sign_prepared_tx_for_addr(
                 tx.raw_tx.clone(),
                 tx.contract_address,
                 Options::with(|opt| {
-                    // TODO Calculate gas for every operation SMA-1436
-                    opt.gas = Some(max_aggregated_tx_gas);
+                    opt.gas = Some(gas);
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
-                    opt.transaction_type = Some(EIP_1559_TX_TYPE.into());
+                    if let Some(max_gas_per_pubdata) = max_gas_per_pubdata {
+                        assert!(
+                            tx.is_gateway,
+                            "Max gas per pubdata must be used only for gateway transaction"
+                        );
+                        opt.max_gas_per_pubdata = Some(max_gas_per_pubdata);
+                        opt.transaction_type = Some(EIP_712_TX_TYPE.into());
+                    } else {
+                        opt.transaction_type = Some(EIP_1559_TX_TYPE.into());
+                    }
                     if tx.blob_sidecar.is_some() {
                         opt.transaction_type = Some(EIP_4844_TX_TYPE.into());
                         opt.max_fee_per_blob_gas = blob_gas_price;

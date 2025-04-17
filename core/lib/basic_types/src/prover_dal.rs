@@ -13,6 +13,7 @@ use crate::{
 pub struct FriProverJobMetadata {
     pub id: u32,
     pub block_number: L1BatchNumber,
+    pub batch_sealed_at: DateTime<Utc>,
     pub circuit_id: u8,
     pub aggregation_round: AggregationRound,
     pub sequence_number: usize,
@@ -376,7 +377,7 @@ impl Stallable for SchedulerWitnessGeneratorJobInfo {
     }
 }
 
-#[derive(Debug, EnumString, Display, Clone)]
+#[derive(Debug, EnumString, Display, Clone, PartialEq)]
 pub enum ProofCompressionJobStatus {
     #[strum(serialize = "queued")]
     Queued,

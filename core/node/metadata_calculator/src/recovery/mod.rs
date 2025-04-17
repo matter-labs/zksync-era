@@ -26,7 +26,9 @@
 //! after recovery matches one in the Postgres snapshot etc.
 
 use std::{
-    fmt, ops,
+    fmt,
+    num::NonZeroU32,
+    ops,
     sync::atomic::{AtomicU64, Ordering},
     time::Instant,
 };
@@ -119,6 +121,14 @@ struct InitParameters {
 }
 
 impl InitParameters {
+    /// Minimum number of storage logs in the genesis state to initiate recovery.
+    const MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY: u32 = if cfg!(test) {
+        // Select the smaller threshold for tests, but make it large enough so that it's not triggered by unrelated tests.
+        1_000
+    } else {
+        100_000
+    };
+
     async fn new(
         pool: &ConnectionPool<Core>,
         config: &MetadataCalculatorRecoveryConfig,
@@ -156,7 +166,22 @@ impl InitParameters {
                 l1_batch = pruned.l1_batch;
                 expected_root_hash = pruned.l1_batch_root_hash;
             }
-            (None, None) => return Ok(None),
+            (None, None) => {
+                // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
+                // for the chain is very large (order of millions of entries).
+                let is_genesis_recovery_needed =
+                    Self::is_genesis_recovery_needed(&mut storage).await?;
+                if is_genesis_recovery_needed {
+                    l2_block = L2BlockNumber(0);
+                    l1_batch = L1BatchNumber(0);
+                    expected_root_hash = storage
+                        .blocks_dal()
+                        .get_l1_batch_state_root(l1_batch)
+                        .await?;
+                } else {
+                    return Ok(None);
+                }
+            }
         };
 
         let log_count = storage
@@ -171,6 +196,31 @@ impl InitParameters {
             log_count,
             desired_chunk_size: config.desired_chunk_size,
         }))
+    }
+
+    #[tracing::instrument(skip_all, ret)]
+    async fn is_genesis_recovery_needed(
+        storage: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<bool> {
+        let earliest_l2_block = storage.blocks_dal().get_earliest_l2_block_number().await?;
+        tracing::debug!(?earliest_l2_block, "Got earliest L2 block from Postgres");
+        if earliest_l2_block != Some(L2BlockNumber(0)) {
+            tracing::info!(
+                ?earliest_l2_block,
+                "There is no genesis block in Postgres; genesis recovery is impossible"
+            );
+            return Ok(false);
+        }
+
+        // We get the full log count later, but for now do a faster query to understand the approximate amount.
+        storage
+            .storage_logs_dal()
+            .check_storage_log_count(
+                L2BlockNumber(0),
+                NonZeroU32::new(Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY).unwrap(),
+            )
+            .await
+            .map_err(Into::into)
     }
 
     fn chunk_count(&self) -> u64 {
@@ -223,7 +273,8 @@ impl GenericAsyncTree {
                     let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode, config)?;
                     (tree, params)
                 } else {
-                    // Start the tree from scratch. The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
+                    // The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
+                    tracing::info!("Starting Merkle tree from scratch");
                     return Ok(Some(AsyncTree::new(db, mode)?));
                 }
             }

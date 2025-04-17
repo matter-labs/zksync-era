@@ -20,7 +20,7 @@ jobs:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -72,9 +72,9 @@ jobs:
           ci_run zkstack dev contracts
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
         with:
-          node-version: 18.18.0
+          node-version: 18.20.8
 
       - name: Install yarn
         run: |
@@ -103,7 +103,7 @@ jobs:
         vm_mode: [ "OLD", "NEW" ]
 
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -196,7 +196,7 @@ jobs:
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -283,7 +283,7 @@ jobs:
           --base-token-price-denominator 1 \
           --set-as-default false \
           --ignore-prerequisites \
-          --evm-emulator false
+          --evm-emulator true
 
           ci_run zkstack chain init \
           --deploy-paymaster \
@@ -479,7 +479,9 @@ jobs:
 
       - name: Run integration tests
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests on push to main to check for flakiness
         if: ${{ (github.ref == 'refs/heads/main') }}
@@ -487,7 +489,9 @@ jobs:
           for i in {1..10}; do
             echo "Iteration $i"
             mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
-            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i \
+              'era:--evm' 'validium:--evm'
           done
 
       - name: Init external nodes
@@ -512,11 +516,11 @@ jobs:
 
       - name: Run recovery tests (from snapshot)
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}
 
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.GENESIS_RECOVERY_LOGS_DIR }}
 
       - name: Run external nodes
         run: |
@@ -532,15 +536,19 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests en on push to main to check for flakiness
         if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
           for i in {1..10}; do
             echo "Iteration $i"
-            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
-            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            mkdir -p ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i \
+              'era:--evm' 'validium:--evm'
           done
 
       - name: Fee projection tests
@@ -577,7 +585,7 @@ jobs:
           fi
 
           # Always run the chain-specific revert tests
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.REVERT_LOGS_DIR }}
 
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
@@ -596,8 +604,10 @@ jobs:
           ci_run zkstack dev test upgrade --no-deps --chain era
 
       - name: Upload logs
-        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: logs_${{matrix.use_gateway_chain}}
-          path: logs
+          path: |
+            logs/
+            chains/*/artifacts/vm_dumps/

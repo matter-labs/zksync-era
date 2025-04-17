@@ -4,7 +4,7 @@ use std::{
 };
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::eth_sender::{GasLimitMode, SenderConfig};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
@@ -12,7 +12,11 @@ use zksync_eth_client::{
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
+use zksync_types::{
+    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
+    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
+    L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
+};
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
@@ -132,7 +136,7 @@ impl EthTxManager {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
-            pubdata_price: _,
+            max_gas_per_pubdata_price,
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             time_in_mempool_in_l1_blocks,
@@ -140,6 +144,18 @@ impl EthTxManager {
         )?;
 
         let operator_type = self.operator_type(tx);
+
+        let blob_gas_price = if tx.blob_sidecar.is_some() {
+            Some(
+                blob_base_fee_per_gas
+                    .expect("always ready to query blob gas price for blob transactions; qed")
+                    .into(),
+            )
+        } else {
+            None
+        };
+
+        let gas_limit = self.gas_limit(tx, max_gas_per_pubdata_price);
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
@@ -149,16 +165,20 @@ impl EthTxManager {
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}, \
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?}, \
                 previously sent with \
                 base_fee_per_gas {:?}, \
                 priority_fee_per_gas {:?}, \
                 blob_fee_per_gas {:?}, \
+                max_gas_per_pubdata_price {:?}, \
+                gas_limit {gas_limit:?}, \
                 ",
                 tx.id,
                 tx.nonce,
                 previous_sent_tx.base_fee_per_gas,
                 previous_sent_tx.priority_fee_per_gas,
-                previous_sent_tx.blob_base_fee_per_gas
+                previous_sent_tx.blob_base_fee_per_gas,
+                previous_sent_tx.max_gas_per_pubdata,
             );
         } else {
             tracing::info!(
@@ -166,7 +186,10 @@ impl EthTxManager {
                 at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
-                blob_fee_per_gas {blob_base_fee_per_gas:?}",
+                blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?},\
+                gas_limit {gas_limit:?}, \
+                ",
                 tx.id,
                 tx.nonce
             );
@@ -182,16 +205,6 @@ impl EthTxManager {
                 .observe(priority_fee_per_gas);
         }
 
-        let blob_gas_price = if tx.blob_sidecar.is_some() {
-            Some(
-                blob_base_fee_per_gas
-                    .expect("always ready to query blob gas price for blob transactions; qed")
-                    .into(),
-            )
-        } else {
-            None
-        };
-
         let mut signed_tx = self
             .l1_interface
             .sign_tx(
@@ -199,8 +212,9 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_gas_price,
-                self.config.max_aggregated_tx_gas.into(),
+                gas_limit,
                 operator_type,
+                max_gas_per_pubdata_price.map(Into::into),
             )
             .await;
 
@@ -218,9 +232,11 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_base_fee_per_gas,
+                max_gas_per_pubdata_price,
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
                 current_block.0,
+                Some(gas_limit.as_u64()),
             )
             .await
             .unwrap()
@@ -234,6 +250,7 @@ impl EthTxManager {
                     base_fee_per_gas {base_fee_per_gas:?}, \
                     priority_fee_per_gas {priority_fee_per_gas:?}, \
                     blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                    gas_limit {gas_limit:?},
                     error {error}",
                     tx.id,
                     tx.nonce,
@@ -241,6 +258,46 @@ impl EthTxManager {
             }
         }
         Ok(signed_tx.hash)
+    }
+
+    fn gas_limit(&self, tx: &EthTx, max_gas_per_pubdata_price: Option<u64>) -> U256 {
+        if self.config.gas_limit_mode == GasLimitMode::Maximum {
+            return self.config.max_aggregated_tx_gas.into();
+        }
+
+        let operator_type = self.operator_type(tx);
+
+        // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
+        let Some(gas_without_pubdata) = tx.predicted_gas_cost else {
+            return self.config.max_aggregated_tx_gas.into();
+        };
+
+        // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
+        if tx.tx_type == AggregatedActionType::Commit {
+            match operator_type {
+                OperatorType::Blob | OperatorType::NonBlob => {
+                    // Settlement mode is L1.
+                    (gas_without_pubdata
+                        + ((L1_GAS_PER_PUBDATA_BYTE + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS)
+                            * tx.raw_tx.len() as u32) as u64)
+                        .into()
+                }
+                OperatorType::Gateway => {
+                    // Settlement mode is Gateway.
+                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+                        (gas_without_pubdata
+                            + ((max_gas_per_pubdata_price
+                                + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
+                                * tx.raw_tx.len() as u64))
+                            .into()
+                    } else {
+                        self.config.max_aggregated_tx_gas.into()
+                    }
+                }
+            }
+        } else {
+            gas_without_pubdata.into()
+        }
     }
 
     async fn send_raw_transaction(
@@ -501,15 +558,6 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
-            if gas_used > U256::from(predicted_gas_cost) {
-                tracing::error!(
-                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
-                    tx.tx_type,
-                    tx.id
-                );
-            }
-        }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
             tx.id,
@@ -542,6 +590,7 @@ impl EthTxManager {
         let pool = self.pool.clone();
 
         loop {
+            tokio::time::sleep(self.config.tx_poll_period()).await;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
@@ -552,11 +601,21 @@ impl EthTxManager {
             let l1_block_numbers = self
                 .l1_interface
                 .get_l1_block_numbers(operator_to_track)
-                .await?;
-            METRICS.track_block_numbers(&l1_block_numbers);
+                .await;
+
+            if let Err(ref error) = l1_block_numbers {
+                // Web3 API request failures can cause this,
+                // and anything more important is already properly reported.
+                tracing::warn!("eth_sender error {:?}", error);
+                if error.is_retriable() {
+                    METRICS.l1_transient_errors.inc();
+                    continue;
+                }
+            }
+
+            METRICS.track_block_numbers(&l1_block_numbers?);
 
             self.loop_iteration(&mut storage).await;
-            tokio::time::sleep(self.config.tx_poll_period()).await;
         }
         Ok(())
     }
