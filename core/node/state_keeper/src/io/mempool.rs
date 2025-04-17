@@ -469,6 +469,25 @@ impl StateKeeperIO for MempoolIO {
         );
         Ok(batch_state_hash)
     }
+
+    async fn get_pubdata_params(
+        &mut self,
+        protocol_version: ProtocolVersionId,
+    ) -> anyhow::Result<PubdataParams> {
+        let pubdata_params = match (
+            protocol_version.is_pre_gateway(),
+            self.l2_da_validator_address,
+        ) {
+            (true, _) => PubdataParams::default(),
+            (false, Some(l2_da_validator_address)) => PubdataParams {
+                l2_da_validator_address,
+                pubdata_type: self.pubdata_type,
+            },
+            (false, None) => anyhow::bail!("L2 DA validator address not found"),
+        };
+
+        Ok(pubdata_params)
+    }
 }
 
 /// Sleeps until the current timestamp is larger than the provided `timestamp`.
