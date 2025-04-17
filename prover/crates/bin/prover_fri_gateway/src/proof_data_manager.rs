@@ -4,7 +4,9 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
 use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, prover_dal::ProofCompressionJobStatus, L1BatchNumber,
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    prover_dal::ProofCompressionJobStatus,
+    L1BatchNumber, ProtocolVersionId,
 };
 
 use super::error::ProcessorError;
@@ -54,25 +56,26 @@ impl ProofDataManager {
     pub(crate) async fn get_proof_for_batch(
         &self,
         batch_number: L1BatchNumber,
-        protocol_version: ProtocolSemanticVersion,
     ) -> Result<Option<L1BatchProofForL1>, ProcessorError> {
-        let proof = match self
-            .blob_store
-            .get::<L1BatchProofForL1>((batch_number, protocol_version))
+        let protocol_version = self
+            .pool
+            .connection()
             .await
-        {
-            Ok(proof) => {
-                self.save_successful_sent_proof(batch_number).await?;
-                Some(proof)
-            }
-            Err(ObjectStoreError::KeyNotFound(_)) => None, // proof was not generated yet, nothing to send
-            Err(e) => {
-                tracing::error!("Failed to get proof for batch {batch_number}: {e}");
-                return Err(ProcessorError::ObjectStoreErr(e));
-            }
+            .unwrap()
+            .fri_basic_witness_generator_dal()
+            .protocol_version_for_l1_batch(batch_number)
+            .await;
+
+        let Some(protocol_version) = protocol_version else {
+            return Ok(None);
         };
 
-        Ok(proof)
+        let proof: L1BatchProofForL1 = self
+            .blob_store
+            .get((batch_number, protocol_version))
+            .await?;
+
+        Ok(Some(proof))
     }
 
     pub(crate) async fn save_successful_sent_proof(

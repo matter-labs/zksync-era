@@ -58,15 +58,12 @@ impl Api {
         State(processor): State<ProofDataManager>,
         Json(request): Json<PollGeneratedProofsRequest>,
     ) -> Result<Json<Option<PollGeneratedProofsResponse>>, ProcessorError> {
-        let l1_batch_number = request.batch_number;
-        let protocol_version = request.protocol_version;
-
         let proof = processor
-            .get_proof_for_batch(l1_batch_number, protocol_version)
+            .get_proof_for_batch(request.l1_batch_number)
             .await?;
 
         let response = proof.map(|proof| PollGeneratedProofsResponse {
-            l1_batch_number,
+            l1_batch_number: request.l1_batch_number,
             proof: proof.into(),
         });
 

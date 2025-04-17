@@ -68,8 +68,7 @@ pub enum SubmitProofRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PollGeneratedProofsRequest {
-    pub batch_number: L1BatchNumber,
-    pub protocol_version: ProtocolSemanticVersion,
+    pub l1_batch_number: L1BatchNumber,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

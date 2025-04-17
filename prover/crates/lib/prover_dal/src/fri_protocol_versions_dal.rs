@@ -1,8 +1,14 @@
 use zksync_basic_types::{
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    protocol_version::{
+        L1VerifierConfig, ProtocolSemanticVersion, ProtocolVersionId, VersionPatch,
+    },
     H256,
 };
-use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
+use zksync_db_connection::{
+    connection::Connection,
+    error::{DalError, DalResult},
+    instrument::InstrumentExt,
+};
 
 use crate::Prover;
 

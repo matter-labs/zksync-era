@@ -7,10 +7,10 @@ use zksync_object_store::ObjectStore;
 use zksync_types::commitment::L1BatchCommitmentMode;
 
 use super::http_client::HttpClient;
-use crate::processor::Processor;
+use crate::processor::{Locking, Processor};
 
 pub(crate) struct ProofFetcher {
-    processor: Processor,
+    processor: Processor<Locking>,
     config: ProofDataHandlerConfig,
     client: HttpClient,
 }
@@ -52,15 +52,21 @@ impl ProofFetcher {
                 break;
             }
 
-            if let Some(data) = self
-                .processor
-                .get_proof_generation_data()
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?
-            {
-                self.client.send_proof_generation_data(data).await?;
+            let Some(batch_to_fetch) = self.processor.get_oldest_not_proven_batch().await? else {
+                tracing::info!("No batches to fetch proofs for");
+                tokio::time::sleep(self.config.proof_fetch_interval()).await;
+                continue;
+            };
+
+            let proof = self.client.fetch_proof(batch_to_fetch).await?;
+
+            if let Some((batch_number, proof)) = proof {
+                self.processor
+                    .save_proof(batch_number, proof)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
             } else {
-                tracing::info!("No proof generation data is ready yet");
+                tracing::info!("No proof is ready yet");
             }
 
             tokio::time::sleep(self.config.proof_fetch_interval()).await;

@@ -61,6 +61,19 @@ impl<PM: ProcessorMode> Processor<PM> {
         }
     }
 
+    pub async fn get_oldest_not_proven_batch(
+        &self,
+    ) -> Result<Option<L1BatchNumber>, ProcessorError> {
+        self.pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .get_oldest_not_generated_batch()
+            .await
+            .map_err(Into::into)
+    }
+
     /// Will fetch all the required data for the batch and return it.
     ///
     /// ## Panics

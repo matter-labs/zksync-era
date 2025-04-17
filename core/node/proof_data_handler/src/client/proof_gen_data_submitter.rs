@@ -42,7 +42,7 @@ impl ProofGenDataSubmitter {
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        tracing::info!("Starting proof generation data submitter");
+        tracing::info!("Starting proof gen data submitter");
 
         loop {
             if *stop_receiver.borrow() {
@@ -52,19 +52,15 @@ impl ProofGenDataSubmitter {
                 break;
             }
 
-            let proof = self.client.fetch_proof().await?;
-
-            if let Some((batch_number, proof)) = proof {
-                self.processor
-                    .save_proof(batch_number, proof)
-                    .await
-                    .map_err(|e| anyhow::anyhow!(e))?;
-
-                self.client
-                    .received_final_proof_request(batch_number)
-                    .await?;
+            if let Some(data) = self
+                .processor
+                .get_proof_generation_data()
+                .await
+                .map_err(|e| anyhow::anyhow!(e))?
+            {
+                self.client.send_proof_generation_data(data).await?;
             } else {
-                tracing::info!("No proof is ready yet");
+                tracing::info!("No proof generation data is ready yet");
             }
 
             tokio::time::sleep(self.config.proof_gen_data_submit_interval()).await;

@@ -63,7 +63,8 @@ impl ArtifactsManager for Scheduler {
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
-            .await;
+            .await
+            .unwrap();
         let batch_sealed_at = transaction
             .fri_basic_witness_generator_dal()
             .get_batch_sealed_at_timestamp(L1BatchNumber(job_id))
