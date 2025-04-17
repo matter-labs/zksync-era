@@ -9169,6 +9169,7 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_prover_job_monitor",
+ "zksync_prover_task",
  "zksync_task_management",
  "zksync_vlog",
 ]
@@ -9190,10 +9191,12 @@ version = "20.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "clap 4.5.23",
  "ctrlc",
  "reqwest 0.12.9",
  "serde",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
@@ -9259,6 +9262,7 @@ dependencies = [
  "zksync_core_leftovers",
  "zksync_db_connection",
  "zksync_prover_dal",
+ "zksync_prover_task",
  "zksync_task_management",
  "zksync_types",
  "zksync_vlog",
@@ -9301,6 +9305,16 @@ dependencies = [
  "zksync_basic_types",
  "zksync_prover_fri_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_prover_task"
+version = "20.2.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

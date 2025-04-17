@@ -175,6 +175,7 @@ impl ContractsConfig {
             erc_20_bridge: self.bridges.erc20.l1_address,
             base_token_address: self.l1.base_token_addr,
             chain_admin: Some(self.l1.chain_admin_addr),
+            server_notifier_addr: self.ecosystem_contracts.server_notifier_addr,
         }
     }
 
@@ -202,7 +203,6 @@ impl ContractsConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
                 state_transition_proxy_addr: Some(ecosystem.state_transition_proxy_addr),
-                server_notifier_addr: ecosystem.server_notifier_addr,
                 multicall3: Some(self.l1.multicall3_addr),
                 validator_timelock_addr: Some(self.l1.validator_timelock_addr),
             },

@@ -1423,6 +1423,7 @@ impl ExternalNodeConfig {
             shared_bridge: self.remote.l1_shared_bridge_proxy_addr,
             erc_20_bridge: self.remote.l1_erc20_bridge_proxy_addr,
             base_token_address: self.remote.base_token_addr,
+            server_notifier_addr: self.remote.l1_server_notifier_addr,
             // We don't need chain admin for external node
             chain_admin: None,
         }
@@ -1433,7 +1434,6 @@ impl ExternalNodeConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
                 state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,
-                server_notifier_addr: self.remote.l1_server_notifier_addr,
                 // Multicall 3 is useless for external node
                 multicall3: None,
                 validator_timelock_addr: None,

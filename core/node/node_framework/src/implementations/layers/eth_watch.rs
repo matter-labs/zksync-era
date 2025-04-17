@@ -80,7 +80,7 @@ impl EthWatchLayer {
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
             l1_ecosystem_contracts_resource.chain_admin,
-            contracts_resource.ecosystem_contracts.server_notifier_addr,
+            l1_ecosystem_contracts_resource.server_notifier_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
         )
