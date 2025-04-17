@@ -11,6 +11,7 @@ use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
     ParseResultExt,
 };
+use zksync_vlog::ObservabilityGuard;
 
 /// Configuration for the TEE prover.
 #[derive(Debug, Clone)]
@@ -58,7 +59,6 @@ pub(crate) struct TeeProverApiConfig {
 
 #[derive(Debug)]
 pub(crate) struct AppConfig {
-    pub observability: ObservabilityConfig,
     pub prometheus: PrometheusConfig,
     pub prover: TeeProverConfig,
 }
@@ -67,53 +67,79 @@ const DEFAULT_INSTANCE_METADATA_BASE_URL: &str =
     "http://metadata.google.internal/computeMetadata/v1/instance/attributes/container_config";
 
 impl AppConfig {
-    pub(crate) async fn try_new() -> anyhow::Result<Self> {
+    fn full_schema() -> ConfigSchema {
+        // `unwrap()`s are safe; we know that config locations don't conflict
         let mut schema = ConfigSchema::new(&TeeProverSigConfig::DESCRIPTION, "tee_prover");
         schema
-            .insert(&TeeProverApiConfig::DESCRIPTION, "tee_prover")?
-            .push_alias("prover_api")?;
-        schema.insert(&ObservabilityConfig::DESCRIPTION, "observability")?;
-        schema.insert(&PrometheusConfig::DESCRIPTION, "prometheus")?;
+            .insert(&TeeProverApiConfig::DESCRIPTION, "tee_prover")
+            .unwrap()
+            .push_alias("prover_api")
+            .unwrap();
+        schema
+            .insert(&ObservabilityConfig::DESCRIPTION, "observability")
+            .unwrap();
+        schema
+            .insert(&PrometheusConfig::DESCRIPTION, "prometheus")
+            .unwrap();
+        schema
+    }
 
-        let mut config_repo = ConfigRepository::new(&schema).with(Environment::prefixed(""));
+    pub(crate) async fn try_new() -> anyhow::Result<(Self, ObservabilityGuard)> {
+        let metadata = if std::env::var_os("GOOGLE_METADATA").is_some() {
+            let meta_config = reqwest::Client::default()
+                .get(DEFAULT_INSTANCE_METADATA_BASE_URL)
+                .header("Metadata-Flavor", "Google")
+                .send()
+                .await
+                .context("get metadata")?
+                .json()
+                .await
+                .context("convert metadata to config")?;
+            Some(Json::new("google_metadata", meta_config))
+        } else {
+            None
+        };
+        Self::from_sources(Environment::prefixed(""), metadata)
+    }
 
-        if std::env::var_os("GOOGLE_METADATA").is_some() {
-            let meta_config: serde_json::Map<String, serde_json::Value> =
-                reqwest::Client::default()
-                    .get(DEFAULT_INSTANCE_METADATA_BASE_URL)
-                    .header("Metadata-Flavor", "Google")
-                    .send()
-                    .await
-                    .context("get metadata")?
-                    .json()
-                    .await
-                    .context("convert metadata to config")?;
-            let json = Json::new("google_metadata", meta_config);
-            config_repo = config_repo.with(json);
+    fn from_sources(
+        env: Environment,
+        metadata: Option<Json>,
+    ) -> anyhow::Result<(Self, ObservabilityGuard)> {
+        let schema = Self::full_schema();
+        let mut config_repo = ConfigRepository::new(&schema).with(env);
+        if let Some(metadata) = metadata {
+            config_repo = config_repo.with(metadata);
         }
 
-        // FIXME: observability should be installed here
+        let observability_config: ObservabilityConfig = config_repo
+            .single()?
+            .parse()
+            .context("ObservabilityConfig")?;
+        let observability_guard = observability_config
+            .install()
+            .context("installing observability failed")?;
 
-        Ok(Self {
-            observability: config_repo.single()?.parse().log_all_errors()?,
+        let this = Self {
             prometheus: config_repo.single()?.parse().log_all_errors()?,
             prover: TeeProverConfig {
                 sig_conf: config_repo.single()?.parse().log_all_errors()?,
                 prover_api: config_repo.single()?.parse().log_all_errors()?,
             },
-        })
+        };
+        Ok((this, observability_guard))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Json};
+    use std::path::Path;
 
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test] // Observability can only be installed in the Tokio runtime context
     async fn test_response() {
-        // Create mock response data
+        // TODO: return OTel config once it doesn't hang up the test
         let mock_data = r#"{
           "telemetry" : {
             "otlp" : {
@@ -128,18 +154,13 @@ mod tests {
             }
           },
           "observability" : {
-            "opentelemetry" : {
-              "level": "trace",
-              "endpoint" : "http://127.0.0.1:4318",
-              "logs_endpoint" : "http://127.0.0.1:4318"
-            },
             "log_format" : "plain"
           },
           "prometheus" : {
             "listener_port": 3321
           },
           "prover_api" : {
-            "api_url" : "http://server-v2-proof-data-handler-internal.era-stage-proofs.matterlabs.corp",
+            "api_url" : "http://prover_api/",
             "max_retries" : 10,
             "initial_retry_backoff_sec" : 10,
             "retry_backoff_multiplier" : 2.0,
@@ -148,9 +169,26 @@ mod tests {
         }"#;
         let json: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(mock_data).unwrap();
+        let json = Json::new("google_metadata", json);
 
-        test_complete::<ObservabilityConfig>(Json::new("google_metadata", json.clone())).unwrap();
-        test_complete::<PrometheusConfig>(Json::new("google_metadata", json.clone())).unwrap();
-        test_complete::<TeeProverApiConfig>(Json::new("google_metadata", json)).unwrap();
+        let env = r#"
+            TEE_PROVER_SIGNING_KEY="b50b38c8d396c88728fc032ece558ebda96907a0b1a9340289715eef7bf29deb"
+            TEE_PROVER_ATTESTATION_QUOTE_FILE_PATH="/tmp/test"
+            TEE_PROVER_TEE_TYPE="sgx"
+        "#;
+        let env = Environment::from_dotenv("test.env", env).unwrap();
+
+        let (app_config, _guard) = AppConfig::from_sources(env, Some(json)).unwrap();
+        assert_eq!(
+            app_config.prover.prover_api.api_url.as_str(),
+            "http://prover_api/"
+        );
+        assert_eq!(app_config.prover.prover_api.max_retries, 10);
+        assert_eq!(app_config.prover.sig_conf.tee_type, TeeType::Sgx);
+        assert_eq!(
+            app_config.prover.sig_conf.attestation_quote_file_path,
+            Path::new("/tmp/test")
+        );
+        assert_eq!(app_config.prometheus.listener_port, 3_321);
     }
 }
