@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::aux_structures::Timestamp;
+use zk_evm_1_5_2::aux_structures::Timestamp;
 use zksync_types::{l1::is_l1_tx_type, Transaction};
 
 use crate::{

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     abstractions::{Storage as VmStorageOracle, StorageAccessRefund},
     aux_structures::{LogQuery, PubdataCost, Timestamp},
     zkevm_opcode_defs::system_params::{
@@ -55,7 +55,7 @@ pub(crate) fn storage_key_of_log(query: &LogQuery) -> StorageKey {
     triplet_to_storage_key(query.shard_id, query.address, query.key)
 }
 
-/// The same struct as `zk_evm_1_5_0::aux_structures::LogQuery`, but without the fields that
+/// The same struct as `zk_evm_1_5_2::aux_structures::LogQuery`, but without the fields that
 /// are not needed to maintain the frame stack of the transient storage.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ReducedTstoreLogQuery {

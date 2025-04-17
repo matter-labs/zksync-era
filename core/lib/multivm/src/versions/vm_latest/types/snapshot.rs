@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::vm_state::VmLocalState;
+use zk_evm_1_5_2::vm_state::VmLocalState;
 
 use crate::vm_latest::bootloader::BootloaderStateSnapshot;
 

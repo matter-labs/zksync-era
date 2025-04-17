@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
 };
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -21,7 +21,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
         bootloader::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
@@ -245,7 +245,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         memory: &Self::SupportedMemory,
     ) {
         if let VmExecutionMode::Bootloader = self.execution_mode {
-            let (next_opcode, _, _) = zk_evm_1_5_0::vm_state::read_and_decode(
+            let (next_opcode, _, _) = zk_evm_1_5_2::vm_state::read_and_decode(
                 state.vm_local_state,
                 memory,
                 &mut DummyTracer,

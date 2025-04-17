@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem};
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{AfterExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{
@@ -17,7 +17,7 @@ use crate::{
         storage::{StoragePtr, WriteStorage},
         tracer::TracerExecutionStatus,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     utils::bytecode::bytes_to_be_words,
     vm_latest::{bootloader::BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
 };
