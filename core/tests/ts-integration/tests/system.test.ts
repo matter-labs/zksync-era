@@ -14,6 +14,7 @@ import * as ethers from 'ethers';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForL2ToL1LogProof } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
 import { BigNumberish } from 'ethers';
+import { BytesLike } from '@ethersproject/bytes';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -25,10 +26,14 @@ const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010
 describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
+    let isETHBasedChain: boolean;
+    let baseTokenAddress: string; // Used only for base token implementation
 
-    beforeAll(() => {
+    beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
@@ -49,6 +54,90 @@ describe('System behavior checks', () => {
 
         const result_b = await alice.providerL1!.call(transaction_b);
         expect(result_b).toEqual('0x');
+    });
+
+    test('Should check that createEVM is callable and executes successfully', async () => {
+        if (!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
+        }
+
+        const contractInitcode: BytesLike = ethers.hexlify('0x69602a60005260206000f3600052600a6016f3');
+
+        const abi = ['function createEVM(bytes _initCode)'];
+
+        const iface = new ethers.Interface(abi);
+
+        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('createEVM', [contractInitcode]);
+
+        let chainId = testMaster.environment().l2ChainId;
+
+        let bridgehubAddr = await alice._providerL2().getBridgehubContractAddress();
+
+        let composedCall = await composeL1ToL2Call(
+            String(chainId),
+            zksync.utils.CONTRACT_DEPLOYER_ADDRESS,
+            ContractDeployerCalldata,
+            bridgehubAddr,
+            alice._providerL1(),
+            alice.address
+        );
+
+        let priorityOpHandle = await alice.requestExecute({
+            contractAddress: await composedCall.target,
+            calldata: await String(composedCall.data),
+            overrides: {
+                gasPrice: 100000000
+            }
+        });
+
+        await priorityOpHandle.waitL1Commit();
+
+        expect(priorityOpHandle).toBeAccepted();
+    });
+
+    test('Should check that create2EVM is callable and executes successfully', async () => {
+        if (!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenAddress, baseTokenMaxAmount)).wait();
+        }
+
+        const contractInitcode: BytesLike = '0x69602a60005260206000f3600052600a6016f3';
+
+        const abi = ['function create2EVM(bytes32 _salt, bytes _initCode)'];
+
+        const iface = new ethers.Interface(abi);
+
+        const salt: BytesLike = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('create2EVM', [salt, contractInitcode]);
+
+        let chainId = testMaster.environment().l2ChainId;
+
+        let bridgehubAddr = await alice._providerL2().getBridgehubContractAddress();
+
+        let composedCall = await composeL1ToL2Call(
+            String(chainId),
+            zksync.utils.CONTRACT_DEPLOYER_ADDRESS,
+            ContractDeployerCalldata,
+            bridgehubAddr,
+            alice._providerL1(),
+            alice.address
+        );
+
+        let priorityOpHandle = await alice.requestExecute({
+            contractAddress: await composedCall.target,
+            calldata: await String(composedCall.data),
+            overrides: {
+                gasPrice: 100000000
+            }
+        });
+
+        await priorityOpHandle.waitL1Commit();
+
+        expect(priorityOpHandle).toBeAccepted();
     });
 
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {
@@ -416,6 +505,51 @@ export interface TransactionData {
     // Reserved dynamic type for the future use-case. Using it should be avoided,
     // But it is still here, just in case we want to enable some additional functionality.
     reservedDynamic: ethers.BytesLike;
+}
+
+interface Call {
+    target: string;
+    value: BigNumberish;
+    data: BytesLike;
+}
+
+async function composeL1ToL2Call(
+    chainId: string,
+    to: string,
+    data: BytesLike,
+    bridgehubAddr: string,
+    l1Provider: ethers.Provider,
+    refundRecipient: string
+): Promise<Call> {
+    const gasPerPubdata = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
+    const gasLimit = 400_000;
+
+    const gasPrice = (await l1Provider.getFeeData()).gasPrice! * BigInt(5);
+
+    const bridgehub = new ethers.Contract(bridgehubAddr, zksync.utils.BRIDGEHUB_ABI, l1Provider);
+
+    const baseCost = await bridgehub.l2TransactionBaseCost(chainId, gasPrice, gasLimit, gasPerPubdata);
+
+    const encodedData = zksync.utils.BRIDGEHUB_ABI.encodeFunctionData('requestL2TransactionDirect', [
+        {
+            chainId: chainId,
+            mintValue: baseCost,
+            l2Contract: to,
+            l2Value: 0,
+            l2Calldata: data,
+            l2GasLimit: gasLimit,
+            l2GasPerPubdataByteLimit: gasPerPubdata,
+            factoryDeps: [],
+            refundRecipient
+        }
+    ]);
+
+    return {
+        target: bridgehubAddr,
+        data: encodedData,
+        // Works when ETH is the base token
+        value: baseCost
+    };
 }
 
 function signedTxToTransactionData(tx: ethers.TransactionLike) {
