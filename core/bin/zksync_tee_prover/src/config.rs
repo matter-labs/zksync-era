@@ -80,7 +80,7 @@ impl FromEnv for TeeProverApiConfig {
     ///
     /// Example usage of environment variables for tests:
     /// ```
-    /// export TEE_PROVER_API_URL="http://127.0.0.1:3320"
+    /// export TEE_PROVER_API_URL="http://127.0.0.1:4320"
     /// export TEE_PROVER_MAX_RETRIES=10
     /// export TEE_PROVER_INITIAL_RETRY_BACKOFF_SEC=1
     /// export TEE_PROVER_RETRY_BACKOFF_MULTIPLIER=2.0

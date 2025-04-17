@@ -62,6 +62,7 @@ message GeneralConfig {
     optional prover_job_monitor.ProverJobMonitor prover_job_monitor = 45;
     optional da_client.DataAvailabilityClient da_client = 46;
     optional timestamp_asserter.TimestampAsserter timestamp_asserter = 47;
+    optional prover.TeeProofDataHandler tee_data_handler = 48;
 
     reserved 25, 29;
     reserved "witness_vector_generator", "prover_group";

@@ -3,7 +3,7 @@ use secp256k1::PublicKey;
 use serde::Serialize;
 use url::Url;
 use zksync_basic_types::{tee_types::TeeType, L1BatchNumber, H256};
-use zksync_prover_interface::{
+use zksync_tee_prover_interface::{
     api::{RegisterTeeAttestationRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest},
     inputs::TeeVerifierInput,
     outputs::L1BatchTeeProofForL1,
@@ -12,7 +12,7 @@ use zksync_prover_interface::{
 use crate::{error::TeeProverError, metrics::METRICS};
 
 /// Implementation of the API client for the proof data handler, run by
-/// [`zksync_proof_data_handler::run_server`].
+/// [`zksync_tee_proof_data_handler::run_server`].
 #[derive(Debug)]
 pub(crate) struct TeeApiClient {
     api_base_url: Url,

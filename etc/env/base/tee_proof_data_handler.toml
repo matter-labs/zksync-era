@@ -1,0 +1,4 @@
+[tee_proof_data_handler]
+http_port = 4320
+proof_generation_timeout_in_secs = 60
+batch_permanently_ignored_timeout_in_hours = 240

@@ -61,11 +61,15 @@ pub async fn init_configs(
 
     let general_config = chain_config.get_general_config().await?;
     let prover_data_handler_url = general_config.proof_data_handler_url()?;
+    let tee_prover_data_handler_url = general_config.tee_proof_data_handler_url()?;
 
     let consensus_keys = generate_consensus_keys();
     let mut general_config = general_config.patched();
     if let Some(url) = prover_data_handler_url {
         general_config.set_prover_gateway_url(url)?;
+    }
+    if let Some(url) = tee_prover_data_handler_url {
+        general_config.set_tee_prover_gateway_url(url)?;
     }
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
