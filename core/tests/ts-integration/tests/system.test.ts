@@ -29,7 +29,7 @@ describe('System behavior checks', () => {
     let isETHBasedChain: boolean;
     let baseTokenAddress: string; // Used only for base token implementation
 
-    beforeAll(async ()  => {
+    beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
@@ -57,8 +57,7 @@ describe('System behavior checks', () => {
     });
 
     test('Should check that createEVM is callable and executes successfully', async () => {
-
-        if(!isETHBasedChain) {
+        if (!isETHBasedChain) {
             const baseTokenDetails = testMaster.environment().baseToken;
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
             await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
@@ -99,7 +98,6 @@ describe('System behavior checks', () => {
     });
 
     test('Should check that create2EVM is callable and executes successfully', async () => {
-
         if (!isETHBasedChain) {
             const baseTokenDetails = testMaster.environment().baseToken;
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
