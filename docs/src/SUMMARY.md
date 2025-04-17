@@ -69,7 +69,7 @@
   - [Bridging](specs/contracts/bridging/overview.md)
     - [Asset Router](specs/contracts/bridging/asset_router_and_ntv/asset_router.md)
     - [Native token vault](specs/contracts/bridging/asset_router_and_ntv/native_token_vault.md)
-  - [Settlment Contracts](specs/contracts/settlement_contracts/zkchain_basics.md)
+  - [Settlement Contracts](specs/contracts/settlement_contracts/zkchain_basics.md)
     - [L1 <> L2 communication](specs/contracts/settlement_contracts/priority_queue/README.md)
       - [Handling L1→L2 operations](specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md)
       - [L2→L1 communication](specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)
