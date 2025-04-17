@@ -78,6 +78,7 @@ pub(super) fn mock_verification_info(
             bytecode: vec![0xff, 32],
             deployed_bytecode: None,
             abi: Default::default(),
+            immutable_refs: Default::default(),
         },
         verified_at: Default::default(),
         verification_problems: Vec::new(),
