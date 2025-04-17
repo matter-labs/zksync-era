@@ -27,6 +27,7 @@ impl TeeProcessorError {
 
 impl IntoResponse for TeeProcessorError {
     fn into_response(self) -> Response {
+        tracing::error!("{}: {}", self, self.status_code());
         (self.status_code(), self.to_string()).into_response()
     }
 }
