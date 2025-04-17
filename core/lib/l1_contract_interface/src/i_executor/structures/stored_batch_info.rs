@@ -4,7 +4,7 @@ use zksync_types::{
     ethabi::{self, ParamType, Token},
     parse_h256, web3,
     web3::contract::Error as ContractError,
-    H256, U256,
+    ProtocolVersionId, H256, U256,
 };
 
 use crate::Tokenizable;
@@ -58,6 +58,33 @@ impl StoredBatchInfo {
     /// `_hashStoredBatchInfo` from `Executor.sol`.
     pub fn hash(&self) -> H256 {
         H256(web3::keccak256(&self.encode()))
+    }
+
+    pub fn into_token_with_protocol_version(self, protocol_version: ProtocolVersionId) -> Token {
+        if protocol_version.is_pre_interop() {
+            Token::Tuple(vec![
+                Token::Uint(self.batch_number.into()),
+                Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
+                Token::Uint(self.index_repeated_storage_changes.into()),
+                Token::Uint(self.number_of_layer1_txs),
+                Token::FixedBytes(self.priority_operations_hash.as_bytes().to_vec()),
+                Token::FixedBytes(self.l2_logs_tree_root.as_bytes().to_vec()),
+                Token::Uint(self.timestamp),
+                Token::FixedBytes(self.commitment.as_bytes().to_vec()),
+            ])
+        } else {
+            Token::Tuple(vec![
+                Token::Uint(self.batch_number.into()),
+                Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
+                Token::Uint(self.index_repeated_storage_changes.into()),
+                Token::Uint(self.number_of_layer1_txs),
+                Token::FixedBytes(self.priority_operations_hash.as_bytes().to_vec()),
+                Token::FixedBytes(self.dependency_roots_rolling_hash.as_bytes().to_vec()),
+                Token::FixedBytes(self.l2_logs_tree_root.as_bytes().to_vec()),
+                Token::Uint(self.timestamp),
+                Token::FixedBytes(self.commitment.as_bytes().to_vec()),
+            ])
+        }
     }
 }
 
@@ -130,16 +157,6 @@ impl Tokenizable for StoredBatchInfo {
     }
 
     fn into_token(self) -> Token {
-        Token::Tuple(vec![
-            Token::Uint(self.batch_number.into()),
-            Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
-            Token::Uint(self.index_repeated_storage_changes.into()),
-            Token::Uint(self.number_of_layer1_txs),
-            Token::FixedBytes(self.priority_operations_hash.as_bytes().to_vec()),
-            Token::FixedBytes(self.dependency_roots_rolling_hash.as_bytes().to_vec()),
-            Token::FixedBytes(self.l2_logs_tree_root.as_bytes().to_vec()),
-            Token::Uint(self.timestamp),
-            Token::FixedBytes(self.commitment.as_bytes().to_vec()),
-        ])
+        self.into_token_with_protocol_version(ProtocolVersionId::latest())
     }
 }

@@ -96,22 +96,6 @@ impl<'a> CommitBatchInfo<'a> {
                         .as_bytes()
                         .to_vec(),
                 ),
-                Token::FixedBytes(
-                    if self.l1_batch_with_metadata.header.system_logs.is_empty() {
-                        H256::zero().as_bytes().to_vec()
-                    } else {
-                        self.l1_batch_with_metadata
-                            .header
-                            .system_logs
-                            .iter()
-                            .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                            .unwrap()
-                            .0
-                            .value
-                            .as_bytes()
-                            .to_vec()
-                    },
-                ),
                 Token::Bytes(
                     self.l1_batch_with_metadata
                         .metadata
