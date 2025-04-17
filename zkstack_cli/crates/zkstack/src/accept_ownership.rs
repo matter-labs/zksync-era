@@ -36,6 +36,7 @@ lazy_static! {
             "function chainAdminAcceptAdmin(address admin, address target) public",
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
             "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
+            "function updateDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
             "function makePermanentRollup(address chainAdmin, address target) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
@@ -572,6 +573,49 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     let calldata = ACCEPT_ADMIN
         .encode(
             "setDAValidatorPairWithGateway",
+            (
+                l1_bridgehub,
+                max_l1_gas_price,
+                U256::from(l2_chain_id),
+                U256::from(gateway_chain_id),
+                l1_da_validator,
+                l2_da_validator,
+                chain_diamond_proxy_on_gateway,
+                refund_recipient,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+    )
+    .await
+}
+
+pub(crate) async fn update_da_validator_pair_via_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    l1_bridgehub: Address,
+    max_l1_gas_price: U256,
+    l2_chain_id: u64,
+    gateway_chain_id: u64,
+    l1_da_validator: Address,
+    l2_da_validator: Address,
+    chain_diamond_proxy_on_gateway: Address,
+    refund_recipient: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "updateDAValidatorPairWithGateway",
             (
                 l1_bridgehub,
                 max_l1_gas_price,

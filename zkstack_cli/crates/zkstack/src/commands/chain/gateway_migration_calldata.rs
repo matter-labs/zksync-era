@@ -46,7 +46,7 @@ use crate::{
     accept_ownership::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
         notify_server_migration_from_gateway, notify_server_migration_to_gateway,
-        set_da_validator_pair_via_gateway, AdminScriptOutput,
+        set_da_validator_pair_via_gateway, update_da_validator_pair_via_gateway, AdminScriptOutput,
     },
     commands::chain::utils::get_ethers_provider,
     messages::MSG_CHAIN_NOT_INITIALIZED,
@@ -397,7 +397,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     )
     .await?;
 
-    result.extend(finalize_migrate_to_gateway_output.calls);
+    // result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the SL one
     let (_, l2_da_validator) = l1_zk_chain.get_da_validator_pair().await?;
@@ -411,6 +411,24 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         // TODO(X): We should really check it on our own here, but it is hard with the current interfaces
         println!("WARNING: Your chain is a permanent rollup! Ensure that the new L1 SL provider is compatible with Gateway RollupDAManager!");
     }
+    let updateDAValidatorPair = update_da_validator_pair_via_gateway(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        crate::accept_ownership::AdminScriptMode::OnlySave,
+        params.l1_bridgehub_addr,
+        params.max_l1_gas_price.into(),
+        params.l2_chain_id,
+        params.gateway_chain_id,
+        params.new_sl_da_validator,
+        l2_da_validator,
+        zk_chain_gw_address,
+        refund_recipient,
+        params.l1_rpc_url.clone(),
+    )
+    .await?;
+
+    result.extend(updateDAValidatorPair.calls.into_iter());
 
     let da_validator_encoding_result = set_da_validator_pair_via_gateway(
         shell,
@@ -452,7 +470,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                 params.l1_rpc_url.clone(),
             )
             .await?;
-            result.extend(enable_validator_calls.calls);
+            // result.extend(enable_validator_calls.calls);
         }
 
         let current_validator_balance = gw_provider.get_balance(validator, None).await?;
@@ -477,7 +495,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                 params.l1_rpc_url.clone(),
             )
             .await?;
-            result.extend(supply_validator_balance_calls.calls);
+            // result.extend(supply_validator_balance_calls.calls);
         }
     }
 
