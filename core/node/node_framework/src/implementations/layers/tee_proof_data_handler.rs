@@ -35,7 +35,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub task: ProofDataHandlerTask,
+    pub task: TeeProofDataHandlerTask,
 }
 
 impl TeeProofDataHandlerLayer {
@@ -58,14 +58,14 @@ impl WiringLayer for TeeProofDataHandlerLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "proof_data_handler_layer"
+        "tee_proof_data_handler_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
         let blob_store = input.object_store.0;
 
-        let task = ProofDataHandlerTask {
+        let task = TeeProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
             blob_store,
             main_pool,
@@ -78,7 +78,7 @@ impl WiringLayer for TeeProofDataHandlerLayer {
 }
 
 #[derive(Debug)]
-pub struct ProofDataHandlerTask {
+pub struct TeeProofDataHandlerTask {
     proof_data_handler_config: TeeProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
@@ -87,9 +87,9 @@ pub struct ProofDataHandlerTask {
 }
 
 #[async_trait::async_trait]
-impl Task for ProofDataHandlerTask {
+impl Task for TeeProofDataHandlerTask {
     fn id(&self) -> TaskId {
-        "proof_data_handler".into()
+        "tee_proof_data_handler".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
