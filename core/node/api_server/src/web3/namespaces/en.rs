@@ -168,11 +168,7 @@ impl EnNamespace {
             transparent_proxy_admin_addr: Address::zero(),
             l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
             l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
-            server_notifier_addr: self
-                .state
-                .api_config
-                .l1_ecosystem_contracts
-                .server_notifier_addr,
+            server_notifier_addr: self.state.api_config.server_notifier_addr,
         })
     }
 

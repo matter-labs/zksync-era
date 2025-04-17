@@ -46,6 +46,7 @@ use super::{
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
+    utils::AccountTypesCache,
     web3::metrics::FilterMetrics,
 };
 
@@ -163,6 +164,7 @@ pub struct InternalApiConfig {
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
     pub l1_ecosystem_contracts: EcosystemCommonContracts,
+    pub server_notifier_addr: Option<Address>,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_diamond_proxy_addr: Address,
@@ -205,6 +207,7 @@ impl InternalApiConfig {
                 l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             },
             l1_ecosystem_contracts: l1_contracts_config.ecosystem_contracts.clone(),
+            server_notifier_addr: l1_ecosystem_contracts.server_notifier_addr,
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
             l1_diamond_proxy_addr: l1_contracts_config
@@ -323,6 +326,7 @@ pub(crate) struct RpcState {
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
+    pub(super) account_types_cache: AccountTypesCache,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,

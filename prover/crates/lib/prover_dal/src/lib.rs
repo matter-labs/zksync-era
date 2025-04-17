@@ -2,6 +2,7 @@ use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
     connection_pool::ConnectionPool,
+    error::DalError,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 

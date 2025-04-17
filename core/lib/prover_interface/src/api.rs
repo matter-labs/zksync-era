@@ -64,8 +64,18 @@ pub struct TeeProofGenerationDataRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
     Proof(Box<JsonL1BatchProofForL1>),
-    // The proof generation was skipped due to sampling
-    SkippedProofGeneration,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PollGeneratedProofsRequest {
+    pub batch_number: L1BatchNumber,
+    pub protocol_version: ProtocolSemanticVersion,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PollGeneratedProofsResponse {
+    pub l1_batch_number: L1BatchNumber,
+    pub proof: JsonL1BatchProofForL1,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
