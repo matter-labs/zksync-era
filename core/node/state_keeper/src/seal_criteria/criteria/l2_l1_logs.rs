@@ -11,7 +11,6 @@ impl SealCriterion for L2L1LogsCriterion {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
-        _block_open_timestamp_ms: u128,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -37,8 +36,22 @@ impl SealCriterion for L2L1LogsCriterion {
         }
     }
 
+    fn capacity_filled(
+        &self,
+        _config: &StateKeeperConfig,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        let used_logs = block_data.execution_metrics.user_l2_to_l1_logs as f64;
+        let full_logs = l2_to_l1_logs_tree_size(protocol_version) as f64;
+
+        Some(used_logs / full_logs)
+    }
+
     fn prom_criterion_name(&self) -> &'static str {
-        "gas"
+        "l2_l1_logs"
     }
 }
 
@@ -57,7 +70,6 @@ mod tests {
     ) -> SealResolution {
         L2L1LogsCriterion.should_seal(
             config,
-            0,
             0,
             0,
             &SealData {

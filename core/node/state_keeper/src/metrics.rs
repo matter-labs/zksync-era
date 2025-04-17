@@ -6,8 +6,8 @@ use std::{
 };
 
 use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
-    Metrics,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    LatencyObserver, Metrics, Unit,
 };
 use zksync_mempool::MempoolStore;
 use zksync_multivm::interface::{DeduplicatedWritesMetrics, VmRevertReason};
@@ -220,6 +220,8 @@ struct TxAggregationLabels {
 pub(super) struct TxAggregationMetrics {
     reason: Family<TxAggregationLabels, Counter>,
     l2_block_reason: Family<L2BlockSealReason, Counter>,
+    #[metrics(labels = ["criterion"], buckets = Buckets::ZERO_TO_ONE, unit = Unit::Ratios)]
+    criterion_capacity_filled: LabeledFamily<&'static str, Histogram>,
 }
 
 impl TxAggregationMetrics {
@@ -241,6 +243,10 @@ impl TxAggregationMetrics {
 
     pub fn l2_block_reason_inc(&self, reason: &L2BlockSealReason) {
         self.l2_block_reason[reason].inc();
+    }
+
+    pub fn record_criterion_capacity(&self, criterion: &'static str, value: f64) {
+        self.criterion_capacity_filled[&criterion].observe(value)
     }
 }
 

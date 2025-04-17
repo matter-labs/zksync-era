@@ -18,7 +18,6 @@ impl SealCriterion for PubDataBytesCriterion {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
-        _block_open_timestamp_ms: u128,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -58,6 +57,23 @@ impl SealCriterion for PubDataBytesCriterion {
         } else {
             SealResolution::NoSeal
         }
+    }
+
+    fn capacity_filled(
+        &self,
+        _config: &StateKeeperConfig,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        let used_pubdata = (block_data.execution_metrics.size()
+            + block_data.writes_metrics.size(protocol_version)
+            + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into()))
+            as f64;
+        let full_pubdata = self.max_pubdata_per_batch as f64;
+
+        Some(used_pubdata / full_pubdata)
     }
 
     fn prom_criterion_name(&self) -> &'static str {
@@ -100,7 +116,6 @@ mod tests {
             &config,
             0,
             0,
-            0,
             &SealData {
                 execution_metrics: block_execution_metrics,
                 ..SealData::default()
@@ -122,7 +137,6 @@ mod tests {
             &config,
             0,
             0,
-            0,
             &SealData {
                 execution_metrics: block_execution_metrics,
                 ..SealData::default()
@@ -138,7 +152,6 @@ mod tests {
         };
         let full_block_resolution = criterion.should_seal(
             &config,
-            0,
             0,
             0,
             &SealData {

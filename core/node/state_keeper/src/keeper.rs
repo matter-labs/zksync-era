@@ -617,6 +617,9 @@ impl ZkSyncStateKeeper {
                     Self::start_next_l2_block(updates_manager, batch_executor).await?;
                 }
 
+                self.report_seal_criteria_capacity(updates_manager);
+                full_latency.observe();
+
                 return Ok(());
             }
 
@@ -722,6 +725,7 @@ impl ZkSyncStateKeeper {
                      transaction {tx_hash}",
                     updates_manager.l1_batch.number
                 );
+                self.report_seal_criteria_capacity(updates_manager);
                 full_latency.observe();
                 return Ok(());
             }
@@ -898,7 +902,6 @@ impl ZkSyncStateKeeper {
 
                 self.sealer.should_seal_l1_batch(
                     updates_manager.l1_batch.number.0,
-                    updates_manager.batch_timestamp() as u128 * 1_000,
                     updates_manager.pending_executed_transactions_len() + 1,
                     updates_manager.pending_l1_transactions_len() + is_tx_l1,
                     &block_data,
@@ -914,5 +917,26 @@ impl ZkSyncStateKeeper {
     /// Returns the health check for state keeper.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+
+    fn report_seal_criteria_capacity(&self, manager: &UpdatesManager) {
+        let block_writes_metrics = manager.storage_writes_deduplicator.metrics();
+
+        let block_data = SealData {
+            execution_metrics: manager.pending_execution_metrics(),
+            cumulative_size: manager.pending_txs_encoding_size(),
+            writes_metrics: block_writes_metrics,
+            gas_remaining: u32::MAX, // not used
+        };
+
+        let capacities = self.sealer.capacity_filled(
+            manager.pending_executed_transactions_len(),
+            manager.pending_l1_transactions_len(),
+            &block_data,
+            manager.protocol_version(),
+        );
+        for (criterion, capacity) in capacities {
+            AGGREGATION_METRICS.record_criterion_capacity(criterion, capacity);
+        }
     }
 }
