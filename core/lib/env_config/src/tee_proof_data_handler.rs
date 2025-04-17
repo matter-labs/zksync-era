@@ -19,7 +19,7 @@ mod tests {
 
     fn expected_config() -> TeeProofDataHandlerConfig {
         TeeProofDataHandlerConfig {
-            http_port: 3320,
+            http_port: 4320,
             first_processed_batch: L1BatchNumber(1337),
             proof_generation_timeout_in_secs: 600,
             batch_permanently_ignored_timeout_in_hours: 240,
@@ -29,7 +29,7 @@ mod tests {
     #[test]
     fn from_env() {
         let config = r#"
-            TEE_PROOF_DATA_HANDLER_HTTP_PORT="3320"
+            TEE_PROOF_DATA_HANDLER_HTTP_PORT="4320"
             TEE_PROOF_DATA_HANDLER_FIRST_PROCESSED_BATCH="1337"
             TEE_PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
             TEE_PROOF_DATA_HANDLER_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
