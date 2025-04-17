@@ -9,7 +9,7 @@ message ExternalNode {
   optional uint64 l2_chain_id = 2; // required
   optional uint64 l1_chain_id = 3; // required
   optional uint64 main_node_rate_limit_rps = 6; // optional
-  optional config.genesis.L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 7; // optional, default to rollup
+  reserved 7; reserved "l1_batch_commit_data_generator_mode";
   reserved 8; reserved "gateway_url";
   optional uint64 bridge_addresses_refresh_interval_sec = 9; // optional
   optional uint64 gateway_chain_id = 10; // optional

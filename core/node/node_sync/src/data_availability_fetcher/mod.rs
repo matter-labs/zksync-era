@@ -2,7 +2,6 @@
 
 use std::time::Duration;
 
-use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_da_client::{types::InclusionData, DataAvailabilityClient};
@@ -115,20 +114,17 @@ impl DataAvailabilityFetcher {
         let last_l1_batch_with_da_info = storage
             .data_availability_dal()
             .get_latest_batch_with_inclusion_data()
+            .await?
+            .unwrap_or(L1BatchNumber::default());
+
+        let l1_batch_to_fetch = storage
+            .blocks_dal()
+            .get_first_validium_l1_batch_number(last_l1_batch_with_da_info)
             .await?;
 
-        let l1_batch_to_fetch = if let Some(batch) = last_l1_batch_with_da_info {
-            batch + 1
-        } else {
-            let earliest_l1_batch = storage
-                .blocks_dal()
-                .get_earliest_l1_batch_number()
-                .await?
-                .context("all L1 batches disappeared from Postgres")?
-                .max(L1BatchNumber(1)); // if only the genesis batch is in the storage, we should start from the first one, skipping the genesis
-
-            tracing::debug!("No L1 batches with DA info present in the storage; will fetch the earliest batch #{earliest_l1_batch}");
-            earliest_l1_batch
+        let Some(l1_batch_to_fetch) = l1_batch_to_fetch else {
+            tracing::debug!("No L1 batches to fetch DA info for");
+            return Ok(None);
         };
 
         Ok(if l1_batch_to_fetch <= last_l1_batch {

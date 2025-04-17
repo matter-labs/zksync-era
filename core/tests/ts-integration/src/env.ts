@@ -261,7 +261,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const l2ChainId = BigInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
     // If the `CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE` is not set, the default value is `Rollup`.
     const l1BatchCommitDataGeneratorMode = (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
-        process.env.EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
         'Rollup') as DataAvailabityMode;
     let minimalL2GasPrice;
     if (process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE !== undefined) {

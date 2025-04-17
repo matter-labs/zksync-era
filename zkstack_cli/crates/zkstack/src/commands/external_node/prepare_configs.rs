@@ -65,7 +65,6 @@ async fn prepare_configs(
             .map(GatewayChainConfig::gateway_chain_id)
             .transpose()?,
     )?;
-    en_config.set_batch_commitment_mode(genesis.l1_batch_commitment_mode()?)?;
     en_config.set_main_node_url(&l2_rpc_url)?;
     en_config.save().await?;
 
