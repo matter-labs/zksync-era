@@ -190,7 +190,7 @@ class EthersTransactionResponse extends ethers.TransactionResponse implements Au
     override async wait(confirmations?: number, timeout?: number) {
         if (!this.isWaitingReported) {
             this.reporter.debug(
-                `Started waiting for ${this.kind} transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`
+                `Started waiting for ${this.kind} transaction ${this.hash} (from=${this.from}, nonce=${this.nonce}, gasLimit=${this.gasLimit})`
             );
             this.isWaitingReported = true;
         }
