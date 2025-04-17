@@ -10,9 +10,9 @@ The endgame is to have L1 asset router have the same functionality as the L2 one
 
 The specifics of the L2AssetRouter is the need to interact with the previously deployed L2SharedBridgeLegacy if it was already present. It has less “rights” than the L1AssetRouter: at the moment it is assumed that all asset deployment trackers are from L1, the only way to register an asset handler on L2 is to make an L1→L2 transaction.
 
-> Note, that today registering new asset deployment trackers will be permissioned, but the plan is to make it permissionless in the future
+> Note, that today registering new asset deployment trackers is permissioned, but the plan is to make it permissionless in the future
 
-The specifics of the L1AssetRouter come from the need to be backwards compatible with the old L1SharedBridge. Yes, it will not share the same storage, but it will inherit the need to be backwards compatible with the current SDK. Also, L1AssetRouter needs to facilitate L1-only operations, such as recovering from failed deposits.
+The specifics of the L1AssetRouter come from the need to be backwards compatible with the old L1SharedBridge. Yes, it does not share the same storage, but it inherits the need to be backwards compatible with the current SDK. Also, L1AssetRouter needs to facilitate L1-only operations, such as recovering from failed deposits.
 
 Also, L1AssetRouter is the only base token bridge contract that can participate in initiation of cross chain transactions via the bridgehub. This might change in the future.
 
@@ -20,7 +20,7 @@ Also, L1AssetRouter is the only base token bridge contract that can participate 
 
 While the endgoal is to unify L1 and L2 asset routers, in reality, it may not be that easy: while L2 asset routers get called by L1→L2 transactions, L1 ones don't and require manual finalization of transactions, which involves proof verification, etc. To move this logic outside of the L1AssetRouter, it was moved into a separate L1Nullifier contract.
 
-_This is the contract the previous L1SharedBridge will be upgraded to, so it should have the backwards compatible storage._
+_This is the contract the previous L1SharedBridge had been upgraded to, so it has the backwards compatible storage._
 
 ### A separate L2Nullifier does not exist
 

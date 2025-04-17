@@ -8,13 +8,13 @@ The L1 and L2 versions of the NTV are almost identical in functionality, the mai
 
 Also, the L1NTV has the following specifics:
 
-<!-- - It operates the `chainBalance` mapping, ensuring that the chains do not go beyond their balances.  -->
+- It operates the `chainBalance` mapping, ensuring that the chains do not go beyond their balances.
 - It allows recovering from failed L1→L2 transfers.
 - It needs to both be able to retrieve funds from the former L1SharedBridge (now this contract has L1Nullifier in its place), but also needs to support the old SDK that gives out allowance to the “l1 shared bridge” value returned from the API, i.e. in our case this is will the L1AssetRouter.
 
 ### L2SharedBridgeLegacy
 
-L2AssetRouter has to be pre-deployed onto a specific address. The old L2SharedBridge will be upgraded to L2SharedBridgeLegacy contract. The main purpose of this contract is to ensure compatibility with the incoming deposits and re-route them to the shared bridge.
+L2AssetRouter is pre-deployed onto a specific address. The old L2SharedBridge is upgraded to L2SharedBridgeLegacy contract. The main purpose of this contract is to ensure compatibility with the incoming deposits and re-route them to the shared bridge.
 
 This contract is never deployed for new chains.
 
