@@ -26,10 +26,14 @@ const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010
 describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
+    let isETHBasedChain: boolean;
+    let baseTokenAddress: string; // Used only for base token implementation
 
-    beforeAll(() => {
+    beforeAll(async ()  => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
@@ -53,6 +57,13 @@ describe('System behavior checks', () => {
     });
 
     test('Should check that createEVM is callable and executes successfully', async () => {
+
+        if(!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
+        }
+
         const contractInitcode: BytesLike = ethers.hexlify('0x69602a60005260206000f3600052600a6016f3');
 
         const abi = ['function createEVM(bytes _initCode)'];
@@ -88,6 +99,13 @@ describe('System behavior checks', () => {
     });
 
     test('Should check that create2EVM is callable and executes successfully', async () => {
+
+        if (!isETHBasedChain) {
+            const baseTokenDetails = testMaster.environment().baseToken;
+            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
+            await (await alice.approveERC20(baseTokenAddress, baseTokenMaxAmount)).wait();
+        }
+
         const contractInitcode: BytesLike = '0x69602a60005260206000f3600052600a6016f3';
 
         const abi = ['function create2EVM(bytes32 _salt, bytes _initCode)'];
