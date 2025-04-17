@@ -58,6 +58,11 @@ impl Api {
         State(processor): State<ProofDataManager>,
         Json(request): Json<PollGeneratedProofsRequest>,
     ) -> Result<Json<Option<PollGeneratedProofsResponse>>, ProcessorError> {
+        tracing::info!(
+            "Received request for proof generation data: {:?}",
+            request
+        );
+
         let proof = processor
             .get_proof_for_batch(request.l1_batch_number)
             .await?;
@@ -74,6 +79,10 @@ impl Api {
         State(processor): State<ProofDataManager>,
         Json(data): Json<ProofGenerationData>,
     ) -> Result<(), ProcessorError> {
+        tracing::info!(
+            "Received proof generation data for batch {}",
+            data.l1_batch_number
+        );
         processor.save_proof_gen_data(data).await
     }
 }
