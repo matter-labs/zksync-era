@@ -46,26 +46,47 @@ impl InitParameters {
         storage: &mut Connection<'_, Core>,
         desired_log_chunk_size: u64,
     ) -> anyhow::Result<Option<Self>> {
-        let snapshot_recovery = storage
+        let recovery_status = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await?;
-        Ok(if let Some(snapshot_recovery) = snapshot_recovery {
-            Some(Self {
-                l1_batch: snapshot_recovery.l1_batch_number,
-                l2_block: snapshot_recovery.l2_block_number,
-                desired_log_chunk_size,
-            })
-        } else {
-            // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
-            // for the chain is very large (order of millions of entries).
-            let is_genesis_recovery_needed = Self::is_genesis_recovery_needed(storage).await?;
-            is_genesis_recovery_needed.then_some(Self {
-                l1_batch: L1BatchNumber(0),
-                l2_block: L2BlockNumber(0),
-                desired_log_chunk_size,
-            })
-        })
+        let pruning_info = storage.pruning_dal().get_pruning_info().await?;
+        tracing::debug!(
+            ?recovery_status,
+            ?pruning_info,
+            "Fetched snapshot / pruning info"
+        );
+
+        let (l1_batch, l2_block) = match (recovery_status, pruning_info.last_hard_pruned) {
+            (Some(recovery), None) => {
+                tracing::warn!(
+                    "Snapshot recovery {recovery:?} is present on the node, but pruning info is empty; assuming no pruning happened"
+                );
+                (recovery.l1_batch_number, recovery.l2_block_number)
+            }
+            (Some(recovery), Some(pruned)) => {
+                // We have both recovery and some pruning on top of it.
+                (
+                    pruned.l1_batch,
+                    pruned.l2_block.max(recovery.l2_block_number),
+                )
+            }
+            (None, Some(pruned)) => (pruned.l1_batch, pruned.l2_block),
+            (None, None) => {
+                // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
+                // for the chain is very large (order of millions of entries).
+                let is_genesis_recovery_needed = Self::is_genesis_recovery_needed(storage).await?;
+                if !is_genesis_recovery_needed {
+                    return Ok(None);
+                }
+                (L1BatchNumber(0), L2BlockNumber(0))
+            }
+        };
+        Ok(Some(Self {
+            l1_batch,
+            l2_block,
+            desired_log_chunk_size,
+        }))
     }
 
     #[tracing::instrument(skip_all, ret)]
@@ -112,6 +133,20 @@ impl RocksdbStorage {
         }
 
         let init_params = InitParameters::new(storage, desired_log_chunk_size).await?;
+        if let Some(recovery_batch_number) = self.recovery_l1_batch_number().await? {
+            tracing::info!(?recovery_batch_number, "Resuming storage recovery");
+            let init_params = init_params.as_ref().context(
+                "Storage is recovering, but Postgres no longer contains necessary metadata",
+            )?;
+            if recovery_batch_number != init_params.l1_batch {
+                let err = anyhow::anyhow!(
+                    "Snapshot parameters in Postgres ({init_params:?}) differ from L1 batch for the recovered storage \
+                    ({recovery_batch_number})"
+                );
+                return Err(err.into());
+            }
+        }
+
         Ok(if let Some(init_params) = init_params {
             self.recover_from_snapshot(storage, &init_params, stop_receiver)
                 .await?;
@@ -138,6 +173,8 @@ impl RocksdbStorage {
         }
         tracing::info!("Recovering secondary storage from snapshot: {init_parameters:?}");
 
+        self.set_recovery_l1_batch_number(init_parameters.l1_batch)
+            .await?;
         self.recover_factory_deps(storage, init_parameters).await?;
 
         if *stop_receiver.borrow() {
@@ -174,21 +211,17 @@ impl RocksdbStorage {
                 }
                 tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) is already recovered; skipping");
             } else {
-                self.recover_logs_chunk(
-                    storage,
-                    init_parameters.l2_block,
-                    key_chunk.key_range.clone(),
-                )
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed recovering logs chunk {chunk_id} (hashed key range {:?})",
-                        key_chunk.key_range
-                    )
-                })?;
+                self.recover_logs_chunk(storage, init_parameters, key_chunk.key_range.clone())
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "failed recovering logs chunk {chunk_id} (hashed key range {:?})",
+                            key_chunk.key_range
+                        )
+                    })?;
 
                 #[cfg(test)]
-                (self.listener.on_logs_chunk_recovered.write().await)(chunk_id);
+                self.listener.on_logs_chunk_recovered.handle(chunk_id).await;
             }
             RECOVERY_METRICS.recovered_chunk_count.inc_by(1);
         }
@@ -274,22 +307,40 @@ impl RocksdbStorage {
             .unwrap()
     }
 
+    async fn check_pruning_info(
+        storage: &mut Connection<'_, Core>,
+        snapshot_l1_batch: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let pruning_info = storage.pruning_dal().get_pruning_info().await?;
+        if let Some(pruned) = pruning_info.last_hard_pruned {
+            // Unlike with the tree, we check L1 batch number since it's retained in the cache RocksDB across restarts.
+            anyhow::ensure!(
+                pruned.l1_batch == snapshot_l1_batch,
+                "Additional data was pruned compared to recovery L1 batch #{snapshot_l1_batch}: {pruning_info:?}. \
+                 Continuing recovery is impossible; to recover the cache, drop its RocksDB directory, stop pruning and restart recovery"
+            );
+        }
+        Ok(())
+    }
+
     async fn recover_logs_chunk(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_l2_block: L2BlockNumber,
+        init_parameters: &InitParameters,
         key_chunk: ops::RangeInclusive<H256>,
     ) -> anyhow::Result<()> {
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_l2_block(snapshot_l2_block, key_chunk.clone())
+            .get_tree_entries_for_l2_block(init_parameters.l2_block, key_chunk.clone())
             .await?;
         let latency = latency.observe();
         tracing::debug!(
             "Loaded {} log entries for chunk {key_chunk:?} in {latency:?}",
             all_entries.len()
         );
+
+        Self::check_pruning_info(storage, init_parameters.l1_batch).await?;
 
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::SaveEntries].start();
         self.pending_patch.state = all_entries

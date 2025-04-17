@@ -48,9 +48,13 @@ fn serialize_l1_batch_number(block_number: u32) -> [u8; 4] {
     block_number.to_le_bytes()
 }
 
+fn try_deserialize_l1_batch_number(bytes: &[u8]) -> anyhow::Result<u32> {
+    let bytes: [u8; 4] = bytes.try_into().context("incorrect block number format")?;
+    Ok(u32::from_le_bytes(bytes))
+}
+
 fn deserialize_l1_batch_number(bytes: &[u8]) -> u32 {
-    let bytes: [u8; 4] = bytes.try_into().expect("incorrect block number format");
-    u32::from_le_bytes(bytes)
+    try_deserialize_l1_batch_number(bytes).unwrap()
 }
 
 /// RocksDB column families used by the state keeper.
@@ -287,19 +291,14 @@ impl From<RocksDB<StateKeeperColumnFamily>> for RocksdbStorage {
 }
 
 impl RocksdbStorage {
+    // Named for backward compatibility
     const L1_BATCH_NUMBER_KEY: &'static [u8] = b"block_number";
-    #[allow(dead_code)]
-    const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
+    const RECOVERY_L1_BATCH_NUMBER_KEY: &'static [u8] = b"recovery_l1_batch";
 
     /// Desired size of log chunks loaded from Postgres during snapshot recovery.
     /// This is intentionally not configurable because chunks must be the same for the entire recovery
     /// (i.e., not changed after a node restart).
     const DESIRED_LOG_CHUNK_SIZE: u64 = 200_000;
-
-    #[allow(dead_code)]
-    fn is_special_key(key: &[u8]) -> bool {
-        key == Self::L1_BATCH_NUMBER_KEY || key == Self::ENUM_INDEX_MIGRATION_CURSOR
-    }
 
     /// Creates a new storage builder with the provided RocksDB `path`.
     ///
@@ -411,7 +410,10 @@ impl RocksdbStorage {
                 .await
                 .with_context(|| format!("failed saving L1 batch #{current_l1_batch_number}"))?;
             #[cfg(test)]
-            (self.listener.on_l1_batch_synced.write().await)(current_l1_batch_number - 1);
+            self.listener
+                .on_l1_batch_synced
+                .handle(current_l1_batch_number - 1)
+                .await;
         }
 
         latency.observe();
@@ -595,7 +597,10 @@ impl RocksdbStorage {
                     Self::L1_BATCH_NUMBER_KEY,
                     &serialize_l1_batch_number(l1_batch_number.0),
                 );
+                // Having an L1 batch number means that recovery is complete.
+                batch.delete_cf(cf, Self::RECOVERY_L1_BATCH_NUMBER_KEY);
             }
+
             for (key, (value, enum_index)) in pending_patch.state {
                 batch.put_cf(
                     cf,
@@ -630,6 +635,41 @@ impl RocksdbStorage {
                 .expect("failed getting L1 batch number from RocksDB")
                 .expect("failed getting L1 batch number from RocksDB");
         number_bytes.map(|bytes| L1BatchNumber(deserialize_l1_batch_number(&bytes)))
+    }
+
+    async fn recovery_l1_batch_number(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+        let cf = StateKeeperColumnFamily::State;
+        let db = self.db.clone();
+        let number_bytes =
+            tokio::task::spawn_blocking(move || db.get_cf(cf, Self::RECOVERY_L1_BATCH_NUMBER_KEY))
+                .await
+                .context("panicked getting L1 batch number from RocksDB")?
+                .context("failed getting L1 batch number from RocksDB")?;
+        number_bytes
+            .map(|bytes| try_deserialize_l1_batch_number(&bytes).map(L1BatchNumber))
+            .transpose()
+    }
+
+    async fn set_recovery_l1_batch_number(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let db = self.db.clone();
+        let save_task = tokio::task::spawn_blocking(move || {
+            let mut batch = db.new_write_batch();
+            let cf = StateKeeperColumnFamily::State;
+
+            batch.put_cf(
+                cf,
+                Self::RECOVERY_L1_BATCH_NUMBER_KEY,
+                &serialize_l1_batch_number(batch_number.0),
+            );
+            db.write(batch)
+                .context("failed to save state data into RocksDB")
+        });
+        save_task
+            .await
+            .context("panicked when saving recovery L1 batch number into RocksDB")?
     }
 
     fn serialize_state_key(key: H256) -> [u8; 32] {
