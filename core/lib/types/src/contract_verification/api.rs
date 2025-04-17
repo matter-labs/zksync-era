@@ -238,11 +238,37 @@ pub struct CompilationArtifacts {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deployed_bytecode: Option<Vec<u8>>,
     pub abi: serde_json::Value,
+    /// Map of placeholders -> list of offsets for each immutable slot.
+    /// Defaults to empty if no immutables are found.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub immutable_refs: HashMap<String, Vec<ImmutableReference>>,
+}
+
+/// Stores each immutable reference offset and length in deployed bytecode.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImmutableReference {
+    pub start: usize,
+    pub length: usize,
 }
 
 impl CompilationArtifacts {
     pub fn deployed_bytecode(&self) -> &[u8] {
         self.deployed_bytecode.as_deref().unwrap_or(&self.bytecode)
+    }
+
+    /// Patches the provided `compiled_code` and `deployed_code` slices by zeroing
+    /// out the bytes corresponding to each immutable reference.
+    pub fn patch_immutable_bytecodes(&self, compiled_code: &mut [u8], deployed_code: &mut [u8]) {
+        for spans in self.immutable_refs.values() {
+            for span in spans {
+                let start = span.start;
+                let end = start + span.length;
+                if end <= compiled_code.len() && end <= deployed_code.len() {
+                    compiled_code[start..end].fill(0);
+                    deployed_code[start..end].fill(0);
+                }
+            }
+        }
     }
 }
 

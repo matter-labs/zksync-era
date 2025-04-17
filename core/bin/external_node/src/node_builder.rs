@@ -117,8 +117,6 @@ impl ExternalNodeBuilder {
                 .optional
                 .slow_query_threshold()
                 .map(|d| d.as_millis() as u64),
-            test_server_url: None,
-            test_prover_url: None,
         };
         let secrets = DatabaseSecrets {
             server_url: Some(self.config.postgres.database_url()),

@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, logger};
-use zkstack_cli_config::{raw::RawConfig, EcosystemConfig, GENERAL_FILE};
+use zkstack_cli_config::{EcosystemConfig, GeneralConfig, GENERAL_FILE};
 
 use crate::{
     commands::args::WaitArgs,
@@ -19,11 +19,11 @@ pub async fn wait(shell: &Shell, args: WaitArgs) -> anyhow::Result<()> {
         .external_node_config_path
         .clone()
         .context("External node is not initialized")?;
-    let general_config = RawConfig::read(shell, en_path.join(GENERAL_FILE)).await?;
-    let health_check_port = general_config.get("api.healthcheck.port")?;
+    let general_config = GeneralConfig::read(shell, en_path.join(GENERAL_FILE)).await?;
+    let health_check_url = general_config.healthcheck_url()?;
 
     logger::info(MSG_WAITING_FOR_EN);
-    args.poll_health_check(health_check_port, verbose).await?;
-    logger::info(msg_waiting_for_en_success(health_check_port));
+    args.poll_health_check(&health_check_url, verbose).await?;
+    logger::info(msg_waiting_for_en_success(&health_check_url));
     Ok(())
 }
