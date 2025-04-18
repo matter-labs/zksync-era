@@ -58,17 +58,28 @@ impl ProofFetcher {
                 continue;
             };
 
-            let proof = self.client.fetch_proof(batch_to_fetch).await?;
+            match self.client.fetch_proof(batch_to_fetch).await {
+                Ok(Some((batch_number, proof))) => {
+                    tracing::info!("Received proof for batch {batch_to_fetch}");
 
-            if let Some((batch_number, proof)) = proof {
-                self.processor
-                    .save_proof(batch_number, proof)
-                    .await
-                    .map_err(|e| anyhow::anyhow!(e))?;
-            } else {
-                tracing::info!("No proof is ready yet");
+                    self.processor
+                        .save_proof(batch_number, proof)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?;
+                    continue;
+                }
+                Ok(None) => {
+                    tracing::info!("No proof is ready yet");
+                }
+                Err(e) => {
+                    tracing::error!("Request failed to get proof for batch {batch_to_fetch}: {e}");
+                }
             }
 
+            tracing::info!(
+                "No proof was fetched, sleeping for {:?}",
+                self.config.proof_fetch_interval()
+            );
             tokio::time::sleep(self.config.proof_fetch_interval()).await;
         }
 

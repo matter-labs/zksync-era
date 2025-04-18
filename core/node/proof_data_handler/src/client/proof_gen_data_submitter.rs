@@ -58,10 +58,29 @@ impl ProofGenDataSubmitter {
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?
             {
-                self.client.send_proof_generation_data(data).await?;
+                match self.client.send_proof_generation_data(data.clone()).await {
+                    Ok(_) => {
+                        tracing::info!(
+                            "Proof generation data sent successfully for batch {}",
+                            data.l1_batch_number
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to send proof generation data for batch {}: {e}",
+                            data.l1_batch_number
+                        );
+                    }
+                }
             } else {
                 tracing::info!("No proof generation data is ready yet");
             }
+
+            tracing::info!(
+                "No proof generation was sent, sleeping for {:?}",
+                self.config.proof_gen_data_submit_interval()
+            );
 
             tokio::time::sleep(self.config.proof_gen_data_submit_interval()).await;
         }
