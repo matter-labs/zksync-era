@@ -1,4 +1,4 @@
-use zksync_types::{ethabi, h256_to_u256, ProtocolVersionId, U256};
+use zksync_types::{ethabi, h256_to_u256, message_root::MessageRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
@@ -11,10 +11,11 @@ use crate::{
         bootloader::l2_block::BootloaderL2Block,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
-            get_operator_provided_l1_messenger_pubdata_offset, get_operator_refunds_offset,
-            get_tx_description_offset, get_tx_operator_l2_block_info_offset,
-            get_tx_overhead_offset, get_tx_trusted_gas_limit_offset,
-            BOOTLOADER_TX_DESCRIPTION_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+            get_message_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
+            get_operator_refunds_offset, get_tx_description_offset,
+            get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
+            get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
+            MESSAGE_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         MultiVmSubversion,
@@ -133,7 +134,77 @@ fn apply_l2_block_inner(
                 U256::zero()
             },
         ),
-    ])
+    ]);
+
+    bootloader_l2_block
+        .msg_roots
+        .iter()
+        .enumerate()
+        .for_each(|(offset, msg_root)| {
+            apply_message_root(
+                memory,
+                offset,
+                msg_root.clone(),
+                subversion,
+                bootloader_l2_block.number,
+            )
+        });
+}
+
+pub(crate) fn apply_message_root(
+    memory: &mut BootloaderMemory,
+    message_root_offset: usize,
+    message_root: MessageRoot,
+    subversion: MultiVmSubversion,
+    l2_block_number: u32,
+) {
+    let msg_root_slot = get_message_root_offset(subversion);
+    // println!("msg_root_slot 2: {}", msg_root_slot);
+    // println!("message_root_offset: {}", message_root_offset);
+    // println!("message_root: {:?}", message_root);
+    // Convert the byte array into U256 words
+    let mut u256_words: Vec<U256> = vec![
+        U256::from(l2_block_number),
+        U256::from(message_root.chain_id),
+        U256::from(message_root.block_number),
+        U256::from(message_root.sides.len()),
+    ];
+
+    u256_words.extend(message_root.sides);
+    // println!("u256_words: {:?}", u256_words);
+    // println!(
+    //     "zipped 0 {:?}",
+    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //         .zip(u256_words.clone())
+    //         .collect::<Vec<_>>()[0]
+    // );
+    // println!(
+    //     "zipped 1 {:?}",
+    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //         .zip(u256_words.clone())
+    //         .collect::<Vec<_>>()[1]
+    // );
+    // println!(
+    //     "zipped 2 {:?}",
+    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //         .zip(u256_words.clone())
+    //         .collect::<Vec<_>>()[2]
+    // );
+    // println!(
+    //     "zipped 3 {:?}",
+    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //         .zip(u256_words.clone())
+    //         .collect::<Vec<_>>()[3]
+    // ); // Map the U256 words into memory slots
+    memory.extend(
+        (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
+            ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+            .zip(u256_words),
+    )
 }
 
 fn bootloader_memory_input(
@@ -179,7 +250,9 @@ pub(crate) fn apply_pubdata_to_memory(
 
             (l1_messenger_pubdata_start_slot, pubdata)
         }
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => {
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => {
             // Skipping the first slot as it will be filled by the bootloader itself:
             // It is for the selector of the call to the L1Messenger.
             let l1_messenger_pubdata_start_slot =

@@ -444,6 +444,13 @@ impl BlocksWeb3Dal<'_, '_> {
             .await
     }
 
+    pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
+        self.storage
+            .blocks_dal()
+            .get_message_root(l1_batch_number)
+            .await
+    }
+
     pub async fn get_l1_batch_number_of_l2_block(
         &mut self,
         l2_block_number: L2BlockNumber,
@@ -1055,11 +1062,11 @@ mod tests {
             .unwrap();
         let tx_hash = H256::random();
         conn.eth_sender_dal()
-            .insert_tx_history(mocked_commit_eth_tx.id, 0, 0, None, tx_hash, &[], 0)
+            .insert_tx_history(mocked_commit_eth_tx.id, 0, 0, None, None, tx_hash, &[], 0)
             .await
             .unwrap();
         conn.eth_sender_dal()
-            .confirm_tx(tx_hash, U256::zero())
+            .confirm_tx(tx_hash, U256::zero(), 0)
             .await
             .unwrap();
         conn.blocks_dal()

@@ -5,12 +5,6 @@ pub mod database;
 #[cfg(feature = "gateway")]
 pub(crate) mod events_gatherer;
 pub mod fmt;
-#[cfg(feature = "gateway")]
-pub mod gateway;
-#[cfg(feature = "gateway")]
-pub mod gateway_finalize_preparation;
-#[cfg(feature = "gateway")]
-pub mod gateway_register_l2_tokens;
 pub mod genesis;
 pub mod lint;
 pub(crate) mod lint_utils;
@@ -20,3 +14,7 @@ pub mod snapshot;
 pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
+#[cfg(feature = "gateway")]
+pub mod upgrade_utils;
+#[cfg(feature = "v27_evm_interpreter")]
+pub mod v27_evm_eq;

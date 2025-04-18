@@ -1,3 +1,4 @@
+use zksync_dal::DalError;
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::web3::contract;
 
@@ -9,6 +10,8 @@ pub enum EthSenderError {
     ContractCall(#[from] ContractCallError),
     #[error("Token parsing error: {0}")]
     Parse(#[from] contract::Error),
+    #[error("Dal error: {0}")]
+    Dal(#[from] DalError),
 }
 
 impl EthSenderError {

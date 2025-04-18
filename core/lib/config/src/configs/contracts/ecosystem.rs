@@ -19,6 +19,7 @@ pub struct L1SpecificContracts {
 pub struct EcosystemCommonContracts {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
     pub server_notifier_addr: Option<Address>,
     pub multicall3: Option<Address>,
     pub validator_timelock_addr: Option<Address>,

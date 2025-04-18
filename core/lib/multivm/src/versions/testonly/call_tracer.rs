@@ -378,7 +378,7 @@ pub(crate) fn test_evm_deployment_tx<VM: TestedVmWithCallTracer>() {
         &TestEvmContract::counter().abi,
         &[Token::Uint(3.into())],
     );
-    vm.vm.push_transaction(tx);
+    vm.vm.push_transaction(tx.into());
 
     let (res, call_traces) = vm.vm.inspect_with_call_tracer();
     assert!(!res.result.is_failed(), "{:#?}", res.result);

@@ -171,6 +171,11 @@ impl EnNamespace {
                 .api_config
                 .l1_ecosystem_contracts
                 .server_notifier_addr,
+            message_root_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .message_root_proxy_addr,
         })
     }
 

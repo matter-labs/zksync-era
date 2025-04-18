@@ -2214,6 +2214,32 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn set_batch_chain_global_merkle_path(
+        &mut self,
+        number: L1BatchNumber,
+        proof: BatchAndChainMerklePath,
+    ) -> DalResult<()> {
+        let proof_bin = bincode::serialize(&proof).unwrap();
+        sqlx::query!(
+            r#"
+            UPDATE
+            l1_batches
+            SET
+                batch_chain_global_merkle_path = $2
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0),
+            &proof_bin
+        )
+        .instrument("set_batch_chain_global_merkle_path")
+        .with_arg("number", &number)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn get_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,
@@ -2854,6 +2880,29 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(results.into_iter().map(L::from).collect())
+    }
+
+    pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                aggregation_root
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_aggregation_root")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row
+            .and_then(|row| row.aggregation_root)
+            .map(|root| H256::from_slice(&root))
+            .unwrap_or_default())
     }
 
     pub async fn has_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<bool> {

@@ -13,6 +13,7 @@ use zksync_types::{
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
+    message_root::MessageRoot,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
@@ -298,6 +299,17 @@ impl Aggregator {
             return Ok(None);
         };
 
+        let mut dependency_roots: Vec<Vec<MessageRoot>> = vec![];
+        for batch in &l1_batches {
+            let message_roots = storage
+                .message_root_dal()
+                .get_msg_roots_batch(batch.header.number)
+                .await
+                .unwrap();
+
+            dependency_roots.push(message_roots);
+        }
+
         let Some(priority_tree_start_index) = priority_tree_start_index else {
             // The index is not yet applicable to the current system, so we
             // return empty priority operations' proofs.
@@ -305,6 +317,7 @@ impl Aggregator {
             return Ok(Some(ExecuteBatches {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
+                dependency_roots,
             }));
         };
 
@@ -355,6 +368,7 @@ impl Aggregator {
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
+            dependency_roots,
         }))
     }
 

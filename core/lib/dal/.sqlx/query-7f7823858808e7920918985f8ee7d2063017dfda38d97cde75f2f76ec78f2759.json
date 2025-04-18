@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE data_availability\n            SET\n                blob_id = $1,\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7f7823858808e7920918985f8ee7d2063017dfda38d97cde75f2f76ec78f2759"
+}

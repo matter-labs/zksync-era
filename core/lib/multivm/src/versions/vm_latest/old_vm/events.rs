@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::{ethereum_types::Address, reference_impls::event_sink::EventMessage};
+use zk_evm_1_5_2::{ethereum_types::Address, reference_impls::event_sink::EventMessage};
 use zksync_types::{h256_to_address, L1BatchNumber, EVENT_WRITER_ADDRESS, H256};
 
 use crate::{interface::VmEvent, utils::bytecode::be_chunks_to_h256_words};

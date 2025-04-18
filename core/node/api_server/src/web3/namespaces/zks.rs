@@ -9,9 +9,10 @@ use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     address_to_h256,
+    aggregated_operations::AggregatedActionType,
     api::{
         self, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof,
+        L1BatchDetails, L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, StorageProof,
         TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
@@ -23,8 +24,7 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
-    web3,
-    web3::Bytes,
+    web3::{self, Bytes},
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
     L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
@@ -318,17 +318,33 @@ impl ZksNamespace {
                         && log.key == address_to_h256(&sender)
                         && log.value == msg
                 },
+                None,
             )
             .await?;
         Ok(log_proof)
     }
 
+    // pub async fn get_l2_to_global_message_root_proof_impl(
+    //     &self,
+    //     block_number: L2BlockNumber,
+    //     sender: Address,
+    //     msg: H256,
+    // ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+    //     todo!() // kl todo
+    // }
+
+    // kl todo figure out levels, we need to serve message roots to:
+    // chainBatchRoot of chain for precommit based
+    // gw's MessageRoot,
+    // gw's chainBatchRoot.
+    // maybe L1's MessageRoot.
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
+        log_proof_target: Option<LogProofTarget>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
@@ -361,7 +377,7 @@ impl ZksNamespace {
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
-
+        // println!("kl toodo merkle tree leaves: {:?}", merkle_tree_leaves);
         let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
@@ -392,24 +408,55 @@ impl ZksNamespace {
         };
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
-            if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
-                let Some(batch_chain_proof) = storage
-                    .blocks_dal()
-                    .get_l1_batch_chain_merkle_path(l1_batch_number)
-                    .await
-                    .map_err(DalError::generalize)?
-                else {
-                    return Ok(None);
-                };
-
-                (
-                    batch_chain_proof.batch_proof_len,
-                    batch_chain_proof.proof,
-                    false,
-                )
-            } else {
-                (0, Vec::new(), true)
+        // if we provide the GW chain id, we don't want to extend to L1.
+        if log_proof_target == Some(LogProofTarget::Chain)  {
+            // Serve a proof to the L2 batch's ChainBatchRoot
+            (0, Vec::new(), true)
+        } else if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
+            // Serve a proof to Gateway's ChainBatchRoot
+            let Some(mut batch_chain_proof) = storage
+                .blocks_dal()
+                .get_l1_batch_chain_merkle_path(l1_batch_number)
+                .await
+                .map_err(DalError::generalize)?
+            else {
+                return Ok(None);
             };
+
+            if log_proof_target == Some(LogProofTarget::GatewayMessageRoot) {
+                // Serve a proof to Gateway's MessageRoot
+                // Gateway's MessageRoot is a child of ChainBatchRoot, we need to remove the last sibling of the log proof
+                batch_chain_proof.proof.pop();
+
+                // Modify the last log proof metadata accordingly: its length gets decreased by 1
+                let metadata_index = batch_chain_proof.batch_proof_len as usize + 3;
+                let mut metadata = batch_chain_proof.proof[metadata_index].0;
+                let log_tree_height = metadata[1];
+                metadata[1] = log_tree_height.saturating_sub(1);
+                batch_chain_proof.proof[metadata_index] = H256::from_slice(&metadata);
+
+                // The returned proof specifies the GW batch number on L1 where this L2 tx was included and a mask for the log proof
+                // We need to instead use the batch number to be the GW block number where the block containing this L2 tx was executed
+                let block_number = self.get_gw_block_number(l1_batch_number).await?;
+                // The mask must also be modified as the proof we'll serve is for the right subtree of Gateway's ChainBatchRoot
+                let number_mask_index = batch_chain_proof.batch_proof_len as usize + 1;
+                let number_mask = batch_chain_proof.proof[number_mask_index].0;
+                let mut mask_bytes = [0u8; 16];
+                mask_bytes.copy_from_slice(&number_mask[16..32]);
+                let mask = u128::from_be_bytes(mask_bytes).saturating_sub(1u128 << (log_tree_height - 1));
+                // Update the block number and mask values in the proof
+                batch_chain_proof.proof[number_mask_index] =
+                    H256::from_slice(&[block_number.to_be_bytes(), mask.to_be_bytes()].concat());
+            }
+
+            (
+                batch_chain_proof.batch_proof_len,
+                batch_chain_proof.proof,
+                false,
+            )
+        } else {
+            (0, Vec::new(), true)
+        };
 
         let proof = {
             let mut metadata = [0u8; 32];
@@ -433,12 +480,45 @@ impl ZksNamespace {
         }))
     }
 
+    pub async fn get_gw_block_number(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<u128, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+
+        let eth_tx_id = storage
+            .eth_sender_dal()
+            .get_last_sent_eth_tx_id(l1_batch_number, AggregatedActionType::Execute)
+            .await;
+
+        let tx = storage
+            .eth_sender_dal()
+            .get_last_sent_eth_storage_tx(eth_tx_id.unwrap())
+            .await
+            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
+
+        let Some(tx) = tx else {
+            return Err(Web3Error::NoBlock);
+        };
+        tx.confirmed_at_block
+            .map(|block| block as u128)
+            .ok_or_else(|| Web3Error::NoBlock)
+    }
+
     pub async fn get_l2_to_l1_log_proof_impl(
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        log_proof_target: Option<LogProofTarget>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            if log_proof_target.is_some() {
+                return handler
+                    .get_l2_to_l1_log_proof_until_target(tx_hash, index, log_proof_target)
+                    .rpc_context("get_l2_to_l1_log_proof_until_target")
+                    .await
+                    .map_err(Into::into);
+            }
             return handler
                 .get_l2_to_l1_log_proof(tx_hash, index)
                 .rpc_context("get_l2_to_l1_log_proof")
@@ -447,6 +527,8 @@ impl ZksNamespace {
         }
 
         let mut storage = self.state.acquire_connection().await?;
+        // kl todo for precommit based, we need it based on blocks.
+        // if precommit_log_index.is_none() {
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -467,6 +549,7 @@ impl ZksNamespace {
                 l1_batch_number,
                 index.unwrap_or(0),
                 |log| log.tx_number_in_block == l1_batch_tx_index,
+                log_proof_target,
             )
             .await?;
         Ok(log_proof)

@@ -11,34 +11,24 @@ use zksync_types::{
 };
 
 pub(crate) async fn prepare_postgres(conn: &mut Connection<'_, Core>) {
-    if conn.blocks_dal().is_genesis_needed().await.unwrap() {
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(&ProtocolVersion::default())
-            .await
-            .unwrap();
-        // The created genesis block is likely to be invalid, but since it's not committed,
-        // we don't really care.
-        let genesis_storage_logs = gen_storage_logs(0..20);
-        create_l2_block(conn, L2BlockNumber(0), genesis_storage_logs.clone()).await;
-        create_l1_batch(conn, L1BatchNumber(0), &genesis_storage_logs).await;
-    }
+    prepare_postgres_with_log_count(conn, 20).await;
+}
 
-    conn.storage_logs_dal()
-        .roll_back_storage_logs(L2BlockNumber(0))
+pub(crate) async fn prepare_postgres_with_log_count(
+    conn: &mut Connection<'_, Core>,
+    log_count: u64,
+) -> Vec<StorageLog> {
+    assert!(conn.blocks_dal().is_genesis_needed().await.unwrap());
+    conn.protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-    conn.blocks_dal()
-        .delete_l2_blocks(L2BlockNumber(0))
-        .await
-        .unwrap();
-    conn.blocks_dal()
-        .delete_l1_batches(L1BatchNumber(0))
-        .await
-        .unwrap();
-    conn.blocks_dal()
-        .delete_initial_writes(L1BatchNumber(0))
-        .await
-        .unwrap();
+    // The created genesis block is likely to be invalid, but since it's not committed,
+    // we don't really care.
+    let genesis_storage_logs = gen_storage_logs(0..log_count);
+    create_l2_block(conn, L2BlockNumber(0), &genesis_storage_logs).await;
+    create_l1_batch(conn, L1BatchNumber(0), &genesis_storage_logs).await;
+    genesis_storage_logs
 }
 
 pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
@@ -71,7 +61,7 @@ pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
 pub(crate) async fn create_l2_block(
     conn: &mut Connection<'_, Core>,
     l2_block_number: L2BlockNumber,
-    block_logs: Vec<StorageLog>,
+    block_logs: &[StorageLog],
 ) {
     let l2_block_header = L2BlockHeader {
         number: l2_block_number,
@@ -96,7 +86,7 @@ pub(crate) async fn create_l2_block(
         .await
         .unwrap();
     conn.storage_logs_dal()
-        .insert_storage_logs(l2_block_number, &block_logs)
+        .insert_storage_logs(l2_block_number, block_logs)
         .await
         .unwrap();
 }

@@ -31,12 +31,12 @@ jobs:
           - { nixcontainer: 'container-tee-prover-azure' }
           - { nixcontainer: 'container-tee-prover-tdx' }
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
           ref: ${{ github.event.inputs.target_branch }}
 
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         if: ${{ github.event_name != 'workflow_dispatch' }}
 
       - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
@@ -48,7 +48,7 @@ jobs:
             sandbox = true
 
       - name: Setup Attic cache
-        uses: ryanccn/attic-action@618a980988d704a7709daeea88526146acd1d45f # v0.2.1
+        uses: ryanccn/attic-action@f6b7e98e9ba10c6db4841e4996cd3fe4bdb3f3ed # v0.3.2
         with:
           endpoint: https://attic.teepot.org/
           cache: tee-pot
@@ -68,7 +68,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         if: ${{ inputs.action == 'push' }}
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

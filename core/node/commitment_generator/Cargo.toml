@@ -22,7 +22,7 @@ zksync_multivm.workspace = true
 zksync_system_constants.workspace = true
 
 circuit_encodings.workspace = true
-zk_evm_1_5_0.workspace = true
+zk_evm_1_5_2.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 futures.workspace = true

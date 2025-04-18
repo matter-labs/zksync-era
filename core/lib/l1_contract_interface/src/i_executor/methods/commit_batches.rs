@@ -21,7 +21,8 @@ pub struct CommitBatches<'a> {
 impl Tokenize for &CommitBatches<'_> {
     fn into_tokens(self) -> Vec<Token> {
         let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
-        let stored_batch_info = StoredBatchInfo::from(self.last_committed_l1_batch).into_token();
+        let stored_batch_info = StoredBatchInfo::from(self.last_committed_l1_batch)
+            .into_token_with_protocol_version(protocol_version);
         let l1_batches_to_commit = self
             .l1_batches
             .iter()

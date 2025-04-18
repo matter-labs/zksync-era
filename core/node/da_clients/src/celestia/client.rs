@@ -12,7 +12,7 @@ use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 
@@ -82,8 +82,18 @@ impl DataAvailabilityClient for CelestiaClient {
         let blob_bytes = bincode::serialize(&blob_id).map_err(to_non_retriable_da_error)?;
 
         Ok(DispatchResponse {
-            blob_id: hex::encode(&blob_bytes),
+            request_id: hex::encode(&blob_bytes),
         })
+    }
+
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        // TODO: return a quick confirmation in `dispatch_blob` and await here
+        Ok(Some(FinalityResponse {
+            blob_id: dispatch_request_id,
+        }))
     }
 
     async fn get_inclusion_data(&self, _: &str) -> Result<Option<InclusionData>, DAError> {

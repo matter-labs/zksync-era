@@ -6,10 +6,18 @@ import { TestMaster } from '../src';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
+
+import {
+    L2_MESSAGE_VERIFICATION_ADDRESS,
+    ArtifactL2MessageVerification,
+    ETH_ADDRESS_IN_CONTRACTS,
+    ArtifactBridgeHub
+} from '../src/constants';
 
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -158,6 +166,7 @@ describe('L1 ERC20 contract checks', () => {
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.toEqual(0n);
     });
 
+    let withdrawalHash: string;
     test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
@@ -174,6 +183,7 @@ describe('L1 ERC20 contract checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
+        withdrawalHash = withdrawalTx.hash;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
         await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
@@ -185,9 +195,58 @@ describe('L1 ERC20 contract checks', () => {
                 l1: true
             }
         );
-
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
+
+    test('Can check withdrawal hash in L2 ', async () => {
+        const bridgehub = new ethers.Contract(
+            await alice.provider.getBridgehubContractAddress(),
+            ArtifactBridgeHub.abi,
+            alice.providerL1
+        );
+        if (
+            (await bridgehub.settlementLayer((await alice.provider.getNetwork()).chainId)) ==
+            (await alice.providerL1!.getNetwork()).chainId
+        ) {
+            return;
+        }
+        // We use the same chain for simplicity
+        const l2MessageVerification = new zksync.Contract(
+            L2_MESSAGE_VERIFICATION_ADDRESS,
+            ArtifactL2MessageVerification.abi,
+            alice.provider
+        );
+
+        // Imports proof until GW's message root, needed for proof based interop.
+        const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
+
+        // Needed else the L2's view of GW's MessageRoot won't be updated
+        await delay(10000);
+        await (
+            await alice.deposit({
+                token: ETH_ADDRESS_IN_CONTRACTS,
+                to: alice.address,
+                amount: 1
+            })
+        ).wait();
+        await delay(5000);
+
+        // sma TODO hacky workaround for now to rewrite the much needed block number--remove when available!
+        // sma TODO end of hacky workaround
+
+        const included = await l2MessageVerification.proveL2MessageInclusionShared(
+            (await alice.provider.getNetwork()).chainId,
+            params.l1BatchNumber,
+            params.l2MessageIndex,
+            { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
+            params.proof
+        );
+        expect(included).toBe(true);
+    });
+
+    function delay(ms: number) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
 
     test('Should claim failed deposit', async () => {
         if (testMaster.isFastMode()) {

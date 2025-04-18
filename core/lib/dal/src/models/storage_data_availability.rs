@@ -9,7 +9,8 @@ use zksync_types::{
 #[derive(Debug, Clone)]
 pub(crate) struct StorageDABlob {
     pub l1_batch_number: i64,
-    pub blob_id: String,
+    pub dispatch_request_id: String,
+    pub blob_id: Option<String>,
     pub inclusion_data: Option<Vec<u8>>,
     pub sent_at: NaiveDateTime,
 }
@@ -18,6 +19,7 @@ impl From<StorageDABlob> for DataAvailabilityBlob {
     fn from(blob: StorageDABlob) -> DataAvailabilityBlob {
         DataAvailabilityBlob {
             l1_batch_number: L1BatchNumber(blob.l1_batch_number as u32),
+            dispatch_request_id: blob.dispatch_request_id,
             blob_id: blob.blob_id,
             inclusion_data: blob.inclusion_data,
             sent_at: blob.sent_at.and_utc(),
@@ -37,6 +39,7 @@ pub struct StorageDADetails {
 impl From<StorageDADetails> for DataAvailabilityDetails {
     fn from(row: StorageDADetails) -> DataAvailabilityDetails {
         DataAvailabilityDetails {
+            // safe to unwrap because query is guaranteed to return a non-null blob_id
             blob_id: row.blob_id,
             // safe to unwrap because the value in the database is assumed to be always correct
             pubdata_type: row.client_type.map(|t| t.parse().unwrap()),

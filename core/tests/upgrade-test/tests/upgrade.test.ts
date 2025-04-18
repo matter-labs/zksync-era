@@ -257,7 +257,7 @@ describe('Upgrade test', function () {
 
     step('Publish bytecodes', async () => {
         const bootloaderCode = readCode(
-            'contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json',
+            'contracts/system-contracts/zkout/playground_batch.yul/Bootloader.json',
             'contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin'
         );
 
@@ -266,9 +266,7 @@ describe('Upgrade test', function () {
             'contracts/system-contracts/artifacts-zk/contracts-preprocessed/DefaultAccount.sol/DefaultAccount.json'
         );
 
-        const evmEmulatorCode = readCode(
-            'contracts/system-contracts/zkout/EvmEmulator.yul/contracts-preprocessed/EvmEmulator.yul.json'
-        );
+        const evmEmulatorCode = readCode('contracts/system-contracts/zkout/EvmEmulator.yul/EvmEmulator.json');
 
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         defaultAccountHash = ethers.hexlify(zksync.utils.hashBytecode(defaultAACode));
@@ -521,13 +519,15 @@ describe('Upgrade test', function () {
 function readCode(newPath: string, legacyPath?: string): string {
     let path = `${pathToHome}/${newPath}`;
     if (existsSync(path)) {
-        return '0x'.concat(require(path).bytecode.object);
+        const content = require(path);
+        return '0x'.concat(content.bytecode?.object || content.bytecode); // <- handles both structures
     } else if (legacyPath) {
         path = `${pathToHome}/${legacyPath}`;
         if (path.endsWith('.zbin')) {
             return ethers.hexlify(readFileSync(path));
         } else {
-            return require(path).bytecode;
+            const legacyContent = require(path);
+            return '0x'.concat(legacyContent.bytecode?.object || legacyContent.bytecode);
         }
     } else {
         throw new Error(`Cannot read contract at ${newPath}`);

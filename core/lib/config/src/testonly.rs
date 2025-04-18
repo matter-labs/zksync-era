@@ -279,6 +279,7 @@ impl Distribution<configs::AllContractsConfig> for EncodeDist {
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
             l2_multicall3_addr: self.sample_opt(|| rng.gen()),
             server_notifier_addr: None,
+            message_root_proxy_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -836,6 +837,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
                 finality_state: None,
+                dispatch_timeout_ms: self.sample(rng),
             }),
         })
     }

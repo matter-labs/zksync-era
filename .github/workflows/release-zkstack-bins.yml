@@ -39,12 +39,12 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ inputs.tag || '' }}
 
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1
         with:
           toolchain: nightly-2024-09-01
           rustflags: ""
@@ -67,7 +67,7 @@ jobs:
             zkstack
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: zkstack-${{ matrix.arch }}
           path: |
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ inputs.tag || '' }}
 
@@ -98,26 +98,26 @@ jobs:
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
         with:
           pattern: "zkstack-*"
           path: artifacts
 
       - name: Binaries attestation
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2
         with:
           subject-path: 'artifacts/**/zkstack'
 
       - name: Update release artifacts
         if: ${{ inputs.tag != '' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2
         with:
           tag_name: ${{ inputs.tag }}
           files: 'artifacts/**/zkstack*.tar.gz'
 
       - name: Create release
         if: ${{ inputs.prerelease_name != '' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2
         with:
           name: 'zkstack ${{ inputs.prerelease_name }} ${{ steps.release_tag.outputs.tag }}'
           tag_name: ${{ steps.release_tag.outputs.tag }}

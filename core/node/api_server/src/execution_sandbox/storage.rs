@@ -2,10 +2,12 @@
 
 use zksync_multivm::interface::storage::{ReadStorage, StorageWithOverrides};
 use zksync_types::{
-    api::state_override::{OverrideState, StateOverride},
-    get_code_key, get_known_code_key, get_nonce_key, h256_to_u256, u256_to_h256,
+    api::state_override::{BytecodeOverride, OverrideState, StateOverride},
+    bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker},
+    get_code_key, get_evm_code_hash_key, get_known_code_key, get_nonce_key, h256_to_u256,
+    u256_to_h256,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    AccountTreeId, StorageKey, H256,
+    web3, AccountTreeId, StorageKey, H256,
 };
 
 /// This method is blocking.
@@ -14,6 +16,7 @@ pub(super) fn apply_state_override<S: ReadStorage>(
     state_override: StateOverride,
 ) -> StorageWithOverrides<S> {
     let mut storage = StorageWithOverrides::new(storage);
+
     for (account, overrides) in state_override {
         if let Some(balance) = overrides.balance {
             let balance_key = storage_key_for_eth_balance(&account);
@@ -29,12 +32,28 @@ pub(super) fn apply_state_override<S: ReadStorage>(
         }
 
         if let Some(code) = overrides.code {
+            let (bytecode_kind, code) = match code {
+                BytecodeOverride::Unspecified(code) => (BytecodeMarker::detect(&code.0), code),
+                BytecodeOverride::EraVm(code) => (BytecodeMarker::EraVm, code),
+                BytecodeOverride::Evm(code) => (BytecodeMarker::Evm, code),
+            };
             let code_key = get_code_key(&account);
-            let code_hash = code.hash();
+
+            let (code_hash, prepared_code) = match bytecode_kind {
+                BytecodeMarker::EraVm => (BytecodeHash::for_bytecode(&code.0).value(), code.0),
+                BytecodeMarker::Evm => {
+                    // For better usability, we allow overriding EVM bytecodes even if EVM contract deployment is not enabled for the chain.
+                    let versioned_hash = BytecodeHash::for_raw_evm_bytecode(&code.0).value();
+                    let evm_bytecode_hash_key = get_evm_code_hash_key(versioned_hash);
+                    storage.set_value(evm_bytecode_hash_key, H256(web3::keccak256(&code.0)));
+                    (versioned_hash, pad_evm_bytecode(&code.0))
+                }
+            };
+
             storage.set_value(code_key, code_hash);
             let known_code_key = get_known_code_key(&code_hash);
             storage.set_value(known_code_key, H256::from_low_u64_be(1));
-            storage.store_factory_dep(code_hash, code.into_bytes());
+            storage.store_factory_dep(code_hash, prepared_code);
         }
 
         match overrides.state {
@@ -62,10 +81,7 @@ mod tests {
     use std::collections::HashMap;
 
     use zksync_multivm::interface::storage::InMemoryStorage;
-    use zksync_types::{
-        api::state_override::{Bytecode, OverrideAccount},
-        Address,
-    };
+    use zksync_types::{api::state_override::OverrideAccount, web3, Address};
 
     use super::*;
 
@@ -89,7 +105,7 @@ mod tests {
             (
                 Address::repeat_byte(3),
                 OverrideAccount {
-                    code: Some(Bytecode::new((0..32).collect()).unwrap()),
+                    code: Some(BytecodeOverride::EraVm(web3::Bytes((0..32).collect()))),
                     ..OverrideAccount::default()
                 },
             ),

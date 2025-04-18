@@ -151,16 +151,19 @@ impl EthTxManager {
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?}, \
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?}, \
                 previously sent with \
                 base_fee_per_gas {:?}, \
                 priority_fee_per_gas {:?}, \
                 blob_fee_per_gas {:?}, \
+                max_gas_per_pubdata_price {:?}, \
                 ",
                 tx.id,
                 tx.nonce,
                 previous_sent_tx.base_fee_per_gas,
                 previous_sent_tx.priority_fee_per_gas,
-                previous_sent_tx.blob_base_fee_per_gas
+                previous_sent_tx.blob_base_fee_per_gas,
+                previous_sent_tx.max_gas_per_pubdata
             );
         } else {
             tracing::info!(
@@ -221,6 +224,7 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_base_fee_per_gas,
+                max_gas_per_pubdata_price,
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
                 current_block.0,
@@ -493,10 +497,11 @@ impl EthTxManager {
             .receipt
             .gas_used
             .expect("light ETH clients are not supported");
+        let confirmed_at_block = tx_status.receipt.block_number.unwrap().as_u32();
 
         storage
             .eth_sender_dal()
-            .confirm_tx(tx_status.tx_hash, gas_used)
+            .confirm_tx(tx_status.tx_hash, gas_used, confirmed_at_block)
             .await
             .unwrap();
 

@@ -1,6 +1,6 @@
 use circuit_sequencer_api::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
-use zk_evm_1_5_0::aux_structures::MemoryPage;
-pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
+use zk_evm_1_5_2::aux_structures::MemoryPage;
+pub use zk_evm_1_5_2::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 
@@ -25,7 +25,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::SmallBootloaderMemory => 59_000_000,
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
-        | MultiVmSubversion::EvmEmulator => 63_800_000,
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 63_800_000,
     }
 }
 
@@ -42,6 +43,8 @@ pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 // The maximal number of transactions in a single batch.
 // In this version of the VM the limit has been increased from `1024` to to `10000`.
 pub(crate) const MAX_TXS_IN_BATCH: usize = 10000;
+
+pub(crate) const MAX_MSG_ROOTS_IN_BATCH: usize = 100;
 
 /// Max cycles for a single transaction.
 pub const MAX_CYCLES_FOR_TX: u32 = u32::MAX;
@@ -66,7 +69,9 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
             32
         }
         // With gateway upgrade we increased max number of factory dependencies
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => 64,
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 64,
     }
 }
 
@@ -109,8 +114,24 @@ pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
 pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
     (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
+/// We store the next messageRoot number to be processed.
+/// For each txs we check if the next messageRoot belongs to a block that we should process, if yes we store it and continue to the next.
+/// If no, we stop.
+pub(crate) const fn get_next_message_root_number_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
+}
+
+/// The actual message roots begin after the next message root number slot
+pub(crate) const fn get_message_root_offset(subversion: MultiVmSubversion) -> usize {
+    get_next_message_root_number_offset(subversion) + 1
+}
+
+pub(crate) const MESSAGE_ROOT_SLOTS_SIZE: usize = 100;
+
+pub(crate) const MESSAGE_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * MESSAGE_ROOT_SLOTS_SIZE;
+
+pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
+    get_message_root_offset(subversion) + MESSAGE_ROOT_SLOTS
 }
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
@@ -197,7 +218,7 @@ pub(crate) const fn get_result_success_first_slot(subversion: MultiVmSubversion)
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
 
 pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
-    zk_evm_1_5_0::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+    zk_evm_1_5_2::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 
 /// The maximal number of gas that is supposed to be spent in a batch. This value is displayed in the system context as well
 /// as the API for each batch.

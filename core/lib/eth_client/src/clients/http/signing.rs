@@ -5,7 +5,7 @@ use zksync_contracts::hyperchain_contract;
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, SignerError, TransactionParameters};
 use zksync_types::{
     api::TransactionRequest, ethabi, fee::Fee, l2::L2Tx, web3, Address, Eip712Domain,
-    K256PrivateKey, Nonce, SLChainId, EIP_4844_TX_TYPE, EIP_712_TX_TYPE, H160, U256,
+    K256PrivateKey, Nonce, SLChainId, EIP_4844_TX_TYPE, EIP_712_TX_TYPE, H160, H256, U256,
 };
 use zksync_web3_decl::client::{DynClient, Network};
 
@@ -112,7 +112,6 @@ impl<S: EthereumSigner, Net: Network> BoundEthInterface for SigningClient<S, Net
         self.inner.sender_account
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn sign_prepared_tx_for_addr(
         &self,
         data: Vec<u8>,
@@ -163,7 +162,7 @@ impl<S: EthereumSigner, Net: Network> BoundEthInterface for SigningClient<S, Net
             U256::from(FALLBACK_GAS_LIMIT)
         });
 
-        let signed_tx = if options.transaction_type == Some(EIP_712_TX_TYPE.into()) {
+        let (signed_tx, hash) = if options.transaction_type == Some(EIP_712_TX_TYPE.into()) {
             self.sign_eip712_tx(
                 data,
                 contract_addr,
@@ -186,7 +185,6 @@ impl<S: EthereumSigner, Net: Network> BoundEthInterface for SigningClient<S, Net
             )
             .await?
         };
-        let hash = web3::keccak256(&signed_tx).into();
         latency.observe();
 
         Ok(SignedCallResult::new(
@@ -248,7 +246,7 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
         max_fee_per_gas: U256,
         max_priority_fee_per_gas: U256,
         gas: U256,
-    ) -> Result<Vec<u8>, SigningError> {
+    ) -> Result<(Vec<u8>, H256), SigningError> {
         let tx = TransactionParameters {
             nonce,
             to: Some(contract_addr),
@@ -269,7 +267,8 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
         if let Some(sidecar) = options.blob_tx_sidecar {
             signed_tx = encode_blob_tx_with_sidecar(&signed_tx, &sidecar);
         }
-        Ok(signed_tx)
+        let hash = web3::keccak256(&signed_tx).into();
+        Ok((signed_tx, hash))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -282,7 +281,7 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
         max_fee_per_gas: U256,
         max_priority_fee_per_gas: U256,
         gas: U256,
-    ) -> Result<Vec<u8>, SigningError> {
+    ) -> Result<(Vec<u8>, H256), SigningError> {
         let domain = Eip712Domain::new(
             self.inner
                 .chain_id
@@ -314,10 +313,22 @@ impl<S: EthereumSigner, Net: Network> SigningClient<S, Net> {
             options.paymaster_params.unwrap_or_default(),
         );
 
-        let mut req: TransactionRequest = tx.into();
-        req.chain_id = Some(self.inner.chain_id.0);
-        let signature = self.inner.eth_signer.sign_typed_data(&domain, &req).await?;
-        req.get_signed_bytes(&signature)
-            .map_err(|err| SigningError::Signer(SignerError::SigningFailed(err.to_string())))
+        let mut tx_request: TransactionRequest = tx.into();
+        tx_request.chain_id = Some(self.inner.chain_id.0);
+        let signature = self
+            .inner
+            .eth_signer
+            .sign_typed_data(&domain, &tx_request)
+            .await?;
+        tx_request.set_signature(&signature);
+
+        let signed_bytes = tx_request
+            .get_signed_bytes(&signature)
+            .map_err(|err| SigningError::Signer(SignerError::SigningFailed(err.to_string())))?;
+        let tx_hash = tx_request
+            .get_tx_hash()
+            .map_err(|err| SigningError::Signer(SignerError::SigningFailed(err.to_string())))?;
+
+        Ok((signed_bytes, tx_hash))
     }
 }

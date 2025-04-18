@@ -19,8 +19,9 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2BlockNumber,
+    Transaction,
 };
 
 use crate::{
@@ -314,6 +315,16 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
+    async fn load_l2_block_message_root(
+        &mut self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<MessageRoot>> {
+        self.io
+            .load_l2_block_message_root(l2block_number)
+            .await
+            .with_context(|| "failed loading message root".to_string())
+    }
+
     #[tracing::instrument(
         skip_all,
         fields(
@@ -436,7 +447,7 @@ impl ZkSyncStateKeeper {
             display_timestamp(block_env.timestamp)
         );
         batch_executor
-            .start_next_l2_block(block_env)
+            .start_next_l2_block(block_env.clone())
             .await
             .with_context(|| {
                 format!("failed starting L2 block with {block_env:?} in batch executor")
@@ -490,6 +501,7 @@ impl ZkSyncStateKeeper {
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
                         virtual_blocks: l2_block.virtual_blocks,
+                        msg_roots: self.load_l2_block_message_root(l2_block.number).await?,
                     },
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -615,10 +627,11 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(updates_manager).await?;
 
                 // Get a tentative new l2 block parameters
-                let next_l2_block_params = self
+                let mut next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+                next_l2_block_params.msg_roots = self.io.load_latest_message_root().await?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
