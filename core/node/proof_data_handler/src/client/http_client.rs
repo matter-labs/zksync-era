@@ -1,6 +1,9 @@
 use serde::{de::DeserializeOwned, Serialize};
 use zksync_prover_interface::{
-    api::{PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData},
+    api::{
+        PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
+        SubmitProofGenerationDataResponse,
+    },
     outputs::L1BatchProofForL1,
 };
 use zksync_types::L1BatchNumber;
@@ -23,7 +26,7 @@ impl HttpClient {
     pub(crate) async fn send_proof_generation_data(
         &self,
         data: ProofGenerationData,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<SubmitProofGenerationDataResponse, reqwest::Error> {
         tracing::info!("Sending request to {}", SUBMIT_REQUEST_FOR_PROOFS_ENDPOINT);
 
         let endpoint = self.api_url.clone() + SUBMIT_REQUEST_FOR_PROOFS_ENDPOINT;

@@ -9,6 +9,7 @@ use axum::{
 use tokio::sync::watch;
 use zksync_prover_interface::api::{
     PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
+    SubmitProofGenerationDataResponse,
 };
 
 use crate::{error::ProcessorError, proof_data_manager::ProofDataManager};
@@ -76,11 +77,13 @@ impl Api {
     async fn save_proof_generation_data(
         State(processor): State<ProofDataManager>,
         Json(data): Json<ProofGenerationData>,
-    ) -> Result<(), ProcessorError> {
+    ) -> Result<Json<SubmitProofGenerationDataResponse>, ProcessorError> {
         tracing::info!(
             "Received proof generation data for batch {}",
             data.l1_batch_number
         );
-        processor.save_proof_gen_data(data).await
+        processor.save_proof_gen_data(data).await?;
+
+        Ok(Json(SubmitProofGenerationDataResponse))
     }
 }

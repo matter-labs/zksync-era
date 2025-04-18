@@ -26,6 +26,9 @@ pub struct ProofGenerationData {
     pub l1_verifier_config: L1VerifierConfig,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitProofGenerationDataResponse;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ProofGenerationDataResponse {
     Success(Option<Box<ProofGenerationData>>),
