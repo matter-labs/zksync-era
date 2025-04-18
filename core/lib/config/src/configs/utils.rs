@@ -3,9 +3,10 @@ use std::time::Duration;
 use smart_config::{DescribeConfig, DeserializeConfig};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct PrometheusConfig {
     /// Port to which the Prometheus exporter server is listening.
-    pub listener_port: u16,
+    pub listener_port: Option<u16>,
     /// URL of the push gateway.
     pub pushgateway_url: Option<String>,
     /// Push interval in ms.

@@ -189,6 +189,6 @@ mod tests {
             app_config.prover.sig_conf.attestation_quote_file_path,
             Path::new("/tmp/test")
         );
-        assert_eq!(app_config.prometheus.listener_port, 3_321);
+        assert_eq!(app_config.prometheus.listener_port, Some(3_321));
     }
 }

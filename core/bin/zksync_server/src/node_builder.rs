@@ -83,7 +83,6 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -108,7 +107,7 @@ pub struct MainNodeBuilder {
 }
 
 impl MainNodeBuilder {
-    #![allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         runtime: Runtime,
         configs: GeneralConfig,
@@ -168,9 +167,12 @@ impl MainNodeBuilder {
     }
 
     fn add_prometheus_exporter_layer(mut self) -> anyhow::Result<Self> {
-        let prom_config = try_load_config!(self.configs.prometheus_config);
-        let prom_config = PrometheusExporterConfig::pull(prom_config.listener_port);
-        self.node.add_layer(PrometheusExporterLayer(prom_config));
+        let prom_config = &self.configs.prometheus_config;
+        if let Some(prom_config) = prom_config.to_pull_config() {
+            self.node.add_layer(PrometheusExporterLayer(prom_config));
+        } else {
+            tracing::info!("Prometheus listener port port is not configured; Prometheus exporter is not initialized");
+        }
         Ok(self)
     }
 

@@ -20,7 +20,6 @@ use zksync_config::{
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::creator::SnapshotCreator;
 
@@ -29,26 +28,18 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-async fn maybe_enable_prometheus_metrics(
-    prometheus_config: Option<PrometheusConfig>,
+fn maybe_enable_prometheus_metrics(
+    config: &PrometheusConfig,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
-    let Some(config) = prometheus_config else {
-        return Ok(None);
-    };
-
-    Ok(if let Some(base_url) = &config.pushgateway_url {
-        let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
-        let push_interval = config.push_interval();
-        tracing::info!("Starting prometheus exporter with gateway {gateway_endpoint:?} and push_interval {push_interval:?}");
-        let exporter_config = PrometheusExporterConfig::push(gateway_endpoint, push_interval);
-
+) -> Option<JoinHandle<anyhow::Result<()>>> {
+    if let Some(exporter_config) = config.to_exporter_config() {
+        tracing::info!("Starting Prometheus exporter with config {config:?}");
         let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
         Some(prometheus_exporter_task)
     } else {
         tracing::info!("Starting without prometheus exporter");
         None
-    })
+    }
 }
 
 /// Minimum number of storage log chunks to produce.
@@ -87,11 +78,10 @@ async fn main() -> anyhow::Result<()> {
     let repo = ConfigRepository::new(&schema).with_all(config_sources);
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
     let creator_config: SnapshotsCreatorConfig = repo.single()?.parse().log_all_errors()?;
-    let prometheus_config: Option<PrometheusConfig> =
-        repo.single()?.parse_opt().log_all_errors()?;
+    let prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
 
     let prometheus_exporter_task =
-        maybe_enable_prometheus_metrics(prometheus_config, stop_receiver).await?;
+        maybe_enable_prometheus_metrics(&prometheus_config, stop_receiver);
     tracing::info!("Starting snapshots creator");
 
     let object_store_config = creator_config.object_store.clone();

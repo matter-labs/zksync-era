@@ -15,8 +15,6 @@ use smart_config::{
 };
 use zksync_basic_types::Address;
 
-pub use crate::configs::PrometheusConfig;
-
 /// API configuration.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ApiConfig {

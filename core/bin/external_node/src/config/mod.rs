@@ -22,7 +22,7 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         en_config::ENConfig,
-        DataAvailabilitySecrets, GeneralConfig, Secrets,
+        DataAvailabilitySecrets, GeneralConfig, ObservabilityConfig, Secrets,
     },
     full_config_schema,
     sources::ConfigFilePaths,
@@ -42,6 +42,7 @@ use zksync_types::{
     commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1BatchNumber, L1ChainId,
     L2ChainId, SLChainId, ETHEREUM_ADDRESS,
 };
+use zksync_vlog::{prometheus::PrometheusExporterConfig, ObservabilityGuard};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::ClientRpcContext,
@@ -1158,7 +1159,9 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
-    pub observability: ObservabilityENConfig,
+    // Optional to take the guard when starting the node
+    pub observability: Option<ObservabilityGuard>,
+    pub prometheus: Option<PrometheusExporterConfig>,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
     pub consensus_secrets: ConsensusSecrets,
@@ -1172,7 +1175,14 @@ impl ExternalNodeConfig<()> {
     /// Parses the local part of node configuration from the environment.
     ///
     /// **Important.** This method is blocking.
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(runtime: &tokio::runtime::Runtime) -> anyhow::Result<Self> {
+        let observability = ObservabilityENConfig::from_env()?;
+        let prometheus = observability.prometheus();
+        let observability = {
+            let _rt_guard = runtime.enter();
+            observability.build_observability()?
+        };
+
         // Consensus and secrets are read from files even with the env-based config.
         let mut config_sources = ConfigSources::default();
         if let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") {
@@ -1188,7 +1198,8 @@ impl ExternalNodeConfig<()> {
         consensus_schema
             .insert(&ConsensusSecrets::DESCRIPTION, "secrets.consensus")
             .context("cannot create consensus config schema")?;
-        let repo = ConfigRepository::new(&consensus_schema).with_all(config_sources);
+        let mut repo = ConfigRepository::new(&consensus_schema).with_all(config_sources);
+        repo.deserializer_options().coerce_variant_names = true;
         let consensus = repo.single()?.parse_opt().log_all_errors()?;
         let consensus_secrets = repo.single()?.parse().log_all_errors()?;
 
@@ -1196,8 +1207,9 @@ impl ExternalNodeConfig<()> {
         da_schema
             .insert(&DataAvailabilitySecrets::DESCRIPTION, "da")
             .context("cannot create DA config schema")?;
-        let repo =
+        let mut repo =
             ConfigRepository::new(&da_schema).with(smart_config::Environment::prefixed("EN_"));
+        repo.deserializer_options().coerce_variant_names = true;
         let da_config = repo.single()?.parse_opt().log_all_errors()?;
         let da_secrets = repo.single()?.parse_opt().log_all_errors()?;
 
@@ -1205,7 +1217,8 @@ impl ExternalNodeConfig<()> {
             required: RequiredENConfig::from_env()?,
             postgres: PostgresConfig::from_env()?,
             optional: OptionalENConfig::from_env()?,
-            observability: ObservabilityENConfig::from_env()?,
+            observability: Some(observability),
+            prometheus,
             experimental: envy::prefixed("EN_EXPERIMENTAL_")
                 .from_env::<ExperimentalENConfig>()
                 .context("could not load external node config (experimental params)")?,
@@ -1223,6 +1236,7 @@ impl ExternalNodeConfig<()> {
     }
 
     pub fn from_files(
+        runtime: &tokio::runtime::Runtime,
         general_config_path: PathBuf,
         external_node_config_path: PathBuf,
         secrets_configs_path: PathBuf,
@@ -1238,10 +1252,15 @@ impl ExternalNodeConfig<()> {
         };
         let config_sources = config_file_paths.into_config_sources("EN_")?;
 
-        // FIXME: observability must be initialized here
+        let observability = ObservabilityConfig::from_sources(config_sources.clone())?;
+        let observability = {
+            let _rt_guard = runtime.enter();
+            observability.install()?
+        };
 
         let schema = full_config_schema(true);
-        let repo = ConfigRepository::new(&schema).with_all(config_sources);
+        let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
+        repo.deserializer_options().coerce_variant_names = true;
         let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
         let external_node_config: ENConfig = repo.single()?.parse().log_all_errors()?;
         let secrets_config: Secrets = repo.single()?.parse().log_all_errors()?;
@@ -1270,8 +1289,8 @@ impl ExternalNodeConfig<()> {
                 .context("Server url is required")?,
             max_connections: general_config.postgres_config.max_connections()?,
         };
-        let observability = ObservabilityENConfig::from_configs(&general_config)?;
         let experimental = ExperimentalENConfig::from_configs(&general_config)?;
+        let prometheus = general_config.prometheus_config.to_exporter_config();
 
         let api_component = ApiComponentConfig::from_configs(&general_config);
         let tree_component = TreeComponentConfig::from_configs(&general_config);
@@ -1284,7 +1303,8 @@ impl ExternalNodeConfig<()> {
             required,
             postgres,
             optional,
-            observability,
+            observability: Some(observability),
+            prometheus,
             experimental,
             consensus,
             api_component,
@@ -1321,6 +1341,7 @@ impl ExternalNodeConfig<()> {
             postgres: self.postgres,
             optional: self.optional,
             observability: self.observability,
+            prometheus: self.prometheus,
             experimental: self.experimental,
             consensus: self.consensus,
             tree_component: self.tree_component,
@@ -1340,7 +1361,8 @@ impl ExternalNodeConfig {
             postgres: PostgresConfig::mock(test_pool),
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
-            observability: ObservabilityENConfig::default(),
+            observability: None,
+            prometheus: None,
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
             consensus_secrets: ConsensusSecrets::default(),

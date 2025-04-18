@@ -54,7 +54,7 @@ pub struct GeneralConfig {
     pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
 
     #[config(nest, rename = "prometheus")]
-    pub prometheus_config: Option<PrometheusConfig>,
+    pub prometheus_config: PrometheusConfig,
     #[config(nest, rename = "data_handler")]
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     #[config(nest, rename = "db", alias = "database")]
@@ -86,7 +86,7 @@ pub struct GeneralConfig {
     #[config(nest, rename = "external_price_api_client")]
     pub external_price_api_client_config: ExternalPriceApiClientConfig,
     #[config(nest, rename = "consensus")]
-    pub consensus_config: Option<ConsensusConfig>,
+    pub consensus_config: Option<ConsensusConfig>, // FIXME: doesn't work for EN
     #[config(nest, rename = "external_proof_integration_api")]
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     #[config(nest, rename = "experimental_vm")]

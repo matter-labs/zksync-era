@@ -5,7 +5,6 @@ use zksync_node_framework::{
     },
     service::ZkStackServiceBuilder,
 };
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::config::AppConfig;
 
@@ -35,15 +34,9 @@ fn main() -> anyhow::Result<()> {
     builder
         .add_layer(SigintHandlerLayer)
         .add_layer(TeeProverLayer::new(app_config.prover));
-
-    let exporter_config = if let Some(base_url) = &prometheus_config.pushgateway_url {
-        let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
-        PrometheusExporterConfig::push(gateway_endpoint, prometheus_config.push_interval())
-    } else {
-        PrometheusExporterConfig::pull(prometheus_config.listener_port)
-    };
-    builder.add_layer(PrometheusExporterLayer(exporter_config));
-
+    if let Some(exporter_config) = prometheus_config.to_exporter_config() {
+        builder.add_layer(PrometheusExporterLayer(exporter_config));
+    }
     builder.build().run(observability_guard)?;
     Ok(())
 }

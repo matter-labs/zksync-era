@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use vise::MetricsCollection;
 use vise_exporter::MetricsExporter;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum PrometheusTransport {
     Pull {
         port: u16,
@@ -19,7 +19,7 @@ enum PrometheusTransport {
 }
 
 /// Configuration of a Prometheus exporter.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrometheusExporterConfig {
     transport: PrometheusTransport,
 }

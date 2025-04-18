@@ -194,7 +194,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_prometheus_exporter_layer(mut self) -> anyhow::Result<Self> {
-        if let Some(prom_config) = self.config.observability.prometheus() {
+        if let Some(prom_config) = self.config.prometheus.clone() {
             self.node.add_layer(PrometheusExporterLayer(prom_config));
         } else {
             tracing::info!("No configuration for prometheus exporter, skipping");

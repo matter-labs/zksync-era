@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_config::configs::GeneralConfig;
 use zksync_vlog::{logs::LogFormat, prometheus::PrometheusExporterConfig};
 
 use super::{ConfigurationSource, Environment};
@@ -99,37 +98,5 @@ impl ObservabilityENConfig {
             .with_logs(Some(logs))
             .with_sentry(sentry)
             .try_build()
-    }
-
-    pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
-        let observability = &general_config.observability;
-        let sentry = observability.sentry.as_ref();
-        let sentry_url = sentry.map(|sentry| sentry.url.clone());
-        let sentry_environment = sentry.and_then(|sentry| sentry.environment.clone());
-        let log_format = observability
-            .log_format
-            .parse()
-            .context("Invalid log format")?;
-        let log_directives = observability.log_directives.clone();
-
-        let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
-            if let Some(prometheus) = general_config.prometheus_config.as_ref() {
-                (
-                    Some(prometheus.listener_port),
-                    prometheus.pushgateway_url.clone(),
-                    prometheus.push_interval_ms.unwrap_or_default(),
-                )
-            } else {
-                (None, None, 0)
-            };
-        Ok(Self {
-            prometheus_port,
-            prometheus_pushgateway_url,
-            prometheus_push_interval_ms,
-            sentry_url,
-            sentry_environment,
-            log_format,
-            log_directives: Some(log_directives),
-        })
     }
 }

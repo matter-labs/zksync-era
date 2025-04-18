@@ -140,24 +140,19 @@ fn main() -> anyhow::Result<()> {
             );
         }
         ExternalNodeConfig::from_files(
+            &runtime,
             config_path,
             external_node_config_path,
             secrets_path,
             opt.consensus_path.clone(),
         )?
     } else {
-        ExternalNodeConfig::new().context("Failed to load node configuration")?
+        ExternalNodeConfig::new(&runtime).context("Failed to load node configuration")?
     };
 
     if !opt.enable_consensus {
         config.consensus = None;
     }
-    let guard = {
-        // Observability stack implicitly spawns several tokio tasks, so we need to call this method
-        // from within tokio context.
-        let _rt_guard = runtime.enter();
-        config.observability.build_observability()?
-    };
 
     // Build L1 and L2 clients.
     let main_node_url = &config.required.main_node_url;
@@ -169,12 +164,13 @@ fn main() -> anyhow::Result<()> {
         .build();
     let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 
-    let config = runtime
+    let mut config = runtime
         .block_on(config.fetch_remote(main_node_client.as_ref()))
         .context("failed fetching remote part of node config from main node")?;
+    let observability = config.observability.take();
 
     let node = ExternalNodeBuilder::on_runtime(runtime, config)
         .build(opt.components.0.into_iter().collect())?;
-    node.run(guard)?;
+    node.run(observability)?;
     anyhow::Ok(())
 }

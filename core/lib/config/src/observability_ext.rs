@@ -1,8 +1,9 @@
 //! Extensions for the `ObservabilityConfig` to install the observability stack.
 
 use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, ParseErrors};
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-use crate::configs::ObservabilityConfig;
+use crate::configs::{ObservabilityConfig, PrometheusConfig};
 
 impl ObservabilityConfig {
     pub fn from_sources(sources: ConfigSources) -> Result<Self, ParseErrors> {
@@ -67,6 +68,26 @@ impl TryFrom<ObservabilityConfig> for Option<zksync_vlog::OpenTelemetry> {
                 )
             })
             .transpose()?)
+    }
+}
+
+impl PrometheusConfig {
+    /// Converts this config to the config for Prometheus exporter. Returns `None` if Prometheus is not configured.
+    pub fn to_exporter_config(&self) -> Option<PrometheusExporterConfig> {
+        if let Some(base_url) = &self.pushgateway_url {
+            let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
+            Some(PrometheusExporterConfig::push(
+                gateway_endpoint,
+                self.push_interval(),
+            ))
+        } else {
+            self.to_pull_config()
+        }
+    }
+
+    /// A version of [`Self::into_exporter_config()`] that only ever creates a pull exporter.
+    pub fn to_pull_config(&self) -> Option<PrometheusExporterConfig> {
+        self.listener_port.map(PrometheusExporterConfig::pull)
     }
 }
 
