@@ -85,8 +85,6 @@ pub struct GeneralConfig {
     pub base_token_adjuster: BaseTokenAdjusterConfig,
     #[config(nest, rename = "external_price_api_client")]
     pub external_price_api_client_config: ExternalPriceApiClientConfig,
-    #[config(nest, rename = "consensus")]
-    pub consensus_config: Option<ConsensusConfig>, // FIXME: doesn't work for EN
     #[config(nest, rename = "external_proof_integration_api")]
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     #[config(nest, rename = "experimental_vm")]
@@ -121,6 +119,9 @@ pub fn full_config_schema(for_en: bool) -> ConfigSchema {
 
     // Specialized configuration that were placed in separate files.
     schema.insert(&Secrets::DESCRIPTION, "").unwrap();
+    schema
+        .insert(&ConsensusConfig::DESCRIPTION, "consensus")
+        .unwrap();
 
     if for_en {
         schema

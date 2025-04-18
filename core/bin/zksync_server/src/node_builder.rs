@@ -5,6 +5,7 @@ use anyhow::{bail, Context};
 use tokio::runtime::Runtime;
 use zksync_config::{
     configs::{
+        consensus::ConsensusConfig,
         contracts::{
             chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
         },
@@ -92,11 +93,12 @@ macro_rules! try_load_config {
     };
 }
 
-pub struct MainNodeBuilder {
+pub(crate) struct MainNodeBuilder {
     node: ZkStackServiceBuilder,
     configs: GeneralConfig,
     wallets: Wallets,
     genesis_config: GenesisConfig,
+    consensus: Option<ConsensusConfig>,
     secrets: Secrets,
     l1_specific_contracts: L1SpecificContracts,
     // This field is a fallback for situation
@@ -113,6 +115,7 @@ impl MainNodeBuilder {
         configs: GeneralConfig,
         wallets: Wallets,
         genesis_config: GenesisConfig,
+        consensus: Option<ConsensusConfig>,
         secrets: Secrets,
         l1_specific_contracts: L1SpecificContracts,
         l2_contracts: L2Contracts,
@@ -124,6 +127,7 @@ impl MainNodeBuilder {
             configs,
             wallets,
             genesis_config,
+            consensus,
             secrets,
             l1_specific_contracts,
             l1_sl_contracts,
@@ -540,8 +544,7 @@ impl MainNodeBuilder {
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(MainNodeConsensusLayer {
             config: self
-                .configs
-                .consensus_config
+                .consensus
                 .clone()
                 .context("Consensus config has to be provided")?,
             secrets: self.secrets.consensus.clone(),

@@ -135,6 +135,7 @@ fn main() -> anyhow::Result<()> {
         .log_all_errors()?
         .genesis
         .context("missing genesis config")?;
+    let consensus = repo.single()?.parse_opt().log_all_errors()?;
 
     if let Some(CliCommand::Config {
         debug: true,
@@ -154,6 +155,7 @@ fn main() -> anyhow::Result<()> {
         configs,
         wallets,
         genesis,
+        consensus,
         secrets,
         contracts_config.l1_specific_contracts(),
         contracts_config.l2_contracts(),
