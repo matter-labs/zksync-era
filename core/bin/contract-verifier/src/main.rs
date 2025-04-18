@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{ContractVerifierSecrets, DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
+    configs::{ContractVerifierSecrets, DatabaseSecrets, ObservabilityConfig},
     full_config_schema,
     sources::ConfigFilePaths,
     ConfigRepository, ContractVerifierConfig, ParseResultExt,
@@ -77,8 +77,6 @@ async fn main() -> anyhow::Result<()> {
     let contract_verifier_secrets: ContractVerifierSecrets =
         repo.single()?.parse().log_all_errors()?;
     let verifier_config: ContractVerifierConfig = repo.single()?.parse().log_all_errors()?;
-    let mut prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
-    prometheus_config.listener_port = verifier_config.prometheus_port;
 
     let pool = ConnectionPool::<Core>::singleton(
         database_secrets
@@ -107,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(update_task),
         tokio::spawn(contract_verifier.run(stop_receiver.clone(), opt.jobs_number)),
         tokio::spawn(
-            PrometheusExporterConfig::pull(prometheus_config.listener_port)
+            PrometheusExporterConfig::pull(verifier_config.prometheus_port)
                 .run(stop_receiver.clone()),
         ),
     ];

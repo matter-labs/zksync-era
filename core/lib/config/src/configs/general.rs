@@ -53,7 +53,7 @@ pub struct GeneralConfig {
     #[config(nest, rename = "witness_generator", alias = "fri_witness")]
     pub witness_generator_config: Option<FriWitnessGeneratorConfig>,
 
-    #[config(nest, rename = "prometheus")] // FIXME: also nested within API?
+    #[config(nest, rename = "prometheus")]
     pub prometheus_config: Option<PrometheusConfig>,
     #[config(nest, rename = "data_handler")]
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,

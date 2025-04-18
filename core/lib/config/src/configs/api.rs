@@ -23,9 +23,6 @@ pub struct ApiConfig {
     /// Configuration options for the Web3 JSON RPC servers.
     #[config(nest)]
     pub web3_json_rpc: Web3JsonRpcConfig,
-    /// Configuration options for the Prometheus exporter.
-    #[config(nest)]
-    pub prometheus: PrometheusConfig,
     /// Configuration options for the Health check.
     #[config(nest)]
     pub healthcheck: HealthCheckConfig,
@@ -421,11 +418,6 @@ mod tests {
                     http_file_url: Some("http://allowlist/".to_owned()),
                     refresh_interval_secs: Duration::from_secs(60),
                 },
-            },
-            prometheus: PrometheusConfig {
-                listener_port: 3312,
-                pushgateway_url: Some("http://127.0.0.1:9091".into()),
-                push_interval_ms: Some(100),
             },
             healthcheck: HealthCheckConfig {
                 port: 8081,
