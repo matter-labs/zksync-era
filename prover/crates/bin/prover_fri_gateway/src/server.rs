@@ -60,7 +60,7 @@ impl Api {
         State(processor): State<ProofDataManager>,
         Json(request): Json<PollGeneratedProofsRequest>,
     ) -> Result<Json<Option<PollGeneratedProofsResponse>>, ProcessorError> {
-        tracing::info!("Received request for proof generation data: {:?}", request);
+        tracing::info!("Received request for proof: {:?}", request);
 
         let proof = processor
             .get_proof_for_batch(request.l1_batch_number)
@@ -70,6 +70,15 @@ impl Api {
             l1_batch_number: request.l1_batch_number,
             proof: proof.into(),
         });
+
+        if response.is_none() {
+            tracing::info!(
+                "Proof for batch {} is not ready yet",
+                request.l1_batch_number
+            );
+        } else {
+            tracing::info!("Proof is ready for batch {}", request.l1_batch_number);
+        }
 
         Ok(Json(response))
     }
