@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -25,7 +25,7 @@ pub struct AsyncRocksdbCache {
 impl AsyncRocksdbCache {
     pub fn new(
         pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
+        state_keeper_db_path: PathBuf,
         state_keeper_db_options: RocksdbStorageOptions,
     ) -> (Self, AsyncCatchupTask) {
         let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);

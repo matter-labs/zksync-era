@@ -37,7 +37,7 @@ async fn process_batches((batch_count, window): (u32, u32)) -> anyhow::Result<()
     }));
     let (storage, task) = VmRunnerStorage::new(
         connection_pool.clone(),
-        rocksdb_dir.path().to_str().unwrap().to_owned(),
+        rocksdb_dir.path().to_owned(),
         io.clone(),
         L2ChainId::default(),
     )

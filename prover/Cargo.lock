@@ -3014,16 +3014,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
-name = "humantime-serde"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57a3db5ea5923d99402c94e9feb261dc5ee9b4efa158b0315f788cf549cc200c"
-dependencies = [
- "humantime",
- "serde",
-]
-
-[[package]]
 name = "hyper"
 version = "0.14.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5139,7 +5129,6 @@ dependencies = [
  "zksync_config",
  "zksync_dal",
  "zksync_db_connection",
- "zksync_env_config",
  "zksync_eth_client",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
@@ -6406,6 +6395,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "smart-config"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=15cee36ecb5b8df88d5a5f6e9f383972752c7cbd#15cee36ecb5b8df88d5a5f6e9f383972752c7cbd"
+dependencies = [
+ "anyhow",
+ "compile-fmt",
+ "primitive-types",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "smart-config-derive",
+ "tracing",
+]
+
+[[package]]
+name = "smart-config-derive"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=15cee36ecb5b8df88d5a5f6e9f383972752c7cbd#15cee36ecb5b8df88d5a5f6e9f383972752c7cbd"
+dependencies = [
+ "proc-macro2 1.0.92",
+ "quote 1.0.37",
+ "syn 2.0.90",
 ]
 
 [[package]]
@@ -8684,6 +8699,8 @@ dependencies = [
  "rand 0.8.5",
  "secrecy",
  "serde",
+ "serde_yaml",
+ "smart-config",
  "tracing",
  "zksync_basic_types",
  "zksync_concurrency",
@@ -8789,9 +8806,7 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "zksync_config",
- "zksync_env_config",
  "zksync_protobuf",
- "zksync_protobuf_config",
 ]
 
 [[package]]
@@ -8872,17 +8887,6 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_basic_types",
-]
-
-[[package]]
-name = "zksync_env_config"
-version = "27.4.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "envy",
- "serde",
- "zksync_basic_types",
- "zksync_config",
 ]
 
 [[package]]
@@ -9087,7 +9091,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_core_leftovers",
- "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
@@ -9138,26 +9141,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_protobuf_config"
-version = "27.4.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "hex",
- "prost 0.12.6",
- "rand 0.8.5",
- "secrecy",
- "serde_json",
- "serde_yaml",
- "tracing",
- "zksync_basic_types",
- "zksync_concurrency",
- "zksync_config",
- "zksync_protobuf",
- "zksync_protobuf_build",
- "zksync_types",
-]
-
-[[package]]
 name = "zksync_prover_autoscaler"
 version = "20.2.0"
 dependencies = [
@@ -9168,7 +9151,6 @@ dependencies = [
  "ctrlc",
  "debug-map-sorted",
  "futures 0.3.31",
- "humantime-serde",
  "k8s-openapi",
  "kube",
  "reqwest 0.12.9",
@@ -9176,6 +9158,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "smart-config",
  "structopt",
  "strum",
  "strum_macros",
@@ -9219,7 +9202,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_core_leftovers",
- "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_dal",
  "zksync_prover_interface",
@@ -9549,7 +9531,6 @@ dependencies = [
  "zksync_circuit_prover_service",
  "zksync_config",
  "zksync_core_leftovers",
- "zksync_env_config",
  "zksync_multivm",
  "zksync_object_store",
  "zksync_prover_dal",

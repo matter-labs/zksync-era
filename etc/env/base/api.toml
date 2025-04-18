@@ -22,12 +22,6 @@ estimate_gas_scale_factor = 1.2
 estimate_gas_acceptable_overestimation = 1000
 max_tx_size = 1000000
 
-# Configuration for the prometheus exporter server.
-[api.prometheus]
-listener_port = 3312
-pushgateway_url = "http://127.0.0.1:9091"
-push_interval_ms = 100
-
 # Configuration for the healtcheck server.
 [api.healthcheck]
 port = 3071

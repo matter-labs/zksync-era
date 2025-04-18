@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     net::Ipv4Addr,
-    num::NonZeroUsize,
     slice,
 };
 
@@ -9,8 +8,8 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig},
-    ContractsConfig, GenesisConfig,
+    configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, ContractsConfig},
+    GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, ConnectionPool, CoreDal};
@@ -90,7 +89,7 @@ async fn setting_response_size_limits() {
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
         .unwrap();
-    let overrides = MaxResponseSizeOverrides::from_iter([("test_unlimited", NonZeroUsize::MAX)]);
+    let overrides = MaxResponseSizeOverrides::from_iter([("test_unlimited", None)]);
     let methods = ApiServer::override_method_response_sizes(rpc_module, &overrides).unwrap();
 
     let server = ServerBuilder::default()

@@ -9,8 +9,12 @@ use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_env_config::object_store::ProverObjectStoreConfig;
+use zksync_config::{
+    configs::{DatabaseSecrets, GeneralConfig, ObservabilityConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepository, ParseResultExt,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -93,41 +97,40 @@ async fn ensure_protocol_alignment(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
+    let schema = full_config_schema(false);
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("")?;
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
-
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
+    let observability_config =
+        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
+
+    let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
+    repo.deserializer_options().coerce_variant_names = true;
+    let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
+    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
 
     let started_at = Instant::now();
 
     let prover_config = general_config.prover_config.context("prover config")?;
-    let object_store_config = ProverObjectStoreConfig(
-        prover_config
-            .prover_object_store
-            .context("object store")?
-            .clone(),
-    );
-    let store_factory = ObjectStoreFactory::new(object_store_config.0);
+    let object_store_config = prover_config.prover_object_store;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
     let config = general_config
         .witness_generator_config
         .context("witness generator config")?
         .clone();
-    let keystore =
-        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
     let prometheus_config = general_config
         .prometheus_config
         .context("missing prometheus config")?;
 
-    let prometheus_exporter_config = if prometheus_config.pushgateway_url.is_some() {
-        let url = prometheus_config
-            .gateway_endpoint()
-            .context("missing prometheus gateway endpoint")?;
+    let prometheus_exporter_config = if let Some(base_url) = &prometheus_config.pushgateway_url {
+        let url = PrometheusExporterConfig::gateway_endpoint(base_url);
         tracing::info!("Using Prometheus push gateway: {}", url);
         PrometheusExporterConfig::push(url, prometheus_config.push_interval())
     } else {

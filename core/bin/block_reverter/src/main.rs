@@ -15,17 +15,16 @@ use zksync_block_reverter::{
 };
 use zksync_config::{
     configs::{
-        wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, GeneralConfig,
+        wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, GenesisConfigWrapper,
         L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
-    ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepository, ContractsConfig, DBConfig, EthConfig, ParseResultExt, PostgresConfig,
 };
 use zksync_contracts::getters_facet_contract;
-use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_protobuf_config::proto;
 use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
 
 #[derive(Debug, Parser)]
@@ -116,12 +115,24 @@ enum Command {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opts = Cli::parse();
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
 
+    let config_file_paths = ConfigFilePaths {
+        general: opts.config_path,
+        secrets: opts.secrets_path,
+        wallets: opts.wallets_path,
+        genesis: opts.genesis_path,
+        contracts: opts.contracts_config_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources =
+        tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
+
+    let observability_config =
+        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
+    // FIXME: why manual wiring?
     let logs = zksync_vlog::Logs::try_from(observability_config.clone())
         .context("logs")?
-        .disable_default_logs(); // It's a CLI application, so we only need to show logs that were actually requested.;
+        .disable_default_logs(); // It's a CLI application, so we only need to show logs that were actually requested.
     let sentry: Option<zksync_vlog::Sentry> =
         TryFrom::try_from(observability_config.clone()).context("sentry")?;
     let opentelemetry: Option<zksync_vlog::OpenTelemetry> =
@@ -132,99 +143,27 @@ async fn main() -> anyhow::Result<()> {
         .with_opentelemetry(opentelemetry)
         .build();
 
-    let general_config: Option<GeneralConfig> = if let Some(path) = opts.config_path {
-        Some(
-            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
-                .context("failed decoding general YAML config")?,
-        )
-    } else {
-        None
-    };
-    let wallets_config: Option<Wallets> = if let Some(path) = opts.wallets_path {
-        Some(
-            read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
-                .context("failed decoding wallets YAML config")?,
-        )
-    } else {
-        None
-    };
-    let genesis_config: Option<GenesisConfig> = if let Some(path) = opts.genesis_path {
-        Some(
-            read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
-                .context("failed decoding genesis YAML config")?,
-        )
-    } else {
-        None
-    };
+    let schema = full_config_schema(false);
+    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let wallets_config: Option<Wallets> = repo.single()?.parse_opt().log_all_errors()?;
+    let genesis_config = repo
+        .single::<GenesisConfigWrapper>()?
+        .parse()
+        .log_all_errors()?
+        .genesis;
+    let eth_sender: EthConfig = repo.single()?.parse().log_all_errors()?;
+    let db_config: DBConfig = repo.single()?.parse().log_all_errors()?;
+    let protective_reads_writer_config: ProtectiveReadsWriterConfig =
+        repo.single()?.parse().log_all_errors()?;
+    let basic_witness_input_producer_config: BasicWitnessInputProducerConfig =
+        repo.single()?.parse().log_all_errors()?;
+    let contracts: ContractsConfig = repo.single()?.parse().log_all_errors()?;
+    let postgres_config: PostgresConfig = repo.single()?.parse().log_all_errors()?;
+    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
+    let l1_secrets: L1Secrets = repo.single()?.parse().log_all_errors()?;
 
-    let eth_sender = match &general_config {
-        Some(general_config) => general_config
-            .eth
-            .clone()
-            .context("Failed to find eth config")?,
-        None => EthConfig::from_env().context("EthConfig::from_env()")?,
-    };
-    let db_config = match &general_config {
-        Some(general_config) => general_config
-            .db_config
-            .clone()
-            .context("Failed to find eth config")?,
-        None => DBConfig::from_env().context("DBConfig::from_env()")?,
-    };
-    let protective_reads_writer_config = match &general_config {
-        Some(general_config) => general_config
-            .protective_reads_writer_config
-            .clone()
-            .context("Failed to find eth config")?,
-        None => ProtectiveReadsWriterConfig::from_env()
-            .context("ProtectiveReadsWriterConfig::from_env()")?,
-    };
-    let basic_witness_input_producer_config = match &general_config {
-        Some(general_config) => general_config
-            .basic_witness_input_producer_config
-            .clone()
-            .context("Failed to find eth config")?,
-        None => BasicWitnessInputProducerConfig::from_env()
-            .context("BasicWitnessInputProducerConfig::from_env()")?,
-    };
-    let contracts = match opts.contracts_config_path {
-        Some(path) => read_yaml_repr::<proto::contracts::Contracts>(&path)
-            .context("failed decoding contracts YAML config")?,
-        None => ContractsConfig::from_env().context("ContractsConfig::from_env()")?,
-    };
-    let secrets_config = if let Some(path) = opts.secrets_path {
-        Some(
-            read_yaml_repr::<proto::secrets::Secrets>(&path)
-                .context("failed decoding secrets YAML config")?,
-        )
-    } else {
-        None
-    };
+    let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
 
-    let gas_adjuster = eth_sender.gas_adjuster.context("gas_adjuster")?;
-    let default_priority_fee_per_gas = gas_adjuster.default_priority_fee_per_gas;
-
-    let database_secrets = match &secrets_config {
-        Some(secrets_config) => secrets_config
-            .database
-            .clone()
-            .context("Failed to find database config")?,
-        None => DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?,
-    };
-    let l1_secrets = match &secrets_config {
-        Some(secrets_config) => secrets_config
-            .l1
-            .clone()
-            .context("Failed to find l1 config")?,
-        None => L1Secrets::from_env().context("L1Secrets::from_env()")?,
-    };
-    let postgres_config = match &general_config {
-        Some(general_config) => general_config
-            .postgres_config
-            .clone()
-            .context("Failed to find postgres config")?,
-        None => PostgresConfig::from_env().context("PostgresConfig::from_env()")?,
-    };
     let zksync_network_id = match &genesis_config {
         Some(genesis_config) => genesis_config.l2_chain_id,
         None => {
@@ -236,13 +175,13 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let l1_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url)
+    let l1_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url.context("no L1 RPC URL")?)
         .context("Ethereum client")?
         .build();
 
     let sl_l1_contracts = load_settlement_layer_contracts(
         &l1_client,
-        contracts.bridgehub_proxy_addr,
+        contracts.ecosystem_contracts.bridgehub_proxy_addr,
         zksync_network_id,
         None,
     )
@@ -323,16 +262,14 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
                 wallets_config
-                    .eth_sender
-                    .unwrap()
                     .operator
+                    .context("operator private key not present")?
                     .private_key()
                     .to_owned()
             } else {
                 #[allow(deprecated)]
                 eth_sender
                     .get_eth_sender_config_for_sender_layer_data_layer()
-                    .context("eth_sender_config")?
                     .private_key()
                     .context("eth_sender_config.private_key")?
                     .context("eth_sender_config.private_key is not set")?
@@ -396,10 +333,13 @@ async fn main() -> anyhow::Result<()> {
             if rollback_postgres {
                 block_reverter.enable_rolling_back_postgres();
                 if rollback_snapshots {
-                    let object_store_config = SnapshotsObjectStoreConfig::from_env()
-                        .context("SnapshotsObjectStoreConfig::from_env()")?;
+                    let object_store_config = repo
+                        .get("snapshot_creator.object_store")
+                        .context("no snapshots object store config")?
+                        .parse()
+                        .log_all_errors()?;
                     block_reverter.enable_rolling_back_snapshot_objects(
-                        ObjectStoreFactory::new(object_store_config.0)
+                        ObjectStoreFactory::new(object_store_config)
                             .create_store()
                             .await?,
                     );
@@ -417,7 +357,7 @@ async fn main() -> anyhow::Result<()> {
                     .await
                     .with_context(|| {
                         format!(
-                            "cannot check whether storage cache path `{}` exists",
+                            "cannot check whether storage cache path {:?} exists",
                             protective_reads_writer_config.db_path
                         )
                     })?;
@@ -431,7 +371,7 @@ async fn main() -> anyhow::Result<()> {
                     .await
                     .with_context(|| {
                         format!(
-                            "cannot check whether storage cache path `{}` exists",
+                            "cannot check whether storage cache path {:?} exists",
                             basic_witness_input_producer_config.db_path
                         )
                     })?;

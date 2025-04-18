@@ -1,15 +1,17 @@
 use std::time::Duration;
 
 use anyhow::Context;
+use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig};
 use structopt::StructOpt;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use zksync_config::{configs::ObservabilityConfig, sources::ConfigFilePaths, ParseResultExt};
 use zksync_prover_autoscaler::{
     agent,
     cluster_types::ClusterName,
-    config::{config_from_yaml, ProverAutoscalerConfig},
+    config::ProverAutoscalerConfig,
     global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
@@ -56,12 +58,17 @@ struct Opt {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
-    let general_config =
-        config_from_yaml::<ProverAutoscalerConfig>(&opt.config_path).context("general config")?;
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
+
+    let mut config_sources = ConfigSources::default();
+    config_sources.push(ConfigFilePaths::read_yaml(&opt.config_path)?);
+
+    let observability_config =
+        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let _observability_guard = observability_config.install()?;
+
+    let full_config_schema = ConfigSchema::new(&ProverAutoscalerConfig::DESCRIPTION, "");
+    let config_repo = ConfigRepository::new(&full_config_schema).with_all(config_sources);
+    let general_config: ProverAutoscalerConfig = config_repo.single()?.parse().log_all_errors()?;
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);

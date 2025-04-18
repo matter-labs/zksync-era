@@ -46,7 +46,10 @@ impl FromEnv for MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::num::{NonZeroU32, NonZeroUsize};
+    use std::{
+        num::{NonZeroU32, NonZeroUsize},
+        time::Duration,
+    };
 
     use zksync_config::configs::api::DeploymentAllowlist;
 
@@ -106,8 +109,8 @@ mod tests {
             },
             healthcheck: HealthCheckConfig {
                 port: 8081,
-                slow_time_limit_ms: Some(250),
-                hard_time_limit_ms: Some(2_000),
+                slow_time_limit_ms: Some(Duration::from_millis(250)),
+                hard_time_limit_ms: Some(Duration::from_millis(2_000)),
             },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }

@@ -28,24 +28,17 @@ mod tee_prover;
 fn main() -> anyhow::Result<()> {
     let mut builder = ZkStackServiceBuilder::new()?;
 
-    let AppConfig {
-        observability: observability_config,
-        prometheus: prometheus_config,
-        prover: tee_prover_config,
-    } = builder.runtime_handle().block_on(AppConfig::try_new())?;
-
-    let observability_guard = {
-        // Observability initialization should be performed within tokio context.
-        let _context_guard = builder.runtime_handle().enter();
-        observability_config.install()?
-    };
+    let (app_config, observability_guard) =
+        builder.runtime_handle().block_on(AppConfig::try_new())?;
+    let prometheus_config = app_config.prometheus;
 
     builder
         .add_layer(SigintHandlerLayer)
-        .add_layer(TeeProverLayer::new(tee_prover_config));
+        .add_layer(TeeProverLayer::new(app_config.prover));
 
-    let exporter_config = if let Some(gateway) = prometheus_config.gateway_endpoint() {
-        PrometheusExporterConfig::push(gateway, prometheus_config.push_interval())
+    let exporter_config = if let Some(base_url) = &prometheus_config.pushgateway_url {
+        let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
+        PrometheusExporterConfig::push(gateway_endpoint, prometheus_config.push_interval())
     } else {
         PrometheusExporterConfig::pull(prometheus_config.listener_port)
     };

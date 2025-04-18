@@ -1,4 +1,7 @@
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::{
+    num::{NonZeroU32, NonZeroUsize},
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
@@ -249,16 +252,20 @@ impl ProtoRepr for proto::HealthCheck {
             port: required(&self.port)
                 .and_then(|&port| Ok(port.try_into()?))
                 .context("port")?,
-            slow_time_limit_ms: self.slow_time_limit_ms,
-            hard_time_limit_ms: self.hard_time_limit_ms,
+            slow_time_limit_ms: self.slow_time_limit_ms.map(Duration::from_millis),
+            hard_time_limit_ms: self.hard_time_limit_ms.map(Duration::from_millis),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
-            slow_time_limit_ms: this.slow_time_limit_ms,
-            hard_time_limit_ms: this.hard_time_limit_ms,
+            slow_time_limit_ms: this
+                .slow_time_limit_ms
+                .map(|dur| dur.as_millis().try_into().unwrap()),
+            hard_time_limit_ms: this
+                .hard_time_limit_ms
+                .map(|dur| dur.as_millis().try_into().unwrap()),
         }
     }
 }

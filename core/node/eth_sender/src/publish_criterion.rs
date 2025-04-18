@@ -1,4 +1,4 @@
-use std::{fmt, ops};
+use std::{fmt, ops, time::Duration};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -73,7 +73,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
 pub struct TimestampDeadlineCriterion {
     pub op: AggregatedActionType,
     /// Maximum L1 batch age in seconds. Once reached, we pack and publish all the available L1 batches.
-    pub deadline_seconds: u64,
+    pub deadline: Duration,
     /// If `max_allowed_lag` is `Some(_)` and last batch sent to L1 is more than `max_allowed_lag` behind,
     /// it means that sender is lagging significantly and we shouldn't apply this criteria to use all capacity
     /// and avoid packing small ranges.
@@ -102,7 +102,7 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
         }
         let oldest_l1_batch_age_seconds =
             Utc::now().timestamp() as u64 - first_l1_batch.header.timestamp;
-        if oldest_l1_batch_age_seconds >= self.deadline_seconds {
+        if oldest_l1_batch_age_seconds >= self.deadline.as_secs() {
             let result = consecutive_l1_batches
                 .last()
                 .unwrap_or(first_l1_batch)

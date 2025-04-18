@@ -112,7 +112,7 @@ impl AllowListTask {
                 .http_file_url()
                 .expect("DeploymentAllowlist must contain a URL")
                 .to_string(),
-            refresh_interval: deployment_allowlist.refresh_interval(),
+            refresh_interval: deployment_allowlist.refresh_interval_secs,
             allowlist: SharedAllowList::default(),
             client: Client::new(),
         }

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::{
     body::Body,
     http::{self, Method, Request, StatusCode},
@@ -16,6 +18,19 @@ use zksync_types::{
 
 use crate::create_proof_processing_router;
 
+fn test_config() -> ProofDataHandlerConfig {
+    ProofDataHandlerConfig {
+        http_port: 1337,
+        proof_generation_timeout_in_secs: Duration::from_secs(10),
+        tee_config: TeeConfig {
+            tee_support: true,
+            first_tee_processed_batch: L1BatchNumber(0),
+            tee_proof_generation_timeout_in_secs: Duration::from_secs(600),
+            tee_batch_permanently_ignored_timeout_in_hours: Duration::from_secs(10 * 24 * 3_600),
+        },
+    }
+}
+
 #[tokio::test]
 async fn request_tee_proof_inputs() {
     let db_conn_pool = ConnectionPool::test_pool().await;
@@ -23,16 +38,7 @@ async fn request_tee_proof_inputs() {
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
-        ProofDataHandlerConfig {
-            http_port: 1337,
-            proof_generation_timeout_in_secs: 10,
-            tee_config: TeeConfig {
-                tee_support: true,
-                first_tee_processed_batch: L1BatchNumber(0),
-                tee_proof_generation_timeout_in_secs: 600,
-                tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
-            },
-        },
+        test_config(),
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
@@ -83,16 +89,7 @@ async fn submit_tee_proof() {
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
-        ProofDataHandlerConfig {
-            http_port: 1337,
-            proof_generation_timeout_in_secs: 10,
-            tee_config: TeeConfig {
-                tee_support: true,
-                first_tee_processed_batch: L1BatchNumber(0),
-                tee_proof_generation_timeout_in_secs: 600,
-                tee_batch_permanently_ignored_timeout_in_hours: 10 * 24,
-            },
-        },
+        test_config(),
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );

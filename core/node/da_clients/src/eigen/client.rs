@@ -39,9 +39,9 @@ impl EigenDAClient {
         .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
         let eth_rpc_url = rust_eigenda_client::config::SecretUrl::new(url);
 
-        let srs_points_source = match config.points_source {
-            PointsSource::Path(path) => SrsPointsSource::Path(path),
-            PointsSource::Url(url) => SrsPointsSource::Url(url),
+        let srs_points_source = match config.points {
+            PointsSource::Path { path } => SrsPointsSource::Path(path),
+            PointsSource::Url { g1_url, g2_url } => SrsPointsSource::Url((g1_url, g2_url)),
         };
 
         let eigen_config = rust_eigenda_client::config::EigenConfig::new(

@@ -138,7 +138,7 @@ impl SequencerSealer {
         vec![
             Box::new(criteria::SlotsCriterion),
             Box::new(criteria::PubDataBytesCriterion {
-                max_pubdata_per_batch: config.max_pubdata_per_batch,
+                max_pubdata_per_batch: config.max_pubdata_per_batch.0,
             }),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
