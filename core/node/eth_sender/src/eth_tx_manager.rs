@@ -251,10 +251,12 @@ impl EthTxManager {
                 .tx_history_by_hash(tx.id, signed_tx.hash)
                 .await
                 .unwrap()
-                .expect(&format!(
-                    "Could not insert not select tx with hash {:#?} and eth_tx_id {}",
-                    signed_tx.hash, tx.id
-                ))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Could not insert not select tx with hash {:#?} and eth_tx_id {}",
+                        signed_tx.hash, tx.id
+                    )
+                })
         };
 
         let send_result = self
