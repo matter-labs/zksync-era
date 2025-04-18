@@ -241,7 +241,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     vm_latest::MultiVmSubversion::EvmEmulator,
                 );
-                Self::Vm1_5_0(vm)
+                Self::Vm1_5_2(vm)
             }
         }
     }
