@@ -8,7 +8,9 @@ use zksync_eth_client::{ClientError, EnrichedClientError};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::eth_sender::TxHistory;
 
-use crate::{abstract_l1_interface::OperatorType, EthSenderError};
+use crate::{
+    abstract_l1_interface::OperatorType, EthSenderError, EthSenderError::ExceedMaxBaseFee,
+};
 
 #[derive(Debug)]
 pub(crate) struct EthFees {
@@ -32,6 +34,7 @@ pub(crate) struct GasAdjusterFeesOracle {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub max_acceptable_base_fee_in_wei: u64,
 }
 
 impl GasAdjusterFeesOracle {
@@ -53,6 +56,16 @@ impl GasAdjusterFeesOracle {
         let blob_base_fee_per_gas = self.gas_adjuster.get_blob_tx_blob_base_fee();
         self.assert_fee_is_not_zero(blob_base_fee_per_gas, "blob");
         let blob_base_fee_per_gas = Some(blob_base_fee_per_gas);
+
+        if base_fee_per_gas > self.max_acceptable_base_fee_in_wei {
+            tracing::info!(
+                    "base fee per gas: {} exceed max acceptable fee in configuration: {}, skip transaction",
+                    base_fee_per_gas,
+                    self.max_acceptable_base_fee_in_wei
+            );
+
+            return Err(ExceedMaxBaseFee);
+        }
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             // for blob transactions on re-sending need to double all gas prices
@@ -97,6 +110,16 @@ impl GasAdjusterFeesOracle {
                 previous_sent_tx.base_fee_per_gas,
                 base_fee_per_gas,
             )?;
+        }
+
+        if base_fee_per_gas > self.max_acceptable_base_fee_in_wei {
+            tracing::info!(
+                    "base fee per gas: {} exceed max acceptable fee in configuration: {}, skip transaction",
+                    base_fee_per_gas,
+                    self.max_acceptable_base_fee_in_wei
+            );
+
+            return Err(ExceedMaxBaseFee);
         }
 
         let mut priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
