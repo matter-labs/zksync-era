@@ -65,11 +65,16 @@
       },
       {
         "ordinal": 12,
+        "name": "max_gas_per_pubdata",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
         "name": "confirmed_at_block",
         "type_info": "Int4"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -87,6 +92,7 @@
       false,
       false,
       false,
+      true,
       true,
       true,
       true,
