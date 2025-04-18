@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
@@ -66,10 +66,16 @@ impl ProofDataManager {
             return Ok(None);
         };
 
-        let proof: L1BatchProofForL1 = self
-            .blob_store
-            .get((batch_number, protocol_version))
-            .await?;
+        let proof: L1BatchProofForL1 =
+            match self.blob_store.get((batch_number, protocol_version)).await {
+                Ok(proof) => proof,
+                Err(ObjectStoreError::KeyNotFound(_)) => {
+                    return Ok(None); // proof was not generated yet
+                }
+                Err(e) => {
+                    return Err(ProcessorError::ObjectStoreErr(e));
+                }
+            };
 
         Ok(Some(proof))
     }
