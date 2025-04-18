@@ -219,7 +219,7 @@ impl Processor<Locking> {
     }
 
     /// Marks the batch as 'unpicked', allowing it to be picked up by another prover.
-    async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
+    pub async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
         self.pool
             .connection()
             .await?

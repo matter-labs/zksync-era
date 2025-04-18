@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use anyhow::Context as _;
 use axum::{
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     routing::{get, post},
     Json, Router,
 };
@@ -26,6 +26,7 @@ impl Api {
                 "/submit_request_for_proofs",
                 post(Api::save_proof_generation_data),
             )
+            .layer(DefaultBodyLimit::disable())
             .with_state(processor);
 
         Self { router, port }

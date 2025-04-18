@@ -67,6 +67,7 @@ impl ProofGenDataSubmitter {
                         continue;
                     }
                     Err(e) => {
+                        self.processor.unlock_batch(data.l1_batch_number).await?;
                         tracing::error!(
                             "Failed to send proof generation data for batch {}: {e}",
                             data.l1_batch_number
