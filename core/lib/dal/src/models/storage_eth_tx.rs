@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, TxHistory},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
 
@@ -40,17 +40,6 @@ pub struct L1BatchEthSenderStats {
 }
 
 #[derive(Clone, Debug)]
-pub struct StorageTxHistoryToSend {
-    pub id: i32,
-    pub eth_tx_id: i32,
-    pub tx_hash: String,
-    pub priority_fee_per_gas: i64,
-    pub base_fee_per_gas: i64,
-    pub signed_raw_tx: Option<Vec<u8>>,
-    pub nonce: i64,
-}
-
-#[derive(Clone, Debug)]
 pub struct StorageTxHistory {
     pub id: i32,
     pub eth_tx_id: i32,
@@ -72,6 +61,7 @@ pub struct StorageTxHistory {
     // EIP712 txs
     pub max_gas_per_pubdata: Option<i64>,
     pub predicted_gas_limit: Option<i64>,
+    pub sent_successfully: bool,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -112,22 +102,7 @@ impl From<StorageTxHistory> for TxHistory {
 
             sent_at_block: history.sent_at_block.map(|block| block as u32),
             max_gas_per_pubdata: history.max_gas_per_pubdata.map(|v| v as u64),
-        }
-    }
-}
-
-impl From<StorageTxHistoryToSend> for TxHistoryToSend {
-    fn from(history: StorageTxHistoryToSend) -> TxHistoryToSend {
-        TxHistoryToSend {
-            id: history.id as u32,
-            eth_tx_id: history.eth_tx_id as u32,
-            tx_hash: H256::from_str(&history.tx_hash).expect("Incorrect hash"),
-            base_fee_per_gas: history.base_fee_per_gas as u64,
-            priority_fee_per_gas: history.priority_fee_per_gas as u64,
-            signed_raw_tx: history
-                .signed_raw_tx
-                .expect("Should rely only on the new txs"),
-            nonce: Nonce(history.nonce as u32),
+            sent_successfully: history.sent_successfully,
         }
     }
 }

@@ -47,7 +47,7 @@ impl CheckError {
     fn is_retriable(&self) -> bool {
         match self {
             Self::Web3(err) | Self::ContractCall(ContractCallError::EthereumGateway(err)) => {
-                err.is_retriable()
+                err.is_retryable()
             }
             _ => false,
         }

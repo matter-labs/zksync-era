@@ -8,14 +8,12 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
 
 use crate::{
-    models::storage_eth_tx::{
-        L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
-    },
+    models::storage_eth_tx::{L1BatchEthSenderStats, StorageEthTx, StorageTxHistory},
     Core,
 };
 
@@ -223,6 +221,7 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $2
                         AND is_gateway = $3
+                        AND sent_successfully = TRUE
                     ORDER BY eth_tx_id DESC LIMIT 1),
                     0
                 )
@@ -234,33 +233,6 @@ impl EthSenderDal<'_, '_> {
             limit as i64,
             operator_address.as_ref().map(|h160| h160.as_bytes()),
             is_gateway
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-        Ok(txs.into_iter().map(|tx| tx.into()).collect())
-    }
-
-    pub async fn get_unsent_txs(&mut self) -> sqlx::Result<Vec<TxHistoryToSend>> {
-        let txs = sqlx::query_as!(
-            StorageTxHistoryToSend,
-            r#"
-            SELECT
-                eth_txs_history.id,
-                eth_txs_history.eth_tx_id,
-                eth_txs_history.tx_hash,
-                eth_txs_history.base_fee_per_gas,
-                eth_txs_history.priority_fee_per_gas,
-                eth_txs_history.signed_raw_tx,
-                eth_txs.nonce
-            FROM
-                eth_txs_history
-            JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
-            WHERE
-                eth_txs_history.sent_at_block IS NULL
-                AND eth_txs.confirmed_eth_tx_history_id IS NULL
-            ORDER BY
-                eth_txs_history.id DESC
-            "#,
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -350,10 +322,11 @@ impl EthSenderDal<'_, '_> {
                 max_gas_per_pubdata,
                 predicted_gas_limit,
                 sent_at_block,
-                sent_at
+                sent_at,
+                sent_successfully
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW(), FALSE)
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
             id
@@ -367,6 +340,25 @@ impl EthSenderDal<'_, '_> {
             max_gas_per_pubdata.map(|v| v as i64),
             predicted_gas_limit.map(|v| v as i64),
             sent_at_block as i32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| row.id as u32))
+    }
+
+    pub async fn tx_history_by_hash(
+        &mut self,
+        eth_tx_id: u32,
+        tx_hash: H256,
+    ) -> anyhow::Result<Option<u32>> {
+        let tx_hash = format!("{:#x}", tx_hash);
+        Ok(sqlx::query!(
+            r#"
+            SELECT id FROM eth_txs_history
+            WHERE eth_tx_id = $1 AND tx_hash = $2
+            "#,
+            eth_tx_id as i32,
+            tx_hash,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -396,10 +388,13 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn remove_tx_history(&mut self, eth_txs_history_id: u32) -> sqlx::Result<()> {
+    pub async fn set_sent_success(&mut self, eth_txs_history_id: u32) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            DELETE FROM eth_txs_history
+            UPDATE eth_txs_history
+            SET
+                sent_successfully = TRUE,
+                updated_at = NOW()
             WHERE
                 id = $1
             "#,
@@ -424,7 +419,8 @@ impl EthSenderDal<'_, '_> {
             UPDATE eth_txs_history
             SET
                 updated_at = NOW(),
-                confirmed_at = NOW()
+                confirmed_at = NOW(),
+                sent_successfully = TRUE
             WHERE
                 tx_hash = $1
             RETURNING
@@ -596,8 +592,8 @@ impl EthSenderDal<'_, '_> {
             // Insert a "sent transaction".
             let eth_history_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
-                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3) \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE) \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,
@@ -686,7 +682,7 @@ impl EthSenderDal<'_, '_> {
         Ok(sent_at_block.flatten().map(|block| block as u32))
     }
 
-    pub async fn get_last_sent_eth_tx(
+    pub async fn get_last_sent_successfully_eth_tx(
         &mut self,
         eth_tx_id: u32,
     ) -> sqlx::Result<Option<TxHistory>> {
@@ -700,7 +696,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
-                eth_tx_id = $1
+                eth_tx_id = $1 AND sent_successfully = TRUE
             ORDER BY
                 eth_txs_history.created_at DESC
             LIMIT
@@ -866,7 +862,7 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
     }
 
-    pub async fn get_last_sent_eth_tx_hash(
+    pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
         op_type: AggregatedActionType,
@@ -894,6 +890,8 @@ impl EthSenderDal<'_, '_> {
             AggregatedActionType::Execute => row.eth_execute_tx_id,
         }
         .unwrap() as u32;
-        self.get_last_sent_eth_tx(eth_tx_id).await.unwrap()
+        self.get_last_sent_successfully_eth_tx(eth_tx_id)
+            .await
+            .unwrap()
     }
 }

@@ -388,7 +388,7 @@ impl StateKeeper {
             let res = ctx.wait(client.fetch_l2_block_number()).await?;
             match res {
                 Ok(_) => return Ok(client),
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     ctx.sleep(time::Duration::seconds(5)).await?;
                 }
                 Err(err) => {

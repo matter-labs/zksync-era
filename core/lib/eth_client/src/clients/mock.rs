@@ -93,6 +93,7 @@ struct MockSettlementLayerInner {
     current_nonce: u64,
     pending_nonce: u64,
     nonces: BTreeMap<u64, u64>,
+    pub return_error_on_tx_request: bool,
 }
 
 impl MockSettlementLayerInner {
@@ -169,7 +170,12 @@ impl MockSettlementLayerInner {
             self.pending_nonce += 1;
         }
         self.sent_txs.insert(mock_tx_hash, mock_tx);
-        Ok(mock_tx_hash)
+
+        if self.return_error_on_tx_request {
+            Err(ClientError::Custom("transport error".to_owned()))
+        } else {
+            Ok(mock_tx_hash)
+        }
     }
 
     /// Processes a transaction-like `eth_call` which is used in `EthInterface::failure_reason()`.
@@ -600,6 +606,10 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
     /// Converts this client into an immutable / contract-agnostic client.
     pub fn into_client(self) -> MockClient<Net> {
         self.client
+    }
+
+    pub fn set_return_error_on_tx_request(&self, value: bool) {
+        self.inner.write().unwrap().return_error_on_tx_request = value;
     }
 }
 

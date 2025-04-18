@@ -71,7 +71,7 @@ impl L1BatchCommitmentModeValidationTask {
                     return Ok(());
                 }
 
-                Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
+                Err(ContractCallError::EthereumGateway(err)) if err.is_retryable() => {
                     tracing::warn!(
                         "Transient error validating commitment mode, will retry after {:?}: {err}",
                         self.retry_interval
