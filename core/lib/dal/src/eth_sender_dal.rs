@@ -323,6 +323,7 @@ impl EthSenderDal<'_, '_> {
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
         blob_base_fee_per_gas: Option<u64>,
+        max_gas_per_pubdata: Option<u64>,
         tx_hash: H256,
         raw_signed_tx: &[u8],
         sent_at_block: u32,
@@ -345,11 +346,12 @@ impl EthSenderDal<'_, '_> {
                 created_at,
                 updated_at,
                 blob_base_fee_per_gas,
+                max_gas_per_pubdata,
                 sent_at_block,
                 sent_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, NOW())
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
             id
@@ -360,6 +362,7 @@ impl EthSenderDal<'_, '_> {
             tx_hash,
             raw_signed_tx,
             blob_base_fee_per_gas.map(|v| v as i64),
+            max_gas_per_pubdata.map(|v| v as i64),
             sent_at_block as i32
         )
         .fetch_optional(self.storage.conn())

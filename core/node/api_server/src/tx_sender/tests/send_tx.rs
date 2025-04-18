@@ -268,7 +268,7 @@ async fn sending_reverting_transaction() {
 
     let storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
-        .with_counter_contract(0)
+        .with_counter_contract(None)
         .with_balance(alice.address(), u64::MAX.into())
         .apply(storage)
         .await;
@@ -380,4 +380,42 @@ async fn submitting_tx_with_validation_traces_resulting_into_overflow() {
     // the maximum value supported by the NaiveDateTime type
     submit_tx_with_validation_traces(10..u64::MAX, 10..NaiveDateTime::MAX.and_utc().timestamp())
         .await;
+}
+
+#[tokio::test]
+async fn submitting_call_to_evm_contract() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
+    let mut alice = Account::random();
+
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
+    StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .with_evm_counter_contract(None)
+        .apply(storage)
+        .await;
+
+    let tx = alice.create_counter_tx(42.into(), false);
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    assert_matches!(&vm_result.result, ExecutionResult::Success { .. });
+}
+
+#[tokio::test]
+async fn submitting_evm_deployment() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
+    let mut alice = Account::random();
+
+    let storage = tx_sender.acquire_replica_connection().await.unwrap();
+    StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .enable_evm_deployments()
+        .apply(storage)
+        .await;
+
+    let tx = alice.create_evm_counter_deployment(42.into());
+    let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
+    assert_matches!(&vm_result.result, ExecutionResult::Success { .. });
 }

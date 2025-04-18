@@ -1,14 +1,11 @@
 //! Logic for [`RocksdbStorage`] related to snapshot recovery.
 
-use std::ops;
+use std::{num::NonZeroU32, ops};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal, DalError};
-use zksync_types::{
-    snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
-    L1BatchNumber, L2BlockNumber, H256,
-};
+use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal};
+use zksync_types::{snapshots::uniform_hashed_keys_chunk, L1BatchNumber, L2BlockNumber, H256};
 
 use super::{
     metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
@@ -29,6 +26,69 @@ struct KeyChunk {
     start_entry: Option<StorageRecoveryLogEntry>,
 }
 
+#[derive(Debug)]
+struct InitParameters {
+    l1_batch: L1BatchNumber,
+    l2_block: L2BlockNumber,
+    desired_log_chunk_size: u64,
+}
+
+impl InitParameters {
+    /// Minimum number of storage logs in the genesis state to initiate recovery.
+    const MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY: u32 = if cfg!(test) {
+        // Select the smaller threshold for tests, but make it large enough so that it's not triggered by unrelated tests.
+        1_000
+    } else {
+        100_000
+    };
+
+    async fn new(
+        storage: &mut Connection<'_, Core>,
+        desired_log_chunk_size: u64,
+    ) -> anyhow::Result<Option<Self>> {
+        let snapshot_recovery = storage
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await?;
+        Ok(if let Some(snapshot_recovery) = snapshot_recovery {
+            Some(Self {
+                l1_batch: snapshot_recovery.l1_batch_number,
+                l2_block: snapshot_recovery.l2_block_number,
+                desired_log_chunk_size,
+            })
+        } else {
+            // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
+            // for the chain is very large (order of millions of entries).
+            let is_genesis_recovery_needed = Self::is_genesis_recovery_needed(storage).await?;
+            is_genesis_recovery_needed.then_some(Self {
+                l1_batch: L1BatchNumber(0),
+                l2_block: L2BlockNumber(0),
+                desired_log_chunk_size,
+            })
+        })
+    }
+
+    #[tracing::instrument(level = "debug", skip_all)]
+    async fn is_genesis_recovery_needed(
+        storage: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<bool> {
+        let sealed_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
+        if sealed_l1_batch != Some(L1BatchNumber(0)) {
+            tracing::debug!(?sealed_l1_batch, "Latest sealed L1 batch mismatch");
+            return Ok(false);
+        }
+
+        storage
+            .storage_logs_dal()
+            .check_storage_log_count(
+                L2BlockNumber(0),
+                NonZeroU32::new(Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY).unwrap(),
+            )
+            .await
+            .map_err(Into::into)
+    }
+}
+
 impl RocksdbStorage {
     /// Ensures that this storage is ready for normal operation (i.e., updates by L1 batch).
     ///
@@ -45,21 +105,11 @@ impl RocksdbStorage {
             return Ok((Strategy::Complete, number));
         }
 
-        // Check whether we need to perform a snapshot migration.
-        let snapshot_recovery = storage
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await
-            .map_err(DalError::generalize)?;
-        Ok(if let Some(snapshot_recovery) = snapshot_recovery {
-            self.recover_from_snapshot(
-                storage,
-                &snapshot_recovery,
-                desired_log_chunk_size,
-                stop_receiver,
-            )
-            .await?;
-            (Strategy::Recovery, snapshot_recovery.l1_batch_number + 1)
+        let init_params = InitParameters::new(storage, desired_log_chunk_size).await?;
+        Ok(if let Some(init_params) = init_params {
+            self.recover_from_snapshot(storage, &init_params, stop_receiver)
+                .await?;
+            (Strategy::Recovery, init_params.l1_batch + 1)
         } else {
             // No recovery snapshot; we're initializing the cache from the genesis
             (Strategy::Genesis, L1BatchNumber(0))
@@ -73,23 +123,20 @@ impl RocksdbStorage {
     async fn recover_from_snapshot(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_recovery: &SnapshotRecoveryStatus,
-        desired_log_chunk_size: u64,
+        init_parameters: &InitParameters,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), RocksdbSyncError> {
         if *stop_receiver.borrow() {
             return Err(RocksdbSyncError::Interrupted);
         }
-        tracing::info!("Recovering secondary storage from snapshot: {snapshot_recovery:?}");
+        tracing::info!("Recovering secondary storage from snapshot: {init_parameters:?}");
 
-        self.recover_factory_deps(storage, snapshot_recovery)
-            .await?;
+        self.recover_factory_deps(storage, init_parameters).await?;
 
         if *stop_receiver.borrow() {
             return Err(RocksdbSyncError::Interrupted);
         }
-        let key_chunks =
-            Self::load_key_chunks(storage, snapshot_recovery, desired_log_chunk_size).await?;
+        let key_chunks = Self::load_key_chunks(storage, init_parameters).await?;
 
         RECOVERY_METRICS.recovered_chunk_count.set(0);
         for key_chunk in key_chunks {
@@ -114,7 +161,7 @@ impl RocksdbStorage {
                         "Mismatch between entry for key {:?} in Postgres snapshot for L2 block #{} \
                          ({chunk_start:?}) and RocksDB cache ({state_value:?}); the recovery procedure may be corrupted",
                         chunk_start.key,
-                        snapshot_recovery.l2_block_number
+                        init_parameters.l1_batch
                     );
                     return Err(err.into());
                 }
@@ -122,7 +169,7 @@ impl RocksdbStorage {
             } else {
                 self.recover_logs_chunk(
                     storage,
-                    snapshot_recovery.l2_block_number,
+                    init_parameters.l2_block,
                     key_chunk.key_range.clone(),
                 )
                 .await
@@ -140,21 +187,20 @@ impl RocksdbStorage {
         }
 
         tracing::info!("All chunks recovered; finalizing recovery process");
-        self.save(Some(snapshot_recovery.l1_batch_number + 1))
-            .await?;
+        self.save(Some(init_parameters.l1_batch + 1)).await?;
         Ok(())
     }
 
     async fn recover_factory_deps(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        snapshot_recovery: &SnapshotRecoveryStatus,
+        init_parameters: &InitParameters,
     ) -> anyhow::Result<()> {
         // We don't expect that many factory deps; that's why we recover factory deps in any case.
         let latency = RECOVERY_METRICS.latency[&RecoveryStage::LoadFactoryDeps].start();
         let factory_deps = storage
             .snapshots_creator_dal()
-            .get_all_factory_deps(snapshot_recovery.l2_block_number)
+            .get_all_factory_deps(init_parameters.l2_block)
             .await?;
         let latency = latency.observe();
         tracing::info!(
@@ -176,10 +222,9 @@ impl RocksdbStorage {
 
     async fn load_key_chunks(
         storage: &mut Connection<'_, Core>,
-        snapshot_recovery: &SnapshotRecoveryStatus,
-        desired_log_chunk_size: u64,
+        init_parameters: &InitParameters,
     ) -> anyhow::Result<Vec<KeyChunk>> {
-        let snapshot_l2_block = snapshot_recovery.l2_block_number;
+        let snapshot_l2_block = init_parameters.l2_block;
         let log_count = storage
             .storage_logs_dal()
             .get_storage_logs_row_count(snapshot_l2_block)
@@ -187,7 +232,7 @@ impl RocksdbStorage {
             .with_context(|| {
                 format!("Failed getting number of logs for L2 block #{snapshot_l2_block}")
             })?;
-        let chunk_count = log_count.div_ceil(desired_log_chunk_size);
+        let chunk_count = log_count.div_ceil(init_parameters.desired_log_chunk_size);
         tracing::info!(
             "Estimated the number of chunks for recovery based on {log_count} logs: {chunk_count}"
         );

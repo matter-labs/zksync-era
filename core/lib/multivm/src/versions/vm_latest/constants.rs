@@ -1,6 +1,6 @@
 use circuit_sequencer_api::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
-use zk_evm_1_5_0::aux_structures::MemoryPage;
-pub use zk_evm_1_5_0::zkevm_opcode_defs::system_params::{
+use zk_evm_1_5_2::aux_structures::MemoryPage;
+pub use zk_evm_1_5_2::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 
@@ -25,7 +25,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         MultiVmSubversion::SmallBootloaderMemory => 59_000_000,
         MultiVmSubversion::IncreasedBootloaderMemory
         | MultiVmSubversion::Gateway
-        | MultiVmSubversion::EvmEmulator => 63_800_000,
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 63_800_000,
     }
 }
 
@@ -68,7 +69,9 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
             32
         }
         // With gateway upgrade we increased max number of factory dependencies
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => 64,
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => 64,
     }
 }
 
@@ -215,7 +218,7 @@ pub(crate) const fn get_result_success_first_slot(subversion: MultiVmSubversion)
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
 
 pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
-    zk_evm_1_5_0::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+    zk_evm_1_5_2::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 
 /// The maximal number of gas that is supposed to be spent in a batch. This value is displayed in the system context as well
 /// as the API for each batch.

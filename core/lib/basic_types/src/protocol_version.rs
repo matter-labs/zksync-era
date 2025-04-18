@@ -73,6 +73,7 @@ pub enum ProtocolVersionId {
     Version27,
     Version28,
     Version29,
+    Version30,
 }
 
 impl ProtocolVersionId {
@@ -127,10 +128,11 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
-            ProtocolVersionId::Version28 => VmVersion::VmInterop,
+            ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version29 => VmVersion::VmInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
         }
     }
 
@@ -314,10 +316,10 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
-            ProtocolVersionId::Version28 => VmVersion::VmInterop,
-
-            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version30 => VmVersion::VmInterop,
         }
     }
 }
