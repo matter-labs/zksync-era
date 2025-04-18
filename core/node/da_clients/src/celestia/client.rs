@@ -14,17 +14,10 @@ use eq_sdk::{
         ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
     },
     types::BlobId,
-    EqClient,
-    KeccakInclusionToDataRootProofOutput,
+    EqClient, KeccakInclusionToDataRootProofOutput,
 };
 use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
-use zksync_types::{
-    H160,
-    ethabi,
-    ethabi::{Contract, Event, EventParam, FixedBytes, Uint, Bytes, Token},
-    web3::{BlockNumber, contract::Tokenize},
-};
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
@@ -34,14 +27,19 @@ use zksync_eth_client::{
     clients::{DynClient, L1},
     EthInterface,
 };
+use zksync_types::{
+    ethabi,
+    ethabi::{Bytes, Contract, Event, EventParam, FixedBytes, Token, Uint},
+    web3::{contract::Tokenize, BlockNumber},
+    H160, U256, U64,
+};
 
 use crate::{
     celestia::{
         blobstream::{
             find_block_range, get_latest_blobstream_relayed_height, AttestationProof,
             BinaryMerkleProof, CelestiaZKStackInput, DataRootInclusionProof,
-            DataRootInclusionProofResponse, DataRootTuple,
-            TendermintRPCClient,
+            DataRootInclusionProofResponse, DataRootTuple, TendermintRPCClient,
         },
         sdk::{BlobTxHash, RawCelestiaClient},
     },
@@ -63,7 +61,6 @@ impl CelestiaClient {
         secrets: CelestiaSecrets,
         eth_client: Box<DynClient<L1>>,
     ) -> anyhow::Result<Self> {
-
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
             .connect()
@@ -74,10 +71,11 @@ impl CelestiaClient {
             RawCelestiaClient::new(celestia_grpc_channel, private_key, config.chain_id.clone())
                 .expect("could not create Celestia client");
 
-        let eq_service_grpc_channel = Endpoint::from_str(config.eq_service_grpc_url.clone().as_str())?
-            .timeout(time::Duration::from_millis(config.timeout_ms))
-            .connect()
-            .await?;
+        let eq_service_grpc_channel =
+            Endpoint::from_str(config.eq_service_grpc_url.clone().as_str())?
+                .timeout(time::Duration::from_millis(config.timeout_ms))
+                .connect()
+                .await?;
         let eq_client = EqClient::new(eq_service_grpc_channel);
         Ok(Self {
             config,
@@ -87,10 +85,7 @@ impl CelestiaClient {
         })
     }
 
-    async fn get_proof_data(
-        &self,
-        blob_id: &str,
-    ) -> Result<Option<(Vec<u8>, Vec<u8>)>, DAError> {
+    async fn get_proof_data(&self, blob_id: &str) -> Result<Option<(Vec<u8>, Vec<u8>)>, DAError> {
         tracing::debug!("Parsing blob id: {}", blob_id);
         let blob_id_struct = blob_id
             .parse::<BlobId>()
@@ -120,7 +115,7 @@ impl CelestiaClient {
                 Some(InclusionResponseValue::Proof(proof)) => proof,
                 _ => {
                     return Err(DAError {
-                        error: anyhow::anyhow!("Complete status should be accompanied by a Proof, eq-service is broken"), 
+                        error: anyhow::anyhow!("Complete status should be accompanied by a Proof, eq-service is broken"),
                         is_retriable: false
                     });
                 }
@@ -130,13 +125,13 @@ impl CelestiaClient {
                     error: anyhow::anyhow!("eq-service returned PermanentFailure"),
                     is_retriable: false,
                 });
-            },
+            }
             InclusionResponseStatus::RetryableFailure => {
                 return Err(DAError {
                     error: anyhow::anyhow!("eq-service returned RetryableFailure"),
                     is_retriable: true,
                 });
-            },
+            }
             _ => {
                 tracing::debug!("eq-service returned non-complete status, returning None");
                 return Ok(None);
@@ -151,6 +146,148 @@ impl CelestiaClient {
         let proof = proof_data.proof_data;
         let public_values = proof_data.public_values;
         Ok(Some((public_values, proof)))
+    }
+
+    async fn fetch_heights_and_parse_blob_id(
+        &self,
+        blob_id: &str,
+    ) -> Result<(U64, U256, BlobId), DAError> {
+        let eth_current_height = self
+            .eth_client
+            .block_number()
+            .await
+            .map_err(to_retriable_da_error)?;
+
+        let blobstream_addr = H160::from_str(self.config.blobstream_contract_address.as_str())
+            .map_err(to_non_retriable_da_error)?;
+
+        let latest_blobstream_height =
+            get_latest_blobstream_relayed_height(&self.eth_client, blobstream_addr).await?;
+        tracing::debug!("Latest blobstream block: {}", latest_blobstream_height);
+
+        tracing::debug!("Parsing blob id: {}", blob_id);
+        let blob_id_struct = blob_id
+            .parse::<BlobId>()
+            .map_err(to_non_retriable_da_error)?;
+
+        Ok((eth_current_height, latest_blobstream_height, blob_id_struct))
+    }
+
+    async fn find_blobstream_block_range(
+        &self,
+        target_height: u64,
+        latest_blobstream_height: U256,
+        eth_current_height: U64,
+    ) -> Result<Option<(U256, U256, U256)>, DAError> {
+        let blobstream_addr = H160::from_str(self.config.blobstream_contract_address.as_str())
+            .map_err(to_non_retriable_da_error)?;
+
+        find_block_range(
+            &self.eth_client,
+            target_height,
+            latest_blobstream_height,
+            BlockNumber::Number(eth_current_height),
+            blobstream_addr,
+            self.config.blobstream_events_num_pages,
+            self.config.blobstream_events_page_size,
+        )
+        .await
+        .map_err(|e| to_retriable_da_error(anyhow::anyhow!("Failed to find block range: {}", e)))
+    }
+
+    async fn create_attestation_proof(
+        &self,
+        target_height: u64,
+        from: U256,
+        to: U256,
+        proof_nonce: U256,
+    ) -> Result<AttestationProof, DAError> {
+        let tm_rpc_client =
+            TendermintRPCClient::new(self.config.celestia_core_tendermint_rpc_url.clone());
+
+        // Get data root inclusion proof
+        let data_root_inclusion_proof = self
+            .fetch_data_root_inclusion_proof(
+                &tm_rpc_client,
+                target_height,
+                from.as_u64(),
+                to.as_u64(),
+            )
+            .await?;
+
+        // Get data root
+        let data_root = tm_rpc_client
+            .get_data_root(target_height)
+            .await
+            .map_err(to_retriable_da_error)?;
+
+        // Create attestation proof components
+        let data_root_tuple = DataRootTuple {
+            height: Uint::from(target_height),
+            data_root: data_root.to_vec(),
+        };
+
+        let data_root_index = Uint::from_dec_str(&data_root_inclusion_proof.index)
+            .map_err(to_non_retriable_da_error)?;
+
+        let total: u64 = data_root_inclusion_proof
+            .total
+            .parse()
+            .map_err(to_non_retriable_da_error)?;
+        let evm_total = Uint::from(total);
+
+        let side_nodes: Vec<FixedBytes> = data_root_inclusion_proof.aunts;
+
+        let binary_merkle_proof = BinaryMerkleProof {
+            side_nodes,
+            key: data_root_index,
+            num_leaves: evm_total,
+        };
+
+        Ok(AttestationProof {
+            tuple_root_nonce: proof_nonce,
+            tuple: data_root_tuple,
+            proof: binary_merkle_proof,
+        })
+    }
+
+    async fn fetch_data_root_inclusion_proof(
+        &self,
+        tm_rpc_client: &TendermintRPCClient,
+        target_height: u64,
+        from: u64,
+        to: u64,
+    ) -> Result<DataRootInclusionProof, DAError> {
+        let data_root_inclusion_proof_string = tm_rpc_client
+            .get_data_root_inclusion_proof(target_height, from, to)
+            .await
+            .map_err(|e| DAError {
+                error: anyhow::anyhow!("Failed to get data root inclusion proof: {}", e),
+                is_retriable: false,
+            })?;
+
+        let data_root_inclusion_proof_response: DataRootInclusionProofResponse =
+            serde_json::from_str(&data_root_inclusion_proof_string).unwrap();
+
+        Ok(data_root_inclusion_proof_response.result.proof)
+    }
+
+    fn create_inclusion_data(
+        &self,
+        attestation_proof: AttestationProof,
+        proof_data: (Vec<u8>, Vec<u8>),
+    ) -> Result<Option<InclusionData>, DAError> {
+        let (public_values, proof) = proof_data;
+
+        let celestia_zkstack_input = CelestiaZKStackInput {
+            attestation_proof,
+            equivalence_proof: Bytes::from(proof),
+            public_values: Bytes::from(public_values),
+        };
+
+        Ok(Some(InclusionData {
+            data: ethabi::encode(&[Token::Tuple(celestia_zkstack_input.into_tokens())]),
+        }))
     }
 }
 
@@ -196,116 +333,49 @@ impl DataAvailabilityClient for CelestiaClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-
-        let eth_current_height = self
-            .eth_client
-            .block_number()
-            .await
-            .map_err(to_retriable_da_error)?;
-
-        let latest_blobstream_height =
-            get_latest_blobstream_relayed_height(&self.eth_client, H160::from_str(self.config.blobstream_contract_address.clone().as_str()).map_err(to_non_retriable_da_error)?).await?;
-        tracing::debug!("Latest blobstream block: {}", latest_blobstream_height);
-
-        tracing::debug!("Parsing blob id: {}", blob_id);
-        let blob_id_struct = blob_id
-            .parse::<BlobId>()
-            .map_err(to_non_retriable_da_error)?;
+        // Step 1: Get heights and validate blob ID
+        let (eth_current_height, latest_blobstream_height, blob_id_struct) =
+            self.fetch_heights_and_parse_blob_id(blob_id).await?;
 
         let target_height: u64 = blob_id_struct.height.into();
         tracing::debug!("Checking blobstream for height: {}", target_height);
 
-        let blobstream_contract_address = H160::from_str(self.config.blobstream_contract_address.clone().as_str()).map_err(to_non_retriable_da_error)?;
+        // Step 2: Find block range
+        let block_range = self
+            .find_blobstream_block_range(
+                target_height,
+                latest_blobstream_height,
+                eth_current_height,
+            )
+            .await?;
 
-        // Call find_block_range
-        // This function will return None until the relayed height is relayed to blobstream
-        let (from, to, proof_nonce) = match find_block_range(
-            &self.eth_client,
-            target_height,
-            latest_blobstream_height,
-            BlockNumber::Number(eth_current_height),
-            blobstream_contract_address,
-            self.config.blobstream_events_num_pages,
-            self.config.blobstream_events_page_size,
-        )
-        .await
-        .map_err(|e| to_retriable_da_error(anyhow::anyhow!("Failed to find block range: {}", e)))?
-        {
-            Some((from, to, proof_nonce)) => {
-                tracing::debug!("Found block range: {} - {}", from, to);
-                (from, to, proof_nonce)
-            }
+        let (from, to, proof_nonce) = match block_range {
+            Some(range) => range,
             None => {
                 tracing::debug!("Blobstream is still waiting for height: {}", target_height);
                 return Ok(None);
             }
         };
 
-        let tm_rpc_client = TendermintRPCClient::new(self.config.celestia_core_tendermint_rpc_url.clone());
-        let data_root_inclusion_proof_string = tm_rpc_client
-            .get_data_root_inclusion_proof(target_height, from.as_u64(), to.as_u64())
-            .await
-            .map_err(|e| DAError {
-                error: anyhow::anyhow!("Failed to get data root inclusion proof: {}", e),
-                is_retriable: false,
-            })?;
-        let data_root_inclusion_proof_response: DataRootInclusionProofResponse =
-            serde_json::from_str(&data_root_inclusion_proof_string).unwrap();
-        let data_root_inclusion_proof: DataRootInclusionProof =
-            data_root_inclusion_proof_response.result.proof;
+        // Step 3: Get proof data
+        let attestation_proof = self
+            .create_attestation_proof(target_height, from, to, proof_nonce)
+            .await?;
 
-        let data_root_index = Uint::from_dec_str(&data_root_inclusion_proof.index).map_err(to_non_retriable_da_error)?;
-
-        let total: u64 = data_root_inclusion_proof
-            .total
-            .parse()
-            .map_err(to_non_retriable_da_error)?;
-        let evm_total = Uint::from(total);
-
-        let data_root = tm_rpc_client.get_data_root(target_height).await.map_err(to_retriable_da_error)?;
-
-        // Convert proof data into AttestationProof
-        let data_root_tuple = DataRootTuple {
-            // I think this is correct little endian but we'll see
-            height: Uint::from(target_height),
-            data_root: data_root.to_vec(),
-        };
-
-        let side_nodes: Vec<FixedBytes> = data_root_inclusion_proof.aunts;
-
-        let binary_merkle_proof = BinaryMerkleProof {
-            side_nodes: side_nodes,
-            key: data_root_index,
-            num_leaves: evm_total,
-        };
-
-        let attestation_proof = AttestationProof {
-            tuple_root_nonce: proof_nonce,
-            tuple: data_root_tuple,
-            proof: binary_merkle_proof,
-        };
-
-        let (public_values, proof) = match self.get_proof_data(blob_id).await? {
+        // Step 4: Get proof data for the blob
+        let proof_data = match self.get_proof_data(blob_id).await? {
             Some(p) => p,
             None => return Ok(None),
         };
 
-        let celestia_zkstack_input = CelestiaZKStackInput {
-            attestation_proof: attestation_proof,
-            equivalence_proof: Bytes::from(proof),
-            public_values: Bytes::from(public_values),
-        };
-
-        Ok(Some(InclusionData {
-            data: ethabi::encode(&[Token::Tuple(celestia_zkstack_input.into_tokens())]),
-        }))
+        // Step 5: Combine everything into inclusion data
+        self.create_inclusion_data(attestation_proof, proof_data)
     }
 
     async fn ensure_finality(
         &self,
         dispatch_request_id: String,
     ) -> Result<Option<FinalityResponse>, DAError> {
-
         let blob_id = dispatch_request_id
             .parse::<BlobId>()
             .map_err(to_non_retriable_da_error)?;
