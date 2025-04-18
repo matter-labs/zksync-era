@@ -90,6 +90,11 @@ impl GeneralConfig {
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
+    pub fn prover_gateway_url(&self) -> anyhow::Result<Option<String>> {
+        let port = self.0.get_opt::<u16>("prover_gateway.port")?;
+        Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
+    }
+
     pub fn da_client_type(&self) -> Option<&str> {
         self.0.get_raw("da_client").and_then(|val| {
             let val = val.as_mapping()?;
@@ -194,7 +199,7 @@ impl GeneralConfigPatch {
     }
 
     pub fn set_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
-        self.0.insert("data_handler.api_url", url)
+        self.0.insert("data_handler.gateway_api_url", url)
     }
 
     pub fn proof_compressor_setup_download_url(&self) -> anyhow::Result<String> {

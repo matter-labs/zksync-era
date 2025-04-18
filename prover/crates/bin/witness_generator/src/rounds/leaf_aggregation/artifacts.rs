@@ -91,7 +91,8 @@ impl ArtifactsManager for LeafAggregation {
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.block_number)
-            .await;
+            .await
+            .unwrap();
         let batch_sealed_at = transaction
             .fri_basic_witness_generator_dal()
             .get_batch_sealed_at_timestamp(artifacts.block_number)

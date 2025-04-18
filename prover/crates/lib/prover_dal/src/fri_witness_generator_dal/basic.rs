@@ -227,7 +227,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
     pub async fn protocol_version_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> ProtocolSemanticVersion {
+    ) -> Option<ProtocolSemanticVersion> {
         let result = sqlx::query!(
             r#"
             SELECT
@@ -240,14 +240,16 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await
         .unwrap();
 
-        ProtocolSemanticVersion::new(
-            ProtocolVersionId::try_from(result.protocol_version.unwrap() as u16).unwrap(),
-            VersionPatch(result.protocol_version_patch as u32),
-        )
+        result.map(|row| {
+            ProtocolSemanticVersion::new(
+                ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
+                VersionPatch(row.protocol_version_patch as u32),
+            )
+        })
     }
 
     pub async fn get_basic_witness_generator_job_for_batch(

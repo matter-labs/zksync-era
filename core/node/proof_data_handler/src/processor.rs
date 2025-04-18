@@ -61,6 +61,19 @@ impl<PM: ProcessorMode> Processor<PM> {
         }
     }
 
+    pub async fn get_oldest_not_proven_batch(
+        &self,
+    ) -> Result<Option<L1BatchNumber>, ProcessorError> {
+        self.pool
+            .connection()
+            .await
+            .unwrap()
+            .proof_generation_dal()
+            .get_oldest_not_generated_batch()
+            .await
+            .map_err(Into::into)
+    }
+
     /// Will fetch all the required data for the batch and return it.
     ///
     /// ## Panics
@@ -206,7 +219,7 @@ impl Processor<Locking> {
     }
 
     /// Marks the batch as 'unpicked', allowing it to be picked up by another prover.
-    async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
+    pub async fn unlock_batch(&self, l1_batch_number: L1BatchNumber) -> Result<(), ProcessorError> {
         self.pool
             .connection()
             .await?

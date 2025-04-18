@@ -953,7 +953,8 @@ mod tests {
                 ProtocolSemanticVersion::default(),
                 L1VerifierConfig::default(),
             )
-            .await;
+            .await
+            .unwrap();
         transaction
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(
@@ -962,7 +963,8 @@ mod tests {
                 ProtocolSemanticVersion::default(),
                 DateTime::<Utc>::default(),
             )
-            .await;
+            .await
+            .unwrap();
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
