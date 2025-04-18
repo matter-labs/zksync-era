@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use anyhow::Context as _;
 use axum::{
     extract::{DefaultBodyLimit, State},
-    routing::{get, post},
+    routing::post,
     Json, Router,
 };
 use tokio::sync::watch;
@@ -22,7 +22,7 @@ pub struct Api {
 impl Api {
     pub fn new(processor: ProofDataManager, port: u16) -> Self {
         let router = Router::new()
-            .route("/poll_generated_proofs", get(Api::get_generated_proofs))
+            .route("/poll_generated_proofs", post(Api::get_generated_proofs))
             .route(
                 "/submit_request_for_proofs",
                 post(Api::save_proof_generation_data),
