@@ -1,3 +1,5 @@
+// TODO: remove non-secret / secret config split (isn't necessary)
+
 use anyhow::Context;
 use smart_config::{
     de::{FromSecretString, Optional, Serde},
@@ -41,6 +43,8 @@ pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
     Celestia(CelestiaSecrets),
     Eigen(EigenSecrets),
+    // Needed for compatibility with the non-secret part of the DA config
+    NoDA,
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
