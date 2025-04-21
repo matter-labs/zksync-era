@@ -1,23 +1,44 @@
 //! Extensions for the `ObservabilityConfig` to install the observability stack.
 
-use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, ParseErrors};
+use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig, ParseErrors};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-use crate::configs::{ObservabilityConfig, PrometheusConfig};
+use crate::{
+    configs::{ObservabilityConfig, PrometheusConfig},
+    sources::ConfigSources,
+};
 
-impl ObservabilityConfig {
-    pub fn from_sources(sources: ConfigSources) -> Result<Self, ParseErrors> {
-        let schema = ConfigSchema::new(&Self::DESCRIPTION, "observability");
-        let repo = ConfigRepository::new(&schema).with_all(sources);
-        // `unwrap()` is safe: `Self` is the only top-level config, so an error would require for it to have a recursive definition.
-        repo.single::<Self>().unwrap().parse()
+impl ConfigSources {
+    /// Returns the observability config. It should be used to install observability early in the executable lifecycle.
+    pub fn observability(&self) -> anyhow::Result<ObservabilityConfig> {
+        let schema = ConfigSchema::new(&ObservabilityConfig::DESCRIPTION, "observability");
+        let mut repo = ConfigRepository::new(&schema).with_all(self.0.clone());
+        repo.deserializer_options().coerce_variant_names = true;
+        // - `unwrap()` is safe: `Self` is the only top-level config, so an error would require for it to have a recursive definition.
+        // - While logging is not enabled at this point, we use `log_all_errors()` for more intelligent error summarization.
+        repo.single().unwrap().parse().log_all_errors()
     }
 
+    /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
+    /// with the existing file-based configs (e.g., coerce enum variant names).
+    pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
+        let mut repo = ConfigRepository::new(schema).with_all(self.0);
+        repo.deserializer_options().coerce_variant_names = true;
+        repo
+    }
+}
+
+impl ObservabilityConfig {
     /// Installs the observability stack based on the configuration.
-    ///
-    /// If any overrides are needed, consider using the `TryFrom` implementations.
     pub fn install(self) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
-        let logs = zksync_vlog::Logs::try_from(self.clone())?;
+        self.install_with_logs(std::convert::identity)
+    }
+
+    pub fn install_with_logs(
+        self,
+        logs_transform: impl FnOnce(zksync_vlog::Logs) -> zksync_vlog::Logs,
+    ) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
+        let logs = logs_transform(zksync_vlog::Logs::try_from(self.clone())?);
         let sentry = Option::<zksync_vlog::Sentry>::try_from(self.clone())?;
         let opentelemetry = Option::<zksync_vlog::OpenTelemetry>::try_from(self.clone())?;
 
@@ -26,9 +47,7 @@ impl ObservabilityConfig {
             .with_sentry(sentry)
             .with_opentelemetry(opentelemetry)
             .build();
-
         tracing::info!("Installed observability stack with the following configuration: {self:?}");
-
         Ok(guard)
     }
 }

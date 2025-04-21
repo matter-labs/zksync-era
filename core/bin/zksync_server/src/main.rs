@@ -4,13 +4,10 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::runtime::Runtime;
 use zksync_config::{
-    configs::{
-        wallets::Wallets, ContractsConfig, GeneralConfig, GenesisConfigWrapper,
-        ObservabilityConfig, Secrets,
-    },
+    configs::{wallets::Wallets, ContractsConfig, GeneralConfig, GenesisConfigWrapper, Secrets},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ParseResultExt,
+    ParseResultExt,
 };
 use zksync_core_leftovers::{Component, Components};
 
@@ -114,17 +111,14 @@ fn main() -> anyhow::Result<()> {
     };
     let config_sources = config_file_paths.into_config_sources("")?;
 
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
     let runtime = Runtime::new().context("failed creating Tokio runtime")?;
     let observability_guard = {
         // Observability initialization should be performed within tokio context.
         let _context_guard = runtime.enter();
-        observability_config.install()?
+        config_sources.observability()?.install()?
     };
 
-    let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
-    repo.deserializer_options().coerce_variant_names = true;
+    let repo = config_sources.build_repository(&schema);
     let configs: GeneralConfig = repo.single()?.parse().log_all_errors()?;
     let wallets: Wallets = repo.single()?.parse().log_all_errors()?;
     let secrets: Secrets = repo.single()?.parse().log_all_errors()?;

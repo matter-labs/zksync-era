@@ -2,10 +2,7 @@ use std::{path::Path, time::Instant};
 
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_config::{
-    configs::ObservabilityConfig, full_config_schema, sources::ConfigFilePaths, ConfigRepository,
-    DBConfig, ParseResultExt,
-};
+use zksync_config::{full_config_schema, sources::ConfigFilePaths, DBConfig, ParseResultExt};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
@@ -55,13 +52,10 @@ impl Cli {
 
 fn main() -> anyhow::Result<()> {
     let config_sources = ConfigFilePaths::default().into_config_sources("")?;
-
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
-    let _observability_guard = observability_config.install()?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
     let schema = full_config_schema(false);
-    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let repo = config_sources.build_repository(&schema);
 
     let db_config: DBConfig = repo
         .single()

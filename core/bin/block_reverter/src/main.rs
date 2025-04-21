@@ -16,11 +16,11 @@ use zksync_block_reverter::{
 use zksync_config::{
     configs::{
         wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, GenesisConfigWrapper,
-        L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
+        L1Secrets, ProtectiveReadsWriterConfig,
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ContractsConfig, DBConfig, EthConfig, ParseResultExt, PostgresConfig,
+    ContractsConfig, DBConfig, EthConfig, ParseResultExt, PostgresConfig,
 };
 use zksync_contracts::getters_facet_contract;
 use zksync_dal::{ConnectionPool, Core};
@@ -127,24 +127,12 @@ async fn main() -> anyhow::Result<()> {
     let config_sources =
         tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
 
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
-    // FIXME: why manual wiring?
-    let logs = zksync_vlog::Logs::try_from(observability_config.clone())
-        .context("logs")?
-        .disable_default_logs(); // It's a CLI application, so we only need to show logs that were actually requested.
-    let sentry: Option<zksync_vlog::Sentry> =
-        TryFrom::try_from(observability_config.clone()).context("sentry")?;
-    let opentelemetry: Option<zksync_vlog::OpenTelemetry> =
-        TryFrom::try_from(observability_config.clone()).context("opentelemetry")?;
-    let _guard = zksync_vlog::ObservabilityBuilder::new()
-        .with_logs(Some(logs))
-        .with_sentry(sentry)
-        .with_opentelemetry(opentelemetry)
-        .build();
+    let _guard = config_sources
+        .observability()?
+        .install_with_logs(zksync_vlog::Logs::disable_default_logs)?;
 
     let schema = full_config_schema(false);
-    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let repo = config_sources.build_repository(&schema);
     let wallets_config: Option<Wallets> = repo.single()?.parse_opt().log_all_errors()?;
     let genesis_config = repo
         .single::<GenesisConfigWrapper>()?

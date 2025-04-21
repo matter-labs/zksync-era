@@ -4,10 +4,10 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{ContractVerifierSecrets, DatabaseSecrets, ObservabilityConfig},
+    configs::{ContractVerifierSecrets, DatabaseSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ContractVerifierConfig, ParseResultExt,
+    ContractVerifierConfig, ParseResultExt,
 };
 use zksync_contract_verifier_lib::{etherscan::EtherscanVerifier, ContractVerifier};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -67,12 +67,10 @@ async fn main() -> anyhow::Result<()> {
     let config_sources =
         tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
 
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
-    let _observability_guard = observability_config.install()?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
     let schema = full_config_schema(false);
-    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let repo = config_sources.build_repository(&schema);
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
     let contract_verifier_secrets: ContractVerifierSecrets =
         repo.single()?.parse().log_all_errors()?;

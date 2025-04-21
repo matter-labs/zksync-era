@@ -4,7 +4,19 @@ use std::{
 };
 
 use anyhow::Context;
-use smart_config::{ConfigSources, Environment, Prefixed, Yaml};
+use smart_config::{Environment, Prefixed, Yaml};
+
+/// Wrapper around configuration sources.
+#[derive(Debug, Default)]
+pub struct ConfigSources(pub(crate) smart_config::ConfigSources);
+
+impl ConfigSources {
+    /// Adds a new YAML configuration source.
+    pub fn with_yaml(mut self, path: &Path) -> anyhow::Result<Self> {
+        self.0.push(ConfigFilePaths::read_yaml(path)?);
+        Ok(self)
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct ConfigFilePaths {
@@ -31,7 +43,7 @@ impl ConfigFilePaths {
 
     /// **Important.** This method is blocking.
     pub fn into_config_sources(self, env_prefix: &str) -> anyhow::Result<ConfigSources> {
-        let mut sources = ConfigSources::default();
+        let mut sources = smart_config::ConfigSources::default();
 
         if let Some(path) = &self.general {
             sources.push(Self::read_yaml(path)?);
@@ -58,6 +70,6 @@ impl ConfigFilePaths {
         }
 
         sources.push(Environment::prefixed(env_prefix));
-        Ok(sources)
+        Ok(ConfigSources(sources))
     }
 }

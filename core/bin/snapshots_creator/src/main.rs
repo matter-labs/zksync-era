@@ -13,10 +13,10 @@ use anyhow::Context as _;
 use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{
-    configs::{DatabaseSecrets, ObservabilityConfig, PrometheusConfig},
+    configs::{DatabaseSecrets, PrometheusConfig},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ParseResultExt, SnapshotsCreatorConfig,
+    ParseResultExt, SnapshotsCreatorConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
@@ -70,12 +70,10 @@ async fn main() -> anyhow::Result<()> {
     let config_sources =
         tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
 
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
-    let _observability_guard = observability_config.install()?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
     let schema = full_config_schema(false);
-    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let repo = config_sources.build_repository(&schema);
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
     let creator_config: SnapshotsCreatorConfig = repo.single()?.parse().log_all_errors()?;
     let prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;

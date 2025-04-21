@@ -7,10 +7,10 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::{oneshot, watch};
 use zksync_config::{
-    configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig, ObservabilityConfig},
+    configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ParseResultExt,
+    ParseResultExt,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
@@ -55,12 +55,9 @@ async fn main() -> anyhow::Result<()> {
     };
     let config_sources = config_file_paths.into_config_sources("")?;
 
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
-    let _observability_guard = observability_config.install()?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
-    repo.deserializer_options().coerce_variant_names = true;
+    let repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
 

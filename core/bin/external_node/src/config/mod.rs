@@ -22,7 +22,7 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         en_config::ENConfig,
-        DataAvailabilitySecrets, GeneralConfig, ObservabilityConfig, Secrets,
+        DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     full_config_schema,
     sources::ConfigFilePaths,
@@ -1252,15 +1252,13 @@ impl ExternalNodeConfig<()> {
         };
         let config_sources = config_file_paths.into_config_sources("EN_")?;
 
-        let observability = ObservabilityConfig::from_sources(config_sources.clone())?;
         let observability = {
             let _rt_guard = runtime.enter();
-            observability.install()?
+            config_sources.observability()?.install()?
         };
 
         let schema = full_config_schema(true);
-        let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
-        repo.deserializer_options().coerce_variant_names = true;
+        let repo = config_sources.build_repository(&schema);
         let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
         let external_node_config: ENConfig = repo.single()?.parse().log_all_errors()?;
         let secrets_config: Secrets = repo.single()?.parse().log_all_errors()?;

@@ -11,10 +11,10 @@ use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
 use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
 use zksync_config::{
-    configs::{DatabaseSecrets, GeneralConfig, ObservabilityConfig},
+    configs::{DatabaseSecrets, GeneralConfig},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, ObjectStoreConfig, ParseResultExt,
+    ObjectStoreConfig, ParseResultExt,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
@@ -71,12 +71,9 @@ async fn main() -> anyhow::Result<()> {
     };
     let config_sources = config_file_paths.into_config_sources("")?;
 
-    let observability_config =
-        ObservabilityConfig::from_sources(config_sources.clone()).context("ObservabilityConfig")?;
-    let _observability_guard = observability_config.install()?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let mut repo = ConfigRepository::new(&schema).with_all(config_sources);
-    repo.deserializer_options().coerce_variant_names = true;
+    let repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
     let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
 

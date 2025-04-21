@@ -1,8 +1,6 @@
 use std::io::Write;
 
-use zksync_config::{
-    configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths, ConfigRepository,
-};
+use zksync_config::{configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::contract_verification::api::SourceCodeData;
 
@@ -13,7 +11,7 @@ async fn main() {
     // FIXME: observability? error handling?
 
     let schema = full_config_schema(false);
-    let repo = ConfigRepository::new(&schema).with_all(config_sources);
+    let repo = config_sources.build_repository(&schema);
     let config: DatabaseSecrets = repo.single().unwrap().parse().unwrap();
 
     let pool = ConnectionPool::<Core>::singleton(config.replica_url().unwrap())
