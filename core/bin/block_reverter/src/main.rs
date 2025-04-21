@@ -58,9 +58,10 @@ enum Command {
     /// Displays suggested values to use.
     #[command(name = "print-suggested-values")]
     Display {
-        /// Displays the values as a JSON object, so that they are machine-readable.
-        #[arg(long)]
-        json: bool,
+        /// Displays the values as a JSON object, so that they are machine-readable. If FILE is provided,
+        /// JSON will be written there; else, it will be printed to stdout.
+        #[arg(long, value_name = "FILE")]
+        json: Option<Option<PathBuf>>,
         /// Operator address.
         #[arg(long = "operator-address")]
         operator_address: Address,
@@ -237,10 +238,22 @@ async fn main() -> anyhow::Result<()> {
             let suggested_values = block_reverter
                 .suggested_values(&client, &config, operator_address)
                 .await?;
-            if json {
-                println!("{}", serde_json::to_string(&suggested_values)?);
-            } else {
-                println!("Suggested values for reversion: {:#?}", suggested_values);
+            match json {
+                None => {
+                    // Human-readable format.
+                    println!("Suggested values for reversion: {:#?}", suggested_values);
+                }
+                Some(None) => {
+                    // JSON to stdout.
+                    println!("{}", serde_json::to_string(&suggested_values)?);
+                }
+                Some(Some(path)) => {
+                    // JSON to the specified path.
+                    let json = serde_json::to_string(&suggested_values)?;
+                    fs::write(&path, json)
+                        .await
+                        .with_context(|| format!("failed writing suggested values to {path:?}"))?;
+                }
             }
         }
         Command::SendEthTransaction {
