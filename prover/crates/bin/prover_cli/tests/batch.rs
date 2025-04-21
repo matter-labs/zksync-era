@@ -86,7 +86,8 @@ async fn pli_status_of_non_existing_batch_succeeds() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     Command::cargo_bin("prover_cli")
         .unwrap()
@@ -111,7 +112,8 @@ async fn pli_status_of_multiple_non_existing_batch_succeeds() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     Command::cargo_bin("prover_cli")
         .unwrap()
@@ -230,7 +232,8 @@ async fn insert_bwg_job(
             ProtocolSemanticVersion::default(),
             DateTime::<Utc>::default(),
         )
-        .await;
+        .await
+        .unwrap();
     connection
         .fri_basic_witness_generator_dal()
         .set_status_for_basic_witness_job(status, batch_number)
@@ -532,7 +535,8 @@ async fn pli_status_complete() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 
@@ -931,7 +935,8 @@ async fn pli_status_complete_verbose() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 
@@ -1393,7 +1398,8 @@ async fn pli_status_stuck_job() {
             ProtocolSemanticVersion::default(),
             L1VerifierConfig::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     let batch_0 = L1BatchNumber(0);
 

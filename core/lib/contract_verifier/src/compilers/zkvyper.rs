@@ -83,6 +83,7 @@ impl ZkVyper {
                     abi: artifact["abi"].clone(),
                     bytecode,
                     deployed_bytecode: None,
+                    immutable_refs: Default::default(),
                 });
             }
         }
