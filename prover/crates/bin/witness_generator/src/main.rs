@@ -125,25 +125,18 @@ async fn main() -> anyhow::Result<()> {
         .clone();
     let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
-    let prometheus_config = general_config
-        .prometheus_config
-        .context("missing prometheus config")?;
-
+    let prometheus_config = &general_config.prometheus_config;
     let prometheus_exporter_config = if let Some(base_url) = &prometheus_config.pushgateway_url {
         let url = PrometheusExporterConfig::gateway_endpoint(base_url);
-        tracing::info!("Using Prometheus push gateway: {}", url);
-        PrometheusExporterConfig::push(url, prometheus_config.push_interval())
+        Some(PrometheusExporterConfig::push(
+            url,
+            prometheus_config.push_interval(),
+        ))
     } else {
-        let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
-            port
-        } else {
-            prometheus_config.listener_port
-        };
-        tracing::info!(
-            "Using Prometheus pull on port: {}",
-            prometheus_listener_port
-        );
-        PrometheusExporterConfig::pull(prometheus_listener_port)
+        let prometheus_listener_port = config
+            .prometheus_listener_port
+            .or(prometheus_config.listener_port);
+        prometheus_listener_port.map(PrometheusExporterConfig::pull)
     };
 
     let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
@@ -179,10 +172,14 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let prometheus_task = prometheus_exporter_config.run(stop_receiver.clone());
-
     let mut tasks = Vec::new();
-    tasks.push(tokio::spawn(prometheus_task));
+    if let Some(config) = prometheus_exporter_config {
+        tracing::info!("Using Prometheus exporter with {config:?}");
+        let prometheus_task = tokio::spawn(config.run(stop_receiver.clone()));
+        tasks.push(prometheus_task);
+    } else {
+        tracing::info!("Prometheus exporter is not configured");
+    }
 
     for round in rounds {
         tracing::info!(
