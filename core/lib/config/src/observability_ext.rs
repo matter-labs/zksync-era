@@ -97,10 +97,14 @@ pub trait ParseResultExt<T> {
 
 impl<T> ParseResultExt<T> for Result<T, ParseErrors> {
     fn log_all_errors(self) -> anyhow::Result<T> {
+        const MAX_DISPLAYED_ERRORS: usize = 5;
+
         match self {
             Ok(val) => Ok(val),
             Err(errors) => {
-                for err in errors.iter() {
+                let mut displayed_errors = String::new();
+                let mut error_count = 0;
+                for (i, err) in errors.iter().enumerate() {
                     tracing::error!(
                         path = err.path(),
                         origin = %err.origin(),
@@ -109,9 +113,21 @@ impl<T> ParseResultExt<T> for Result<T, ParseErrors> {
                         "{}",
                         err.inner()
                     );
+
+                    if i < MAX_DISPLAYED_ERRORS {
+                        displayed_errors += &format!("{}. {err}\n", i + 1);
+                    }
+                    error_count += 1;
                 }
+
+                let maybe_truncation_message = if error_count > MAX_DISPLAYED_ERRORS {
+                    format!("; showing first {MAX_DISPLAYED_ERRORS} (all errors are logged at ERROR level)")
+                } else {
+                    String::new()
+                };
+
                 Err(anyhow::anyhow!(
-                    "failed parsing config param(s); errors are logged above"
+                    "failed parsing config param(s): {error_count} error(s) in total{maybe_truncation_message}\n{displayed_errors}"
                 ))
             }
         }
