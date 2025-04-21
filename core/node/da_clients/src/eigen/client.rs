@@ -1,12 +1,13 @@
 use std::{str::FromStr, sync::Arc};
 
+use celestia_types::blob;
 use ethabi::{encode, ParamType, Token};
 use rust_eigenda_client::{
     client::BlobProvider,
     config::{PrivateKey, SrsPointsSource},
     EigenClient,
 };
-use rust_eigenda_v2_client::{core::{Payload, PayloadForm}, payload_disperser::{PayloadDisperser, PayloadDisperserConfig, PayloadDisperserSecrets}, utils::SecretUrl};
+use rust_eigenda_v2_client::{core::{BlobKey, Payload, PayloadForm}, payload_disperser::{PayloadDisperser, PayloadDisperserConfig, PayloadDisperserSecrets}, utils::SecretUrl};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
@@ -160,12 +161,19 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let inclusion_data = self
+        let bytes = hex::decode(blob_id).map_err(|_| {
+            anyhow::anyhow!("Failed to decode blob id: {}", blob_id)
+        }).map_err(to_non_retriable_da_error)?;
+        let blob_key = BlobKey::from_bytes(bytes.try_into().map_err(|_| {
+            anyhow::anyhow!("Failed to convert bytes to a 32-byte array")
+        }).map_err(to_non_retriable_da_error)?);
+        let eigen_dacert = self
             .client
-            .get_inclusion_data(blob_id)
+            .get_inclusion_data(&blob_key)
             .await
             .map_err(to_retriable_da_error)?;
-        if let Some(inclusion_data) = inclusion_data {
+        if let Some(eigen_dacert) = eigen_dacert {
+            let inclusion_data = eigen_dacert.to_bytes(); // todo
             if let Some(verified) = self
                 .check_inclusion_data_verification(&inclusion_data)
                 .await?
