@@ -355,6 +355,39 @@ describe('Upgrade test', function () {
             gatewayInfo ? gatewayInfo.gatewayProvider : null
         );
 
+        const ctmAddress = await slMainContract.getChainTypeManager();
+
+        const ctmIface   = new ethers.Interface(contracts.chainTypeManager);
+        const newProtocolVersion = addToProtocolVersion(
+            Number(await (await new ethers.Contract(ctmAddress, ZKSYNC_MAIN_ABI, alice._providerL1())).getProtocolVersion()),
+            1, 1
+        );
+
+        const deadlineTs   = 4102444800; // 2100‑01‑01 00:00:00 UTC
+
+        const setCTMddlCalldata = ctmIface.encodeFunctionData(
+            'setProtocolVersionDeadline',
+            [ newProtocolVersion, deadlineTs ]
+        );
+
+        const ctmGov = await prepareGovernanceCalldata(
+            ctmAddress,
+            setCTMddlCalldata,
+            await alice._providerL2().getBridgehubContractAddress(),
+            alice._providerL1(),
+            gatewayInfo
+        );
+        
+        console.log('Scheduling CTM.setProtocolVersionDeadline via governance');
+        await sendGovernanceOperation(ctmGov.scheduleTransparentOperation, 0, null);
+        
+        console.log('Executing CTM.setProtocolVersionDeadline via governance');
+        await sendGovernanceOperation(
+            ctmGov.executeOperation,
+            ctmGov.executeOperationValue,
+            gatewayInfo ? gatewayInfo.gatewayProvider : null
+        );
+
         console.log('Sending chain admin operation');
         // Different chain admin impls are used depending on whether gateway is used.
         if (gatewayInfo) {
