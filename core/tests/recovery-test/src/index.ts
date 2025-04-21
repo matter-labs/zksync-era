@@ -184,7 +184,7 @@ export class NodeProcess {
         chain?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
-        let componentsArr = process.env.DEPLOYMENT_MODE === 'Validium' ? [withDAFetcher(components)] : [components];
+        let componentsArr = env["DEPLOYMENT_MODE"] === 'Validium' ? [withDAFetcher(components)] : [components];
 
         let childProcess = runExternalNodeInBackground({
             components: componentsArr,
