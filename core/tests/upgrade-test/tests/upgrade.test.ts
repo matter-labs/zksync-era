@@ -355,7 +355,19 @@ describe('Upgrade test', function () {
             gatewayInfo ? gatewayInfo.gatewayProvider : null
         );
 
-        const ctmAddress = await slMainContract.getChainTypeManager();
+        let settlementLayerDiamondProxy: ethers.Contract;
+        if (gatewayInfo) {
+            settlementLayerDiamondProxy = new ethers.Contract(
+                gatewayInfo.l2DiamondProxyAddress,
+                ZK_CHAIN_INTERFACE,
+                gatewayInfo.gatewayProvider
+            );
+        } else {
+            const zksyncAddress = await alice._providerL2().getMainContractAddress();
+            settlementLayerDiamondProxy = new ethers.Contract(zksyncAddress, ZK_CHAIN_INTERFACE, alice._providerL1());
+        }
+
+        const ctmAddress = await settlementLayerDiamondProxy.getChainTypeManager();
 
         const ctmIface = new ethers.Interface(contracts.chainTypeManager);
         const newProtocolVersion = addToProtocolVersion(
