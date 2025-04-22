@@ -1,4 +1,3 @@
-
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_da_clients::eigen::EigenDAClient;
