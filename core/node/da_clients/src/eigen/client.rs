@@ -16,12 +16,12 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 
-use crate::utils::to_retriable_da_error;
+use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
 pub struct EigenDAClient {
-    client: EigenClient,
+    client: PayloadDisperser,
 }
 
 impl EigenDAClient {
@@ -92,9 +92,11 @@ impl DataAvailabilityClient for EigenDAClient {
                 .map_err(|_| anyhow::anyhow!("Failed to convert bytes to a 32-byte array"))
                 .map_err(to_non_retriable_da_error)?,
         );
-        let eigenda_cert = self.client
-        .get_inclusion_data(&blob_key).await
-        .map_err(to_retriable_da_error)?;
+        let eigenda_cert = self
+            .client
+            .get_inclusion_data(&blob_key)
+            .await
+            .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
             // let inclusion_data = eigenda_cert.to_bytes(); //todo
             let inclusion_data = vec![];

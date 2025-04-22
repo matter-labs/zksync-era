@@ -135,7 +135,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     .as_ref()
                     .map(|a| a.expose_str().to_string()),
                 authenticated: Some(config.authenticated),
-                points_source: Some(match &config.points_source {
                 cert_verifier_addr: Some(format!("{:?}", config.cert_verifier_addr)),
                 blob_version: Some(config.blob_version as u32),
                 polynomial_form: Some(match config.polynomial_form {
