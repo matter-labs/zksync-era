@@ -1,14 +1,14 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
-use rust_eigenda_client::{
-    client::BlobProvider,
-    config::{PrivateKey, SrsPointsSource},
-    EigenClient,
+use rust_eigenda_v2_client::{
+    core::{BlobKey, Payload, PayloadForm},
+    payload_disperser::{PayloadDisperser, PayloadDisperserConfig},
+    utils::{PrivateKey, SecretUrl},
 };
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PointsSource},
+    configs::da_client::eigen::{EigenSecrets, PolynomialForm},
     EigenConfig,
 };
 use zksync_da_client::{
@@ -25,11 +25,7 @@ pub struct EigenDAClient {
 }
 
 impl EigenDAClient {
-    pub async fn new(
-        config: EigenConfig,
-        secrets: EigenSecrets,
-        blob_provider: Arc<dyn BlobProvider>,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
         let url = Url::from_str(
             config
                 .eigenda_eth_rpc
@@ -37,27 +33,22 @@ impl EigenDAClient {
                 .expose_str(),
         )
         .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
-        let eth_rpc_url = rust_eigenda_client::config::SecretUrl::new(url);
-
-        let srs_points_source = match config.points_source {
-            PointsSource::Path(path) => SrsPointsSource::Path(path),
-            PointsSource::Url(url) => SrsPointsSource::Url(url),
+        let payload_form = match config.polynomial_form {
+            PolynomialForm::Coeff => PayloadForm::Coeff,
+            PolynomialForm::Eval => PayloadForm::Eval,
         };
 
-        let eigen_config = rust_eigenda_client::config::EigenConfig::new(
-            config.disperser_rpc,
-            eth_rpc_url,
-            config.settlement_layer_confirmation_depth,
-            config.eigenda_svc_manager_address,
-            config.wait_for_finalization,
-            config.authenticated,
-            srs_points_source,
-            config.custom_quorum_numbers,
-        )?;
+        let payload_disperser_config = PayloadDisperserConfig {
+            polynomial_form: payload_form,
+            blob_version: config.blob_version,
+            cert_verifier_address: config.cert_verifier_addr,
+            eth_rpc_url: SecretUrl::new(url),
+            disperser_rpc: config.disperser_rpc,
+            use_secure_grpc_flag: config.authenticated,
+        };
         let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        let eigen_secrets = rust_eigenda_client::config::EigenSecrets { private_key };
-        let client = EigenClient::new(eigen_config, eigen_secrets, blob_provider)
+        let client = PayloadDisperser::new(payload_disperser_config, private_key)
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
         Ok(Self { client })
@@ -71,13 +62,14 @@ impl DataAvailabilityClient for EigenDAClient {
         _: u32, // batch number
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError> {
-        let blob_id = self
+        let payload = Payload::new(data);
+        let blob_key = self
             .client
-            .dispatch_blob(data)
+            .send_payload(payload)
             .await
             .map_err(to_retriable_da_error)?;
 
-        Ok(DispatchResponse::from(blob_id))
+        Ok(DispatchResponse::from(hex::encode(blob_key.to_bytes())))
     }
 
     async fn ensure_finality(
@@ -91,12 +83,21 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let inclusion_data = self
-            .client
-            .get_inclusion_data(blob_id)
-            .await
-            .map_err(to_retriable_da_error)?;
-        if let Some(inclusion_data) = inclusion_data {
+        let bytes = hex::decode(blob_id)
+            .map_err(|_| anyhow::anyhow!("Failed to decode blob id: {}", blob_id))
+            .map_err(to_non_retriable_da_error)?;
+        let blob_key = BlobKey::from_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("Failed to convert bytes to a 32-byte array"))
+                .map_err(to_non_retriable_da_error)?,
+        );
+        let eigenda_cert = self.client
+        .get_inclusion_data(&blob_key).await
+        .map_err(to_retriable_da_error)?;
+        if let Some(eigenda_cert) = eigenda_cert {
+            // let inclusion_data = eigenda_cert.to_bytes(); //todo
+            let inclusion_data = vec![];
             Ok(Some(InclusionData {
                 data: inclusion_data,
             }))
@@ -110,7 +111,7 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        self.client.blob_size_limit()
+        PayloadDisperser::blob_size_limit()
     }
 
     fn client_type(&self) -> ClientType {

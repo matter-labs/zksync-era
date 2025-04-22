@@ -1,4 +1,4 @@
-use std::{env, num::ParseIntError, str::FromStr};
+use std::{env, str::FromStr};
 
 use anyhow::Context;
 use zksync_basic_types::{url::SensitiveUrl, H160};
@@ -43,11 +43,6 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
         }
         EIGEN_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(EigenConfig {
             disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
-            settlement_layer_confirmation_depth: env::var(format!(
-                "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
-                prefix
-            ))?
-            .parse()?,
             eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
                 // Use a specific L1 RPC URL for the EigenDA client.
                 Ok(url) => Some(SensitiveUrl::from_str(&url)?),
@@ -55,28 +50,16 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 // Use zkSync default L1 RPC for the EigenDA client.
                 Err(_) => None,
             },
-            eigenda_svc_manager_address: H160::from_str(&env::var(format!(
-                "{}EIGENDA_SVC_MANAGER_ADDRESS",
+            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
+            cert_verifier_addr: H160::from_str(&env::var(format!(
+                "{}CERT_VERIFIER_ADDR",
                 prefix
             ))?)?,
-            wait_for_finalization: env::var(format!("{}WAIT_FOR_FINALIZATION", prefix))?.parse()?,
-            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
-            points_source: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
-                "Path" => zksync_config::configs::da_client::eigen::PointsSource::Path(env::var(
-                    format!("{}POINTS_PATH", prefix),
-                )?),
-                "Url" => zksync_config::configs::da_client::eigen::PointsSource::Url((
-                    env::var(format!("{}POINTS_LINK_G1", prefix))?,
-                    env::var(format!("{}POINTS_LINK_G2", prefix))?,
-                )),
-                _ => anyhow::bail!("Unknown Eigen points type"),
-            },
-            custom_quorum_numbers: match env::var(format!("{}CUSTOM_QUORUM_NUMBERS", prefix)) {
-                Ok(numbers) => numbers
-                    .split(',')
-                    .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
-                    .collect::<anyhow::Result<Vec<_>>>()?,
-                Err(_) => vec![],
+            blob_version: env::var(format!("{}BLOB_VERSION", prefix))?.parse()?,
+            polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
+                "Coeff" => zksync_config::configs::da_client::eigen::PolynomialForm::Coeff,
+                "Poly" => zksync_config::configs::da_client::eigen::PolynomialForm::Eval,
+                _ => anyhow::bail!("Unknown polynomial form"),
             },
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
@@ -149,7 +132,6 @@ mod tests {
         configs::{
             da_client::{
                 avail::{AvailClientConfig, AvailDefaultConfig},
-                eigen::PointsSource,
                 DAClientConfig::{self, ObjectStore},
             },
             object_store::ObjectStoreMode::GCS,
@@ -305,14 +287,11 @@ mod tests {
         let config = r#"
             DA_CLIENT="Eigen"
             DA_DISPERSER_RPC="http://localhost:8080"
-            DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
             DA_EIGENDA_ETH_RPC="http://localhost:8545"
-            DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-            DA_WAIT_FOR_FINALIZATION=true
             DA_AUTHENTICATED=false
-            DA_POINTS_SOURCE="Path"
-            DA_POINTS_PATH="resources"
-            DA_CUSTOM_QUORUM_NUMBERS="2"
+            DA_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000012345"
+            DA_BLOB_VERSION="0"
+            DA_POLYNOMIAL_FORM="Coeff"
         "#;
         lock.set_env(config);
 
@@ -321,15 +300,13 @@ mod tests {
             actual,
             DAClientConfig::Eigen(EigenConfig {
                 disperser_rpc: "http://localhost:8080".to_string(),
-                settlement_layer_confirmation_depth: 0,
                 eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
-                eigenda_svc_manager_address: "0x0000000000000000000000000000000000000123"
+                authenticated: false,
+                cert_verifier_addr: "0x0000000000000000000000000000000000012345"
                     .parse()
                     .unwrap(),
-                wait_for_finalization: true,
-                authenticated: false,
-                points_source: PointsSource::Path("resources".to_string()),
-                custom_quorum_numbers: vec![2],
+                blob_version: 0,
+                polynomial_form: zksync_config::configs::da_client::eigen::PolynomialForm::Coeff,
             })
         );
     }
