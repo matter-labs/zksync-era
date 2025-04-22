@@ -78,11 +78,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version28
+        Self::Version29
     }
 
     pub const fn next() -> Self {
-        Self::Version29
+        Self::Version30
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -168,7 +168,7 @@ impl ProtocolVersionId {
 
     pub fn is_pre_interop(&self) -> bool {
         // note fflonk version has not been merged yet
-        self < &Self::Version28
+        self < &Self::Version29
     }
 
     pub fn is_1_4_0(&self) -> bool {

@@ -13,10 +13,6 @@ use crate::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
     Tokenizable,
 };
-pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
-]);
 
 /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
@@ -52,7 +48,6 @@ impl<'a> CommitBatchInfo<'a> {
             ParamType::FixedBytes(32), // `new_state_root`
             ParamType::Uint(256),      // `numberOfLayer1Txs`
             ParamType::FixedBytes(32), // `priorityOperationsHash`
-            ParamType::FixedBytes(32), // `dependencyRootsRollingHash`
             ParamType::FixedBytes(32), // `bootloaderHeapInitialContentsHash`
             ParamType::FixedBytes(32), // `eventsQueueStateHash`
             ParamType::Bytes,          // `systemLogs`
@@ -156,22 +151,6 @@ impl<'a> CommitBatchInfo<'a> {
                         .priority_ops_onchain_data_hash()
                         .as_bytes()
                         .to_vec(),
-                ),
-                Token::FixedBytes(
-                    if self.l1_batch_with_metadata.header.system_logs.is_empty() {
-                        H256::zero().as_bytes().to_vec()
-                    } else {
-                        self.l1_batch_with_metadata
-                            .header
-                            .system_logs
-                            .iter()
-                            .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                            .unwrap()
-                            .0
-                            .value
-                            .as_bytes()
-                            .to_vec()
-                    },
                 ),
                 // `bootloaderHeapInitialContentsHash`
                 Token::FixedBytes(

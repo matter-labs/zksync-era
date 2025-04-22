@@ -375,10 +375,8 @@ async fn read_stored_l2_block(
         .get_historical_value_unchecked(l2_block_txs_rolling_hash_key.hashed_key(), l2_block_number)
         .await?;
 
-    let msg_roots = connection
-        .message_root_dal()
-        .get_message_roots(l2_block_number)
-        .await?;
+    /// We don't load interopRoots for gas estimation.
+    let msg_roots = vec![];
 
     Ok(StoredL2BlockEnv {
         number: l2_block_number_from_state as u32,
