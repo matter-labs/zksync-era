@@ -255,8 +255,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     let hash = tester
         .manager
         .send_eth_tx(&mut tester.conn.connection().await.unwrap(), &tx, 0, block)
-        .await?
-        .0;
+        .await?;
 
     // check that we sent something and stored it in the db
     assert_eq!(tester.gateway.sent_tx_count(), 1);
@@ -312,8 +311,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             1,
             block_numbers.latest,
         )
-        .await?
-        .0;
+        .await?;
 
     // check that transaction has been resent
     assert_eq!(tester.gateway.sent_tx_count(), 2);

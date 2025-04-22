@@ -557,8 +557,7 @@ impl EthSenderTester {
                 self.get_block_numbers().await.latest,
             )
             .await
-            .unwrap()
-            .0;
+            .unwrap();
 
         if confirm {
             self.confirm_tx(hash, tx.blob_sidecar.is_some()).await;
