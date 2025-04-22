@@ -50,7 +50,7 @@ pub fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Client<L2>> 
 }
 
 pub fn get_default_foundry_path(shell: &Shell) -> anyhow::Result<PathBuf> {
-    Ok(EcosystemConfig::from_file(shell)?.link_to_code)
+    Ok(EcosystemConfig::from_file(shell)?.path_to_l1_foundry())
 }
 
 pub fn display_admin_script_output(result: AdminScriptOutput) {

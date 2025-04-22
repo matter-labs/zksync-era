@@ -179,7 +179,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     finish_migrate_chain_from_gateway(
         shell,
         args.forge_args.clone(),
-        &ecosystem_config.link_to_code,
+        &ecosystem_config.path_to_l1_foundry(),
         ecosystem_config
             .get_wallets()?
             .deployer
