@@ -82,6 +82,9 @@ const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "DualVerifier.sol/DualVerifier.json",
 );
 
+const INTEROP_CENTER_CONTRACT_FILE: (&str, &str) =
+    ("bridgehub", "IInteropCenter.sol/IInteropCenter.json");
+
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
@@ -177,6 +180,10 @@ pub fn server_notifier_contract() -> Contract {
 
 pub fn getters_facet_contract() -> Contract {
     load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
+}
+
+pub fn interop_center_contract() -> Contract {
+    load_contract_for_both_compilers(INTEROP_CENTER_CONTRACT_FILE)
 }
 
 pub fn state_transition_manager_contract() -> Contract {

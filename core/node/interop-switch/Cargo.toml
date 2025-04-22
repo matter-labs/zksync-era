@@ -15,3 +15,5 @@ zksync_basic_types.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 tokio.workspace = true
+zksync_system_constants.workspace = true
+zksync_contracts.workspace = true
