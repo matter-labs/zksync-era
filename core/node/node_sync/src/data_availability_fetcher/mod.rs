@@ -8,7 +8,7 @@ use tokio::sync::watch;
 use zksync_da_client::{types::InclusionData, DataAvailabilityClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{commitment::PubdataType, utils::client_type_to_pubdata_type, L1BatchNumber};
+use zksync_types::{commitment::PubdataType, L1BatchNumber};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::UnstableNamespaceClient,
@@ -163,7 +163,7 @@ impl DataAvailabilityFetcher {
             return Ok(StepOutcome::NoProgress);
         };
 
-        let config_pubdata_type = client_type_to_pubdata_type(self.da_client.client_type());
+        let config_pubdata_type = self.da_client.client_type().into_pubdata_type();
         // if pubdata type of the DA client is NoDA and pubdata type of the EN is not - it means
         // that the main node is planning to use the DA layer, so ENs were configured earlier
         if pubdata_type != config_pubdata_type && pubdata_type != PubdataType::NoDA {

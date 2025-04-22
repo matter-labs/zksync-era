@@ -4,10 +4,8 @@ pub use circuit_definitions;
 use circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
     circuit_definitions::{
-        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
-        recursion_layer::{
-            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
-        },
+        base_layer::ZkSyncBaseLayerProof,
+        recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType},
     },
     zkevm_circuits::scheduler::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
@@ -20,8 +18,6 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId,
 };
 
-use crate::keys::FriCircuitKey;
-
 pub mod keys;
 
 pub const MAX_COMPRESSION_CIRCUITS: u8 = 5;
@@ -33,31 +29,6 @@ pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSe
     minor: PROVER_PROTOCOL_VERSION,
     patch: PROVER_PROTOCOL_PATCH,
 };
-
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-#[allow(clippy::large_enum_variant)]
-pub enum CircuitWrapper {
-    Base(ZkSyncBaseLayerCircuit),
-    Recursive(ZkSyncRecursiveLayerCircuit),
-}
-
-impl StoredObject for CircuitWrapper {
-    const BUCKET: Bucket = Bucket::ProverJobsFri;
-    type Key<'a> = FriCircuitKey;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        let FriCircuitKey {
-            block_number,
-            sequence_number,
-            circuit_id,
-            aggregation_round,
-            depth,
-        } = key;
-        format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin")
-    }
-
-    serialize_using_bincode!();
-}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum FriProofWrapper {

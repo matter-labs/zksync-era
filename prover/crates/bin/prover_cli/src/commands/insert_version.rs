@@ -54,7 +54,8 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
                 fflonk_snark_wrapper_vk_hash: Some(fflonk_snark_wrapper_vk_hash),
             },
         )
-        .await;
+        .await
+        .unwrap();
 
     Ok(())
 }

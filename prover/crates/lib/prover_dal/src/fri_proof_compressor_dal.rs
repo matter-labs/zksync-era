@@ -1,6 +1,7 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
@@ -8,7 +9,7 @@ use zksync_basic_types::{
     },
     L1BatchNumber,
 };
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
@@ -23,6 +24,7 @@ impl FriProofCompressorDal<'_, '_> {
         block_number: L1BatchNumber,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
@@ -34,17 +36,19 @@ impl FriProofCompressorDal<'_, '_> {
                 created_at,
                 updated_at,
                 protocol_version,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW(), $4, $5)
+            ($1, $2, $3, NOW(), NOW(), $4, $5, $6)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             fri_proof_blob_url,
             ProofCompressionJobStatus::Queued.to_string(),
             protocol_version.minor as i32,
-            protocol_version.patch.0 as i32
+            protocol_version.patch.0 as i32,
+            batch_sealed_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -76,7 +80,8 @@ impl FriProofCompressorDal<'_, '_> {
                         AND protocol_version = $4
                         AND protocol_version_patch = $5
                     ORDER BY
-                        l1_batch_number ASC
+                        priority DESC,
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE
@@ -220,7 +225,10 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
+    pub async fn mark_proof_sent_to_server(
+        &mut self,
+        block_number: L1BatchNumber,
+    ) -> Result<(), DalError> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -233,9 +241,11 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::SentToServer.to_string(),
             i64::from(block_number.0)
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_sent_to_server")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
@@ -316,7 +326,8 @@ impl FriProofCompressorDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     (
                         status = 'in_progress'
@@ -426,7 +437,8 @@ impl FriProofCompressorDal<'_, '_> {
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     l1_batch_number = $1
                     AND attempts >= $2
