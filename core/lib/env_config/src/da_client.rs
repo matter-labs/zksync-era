@@ -309,8 +309,9 @@ mod tests {
                 eigenda_cert_and_blob_verifier_addr: "0x0000000000000000000000000000000000001234"
                     .parse()
                     .unwrap(),
-                cert_verifier_addr: "0x0000000000000000000000000000000000012345".parse()
-                .unwrap(),
+                cert_verifier_addr: "0x0000000000000000000000000000000000012345"
+                    .parse()
+                    .unwrap(),
                 blob_version: 0,
                 polynomial_form: zksync_config::configs::da_client::eigen::PolynomialForm::Coeff,
             })

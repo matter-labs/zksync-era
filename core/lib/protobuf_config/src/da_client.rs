@@ -77,15 +77,20 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 )
                 .and_then(|x| parse_h160(x))
                 .context("eigenda_cert_and_blob_verifier_addr")?,
-                cert_verifier_addr: required(
-                    &conf.cert_verifier_addr,
-                )
-                .and_then(|x| parse_h160(x))
-                .context("eigenda_cert_and_blob_verifier_addr")?,
+                cert_verifier_addr: required(&conf.cert_verifier_addr)
+                    .and_then(|x| parse_h160(x))
+                    .context("eigenda_cert_and_blob_verifier_addr")?,
                 blob_version: *required(&conf.blob_version).context("blob_version")? as u16,
-                polynomial_form: match required(&conf.polynomial_form).and_then(|x| Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?)).context("polynomial_form")? {
-                    crate::proto::da_client::PolynomialForm::Coeff => configs::da_client::eigen::PolynomialForm::Coeff,
-                    crate::proto::da_client::PolynomialForm::Eval => configs::da_client::eigen::PolynomialForm::Eval,
+                polynomial_form: match required(&conf.polynomial_form)
+                    .and_then(|x| Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?))
+                    .context("polynomial_form")?
+                {
+                    crate::proto::da_client::PolynomialForm::Coeff => {
+                        configs::da_client::eigen::PolynomialForm::Coeff
+                    }
+                    crate::proto::da_client::PolynomialForm::Eval => {
+                        configs::da_client::eigen::PolynomialForm::Eval
+                    }
                 },
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
@@ -137,10 +142,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     "{:?}",
                     config.eigenda_cert_and_blob_verifier_addr
                 )),
-                cert_verifier_addr: Some(format!(
-                    "{:?}",
-                    config.cert_verifier_addr
-                )),
+                cert_verifier_addr: Some(format!("{:?}", config.cert_verifier_addr)),
                 blob_version: Some(config.blob_version as u32),
                 polynomial_form: Some(match config.polynomial_form {
                     configs::da_client::eigen::PolynomialForm::Coeff => {

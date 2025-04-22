@@ -9,7 +9,10 @@ use rust_eigenda_v2_client::{
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
-use zksync_config::{configs::da_client::eigen::{EigenSecrets, PolynomialForm}, EigenConfig};
+use zksync_config::{
+    configs::da_client::eigen::{EigenSecrets, PolynomialForm},
+    EigenConfig,
+};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -46,7 +49,7 @@ impl EigenDAClient {
 
         let payload_disperser_config = PayloadDisperserConfig {
             polynomial_form: payload_form,
-            blob_version: config.blob_version, 
+            blob_version: config.blob_version,
             cert_verifier_address: config.cert_verifier_addr,
             eth_rpc_url: SecretUrl::new(url),
             disperser_rpc: config.disperser_rpc,

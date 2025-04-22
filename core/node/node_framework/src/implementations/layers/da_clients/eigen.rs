@@ -47,8 +47,8 @@ impl WiringLayer for EigenWiringLayer {
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        let client: Box<dyn DataAvailabilityClient> = Box::new(
-            EigenDAClient::new(self.config, self.secrets).await?);
+        let client: Box<dyn DataAvailabilityClient> =
+            Box::new(EigenDAClient::new(self.config, self.secrets).await?);
 
         Ok(Self::Output {
             client: DAClientResource(client),
