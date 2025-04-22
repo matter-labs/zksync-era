@@ -24,11 +24,14 @@ pub trait TxParamsProvider: fmt::Debug + 'static + Send + Sync {
     /// Returns a lower bound for the `base_fee` value for the next L1 block.
     fn get_next_block_minimal_base_fee(&self) -> u64;
 
+    /// Returns a lower bound for the `base_fee` value for the next L1 block.
+    fn get_next_block_minimal_blob_base_fee(&self) -> u64;
+
     /// Returns the recommended `max_fee_per_gas` value (EIP1559) for blob transaction.
-    fn get_blob_tx_base_fee(&self) -> u64;
+    fn get_blob_tx_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64;
 
     /// Returns the recommended `max_blob_fee_per_gas` value (EIP4844) for blob transaction.
-    fn get_blob_tx_blob_base_fee(&self) -> u64;
+    fn get_blob_tx_blob_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64;
 
     /// Returns the recommended `max_priority_fee_per_gas` value (EIP1559) for blob transaction.
     fn get_blob_tx_priority_fee(&self) -> u64;
