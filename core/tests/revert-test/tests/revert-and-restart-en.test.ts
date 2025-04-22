@@ -16,10 +16,8 @@ import {
 } from './utils';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { assert, expect } from 'chai';
+import { assert } from 'chai';
 import fs from 'node:fs/promises';
-import * as child_process from 'child_process';
-import * as dotenv from 'dotenv';
 import {
     loadConfig,
     replaceL1BatchMinAgeBeforeExecuteSeconds,
@@ -30,10 +28,14 @@ import { logsTestPath } from 'utils/build/logs';
 import { IZkSyncHyperchain, IZkSyncHyperchain__factory } from 'zksync-ethers/build/typechain';
 
 const pathToHome = path.join(__dirname, '../../../..');
-const fileConfig = shouldLoadConfigFromFile();
+const chainName = shouldLoadConfigFromFile().chain;
+
+if (!chainName) {
+    throw new Error('`CHAIN_NAME` env variable is required');
+}
 
 async function logsPath(name: string): Promise<string> {
-    return await logsTestPath(fileConfig.chain, 'logs/revert/en', name);
+    return await logsTestPath(chainName, 'logs/revert/en', name);
 }
 
 interface GatewayInfo {
@@ -44,83 +46,10 @@ interface GatewayInfo {
     l2DiamondProxyAddress: string;
 }
 
-function run(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.SpawnSyncReturns<Buffer> {
-    let res = child_process.spawnSync(cmd, args, options);
-    expect(res.error).to.be.undefined;
-    return res;
-}
-
-function compileBinaries() {
-    console.log('compiling binaries');
-    run(
-        'cargo',
-        [
-            'build',
-            '--manifest-path',
-            './core/Cargo.toml',
-            '--release',
-            '--bin',
-            'zksync_external_node',
-            '--bin',
-            'zksync_server',
-            '--bin',
-            'block_reverter'
-        ],
-        { cwd: process.env.ZKSYNC_HOME }
-    );
-}
-
-// Fetches env vars for the given environment (like 'dev', 'ext-node').
-// TODO: it would be better to import zk tool code directly.
-function fetchEnv(zksyncEnv: string): Record<string, string | undefined> {
-    let res = run('./bin/zk', ['f', 'env'], {
-        cwd: process.env.ZKSYNC_HOME,
-        env: {
-            PATH: process.env.PATH,
-            ZKSYNC_ENV: zksyncEnv,
-            ZKSYNC_HOME: process.env.ZKSYNC_HOME
-        }
-    });
-    return { ...process.env, ...dotenv.parse(res.stdout) };
-}
-
-/** Loads env profiles for the main and external nodes */
-function loadEnvs() {
-    let deploymentMode: string;
-    if (fileConfig.loadFromFile) {
-        const genesisConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'genesis.yaml' });
-        deploymentMode = genesisConfig.deploymentMode;
-    } else {
-        deploymentMode = process.env.DEPLOYMENT_MODE ?? 'Rollup';
-        if (!['Validium', 'Rollup'].includes(deploymentMode)) {
-            throw new Error(`Unknown deployment mode: ${deploymentMode}`);
-        }
-    }
-    console.log(`Using deployment mode: ${deploymentMode}`);
-
-    let mainEnvName: string;
-    let extEnvName: string;
-    if (deploymentMode === 'Validium') {
-        mainEnvName = process.env.IN_DOCKER ? 'dev_validium_docker' : 'dev_validium';
-        extEnvName = process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium';
-    } else {
-        // Rollup deployment mode
-        mainEnvName = process.env.IN_DOCKER ? 'docker' : 'dev';
-        extEnvName = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
-    }
-
-    console.log(`Fetching main node env: ${mainEnvName}`);
-    const mainEnv = fetchEnv(mainEnvName);
-    console.log(`Fetching EN env: ${extEnvName}`);
-    const extEnv = fetchEnv(extEnvName);
-    return [mainEnv, extEnv];
-}
-
 describe('Block reverting test', function () {
     let operatorAddress: string;
     let depositAmount: bigint;
     let mainNodeSpawner: NodeSpawner;
-    let mainEnv: Record<string, string | undefined>;
     let mainNode: Node<NodeType.MAIN>;
     let extNodeSpawner: NodeSpawner;
     let extNode: Node<NodeType.EXT>;
@@ -130,7 +59,7 @@ describe('Block reverting test', function () {
     let depositL1BatchNumber: number;
     let batchesCommittedBeforeRevert: bigint;
 
-    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
+    const autoKill: boolean = !process.env.NO_KILL;
 
     before('initialize test', async () => {
         let ethClientWeb3Url: string;
@@ -138,23 +67,16 @@ describe('Block reverting test', function () {
         let baseTokenAddress: string;
         let enEthClientUrl: string;
 
-        let extEnv;
-        [mainEnv, extEnv] = loadEnvs();
-
-        if (!fileConfig.loadFromFile) {
-            throw new Error('Non file based not supportred');
-        }
-
-        const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
-        const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-        const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
+        const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
+        const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
+        const contractsConfig = loadConfig({ pathToHome, chain: chainName, config: 'contracts.yaml' });
         const externalNodeGeneralConfig = loadConfig({
             pathToHome,
             configsFolderSuffix: 'external_node',
-            chain: fileConfig.chain,
+            chain: chainName,
             config: 'general.yaml'
         });
-        const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+        const walletsConfig = loadConfig({ pathToHome, chain: chainName, config: 'wallets.yaml' });
 
         ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
         apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
@@ -170,11 +92,7 @@ describe('Block reverting test', function () {
         const extLogs = await fs.open(pathToEnLogs, 'a');
         console.log(`Writing EN logs to ${pathToEnLogs}`);
 
-        if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
-            compileBinaries();
-        }
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-
         console.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
 
@@ -184,16 +102,16 @@ describe('Block reverting test', function () {
             apiWeb3JsonRpcHttpUrl,
             baseTokenAddress
         };
-        mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, mainNodeSpawnOptions, mainEnv);
+        mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, chainName, mainNodeSpawnOptions);
         const extNodeSpawnOptions = {
             enableConsensus,
             ethClientWeb3Url,
             apiWeb3JsonRpcHttpUrl: enEthClientUrl,
             baseTokenAddress
         };
-        extNodeSpawner = new NodeSpawner(pathToHome, extLogs, fileConfig, extNodeSpawnOptions, extEnv);
+        extNodeSpawner = new NodeSpawner(pathToHome, extLogs, chainName, extNodeSpawnOptions);
 
-        gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain);
+        gatewayInfo = getGatewayInfo(pathToHome, chainName);
 
         const l1Provider = new ethers.JsonRpcProvider(ethClientWeb3Url);
 
@@ -258,11 +176,10 @@ describe('Block reverting test', function () {
     step('revert batches', async () => {
         await executeRevert(
             pathToHome,
-            fileConfig.chain,
+            chainName,
             operatorAddress,
             batchesCommittedBeforeRevert,
-            settlementLayerMainContract,
-            mainEnv
+            settlementLayerMainContract
         );
     });
 
@@ -303,14 +220,11 @@ describe('Block reverting test', function () {
     after('terminate nodes', async () => {
         await mainNode.terminate();
         await extNode.terminate();
-
-        if (fileConfig.loadFromFile) {
-            replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, fileConfig, 0);
-        }
+        replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, chainName, 0);
     });
 });
 
-export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
+function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
     const gatewayChainConfig = loadConfig({
         pathToHome,
         chain,
