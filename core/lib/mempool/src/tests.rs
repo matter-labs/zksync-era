@@ -306,18 +306,34 @@ fn stashed_accounts() {
 
     mempool.insert_without_constraints(
         gen_transactions_for_filtering(vec![
-            (account0, Nonce(0), unix_timestamp_ms(), 0),
-            (account0, Nonce(1), unix_timestamp_ms(), 1),
+            (account0, Nonce(0), unix_timestamp_ms(), 1),
+            (account0, Nonce(1), unix_timestamp_ms(), 0),
+            (account0, Nonce(2), unix_timestamp_ms(), 1),
             (account1, Nonce(0), unix_timestamp_ms() + 10, 1),
         ]),
         HashMap::new(),
     );
+
+    // No stashed account at the start.
     assert!(mempool.get_mempool_info().stashed_accounts.is_empty());
+
+    // Get next tx, should return first tx for account0 and not stash any account.
+    assert_eq!(
+        view(mempool.next_transaction(&filter_non_zero)),
+        (account0, 0)
+    );
+    assert!(mempool.get_mempool_info().stashed_accounts.is_empty());
+
+    // Get next tx, should return first tx for account1 and stash account0.
     assert_eq!(
         view(mempool.next_transaction(&filter_non_zero)),
         (account1, 0)
     );
     assert_eq!(mempool.get_mempool_info().stashed_accounts, vec![account0]);
+
+    // Check that nonce for stashed account was preserved.
+    assert_eq!(mempool.account_nonce(account0), Some(Nonce(1)));
+
     assert!(mempool.next_transaction(&filter_zero).is_none());
 }
 
