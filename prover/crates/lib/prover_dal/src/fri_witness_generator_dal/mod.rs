@@ -10,7 +10,10 @@ use std::collections::HashMap;
 
 use sqlx::{types::chrono::NaiveDateTime, Row};
 use zksync_basic_types::{
-    basic_fri_types::AggregationRound, protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs}, ChainAwareL1BatchNumber, L2ChainId
+    basic_fri_types::AggregationRound,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs},
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, utils::naive_time_from_pg_interval};
 
@@ -323,7 +326,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 wit.created_at
             FROM
                 proof_compression_jobs_fri AS comp
-            JOIN witness_inputs_fri AS wit ON (comp.l1_batch_number = wit.l1_batch_number AND comp.chain_id = wit.chain_id)
+            JOIN
+                witness_inputs_fri AS wit
+                ON
+                    (
+                        comp.l1_batch_number = wit.l1_batch_number
+                        AND comp.chain_id = wit.chain_id
+                    )
             WHERE
                 wit.created_at > $1
             ORDER BY
@@ -335,7 +344,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await?
         .into_iter()
         .map(|row| ProofGenerationTime {
-            batch_number: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+            batch_number: ChainAwareL1BatchNumber::from_raw(
+                row.chain_id as u64,
+                row.l1_batch_number as u32,
+            ),
             time_taken: naive_time_from_pg_interval(
                 row.time_taken.expect("time_taken must be present"),
             ),

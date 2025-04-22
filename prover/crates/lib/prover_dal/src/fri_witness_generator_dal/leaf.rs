@@ -2,9 +2,12 @@ use std::{str::FromStr, time::Duration};
 
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{
         LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
-    }, ChainAwareL1BatchNumber, L2ChainId
+    },
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -82,7 +85,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()?;
 
-        let batch_number = ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
+        let batch_number =
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
         let proof_job_ids = self
             .storage
             .fri_prover_jobs_dal()
@@ -101,7 +105,9 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn move_leaf_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<(ChainAwareL1BatchNumber, u8)> {
+    pub async fn move_leaf_aggregation_jobs_from_waiting_to_queued(
+        &mut self,
+    ) -> Vec<(ChainAwareL1BatchNumber, u8)> {
         sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -141,7 +147,12 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32), row.circuit_id as u8))
+        .map(|row| {
+            (
+                ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                row.circuit_id as u8,
+            )
+        })
         .collect()
     }
 
@@ -220,7 +231,10 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .iter()
         .map(|row| LeafWitnessGeneratorJobInfo {
             id: row.id as u32,
-            batch_number: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+            batch_number: ChainAwareL1BatchNumber::from_raw(
+                row.chain_id as u64,
+                row.l1_batch_number as u32,
+            ),
             circuit_id: row.circuit_id as u32,
             closed_form_inputs_blob_url: row.closed_form_inputs_blob_url.clone(),
             attempts: row.attempts as u32,

@@ -2,7 +2,10 @@ use std::{str::FromStr, time::Duration};
 
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{RecursionTipWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus}, ChainAwareL1BatchNumber, L2ChainId
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{RecursionTipWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -17,7 +20,9 @@ pub struct FriRecursionTipWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
-    pub async fn move_recursion_tip_jobs_from_waiting_to_queued(&mut self) -> Vec<ChainAwareL1BatchNumber> {
+    pub async fn move_recursion_tip_jobs_from_waiting_to_queued(
+        &mut self,
+    ) -> Vec<ChainAwareL1BatchNumber> {
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -32,8 +37,9 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri
                     JOIN
                         recursion_tip_witness_jobs_fri rtwj
-                        ON prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
-                        AND prover_jobs_fri.chain_id = rtwj.chain_id
+                        ON
+                            prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
+                            AND prover_jobs_fri.chain_id = rtwj.chain_id
                     WHERE
                         rtwj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -56,7 +62,9 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
+        .map(|row| {
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
+        })
         .collect()
     }
 

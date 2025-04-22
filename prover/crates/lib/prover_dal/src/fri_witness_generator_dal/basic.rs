@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use sqlx::types::chrono::{self, DateTime, Utc};
 use zksync_basic_types::{
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch}, prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus}, ChainAwareL1BatchNumber, L2ChainId
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -130,7 +132,9 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
+        .map(|row| {
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
+        })
     }
 
     pub async fn set_status_for_basic_witness_job(
@@ -151,7 +155,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             "#,
             status.to_string(),
             batch_number.batch_number().0 as i64,
-                batch_number.chain_id().inner() as i64,
+            batch_number.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
@@ -285,7 +289,10 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| BasicWitnessGeneratorJobInfo {
-            batch_number: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+            batch_number: ChainAwareL1BatchNumber::from_raw(
+                row.chain_id as u64,
+                row.l1_batch_number as u32,
+            ),
             witness_inputs_blob_url: row.witness_inputs_blob_url,
             attempts: row.attempts as u32,
             status: row.status.parse::<WitnessJobStatus>().unwrap(),

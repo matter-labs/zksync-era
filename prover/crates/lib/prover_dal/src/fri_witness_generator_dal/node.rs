@@ -2,9 +2,12 @@ use std::{str::FromStr, time::Duration};
 
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{
         NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
-    }, ChainAwareL1BatchNumber, L2ChainId
+    },
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -106,7 +109,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             _ => AggregationRound::NodeAggregation,
         };
 
-        let batch_number = ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
+        let batch_number =
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
         let prover_job_ids = self
             .storage
             .fri_prover_jobs_dal()
@@ -121,7 +125,12 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub async fn mark_node_aggregation_as_successful(&mut self, id: u32, chain_id: L2ChainId, time_taken: Duration) {
+    pub async fn mark_node_aggregation_as_successful(
+        &mut self,
+        id: u32,
+        chain_id: L2ChainId,
+        time_taken: Duration,
+    ) {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -192,7 +201,9 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn move_depth_zero_node_aggregation_jobs(&mut self) -> Vec<(ChainAwareL1BatchNumber, u8, u16)> {
+    pub async fn move_depth_zero_node_aggregation_jobs(
+        &mut self,
+    ) -> Vec<(ChainAwareL1BatchNumber, u8, u16)> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -238,11 +249,19 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32), row.circuit_id as u8, row.depth as u16))
+        .map(|row| {
+            (
+                ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                row.circuit_id as u8,
+                row.depth as u16,
+            )
+        })
         .collect()
     }
 
-    pub async fn move_depth_non_zero_node_aggregation_jobs(&mut self) -> Vec<(ChainAwareL1BatchNumber, u8, u16)> {
+    pub async fn move_depth_non_zero_node_aggregation_jobs(
+        &mut self,
+    ) -> Vec<(ChainAwareL1BatchNumber, u8, u16)> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -287,7 +306,13 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| (ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32), row.circuit_id as u8, row.depth as u16))
+        .map(|row| {
+            (
+                ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                row.circuit_id as u8,
+                row.depth as u16,
+            )
+        })
         .collect()
     }
 

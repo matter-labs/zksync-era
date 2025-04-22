@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId
+    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId,
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
 
 #[derive(Debug, Clone, Copy)]

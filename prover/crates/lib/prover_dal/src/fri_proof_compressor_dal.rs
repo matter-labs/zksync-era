@@ -7,7 +7,7 @@ use zksync_basic_types::{
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
-    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId
+    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
@@ -102,7 +102,9 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
+        .map(|row| {
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
+        })
     }
 
     pub async fn get_proof_compression_job_attempts(
@@ -321,7 +323,9 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32));
+        .map(|row| {
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
+        });
 
         result
     }

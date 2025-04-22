@@ -214,7 +214,10 @@ impl FriProverDal<'_, '_> {
         .expect("failed to get prover job")
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
-            batch_number: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+            batch_number: ChainAwareL1BatchNumber::from_raw(
+                row.chain_id as u64,
+                row.l1_batch_number as u32,
+            ),
             batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
@@ -297,7 +300,10 @@ impl FriProverDal<'_, '_> {
         .expect("failed to get prover job")
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
-            batch_number: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+            batch_number: ChainAwareL1BatchNumber::from_raw(
+                row.chain_id as u64,
+                row.l1_batch_number as u32,
+            ),
             batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
@@ -373,7 +379,10 @@ impl FriProverDal<'_, '_> {
         .unwrap()
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
-            batch_number: ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+            batch_number: ChainAwareL1BatchNumber::from_raw(
+                row.chain_id as u64,
+                row.l1_batch_number as u32,
+            ),
             batch_sealed_at: DateTime::<Utc>::from_naive_utc_and_offset(row.batch_sealed_at, Utc),
             circuit_id: row.circuit_id as u8,
             aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
@@ -485,7 +494,12 @@ impl FriProverDal<'_, '_> {
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', NOW(), NOW(), $10, $11)
             ON CONFLICT (
-                l1_batch_number, chain_id, aggregation_round, circuit_id, depth, sequence_number
+                l1_batch_number,
+                chain_id,
+                aggregation_round,
+                circuit_id,
+                depth,
+                sequence_number
             ) DO
             UPDATE
             SET
@@ -842,8 +856,7 @@ impl FriProverDal<'_, '_> {
         &mut self,
         batch_number: ChainAwareL1BatchNumber,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_prover_jobs_fri_batch_data(batch_number)
-            .await
+        self.delete_prover_jobs_fri_batch_data(batch_number).await
     }
 
     // todo: THIS LOOKS BAD

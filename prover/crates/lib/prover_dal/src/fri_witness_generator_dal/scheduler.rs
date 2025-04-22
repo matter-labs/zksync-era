@@ -2,7 +2,10 @@ use std::{str::FromStr, time::Duration};
 
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, prover_dal::{SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus}, ChainAwareL1BatchNumber, L2ChainId
+    basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion,
+    prover_dal::{SchedulerWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
+    ChainAwareL1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -17,7 +20,9 @@ pub struct FriSchedulerWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriSchedulerWitnessGeneratorDal<'_, '_> {
-    pub async fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<ChainAwareL1BatchNumber> {
+    pub async fn move_scheduler_jobs_from_waiting_to_queued(
+        &mut self,
+    ) -> Vec<ChainAwareL1BatchNumber> {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -48,7 +53,9 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
+        .map(|row| {
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
+        })
         .collect()
     }
 
@@ -97,12 +104,12 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                l1_batch_number,
-                chain_id,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            chain_id,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -166,7 +173,9 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
+        .map(|row| {
+            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
+        })
     }
 
     pub async fn mark_scheduler_job_as_successful(
