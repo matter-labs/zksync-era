@@ -69,7 +69,7 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
 
-        Ok(DispatchResponse::from(hex::encode(blob_key.to_bytes())))
+        Ok(DispatchResponse::from(blob_key.to_hex()))
     }
 
     async fn ensure_finality(
@@ -98,8 +98,7 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
-            // let inclusion_data = eigenda_cert.to_bytes(); //todo
-            let inclusion_data = vec![];
+            let inclusion_data = eigenda_cert.to_bytes().map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes")).map_err(to_non_retriable_da_error)?;
             Ok(Some(InclusionData {
                 data: inclusion_data,
             }))

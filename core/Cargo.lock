@@ -8571,7 +8571,7 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 [[package]]
 name = "rust-eigenda-v2-client"
 version = "0.1.0"
-source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git#52bd7616da41fb490637dd3379642ff5bd7cb4bb"
+source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git#5b708158ce3479b49df2e19ec4a2a9b7e0a41307"
 dependencies = [
  "alloy",
  "alloy-contract",
@@ -8584,6 +8584,7 @@ dependencies = [
  "ark-serialize 0.5.0",
  "ark-std 0.5.0",
  "async-trait",
+ "bincode",
  "byteorder",
  "bytes",
  "ethabi",
