@@ -1,14 +1,15 @@
 use std::str::FromStr;
 
 use ethabi::{encode, ParamType, Token};
-use rust_eigenda_v2_client::{core::{BlobKey, Payload, PayloadForm}, payload_disperser::{PayloadDisperser, PayloadDisperserConfig}, utils::{PrivateKey, SecretUrl}};
+use rust_eigenda_v2_client::{
+    core::{BlobKey, Payload, PayloadForm},
+    payload_disperser::{PayloadDisperser, PayloadDisperserConfig},
+    utils::{PrivateKey, SecretUrl},
+};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
-use zksync_config::{
-    configs::da_client::eigen::EigenSecrets,
-    EigenConfig,
-};
+use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -28,10 +29,7 @@ pub struct EigenDAClient {
 }
 
 impl EigenDAClient {
-    pub async fn new(
-        config: EigenConfig,
-        secrets: EigenSecrets,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
         let url = Url::from_str(
             config
                 .eigenda_eth_rpc
@@ -43,10 +41,10 @@ impl EigenDAClient {
 
         let payload_disperser_config = PayloadDisperserConfig {
             polynomial_form: PayloadForm::Coeff, // todo
-            blob_version: 0, // todo
+            blob_version: 0,                     // todo
             cert_verifier_address: H160([
-                0xfe, 0x52, 0xfe, 0x19, 0x40, 0x85, 0x8d, 0xcb, 0x6e, 0x12, 0x15, 0x3e, 0x21, 0x04, 0xad, 0x0f,
-                0xdf, 0xbe, 0x11, 0x62,
+                0xfe, 0x52, 0xfe, 0x19, 0x40, 0x85, 0x8d, 0xcb, 0x6e, 0x12, 0x15, 0x3e, 0x21, 0x04,
+                0xad, 0x0f, 0xdf, 0xbe, 0x11, 0x62,
             ]), // todo
             eth_rpc_url: SecretUrl::new(url),
             disperser_rpc: config.disperser_rpc,
@@ -152,12 +150,15 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let bytes = hex::decode(blob_id).map_err(|_| {
-            anyhow::anyhow!("Failed to decode blob id: {}", blob_id)
-        }).map_err(to_non_retriable_da_error)?;
-        let blob_key = BlobKey::from_bytes(bytes.try_into().map_err(|_| {
-            anyhow::anyhow!("Failed to convert bytes to a 32-byte array")
-        }).map_err(to_non_retriable_da_error)?);
+        let bytes = hex::decode(blob_id)
+            .map_err(|_| anyhow::anyhow!("Failed to decode blob id: {}", blob_id))
+            .map_err(to_non_retriable_da_error)?;
+        let blob_key = BlobKey::from_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("Failed to convert bytes to a 32-byte array"))
+                .map_err(to_non_retriable_da_error)?,
+        );
         let eigen_dacert = self
             .client
             .get_inclusion_data(&blob_key)
