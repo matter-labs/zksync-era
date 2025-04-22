@@ -1,6 +1,6 @@
 import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'node:child_process';
 import { assert, expect } from 'chai';
-import { FileConfig, getAllConfigsPath, replaceL1BatchMinAgeBeforeExecuteSeconds } from 'utils/build/file-configs';
+import { getAllConfigsPath, replaceL1BatchMinAgeBeforeExecuteSeconds } from 'utils/build/file-configs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import { Tester } from './tester';
 import { killPidWithAllChilds } from 'utils/build/kill';
@@ -47,31 +47,19 @@ export function runInBackground({
     return background({ command, stdio, cwd, env });
 }
 
-export function runServerInBackground({
+function runServerInBackground({
     components,
     stdio,
     cwd,
-    env,
-    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
-    useZkStack?: boolean;
-    chain?: string;
+    chain: string;
 }): ChildProcessWithoutNullStreams {
-    let command = '';
-    if (useZkStack) {
-        command = 'zkstack server';
-        if (chain) {
-            command += ` --chain ${chain}`;
-        }
-    } else {
-        command = 'zk server';
-    }
-    return runInBackground({ command, components, stdio, cwd, env });
+    const command = `zkstack server --chain ${chain}`;
+    return runInBackground({ command, components, stdio, cwd });
 }
 
 export function runExternalNodeInBackground({
@@ -141,48 +129,30 @@ export function parseSuggestedValues(jsonString: string): SuggestedValues {
     };
 }
 
-async function runBlockReverter(
-    pathToHome: string,
-    chain: string | undefined,
-    env: ProcessEnvOptions['env'] | undefined,
-    args: string[]
-) {
-    let fileConfigFlags = '';
-    if (chain) {
-        const configPaths = getAllConfigsPath({ pathToHome, chain });
-        fileConfigFlags = `
-            --config-path=${configPaths['general.yaml']}
-            --contracts-config-path=${configPaths['contracts.yaml']}
-            --secrets-path=${configPaths['secrets.yaml']}
-            --wallets-path=${configPaths['wallets.yaml']}
-            --genesis-path=${configPaths['genesis.yaml']}
-            --gateway-chain-path=${configPaths['gateway_chain.yaml']}
-        `;
-    }
+async function runBlockReverter(pathToHome: string, chain: string, args: string[]) {
+    const configPaths = getAllConfigsPath({ pathToHome, chain });
+    const fileConfigFlags = `
+        --config-path=${configPaths['general.yaml']}
+        --contracts-config-path=${configPaths['contracts.yaml']}
+        --secrets-path=${configPaths['secrets.yaml']}
+        --wallets-path=${configPaths['wallets.yaml']}
+        --genesis-path=${configPaths['genesis.yaml']}
+        --gateway-chain-path=${configPaths['gateway_chain.yaml']}
+    `;
 
     const cmd = `cargo run --manifest-path ./core/Cargo.toml --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
 
-    const options = env
-        ? {
-              cwd: pathToHome,
-              env: {
-                  ...env,
-                  PATH: process.env.PATH
-              }
-          }
-        : {};
-    await exec(cmd, options);
+    await exec(cmd, { cwd: pathToHome });
 }
 
 export async function executeRevert(
     pathToHome: string,
-    chain: string | undefined,
+    chain: string,
     operatorAddress: string,
     batchesCommittedBeforeRevert: bigint,
-    mainContract: IZkSyncHyperchain,
-    env?: ProcessEnvOptions['env']
+    mainContract: IZkSyncHyperchain
 ) {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zksync-revert-test-'));
     const jsonPath = path.join(tmpDir, 'values.json');
@@ -190,7 +160,7 @@ export async function executeRevert(
 
     let suggestedValuesOutput: string;
     try {
-        await runBlockReverter(pathToHome, chain, env, [
+        await runBlockReverter(pathToHome, chain, [
             'print-suggested-values',
             '--json',
             jsonPath,
@@ -211,7 +181,7 @@ export async function executeRevert(
     console.log('Reverting with parameters', values);
 
     console.log('Sending ETH transaction..');
-    await runBlockReverter(pathToHome, chain, env, [
+    await runBlockReverter(pathToHome, chain, [
         'send-eth-transaction',
         '--l1-batch-number',
         values.lastExecutedL1BatchNumber.toString(),
@@ -222,7 +192,7 @@ export async function executeRevert(
     ]);
 
     console.log('Rolling back DB..');
-    await runBlockReverter(pathToHome, chain, env, [
+    await runBlockReverter(pathToHome, chain, [
         'rollback-db',
         '--l1-batch-number',
         values.lastExecutedL1BatchNumber.toString(),
@@ -329,22 +299,14 @@ export class NodeSpawner {
     public constructor(
         private readonly pathToHome: string,
         private readonly logs: fs.FileHandle,
-        private readonly fileConfig: FileConfig,
-        private readonly options: MainNodeSpawnOptions,
-        private readonly env?: ProcessEnvOptions['env']
+        private readonly chainName: string,
+        private readonly options: MainNodeSpawnOptions
     ) {}
 
     public async spawnMainNode(enableExecute: boolean): Promise<Node<NodeType.MAIN>> {
-        const env = this.env ?? process.env;
-        env.ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS = enableExecute ? '0' : '10000';
-        // Set full mode for the Merkle tree as it is required to get blocks committed.
-        env.DATABASE_MERKLE_TREE_MODE = 'full';
+        const { chainName, pathToHome, options, logs } = this;
 
-        const { fileConfig, pathToHome, options, logs } = this;
-
-        if (fileConfig.loadFromFile) {
-            replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, fileConfig, enableExecute ? 0 : 10000);
-        }
+        replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome, chainName, enableExecute ? 0 : 10000);
 
         let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
         if (options.enableConsensus) {
@@ -357,9 +319,7 @@ export class NodeSpawner {
             components: [components],
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            env: env,
-            useZkStack: fileConfig.loadFromFile,
-            chain: fileConfig.chain
+            chain: chainName
         });
 
         // Wait until the main node starts responding.
@@ -373,21 +333,14 @@ export class NodeSpawner {
     }
 
     public async spawnExtNode(): Promise<Node<NodeType.EXT>> {
-        const env = this.env ?? process.env;
-        const { pathToHome, fileConfig, logs, options } = this;
-
-        let args = []; // FIXME: unused
-        if (options.enableConsensus) {
-            args.push('--enable-consensus');
-        }
+        const { pathToHome, chainName, logs, options } = this;
 
         // Run server in background.
         let proc = runExternalNodeInBackground({
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            env,
-            useZkStack: fileConfig.loadFromFile,
-            chain: fileConfig.chain
+            useZkStack: true,
+            chain: chainName
         });
 
         const tester = await Tester.init(
