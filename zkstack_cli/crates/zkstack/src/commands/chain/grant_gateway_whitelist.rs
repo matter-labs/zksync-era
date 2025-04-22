@@ -54,7 +54,7 @@ pub async fn run(shell: &Shell, args: GrantGatewayWhitelistScriptArgs) -> anyhow
             // We do not care about forge args that much here, since
             // we only need to obtain the calldata
             &Default::default(),
-            &get_default_foundry_path()?,
+            &get_default_foundry_path(shell)?,
             AdminScriptMode::OnlySave,
             args.gateway_chain_id,
             args.bridgehub_addr,

@@ -45,7 +45,7 @@ pub async fn run(shell: &Shell, args: SetTransactionFiltererArgs) -> anyhow::Res
     let result = set_transaction_filterer(
         shell,
         &Default::default(),
-        &get_default_foundry_path()?,
+        &get_default_foundry_path(shell)?,
         AdminScriptMode::OnlySave,
         args.chain_id,
         args.bridgehub_address,

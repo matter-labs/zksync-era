@@ -39,11 +39,15 @@ pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 mod enable_evm_emulator;
 #[cfg(feature = "gateway")]
+mod finalize_chain_migration_from_gw;
+#[cfg(feature = "gateway")]
 mod gateway_migration;
 pub mod genesis;
 pub mod init;
 #[cfg(feature = "gateway")]
 mod migrate_from_gateway;
+#[cfg(feature = "gateway")]
+mod migrate_from_gateway_calldata;
 #[cfg(feature = "gateway")]
 mod notify_server_calldata;
 pub mod register_chain;

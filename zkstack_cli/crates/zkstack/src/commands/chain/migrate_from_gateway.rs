@@ -179,9 +179,17 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     finish_migrate_chain_from_gateway(
         shell,
         args.forge_args.clone(),
+        &ecosystem_config.link_to_code,
+        ecosystem_config
+            .get_wallets()?
+            .deployer
+            .context("Missing deployer wallet")?,
+        ecosystem_config
+            .get_contracts_config()?
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
         gateway_chain_id,
-        &ecosystem_config,
         params,
         l1_url.clone(),
     )
@@ -220,43 +228,50 @@ abigen!(
 ]"
 );
 
+pub(crate) async fn check_whether_gw_transaction_is_finalized(
+    gateway_provider: &Client<L2>,
+    l1_provider: Arc<Provider<Http>>,
+    gateway_diamond_proxy: Address,
+    hash: H256,
+) -> anyhow::Result<bool> {
+    let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
+        return Ok(false);
+    };
+
+    if receipt.l1_batch_number.is_none() {
+        return Ok(false);
+    }
+
+    let batch_number = receipt.l1_batch_number.unwrap();
+
+    if gateway_provider
+        .get_finalize_withdrawal_params(hash, 0)
+        .await
+        .is_err()
+    {
+        return Ok(false);
+    }
+
+    // TODO(X): investigate why waiting for the tx proof is not enough.
+    // This is not expected behavior.
+    let gateway_contract = ZkChainAbi::new(gateway_diamond_proxy, l1_provider);
+    Ok(gateway_contract.get_total_batches_executed().await? >= U256::from(batch_number.as_u64()))
+}
+
 async fn await_for_withdrawal_to_finalize(
     gateway_provider: &Client<L2>,
     l1_provider: Arc<Provider<Http>>,
     gateway_diamond_proxy: Address,
     hash: H256,
 ) -> anyhow::Result<()> {
-    println!("Waiting for withdrawal to finalize...");
-
-    let receipt = loop {
-        if let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? {
-            if receipt.l1_batch_number.is_none() {
-                println!("Waiting for withdrawal to finalize...");
-                tokio::time::sleep(tokio::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
-                continue;
-            }
-            break receipt;
-        }
-
-        println!("Waiting for withdrawal to finalize...");
-        tokio::time::sleep(tokio::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
-    };
-
-    let batch_number = receipt.l1_batch_number.unwrap();
-
-    while gateway_provider
-        .get_finalize_withdrawal_params(hash, 0)
-        .await
-        .is_err()
+    while !check_whether_gw_transaction_is_finalized(
+        gateway_provider,
+        l1_provider.clone(),
+        gateway_diamond_proxy,
+        hash,
+    )
+    .await?
     {
-        println!("Waiting for withdrawal to finalize...");
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-    }
-
-    // TODO(X): investigate why waiting for the tx proof is not enough.
-    // This is not expected behavior.
-    let gateway_contract = ZkChainAbi::new(gateway_diamond_proxy, l1_provider);
-    while gateway_contract.get_total_batches_executed().await? < U256::from(batch_number.as_u64()) {
         println!("Waiting for withdrawal to finalize...");
         tokio::time::sleep(tokio::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
     }
@@ -267,21 +282,19 @@ async fn await_for_withdrawal_to_finalize(
 pub(crate) async fn finish_migrate_chain_from_gateway(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
+    foundry_scripts_path: &Path,
+    wallet: Wallet,
+    l1_bridgehub_addr: Address,
     l2_chain_id: u64,
     gateway_chain_id: u64,
-    ecosystem_config: &EcosystemConfig,
     params: FinalizeWithdrawalParams,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let bridgehub_address = ecosystem_config
-        .get_contracts_config()?
-        .ecosystem_contracts
-        .bridgehub_proxy_addr;
     let data = GATEWAY_UTILS_INTERFACE
         .encode(
             "finishMigrateChainFromGateway",
             (
-                bridgehub_address,
+                l1_bridgehub_addr,
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
                 U256::from(params.l2_batch_number.0[0]),
@@ -293,7 +306,7 @@ pub(crate) async fn finish_migrate_chain_from_gateway(
         )
         .unwrap();
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
+    let mut forge = Forge::new(foundry_scripts_path)
         .script(
             &PathBuf::from(GATEWAY_UTILS_SCRIPT_PATH),
             forge_args.clone(),
@@ -303,13 +316,8 @@ pub(crate) async fn finish_migrate_chain_from_gateway(
         .with_broadcast()
         .with_calldata(&data);
 
-    let deployer = ecosystem_config
-        .get_wallets()?
-        .deployer
-        .context("No deployer wallet")?;
-
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, Some(&deployer), WalletOwner::Deployer)?;
+    forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 

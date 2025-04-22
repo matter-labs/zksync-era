@@ -3,6 +3,7 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::Context;
+use chrono::Utc;
 use clap::Parser;
 use ethers::{
     abi::{encode, Token},
@@ -19,7 +20,7 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    logger,
+    logger, server,
     wallets::Wallet,
 };
 use zkstack_cli_config::{
@@ -28,11 +29,14 @@ use zkstack_cli_config::{
 };
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_contracts::chain_admin_contract;
+use zksync_contracts::{bridgehub_contract, chain_admin_contract};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
-    address_to_u256, h256_to_u256, server_notification::GatewayMigrationNotification,
-    u256_to_address, u256_to_h256, web3::ValueOrArray,
+    address_to_u256, h256_to_u256,
+    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
+    settlement::SettlementLayer,
+    u256_to_address, u256_to_h256,
+    web3::ValueOrArray,
 };
 use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
@@ -48,21 +52,12 @@ use crate::{
         notify_server_migration_from_gateway, notify_server_migration_to_gateway,
         set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
-    commands::chain::utils::get_ethers_provider,
+    commands::chain::{
+        migrate_from_gateway::check_whether_gw_transaction_is_finalized, utils::get_ethers_provider,
+    },
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
-
-#[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct MigrateToGatewayArgs {
-    /// All ethereum environment related arguments
-    #[clap(flatten)]
-    #[serde(flatten)]
-    pub forge_args: ForgeScriptArgs,
-
-    #[clap(long)]
-    pub gateway_chain_name: String,
-}
 
 // 50 gwei
 const MAX_EXPECTED_L1_GAS_PRICE: u64 = 50_000_000_000;
@@ -85,6 +80,8 @@ abigen!(
     function getDAValidatorPair()(address,address)
     function getAdmin()(address)
     function getProtocolVersion()(uint256)
+    function getTotalBatchesCommitted()(uint256)
+    function getTotalBatchesExecuted()(uint256)
 ]"
 );
 
@@ -106,7 +103,7 @@ abigen!(
 
 /// Each migration to or from ZK gateway has multiple states it can be in.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum GatewayMigrationState {
+pub enum GatewayMigrationProgressState {
     /// The state that represents that the migration has not yet started.
     NotStarted,
     /// The chain admin has sent the notification
@@ -118,6 +115,8 @@ pub enum GatewayMigrationState {
     /// The server is ready and the migration has started, but the server has not started sending transactions
     /// to the new settlement layer yet.
     AwaitingFinalization,
+    /// (Only for migrations from Gateway). The migration has been finalized on L1, but the user needs to execute it.
+    PendingManualFinalization,
     /// The migration has finished.
     Finished,
 }
@@ -209,26 +208,106 @@ async fn get_latest_notification_event_from_l1(
     Ok(Some(result))
 }
 
+pub(crate) async fn get_migration_transaction(
+    sl_rpc_url: &str,
+    bridgehub_address: Address,
+    l2_chain_id: u64,
+) -> anyhow::Result<Option<H256>> {
+    let provider = get_ethers_provider(sl_rpc_url)?;
+    let sl_chain_id = provider.get_chainid().await?;
+
+    logger::info(format!(
+        "Searching for the migration transaction on SL {:#?}...",
+        sl_chain_id
+    ));
+
+    // Get the latest block so we know how far we can go
+    let mut search_upper_bound = provider
+        .get_block_number()
+        .await
+        .expect("Failed to fetch latest block")
+        .as_u64();
+
+    let bridgehub_contract = bridgehub_contract();
+
+    let max_interval_to_search = Utc::now() - chrono::Duration::days(5);
+    let latest_event_log = loop {
+        let lower_bound = search_upper_bound.saturating_sub(EVENTS_BLOCK_RANGE);
+
+        let filter = Filter::new()
+            .address(bridgehub_address)
+            .topic0(
+                bridgehub_contract
+                    .event("MigrationStarted")
+                    .unwrap()
+                    .signature(),
+            )
+            .from_block(lower_bound)
+            .topic1(u256_to_h256(U256::from(l2_chain_id)))
+            .to_block(search_upper_bound);
+
+        let mut result_logs = provider.get_logs(&filter).await?;
+        if result_logs.len() > 0 {
+            break result_logs.last().cloned();
+        }
+
+        if lower_bound == 0 {
+            break None;
+        }
+
+        let block_info = provider.get_block(lower_bound).await?.unwrap();
+        if block_info
+            .time()
+            .expect("Can not represent block.timestamp as DateTime<UTC>")
+            < max_interval_to_search
+        {
+            break None;
+        }
+
+        search_upper_bound = lower_bound - 1;
+    };
+
+    let Some(log) = latest_event_log else {
+        return Ok(None);
+    };
+
+    Ok(log.transaction_hash)
+}
+
+async fn check_whether_all_batches_are_executed(
+    sl_rpc_url: &str,
+    bridgehub_address: Address,
+    l2_chain_id: u64,
+) -> anyhow::Result<bool> {
+    let provider = get_ethers_provider(&sl_rpc_url)?;
+    let sl_bridgehub = BridgehubAbi::new(bridgehub_address, provider.clone());
+    let zk_chain_address = sl_bridgehub.get_zk_chain(U256::from(l2_chain_id)).await?;
+    let zk_chain = ZkChainAbi::new(zk_chain_address, provider);
+    let total_committed = zk_chain.get_total_batches_committed().await?;
+    let total_executed = zk_chain.get_total_batches_committed().await?;
+
+    Ok(total_committed == total_executed)
+}
+
 pub(crate) async fn get_gateway_migration_state(
     l1_rpc_url: String,
     l1_bridgehub_addr: Address,
     l2_chain_id: u64,
     l2_rpc_url: String,
+    gw_rpc_url: String,
     direction: MigrationDirection,
-) -> anyhow::Result<GatewayMigrationState> {
+) -> anyhow::Result<GatewayMigrationProgressState> {
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
-    let l1_chain_id = l1_provider.get_chainid().await?;
+    let l1_chain_id = l1_provider.get_chainid().await?.as_u64();
     let l1_bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
 
     let l1_ctm_address = l1_bridgehub.chain_type_manager(l2_chain_id.into()).await?;
     let l1_ctm = ChainTypeManagerAbi::new(l1_ctm_address, l1_provider.clone());
 
-    if matches!(direction, MigrationDirection::FromGateway) {
-        // TODO(X): add script support for migrating away from Gateway
-        anyhow::bail!("Currently the scripts only support for migrating on top of Gateway");
-    }
-
-    let current_sl = l1_bridgehub.settlement_layer(l2_chain_id.into()).await?;
+    let current_sl_from_l1 = l1_bridgehub
+        .settlement_layer(l2_chain_id.into())
+        .await?
+        .as_u64();
 
     let zk_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
@@ -239,48 +318,166 @@ pub(crate) async fn get_gateway_migration_state(
         }
     };
 
-    if current_sl != l1_chain_id {
-        // The chain now has a new settlement layer registered on L1, but the server may
-        // not yet use it.
-        if gateway_migration_status.settlement_layer.is_gateway() {
-            return Ok(GatewayMigrationState::Finished);
-        } else {
-            return Ok(GatewayMigrationState::AwaitingFinalization);
-        }
-    }
-
+    // Firstly we check whether any event has been sent
+    // It is expected that any migration starts with a notification, even though it is not enforced.
     let Some(latest_event) =
-        get_latest_notification_event_from_l1(l2_chain_id, l1_ctm, l1_provider).await?
+        get_latest_notification_event_from_l1(l2_chain_id, l1_ctm, l1_provider.clone()).await?
     else {
-        // All migrations should start with a notification
-        return Ok(GatewayMigrationState::NotStarted);
+        logger::info("No gateway migration events found on L1");
+
+        // No event has been sent.
+        // It means that either migration has not yet started or
+        // the chain admin has completed the migration but without sending any notiifcation.
+
+        // Firslty check for consistency with the server.
+        if gateway_migration_status.latest_notification.is_some() {
+            anyhow::bail!(format!(
+                "Server has seen an event not present on L1. Status {:#?}",
+                gateway_migration_status
+            ));
+        }
+
+        let current_sl_from_server = gateway_migration_status.settlement_layer.chain_id().0;
+
+        // No migration event present, but the server uses inconsistent settlement layer
+        if current_sl_from_l1 != current_sl_from_server {
+            anyhow::bail!(format!("No migration event present, but server uses inconsistent settlement layer. Server: {current_sl_from_server}, L1 Bridgehub: {current_sl_from_l1}"));
+        }
+
+        // The system does not have any migration at this point, we just need to check
+        // whether it is `NotStarted` or `Finished` depending on the propoed direction
+
+        let status = match (direction, gateway_migration_status.settlement_layer) {
+            (MigrationDirection::ToGateway, SettlementLayer::Gateway(_)) => {
+                GatewayMigrationProgressState::Finished
+            }
+            (MigrationDirection::ToGateway, SettlementLayer::L1(_)) => {
+                GatewayMigrationProgressState::NotStarted
+            }
+            (MigrationDirection::FromGateway, SettlementLayer::Gateway(_)) => {
+                GatewayMigrationProgressState::NotStarted
+            }
+            (MigrationDirection::FromGateway, SettlementLayer::L1(_)) => {
+                GatewayMigrationProgressState::Finished
+            }
+        };
+
+        return Ok(status);
     };
 
+    // Some event has been sent on L1.
+    // It may be an event from previous migration or it may be related to the current, new one.
     let expected_notification = direction.expected_notificaation();
 
     if latest_event != expected_notification {
         // It is likely a leftover from a previous migration
-        return Ok(GatewayMigrationState::NotStarted);
+        return Ok(GatewayMigrationProgressState::NotStarted);
     }
 
-    // At this point we know that at least the event to notify the server has been sent, now we need to check
-    // whether the server has received the event.
-    if gateway_migration_status.latest_notification != Some(expected_notification) {
-        // The server has not yet seen the event, so the notification is only sent, but not received
-        return Ok(GatewayMigrationState::NotificationSent);
+    // Now, we know that the last event is aligned with the migration direction.
+    // Let's firstly double check whether the migration has finished.
+
+    match (direction, gateway_migration_status.settlement_layer) {
+        // The server already uses the new settlement layer, so the migration is over
+        (MigrationDirection::ToGateway, SettlementLayer::Gateway(_))
+        | (MigrationDirection::FromGateway, SettlementLayer::L1(_)) => {
+            return Ok(GatewayMigrationProgressState::Finished)
+        }
+        _ => {}
+    };
+
+    // Now we know that the migraiton has started, but it is in progress somehow
+
+    // Let's check if the server has seen the event
+
+    let Some(latest_server_notification) = gateway_migration_status.latest_notification else {
+        // The server has seen no notification yet
+        return Ok(GatewayMigrationProgressState::NotificationSent);
+    };
+
+    if latest_server_notification != latest_event {
+        // The latest seen notification is from a different event
+        return Ok(GatewayMigrationProgressState::NotificationSent);
     }
 
-    // At this point we know that the notification has been received, we need to check whether the server has processed the corresponding events.
+    // The server has seen the event, but does not use the new settlement layer yet,
+    // let's do a small consistency check
+    if gateway_migration_status.state != GatewayMigrationState::InProgress {
+        anyhow::bail!("Server has seen notification, does not use the settlement layer, but still the migration is not in progress. Status: {:#?}", gateway_migration_status);
+    }
 
     let unconfirmed_txs = zk_client.get_unconfirmed_txs_count().await?;
 
     if unconfirmed_txs != 0 {
         // The server has received the notification, but there are still some pending txs
-        return Ok(GatewayMigrationState::NotificationReceived);
+        return Ok(GatewayMigrationProgressState::NotificationReceived);
     }
 
-    // We know that the server is ready, but the new settlement layer has not yet been reflected
-    Ok(GatewayMigrationState::ServerReady)
+    // For migration from Gateway we also require that all batches have been executed
+
+    if direction == MigrationDirection::FromGateway {
+        let whether_all_batches_are_executed =
+            check_whether_all_batches_are_executed(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id)
+                .await?;
+
+        if !whether_all_batches_are_executed {
+            // Server still waits for the batches to get executed
+            return Ok(GatewayMigrationProgressState::NotificationReceived);
+        }
+    }
+
+    // Now we know that the server is ready, but we need to double check whether the migration has already
+    // been finalized by the chain admin.
+
+    if direction == MigrationDirection::ToGateway {
+        if current_sl_from_l1 != l1_chain_id {
+            return Ok(GatewayMigrationProgressState::AwaitingFinalization);
+        }
+
+        return Ok(GatewayMigrationProgressState::ServerReady);
+    }
+
+    let gw_provider = get_ethers_provider(&gw_rpc_url)?;
+    let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_provider.clone());
+    let gw_chain_id = gw_provider.get_chainid().await?;
+
+    let current_sl_from_gw = gw_bridgehub.settlement_layer(l2_chain_id.into()).await?;
+    if current_sl_from_gw == U256::zero() {
+        anyhow::bail!("Chain is not present on Gateway");
+    }
+
+    if current_sl_from_gw == gw_chain_id {
+        // The migration has not been finalized by the admin
+        return Ok(GatewayMigrationProgressState::ServerReady);
+    }
+
+    // Now we need to find an event where the migration has happened.
+    let migration_transaction =
+        get_migration_transaction(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id)
+            .await?
+            .context("Can not find the migration transaction")?;
+    logger::info(format!(
+        "The migration transaction with hash {:#?} has been found",
+        migration_transaction
+    ));
+
+    let gw_zk_client = get_zk_client(&gw_rpc_url, gw_chain_id.as_u64())?;
+    let is_tx_finalized = check_whether_gw_transaction_is_finalized(
+        &gw_zk_client,
+        l1_provider,
+        l1_bridgehub.get_zk_chain(gw_chain_id).await?,
+        migration_transaction,
+    )
+    .await?;
+
+    if !is_tx_finalized {
+        logger::info("The migration transaction is not yet finalized.");
+        // The transaction is not yet finalized.
+        return Ok(GatewayMigrationProgressState::AwaitingFinalization);
+    }
+
+    // The batch with migration transaction has been finalized, we only need to finalize the "withdrawal" of the chain
+    Ok(GatewayMigrationProgressState::PendingManualFinalization)
 }
 
 #[derive(Parser, Debug)]
@@ -534,7 +731,7 @@ impl MigrateToGatewayCalldataScriptArgs {
 ///
 pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataScriptArgs) -> anyhow::Result<()> {
     let forge_args = Default::default();
-    let contracts_foundry_path = get_default_foundry_path()?;
+    let contracts_foundry_path = get_default_foundry_path(shell)?;
 
     let should_cross_check = !params.no_cross_check.unwrap_or_default();
 
@@ -547,34 +744,38 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataScriptArgs) -> a
                 .l2_rpc_url
                 .clone()
                 .context("L2 RPC URL must be provided for cross checking")?,
+            params.gateway_rpc_url.clone(),
             MigrationDirection::ToGateway,
         )
         .await?;
 
         match state {
-            GatewayMigrationState::NotStarted => {
+            GatewayMigrationProgressState::NotStarted => {
                 logger::warn("Notification has not yet been sent. Please use the command to send notification first.");
                 return Ok(());
             }
-            GatewayMigrationState::NotificationSent => {
+            GatewayMigrationProgressState::NotificationSent => {
                 logger::info("Notification has been sent, but the server has not yet picked it up. Please wait");
                 return Ok(());
             }
-            GatewayMigrationState::NotificationReceived => {
+            GatewayMigrationProgressState::NotificationReceived => {
                 logger::info("The server has received the notification about the migration, but it needs to finish all outstanding transactions. Please wait");
                 return Ok(());
             }
-            GatewayMigrationState::ServerReady => {
+            GatewayMigrationProgressState::ServerReady => {
                 logger::info(
                     "The server is ready to start the migration. Preparing the calldata...",
                 );
                 // It is the expected case, it will be handled later in the file
             }
-            GatewayMigrationState::AwaitingFinalization => {
+            GatewayMigrationProgressState::AwaitingFinalization => {
                 logger::info("The transaction to migrate chain on top of Gateway has been submitted, but the server has not yet processed it");
                 return Ok(());
             }
-            GatewayMigrationState::Finished => {
+            GatewayMigrationProgressState::PendingManualFinalization => {
+                unreachable!("`GatewayMigrationProgressState::PendingManualFinalization` should not be returned for migration to Gateway")
+            }
+            GatewayMigrationProgressState::Finished => {
                 logger::info("The migration in this direction has been already finished");
                 return Ok(());
             }

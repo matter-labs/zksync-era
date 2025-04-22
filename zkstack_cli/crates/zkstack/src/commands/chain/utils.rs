@@ -6,6 +6,8 @@ use ethers::{
     providers::{Http, Provider},
     utils::hex,
 };
+use xshell::Shell;
+use zkstack_cli_config::EcosystemConfig;
 use zksync_types::{
     url::SensitiveUrl, web3::keccak256, Address, L2ChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
     U256,
@@ -47,10 +49,8 @@ pub fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Client<L2>> 
     Ok(client)
 }
 
-pub fn get_default_foundry_path() -> anyhow::Result<PathBuf> {
-    let zk_home = std::env::var("ZKSYNC_HOME")
-        .context("`ZKSYNC_HOME` must be set and point to the zksync-era repo")?;
-    Ok(PathBuf::from(format!("{zk_home}/contracts/l1-contracts")))
+pub fn get_default_foundry_path(shell: &Shell) -> anyhow::Result<PathBuf> {
+    Ok(EcosystemConfig::from_file(shell)?.link_to_code)
 }
 
 pub fn display_admin_script_output(result: AdminScriptOutput) {

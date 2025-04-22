@@ -26,7 +26,7 @@ use zksync_types::{Address, L1ChainId};
 use super::{
     admin_call_builder::{AdminCall, AdminCallBuilder},
     gateway_migration::MigrationDirection,
-    gateway_migration_calldata::{get_gateway_migration_state, GatewayMigrationState},
+    gateway_migration_calldata::{get_gateway_migration_state, GatewayMigrationProgressState},
     utils::{display_admin_script_output, get_default_foundry_path},
 };
 use crate::{
@@ -87,6 +87,7 @@ pub struct NotifyServerCalldataScriptArgs {
     #[clap(flatten)]
     pub params: NotifyServerCalldataArgs,
     pub l2_rpc_url: Option<String>,
+    pub gw_rpc_url: Option<String>,
     pub no_cross_check: Option<bool>,
 }
 
@@ -95,11 +96,6 @@ pub async fn run(
     args: NotifyServerCalldataScriptArgs,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
-    if direction == MigrationDirection::FromGateway {
-        // TODO(X): support migrating from gateway in scripts
-        anyhow::bail!("This functionality is available only for migrating on top of Gateway");
-    }
-
     let should_cross_check = !args.no_cross_check.unwrap_or_default();
 
     if should_cross_check {
@@ -110,15 +106,18 @@ pub async fn run(
             args.l2_rpc_url.context(
                 "L2 RPC URL must be provided for cross checking the state with the server",
             )?,
+            args.gw_rpc_url.context(
+                "GW RPC URL must be provided for cross checking the state with the server",
+            )?,
             direction,
         )
         .await?;
 
         match status {
-            GatewayMigrationState::NotStarted => {
-                logger::info("Gateway migration has not yet started. Preparing the calldata for the notification.");
+            GatewayMigrationProgressState::NotStarted => {
+                logger::info("Migration in this direction has not yet started. Preparing the calldata for the notification.");
             }
-            GatewayMigrationState::Finished => {
+            GatewayMigrationProgressState::Finished => {
                 logger::info("Migration in this direction has already finished");
             }
             _ => {
@@ -133,7 +132,7 @@ pub async fn run(
         // We do not care about forge args that much here, since
         // we only need to obtain the calldata
         &Default::default(),
-        &get_default_foundry_path()?,
+        &get_default_foundry_path(shell)?,
         args.params,
         direction,
     )
