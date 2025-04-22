@@ -1,6 +1,6 @@
 use thiserror::Error;
 use zksync_multivm::interface::ExecutionResult;
-use zksync_types::{l2::error::TxCheckError, Address, U256};
+use zksync_types::{l2::error::TxCheckError, U256};
 use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::execution_sandbox::{SandboxExecutionError, ValidationError};
