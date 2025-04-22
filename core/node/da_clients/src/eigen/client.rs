@@ -1,18 +1,12 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
-use celestia_types::blob;
 use ethabi::{encode, ParamType, Token};
-use rust_eigenda_client::{
-    client::BlobProvider,
-    config::{PrivateKey, SrsPointsSource},
-    EigenClient,
-};
-use rust_eigenda_v2_client::{core::{BlobKey, Payload, PayloadForm}, payload_disperser::{PayloadDisperser, PayloadDisperserConfig, PayloadDisperserSecrets}, utils::SecretUrl};
+use rust_eigenda_v2_client::{core::{BlobKey, Payload, PayloadForm}, payload_disperser::{PayloadDisperser, PayloadDisperserConfig}, utils::{PrivateKey, SecretUrl}};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
 use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PointsSource},
+    configs::da_client::eigen::EigenSecrets,
     EigenConfig,
 };
 use zksync_da_client::{
@@ -61,10 +55,7 @@ impl EigenDAClient {
 
         let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        let payload_disperser_secrets = PayloadDisperserSecrets {
-            private_key: private_key.clone(),
-        };
-        let client = PayloadDisperser::new(payload_disperser_config, payload_disperser_secrets)
+        let client = PayloadDisperser::new(payload_disperser_config, private_key)
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
 
