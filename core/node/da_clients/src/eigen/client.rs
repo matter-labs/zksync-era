@@ -191,7 +191,7 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        self.client.blob_size_limit()
+        PayloadDisperser::blob_size_limit()
     }
 
     fn client_type(&self) -> ClientType {

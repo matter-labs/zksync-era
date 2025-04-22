@@ -8572,7 +8572,7 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 [[package]]
 name = "rust-eigenda-v2-client"
 version = "0.1.0"
-source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git?branch=unified-configs#e2f66c15d498474d9d9140ef73727a6d218cb3d1"
+source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git#52bd7616da41fb490637dd3379642ff5bd7cb4bb"
 dependencies = [
  "alloy",
  "alloy-contract",
