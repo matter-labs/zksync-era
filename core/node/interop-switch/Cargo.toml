@@ -13,3 +13,5 @@ categories.workspace = true
 zksync_web3_decl.workspace = true
 zksync_basic_types.workspace = true
 async-trait.workspace = true
+serde.workspace = true
+tokio.workspace = true

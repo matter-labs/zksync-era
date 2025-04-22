@@ -12756,9 +12756,11 @@ dependencies = [
 
 [[package]]
 name = "zksync_interop_switch"
-version = "27.0.0-non-semver-compat"
+version = "27.2.0-non-semver-compat"
 dependencies = [
  "async-trait",
+ "serde",
+ "tokio",
  "zksync_basic_types",
  "zksync_web3_decl",
 ]
