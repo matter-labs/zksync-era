@@ -163,7 +163,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             new_sl_da_validator: gateway_da_validator_address,
             validator_1: chain_secrets_config.blob_operator.address,
             validator_2: chain_secrets_config.operator.address,
-            min_validator_balance: U256::from(10).pow(21.into()).into(),
+            min_validator_balance: U256::from(10).pow(19.into()).into(),
             refund_recipient: None,
         },
     )

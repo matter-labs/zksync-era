@@ -5919,13 +5919,38 @@ dependencies = [
  "elsa",
  "once_cell",
  "prometheus-client",
- "vise-macros",
+ "vise-macros 0.2.0",
+]
+
+[[package]]
+name = "vise"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "269640ec8679c379b8ffefbd4623f7a435f40c159b87bee4620fd9585ea573ba"
+dependencies = [
+ "compile-fmt",
+ "ctor",
+ "elsa",
+ "once_cell",
+ "prometheus-client",
+ "vise-macros 0.3.0",
 ]
 
 [[package]]
 name = "vise-macros"
 version = "0.2.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
+
+[[package]]
+name = "vise-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b03810422b55b87bb8cba95a3708664c049125789a8d79ee524da6ed07ed067d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6668,7 +6693,26 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "vise",
+ "vise 0.2.0",
+]
+
+[[package]]
+name = "zksync_concurrency"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19e750adc56944796872732ff94cbaa14d30437b25642291b91d9783114c6c34"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "pin-project",
+ "rand",
+ "sha3",
+ "thiserror 1.0.69",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "vise 0.3.0",
 ]
 
 [[package]]
@@ -6680,8 +6724,8 @@ dependencies = [
  "secrecy 0.10.3",
  "serde",
  "zksync_basic_types",
- "zksync_concurrency",
- "zksync_consensus_utils",
+ "zksync_concurrency 0.10.0",
+ "zksync_consensus_utils 0.10.0",
  "zksync_crypto_primitives",
 ]
 
@@ -6721,9 +6765,9 @@ dependencies = [
  "serde",
  "thiserror 1.0.69",
  "tracing",
- "zksync_concurrency",
+ "zksync_concurrency 0.9.0",
  "zksync_consensus_crypto",
- "zksync_consensus_utils",
+ "zksync_consensus_utils 0.9.0",
  "zksync_protobuf",
  "zksync_protobuf_build",
 ]
@@ -6737,7 +6781,19 @@ dependencies = [
  "anyhow",
  "rand",
  "thiserror 1.0.69",
- "zksync_concurrency",
+ "zksync_concurrency 0.9.0",
+]
+
+[[package]]
+name = "zksync_consensus_utils"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "047463b701d753185c25412cd1ec08637df906009e59b60207152c255a1ce519"
+dependencies = [
+ "anyhow",
+ "rand",
+ "thiserror 1.0.69",
+ "zksync_concurrency 0.10.0",
 ]
 
 [[package]]
@@ -6794,8 +6850,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "zksync_concurrency",
- "zksync_consensus_utils",
+ "zksync_concurrency 0.9.0",
+ "zksync_consensus_utils 0.9.0",
  "zksync_protobuf_build",
 ]
 
@@ -6875,7 +6931,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing",
- "vise",
+ "vise 0.3.0",
  "zksync_types",
 ]
 
