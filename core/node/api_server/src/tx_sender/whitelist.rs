@@ -64,7 +64,9 @@ impl TxSink for WhitelistedDeployPoolSink {
                     tx.hash(),
                     deployer_address
                 );
-                return Err(SubmitTxError::DeployerNotInAllowList(deployer_address));
+                return Err(SubmitTxError::DeployerNotInAllowList(hex::encode(
+                    deployer_address,
+                )));
             }
         }
 

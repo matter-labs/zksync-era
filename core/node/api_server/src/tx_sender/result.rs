@@ -70,7 +70,7 @@ pub enum SubmitTxError {
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
     #[error("contract deployer address {0} is not in the allow list")]
-    DeployerNotInAllowList(Address),
+    DeployerNotInAllowList(String),
 }
 
 impl SubmitTxError {
