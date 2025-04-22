@@ -1,4 +1,4 @@
-use std::{env, num::ParseIntError, str::FromStr};
+use std::{env, str::FromStr};
 
 use anyhow::Context;
 use zksync_basic_types::{url::SensitiveUrl, H160};

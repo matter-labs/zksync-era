@@ -18,7 +18,7 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 use zksync_eth_client::EthInterface;
-use zksync_types::{Address, H160};
+use zksync_types::Address;
 use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
