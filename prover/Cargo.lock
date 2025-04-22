@@ -8822,17 +8822,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync-wrapper-prover"
-version = "0.154.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31cea78bea61d0c0af3f3233cd1e72dad5de6372d3d254df0a82c00e61d0596c"
-dependencies = [
- "circuit_definitions",
- "zkevm_test_harness",
- "zksync-gpu-prover",
-]
-
-[[package]]
 name = "zksync_basic_types"
 version = "27.4.0-non-semver-compat"
 dependencies = [
