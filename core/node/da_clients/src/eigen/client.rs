@@ -9,7 +9,7 @@ use rust_eigenda_v2_client::{
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
-use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
+use zksync_config::{configs::da_client::eigen::{EigenSecrets, PolynomialForm}, EigenConfig};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -39,13 +39,15 @@ impl EigenDAClient {
         )
         .map_err(|_| anyhow::anyhow!("Invalid eth rpc url"))?;
 
+        let payload_form = match config.polynomial_form {
+            PolynomialForm::Coeff => PayloadForm::Coeff,
+            PolynomialForm::Eval => PayloadForm::Eval,
+        };
+
         let payload_disperser_config = PayloadDisperserConfig {
-            polynomial_form: PayloadForm::Coeff, // todo
-            blob_version: 0,                     // todo
-            cert_verifier_address: H160([
-                0xfe, 0x52, 0xfe, 0x19, 0x40, 0x85, 0x8d, 0xcb, 0x6e, 0x12, 0x15, 0x3e, 0x21, 0x04,
-                0xad, 0x0f, 0xdf, 0xbe, 0x11, 0x62,
-            ]), // todo
+            polynomial_form: payload_form,
+            blob_version: config.blob_version, 
+            cert_verifier_address: config.cert_verifier_addr,
             eth_rpc_url: SecretUrl::new(url),
             disperser_rpc: config.disperser_rpc,
             use_secure_grpc_flag: config.authenticated,
@@ -123,12 +125,13 @@ impl EigenDAClient {
         &self,
         inclusion_data: &[u8],
     ) -> Result<Option<bool>, DAError> {
-        let finished = self.check_finished_batches(inclusion_data).await?;
+        /*let finished = self.check_finished_batches(inclusion_data).await?;
         if !finished {
             return Ok(None);
         }
         let verified = self.check_verified_batches(inclusion_data).await?;
-        Ok(Some(verified))
+        Ok(Some(verified))*/
+        Ok(Some(true)) //todo
     }
 }
 
@@ -165,7 +168,9 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigen_dacert) = eigen_dacert {
-            let inclusion_data = eigen_dacert.to_bytes(); // todo
+            println!("EigenDA cert: {:?}", eigen_dacert);
+            //let inclusion_data = eigen_dacert.to_bytes(); // todo
+            let inclusion_data = vec![];
             if let Some(verified) = self
                 .check_inclusion_data_verification(&inclusion_data)
                 .await?

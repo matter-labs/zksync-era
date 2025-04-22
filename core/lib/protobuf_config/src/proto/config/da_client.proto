@@ -37,26 +37,21 @@ message CelestiaConfig {
   optional uint64 timeout_ms = 4;
 }
 
-message Url {
-  optional string g1_url = 1;
-  optional string g2_url = 2;
+enum PolynomialForm {
+  COEFF = 0;
+  EVAL = 1;
 }
 
 message EigenConfig {
   optional string disperser_rpc = 3;
-  optional uint32 settlement_layer_confirmation_depth = 4;
   optional string eigenda_eth_rpc = 5;
-  optional string eigenda_svc_manager_address = 6;
-  optional bool wait_for_finalization = 7;
   optional bool authenticated = 8;
-  oneof points_source {
-    string points_source_path = 9;
-    Url points_source_url = 10;
-  }
-  repeated uint32 custom_quorum_numbers = 11;
   optional string eigenda_cert_and_blob_verifier_addr = 12;
-  reserved 1,2;
-  reserved "rpc_node_url","inclusion_polling_interval_ms";
+  optional string cert_verifier_addr = 13;
+  optional uint32 blob_version = 14;
+  optional PolynomialForm polynomial_form = 15; 
+  reserved 1,2,4,6,7,9,10,11;
+  reserved "rpc_node_url","inclusion_polling_interval_ms", "settlement_layer_confirmation_depth", "eigenda_svc_manager_address","wait_for_finalization", "points_source_path", "points_source_url","custom_quorum_numbers";
 }
 
 message NoDAConfig {}
