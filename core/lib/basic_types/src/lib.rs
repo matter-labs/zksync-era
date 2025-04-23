@@ -231,23 +231,24 @@ impl From<u32> for L2ChainId {
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct ChainAwareL1BatchNumber {
+pub struct L1BatchId {
     chain_id: L2ChainId,
     batch_number: L1BatchNumber,
 }
 
-impl std::fmt::Display for ChainAwareL1BatchNumber {
+impl std::fmt::Display for L1BatchId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ChainAwareL1BatchNumber(chain_id: {}, batch_number: {})",
+            "L1BatchId
+        (chain_id: {}, batch_number: {})",
             self.chain_id.as_u64(),
             self.batch_number.0
         )
     }
 }
 
-impl ChainAwareL1BatchNumber {
+impl L1BatchId {
     pub fn new(chain_id: L2ChainId, batch_number: L1BatchNumber) -> Self {
         Self {
             chain_id,

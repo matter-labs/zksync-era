@@ -7,7 +7,7 @@ use zksync_basic_types::{
     prover_dal::{
         NodeAggregationJobMetadata, NodeWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
     },
-    ChainAwareL1BatchNumber, L2ChainId,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -24,7 +24,7 @@ pub struct FriNodeWitnessGeneratorDal<'a, 'c> {
 impl FriNodeWitnessGeneratorDal<'_, '_> {
     pub async fn update_node_aggregation_jobs_url(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         circuit_id: u8,
         number_of_dependent_jobs: usize,
         depth: u16,
@@ -44,8 +44,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 AND depth = $5
             "#,
             url,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             i16::from(circuit_id),
             i32::from(depth),
             number_of_dependent_jobs as i32,
@@ -109,16 +109,15 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             _ => AggregationRound::NodeAggregation,
         };
 
-        let batch_number =
-            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
+        let batch_id = L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
         let prover_job_ids = self
             .storage
             .fri_prover_jobs_dal()
-            .prover_job_ids_for(batch_number, row.circuit_id as u8, round, depth)
+            .prover_job_ids_for(batch_id, row.circuit_id as u8, round, depth)
             .await;
         Some(NodeAggregationJobMetadata {
             id: row.id as u32,
-            batch_number,
+            batch_id,
             circuit_id: row.circuit_id as u8,
             depth,
             prover_job_ids_for_proofs: prover_job_ids,
@@ -154,7 +153,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
     #[allow(clippy::too_many_arguments)]
     pub async fn insert_node_aggregation_jobs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         circuit_id: u8,
         number_of_dependent_jobs: Option<i32>,
         depth: u16,
@@ -186,8 +185,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             i16::from(circuit_id),
             i32::from(depth),
             aggregations_url,
@@ -201,9 +200,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn move_depth_zero_node_aggregation_jobs(
-        &mut self,
-    ) -> Vec<(ChainAwareL1BatchNumber, u8, u16)> {
+    pub async fn move_depth_zero_node_aggregation_jobs(&mut self) -> Vec<(L1BatchId, u8, u16)> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -251,7 +248,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .into_iter()
         .map(|row| {
             (
-                ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
                 row.circuit_id as u8,
                 row.depth as u16,
             )
@@ -259,9 +256,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn move_depth_non_zero_node_aggregation_jobs(
-        &mut self,
-    ) -> Vec<(ChainAwareL1BatchNumber, u8, u16)> {
+    pub async fn move_depth_non_zero_node_aggregation_jobs(&mut self) -> Vec<(L1BatchId, u8, u16)> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -308,7 +303,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .into_iter()
         .map(|row| {
             (
-                ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
                 row.circuit_id as u8,
                 row.depth as u16,
             )
@@ -370,7 +365,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_node_witness_generator_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Vec<NodeWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -382,8 +377,8 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_all(self.storage.conn())
         .await
@@ -391,7 +386,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         .iter()
         .map(|row| NodeWitnessGeneratorJobInfo {
             id: row.id as u32,
-            batch_number,
+            batch_id,
             circuit_id: row.circuit_id as u32,
             depth: row.depth as u32,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),

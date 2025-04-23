@@ -52,18 +52,18 @@ impl StoredObject for CircuitWrapper {
 
     fn fallback_key(key: Self::Key<'_>) -> Option<String> {
         let FriCircuitKey {
-            batch_number,
+            batch_id,
             sequence_number,
             circuit_id,
             aggregation_round,
             depth,
         } = key;
-        Some(format!("{block_number}_{chain_id}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin", block_number = batch_number.batch_number(), chain_id = batch_number.chain_id()))
+        Some(format!("{block_number}_{chain_id}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin", block_number = batch_id.batch_number(), chain_id = batch_id.chain_id()))
     }
 
     fn encode_key(key: Self::Key<'_>) -> String {
         let FriCircuitKey {
-            batch_number,
+            batch_id,
             sequence_number,
             circuit_id,
             aggregation_round,
@@ -71,7 +71,7 @@ impl StoredObject for CircuitWrapper {
         } = key;
         format!(
             "{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
-            block_number = batch_number.batch_number()
+            block_number = batch_id.batch_number()
         )
     }
 

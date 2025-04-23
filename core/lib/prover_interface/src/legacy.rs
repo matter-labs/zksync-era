@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, protocol_version::ProtocolSemanticVersion,
-    witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, U256,
+    witness_block_state::WitnessStorageState, L1BatchId, L1BatchNumber, ProtocolVersionId, U256,
 };
 
 use crate::{
@@ -181,10 +181,21 @@ impl StoredObject for VMRunWitnessInputData<Bincode> {
 impl StoredObject for WitnessInputData<Bincode> {
     const BUCKET: Bucket = Bucket::WitnessInput;
 
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = L1BatchId;
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!(
+            "witness_input_data_{batch_number}.bin",
+            batch_number = key.batch_number().0
+        ))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_input_data_{key}.bin")
+        format!(
+            "witness_input_data_{batch_number}_{chain_id}.bin",
+            batch_number = key.batch_number().0,
+            chain_id = key.chain_id().inner()
+        )
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

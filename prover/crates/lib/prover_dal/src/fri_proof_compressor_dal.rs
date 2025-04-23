@@ -7,7 +7,7 @@ use zksync_basic_types::{
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
-    ChainAwareL1BatchNumber, L1BatchNumber, L2ChainId,
+    L1BatchId, L1BatchNumber, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
@@ -21,7 +21,7 @@ pub struct FriProofCompressorDal<'a, 'c> {
 impl FriProofCompressorDal<'_, '_> {
     pub async fn insert_proof_compression_job(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: DateTime<Utc>,
@@ -44,8 +44,8 @@ impl FriProofCompressorDal<'_, '_> {
             ($1, $2, $3, 'queued', NOW(), NOW(), $4, $5, $6)
             ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             fri_proof_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -60,7 +60,7 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         picked_by: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) -> Option<ChainAwareL1BatchNumber> {
+    ) -> Option<L1BatchId> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -102,14 +102,12 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| {
-            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
-        })
+        .map(|row| L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
     }
 
     pub async fn get_proof_compression_job_attempts(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
@@ -121,8 +119,8 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -133,7 +131,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn mark_proof_compression_job_successful(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         time_taken: Duration,
         l1_proof_blob_url: &str,
     ) {
@@ -152,19 +150,15 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Successful.to_string(),
             duration_to_naive_time(time_taken),
             l1_proof_blob_url,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
         .unwrap();
     }
 
-    pub async fn mark_proof_compression_job_failed(
-        &mut self,
-        error: &str,
-        batch_number: ChainAwareL1BatchNumber,
-    ) {
+    pub async fn mark_proof_compression_job_failed(&mut self, error: &str, batch_id: L1BatchId) {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -180,8 +174,8 @@ impl FriProofCompressorDal<'_, '_> {
             "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::SentToServer.to_string(),
         )
@@ -237,10 +231,7 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(
-        &mut self,
-        batch_number: ChainAwareL1BatchNumber,
-    ) -> Result<(), DalError> {
+    pub async fn mark_proof_sent_to_server(&mut self, batch_id: L1BatchId) -> Result<(), DalError> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -252,8 +243,8 @@ impl FriProofCompressorDal<'_, '_> {
                 AND chain_id = $3
             "#,
             ProofCompressionJobStatus::SentToServer.to_string(),
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .instrument("mark_proof_sent_to_server")
         .execute(self.storage)
@@ -303,8 +294,8 @@ impl FriProofCompressorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<ChainAwareL1BatchNumber> {
-        let result: Option<ChainAwareL1BatchNumber> = sqlx::query!(
+    pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchId> {
+        let result: Option<L1BatchId> = sqlx::query!(
             r#"
             SELECT
                 l1_batch_number,
@@ -323,9 +314,7 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| {
-            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
-        });
+        .map(|row| L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32));
 
         result
     }
@@ -385,7 +374,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_proof_compression_job_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Option<ProofCompressionJobInfo> {
         sqlx::query!(
             r#"
@@ -397,14 +386,14 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| ProofCompressionJobInfo {
-            batch_number,
+            batch_id,
             attempts: row.attempts as u32,
             status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
             fri_proof_blob_url: row.fri_proof_blob_url,
@@ -420,7 +409,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn delete_batch_data(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
@@ -429,8 +418,8 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
@@ -449,7 +438,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn requeue_stuck_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         {
@@ -477,8 +466,8 @@ impl FriProofCompressorDal<'_, '_> {
                 error,
                 picked_by
                 "#,
-                batch_number.batch_number().0 as i64,
-                batch_number.chain_id().inner() as i64,
+                batch_id.batch_number().0 as i64,
+                batch_id.chain_id().inner() as i64,
                 max_attempts as i32,
             )
             .fetch_all(self.storage.conn())
@@ -486,8 +475,8 @@ impl FriProofCompressorDal<'_, '_> {
             .unwrap()
             .into_iter()
             .map(|row| StuckJobs {
-                id: batch_number.batch_number().0 as u64,
-                chain_id: batch_number.chain_id(),
+                id: batch_id.batch_number().0 as u64,
+                chain_id: batch_id.chain_id(),
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: None,

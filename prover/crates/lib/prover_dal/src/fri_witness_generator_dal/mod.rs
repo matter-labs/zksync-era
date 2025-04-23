@@ -13,7 +13,7 @@ use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs},
-    ChainAwareL1BatchNumber, L2ChainId,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, utils::naive_time_from_pg_interval};
 
@@ -65,6 +65,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_job_attempts(
         &mut self,
         job_id: u32,
+        chain_id: L2ChainId,
         aggregation_round: AggregationRound,
     ) -> sqlx::Result<Option<u32>> {
         let query = format!(
@@ -75,6 +76,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 {}
             WHERE
                 {} = $1
+                AND chain_id = $2
             "#,
             table_for_round(aggregation_round),
             job_id_column_for_round(aggregation_round)
@@ -82,6 +84,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
         let attempts = sqlx::query(&query)
             .bind(i32::try_from(job_id).expect("job_id must fit a i32"))
+            .bind(chain_id.inner() as i64)
             .fetch_optional(self.storage.conn())
             .await?
             .map(|row| row.get::<i16, &str>("attempts") as u32);
@@ -93,6 +96,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         &mut self,
         error: &str,
         job_id: u32,
+        chain_id: L2ChainId,
         aggregation_round: AggregationRound,
     ) {
         let query = format!(
@@ -104,6 +108,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 {} = $2
+                AND chain_id = $3
                 AND status != 'successful'
             "#,
             table_for_round(aggregation_round),
@@ -113,6 +118,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query(&query)
             .bind(error)
             .bind(i32::try_from(job_id).expect("job_id must fit a i32"))
+            .bind(chain_id.inner() as i64)
             .execute(self.storage.conn())
             .await
             .unwrap();
@@ -161,7 +167,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn delete_witness_generator_data_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         aggregation_round: AggregationRound,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query(
@@ -177,31 +183,25 @@ impl FriWitnessGeneratorDal<'_, '_> {
             )
             .as_str(),
         )
-        .bind(batch_number.batch_number().0 as i64)
-        .bind(batch_number.chain_id().inner() as i64)
+        .bind(batch_id.batch_number().0 as i64)
+        .bind(batch_id.chain_id().inner() as i64)
         .execute(self.storage.conn())
         .await
     }
 
     pub async fn delete_batch_data(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_witness_generator_data_for_batch(batch_number, AggregationRound::BasicCircuits)
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::BasicCircuits)
             .await?;
-        self.delete_witness_generator_data_for_batch(
-            batch_number,
-            AggregationRound::LeafAggregation,
-        )
-        .await?;
-        self.delete_witness_generator_data_for_batch(
-            batch_number,
-            AggregationRound::NodeAggregation,
-        )
-        .await?;
-        self.delete_witness_generator_data(AggregationRound::RecursionTip)
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::LeafAggregation)
             .await?;
-        self.delete_witness_generator_data_for_batch(batch_number, AggregationRound::Scheduler)
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::NodeAggregation)
+            .await?;
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::RecursionTip)
+            .await?;
+        self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::Scheduler)
             .await
     }
 
@@ -238,12 +238,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         self.requeue_stuck_jobs_for_batch_in_aggregation_round(
             AggregationRound::LeafAggregation,
-            batch_number,
+            batch_id,
             max_attempts,
         )
         .await
@@ -251,12 +251,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_node_aggregation_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         self.requeue_stuck_jobs_for_batch_in_aggregation_round(
             AggregationRound::NodeAggregation,
-            batch_number,
+            batch_id,
             max_attempts,
         )
         .await
@@ -265,7 +265,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
         &mut self,
         aggregation_round: AggregationRound,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         let job_id_column = job_id_column_for_round(aggregation_round);
@@ -294,8 +294,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             job_id_column,
         );
         sqlx::query(&query)
-            .bind(batch_number.batch_number().0 as i64)
-            .bind(batch_number.chain_id().inner() as i64)
+            .bind(batch_id.batch_number().0 as i64)
+            .bind(batch_id.chain_id().inner() as i64)
             .bind(i32::try_from(max_attempts).expect("job_id must fit a i32"))
             .fetch_all(self.storage.conn())
             .await
@@ -344,10 +344,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await?
         .into_iter()
         .map(|row| ProofGenerationTime {
-            batch_number: ChainAwareL1BatchNumber::from_raw(
-                row.chain_id as u64,
-                row.l1_batch_number as u32,
-            ),
+            batch_id: L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
             time_taken: naive_time_from_pg_interval(
                 row.time_taken.expect("time_taken must be present"),
             ),

@@ -5,7 +5,7 @@ use zksync_basic_types::{
     basic_fri_types::AggregationRound,
     protocol_version::ProtocolSemanticVersion,
     prover_dal::{RecursionTipWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
-    ChainAwareL1BatchNumber, L2ChainId,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -20,9 +20,7 @@ pub struct FriRecursionTipWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
-    pub async fn move_recursion_tip_jobs_from_waiting_to_queued(
-        &mut self,
-    ) -> Vec<ChainAwareL1BatchNumber> {
+    pub async fn move_recursion_tip_jobs_from_waiting_to_queued(&mut self) -> Vec<L1BatchId> {
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -62,9 +60,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| {
-            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
-        })
+        .map(|row| L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
         .collect()
     }
 
@@ -123,7 +119,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         &mut self,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<(ChainAwareL1BatchNumber, i32)> {
+    ) -> Option<(L1BatchId, i32)> {
         sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
@@ -166,7 +162,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
         .unwrap()
         .map(|row| {
             (
-                ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
                 row.number_of_final_node_jobs,
             )
         })
@@ -174,7 +170,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn mark_recursion_tip_job_as_successful(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         time_taken: Duration,
     ) {
         sqlx::query!(
@@ -191,8 +187,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 )
             "#,
             duration_to_naive_time(time_taken),
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
@@ -201,7 +197,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_recursion_tip_witness_generator_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Option<RecursionTipWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -213,14 +209,14 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| RecursionTipWitnessGeneratorJobInfo {
-            batch_number,
+            batch_id,
             status: WitnessJobStatus::from_str(&row.status).unwrap(),
             attempts: row.attempts as u32,
             processing_started_at: row.processing_started_at,
@@ -236,7 +232,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_recursion_tip_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         sqlx::query!(
@@ -263,8 +259,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             error,
             picked_by
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             max_attempts as i64
         )
         .fetch_all(self.storage.conn())
@@ -285,7 +281,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
 
     pub async fn insert_recursion_tip_aggregation_jobs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         closed_form_inputs_and_urls: &[(u8, String, usize)],
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: DateTime<Utc>,
@@ -311,8 +307,8 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             closed_form_inputs_and_urls.len() as i32,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,

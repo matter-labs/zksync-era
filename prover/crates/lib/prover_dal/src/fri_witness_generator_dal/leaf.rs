@@ -7,7 +7,7 @@ use zksync_basic_types::{
     prover_dal::{
         LeafAggregationJobMetadata, LeafWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus,
     },
-    ChainAwareL1BatchNumber, L2ChainId,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -22,7 +22,12 @@ pub struct FriLeafWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriLeafWitnessGeneratorDal<'_, '_> {
-    pub async fn mark_leaf_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
+    pub async fn mark_leaf_aggregation_as_successful(
+        &mut self,
+        id: u32,
+        chain_id: L2ChainId,
+        time_taken: Duration,
+    ) {
         sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -32,9 +37,11 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 time_taken = $1
             WHERE
                 id = $2
+                AND chain_id = $3
             "#,
             duration_to_naive_time(time_taken),
-            i64::from(id)
+            i64::from(id),
+            chain_id.inner() as i64,
         )
         .execute(self.storage.conn())
         .await
@@ -85,13 +92,12 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()?;
 
-        let batch_number =
-            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
+        let batch_id = L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32);
         let proof_job_ids = self
             .storage
             .fri_prover_jobs_dal()
             .prover_job_ids_for(
-                batch_number,
+                batch_id,
                 row.circuit_id as u8,
                 AggregationRound::BasicCircuits,
                 0,
@@ -99,7 +105,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             .await;
         Some(LeafAggregationJobMetadata {
             id: row.id as u32,
-            batch_number,
+            batch_id,
             circuit_id: row.circuit_id as u8,
             prover_job_ids_for_proofs: proof_job_ids,
         })
@@ -107,7 +113,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
 
     pub async fn move_leaf_aggregation_jobs_from_waiting_to_queued(
         &mut self,
-    ) -> Vec<(ChainAwareL1BatchNumber, u8)> {
+    ) -> Vec<(L1BatchId, u8)> {
         sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -149,7 +155,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .into_iter()
         .map(|row| {
             (
-                ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
                 row.circuit_id as u8,
             )
         })
@@ -210,7 +216,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_leaf_witness_generator_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Vec<LeafWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -222,8 +228,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_all(self.storage.conn())
         .await
@@ -231,10 +237,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         .iter()
         .map(|row| LeafWitnessGeneratorJobInfo {
             id: row.id as u32,
-            batch_number: ChainAwareL1BatchNumber::from_raw(
-                row.chain_id as u64,
-                row.l1_batch_number as u32,
-            ),
+            batch_id: L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
             circuit_id: row.circuit_id as u32,
             closed_form_inputs_blob_url: row.closed_form_inputs_blob_url.clone(),
             attempts: row.attempts as u32,
@@ -253,7 +256,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
 
     pub async fn insert_leaf_aggregation_jobs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         protocol_version: ProtocolSemanticVersion,
         circuit_id: u8,
         closed_form_inputs_url: String,
@@ -295,8 +298,8 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             SET
             updated_at = NOW()
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             i16::from(circuit_id),
             closed_form_inputs_url,
             number_of_basic_circuits as i32,

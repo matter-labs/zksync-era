@@ -4,7 +4,7 @@ use sqlx::types::chrono::{self, DateTime, Utc};
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{BasicWitnessGeneratorJobInfo, StuckJobs, WitnessJobStatus},
-    ChainAwareL1BatchNumber, L2ChainId,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{
     connection::Connection,
@@ -21,10 +21,7 @@ pub struct FriBasicWitnessGeneratorDal<'a, 'c> {
 }
 
 impl FriBasicWitnessGeneratorDal<'_, '_> {
-    pub async fn get_batch_sealed_at_timestamp(
-        &mut self,
-        batch_number: ChainAwareL1BatchNumber,
-    ) -> DateTime<Utc> {
+    pub async fn get_batch_sealed_at_timestamp(&mut self, batch_id: L1BatchId) -> DateTime<Utc> {
         sqlx::query!(
             r#"
             SELECT
@@ -35,8 +32,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -49,7 +46,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
 
     pub async fn save_witness_inputs(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: chrono::DateTime<chrono::Utc>,
@@ -72,8 +69,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5, $6)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             witness_inputs_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -92,7 +89,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         &mut self,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
-    ) -> Option<ChainAwareL1BatchNumber> {
+    ) -> Option<L1BatchId> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -132,15 +129,13 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| {
-            ChainAwareL1BatchNumber::from_raw(row.chain_id as u64, row.l1_batch_number as u32)
-        })
+        .map(|row| L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
     }
 
     pub async fn set_status_for_basic_witness_job(
         &mut self,
         status: FriWitnessJobStatus,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) {
         sqlx::query!(
             r#"
@@ -154,8 +149,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 AND status != 'successful'
             "#,
             status.to_string(),
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
@@ -164,7 +159,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
 
     pub async fn mark_witness_job_as_successful(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         time_taken: Duration,
     ) {
         sqlx::query!(
@@ -179,8 +174,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 AND chain_id = $3
             "#,
             duration_to_naive_time(time_taken),
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
@@ -240,7 +235,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
 
     pub async fn protocol_version_for_l1_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Option<ProtocolSemanticVersion> {
         let result = sqlx::query!(
             r#"
@@ -253,8 +248,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -270,7 +265,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
 
     pub async fn get_basic_witness_generator_job_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Option<BasicWitnessGeneratorJobInfo> {
         sqlx::query!(
             r#"
@@ -282,17 +277,14 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $1
                 AND chain_id = $2
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| BasicWitnessGeneratorJobInfo {
-            batch_number: ChainAwareL1BatchNumber::from_raw(
-                row.chain_id as u64,
-                row.l1_batch_number as u32,
-            ),
+            batch_id: L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
             witness_inputs_blob_url: row.witness_inputs_blob_url,
             attempts: row.attempts as u32,
             status: row.status.parse::<WitnessJobStatus>().unwrap(),
@@ -308,7 +300,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
 
     pub async fn requeue_stuck_witness_inputs_jobs_for_batch(
         &mut self,
-        batch_number: ChainAwareL1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         sqlx::query!(
@@ -335,8 +327,8 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             error,
             picked_by
             "#,
-            batch_number.batch_number().0 as i64,
-            batch_number.chain_id().inner() as i64,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             max_attempts as i64
         )
         .fetch_all(self.storage.conn())
