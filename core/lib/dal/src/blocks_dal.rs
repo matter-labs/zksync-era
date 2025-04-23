@@ -2882,29 +2882,6 @@ impl BlocksDal<'_, '_> {
         Ok(results.into_iter().map(L::from).collect())
     }
 
-    pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                aggregation_root
-            FROM
-                l1_batches
-            WHERE
-                number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .instrument("get_aggregation_root")
-        .with_arg("l1_batch_number", &l1_batch_number)
-        .fetch_optional(self.storage)
-        .await?;
-
-        Ok(row
-            .and_then(|row| row.aggregation_root)
-            .map(|root| H256::from_slice(&root))
-            .unwrap_or_default())
-    }
-
     pub async fn has_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<bool> {
         let row = sqlx::query!(
             r#"
