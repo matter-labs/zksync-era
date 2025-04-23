@@ -16,7 +16,7 @@ pub enum EthSenderError {
 impl EthSenderError {
     pub fn is_retriable(&self) -> bool {
         match self {
-            EthSenderError::EthereumGateway(err) => err.is_retriable(),
+            EthSenderError::EthereumGateway(err) => err.is_retryable(),
             _ => false,
         }
     }
