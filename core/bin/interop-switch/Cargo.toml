@@ -10,3 +10,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_node_framework.workspace = true
+zksync_types.workspace = true
+anyhow.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
+tokio.workspace = true

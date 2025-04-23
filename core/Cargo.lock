@@ -5018,6 +5018,13 @@ dependencies = [
 [[package]]
 name = "interop-switch"
 version = "27.0.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "zksync_config",
+ "zksync_node_framework",
+ "zksync_types",
+]
 
 [[package]]
 name = "ipnet"
