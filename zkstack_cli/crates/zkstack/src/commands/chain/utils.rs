@@ -55,16 +55,16 @@ pub fn get_default_foundry_path(shell: &Shell) -> anyhow::Result<PathBuf> {
 
 pub fn display_admin_script_output(result: AdminScriptOutput) {
     let builder = AdminCallBuilder::new(result.calls);
-    println!(
+    logger::info(format!(
         "Breakdown of calls to be performed by the chain admin:\n{}",
         builder.to_json_string()
-    );
+    ));
 
-    println!("\nThe calldata to be sent by the admin owner:");
-    println!("Admin address (to): {:#?}", result.admin_address);
+    logger::info(format!("\nThe calldata to be sent by the admin owner:"));
+    logger::info(format!("Admin address (to): {:#?}", result.admin_address));
 
     let (data, value) = builder.compile_full_calldata();
 
-    println!("Total data: {}", hex::encode(&data));
-    println!("Total value: {}", value);
+    logger::info(format!("Total data: {}", hex::encode(&data)));
+    logger::info(format!("Total value: {}", value));
 }
