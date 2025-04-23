@@ -18,7 +18,7 @@ use crate::{
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
     etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
     events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    message_roots_dal::MessageRootDal, proof_generation_dal::ProofGenerationDal,
+    interop_roots_dal::MessageRootDal, proof_generation_dal::ProofGenerationDal,
     protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
@@ -45,7 +45,7 @@ pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
 pub mod helpers;
-pub mod message_roots_dal;
+pub mod interop_roots_dal;
 pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
