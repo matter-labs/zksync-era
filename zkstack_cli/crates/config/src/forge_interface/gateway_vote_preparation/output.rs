@@ -1,8 +1,7 @@
-use ethers::{abi::Address, utils::hex};
+use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::web3::Bytes;
 
-use crate::{traits::ZkStackConfig, GatewayConfig};
+use crate::traits::ZkStackConfig;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMOutput {

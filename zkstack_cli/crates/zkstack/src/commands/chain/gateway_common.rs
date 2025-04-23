@@ -1,63 +1,40 @@
 // src/commands/chain/migrate_to_gateway_calldata.rs
 
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context;
 use chrono::Utc;
-use clap::Parser;
 use ethers::{
-    abi::{encode, Token},
-    contract::{abigen, BaseContract},
+    contract::abigen,
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
-    types::{Bytes, Filter, TransactionReceipt, TransactionRequest},
-    utils::{hex, keccak256},
+    types::{Filter, TransactionReceipt, TransactionRequest},
 };
-use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    logger, server,
-    spinner::Spinner,
-    wallets::Wallet,
-};
-use zkstack_cli_config::{
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GatewayConfig,
-};
-use zkstack_cli_types::L1BatchCommitmentMode;
+use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
+use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_contracts::{bridgehub_contract, chain_admin_contract};
+use zksync_contracts::bridgehub_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
-    address_to_u256, h256_to_u256,
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
     settlement::SettlementLayer,
-    u256_to_address, u256_to_h256,
-    web3::ValueOrArray,
+    u256_to_h256,
 };
 use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
-    admin_call_builder::{self, AdminCall, AdminCallBuilder},
+    admin_call_builder::AdminCallBuilder,
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
-    utils::{display_admin_script_output, get_default_foundry_path, get_zk_client},
+    utils::get_zk_client,
 };
 use crate::{
-    accept_ownership::{
-        admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        notify_server_migration_from_gateway, notify_server_migration_to_gateway,
-        set_da_validator_pair_via_gateway, AdminScriptOutput,
-    },
     commands::chain::{
         migrate_from_gateway::check_whether_gw_transaction_is_finalized, utils::get_ethers_provider,
     },
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
-    messages::{message_for_gateway_migration_progress_state, MSG_CHAIN_NOT_INITIALIZED},
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
 abigen!(
@@ -165,8 +142,8 @@ pub(crate) async fn get_migration_transaction(
             .topic1(u256_to_h256(U256::from(l2_chain_id)))
             .to_block(search_upper_bound);
 
-        let mut result_logs = provider.get_logs(&filter).await?;
-        if result_logs.len() > 0 {
+        let result_logs = provider.get_logs(&filter).await?;
+        if !result_logs.is_empty() {
             break result_logs.last().cloned();
         }
 
@@ -198,7 +175,7 @@ async fn check_whether_all_batches_are_executed(
     bridgehub_address: Address,
     l2_chain_id: u64,
 ) -> anyhow::Result<bool> {
-    let provider = get_ethers_provider(&sl_rpc_url)?;
+    let provider = get_ethers_provider(sl_rpc_url)?;
     let sl_bridgehub = BridgehubAbi::new(bridgehub_address, provider.clone());
     let zk_chain_address = sl_bridgehub.get_zk_chain(U256::from(l2_chain_id)).await?;
     let zk_chain = ZkChainAbi::new(zk_chain_address, provider);
@@ -455,7 +432,7 @@ pub(crate) async fn await_for_tx_to_complete(
     gateway_provider: &Arc<Provider<Http>>,
     hash: H256,
 ) -> anyhow::Result<()> {
-    logger::info(&format!(
+    logger::info(format!(
         "Waiting for transaction with hash {:#?} to complete...",
         hash
     ));
@@ -552,7 +529,7 @@ pub(crate) async fn send_tx(
     let pending_tx = client.send_transaction(tx, None).await?;
     spinner.finish();
 
-    logger::info(&format!(
+    logger::info(format!(
         "Transaction sent! Hash: {:#?}",
         pending_tx.tx_hash()
     ));
@@ -564,7 +541,7 @@ pub(crate) async fn send_tx(
 
     spinner.finish();
 
-    logger::info(&format!(
+    logger::info(format!(
         "Transaciton {:#?} completed!",
         receipt.transaction_hash
     ));

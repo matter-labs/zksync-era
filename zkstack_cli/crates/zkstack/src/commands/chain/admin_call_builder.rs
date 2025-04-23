@@ -1,37 +1,10 @@
-use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
-
-use anyhow::Context;
-use clap::{Parser, ValueEnum};
 use ethers::{
-    abi::{decode, encode, parse_abi, ParamType, Token},
-    contract::{abigen, BaseContract},
-    providers::{Http, Middleware, Provider},
-    signers::Signer,
-    types::{TransactionReceipt, TransactionRequest},
+    abi::{decode, ParamType, Token},
     utils::hex,
 };
-use serde::{Deserialize, Serialize};
-use strum::EnumIter;
-use xshell::Shell;
-use zkstack_cli_config::{
-    forge_interface::gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
-    traits::{ReadConfig, ZkStackConfig},
-    ContractsConfig,
-};
+use serde::Serialize;
 use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{
-    address_to_h256, ethabi, h256_to_address,
-    url::SensitiveUrl,
-    web3::{keccak256, Bytes},
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, CONTRACT_DEPLOYER_ADDRESS,
-    H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
-};
-use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
-    namespaces::{EthNamespaceClient, UnstableNamespaceClient, ZksNamespaceClient},
-};
-
-use super::utils::get_ethers_provider;
+use zksync_types::{ethabi, web3::Bytes, Address, U256};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
@@ -94,10 +67,6 @@ impl AdminCall {
     }
 }
 
-fn hex_address_display(addr: Address) -> String {
-    format!("0x{}", hex::encode(addr.0))
-}
-
 fn serialize_hex<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
@@ -116,7 +85,7 @@ pub struct AdminCallBuilder {
 impl AdminCallBuilder {
     pub fn new(calls: Vec<AdminCall>) -> Self {
         Self {
-            calls: calls,
+            calls,
             zkchain_abi: hyperchain_contract(),
             chain_admin_abi: chain_admin_contract(),
         }

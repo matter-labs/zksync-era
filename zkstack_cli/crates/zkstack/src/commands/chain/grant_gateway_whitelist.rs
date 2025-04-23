@@ -1,37 +1,11 @@
-use std::path::{Path, PathBuf};
-
-use anyhow::Context;
 use clap::Parser;
-use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    logger,
-    wallets::Wallet,
-};
-use zkstack_cli_config::{
-    forge_interface::{
-        deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},
-        script_params::GATEWAY_GOVERNANCE_TX_PATH1,
-    },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig,
-};
-use zksync_basic_types::H256;
-use zksync_types::{Address, L1ChainId};
+use zkstack_cli_common::logger;
+use zksync_types::Address;
 
-use super::{
-    admin_call_builder::AdminCallBuilder,
-    utils::{display_admin_script_output, get_default_foundry_path},
-};
-use crate::{
-    accept_ownership::{grant_gateway_whitelist, AdminScriptMode, AdminScriptOutput},
-    messages::MSG_CHAIN_NOT_INITIALIZED,
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
-};
+use super::utils::{display_admin_script_output, get_default_foundry_path};
+use crate::accept_ownership::{grant_gateway_whitelist, AdminScriptMode};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct GrantGatewayWhitelistCalldataArgs {

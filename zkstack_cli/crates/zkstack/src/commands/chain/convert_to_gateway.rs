@@ -2,7 +2,6 @@ use anyhow::Context;
 use ethers::{
     abi::{parse_abi, Address},
     contract::BaseContract,
-    types::Bytes,
     utils::hex,
 };
 use lazy_static::lazy_static;
@@ -10,7 +9,6 @@ use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    logger,
     wallets::Wallet,
 };
 use zkstack_cli_config::{
@@ -28,7 +26,6 @@ use zkstack_cli_config::{
     ChainConfig, EcosystemConfig, GatewayConfig,
 };
 use zkstack_cli_types::ProverMode;
-use zksync_basic_types::H256;
 
 use crate::{
     accept_ownership::{

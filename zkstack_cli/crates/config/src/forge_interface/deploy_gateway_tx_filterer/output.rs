@@ -1,4 +1,4 @@
-use ethers::types::{Address, H256};
+use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::traits::ZkStackConfig;

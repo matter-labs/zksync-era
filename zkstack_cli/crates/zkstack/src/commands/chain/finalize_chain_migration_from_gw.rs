@@ -1,40 +1,13 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
     abi::{parse_abi, Address},
-    contract::{abigen, BaseContract},
-    providers::{Http, Middleware, Provider},
-    types::Bytes,
-    utils::hex,
+    contract::BaseContract,
 };
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use serde_yaml::with;
 use xshell::Shell;
-use zkstack_cli_common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    logger,
-    spinner::Spinner,
-    wallets::Wallet,
-    zks_provider::{FinalizeWithdrawalParams, ZKSProvider},
-};
-use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH,
-    traits::{ReadConfig, SaveConfig},
-    ContractsConfig, EcosystemConfig,
-};
-use zksync_basic_types::{H256, U256, U64};
-use zksync_types::{L2ChainId, L2_BRIDGEHUB_ADDRESS};
-use zksync_web3_decl::{
-    client::{Client, L2},
-    namespaces::EthNamespaceClient,
-};
+use zkstack_cli_common::{logger, wallets::Wallet, zks_provider::ZKSProvider};
+use zksync_types::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     gateway_common::{
@@ -42,20 +15,10 @@ use super::{
         MigrationDirection,
     },
     migrate_from_gateway::finish_migrate_chain_from_gateway,
-    utils::{display_admin_script_output, get_default_foundry_path},
+    utils::get_default_foundry_path,
 };
 use crate::{
-    accept_ownership::{set_da_validator_pair, start_migrate_chain_from_gateway, AdminScriptMode},
-    commands::chain::{
-        admin_call_builder::AdminCallBuilder,
-        init::get_l1_da_validator,
-        utils::{get_ethers_provider, get_zk_client},
-    },
-    messages::{
-        message_for_gateway_migration_progress_state, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_DA_PAIR_REGISTRATION_SPINNER,
-    },
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    commands::chain::utils::get_zk_client, messages::message_for_gateway_migration_progress_state,
 };
 
 lazy_static! {
@@ -69,7 +32,7 @@ lazy_static! {
 
 #[derive(Parser, Debug)]
 #[command()]
-pub(crate) struct FinalizeChainMigrationFromGatewayScriptArgs {
+pub struct FinalizeChainMigrationFromGatewayArgs {
     pub l1_rpc_url: String,
     pub l1_bridgehub_addr: Address,
     pub l2_chain_id: u64,
@@ -91,7 +54,7 @@ pub(crate) struct FinalizeChainMigrationFromGatewayScriptArgs {
 ///
 pub async fn run(
     shell: &Shell,
-    params: FinalizeChainMigrationFromGatewayScriptArgs,
+    params: FinalizeChainMigrationFromGatewayArgs,
 ) -> anyhow::Result<()> {
     let should_cross_check = !params.no_cross_check.unwrap_or_default();
 

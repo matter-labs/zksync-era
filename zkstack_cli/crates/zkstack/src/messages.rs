@@ -4,7 +4,6 @@ use ethers::{
     types::{Address, H160, U256},
     utils::format_ether,
 };
-use serde_json::to_string;
 use url::Url;
 use zksync_consensus_roles::attester;
 

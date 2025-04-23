@@ -1,39 +1,14 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
     abi::{parse_abi, Address},
-    contract::{abigen, BaseContract},
-    providers::{Http, Middleware, Provider},
-    types::Bytes,
+    contract::BaseContract,
     utils::hex,
 };
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    logger,
-    spinner::Spinner,
-    wallets::Wallet,
-    zks_provider::{FinalizeWithdrawalParams, ZKSProvider},
-};
-use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH,
-    traits::{ReadConfig, SaveConfig},
-    ContractsConfig, EcosystemConfig,
-};
-use zksync_basic_types::{H256, U256, U64};
-use zksync_types::L2ChainId;
-use zksync_web3_decl::{
-    client::{Client, L2},
-    namespaces::EthNamespaceClient,
-};
+use zkstack_cli_common::logger;
+use zkstack_cli_config::{traits::ReadConfig, ContractsConfig};
 
 use super::{
     gateway_common::{
@@ -41,16 +16,7 @@ use super::{
     },
     utils::{display_admin_script_output, get_default_foundry_path},
 };
-use crate::{
-    accept_ownership::{set_da_validator_pair, start_migrate_chain_from_gateway, AdminScriptMode},
-    commands::chain::{
-        admin_call_builder::AdminCallBuilder,
-        init::get_l1_da_validator,
-        utils::{get_ethers_provider, get_zk_client},
-    },
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
-};
+use crate::accept_ownership::{start_migrate_chain_from_gateway, AdminScriptMode};
 
 lazy_static! {
     static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(
@@ -63,7 +29,7 @@ lazy_static! {
 
 #[derive(Parser, Debug)]
 #[command()]
-pub(crate) struct MigrateFromGatewayCalldataArgs {
+pub struct MigrateFromGatewayCalldataArgs {
     pub l1_rpc_url: String,
     pub l1_bridgehub_addr: Address,
     pub max_l1_gas_price: u64,

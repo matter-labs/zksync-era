@@ -1,12 +1,5 @@
-use ethers::{
-    abi::{parse_abi, Address, Token},
-    contract::BaseContract,
-    utils::hex,
-};
-use serde::Serialize;
+use ethers::{abi::parse_abi, contract::BaseContract};
 use zkstack_cli_common::logger;
-use zksync_basic_types::{ethabi, web3::Bytes, U256};
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
 
 pub(crate) fn print_error(err: anyhow::Error) {
     logger::error(format!(

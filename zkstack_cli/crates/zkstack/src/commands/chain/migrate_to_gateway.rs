@@ -1,57 +1,22 @@
-use std::{hash::Hash, path::Path, sync::Arc};
-
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{encode, parse_abi, ParamType, Token},
-    contract::{abigen, BaseContract},
-    middleware::SignerMiddleware,
-    providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Bytes, Filter, TransactionReceipt, TransactionRequest},
-    utils::{hex, keccak256},
-};
-use lazy_static::lazy_static;
+use ethers::contract::abigen;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    logger,
-    spinner::Spinner,
-    wallets::Wallet,
-};
-use zkstack_cli_config::{
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GatewayChainConfigPatch,
-};
+use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, logger};
+use zkstack_cli_config::{EcosystemConfig, GatewayChainConfigPatch};
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_contracts::chain_admin_contract;
+use zksync_basic_types::{Address, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
-use zksync_types::{
-    address_to_u256, h256_to_u256, server_notification::GatewayMigrationNotification,
-    u256_to_address, u256_to_h256, web3::ValueOrArray,
-};
-use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
-    admin_call_builder::{self, AdminCall, AdminCallBuilder},
-    gateway_common::{extract_and_wait_for_priority_ops, send_tx, MigrationDirection},
+    admin_call_builder::AdminCallBuilder,
+    gateway_common::{extract_and_wait_for_priority_ops, send_tx},
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
-    notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
-    utils::{display_admin_script_output, get_default_foundry_path, get_zk_client},
 };
 use crate::{
-    accept_ownership::{
-        admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        notify_server_migration_from_gateway, notify_server_migration_to_gateway,
-        set_da_validator_pair_via_gateway, AdminScriptOutput,
-    },
-    commands::chain::utils::get_ethers_provider,
-    consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
+    commands::chain::utils::get_ethers_provider, consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
     messages::MSG_CHAIN_NOT_INITIALIZED,
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -154,12 +119,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             max_l1_gas_price: DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
             l2_chain_id: chain_config.chain_id.as_u64(),
             gateway_chain_id: gateway_chain_config.chain_id.as_u64(),
-            gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone().into(),
+            gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone(),
             gateway_rpc_url: gw_rpc_url.clone(),
             new_sl_da_validator: gateway_da_validator_address,
             validator_1: chain_secrets_config.blob_operator.address,
             validator_2: chain_secrets_config.operator.address,
-            min_validator_balance: U256::from(10).pow(19.into()).into(),
+            min_validator_balance: U256::from(10).pow(19.into()),
             refund_recipient: None,
         },
     )

@@ -1,66 +1,34 @@
 // src/commands/chain/migrate_to_gateway_calldata.rs
 
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use anyhow::Context;
-use chrono::Utc;
 use clap::Parser;
 use ethers::{
     abi::{encode, Token},
-    contract::{abigen, BaseContract},
-    middleware::SignerMiddleware,
-    providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Bytes, Filter, TransactionReceipt, TransactionRequest},
-    utils::{hex, keccak256},
+    contract::abigen,
+    providers::{Middleware, Provider},
 };
-use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    logger, server,
-    wallets::Wallet,
-};
-use zkstack_cli_config::{
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GatewayConfig,
-};
-use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_contracts::{bridgehub_contract, chain_admin_contract};
+use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
+use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
+use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
-use zksync_types::{
-    address_to_u256, h256_to_u256,
-    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
-    settlement::SettlementLayer,
-    u256_to_address, u256_to_h256,
-    web3::ValueOrArray,
-};
-use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
-    admin_call_builder::{self, AdminCall, AdminCallBuilder},
+    admin_call_builder::AdminCall,
     gateway_common::{
         get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
     },
-    notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
-    utils::{
-        apply_l1_to_l2_alias, display_admin_script_output, get_default_foundry_path, get_zk_client,
-    },
+    utils::{apply_l1_to_l2_alias, display_admin_script_output, get_default_foundry_path},
 };
 use crate::{
     accept_ownership::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
-        notify_server_migration_from_gateway, notify_server_migration_to_gateway,
         set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
-    commands::chain::{
-        migrate_from_gateway::check_whether_gw_transaction_is_finalized, utils::get_ethers_provider,
-    },
-    messages::{message_for_gateway_migration_progress_state, MSG_CHAIN_NOT_INITIALIZED},
-    utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    commands::chain::utils::get_ethers_provider,
+    messages::message_for_gateway_migration_progress_state,
 };
 
 abigen!(
@@ -197,7 +165,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         let recorded_zk_chain_gw_address =
             gw_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
         if recorded_zk_chain_gw_address == Address::zero() {
-            let expected_address = precompute_chain_address_on_gateway(
+            precompute_chain_address_on_gateway(
                 params.l2_chain_id,
                 H256(
                     l1_bridgehub
@@ -209,9 +177,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                 params.gateway_diamond_cut.clone(),
                 gw_ctm,
             )
-            .await?;
-
-            expected_address
+            .await?
         } else {
             recorded_zk_chain_gw_address
         }
@@ -291,12 +257,12 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         }
 
         let current_validator_balance = gw_provider.get_balance(validator, None).await?;
-        logger::info(&format!(
+        logger::info(format!(
             "Current balance of {:#?} = {}",
             validator, current_validator_balance
         ));
         if current_validator_balance < params.min_validator_balance {
-            logger::info(&format!(
+            logger::info(format!(
                 "Will send {} of the ZK Gateway base token",
                 params.min_validator_balance - current_validator_balance
             ));
@@ -306,7 +272,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                 foundry_contracts_path,
                 crate::accept_ownership::AdminScriptMode::OnlySave,
                 params.l1_bridgehub_addr,
-                params.max_l1_gas_price.into(),
+                params.max_l1_gas_price,
                 params.gateway_chain_id,
                 validator,
                 params.min_validator_balance - current_validator_balance,
@@ -324,7 +290,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
 #[derive(Parser, Debug)]
 #[command()]
-pub(crate) struct MigrateToGatewayCalldataArgs {
+pub struct MigrateToGatewayCalldataArgs {
     pub l1_rpc_url: String,
     pub l1_bridgehub_addr: Address,
     pub max_l1_gas_price: u64,
@@ -414,7 +380,7 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow:
         .context("Failed to read the gateway config path")?;
 
     let (admin_address, calls) = get_migrate_to_gateway_calls(
-        &shell,
+        shell,
         &forge_args,
         &contracts_foundry_path,
         params.into_migrate_params(gateway_config.diamond_cut_data.0),

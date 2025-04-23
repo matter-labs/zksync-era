@@ -4,7 +4,6 @@ use anyhow::Context;
 use ethers::{
     abi::{parse_abi, Token},
     contract::BaseContract,
-    core::k256::elliptic_curve::consts::U2,
     types::{Address, Bytes},
     utils::hex,
 };
@@ -458,6 +457,7 @@ pub async fn call_script(
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn set_transaction_filterer(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -495,6 +495,7 @@ pub(crate) async fn set_transaction_filterer(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn grant_gateway_whitelist(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -524,6 +525,7 @@ pub(crate) async fn grant_gateway_whitelist(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn revoke_gateway_whitelist(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -553,6 +555,7 @@ pub(crate) async fn revoke_gateway_whitelist(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn set_da_validator_pair_via_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -600,6 +603,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn enable_validator_via_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -642,6 +646,7 @@ pub(crate) async fn enable_validator_via_gateway(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_to_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -670,6 +675,7 @@ pub(crate) async fn notify_server_migration_to_gateway(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn finalize_migrate_to_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -710,6 +716,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_from_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -738,6 +745,7 @@ pub(crate) async fn notify_server_migration_from_gateway(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn admin_l1_l2_tx(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -784,6 +792,7 @@ pub(crate) async fn admin_l1_l2_tx(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_migrate_chain_from_gateway(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,

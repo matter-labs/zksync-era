@@ -110,7 +110,7 @@ pub enum ChainCommands {
     MigrateFromGatewayCalldata(migrate_from_gateway_calldata::MigrateFromGatewayCalldataArgs),
     #[cfg(feature = "gateway")]
     FinalizeChainMigrationFromGateway(
-        finalize_chain_migration_from_gw::FinalizeChainMigrationFromGatewayScriptArgs,
+        finalize_chain_migration_from_gw::FinalizeChainMigrationFromGatewayArgs,
     ),
     /// Prepare chain to be an eligible gateway
     #[cfg(feature = "gateway")]

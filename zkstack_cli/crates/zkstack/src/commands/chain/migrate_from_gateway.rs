@@ -8,8 +8,7 @@ use clap::Parser;
 use ethers::{
     abi::{parse_abi, Address},
     contract::{abigen, BaseContract},
-    providers::{Http, Middleware, Provider},
-    types::Bytes,
+    providers::{Http, Provider},
     utils::hex,
 };
 use lazy_static::lazy_static;
@@ -24,12 +23,9 @@ use zkstack_cli_common::{
     zks_provider::{FinalizeWithdrawalParams, ZKSProvider},
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH,
-    traits::{ReadConfig, SaveConfig},
-    EcosystemConfig,
+    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, EcosystemConfig,
 };
-use zksync_basic_types::{H256, U256, U64};
-use zksync_types::L2ChainId;
+use zksync_basic_types::{H256, U256};
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::EthNamespaceClient,
@@ -80,9 +76,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .load_chain(Some(args.gateway_chain_name.clone()))
         .context("Gateway not present")?;
     let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
-    let gateway_gateway_config = gateway_chain_config
-        .get_gateway_config()
-        .context("Gateway config not present")?;
 
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
     let chain_contracts_config = chain_config.get_contracts_config()?;

@@ -1,6 +1,5 @@
 use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::web3::Bytes;
 
 use crate::{
     forge_interface::deploy_ecosystem::input::{GenesisInput, InitialDeploymentConfig},

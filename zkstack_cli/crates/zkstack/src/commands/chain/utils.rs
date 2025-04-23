@@ -61,7 +61,7 @@ pub fn display_admin_script_output(result: AdminScriptOutput) {
         builder.to_json_string()
     ));
 
-    logger::info(format!("\nThe calldata to be sent by the admin owner:"));
+    logger::info("\nThe calldata to be sent by the admin owner:".to_string());
     logger::info(format!("Admin address (to): {:#?}", result.admin_address));
 
     let (data, value) = builder.compile_full_calldata();
