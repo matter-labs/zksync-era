@@ -5016,6 +5016,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "interop-switch"
+version = "27.0.0-non-semver-compat"
+
+[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12758,6 +12762,7 @@ dependencies = [
 name = "zksync_interop_switch"
 version = "27.2.0-non-semver-compat"
 dependencies = [
+ "anyhow",
  "async-trait",
  "serde",
  "tokio",
@@ -13109,6 +13114,7 @@ dependencies = [
  "zksync_gateway_migrator",
  "zksync_health_check",
  "zksync_house_keeper",
+ "zksync_interop_switch",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",

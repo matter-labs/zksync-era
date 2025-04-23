@@ -58,6 +58,7 @@ zksync_logs_bloom_backfill.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_system_constants.workspace = true
 zksync_gateway_migrator.workspace = true
+zksync_interop_switch.workspace = true
 
 pin-project-lite.workspace = true
 tracing.workspace = true

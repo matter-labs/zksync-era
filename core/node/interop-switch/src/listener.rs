@@ -3,17 +3,17 @@ use std::marker::PhantomData;
 use tokio::time::Duration;
 use zksync_basic_types::L2ChainId;
 
-use crate::{Chain, DbClient};
+use crate::{DbClient, SourceChain};
 
 pub struct InteropListener<C: DbClient> {
-    src_chain: Chain,
+    src_chain: SourceChain,
     dst_chain: L2ChainId,
     listener_step: u64,
     _phantom_data: PhantomData<C>,
 }
 
 impl<C: DbClient> InteropListener<C> {
-    pub fn new(src_chain: Chain, dst_chain: L2ChainId, listener_step: u64) -> Self {
+    pub fn new(src_chain: SourceChain, dst_chain: L2ChainId, listener_step: u64) -> Self {
         Self {
             src_chain,
             dst_chain,
@@ -22,7 +22,7 @@ impl<C: DbClient> InteropListener<C> {
         }
     }
 
-    pub async fn start(&self, db: &mut C) -> Result<(), String> {
+    pub async fn start(&self, db: &mut C) -> anyhow::Result<()> {
         loop {
             let from_block = db.get_last_processed_block(self.src_chain.chain_id).await?;
             let to_block = from_block + self.listener_step;

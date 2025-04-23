@@ -17,3 +17,4 @@ serde.workspace = true
 tokio.workspace = true
 zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
+anyhow = "1.0.93"

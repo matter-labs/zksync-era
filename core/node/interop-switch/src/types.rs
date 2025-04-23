@@ -1,8 +1,6 @@
 use serde::Deserialize;
-use zksync_basic_types::ethabi::ParamType;
-use zksync_basic_types::web3::Log;
-use zksync_basic_types::{ethabi, Address, L2ChainId, H256, U256};
-use zksync_web3_decl::jsonrpsee::core::Serialize;
+use zksync_basic_types::{ethabi, ethabi::ParamType, Address, L2ChainId, H256, U256};
+use zksync_web3_decl::{jsonrpsee::core::Serialize, types::Log};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InteropCall {

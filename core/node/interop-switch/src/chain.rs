@@ -1,6 +1,6 @@
-use zksync_basic_types::ethabi::Event;
+use std::{fmt, fmt::Debug};
+
 use zksync_basic_types::{
-    ethabi::Contract,
     web3::{BlockNumber, FilterBuilder},
     Address, L2ChainId, H256,
 };
@@ -9,13 +9,12 @@ use zksync_system_constants::L2_INTEROP_HANDLER_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::EthNamespaceClient,
-    types::Filter,
 };
 
 use crate::{InteropBundle, InteropTrigger};
 
 #[derive(Debug, Clone)]
-pub struct Chain {
+pub struct SourceChain {
     pub(crate) chain_id: L2ChainId,
     client: Client<L2>,
     interop_center_address: Address,
@@ -23,7 +22,7 @@ pub struct Chain {
     trigger_event: H256,
 }
 
-impl Chain {
+impl SourceChain {
     pub async fn new(client: Client<L2>) -> Self {
         // TODO handle error
         let chain_id = client.chain_id().await.expect("Failed to get chain ID");
@@ -63,7 +62,15 @@ impl Chain {
             .await
             .expect("Failed to get logs");
 
-        vec![]
+        logs.into_iter()
+            .filter_map(|log| {
+                let trigger = InteropTrigger::try_from(log).unwrap();
+                if trigger.dst_chain_id != l2chain_id {
+                    return None;
+                }
+                Some(trigger)
+            })
+            .collect()
     }
 
     pub async fn get_new_interop_bundles(
@@ -73,5 +80,21 @@ impl Chain {
         l2chain_id: L2ChainId,
     ) -> Vec<InteropBundle> {
         vec![]
+    }
+}
+
+#[async_trait::async_trait]
+pub trait DestinationChain: 'static + fmt::Debug + Send + Sync {
+    fn chain_id(&self) -> L2ChainId;
+}
+
+#[derive(Debug, Clone)]
+struct LocalDestinationChain {
+    chain_id: L2ChainId,
+}
+
+impl DestinationChain for LocalDestinationChain {
+    fn chain_id(&self) -> L2ChainId {
+        self.chain_id
     }
 }
