@@ -16,7 +16,7 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
-    message_root::MessageRoot,
+    interop_root::MessageRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,

@@ -18,10 +18,9 @@ use zksync_multivm::{
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2BlockNumber,
-    Transaction,
+    block::L2BlockExecutionData, commitment::PubdataParams, interop_root::MessageRoot,
+    l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
+    utils::display_timestamp, L1BatchNumber, L2BlockNumber, Transaction,
 };
 
 use crate::{

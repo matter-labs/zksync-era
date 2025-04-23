@@ -1,7 +1,7 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
-    message_root::MessageRoot,
+    interop_root::MessageRoot,
     ProtocolVersionId,
 };
 

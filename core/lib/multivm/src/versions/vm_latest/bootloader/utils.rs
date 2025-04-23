@@ -1,4 +1,4 @@
-use zksync_types::{ethabi, h256_to_u256, message_root::MessageRoot, ProtocolVersionId, U256};
+use zksync_types::{ethabi, h256_to_u256, interop_root::MessageRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{

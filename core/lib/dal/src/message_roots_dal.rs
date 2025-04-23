@@ -1,6 +1,6 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
-    h256_to_u256, message_root::MessageRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256,
+    h256_to_u256, interop_root::MessageRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256,
 };
 
 use crate::Core;

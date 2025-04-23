@@ -32,7 +32,7 @@ impl MessageRootProcessor {
         };
         Self {
             appended_message_root_signature: ethabi::long_signature(
-                "NewMessageRoot",
+                "NewInteropRoot",
                 &[
                     ethabi::ParamType::Uint(256),
                     ethabi::ParamType::Uint(256),
