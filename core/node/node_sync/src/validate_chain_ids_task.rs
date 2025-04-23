@@ -82,7 +82,7 @@ impl ValidateChainIdsTask {
                     );
                     return Ok(());
                 }
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     tracing::warn!(
                         "Retriable error getting L1 chain ID from main node client, will retry in {:?}: {err}",
                         Self::BACKOFF_INTERVAL
@@ -118,7 +118,7 @@ impl ValidateChainIdsTask {
                     );
                     return Ok(());
                 }
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     tracing::warn!(
                         "Transient error getting L2 chain ID from main node client, will retry in {:?}: {err}",
                         Self::BACKOFF_INTERVAL

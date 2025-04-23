@@ -84,23 +84,16 @@ export async function getExternalNodeHealth(url: string) {
     }
 }
 
-export async function dropNodeData(env: { [key: string]: string }, useZkStack?: boolean, chain?: string) {
-    if (useZkStack) {
-        let cmd = 'zkstack external-node init';
-        cmd += chain ? ` --chain ${chain}` : '';
-        await executeNodeCommand(env, cmd);
-    } else {
-        await executeNodeCommand(env, 'zk db reset');
-        await executeNodeCommand(env, 'zk clean --database');
-    }
+export async function dropNodeData(chain: string) {
+    const cmd = `zkstack external-node init --chain ${chain}`;
+    await executeNodeCommand(cmd);
 }
 
-async function executeNodeCommand(env: { [key: string]: string }, command: string) {
+async function executeNodeCommand(command: string) {
     const childProcess = spawn(command, {
         cwd: process.env.ZKSYNC_HOME!!,
         stdio: 'inherit',
-        shell: true,
-        env
+        shell: true
     });
     try {
         await waitForProcess(childProcess);
@@ -176,12 +169,10 @@ export class NodeProcess {
     }
 
     static async spawn(
-        env: { [key: string]: string },
         logsFile: FileHandle | string,
         pathToHome: string,
         components: NodeComponents = NodeComponents.STANDARD,
-        useZkStack?: boolean,
-        chain?: string,
+        chain: string,
         deploymentMode?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
@@ -191,11 +182,8 @@ export class NodeProcess {
             components: componentsArr,
             stdio: ['ignore', logs.fd, logs.fd],
             cwd: pathToHome,
-            env,
-            useZkStack,
             chain
         });
-
         return new NodeProcess(childProcess, logs);
     }
 

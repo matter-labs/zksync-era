@@ -377,7 +377,7 @@ impl Stallable for SchedulerWitnessGeneratorJobInfo {
     }
 }
 
-#[derive(Debug, EnumString, Display, Clone)]
+#[derive(Debug, EnumString, Display, Clone, PartialEq)]
 pub enum ProofCompressionJobStatus {
     #[strum(serialize = "queued")]
     Queued,

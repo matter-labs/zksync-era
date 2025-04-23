@@ -39,7 +39,8 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
             DateTime::<Utc>::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
     Ok(())
 }

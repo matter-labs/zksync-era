@@ -470,6 +470,19 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
+            api_mode: self.sample(rng),
+            port: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::fri_prover_gateway::ApiMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover_gateway::ApiMode {
+        type T = configs::fri_prover_gateway::ApiMode;
+
+        match rng.gen_range(0..2) {
+            0 => T::Legacy,
+            _ => T::ProverCluster,
         }
     }
 }
