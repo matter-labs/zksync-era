@@ -1,3 +1,4 @@
+use zksync_basic_types::ethabi::Event;
 use zksync_basic_types::{
     ethabi::Contract,
     web3::{BlockNumber, FilterBuilder},
@@ -39,7 +40,6 @@ impl Chain {
             chain_id: L2ChainId::new(chain_id.as_u64()).expect("Invalid chain ID from client"),
             client,
             interop_center_address: L2_INTEROP_HANDLER_ADDRESS,
-            // interop_contract: interop_center_contract(),
             bundle_event,
             trigger_event,
         }
@@ -57,12 +57,12 @@ impl Chain {
             .address(vec![self.interop_center_address])
             .topics(Some(vec![self.trigger_event]), None, None, None)
             .build();
-        // self.client.get_logs(
-        //     self.trigger_event,
-        //     self.interop_center_address,
-        //     Some(from_block),
-        //     Some(to_block),
-        // ).await.expect("Failed to get logs")
+        let logs = self
+            .client
+            .get_logs(filter.into())
+            .await
+            .expect("Failed to get logs");
+
         vec![]
     }
 

@@ -3,36 +3,12 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, L2ChainId, H256, U256};
 
+use crate::types::{InteropBundle, InteropTrigger};
 use crate::{chain::Chain, listener::InteropListener};
 
 mod chain;
 mod listener;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InteropCall {
-    pub direct_call: bool,
-    pub to: Address,
-    pub from: Address,
-    pub value: U256,
-    pub data: Vec<u8>,
-}
-
-#[derive(Debug, Clone)]
-pub struct InteropTrigger {
-    pub tx_hash: H256,
-    pub src_chain_id: L2ChainId,
-    pub dst_chain_id: L2ChainId,
-    pub data: Vec<u8>,
-}
-
-#[derive(Debug, Clone)]
-pub struct InteropBundle {
-    pub tx_hash: H256,
-    pub src_chain_id: L2ChainId,
-    pub dst_chain_id: L2ChainId,
-    pub calls: Vec<InteropCall>,
-    pub execution_address: Address,
-}
+mod types;
 
 #[async_trait::async_trait]
 pub trait DbClient {
