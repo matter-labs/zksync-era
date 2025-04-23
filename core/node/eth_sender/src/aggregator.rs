@@ -12,7 +12,7 @@ use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
-    interop_root::MessageRoot,
+    InteropRoot,
     l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
@@ -299,7 +299,7 @@ impl Aggregator {
             return Ok(None);
         };
 
-        let mut dependency_roots: Vec<Vec<MessageRoot>> = vec![];
+        let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
         for batch in &l1_batches {
             let message_roots = storage
                 .message_root_dal()

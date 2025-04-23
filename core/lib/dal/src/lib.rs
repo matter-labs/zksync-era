@@ -18,7 +18,7 @@ use crate::{
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
     etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
     events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    interop_roots_dal::MessageRootDal, proof_generation_dal::ProofGenerationDal,
+    interop_roots_dal::InteropRootDal, proof_generation_dal::ProofGenerationDal,
     protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
@@ -116,7 +116,7 @@ where
 
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a>;
 
-    fn message_root_dal(&mut self) -> MessageRootDal<'_, 'a>;
+    fn message_root_dal(&mut self) -> InteropRootDal<'_, 'a>;
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a>;
 
@@ -226,8 +226,8 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         ProtocolVersionsDal { storage: self }
     }
 
-    fn message_root_dal(&mut self) -> MessageRootDal<'_, 'a> {
-        MessageRootDal { storage: self }
+    fn message_root_dal(&mut self) -> InteropRootDal<'_, 'a> {
+        InteropRootDal { storage: self }
     }
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {

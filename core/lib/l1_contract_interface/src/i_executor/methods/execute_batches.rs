@@ -1,7 +1,7 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
-    interop_root::MessageRoot,
+    InteropRoot,
     ProtocolVersionId,
 };
 
@@ -15,7 +15,7 @@ use crate::{
 pub struct ExecuteBatches {
     pub l1_batches: Vec<L1BatchWithMetadata>,
     pub priority_ops_proofs: Vec<PriorityOpsMerkleProof>,
-    pub dependency_roots: Vec<Vec<MessageRoot>>,
+    pub dependency_roots: Vec<Vec<InteropRoot>>,
 }
 
 impl ExecuteBatches {

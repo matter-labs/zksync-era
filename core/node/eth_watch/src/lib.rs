@@ -18,7 +18,7 @@ pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExten
 use self::{
     client::RETRY_LIMIT,
     event_processors::{
-        EventProcessor, EventProcessorError, MessageRootProcessor, PriorityOpsEventProcessor,
+        EventProcessor, EventProcessorError, InteropRootProcessor, PriorityOpsEventProcessor,
     },
     metrics::METRICS,
 };
@@ -81,7 +81,7 @@ impl EthWatch {
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let l1_message_root_processor =
-            MessageRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone())).await;
+            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone())).await;
         // let batch_root_processor = L1BatchRootProcessor::new(
         //     state.chain_batch_root_number_lower_bound,
         //     state.batch_merkle_tree,
@@ -105,7 +105,7 @@ impl EthWatch {
                 sl_client.clone(),
             );
             let sl_message_root_processor =
-                MessageRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
+                InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
             event_processors.push(Box::new(batch_root_processor));
             event_processors.push(Box::new(sl_message_root_processor));
         }

@@ -16,7 +16,7 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    interop_root::MessageRoot,
+    InteropRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -467,7 +467,7 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<MessageRoot>> {
+    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let message_root = storage.message_root_dal().get_new_interop_roots().await?;
         Ok(message_root)
@@ -476,7 +476,7 @@ impl StateKeeperIO for ExternalIO {
     async fn load_l2_block_message_root(
         &self,
         l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<MessageRoot>> {
+    ) -> anyhow::Result<Vec<InteropRoot>> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let message_root = storage
             .message_root_dal()

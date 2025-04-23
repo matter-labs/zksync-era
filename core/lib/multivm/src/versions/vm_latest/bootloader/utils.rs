@@ -1,4 +1,4 @@
-use zksync_types::{ethabi, h256_to_u256, interop_root::MessageRoot, ProtocolVersionId, U256};
+use zksync_types::{ethabi, h256_to_u256, InteropRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
@@ -154,7 +154,7 @@ fn apply_l2_block_inner(
 pub(crate) fn apply_message_root(
     memory: &mut BootloaderMemory,
     message_root_offset: usize,
-    message_root: MessageRoot,
+    interop_root: InteropRoot,
     subversion: MultiVmSubversion,
     l2_block_number: u32,
 ) {
@@ -165,12 +165,12 @@ pub(crate) fn apply_message_root(
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
         U256::from(l2_block_number),
-        U256::from(message_root.chain_id),
-        U256::from(message_root.block_number),
-        U256::from(message_root.sides.len()),
+        U256::from(interop_root.chain_id),
+        U256::from(interop_root.block_number),
+        U256::from(interop_root.sides.len()),
     ];
 
-    u256_words.extend(message_root.sides);
+    u256_words.extend(interop_root.sides);
     // println!("u256_words: {:?}", u256_words);
     // println!(
     //     "zipped 0 {:?}",

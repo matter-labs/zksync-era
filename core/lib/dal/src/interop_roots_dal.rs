@@ -1,16 +1,14 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{
-    h256_to_u256, interop_root::MessageRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256,
-};
+use zksync_types::{h256_to_u256, InteropRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256};
 
 use crate::Core;
 
 #[derive(Debug)]
-pub struct MessageRootDal<'a, 'c> {
+pub struct InteropRootDal<'a, 'c> {
     pub storage: &'a mut Connection<'c, Core>,
 }
 
-impl MessageRootDal<'_, '_> {
+impl InteropRootDal<'_, '_> {
     pub async fn set_interop_root(
         &mut self,
         chain_id: SLChainId,
@@ -49,7 +47,7 @@ impl MessageRootDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_new_interop_roots(&mut self) -> DalResult<Vec<MessageRoot>> {
+    pub async fn get_new_interop_roots(&mut self) -> DalResult<Vec<InteropRoot>> {
         // kl todo only load MAX_MSG_ROOTS_IN_BATCH message roots
         let records = sqlx::query!(
             r#"
@@ -69,7 +67,7 @@ impl MessageRootDal<'_, '_> {
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();
 
-            MessageRoot {
+            InteropRoot {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,
@@ -99,7 +97,7 @@ impl MessageRootDal<'_, '_> {
 
     pub async fn mark_interop_roots_as_executed(
         &mut self,
-        interop_roots: &[MessageRoot],
+        interop_roots: &[InteropRoot],
         l2block_number: L2BlockNumber,
     ) -> DalResult<()> {
         let mut db_transaction = self.storage.start_transaction().await?;
@@ -127,7 +125,7 @@ impl MessageRootDal<'_, '_> {
     pub async fn get_interop_roots(
         &mut self,
         l2block_number: L2BlockNumber,
-    ) -> DalResult<Vec<MessageRoot>> {
+    ) -> DalResult<Vec<InteropRoot>> {
         let records = sqlx::query!(
             r#"
             SELECT *
@@ -147,7 +145,7 @@ impl MessageRootDal<'_, '_> {
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();
 
-            MessageRoot {
+            InteropRoot {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,
@@ -160,7 +158,7 @@ impl MessageRootDal<'_, '_> {
     pub async fn get_msg_roots_batch(
         &mut self,
         batch_number: L1BatchNumber,
-    ) -> DalResult<Vec<MessageRoot>> {
+    ) -> DalResult<Vec<InteropRoot>> {
         let roots = sqlx::query!(
             r#"
             SELECT *
@@ -183,7 +181,7 @@ impl MessageRootDal<'_, '_> {
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();
 
-            MessageRoot {
+            InteropRoot {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,

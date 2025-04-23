@@ -6,7 +6,7 @@ use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
     protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    MessageRoot, ProtocolVersionId, Transaction, H256,
+    InteropRoot, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -57,7 +57,7 @@ pub struct L2BlockParams {
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
     pub virtual_blocks: u32,
-    pub msg_roots: Vec<MessageRoot>,
+    pub msg_roots: Vec<InteropRoot>,
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
@@ -169,13 +169,13 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
 
     /// Loads the latest message root.
-    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<MessageRoot>>;
+    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<InteropRoot>>;
 
     /// Loads the latest message root.
     async fn load_l2_block_message_root(
         &self,
         l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<MessageRoot>>;
+    ) -> anyhow::Result<Vec<InteropRoot>>;
 
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.

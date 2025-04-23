@@ -12,7 +12,7 @@ use zksync_db_connection::{
 use zksync_types::{
     block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, h256_to_u256, l1::L1Tx, l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, MessageRoot, PriorityOpId, ProtocolVersionId, Transaction,
+    L1BlockNumber, L2BlockNumber, InteropRoot, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -2114,7 +2114,7 @@ impl TransactionsDal<'_, '_> {
     pub async fn get_interop_roots(
         &mut self,
         l2block_number: L2BlockNumber,
-    ) -> DalResult<Vec<MessageRoot>> {
+    ) -> DalResult<Vec<InteropRoot>> {
         let records = sqlx::query!(
             r#"
             SELECT *
@@ -2134,7 +2134,7 @@ impl TransactionsDal<'_, '_> {
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();
 
-            MessageRoot {
+            InteropRoot {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,

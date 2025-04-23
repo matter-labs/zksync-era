@@ -3,13 +3,13 @@ use serde::{Deserialize, Serialize};
 use crate::{ethabi::Token, u256_to_h256, U256};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct MessageRoot {
+pub struct InteropRoot {
     pub chain_id: u32,
     pub block_number: u32,
     pub sides: Vec<U256>, // The rolling hash of all the transactions in the miniblock
 }
 
-impl MessageRoot {
+impl InteropRoot {
     pub fn new(chain_id: u32, block_number: u32, sides: Vec<U256>) -> Self {
         Self {
             chain_id,
@@ -32,7 +32,7 @@ impl MessageRoot {
     }
 }
 
-impl Clone for MessageRoot {
+impl Clone for InteropRoot {
     fn clone(&self) -> Self {
         Self {
             chain_id: self.chain_id,

@@ -29,7 +29,7 @@ use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    MessageRoot, ProtocolVersionId, Transaction, H256,
+    InteropRoot, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -826,14 +826,14 @@ impl StateKeeperIO for TestIO {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<MessageRoot>> {
+    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
         Ok(vec![])
     }
 
     async fn load_l2_block_message_root(
         &self,
         _l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<MessageRoot>> {
+    ) -> anyhow::Result<Vec<InteropRoot>> {
         Ok(vec![])
     }
 

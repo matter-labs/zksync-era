@@ -18,7 +18,7 @@ use zksync_multivm::{
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, interop_root::MessageRoot,
+    block::L2BlockExecutionData, commitment::PubdataParams, InteropRoot,
     l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
     utils::display_timestamp, L1BatchNumber, L2BlockNumber, Transaction,
 };
@@ -317,7 +317,7 @@ impl ZkSyncStateKeeper {
     async fn load_l2_block_message_root(
         &mut self,
         l2block_number: L2BlockNumber,
-    ) -> anyhow::Result<Vec<MessageRoot>> {
+    ) -> anyhow::Result<Vec<InteropRoot>> {
         self.io
             .load_l2_block_message_root(l2block_number)
             .await

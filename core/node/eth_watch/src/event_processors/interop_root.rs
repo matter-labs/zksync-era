@@ -11,7 +11,7 @@ use crate::{
 
 /// Responsible for `AppendedChainBatchRoot` events and saving `BatchAndChainMerklePath` for batches.
 #[derive(Debug)]
-pub struct MessageRootProcessor {
+pub struct InteropRootProcessor {
     appended_message_root_signature: H256,
     event_source: EventsSource,
     l2_chain_id: L2ChainId,
@@ -19,7 +19,7 @@ pub struct MessageRootProcessor {
     pub sl_chain_id: Option<SLChainId>,
 }
 
-impl MessageRootProcessor {
+impl InteropRootProcessor {
     pub async fn new(
         event_source: EventsSource,
         l2_chain_id: L2ChainId,
@@ -49,7 +49,7 @@ impl MessageRootProcessor {
 }
 
 #[async_trait::async_trait]
-impl EventProcessor for MessageRootProcessor {
+impl EventProcessor for InteropRootProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -170,4 +170,4 @@ impl EventProcessor for MessageRootProcessor {
     }
 }
 
-impl MessageRootProcessor {}
+impl InteropRootProcessor {}

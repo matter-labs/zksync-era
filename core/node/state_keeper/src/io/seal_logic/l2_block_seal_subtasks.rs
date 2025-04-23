@@ -110,7 +110,7 @@ impl L2BlockSealProcess {
             Box::new(InsertTokensSubtask),
             Box::new(InsertEventsSubtask),
             Box::new(InsertL2ToL1LogsSubtask),
-            Box::new(MarkMessageRootsAsSealed),
+            Box::new(MarkInteropRootsAsSealed),
         ]
     }
 
@@ -455,10 +455,10 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 }
 
 #[derive(Debug)]
-pub(super) struct MarkMessageRootsAsSealed;
+pub(super) struct MarkInteropRootsAsSealed;
 
 #[async_trait]
-impl L2BlockSealSubtask for MarkMessageRootsAsSealed {
+impl L2BlockSealSubtask for MarkInteropRootsAsSealed {
     fn name(&self) -> &'static str {
         "mark_messsage_roots_as_sealed"
     }
@@ -469,7 +469,7 @@ impl L2BlockSealSubtask for MarkMessageRootsAsSealed {
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let progress = L2_BLOCK_METRICS.start(
-            L2BlockSealStage::MarkMessageRootsAsSealed,
+            L2BlockSealStage::MarkInteropRootsAsSealed,
             command.is_l2_block_fictive(),
         );
 
