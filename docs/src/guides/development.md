@@ -157,7 +157,9 @@ In simple terms, the integration-test workflow consists of three phases:
 
 ### Running upgrade tests
 
-Similar to integration tests, the whole setup is complicated and it is recommended to refer to our CI scripts [ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to have a better understanding of the process.
+Similar to integration tests, the whole setup is complicated and it is recommended to refer to our CI scripts
+[ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to
+have a better understanding of the process.
 
 In simple terms, the upgrade-test workflow consists of three phases:
 
