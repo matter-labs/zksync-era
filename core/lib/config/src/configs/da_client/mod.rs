@@ -26,10 +26,11 @@ impl From<AvailConfig> for DAClientConfig {
 mod tests {
     use std::time::Duration;
 
-    use smart_config::{testing::test, Environment, Yaml};
+    use secrecy::ExposeSecret;
+    use smart_config::{testing::test, ConfigRepository, ConfigSchema, Environment, Yaml};
 
     use super::{avail::AvailClientConfig, eigen::PointsSource, *};
-    use crate::configs::object_store::ObjectStoreMode;
+    use crate::configs::{object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
 
     #[test]
     fn no_da_config_from_yaml() {
@@ -132,6 +133,48 @@ mod tests {
             "https://lens-turbo-api.availproject.org"
         );
         assert_eq!(client.max_retries, 4);
+    }
+
+    // Checks that non-secret and secret parts of the DA config don't clash despite previously having differing prefixes
+    // (`da_client` vs `da`).
+    #[test]
+    fn secrets_do_not_clash_with_client_tag() {
+        let yaml = r#"
+          da_client:
+            client: Avail
+            bridge_api_url: https://bridge-api.avail.so
+            avail_client_type: GasRelay
+            gas_relay_api_url: https://lens-turbo-api.availproject.org
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let mut schema = ConfigSchema::new(&DAClientConfig::DESCRIPTION, "da_client");
+        schema.insert(&Secrets::DESCRIPTION, "").unwrap();
+
+        let repo = ConfigRepository::new(&schema).with(yaml);
+        let config: DAClientConfig = repo.single().unwrap().parse().unwrap();
+        assert!(matches!(&config, DAClientConfig::Avail(_)));
+        let secrets: DataAvailabilitySecrets = repo.single().unwrap().parse().unwrap();
+        assert!(matches!(&secrets, DataAvailabilitySecrets::Avail(_)));
+
+        let secrets = r#"
+          da:
+            client: Avail
+            gas_relay_api_key: SUPER_SECRET_KEY
+        "#;
+        let secrets = Yaml::new("secrets.yml", serde_yaml::from_str(secrets).unwrap()).unwrap();
+        let repo = repo.with(secrets);
+
+        let config: DAClientConfig = repo.single().unwrap().parse().unwrap();
+        assert!(matches!(&config, DAClientConfig::Avail(_)));
+        let secrets: DataAvailabilitySecrets = repo.single().unwrap().parse().unwrap();
+        let DataAvailabilitySecrets::Avail(secrets) = secrets else {
+            panic!("unexpected secrets: {secrets:?}");
+        };
+        assert_eq!(
+            secrets.gas_relay_api_key.unwrap().0.expose_secret(),
+            "SUPER_SECRET_KEY"
+        );
     }
 
     #[test]
