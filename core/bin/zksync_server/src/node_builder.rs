@@ -713,8 +713,10 @@ impl MainNodeBuilder {
 
     fn add_external_proof_integration_api_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_proof_integration_api_config);
+        let proof_data_handler_config = try_load_config!(self.configs.proof_data_handler_config);
         self.node.add_layer(ExternalProofIntegrationApiLayer::new(
             config,
+            proof_data_handler_config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         ));
 

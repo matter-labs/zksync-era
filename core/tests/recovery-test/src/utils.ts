@@ -5,31 +5,27 @@ import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions
 export function background({
     command,
     stdio = 'inherit',
-    cwd,
-    env
+    cwd
 }: {
     command: string;
     stdio: any;
     cwd?: ProcessEnvOptions['cwd'];
-    env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
     console.log(`Running command in background: ${command}`);
-    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
+    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd });
 }
 
 export function runInBackground({
     command,
     components,
     stdio,
-    cwd,
-    env
+    cwd
 }: {
     command: string;
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
 }): ChildProcessWithoutNullStreams {
     if (components && components.length > 0) {
         command += ` --components=${components.join(',')}`;
@@ -38,8 +34,7 @@ export function runInBackground({
     return background({
         command,
         stdio,
-        cwd,
-        env
+        cwd
     });
 }
 
@@ -47,28 +42,13 @@ export function runExternalNodeInBackground({
     components,
     stdio,
     cwd,
-    env,
-    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
-    useZkStack?: boolean;
-    chain?: string;
+    chain: string;
 }): ChildProcessWithoutNullStreams {
-    let command = '';
-    if (useZkStack) {
-        command = 'zkstack external-node run';
-        command += chain ? ` --chain ${chain}` : '';
-    } else {
-        command = 'zk external-node --';
-
-        const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        if (enableConsensus) {
-            command += ' --enable-consensus';
-        }
-    }
-    return runInBackground({ command, components, stdio, cwd, env });
+    const command = `zkstack external-node run --chain ${chain}`;
+    return runInBackground({ command, components, stdio, cwd });
 }

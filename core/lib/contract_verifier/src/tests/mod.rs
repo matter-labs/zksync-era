@@ -9,7 +9,9 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     address_to_h256,
     bytecode::{pad_evm_bytecode, BytecodeHash},
-    contract_verification::api::{CompilerVersions, SourceCodeData, VerificationIncomingRequest},
+    contract_verification::api::{
+        CompilerVersions, ImmutableReference, SourceCodeData, VerificationIncomingRequest,
+    },
     get_code_key, get_known_code_key,
     l2::L2Tx,
     tx::IncludedTxLocation,
@@ -85,6 +87,21 @@ object "Empty" {
         code { }
     }
 }
+"#;
+const COUNTER_CONTRACT_WITH_IMMUTABLE: &str = r#"
+    contract CounterWithImmutable {
+        uint256 public immutable base;
+        uint256 public value;
+
+        constructor(uint256 _base, uint256 _value) {
+            base = _base;
+            value = _value;
+        }
+
+        function increment(uint256 x) external {
+            value += (base + x);
+        }
+    }
 "#;
 
 #[derive(Debug, Clone, Copy)]
@@ -408,6 +425,7 @@ async fn contract_verifier_basics(contract: TestContract) {
             bytecode: vec![0; 32],
             deployed_bytecode: None,
             abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
         }
     });
     let verifier = ContractVerifier::with_resolver(
@@ -528,6 +546,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
         bytecode: creation_bytecode.clone(),
         deployed_bytecode: Some(deployed_bytecode),
         abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
     };
     let mock_resolver = MockCompilerResolver::solc(move |input| {
         assert_eq!(input.standard_json.language, "Solidity");
@@ -571,6 +590,7 @@ async fn bytecode_mismatch_error() {
         bytecode: vec![0; 32],
         deployed_bytecode: None,
         abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
@@ -652,11 +672,13 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
             bytecode: bytecode.clone(),
             deployed_bytecode: None,
             abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
         }),
         BytecodeMarker::Evm => MockCompilerResolver::solc(move |_| CompilationArtifacts {
             bytecode: vec![3_u8; 48],
             deployed_bytecode: Some(bytecode.clone()),
             abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
         }),
     };
     let verifier = ContractVerifier::with_resolver(
@@ -723,6 +745,7 @@ async fn creation_bytecode_mismatch() {
             bytecode: vec![4; 20], // differs from `creation_bytecode`
             deployed_bytecode: Some(deployed_bytecode.clone()),
             abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
         }
     });
     let verifier = ContractVerifier::with_resolver(
@@ -797,4 +820,72 @@ async fn no_compiler_version() {
     assert!(status.compilation_errors.is_none(), "{status:?}");
     let error = status.error.unwrap();
     assert!(error.contains("solc version"), "{error}");
+}
+
+#[tokio::test]
+async fn verifying_evm_with_immutables() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let creation_bytecode = vec![0x03; 10];
+    let mut deployed_bytecode = vec![0x05; 10];
+    // Place the immutables deployed_bytecode code at offsets 4..6:
+    deployed_bytecode[4..6].copy_from_slice(&[0xAA, 0xBB]);
+
+    let address = Address::repeat_byte(1);
+    mock_evm_deployment(
+        &mut storage,
+        address,
+        creation_bytecode.clone(),
+        &deployed_bytecode,
+        &[],
+    )
+    .await;
+
+    let mut req = test_request(address, COUNTER_CONTRACT_WITH_IMMUTABLE);
+    req.compiler_versions = CompilerVersions::Solc {
+        compiler_solc_version: SOLC_VERSION.to_owned(),
+        compiler_zksolc_version: None,
+    };
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    let mut deployed_bytecode_compiled = vec![0x05; 10];
+    deployed_bytecode_compiled[4..6].copy_from_slice(&[0x00, 0x00]);
+
+    let mut imm_map = HashMap::new();
+    imm_map.insert(
+        "somePlaceholder".to_string(),
+        vec![ImmutableReference {
+            start: 4,
+            length: 2,
+        }],
+    );
+
+    let artifacts = CompilationArtifacts {
+        bytecode: creation_bytecode.clone(),
+        deployed_bytecode: Some(deployed_bytecode_compiled),
+        abi: counter_contract_abi(),
+        immutable_refs: imm_map,
+    };
+
+    let mock_resolver = MockCompilerResolver::solc(move |_| artifacts.clone());
+
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(&mut storage, request_id, address, &creation_bytecode, &[]).await;
 }
