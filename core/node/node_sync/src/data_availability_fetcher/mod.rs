@@ -253,6 +253,7 @@ impl DataAvailabilityFetcher {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
+        self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {
             let step_outcome = self.step().await;
@@ -301,6 +302,20 @@ impl DataAvailabilityFetcher {
             }
         }
         tracing::info!("Stop signal received; data availability fetcher is shutting down");
+        Ok(())
+    }
+
+    /// Drops all entries from the database that do not have inclusion data.
+    /// This is necessary during snapshot recovery, otherwise the fetcher will try fetching the
+    /// batches that are already in the database.
+    pub async fn drop_entries_without_inclusion_data(&self) -> anyhow::Result<()> {
+        self.pool
+            .connection_tagged("data_availability_fetcher")
+            .await?
+            .data_availability_dal()
+            .remove_batches_without_inclusion_data()
+            .await?;
+
         Ok(())
     }
 }

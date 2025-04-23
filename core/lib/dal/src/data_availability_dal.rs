@@ -493,4 +493,19 @@ impl DataAvailabilityDal<'_, '_> {
 
         Ok(row.da_is_missing.unwrap_or(false))
     }
+
+    pub async fn remove_batches_without_inclusion_data(&mut self) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM data_availability
+            WHERE inclusion_data IS NULL
+            "#,
+        )
+        .instrument("remove_batches_without_inclusion_data")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
 }

@@ -207,8 +207,6 @@ describe('snapshot recovery', () => {
     });
 
     step('create snapshot', async () => {
-        // Wait for all the batches to be processed.
-        await sleep(5000);
         await createSnapshot(chainName);
     });
 
