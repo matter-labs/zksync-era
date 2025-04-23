@@ -40,7 +40,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
     #[tracing::instrument(
         name = "gpu_circuit_prover_job_saver",
         skip_all,
-        fields(l1_batch = % data.1.block_number)
+        fields(l1_batch = % data.1.batch_number)
     )]
     async fn save_job_result(
         &self,
@@ -51,7 +51,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
         tracing::info!(
             "Started saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_number,
             metadata.circuit_id,
             metadata.aggregation_round
         );
@@ -78,14 +78,14 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .context("failed to start db transaction")?;
                 transaction
                     .fri_prover_jobs_dal()
-                    .save_proof(metadata.id, metadata.pick_time.elapsed(), &blob_url)
+                    .save_proof(metadata.id, metadata.batch_number.chain_id(), metadata.pick_time.elapsed(), &blob_url)
                     .await;
 
                 if is_scheduler_proof {
                     transaction
                         .fri_proof_compressor_dal()
                         .insert_proof_compression_job(
-                            metadata.block_number,
+                            metadata.batch_number,
                             &blob_url,
                             self.protocol_version,
                             metadata.batch_sealed_at,
@@ -112,7 +112,7 @@ impl JobSaver for GpuCircuitProverJobSaver {
         tracing::info!(
             "Finished saving gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_number,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()

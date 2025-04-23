@@ -148,6 +148,12 @@ impl<'de> Deserialize<'de> for L2ChainId {
     }
 }
 
+impl fmt::Display for L2ChainId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl L2ChainId {
     /// The maximum value of the L2 chain ID.
     // `2^53 - 1` is a max safe integer in JS. In Ethereum JS libraries chain ID should be the safe integer.
