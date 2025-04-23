@@ -116,7 +116,7 @@ where
 
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a>;
 
-    fn message_root_dal(&mut self) -> InteropRootDal<'_, 'a>;
+    fn interop_root_dal(&mut self) -> InteropRootDal<'_, 'a>;
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a>;
 
@@ -226,7 +226,7 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         ProtocolVersionsDal { storage: self }
     }
 
-    fn message_root_dal(&mut self) -> InteropRootDal<'_, 'a> {
+    fn interop_root_dal(&mut self) -> InteropRootDal<'_, 'a> {
         InteropRootDal { storage: self }
     }
 

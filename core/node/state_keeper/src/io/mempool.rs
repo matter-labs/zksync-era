@@ -435,18 +435,18 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
+    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        Ok(storage.message_root_dal().get_new_interop_roots().await?)
+        Ok(storage.interop_root_dal().get_new_interop_roots().await?)
     }
 
-    async fn load_l2_block_message_root(
+    async fn load_l2_block_interop_root(
         &self,
         l2block_number: L2BlockNumber,
     ) -> anyhow::Result<Vec<InteropRoot>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
         Ok(storage
-            .message_root_dal()
+            .interop_root_dal()
             .get_interop_roots(l2block_number)
             .await?)
     }

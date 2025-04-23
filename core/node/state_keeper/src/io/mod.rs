@@ -169,10 +169,10 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
 
     /// Loads the latest message root.
-    async fn load_latest_message_root(&self) -> anyhow::Result<Vec<InteropRoot>>;
+    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>>;
 
     /// Loads the latest message root.
-    async fn load_l2_block_message_root(
+    async fn load_l2_block_interop_root(
         &self,
         l2block_number: L2BlockNumber,
     ) -> anyhow::Result<Vec<InteropRoot>>;

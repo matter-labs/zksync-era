@@ -300,13 +300,13 @@ impl Aggregator {
 
         let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
         for batch in &l1_batches {
-            let message_roots = storage
-                .message_root_dal()
+            let interop_roots = storage
+                .interop_root_dal()
                 .get_interop_roots_batch(batch.header.number)
                 .await
                 .unwrap();
 
-            dependency_roots.push(message_roots);
+            dependency_roots.push(interop_roots);
         }
 
         let Some(priority_tree_start_index) = priority_tree_start_index else {

@@ -12,7 +12,7 @@ use crate::{
 /// Responsible for `AppendedChainBatchRoot` events and saving `BatchAndChainMerklePath` for batches.
 #[derive(Debug)]
 pub struct InteropRootProcessor {
-    appended_message_root_signature: H256,
+    appended_interop_root_signature: H256,
     event_source: EventsSource,
     l2_chain_id: L2ChainId,
     pub sl_l2_client: Option<Arc<dyn ZkSyncExtentionEthClient>>,
@@ -31,7 +31,7 @@ impl InteropRootProcessor {
             None
         };
         Self {
-            appended_message_root_signature: ethabi::long_signature(
+            appended_interop_root_signature: ethabi::long_signature(
                 "NewInteropRoot",
                 &[
                     ethabi::ParamType::Uint(256),
@@ -97,7 +97,7 @@ impl EventProcessor for InteropRootProcessor {
             ]
             .concat();
             println!("root in global {:?}", root);
-            assert_eq!(event.topics[0], self.appended_message_root_signature); // guaranteed by the watcher
+            assert_eq!(event.topics[0], self.appended_interop_root_signature); // guaranteed by the watcher
                                                                                // tracing::info!(%root, "Saving global message root");
                                                                                // let block_number = event.block_number; // kl todo
                                                                                // let block_number = block_number.unwrap().0[0] as u64;
@@ -132,7 +132,7 @@ impl EventProcessor for InteropRootProcessor {
             println!("block_number in global {:?}", block_number);
             println!("chain_id in global {:?}", chain_id);
             transaction
-                .message_root_dal()
+                .interop_root_dal()
                 .set_interop_root(
                     SLChainId(chain_id),
                     L1BatchNumber(block_number as u32),
@@ -148,9 +148,9 @@ impl EventProcessor for InteropRootProcessor {
     }
 
     fn topic1(&self) -> Option<H256> {
-        // println!("appended_message_root_signature: {:?}", self.appended_message_root_signature);
+        // println!("appended_interop_root_signature: {:?}", self.appended_interop_root_signature);
 
-        Some(self.appended_message_root_signature)
+        Some(self.appended_interop_root_signature)
     }
 
     // fn topic2(&self) -> Option<H256> {

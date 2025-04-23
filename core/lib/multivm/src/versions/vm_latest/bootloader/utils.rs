@@ -11,11 +11,11 @@ use crate::{
         bootloader::l2_block::BootloaderL2Block,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
-            get_message_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
+            get_interop_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
             get_operator_refunds_offset, get_tx_description_offset,
             get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
             get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
-            MESSAGE_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+            INTEROP_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         MultiVmSubversion,
@@ -140,28 +140,28 @@ fn apply_l2_block_inner(
         .interop_roots
         .iter()
         .enumerate()
-        .for_each(|(offset, msg_root)| {
-            apply_message_root(
+        .for_each(|(offset, interop_root)| {
+            apply_interop_root(
                 memory,
                 offset,
-                msg_root.clone(),
+                interop_root.clone(),
                 subversion,
                 bootloader_l2_block.number,
             )
         });
 }
 
-pub(crate) fn apply_message_root(
+pub(crate) fn apply_interop_root(
     memory: &mut BootloaderMemory,
-    message_root_offset: usize,
+    interop_root_offset: usize,
     interop_root: InteropRoot,
     subversion: MultiVmSubversion,
     l2_block_number: u32,
 ) {
-    let msg_root_slot = get_message_root_offset(subversion);
-    // println!("msg_root_slot 2: {}", msg_root_slot);
-    // println!("message_root_offset: {}", message_root_offset);
-    // println!("message_root: {:?}", message_root);
+    let interop_root_slot = get_interop_root_offset(subversion);
+    // println!("interop_root_slot 2: {}", interop_root_slot);
+    // println!("interop_root_offset: {}", interop_root_offset);
+    // println!("interop_root: {:?}", interop_root);
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
         U256::from(l2_block_number),
@@ -174,35 +174,35 @@ pub(crate) fn apply_message_root(
     // println!("u256_words: {:?}", u256_words);
     // println!(
     //     "zipped 0 {:?}",
-    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[0]
     // );
     // println!(
     //     "zipped 1 {:?}",
-    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[1]
     // );
     // println!(
     //     "zipped 2 {:?}",
-    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[2]
     // );
     // println!(
     //     "zipped 3 {:?}",
-    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[3]
     // ); // Map the U256 words into memory slots
     memory.extend(
-        (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-            ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+        (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+            ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
             .zip(u256_words),
     )
 }

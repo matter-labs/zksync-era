@@ -474,7 +474,7 @@ impl L2BlockSealSubtask for MarkInteropRootsAsSealed {
         );
 
         connection
-            .message_root_dal()
+            .interop_root_dal()
             .mark_interop_roots_as_executed(
                 &command.l2_block.interop_roots,
                 command.l2_block.number,
@@ -491,7 +491,7 @@ impl L2BlockSealSubtask for MarkInteropRootsAsSealed {
         last_sealed_l2_block: L2BlockNumber,
     ) -> anyhow::Result<()> {
         storage
-            .message_root_dal()
+            .interop_root_dal()
             .reset_interop_roots_state(last_sealed_l2_block)
             .await?;
         Ok(())

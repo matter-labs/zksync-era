@@ -314,12 +314,12 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
-    async fn load_l2_block_message_root(
+    async fn load_l2_block_interop_root(
         &mut self,
         l2block_number: L2BlockNumber,
     ) -> anyhow::Result<Vec<InteropRoot>> {
         self.io
-            .load_l2_block_message_root(l2block_number)
+            .load_l2_block_interop_root(l2block_number)
             .await
             .with_context(|| "failed loading message root".to_string())
     }
@@ -500,7 +500,7 @@ impl ZkSyncStateKeeper {
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
                         virtual_blocks: l2_block.virtual_blocks,
-                        interop_roots: self.load_l2_block_message_root(l2_block.number).await?,
+                        interop_roots: self.load_l2_block_interop_root(l2_block.number).await?,
                     },
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -630,7 +630,7 @@ impl ZkSyncStateKeeper {
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
-                next_l2_block_params.interop_roots = self.io.load_latest_message_root().await?;
+                next_l2_block_params.interop_roots = self.io.load_latest_interop_root().await?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
