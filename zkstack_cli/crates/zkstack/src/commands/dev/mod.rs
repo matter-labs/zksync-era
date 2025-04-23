@@ -1,8 +1,8 @@
 use clap::Subcommand;
-use commands::status::args::StatusArgs;
-use messages::MSG_STATUS_ABOUT;
+use commands::{rich_account::args::RichAccountArgs, status::args::StatusArgs};
 #[cfg(feature = "v27_evm_interpreter")]
 use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
+use messages::{MSG_RICH_ACCOUNT_ABOUT, MSG_STATUS_ABOUT};
 use xshell::Shell;
 
 use self::commands::{
@@ -49,6 +49,8 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[command(about = MSG_RICH_ACCOUNT_ABOUT)]
+    RichAccount(RichAccountArgs),
     #[cfg(feature = "v27_evm_interpreter")]
     #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
     V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
@@ -70,6 +72,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        DevCommands::RichAccount(args) => commands::rich_account::run(shell, args).await?,
         #[cfg(feature = "v27_evm_interpreter")]
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
             commands::v27_evm_eq::run(shell, args).await?
