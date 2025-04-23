@@ -454,7 +454,7 @@ describe('snapshot recovery', () => {
             components,
             fileConfig.loadFromFile,
             fileConfig.chain,
-            deploymentMode,
+            deploymentMode
         );
 
         let isDbPrunerReady = false;
