@@ -5,5 +5,5 @@
 
 ## Introduction
 
-ZK Stack chains will be launched on L1 into an ecosystem of contracts with the main registry being the [bridgehub](../chain_management/bridgehub.md). The Bridgehub creates an
+ZK Stack chains are launched on L1 into an ecosystem of contracts with the main registry being the [bridgehub](../chain_management/bridgehub.md). The Bridgehub creates an
 ecosystem of chains, with shared standards, upgrades. This allows chains to trust each other. The bridging of assets is handled by the [AssetRouter](./asset_router_and_ntv/asset_router.md) and NativeTokenVault contracts.
