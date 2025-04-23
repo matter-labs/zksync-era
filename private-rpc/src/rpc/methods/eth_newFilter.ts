@@ -7,28 +7,28 @@ import { unauthorized } from '@/rpc/json-rpc';
 import { delegateCall } from '@/rpc/delegate-call';
 
 const schema = z
-  .object({
-    topics: z.array(hexSchema),
-  })
-  .passthrough();
+    .object({
+        topics: z.array(hexSchema)
+    })
+    .passthrough();
 
 export const eth_newFilter: MethodHandler = {
-  name: 'eth_newFilter',
-  async handle(
-    context: RequestContext,
-    method: string,
-    params: unknown[],
-    id: number | string,
-  ): Promise<FastifyReplyType> {
-    const parsed = schema.parse(params);
-    const isTargetToUser = parsed.topics.some(
-      (param) => isAddress(param) && isAddressEqual(param, context.currentUser),
-    );
+    name: 'eth_newFilter',
+    async handle(
+        context: RequestContext,
+        method: string,
+        params: unknown[],
+        id: number | string
+    ): Promise<FastifyReplyType> {
+        const parsed = schema.parse(params);
+        const isTargetToUser = parsed.topics.some(
+            (param) => isAddress(param) && isAddressEqual(param, context.currentUser)
+        );
 
-    if (!isTargetToUser) {
-      return unauthorized(id);
+        if (!isTargetToUser) {
+            return unauthorized(id);
+        }
+
+        return delegateCall({ url: context.targetRpcUrl, id, method, params });
     }
-
-    return delegateCall({ url: context.targetRpcUrl, id, method, params });
-  },
 };

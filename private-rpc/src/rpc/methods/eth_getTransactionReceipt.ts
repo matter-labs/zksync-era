@@ -8,49 +8,41 @@ import { isAddressEqual, padHex } from 'viem';
 import { unauthorized } from '@/rpc/json-rpc';
 
 const schema = z
-  .object({
-    result: z
-      .object({
-        from: addressSchema,
-        to: addressSchema,
-        logs: z.array(z.object({ topics: z.array(hexSchema) }).passthrough()),
-      })
-      .passthrough()
-      .nullable(),
-  })
-  .passthrough();
+    .object({
+        result: z
+            .object({
+                from: addressSchema,
+                to: addressSchema,
+                logs: z.array(z.object({ topics: z.array(hexSchema) }).passthrough())
+            })
+            .passthrough()
+            .nullable()
+    })
+    .passthrough();
 
 export const eth_getTransactionReceipt: MethodHandler = {
-  name: 'eth_getTransactionReceipt',
-  async handle(
-    context: RequestContext,
-    method: string,
-    params: unknown[],
-    id: number | string,
-  ): Promise<FastifyReplyType> {
-    const data = await sendToTargetRpc(
-      context.targetRpcUrl,
-      id,
-      method,
-      params,
-      schema,
-    );
+    name: 'eth_getTransactionReceipt',
+    async handle(
+        context: RequestContext,
+        method: string,
+        params: unknown[],
+        id: number | string
+    ): Promise<FastifyReplyType> {
+        const data = await sendToTargetRpc(context.targetRpcUrl, id, method, params, schema);
 
-    if (data.result === null) {
-      return data;
+        if (data.result === null) {
+            return data;
+        }
+
+        const hasAccess =
+            isAddressEqual(data.result.to, context.currentUser) ||
+            isAddressEqual(data.result.from, context.currentUser) ||
+            data.result.logs.some((log) => log.topics.some((t) => areHexEqual(padHex(context.currentUser), t)));
+
+        if (!hasAccess) {
+            return unauthorized(id);
+        }
+
+        return data;
     }
-
-    const hasAccess =
-      isAddressEqual(data.result.to, context.currentUser) ||
-      isAddressEqual(data.result.from, context.currentUser) ||
-      data.result.logs.some((log) =>
-        log.topics.some((t) => areHexEqual(padHex(context.currentUser), t)),
-      );
-
-    if (!hasAccess) {
-      return unauthorized(id);
-    }
-
-    return data;
-  },
 };

@@ -6,28 +6,28 @@ import { nanoid } from 'nanoid';
 import { HttpError } from '@/errors';
 
 const createUserSchema = {
-  schema: {
-    body: z.object({
-      address: addressSchema,
-      secret: z.string(),
-    }),
-  },
+    schema: {
+        body: z.object({
+            address: addressSchema,
+            secret: z.string()
+        })
+    }
 };
 
 export function usersRoutes(app: WebServer) {
-  app.post('/', createUserSchema, async (req, reply) => {
-    const { address, secret } = req.body;
-    const token = nanoid(32);
+    app.post('/', createUserSchema, async (req, reply) => {
+        const { address, secret } = req.body;
+        const token = nanoid(32);
 
-    if (secret !== app.context.createTokenSecret) {
-      throw new HttpError('forbidden', 403);
-    }
+        if (secret !== app.context.createTokenSecret) {
+            throw new HttpError('forbidden', 403);
+        }
 
-    await app.context.db.insert(usersTable).values({
-      address,
-      token,
+        await app.context.db.insert(usersTable).values({
+            address,
+            token
+        });
+
+        return reply.send({ ok: true, token });
     });
-
-    return reply.send({ ok: true, token });
-  });
 }

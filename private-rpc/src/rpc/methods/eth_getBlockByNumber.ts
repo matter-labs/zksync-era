@@ -4,39 +4,33 @@ import { z } from 'zod';
 import { sendToTargetRpc } from '@/rpc/methods/utils';
 
 const schema = z
-  .object({
-    result: z
-      .object({
-        transactions: z.any(),
-      })
-      .passthrough(),
-  })
-  .passthrough();
+    .object({
+        result: z
+            .object({
+                transactions: z.any()
+            })
+            .passthrough()
+    })
+    .passthrough();
 
 export const filterTransactions: MethodHandler = {
-  name: 'eth_getBlockByNumber',
-  async handle(
-    context: RequestContext,
-    method: string,
-    params: unknown[],
-    id: number | string,
-  ): Promise<FastifyReplyType> {
-    const data = await sendToTargetRpc(
-      context.targetRpcUrl,
-      id,
-      method,
-      params,
-      schema,
-    );
+    name: 'eth_getBlockByNumber',
+    async handle(
+        context: RequestContext,
+        method: string,
+        params: unknown[],
+        id: number | string
+    ): Promise<FastifyReplyType> {
+        const data = await sendToTargetRpc(context.targetRpcUrl, id, method, params, schema);
 
-    return {
-      ...data,
-      result: {
-        ...data.result,
-        transactions: [],
-      },
-    };
-  },
+        return {
+            ...data,
+            result: {
+                ...data.result,
+                transactions: []
+            }
+        };
+    }
 };
 
 export const eth_getBlockByNumber: MethodHandler = filterTransactions;

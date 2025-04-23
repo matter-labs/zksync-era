@@ -2,35 +2,33 @@
 
 This package it's a proxy between final users and the network rpc.
 
-Users need to provide a unique token in order to interact with the network.
-Each token provides a scoped view of the network.
+Users need to provide a unique token in order to interact with the network. Each token provides a scoped view of the
+network.
 
 ## Preparing database
 
-A postgres database is required to run this service. The connection url
-has to be provided in the `DATABASE_URL` environment variable.
+A postgres database is required to run this service. The connection url has to be provided in the `DATABASE_URL`
+environment variable.
 
 Migration can be executed doing.
 
-``` shell
+```shell
 yarn db:migrate
 ```
 
 If the schema changes migrations can be created running
 
-``` shell
+```shell
 yarn db:generate
 ```
 
-Please remember that automatically generated migrations have to be
-double-checked to ensure its right behavior.
+Please remember that automatically generated migrations have to be double-checked to ensure its right behavior.
 
 ## Configuration
 
-An example configuration is located under `example.env`.
-The available configurations are:
+An example configuration is located under `example.env`. The available configurations are:
 
-``` dotenv
+```dotenv
 # postgres uri
 DATABASE_URL="postgres://postgres:postgres@localhost:5433/private-rpc"
 # api port
@@ -47,10 +45,9 @@ To run the server in development mode:
 yarn dev
 ```
 
-
 ## Production
 
-``` shell
+```shell
 yarn build
 yarn start
 ```

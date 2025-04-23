@@ -7,61 +7,61 @@ import { z, ZodTypeAny } from 'zod';
 import { addressSchema } from '@/schemas/address';
 
 export function extractSelector(calldata: Hex): Hex {
-  return calldata.substring(0, 10) as Hex;
+    return calldata.substring(0, 10) as Hex;
 }
 
 export function forbiddenMethod(name: string): MethodHandler {
-  return {
-    name,
-    async handle(
-      _context: RequestContext,
-      _method: string,
-      _params: unknown[],
-      id: number | string,
-    ): Promise<FastifyReplyType> {
-      return unauthorized(id);
-    },
-  };
+    return {
+        name,
+        async handle(
+            _context: RequestContext,
+            _method: string,
+            _params: unknown[],
+            id: number | string
+        ): Promise<FastifyReplyType> {
+            return unauthorized(id);
+        }
+    };
 }
 
 export function areHexEqual(a: Hex, b: Hex): boolean {
-  return a.toLowerCase() === b.toLowerCase();
+    return a.toLowerCase() === b.toLowerCase();
 }
 
 export async function sendToTargetRpc<T extends ZodTypeAny>(
-  targetRpcUrl: string,
-  id: number | string,
-  method: string,
-  params: unknown[],
-  schema: T,
+    targetRpcUrl: string,
+    id: number | string,
+    method: string,
+    params: unknown[],
+    schema: T
 ): Promise<z.infer<T>> {
-  return fetch(targetRpcUrl, {
-    method: 'POST',
-    body: JSON.stringify(request({ id, method, params })),
-    headers: { 'Content-Type': 'application/json' },
-  })
-    .then((res) => res.json())
-    .then((json) => schema.parse(json));
+    return fetch(targetRpcUrl, {
+        method: 'POST',
+        body: JSON.stringify(request({ id, method, params })),
+        headers: { 'Content-Type': 'application/json' }
+    })
+        .then((res) => res.json())
+        .then((json) => schema.parse(json));
 }
 
 const onlyUserParamsSchema = z.tuple([addressSchema]).rest(z.any()); // z.array(addressSchema).length(1);
 
 export function onlyCurrentUser(name: string) {
-  return {
-    name: name,
-    async handle(
-      context: RequestContext,
-      method: string,
-      params: unknown[],
-      id: number | string,
-    ): Promise<FastifyReplyType> {
-      const user = context.currentUser;
-      const [target] = onlyUserParamsSchema.parse(params);
-      if (user !== target) {
-        return unauthorized(id);
-      }
+    return {
+        name: name,
+        async handle(
+            context: RequestContext,
+            method: string,
+            params: unknown[],
+            id: number | string
+        ): Promise<FastifyReplyType> {
+            const user = context.currentUser;
+            const [target] = onlyUserParamsSchema.parse(params);
+            if (user !== target) {
+                return unauthorized(id);
+            }
 
-      return delegateCall({ url: context.targetRpcUrl, id, method, params });
-    },
-  };
+            return delegateCall({ url: context.targetRpcUrl, id, method, params });
+        }
+    };
 }
