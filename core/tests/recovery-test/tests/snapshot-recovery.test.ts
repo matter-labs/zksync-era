@@ -124,6 +124,7 @@ describe('snapshot recovery', () => {
     let ethRpcUrl: string;
     let externalNodeUrl: string;
     let extNodeHealthUrl: string;
+    let deploymentMode: string;
 
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
@@ -132,6 +133,7 @@ describe('snapshot recovery', () => {
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+            const genesisConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'genesis.yaml' });
             const externalNodeGeneralConfig = loadConfig({
                 pathToHome,
                 chain: fileConfig.chain,
@@ -143,6 +145,7 @@ describe('snapshot recovery', () => {
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
+            deploymentMode = genesisConfig.l1_batch_commit_data_generator_mode;
 
             setSnapshotRecovery(pathToHome, fileConfig, true);
             setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 4);
@@ -151,6 +154,7 @@ describe('snapshot recovery', () => {
             apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
             externalNodeUrl = 'http://127.0.0.1:3060';
             extNodeHealthUrl = 'http://127.0.0.1:3081/health';
+            deploymentMode = process.env.DEPLOYMENT_MODE ?? 'Rollup';
         }
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
@@ -313,7 +317,8 @@ describe('snapshot recovery', () => {
             pathToHome,
             NodeComponents.STANDARD,
             fileConfig.loadFromFile,
-            fileConfig.chain
+            fileConfig.chain,
+            deploymentMode
         );
 
         let recoveryFinished = false;
@@ -448,7 +453,8 @@ describe('snapshot recovery', () => {
             pathToHome,
             components,
             fileConfig.loadFromFile,
-            fileConfig.chain
+            fileConfig.chain,
+            deploymentMode,
         );
 
         let isDbPrunerReady = false;

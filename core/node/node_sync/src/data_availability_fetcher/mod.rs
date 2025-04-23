@@ -72,6 +72,7 @@ pub struct DataAvailabilityFetcher {
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     poll_interval: Duration,
+    last_scanned_batch: L1BatchNumber,
 }
 
 impl DataAvailabilityFetcher {
@@ -89,6 +90,7 @@ impl DataAvailabilityFetcher {
             pool,
             health_updater: ReactiveHealthCheck::new("data_availability_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
+            last_scanned_batch: L1BatchNumber(0),
         }
     }
 
@@ -97,7 +99,7 @@ impl DataAvailabilityFetcher {
         self.health_updater.subscribe()
     }
 
-    async fn get_batch_to_fetch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    async fn get_batch_to_fetch(&mut self) -> anyhow::Result<Option<L1BatchNumber>> {
         let mut storage = self
             .pool
             .connection_tagged("data_availability_fetcher")
@@ -113,9 +115,9 @@ impl DataAvailabilityFetcher {
 
         let last_l1_batch_with_da_info = storage
             .data_availability_dal()
-            .get_latest_batch_with_inclusion_data()
+            .get_latest_batch_with_inclusion_data(self.last_scanned_batch)
             .await?
-            .unwrap_or(L1BatchNumber::default());
+            .unwrap_or(L1BatchNumber(0));
 
         let l1_batch_to_fetch = storage
             .blocks_dal()
@@ -123,6 +125,10 @@ impl DataAvailabilityFetcher {
             .await?;
 
         let Some(l1_batch_to_fetch) = l1_batch_to_fetch else {
+            // if the batch is sealed but there are no Validium batches to process before it - we
+            // can skip all the batches including the last sealed one
+            self.last_scanned_batch = last_l1_batch;
+
             tracing::debug!("No L1 batches to fetch DA info for");
             return Ok(None);
         };
@@ -229,6 +235,8 @@ impl DataAvailabilityFetcher {
             l1_batch_to_fetch,
             da_details.blob_id
         );
+        self.last_scanned_batch = l1_batch_to_fetch;
+
         Ok(StepOutcome::UpdatedBatch(l1_batch_to_fetch))
     }
 

@@ -181,10 +181,11 @@ export class NodeProcess {
         pathToHome: string,
         components: NodeComponents = NodeComponents.STANDARD,
         useZkStack?: boolean,
-        chain?: string
+        chain?: string,
+        deploymentMode?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
-        let componentsArr = env['DEPLOYMENT_MODE'] === 'Validium' ? [withDAFetcher(components)] : [components];
+        let componentsArr = deploymentMode === 'Validium' ? [withDAFetcher(components)] : [components];
 
         let childProcess = runExternalNodeInBackground({
             components: componentsArr,

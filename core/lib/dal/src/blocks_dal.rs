@@ -199,7 +199,7 @@ impl BlocksDal<'_, '_> {
     /// is only 2 index scans.
     pub async fn get_first_validium_l1_batch_number(
         &mut self,
-        min_number: L1BatchNumber,
+        last_processed_batch: L1BatchNumber,
     ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
@@ -218,7 +218,7 @@ impl BlocksDal<'_, '_> {
                     LIMIT 1
                 ) != 'Rollup'
             "#,
-            min_number.0 as i32
+            last_processed_batch.0 as i32
         )
         .instrument("get_earliest_l1_batch_number")
         .report_latency()

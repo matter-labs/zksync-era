@@ -365,6 +365,7 @@ impl DataAvailabilityDal<'_, '_> {
 
     pub async fn get_latest_batch_with_inclusion_data(
         &mut self,
+        last_processed_batch: L1BatchNumber,
     ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
@@ -374,11 +375,13 @@ impl DataAvailabilityDal<'_, '_> {
                 data_availability
             WHERE
                 inclusion_data IS NOT NULL
+                AND l1_batch_number > $1
             ORDER BY
                 l1_batch_number DESC
             LIMIT
                 1
             "#,
+            i64::from(last_processed_batch.0),
         )
         .instrument("get_latest_batch_with_inclusion_data")
         .report_latency()

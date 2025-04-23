@@ -28,6 +28,7 @@ import {
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { IZkSyncHyperchain, IZkSyncHyperchain__factory } from 'zksync-ethers/build/typechain';
+import {DataAvailabityMode} from "ts-integration/src/types";
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -89,7 +90,7 @@ function loadEnvs() {
     let deploymentMode: string;
     if (fileConfig.loadFromFile) {
         const genesisConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'genesis.yaml' });
-        deploymentMode = genesisConfig.deploymentMode;
+        deploymentMode = genesisConfig.l1_batch_commit_data_generator_mode;
     } else {
         deploymentMode = process.env.DEPLOYMENT_MODE ?? 'Rollup';
         if (!['Validium', 'Rollup'].includes(deploymentMode)) {
