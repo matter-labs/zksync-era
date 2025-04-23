@@ -176,8 +176,9 @@ In simple terms, the upgrade-test workflow consists of three phases:
 2. **Starting the server**  
    Same as for integration tests workflow.
 3. **Running integration tests**
+
    ```bash
-   $ ZKSYNC_HOME=<path_to_zksync_era> zkstack dev test upgrade # run the upgrade tests
+   ZKSYNC_HOME=<path_to_zksync_era> zkstack dev test upgrade # run the upgrade tests
    ```
 
 > _Note: This is a high-level summary and does not reflect every nuance in `ci-core-reusable.yml`._
