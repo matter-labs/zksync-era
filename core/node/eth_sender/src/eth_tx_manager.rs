@@ -262,7 +262,7 @@ impl EthTxManager {
         let send_result = self
             .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, operator_type)
             .await;
-        if let Err(error) = &send_result {
+        if let Err(error) = send_result {
             tracing::warn!(
                 "Error Sending {operator_type:?} tx {} (nonce {}) at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
@@ -273,6 +273,7 @@ impl EthTxManager {
                 tx.id,
                 tx.nonce,
             );
+            return Err(error);
         }
         Ok((signed_tx.hash, send_result.is_ok()))
     }
@@ -680,12 +681,11 @@ impl EthTxManager {
             }
             for tx in new_eth_tx {
                 let result = self.send_eth_tx(storage, &tx, 0, current_block).await;
-                let sent_successfully = result.is_ok_and(|(_, s)| s);
                 // If sending didn't succeed, we do not try to send next transactions
                 // as we rely on `sent_successfully` being set sequentially.
                 // Also, it doesn't make much sense to try anyway since we will get an error most likely
                 // (nonce-too-high for blob transactions is guaranteed).
-                if !sent_successfully {
+                if result.is_err() {
                     tracing::info!("Skipping sending rest of new transactions because of error");
                     break;
                 }
@@ -706,17 +706,13 @@ impl EthTxManager {
             // New gas price depends on the time this tx spent in mempool.
             let time_in_mempool_in_l1_blocks = l1_block_numbers.latest.0 - sent_at_block;
 
-            // We don't want to return early in case resend does not succeed -
-            // the error is logged anyway, but early returns will prevent
-            // sending new operations.
-            let _ = self
-                .send_eth_tx(
-                    storage,
-                    &tx,
-                    time_in_mempool_in_l1_blocks,
-                    l1_block_numbers.latest,
-                )
-                .await?;
+            self.send_eth_tx(
+                storage,
+                &tx,
+                time_in_mempool_in_l1_blocks,
+                l1_block_numbers.latest,
+            )
+            .await?;
         }
         Ok(())
     }
