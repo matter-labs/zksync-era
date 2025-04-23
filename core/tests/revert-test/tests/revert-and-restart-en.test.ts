@@ -116,8 +116,8 @@ describe('Block reverting test', function () {
         const l1Provider = new ethers.JsonRpcProvider(ethClientWeb3Url);
 
         settlementLayerMainContract = gatewayInfo
-          ? IZkSyncHyperchain__factory.connect(gatewayInfo.l2DiamondProxyAddress, gatewayInfo.gatewayProvider)
-          : IZkSyncHyperchain__factory.connect(contractsConfig.l1.diamond_proxy_addr, l1Provider);
+            ? IZkSyncHyperchain__factory.connect(gatewayInfo.l2DiamondProxyAddress, gatewayInfo.gatewayProvider)
+            : IZkSyncHyperchain__factory.connect(contractsConfig.l1.diamond_proxy_addr, l1Provider);
     });
 
     step('Make sure that nodes are not running', async () => {
@@ -175,11 +175,11 @@ describe('Block reverting test', function () {
 
     step('revert batches', async () => {
         await executeRevert(
-          pathToHome,
-          chainName,
-          operatorAddress,
-          batchesCommittedBeforeRevert,
-          settlementLayerMainContract
+            pathToHome,
+            chainName,
+            operatorAddress,
+            batchesCommittedBeforeRevert,
+            settlementLayerMainContract
         );
     });
 
