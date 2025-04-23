@@ -1,7 +1,5 @@
 # Gateway
 
-[back to readme](../README.md)
-
 Gateway is a proof aggregation layer, created to solve the following problems:
 
 - Fast interop would require quick proof generation and verification. The latter can be very expensive on L1. Gateway provides an L1-like interface for chains, while giving a stable price for compute.

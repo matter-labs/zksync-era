@@ -24,7 +24,6 @@ pub struct DeployL1Output {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1DeployedAddressesOutput {
-    pub blob_versioned_hash_retriever_addr: Address,
     pub governance_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,

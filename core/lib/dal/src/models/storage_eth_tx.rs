@@ -68,6 +68,10 @@ pub struct StorageTxHistory {
     // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
     pub blob_base_fee_per_gas: Option<i64>,
+
+    // EIP712 txs
+    pub max_gas_per_pubdata: Option<i64>,
+    pub confirmed_at_block: Option<i32>,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -107,6 +111,7 @@ impl From<StorageTxHistory> for TxHistory {
                 .expect("Should rely only on the new txs"),
 
             sent_at_block: history.sent_at_block.map(|block| block as u32),
+            max_gas_per_pubdata: history.max_gas_per_pubdata.map(|v| v as u64),
         }
     }
 }

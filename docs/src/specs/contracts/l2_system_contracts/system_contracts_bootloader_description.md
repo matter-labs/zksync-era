@@ -1,7 +1,5 @@
 # System contracts/bootloader description (VM v1.5.0)
 
-[back to readme](../README.md)
-
 ## Bootloader
 
 On standard Ethereum clients, the workflow for executing blocks is the following:
@@ -83,7 +81,7 @@ Note, that you can _not_ use the pointer that you received via calldata as retur
 
 Note, that the rule above is implemented by the principle "it is not possible to return a slice of data with memory page id lower than the memory page id of the current heap", since a memory page with smaller id could only be created before the call. That's why a user contract can usually safely return a slice of previously returned returndata (since it is guaranteed to have a higher memory page id). However, system contracts have an exemption from the rule above. It is needed in particular to the correct functionality of the `CodeOracle` system contract. You can read more about it [here](#codeoracle). So the rule of thumb is that returndata from `CodeOracle` should never be passed along.
 
-Some of these memory optimizations can be seen utilized in the [EfficientCall](../../../../../contracts/system-contracts/contracts/libraries/EfficientCall.sol#L34) library that allows to perform a call while reusing the slice of calldata that the frame already has, without memory copying.
+Some of these memory optimizations can be seen utilized in the [EfficientCall](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/libraries/EfficientCall.sol#L34) library that allows to perform a call while reusing the slice of calldata that the frame already has, without memory copying.
 
 #### Returndata & precompiles
 
@@ -101,14 +99,14 @@ Since the call to keccak precompile would modify the `returndata`. To avoid this
 
 While some Ethereum opcodes are not supported out of the box, some of the new opcodes were added to facilitate the development of the system contracts.
 
-Note, that this lists does not aim to be specific about the internals, but rather explain methods in the [SystemContractHelper.sol](../../../../../contracts/system-contracts/contracts/libraries/SystemContractHelper.sol#L44)
+Note, that this lists does not aim to be specific about the internals, but rather explain methods in the [SystemContractHelper.sol](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/libraries/SystemContractHelper.sol#L44)
 
 #### **Only for kernel space**
 
 These opcodes are allowed only for contracts in kernel space (i.e. system contracts). If executed in other places they result in `revert(0,0)`.
 
 - `mimic_call`. The same as a normal `call`, but it can alter the `msg.sender` field of the transaction.
-- `to_l1`. Sends a system L2→L1 log to Ethereum. The structure of this log can be seen [here](../../../../../contracts/l1-contracts/contracts/common/Messaging.sol#L23).
+- `to_l1`. Sends a system L2→L1 log to Ethereum. The structure of this log can be seen [here](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/common/Messaging.sol#L23).
 - `event`. Emits an L2 log to ZKsync. Note, that L2 logs are not equivalent to Ethereum events. Each L2 log can emit 64 bytes of data (the actual size is 88 bytes, because it includes the emitter address, etc). A single Ethereum event is represented with multiple `event` logs constitute. This opcode is only used by `EventWriter` system contract.
 - `precompile_call`. This is an opcode that accepts two parameters: the uint256 representing the packed parameters for it as well as the ergs to burn. Besides the price for the precompile call itself, it burns the provided ergs and executes the precompile. The action that it does depend on `this` during execution:
   - If it is the address of the `ecrecover` system contract, it performs the ecrecover operation
@@ -129,7 +127,7 @@ Here are opcodes that can be generally accessed by any contract. Note that while
 - `near_call`. It is basically a “framed” jump to some location of the code of your contract. The difference between the `near_call` and ordinary jump are:
   1. It is possible to provide an ergsLimit for it. Note, that unlike “`far_call`”s (i.e. calls between contracts) the 63/64 rule does not apply to them.
   2. If the near call frame panics, all state changes made by it are reversed. Please note, that the memory changes will **not** be reverted.
-- `getMeta`. Returns an u256 packed value of [ZkSyncMeta](../../../../../contracts/system-contracts/contracts/libraries/SystemContractHelper.sol#L18) struct. Note that this is not tight packing. The struct is formed by the [following rust code](https://github.com/matter-labs/zksync-protocol/blob/main/crates/zkevm_opcode_defs/src/definitions/abi/meta.rs#L4).
+- `getMeta`. Returns an u256 packed value of [ZkSyncMeta](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/libraries/SystemContractHelper.sol#L18) struct. Note that this is not tight packing. The struct is formed by the [following rust code](https://github.com/matter-labs/zksync-protocol/blob/main/crates/zkevm_opcode_defs/src/definitions/abi/meta.rs#L4).
 - `getCodeAddress` — receives the address of the executed code. This is different from `this` , since in case of delegatecalls `this` is preserved, but `codeAddress` is not.
 
 #### Flags for calls
@@ -171,7 +169,7 @@ Full list of opcode simulations can be found [here](https://github.com/code-423n
 
 We also use [verbatim-like](https://github.com/code-423n4/2024-03-zksync/blob/main/docs/VM%20Section/How%20compiler%20works/instructions/extensions/verbatim.md) statements to access ZKsync-specific opcodes in the bootloader.
 
-All the usages of the simulations in our Solidity code are implemented in the [SystemContractHelper](../../../../../contracts/system-contracts/contracts/libraries//SystemContractHelper.sol) library and the [SystemContractsCaller](../../../../../contracts/system-contracts/contracts//libraries/SystemContractsCaller.sol) library.
+All the usages of the simulations in our Solidity code are implemented in the [SystemContractHelper](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/libraries/SystemContractHelper.sol) library and the [SystemContractsCaller](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts//libraries/SystemContractsCaller.sol) library.
 
 #### Simulating `near_call` (in Yul only)
 
@@ -189,7 +187,7 @@ _Important note 2:_ The 63/64 rule does not apply to `near_call`. Also, if 0 gas
 
 To prevent unintended substitution, the compiler requires `--system-mode` flag to be passed during compilation for the above substitutions to work.
 
-> Note, that in the more recent compiler versions this the `--system-mode` has been renamed to `enable_eravm_extensions` (this can be seen in e.g. our [foundry.toml](../../../../../contracts/l1-contracts/foundry.toml))
+> Note, that in the more recent compiler versions this the `--system-mode` has been renamed to `enable_eravm_extensions` (this can be seen in e.g. our [foundry.toml](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/foundry.toml))
 
 ### Bytecode hashes
 
@@ -254,11 +252,11 @@ It is enforced by the ZKPs, that the state of the bootloader is equivalent to th
 
 For additional efficiency (and our convenience), the bootloader receives its parameters inside its memory. This is the only point of non-determinism: the bootloader _starts with its memory pre-filled with any data the operator wants_. That’s why it is responsible for validating the correctness of it and it should never rely on the initial contents of the memory to be correct & valid.
 
-For instance, for each transaction, we check that it is [properly ABI-encoded](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L4044) and that the transactions [go exactly one after another](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L4037). We also ensure that transactions do not exceed the limits of the memory space allowed for transactions.
+For instance, for each transaction, we check that it is [properly ABI-encoded](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L4044) and that the transactions [go exactly one after another](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L4037). We also ensure that transactions do not exceed the limits of the memory space allowed for transactions.
 
 ### Transaction types & their validation
 
-While the main transaction format is the internal `Transaction` [format](../../../../../contracts/system-contracts/contracts/libraries/TransactionHelper.sol#L25), it is a struct that is used to represent various kinds of transactions types. It contains a lot of `reserved` fields that could be used depending in the future types of transactions without need for AA to change the interfaces of their contracts.
+While the main transaction format is the internal `Transaction` [format](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/libraries/TransactionHelper.sol#L25), it is a struct that is used to represent various kinds of transactions types. It contains a lot of `reserved` fields that could be used depending in the future types of transactions without need for AA to change the interfaces of their contracts.
 
 The exact type of the transaction is marked by the `txType` field of the transaction type. There are 6 types currently supported:
 
@@ -270,11 +268,11 @@ The exact type of the transaction is marked by the `txType` field of the transac
 - `txType`: 2. It is EIP1559 transactions. The same restrictions as for type 1 apply, but now `maxFeePerErgs` may not be equal to `getMaxPriorityFeePerErg`.
 - `txType`: 113. It is ZKsync transaction type. This transaction type is intended for AA support. The only restriction that applies to this transaction type: fields `reserved0..reserved4` must be equal to 0.
 - `txType`: 254. It is a transaction type that is used for upgrading the L2 system. This is the only type of transaction is allowed to start a transaction out of the name of the contracts in kernel space.
-- `txType`: 255. It is a transaction that comes from L1. There are almost no restrictions explicitly imposed upon this type of transaction, since the bootloader at the end of its execution sends the rolling hash of the executed priority transactions. The L1 contract ensures that the hash did indeed match the [hashes of the priority transactions on L1](../../../../../contracts/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L376).
+- `txType`: 255. It is a transaction that comes from L1. There are almost no restrictions explicitly imposed upon this type of transaction, since the bootloader at the end of its execution sends the rolling hash of the executed priority transactions. The L1 contract ensures that the hash did indeed match the [hashes of the priority transactions on L1](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L376).
 
-You can also read more on L1->L2 transactions and upgrade transactions [here](../settlement_contracts/priority_queue/processing_of_l1-l2_txs.md).
+You can also read more on L1->L2 transactions and upgrade transactions [here](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
-However, as already stated, the bootloader’s memory is not deterministic and the operator is free to put anything it wants there. For all of the transaction types above the restrictions are imposed in the following ([method](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L3107)), which is called before starting processing the transaction.
+However, as already stated, the bootloader’s memory is not deterministic and the operator is free to put anything it wants there. For all of the transaction types above the restrictions are imposed in the following ([method](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L3107)), which is called before starting processing the transaction.
 
 ### Structure of the bootloader’s memory
 
@@ -293,7 +291,7 @@ The first 8 words are reserved for the batch information provided by the operato
 - `6` word — the base fee for the batch that is expected by the operator. While the base fee is deterministic, it is still provided to the bootloader just to make sure that the data that the operator has coincides with the data provided by the bootloader.
 - `7` word — reserved word. Unused on proved batch.
 
-The batch information slots [are used at the beginning of the batch](../../../../../contracts/system-contracts/bootloader/bootloader.yul#3921). Once read, these slots can be used for temporary data.
+The batch information slots [are used at the beginning of the batch](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#3921). Once read, these slots can be used for temporary data.
 
 #### **Temporary data for debug & transaction processing purposes**
 
@@ -309,7 +307,7 @@ The batch information slots [are used at the beginning of the batch](../../../..
   - 32 bytecode hash
   - 32 zeroes (but then it will be modified by the bootloader to contain 28 zeroes and then the 4-byte selector of the `publishCompressedBytecode` function of the `BytecodeCompressor`)
   - The calldata to the bytecode compressor (without the selector).
-- `[266755..266756]` – slots where the hash and the number of current priority ops is stored. More on it in the priority operations [section](../settlement_contracts/priority_queue/processing_of_l1-l2_txs.md).
+- `[266755..266756]` – slots where the hash and the number of current priority ops is stored. More on it in the priority operations [section](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 #### L1Messenger Pubdata
 
@@ -356,7 +354,7 @@ To avoid additional copying of transactions for calls for the account abstractio
 
 - `[1646796..1967599]`
 
-Starting from the 487312 word, the actual descriptions of the transactions start. (The struct can be found by this [link](../../../../../contracts/system-contracts/contracts/libraries/TransactionHelper.sol#L25)). The bootloader enforces that:
+Starting from the 487312 word, the actual descriptions of the transactions start. (The struct can be found by this [link](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/libraries/TransactionHelper.sol#L25)). The bootloader enforces that:
 
 - They are correctly ABI encoded representations of the struct above.
 - They are located without any gaps in memory (the first transaction starts at word 653 and each transaction goes right after the next one).
@@ -376,34 +374,34 @@ These are memory slots that are used to track the success status of a transactio
 
 ### General flow of the bootloader’s execution
 
-1. At the start of the batch it [reads the initial batch information](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L3928) and [sends the information](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L2857) about the current batch to the SystemContext system contract.
-2. It goes through each of [transaction’s descriptions](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L4016) and checks whether the `execute` field is set. If not, it ends processing of the transactions and ends execution of the batch. If the execute field is non-zero, the transaction will be executed and it goes to step 3.
+1. At the start of the batch it [reads the initial batch information](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L3928) and [sends the information](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L2857) about the current batch to the SystemContext system contract.
+2. It goes through each of [transaction’s descriptions](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L4016) and checks whether the `execute` field is set. If not, it ends processing of the transactions and ends execution of the batch. If the execute field is non-zero, the transaction will be executed and it goes to step 3.
 3. Based on the transaction’s type it decides whether the transaction is an L1 or L2 transaction and processes them accordingly. More on the processing of the L1 transactions can be read [here](#l1-l2-transactions). More on L2 transactions can be read [here](#l2-transactions).
 
 ### L2 transactions
 
-On ZKsync, every address is a contract. Users can start transactions from their EOA accounts, because every address that does not have any contract deployed on it implicitly contains the code defined in the [DefaultAccount.sol](../../../../../contracts/system-contracts/contracts/DefaultAccount.sol) file. Whenever anyone calls a contract that is not in kernel space (i.e. the address is ≥ 2^16) and does not have any contract code deployed on it, the code for `DefaultAccount` will be used as the contract’s code.
+On ZKsync, every address is a contract. Users can start transactions from their EOA accounts, because every address that does not have any contract deployed on it implicitly contains the code defined in the [DefaultAccount.sol](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/DefaultAccount.sol) file. Whenever anyone calls a contract that is not in kernel space (i.e. the address is ≥ 2^16) and does not have any contract code deployed on it, the code for `DefaultAccount` will be used as the contract’s code.
 
 Note, that if you call an account that is in kernel space and does not have any code deployed there, right now, the transaction will revert.
 
 We process the L2 transactions according to our account abstraction protocol: [https://docs.zksync.io/build/developer-reference/account-abstraction](https://docs.zksync.io/build/developer-reference/account-abstraction).
 
-1. We [deduct](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L1263) the transaction’s upfront payment for the overhead for the block’s processing. You can read more on how that works in the fee model [description](./zksync_fee_model.md).
+1. We [deduct](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L1263) the transaction’s upfront payment for the overhead for the block’s processing. You can read more on how that works in the fee model [description](./zksync_fee_model.md).
 2. Then we calculate the gasPrice for these transactions according to the EIP1559 rules.
-3. We [conduct the validation step](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L1287) of the AA protocol:
+3. We [conduct the validation step](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L1287) of the AA protocol:
 
    - We calculate the hash of the transaction.
    - If enough gas has been provided, we near_call the validation function in the bootloader. It sets the tx.origin to the address of the bootloader, sets the ergsPrice. It also marks the factory dependencies provided by the transaction as marked and then invokes the validation method of the account and verifies the returned magic.
-   - Calls the accounts and, if needed, the paymaster to receive the payment for the transaction. Note, that accounts may not use `block.baseFee` context variable, so they have no way to know what exact sum to pay. That’s why the accounts typically firstly send `tx.maxFeePerErg * tx.ergsLimit` and the bootloader [refunds](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L792) for any excess funds sent.
+   - Calls the accounts and, if needed, the paymaster to receive the payment for the transaction. Note, that accounts may not use `block.baseFee` context variable, so they have no way to know what exact sum to pay. That’s why the accounts typically firstly send `tx.maxFeePerErg * tx.ergsLimit` and the bootloader [refunds](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L792) for any excess funds sent.
 
-4. [We perform the execution of the transaction](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L1352). Note, that if the sender is an EOA, tx.origin is set equal to the `from` the value of the transaction. During the execution of the transaction, the publishing of the compressed bytecodes happens: for each factory dependency if it has not been published yet and its hash is currently pointed to in the compressed bytecodes area of the bootloader, a call to the bytecode compressor is done. Also, at the end the call to the KnownCodeStorage is done to ensure all the bytecodes have indeed been published.
-5. We [refund](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L1206) the user for any excess funds he spent on the transaction:
+4. [We perform the execution of the transaction](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L1352). Note, that if the sender is an EOA, tx.origin is set equal to the `from` the value of the transaction. During the execution of the transaction, the publishing of the compressed bytecodes happens: for each factory dependency if it has not been published yet and its hash is currently pointed to in the compressed bytecodes area of the bootloader, a call to the bytecode compressor is done. Also, at the end the call to the KnownCodeStorage is done to ensure all the bytecodes have indeed been published.
+5. We [refund](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L1206) the user for any excess funds he spent on the transaction:
 
    - Firstly, the `postTransaction` operation is called to the paymaster.
    - The bootloader asks the operator to provide a refund. During the first VM run without proofs the provide directly inserts the refunds in the memory of the bootloader. During the run for the proved batches, the operator already knows what which values have to be inserted there. You can read more about it in the [documentation](./zksync_fee_model.md) of the fee model.
    - The bootloader refunds the user.
 
-6. We notify the operator about the [refund](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L1217) that was granted to the user. It will be used for the correct displaying of gasUsed for the transaction in explorer.
+6. We notify the operator about the [refund](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L1217) that was granted to the user. It will be used for the correct displaying of gasUsed for the transaction in explorer.
 
 ### L1->L2 transactions
 
@@ -418,15 +416,15 @@ There are two kinds of L1->L2 transactions:
 - Priority operations, initiated by users (they have type `255`).
 - Upgrade transactions, that can be initiated during system upgrade (they have type `254`).
 
-You can read more about differences between those in the corresponding [document](../settlement_contracts/priority_queue/processing_of_l1-l2_txs.md).
+You can read more about differences between those in the corresponding [document](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 ### End of the batch
 
 At the end of the batch we set `tx.origin` and `tx.gasprice` context variables to zero to save L1 gas on calldata and send the entire bootloader balance to the operator, effectively sending fees to him.
 
-Also, we [set](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L4110) the fictive L2 block’s data. Then, we call the system context to ensure that it publishes the timestamp of the L2 block as well as L1 batch. We also reset the `txNumberInBlock` counter to avoid its state diffs from being published on L1. You can read more about block processing on ZKsync [here](./batches_and_blocks_on_zksync.md).
+Also, we [set](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L4110) the fictive L2 block’s data. Then, we call the system context to ensure that it publishes the timestamp of the L2 block as well as L1 batch. We also reset the `txNumberInBlock` counter to avoid its state diffs from being published on L1. You can read more about block processing on ZKsync [here](./batches_and_blocks_on_zksync.md).
 
-After that, we publish the hash as well as the number of priority operations in this batch. More on it [here](../settlement_contracts/priority_queue/processing_of_l1-l2_txs.md).
+After that, we publish the hash as well as the number of priority operations in this batch. More on it [here](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 Then, we call the L1Messenger system contract for it to compose the pubdata to be published on L1. You can read more about the pubdata processing [here](../settlement_contracts/data_availability/standard_pubdata_format.md).
 
@@ -525,7 +523,7 @@ Note, that unlike EVM any unused gas from such calls will be refunded.
 
 The system preserves the following guarantees about `.send/.transfer`:
 
-- No more than `2300` gas will be received by the callee. Note, [that a smaller, but a close amount](../../../../../contracts/system-contracts/contracts/test-contracts/TransferTest.sol#L33) may be passed.
+- No more than `2300` gas will be received by the callee. Note, [that a smaller, but a close amount](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/test-contracts/TransferTest.sol#L33) may be passed.
 - It is not possible to do any storage changes within this stipend. This is enforced by having cold write cost more than `2300` gas. Also, cold write cost always has to be prepaid whenever executing storage writes. More on it can be read [here](../l2_system_contracts/zksync_fee_model.md#io-pricing).
 - Any callee with bytecode size of up to `100000` will work.
 
@@ -533,7 +531,7 @@ The system does not guarantee the following:
 
 - That callees with bytecode size larger than `100000` will work. Note, that a malicious operator can fail any call to a callee with large bytecode even if it has been decommitted before. More on it can be read [here](../l2_system_contracts/zksync_fee_model.md#io-pricing).
 
-As a conclusion, using `.send/.transfer` should be generally avoided, but when avoiding is not possible it should be used with small callees, e.g. EOAs, which implement [DefaultAccount](../../../../../contracts/system-contracts/contracts/DefaultAccount.sol).
+As a conclusion, using `.send/.transfer` should be generally avoided, but when avoiding is not possible it should be used with small callees, e.g. EOAs, which implement [DefaultAccount](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/DefaultAccount.sol).
 
 ### KnownCodeStorage
 
@@ -649,7 +647,7 @@ One of the most expensive resource for a rollup is data availability, so in orde
 The contract provides two methods:
 
 - `publishCompressedBytecode` that verifies the correctness of the bytecode compression and publishes it in form of a message to the DA layer.
-- `verifyCompressedStateDiffs` that can verify the correctness of our standard state diff compression. This method can be used by common L2DAValidators and it is for instance utilized by the [RollupL2DAValidator](../../../../../contracts/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol).
+- `verifyCompressedStateDiffs` that can verify the correctness of our standard state diff compression. This method can be used by common L2DAValidators and it is for instance utilized by the [RollupL2DAValidator](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol).
 
 You can read more about how custom DA is handled [here](../settlement_contracts/data_availability/custom_da.md).
 
@@ -657,7 +655,7 @@ You can read more about how custom DA is handled [here](../settlement_contracts/
 
 This contract is responsible for separating pubdata into chunks that each fit into a [4844 blob](../settlement_contracts/data_availability/rollup_da.md) and calculating the hash of the preimage of said blob. If a chunk's size is less than the total number of bytes for a blob, we pad it on the right with zeroes as the circuits will require that the chunk is of exact size.
 
-This contract can be utilized by L2DAValidators, e.g. [RollupL2DAValidator](../../../../../contracts/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol) uses it to compress the pubdata into blobs.
+This contract can be utilized by L2DAValidators, e.g. [RollupL2DAValidator](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol) uses it to compress the pubdata into blobs.
 
 ### CodeOracle
 
@@ -708,11 +706,11 @@ A contract that is responsible for facilitating initialization of a newly create
 
 These contracts are used to facilitate cross-chain communication as well value bridging. You can read more about then in [the asset router spec](../bridging/asset_router_and_ntv/asset_router.md).
 
-Note, that [L2AssetRouter](../../../../../contracts/l1-contracts/contracts/bridge/asset-router/L2AssetRouter.sol) and [L2NativeTokenVault](../../../../../contracts/l1-contracts/contracts/bridge/ntv/L2NativeTokenVault.sol) have unique code, the L2Bridgehub and L2MessageRoot share the same source code with their L1 precompiles, i.e. the L2Bridgehub has [this](../../../../../contracts/l1-contracts/contracts/bridgehub/Bridgehub.sol) code and L2MessageRoot has [this](../../../../../contracts/l1-contracts/contracts/bridgehub/MessageRoot.sol) code.
+Note, that [L2AssetRouter](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/bridge/asset-router/L2AssetRouter.sol) and [L2NativeTokenVault](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/bridge/ntv/L2NativeTokenVault.sol) have unique code, the L2Bridgehub and L2MessageRoot share the same source code with their L1 precompiles, i.e. the L2Bridgehub has [this](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/bridgehub/Bridgehub.sol) code and L2MessageRoot has [this](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/bridgehub/MessageRoot.sol) code.
 
 ### SloadContract
 
-During the L2GatewayUpgrade, the system contracts will need to read the storage of some other contracts, despite those lacking getters. The how it is implemented can be read in the `forcedSload` function of the [SystemContractHelper](../../../../../contracts/system-contracts/contracts/libraries/SystemContractHelper.sol) contract.
+During the L2GatewayUpgrade, the system contracts will need to read the storage of some other contracts, despite those lacking getters. The how it is implemented can be read in the `forcedSload` function of the [SystemContractHelper](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/libraries/SystemContractHelper.sol) contract.
 
 While it is only used for the upgrade, it was decided to leave it as a predeployed contract for future use-cases as well.
 

@@ -1,7 +1,5 @@
 # Safe ChainAdmin management
 
-[back to readme](../README.md)
-
 While the ecosystem does a [decentralized trusted governance](https://blog.zknation.io/introducing-zk-nation/), each chain has its own Chain Admin. While the upgrade parameters are chosen by the governance, chain admin is still a powerful role and should be managed carefully.
 
 In this document we will explore what are the abilities of the ChainAdmin, how dangerous they are and how to mitigate potential issues.
@@ -111,4 +109,4 @@ The approach above does not only helps to protect the chain, but also provides c
 
 Due to specifics of [migration to another settlement layers](#migration-to-another-settlement-layer) (i.e. that migrations do not overwrite the admin), maintaining the same `PermanentRestriction` becomes hard in case a restriction has been added on top of the chain admin inside one chain, but not the other.
 
-While very flexible, this modular approach should still be polished enough before recommending it as a generic solution for everyone. However, the provided new [ChainAdmin](../../../../../contracts/l1-contracts/contracts/governance/ChainAdmin.sol) can still be helpful for new chains as with the `AccessControlRestriction` it provides a ready-to-use framework for role-based managing of the chain. Using `PermanentRestriction` for now is discouraged however.
+While very flexible, this modular approach should still be polished enough before recommending it as a generic solution for everyone. However, the provided new [ChainAdmin](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/governance/ChainAdmin.sol) can still be helpful for new chains as with the `AccessControlRestriction` it provides a ready-to-use framework for role-based managing of the chain. Using `PermanentRestriction` for now is discouraged however.

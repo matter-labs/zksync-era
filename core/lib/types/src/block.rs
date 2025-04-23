@@ -8,7 +8,7 @@ use crate::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::{keccak256, keccak256_concat},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
+    AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -27,12 +27,24 @@ impl DeployedContract {
     }
 }
 
-/// Holder for l1 batches data, used in eth sender metrics
+/// Holder for l1 batches data.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct L1BatchStatistics {
     pub number: L1BatchNumber,
     pub timestamp: u64,
     pub l2_tx_count: u32,
     pub l1_tx_count: u32,
+}
+
+impl From<L1BatchHeader> for L1BatchStatistics {
+    fn from(header: L1BatchHeader) -> Self {
+        Self {
+            number: header.number,
+            timestamp: header.timestamp,
+            l1_tx_count: header.l1_tx_count.into(),
+            l2_tx_count: header.l2_tx_count.into(),
+        }
+    }
 }
 
 /// Holder for the block metadata that is not available from transactions themselves.
@@ -141,6 +153,7 @@ pub struct L2BlockExecutionData {
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub txs: Vec<Transaction>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl L1BatchHeader {

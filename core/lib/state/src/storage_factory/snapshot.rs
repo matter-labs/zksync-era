@@ -43,14 +43,6 @@ impl ReadStorage for FallbackStorage<'_> {
         latency.observe();
         output
     }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
-    }
 }
 
 /// Snapshot-backed storage used for batch processing.

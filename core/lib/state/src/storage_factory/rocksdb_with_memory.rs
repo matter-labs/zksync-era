@@ -75,14 +75,6 @@ impl ReadStorage for RocksdbWithMemory {
             Some(value) => Some(*value),
         }
     }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
-    }
 }
 
 /// Data structure that keeps a continuous list of batch diffs.

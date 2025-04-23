@@ -80,6 +80,7 @@ pub fn l1_batch_params(
                 timestamp: l1_batch_timestamp,
                 prev_block_hash: prev_l2_block_hash,
                 max_virtual_blocks_to_create: virtual_blocks,
+                interop_roots: vec![],
             },
         },
     )

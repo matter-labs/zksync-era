@@ -510,10 +510,6 @@ pub(super) fn msg_wait_timeout(component: &impl fmt::Display) -> String {
     format!("timed out polling {component}")
 }
 
-pub(super) fn msg_wait_connect_err(component: &impl fmt::Display, url: &str) -> String {
-    format!("failed to connect to {component} at `{url}`")
-}
-
 pub(super) fn msg_wait_non_successful_response(component: &impl fmt::Display) -> String {
     format!("non-successful {component} response")
 }

@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, TransactionDetailedResult,
+        TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -44,8 +45,8 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_bridgehub_contract_impl())
     }
 
-    async fn get_main_contract(&self) -> RpcResult<Address> {
-        Ok(self.get_main_contract_impl())
+    async fn get_main_l1_contract(&self) -> RpcResult<Address> {
+        Ok(self.get_main_l1_contract_impl())
     }
 
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
@@ -112,13 +113,13 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     } //
 
-    async fn get_l2_to_l1_log_proof_until_chain_id(
+    async fn get_l2_to_l1_log_proof_until_target(
         &self,
         tx_hash: H256,
         index: Option<usize>,
-        chain_id: Option<U64>,
+        log_proof_target: Option<LogProofTarget>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, chain_id, None)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, log_proof_target, None)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -223,6 +224,11 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<TransactionDetailedResult> {
         self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
             .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
+        self.get_l2_multicall3_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
 }

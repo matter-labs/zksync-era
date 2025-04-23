@@ -309,22 +309,6 @@ impl ReadStorage for CommonStorage<'_> {
             Self::Boxed(storage) => storage.get_enumeration_index(key),
         }
     }
-
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        match self {
-            Self::Postgres(postgres) => postgres.get_message_root(chain_id, block_number),
-            Self::Rocksdb(rocksdb) => rocksdb.get_message_root(chain_id, block_number),
-            Self::RocksdbWithMemory(rocksdb_mem) => {
-                rocksdb_mem.get_message_root(chain_id, block_number)
-            }
-            Self::Snapshot(snapshot) => snapshot.get_message_root(chain_id, block_number),
-            Self::Boxed(storage) => storage.get_message_root(chain_id, block_number),
-        }
-    }
 }
 
 impl<'a> From<PostgresStorage<'a>> for CommonStorage<'a> {
@@ -403,7 +387,7 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
-        create_l2_block(&mut conn, L2BlockNumber(1), storage_logs.clone()).await;
+        create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
         drop(conn);
 

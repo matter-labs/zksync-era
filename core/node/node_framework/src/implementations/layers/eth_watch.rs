@@ -1,14 +1,22 @@
-use anyhow::Context;
-use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
-use zksync_contracts::chain_admin_contract;
-use zksync_eth_watch::{EthHttpQueryClient, EthWatch, L2EthClient};
-use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
-use zksync_types::{settlement::SettlementMode, L2ChainId, SLChainId};
+use zksync_config::{
+    configs::contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
+    EthWatchConfig,
+};
+use zksync_eth_watch::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
+use zksync_types::L2ChainId;
+use zksync_web3_decl::client::{DynClient, Network};
 
 use crate::{
     implementations::resources::{
-        eth_interface::{EthInterfaceResource, L2InterfaceResource},
+        contracts::{
+            L1ChainContractsResource, L1EcosystemContractsResource,
+            SettlementLayerContractsResource,
+        },
+        eth_interface::{
+            EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource,
+        },
         pools::{MasterPool, PoolResource},
+        settlement_layer::SettlementModeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -23,18 +31,19 @@ use crate::{
 #[derive(Debug)]
 pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
-    contracts_config: ContractsConfig,
-    gateway_chain_config: Option<GatewayChainConfig>,
-    settlement_mode: SettlementMode,
     chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    pub l1_contracts: L1ChainContractsResource,
+    pub contracts_resource: SettlementLayerContractsResource,
+    pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
-    pub gateway_client: Option<L2InterfaceResource>,
+    pub client: SettlementLayerClientResource,
+    pub settlement_mode: SettlementModeResource,
     pub dependency_chain_clients: Option<L2InterfaceResource>, //
 }
 
@@ -46,20 +55,39 @@ pub struct Output {
 }
 
 impl EthWatchLayer {
-    pub fn new(
-        eth_watch_config: EthWatchConfig,
-        contracts_config: ContractsConfig,
-        gateway_chain_config: Option<GatewayChainConfig>,
-        settlement_mode: SettlementMode,
-        chain_id: L2ChainId,
-    ) -> Self {
+    pub fn new(eth_watch_config: EthWatchConfig, chain_id: L2ChainId) -> Self {
         Self {
             eth_watch_config,
-            contracts_config,
-            gateway_chain_config,
-            settlement_mode,
             chain_id,
         }
+    }
+
+    fn create_client<Net: Network>(
+        &self,
+        client: Box<DynClient<Net>>,
+        contracts_resource: &SettlementLayerSpecificContracts,
+        l1_ecosystem_contracts_resource: &L1SpecificContracts,
+    ) -> EthHttpQueryClient<Net>
+    where
+        Box<DynClient<Net>>: GetLogsClient,
+    {
+        EthHttpQueryClient::new(
+            client,
+            contracts_resource.chain_contracts_config.diamond_proxy_addr,
+            l1_ecosystem_contracts_resource.bytecodes_supplier_addr,
+            l1_ecosystem_contracts_resource.wrapped_base_token_store,
+            l1_ecosystem_contracts_resource.shared_bridge,
+            contracts_resource
+                .ecosystem_contracts
+                .message_root_proxy_addr,
+            contracts_resource
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
+            contracts_resource.chain_contracts_config.chain_admin,
+            contracts_resource.ecosystem_contracts.server_notifier_addr,
+            self.eth_watch_config.confirmations_for_eth_event,
+            self.chain_id,
+        )
     }
 }
 
@@ -77,110 +105,70 @@ impl WiringLayer for EthWatchLayer {
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
-        let sl_diamond_proxy_addr = if self.settlement_mode.is_gateway() {
-            self.gateway_chain_config
-                .clone()
-                .context("Lacking `gateway_contracts_config`")?
-                .diamond_proxy_addr
-        } else {
-            self.contracts_config.diamond_proxy_addr
-        };
-        tracing::info!(
-            "Diamond proxy address ethereum: {:#?}",
-            self.contracts_config.diamond_proxy_addr
-        );
         tracing::info!(
             "Diamond proxy address settlement_layer: {:#?}",
-            sl_diamond_proxy_addr
+            input
+                .contracts_resource
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr
         );
-        let l1_client = EthHttpQueryClient::new(
+
+        let l1_client = self.create_client(
             client,
-            self.contracts_config.diamond_proxy_addr,
-            self.contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_bytecodes_supplier_addr),
-            self.contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_wrapped_base_token_store),
-            self.contracts_config.l1_shared_bridge_proxy_addr,
-            self.contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.message_root_proxy_addr),
-            self.contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.state_transition_proxy_addr),
-            self.contracts_config.chain_admin_addr,
-            self.contracts_config.governance_addr,
-            self.eth_watch_config.confirmations_for_eth_event,
-            self.chain_id,
-            false, //
+            &input.l1_contracts.0,
+            &input.l1ecosystem_contracts_resource.0,
         );
         // println!("l1_message_root_address 2: {:?}", self.contracts_config.l1_message_root_address);
 
-        let sl_l2_client: Option<Box<dyn L2EthClient>> = if let Some(gateway_client) =
-            input.gateway_client
-        {
-            let contracts_config: GatewayChainConfig = self.gateway_chain_config.clone().unwrap();
-            Some(Box::new(EthHttpQueryClient::new(
-                gateway_client.0,
-                contracts_config.diamond_proxy_addr,
-                // Only present on L1.
-                None,
-                // Only present on L1.
-                None,
-                // Only present on L1.
-                None,
-                Some(L2_MESSAGE_ROOT_ADDRESS),
-                Some(contracts_config.state_transition_proxy_addr),
-                contracts_config.chain_admin_addr,
-                contracts_config.governance_addr,
-                self.eth_watch_config.confirmations_for_eth_event,
-                self.chain_id,
-                false, //
-            )))
-        } else {
-            None
+        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client.0 {
+            SettlementLayerClient::L1(client) => Box::new(self.create_client(
+                client,
+                &input.contracts_resource.0,
+                &input.l1ecosystem_contracts_resource.0,
+            )),
+            SettlementLayerClient::L2(client) => Box::new(self.create_client(
+                client,
+                &input.contracts_resource.0,
+                &input.l1ecosystem_contracts_resource.0,
+            )),
         };
 
         let dependency_l2_chain_clients: Option<Vec<Box<dyn L2EthClient>>> =
-            if let Some(dependency_chain_client) = input.dependency_chain_clients.clone() {
-                let mut clients: Vec<Box<dyn L2EthClient>> = Vec::new();
-                // let contracts_config: GatewayChainConfig = self.gateway_chain_config.unwrap();
-                let dependency_chain_clients = vec![dependency_chain_client];
-                for dependency_chain_client in dependency_chain_clients {
-                    let client = Box::new(EthHttpQueryClient::new(
-                        dependency_chain_client.0,
-                        L2_MESSAGE_ROOT_ADDRESS,
-                        None,
-                        None,
-                        None,
-                        Some(L2_MESSAGE_ROOT_ADDRESS),
-                        Some(L2_MESSAGE_ROOT_ADDRESS),
-                        Some(L2_MESSAGE_ROOT_ADDRESS),
-                        L2_MESSAGE_ROOT_ADDRESS,
-                        self.eth_watch_config.confirmations_for_eth_event,
-                        self.chain_id,
-                        true,
-                    ));
-                    clients.push(client);
-                }
-                Some(clients)
-            } else {
+            // if let Some(dependency_chain_client) = input.dependency_chain_clients.clone() {
+            //     let mut clients: Vec<Box<dyn L2EthClient>> = Vec::new();
+            //     // let contracts_config: GatewayChainConfig = self.gateway_chain_config.unwrap();
+            //     let dependency_chain_clients = vec![dependency_chain_client];
+            //     for dependency_chain_client in dependency_chain_clients {
+            //         let client = Box::new(EthHttpQueryClient::new(
+            //             dependency_chain_client.0,
+            //             L2_MESSAGE_ROOT_ADDRESS,
+            //             None,
+            //             None,
+            //             None,
+            //             Some(L2_MESSAGE_ROOT_ADDRESS),
+            //             Some(L2_MESSAGE_ROOT_ADDRESS),
+            //             Some(L2_MESSAGE_ROOT_ADDRESS),
+            //             L2_MESSAGE_ROOT_ADDRESS,
+            //             self.eth_watch_config.confirmations_for_eth_event,
+            //             self.chain_id,
+            //             true,
+            //         ));
+            //         clients.push(client);
+            //     }
+            //     Some(clients)
+            // } else {
                 None
-            };
+            // };
         println!(
             "dependency_l2_chain_clients: {:?}",
             input.dependency_chain_clients
         );
         println!("sl_l2_client : {:?}", sl_l2_client);
         let eth_watch = EthWatch::new(
-            &chain_admin_contract(),
             Box::new(l1_client),
             sl_l2_client,
+            input.settlement_mode.0,
             dependency_l2_chain_clients, //
             main_pool,
             self.eth_watch_config.poll_interval(),

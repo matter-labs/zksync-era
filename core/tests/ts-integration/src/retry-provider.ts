@@ -87,6 +87,14 @@ export class RetryProvider extends zksync.Provider {
 
     override _wrapTransactionResponse(txResponse: any): L2TransactionResponse {
         const base = super._wrapTransactionResponse(txResponse);
+        const isNew = !this.knownTransactionHashes.has(base.hash);
+        if (isNew) {
+            this.reporter.debug(
+                `Created L2 transaction ${base.hash} (from=${base.from}, to=${base.to}, ` +
+                    `nonce=${base.nonce}, value=${base.value}, data=${debugData(base.data)})`
+            );
+        }
+
         this.knownTransactionHashes.add(base.hash);
         return new L2TransactionResponse(base, this.reporter);
     }
@@ -147,4 +155,13 @@ export class RetryableWallet extends zksync.Wallet {
     override ethWallet(): RetryableL1Wallet {
         return new RetryableL1Wallet(this.privateKey, <L1Provider>this._providerL1());
     }
+}
+
+function debugData(rawData: string): string {
+    const MAX_PRINTED_BYTE_LEN = 128;
+
+    const byteLength = (rawData.length - 2) / 2;
+    return byteLength <= MAX_PRINTED_BYTE_LEN
+        ? rawData
+        : rawData.substring(0, 2 + MAX_PRINTED_BYTE_LEN * 2) + `...(${byteLength} bytes)`;
 }

@@ -5,7 +5,6 @@ use zkstack_cli_config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use zksync_basic_types::L2ChainId;
 use zksync_types::Address;
 
 use crate::{
@@ -67,13 +66,6 @@ pub async fn init_configs(
         .get_opt::<u16>("data_handler.http_port")?;
     if let Some(port) = prover_data_handler_port {
         general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
-    }
-
-    let prover_gateway_port = general_config
-        .base()
-        .get_opt::<u16>("prover_gateway.ws_port")?;
-    if let Some(port) = prover_gateway_port {
-        general_config.insert("data_handler.api_url", format!("ws://127.0.0.1:{port}"))?;
     }
 
     let consensus_keys = generate_consensus_keys();

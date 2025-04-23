@@ -1,6 +1,7 @@
-CREATE TABLE IF NOT EXISTS message_roots (
+CREATE TABLE IF NOT EXISTS interop_roots (
     chain_id BIGINT NOT NULL,
-    block_number BIGINT NOT NULL,
-    message_root_sides BYTEA[] NOT NULL,
-    PRIMARY KEY (chain_id, block_number)
+    dependency_block_number BIGINT NOT NULL,
+    processed_block_number BIGINT,
+    interop_root_sides BYTEA[] NOT NULL,
+    PRIMARY KEY (chain_id, dependency_block_number)
 );

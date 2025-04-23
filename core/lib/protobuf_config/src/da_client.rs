@@ -40,6 +40,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                 .clone(),
                             app_id: *required(&full_client_conf.app_id).context("app_id")?,
                             finality_state: full_client_conf.finality_state.clone(),
+                            dispatch_timeout_ms: full_client_conf.dispatch_timeout_ms,
                         })
                     }
                     Some(proto::avail_config::Config::GasRelay(gas_relay_conf)) => {
@@ -97,6 +98,11 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     }
                     None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
                 },
+                custom_quorum_numbers: conf
+                    .custom_quorum_numbers
+                    .iter()
+                    .map(|x| u8::try_from(*x).context("custom_quorum_numbers"))
+                    .collect::<anyhow::Result<Vec<u8>>>()?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -118,6 +124,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             api_node_url: Some(conf.api_node_url.clone()),
                             app_id: Some(conf.app_id),
                             finality_state: conf.finality_state.clone(),
+                            dispatch_timeout_ms: conf.dispatch_timeout_ms,
                         }),
                     ),
                     AvailClientConfig::GasRelay(conf) => Some(
@@ -163,6 +170,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         g2_url: Some(g2_url.clone()),
                     }),
                 }),
+                // We need to cast as u32 because proto doesn't support u8
+                custom_quorum_numbers: config
+                    .custom_quorum_numbers
+                    .iter()
+                    .map(|x| *x as u32)
+                    .collect(),
             }),
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),

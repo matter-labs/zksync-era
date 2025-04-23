@@ -74,7 +74,7 @@ mod tests {
 
     use super::*;
 
-    const MAX_CIRCUITS_PER_BATCH: usize = 30_000;
+    const MAX_CIRCUITS_PER_BATCH: usize = 27_000;
 
     fn get_config() -> StateKeeperConfig {
         StateKeeperConfig {

@@ -125,8 +125,8 @@ where
 
     fn push_l2_block_unchecked(&mut self, block: L2BlockEnv) {
         self.get_mut("push_l2_block_unchecked", |r| match r {
-            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block),
-            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block),
+            ShadowMut::Main(vm) => vm.push_l2_block_unchecked(block.clone()),
+            ShadowMut::Shadow(vm) => vm.push_l2_block_unchecked(block.clone()),
         });
     }
 
@@ -662,6 +662,11 @@ mod simple_execution {
     #[test]
     fn reusing_create2_salt() {
         test_reusing_create2_salt::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn transfer_to_self_with_low_gas_limit() {
+        test_transfer_to_self_with_low_gas_limit::<super::ShadowedFastVm<_>>();
     }
 }
 

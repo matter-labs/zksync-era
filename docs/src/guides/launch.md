@@ -126,11 +126,15 @@ To manually modify configuration files:
 zkstack server
 ```
 
-> NOTE: Manual changes to configuration files may be overwritten if the ecosystem is reinitialized or the chain is
-> reinitialized.
+```admonish note
+Manual changes to configuration files may be overwritten if the ecosystem is reinitialized or the chain is
+reinitialized.
+```
 
-> WARNING: Some properties, such as ports, may require manual modification across different configuration files to
-> ensure consistency and avoid conflicts.
+```admonish warning
+Some properties, such as ports, may require manual modification across different configuration files to
+ensure consistency and avoid conflicts.
+```
 
 ## Running server using Google cloud storage object store instead of default In memory store
 
@@ -150,7 +154,9 @@ Running on a machine with GPU
 zkstack prover run --component=prover
 ```
 
-> NOTE: Running on machine without GPU is currently not supported by `zkstack`.
+```admonish note
+Running on machine without GPU is currently not supported by `zkstack`.
+```
 
 ## Running the verification key generator
 
@@ -299,4 +305,6 @@ different set of dependencies.
 cd contracts && yarn install
 ```
 
-> NOTE: This may cause integration tests to fail in core. If so, run `yarn install` inside core repo.
+```admonish note
+This may cause integration tests to fail in core. If so, run `yarn install` inside core repo.
+```

@@ -1,4 +1,5 @@
 /// Execution mode determines when the virtual machine execution should stop.
+///
 /// We are also using a different set of tracers, depending on the selected mode - for example for OneTx,
 /// we use Refund Tracer, and for Bootloader we use 'DefaultTracer` in a special mode to track the Bootloader return code
 /// Flow of execution:
