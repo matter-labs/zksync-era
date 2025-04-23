@@ -1,7 +1,7 @@
-use std::{sync::Arc, thread::sleep, time::Duration, usize};
+use std::{sync::Arc, thread::sleep, time::Duration};
 
 use anyhow::Context;
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, Local};
 use clap::Parser;
 use cliclack::clear_screen;
 use ethers::{
@@ -182,11 +182,7 @@ fn display_statuses(statuses: Vec<TxStatus>) {
             }
         };
 
-        println!(
-            "{} {}",
-            emoji,
-            format!("{} {:?}", description, status.priority_tx_hash)
-        );
+        println!("{} {} {:#?}", emoji, description, status.priority_tx_hash);
         println!("\tEthereum transaction hash: {:?}", status.eth_tx_hash);
         println!(
             "\tEthereum block timestamp: {:?}",
@@ -208,14 +204,14 @@ pub async fn run(args: TrackPriorityOpsArgs) -> anyhow::Result<()> {
             .await?
             .as_u64()
             .saturating_sub(DEFAULT_EVENTS_BLOCK_RANGE);
-        logger::info(&format!("No `--from-block` provided. {default_from_block} ({DEFAULT_EVENTS_BLOCK_RANGE} away from latest) will be used as a default", ));
+        logger::info(format!("No `--from-block` provided. {default_from_block} ({DEFAULT_EVENTS_BLOCK_RANGE} away from latest) will be used as a default", ));
         default_from_block
     };
 
     let limit = if let Some(x) = args.limit {
         x
     } else {
-        logger::info(&format!(
+        logger::info(format!(
             "No `--limit` provided. {DEFAULT_DISPLAYED_TXS_LIMIT} will be used as default"
         ));
         DEFAULT_DISPLAYED_TXS_LIMIT
@@ -224,7 +220,7 @@ pub async fn run(args: TrackPriorityOpsArgs) -> anyhow::Result<()> {
     let delay = if let Some(x) = args.update_frequency_ms {
         Duration::from_millis(x)
     } else {
-        logger::info(&format!("No `--upgrade-frequency-ms` provided. {DEFAULT_INTERVALS_SECS} seconds will be used as default"));
+        logger::info(format!("No `--upgrade-frequency-ms` provided. {DEFAULT_INTERVALS_SECS} seconds will be used as default"));
         Duration::from_secs(DEFAULT_INTERVALS_SECS)
     };
 
