@@ -16,7 +16,7 @@ use zksync_types::{
     commitment::{serialize_commitments, L1BatchCommitmentMode},
     protocol_version::ProtocolSemanticVersion,
     web3::keccak256,
-    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    L1BatchId, L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::{errors::ProcessorError, metrics::METRICS};
@@ -238,7 +238,13 @@ impl Processor<Locking> {
 
         let blob_url = self
             .blob_store
-            .put((l1_batch_number, proof.protocol_version()), &proof)
+            .put(
+                (
+                    L1BatchId::new(L2ChainId::zero(), l1_batch_number),
+                    proof.protocol_version(),
+                ),
+                &proof,
+            )
             .await?;
 
         let aggregation_coords = proof.aggregation_result_coords();
@@ -364,18 +370,16 @@ impl Processor<Readonly> {
         binary_proof: Vec<u8>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Result<(), ProcessorError> {
-        let expected_proof: L1BatchProofForL1<CBOR> = match self
-            .blob_store
-            .get((l1_batch_number, protocol_version))
-            .await
-        {
-            Ok(proof) => proof,
-            Err(_) => self
-                .blob_store
-                .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, protocol_version))
-                .await
-                .map(Into::into)?,
-        };
+        let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
+        let expected_proof: L1BatchProofForL1<CBOR> =
+            match self.blob_store.get((batch_id, protocol_version)).await {
+                Ok(proof) => proof,
+                Err(_) => self
+                    .blob_store
+                    .get::<L1BatchProofForL1<Bincode>>((batch_id, protocol_version))
+                    .await
+                    .map(Into::into)?,
+            };
 
         if expected_proof.protocol_version() != protocol_version {
             return Err(ProcessorError::InvalidProof);

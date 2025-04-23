@@ -125,12 +125,25 @@ impl From<L1BatchProofForL1<Bincode>> for L1BatchProofForL1<CBOR> {
 
 impl StoredObject for L1BatchProofForL1<Bincode> {
     const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = (L1BatchNumber, ProtocolSemanticVersion);
+    type Key<'a> = (L1BatchId, ProtocolSemanticVersion);
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        let (l1_batch_id, protocol_version) = key;
+        let semver_suffix = protocol_version.to_string().replace('.', "_");
+        Some(format!(
+            "l1_batch_proof_{l1_batch_number}_{semver_suffix}.bin",
+            l1_batch_number = l1_batch_id.batch_number().0
+        ))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        let (l1_batch_number, protocol_version) = key;
+        let (l1_batch_id, protocol_version) = key;
         let semver_suffix = protocol_version.to_string().replace('.', "_");
-        format!("l1_batch_proof_{l1_batch_number}_{semver_suffix}.bin")
+        format!(
+            "l1_batch_proof_{l1_batch_number}_{chain_id}_{semver_suffix}.bin",
+            l1_batch_number = l1_batch_id.batch_number().0,
+            chain_id = l1_batch_id.chain_id().inner()
+        )
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

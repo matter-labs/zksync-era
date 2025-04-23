@@ -16,7 +16,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchNumber, ProtocolVersionId,
+    Address, L1BatchId, L1BatchNumber, L2ChainId, ProtocolVersionId,
 };
 
 use super::{
@@ -697,15 +697,16 @@ pub async fn load_wrapped_fri_proofs_for_range(
     blob_store: &dyn ObjectStore,
     allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
+    let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .get::<L1BatchProofForL1>((batch_id, *version))
             .await
         {
             Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => {
                 match blob_store
-                    .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, *version))
+                    .get::<L1BatchProofForL1<Bincode>>((batch_id, *version))
                     .await
                 {
                     Ok(proof) => return Some(proof.into()),

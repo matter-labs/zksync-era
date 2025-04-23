@@ -3,7 +3,7 @@ use std::sync::Arc;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
-use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
+use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchId, L1BatchNumber, L2ChainId};
 
 use super::error::ProcessorError;
 
@@ -34,10 +34,10 @@ impl ProofDataManager {
         };
 
         let proof = if status == ProofCompressionJobStatus::Successful {
-            let proof: L1BatchProofForL1 = self
-                .blob_store
-                .get((l1_batch_number, protocol_version))
-                .await?;
+            // TODO: remove this once we have a proper L1BatchId
+            let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
+            let proof: L1BatchProofForL1 =
+                self.blob_store.get((batch_id, protocol_version)).await?;
             proof
         } else {
             unreachable!(
@@ -53,29 +53,32 @@ impl ProofDataManager {
         &self,
         batch_number: L1BatchNumber,
     ) -> Result<Option<L1BatchProofForL1>, ProcessorError> {
+        // TODO: remove this once we have a proper L1BatchId
+        let batch_id = L1BatchId::new(L2ChainId::zero(), batch_number);
+
         let protocol_version = self
             .pool
             .connection()
             .await
             .unwrap()
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch(batch_number)
+            .protocol_version_for_l1_batch(batch_id)
             .await;
 
         let Some(protocol_version) = protocol_version else {
             return Ok(None);
         };
 
-        let proof: L1BatchProofForL1 =
-            match self.blob_store.get((batch_number, protocol_version)).await {
-                Ok(proof) => proof,
-                Err(ObjectStoreError::KeyNotFound(_)) => {
-                    return Ok(None); // proof was not generated yet
-                }
-                Err(e) => {
-                    return Err(ProcessorError::ObjectStoreErr(e));
-                }
-            };
+        let proof: L1BatchProofForL1 = match self.blob_store.get((batch_id, protocol_version)).await
+        {
+            Ok(proof) => proof,
+            Err(ObjectStoreError::KeyNotFound(_)) => {
+                return Ok(None); // proof was not generated yet
+            }
+            Err(e) => {
+                return Err(ProcessorError::ObjectStoreErr(e));
+            }
+        };
 
         Ok(Some(proof))
     }
@@ -84,12 +87,15 @@ impl ProofDataManager {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<(), ProcessorError> {
+        // TODO: remove this once we have a proper L1BatchId
+        let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
+
         self.pool
             .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
-            .mark_proof_sent_to_server(l1_batch_number)
+            .mark_proof_sent_to_server(batch_id)
             .await?;
         Ok(())
     }
@@ -98,9 +104,12 @@ impl ProofDataManager {
         &self,
         data: ProofGenerationData,
     ) -> Result<(), ProcessorError> {
+        // TODO: remove this once we have a proper L1BatchId
+        let batch_id = L1BatchId::new(L2ChainId::zero(), data.l1_batch_number);
+
         let witness_inputs = self
             .blob_store
-            .put(data.l1_batch_number, &data.witness_input_data)
+            .put(batch_id, &data.witness_input_data)
             .await?;
 
         let mut connection = self.pool.connection().await.unwrap();
@@ -113,7 +122,7 @@ impl ProofDataManager {
         connection
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(
-                data.l1_batch_number,
+                batch_id,
                 &witness_inputs,
                 data.protocol_version,
                 data.batch_sealed_at,

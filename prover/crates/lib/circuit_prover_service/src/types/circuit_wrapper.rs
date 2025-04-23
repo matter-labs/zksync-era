@@ -58,7 +58,10 @@ impl StoredObject for CircuitWrapper {
             aggregation_round,
             depth,
         } = key;
-        Some(format!("{block_number}_{chain_id}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin", block_number = batch_id.batch_number(), chain_id = batch_id.chain_id()))
+        Some(format!(
+            "{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
+            block_number = batch_id.batch_number()
+        ))
     }
 
     fn encode_key(key: Self::Key<'_>) -> String {
@@ -69,10 +72,7 @@ impl StoredObject for CircuitWrapper {
             aggregation_round,
             depth,
         } = key;
-        format!(
-            "{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
-            block_number = batch_id.batch_number()
-        )
+        format!("{block_number}_{chain_id}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin", block_number = batch_id.batch_number(), chain_id = batch_id.chain_id())
     }
 
     serialize_using_bincode!();

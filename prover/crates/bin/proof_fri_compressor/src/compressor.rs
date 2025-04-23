@@ -20,7 +20,7 @@ use zksync_prover_interface::{
 };
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId, L1BatchNumber};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId};
 
 use crate::metrics::METRICS;
 
@@ -96,7 +96,7 @@ impl JobProcessor for ProofCompressor {
         tracing::info!("Started proof compression for L1 batch: {:?}", l1_batch_id);
         let observer = METRICS.blob_fetch_time.start();
 
-        let fri_proof: FriProofWrapper = self.blob_store.get(fri_proof_id)
+        let fri_proof: FriProofWrapper = self.blob_store.get((fri_proof_id, l1_batch_id.chain_id()))
             .await.with_context(|| format!("Failed to get fri proof from blob store for {l1_batch_id} with id {fri_proof_id}"))?;
 
         observer.observe();
