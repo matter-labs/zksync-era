@@ -41,7 +41,6 @@ pub struct StateKeeperConfig {
     /// Number of ms after which an L2 block should be sealed by the timeout sealer.
     #[config(alias = "miniblock_commit_deadline_ms")]
     #[config(default_t = Duration::from_secs(1), with = TimeUnit::Millis)]
-    // ^ legacy naming; since we don't serialize this struct, we use "alias" rather than "rename"
     pub l2_block_commit_deadline_ms: Duration,
     /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
     /// sealing will block until some of the L2 blocks from the queue are processed.

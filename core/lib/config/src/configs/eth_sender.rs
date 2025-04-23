@@ -142,7 +142,6 @@ pub struct SenderConfig {
     pub aggregated_block_prove_deadline: Duration,
     #[config(default_t = Duration::from_secs(300), with = TimeUnit::Seconds)]
     pub aggregated_block_execute_deadline: Duration,
-    // FIXME: existing configs assume that this is measured in seconds, but it's not; it's measured in L1 batches
     #[config(default_t = 30)]
     pub timestamp_criteria_max_allowed_lag: usize,
 

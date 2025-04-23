@@ -107,7 +107,6 @@ mod tests {
         schema
     }
 
-    // Migration path: add global alias `snapshots.object_store` for `snapshots_recovery.object_store`.
     #[test]
     fn parsing_from_env() {
         let env = r#"
@@ -133,7 +132,7 @@ mod tests {
 
     // Migration path:
     // - Use tagged object store
-    // - Copy `experimental.drop_storage_key_preimages` -> drop_storage_key_preimages
+    // - Copy `experimental.drop_storage_key_preimages` -> `drop_storage_key_preimages`
     // - Copy `experimental.tree_recovery_parallel_persistence_buffer` -> `tree.parallel_persistence_buffer`.
     #[test]
     fn parsing_from_yaml() {

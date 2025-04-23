@@ -126,8 +126,7 @@ mod tests {
         );
     }
 
-    // Migration path: use tagged enums for object stores.
-    // FIXME: is this viable? It's technically not breaking, but all file-based configs mention stores
+    // Migration path: use tagged enums for object stores
     #[test]
     fn file_backed_from_yaml() {
         let yaml = r#"

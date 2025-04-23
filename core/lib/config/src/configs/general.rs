@@ -115,7 +115,6 @@ pub fn full_config_schema(for_en: bool) -> ConfigSchema {
         .unwrap()
         .push_alias("snapshots.object_store")
         .unwrap();
-    // TODO: add aliases for prover object stores in the same way and other aliases from tests
 
     // Specialized configuration that were placed in separate files.
     schema.insert(&Secrets::DESCRIPTION, "").unwrap();

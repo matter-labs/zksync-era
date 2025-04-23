@@ -207,7 +207,6 @@ mod tests {
         assert_eq!(config.slow_query_threshold_ms, Duration::from_millis(150));
     }
 
-    // Migration guide: `database.*` is a deprecated alias to `postgres.*` (?)
     #[test]
     fn postgres_from_env() {
         let env = r#"

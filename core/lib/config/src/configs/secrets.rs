@@ -136,7 +136,7 @@ mod tests {
         );
     }
 
-    // Migration path: change `DA_SECRETS_*` -> `DA_CLIENT_*`.
+    // Migration path: change `DA_SECRETS_*` -> `DA_CLIENT_*`
     #[test]
     fn parsing_from_env() {
         let env = r#"
@@ -159,7 +159,7 @@ mod tests {
         assert_secrets(secrets);
     }
 
-    // Migration path: use tagged enum for DA secrets (are they used anywhere?)
+    // Migration path: use tagged enum for DA secrets
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"

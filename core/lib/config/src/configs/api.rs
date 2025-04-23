@@ -162,7 +162,7 @@ pub struct Web3JsonRpcConfig {
     pub max_nonce_ahead: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
-    #[config(default_t = 1.3)] // FIXME: check real values
+    #[config(default_t = 1.5)]
     pub gas_price_scale_factor: f64,
     /// The factor by which to scale the gasLimit
     #[config(default_t = 1.3)]

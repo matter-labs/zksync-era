@@ -26,7 +26,7 @@ pub struct EigenConfig {
     /// Address of the service manager contract
     pub eigenda_svc_manager_address: Address,
     /// Wait for the blob to be finalized before returning the response
-    #[config(default_t = true)] // FIXME: double-check defaults
+    #[config(default_t = true)]
     pub wait_for_finalization: bool,
     /// Authenticated dispersal
     #[config(default_t = true)]
