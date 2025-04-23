@@ -44,7 +44,7 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub client: SettlementLayerClientResource,
     pub settlement_mode: SettlementModeResource,
-    pub dependency_chain_clients: Option<L2InterfaceResource>, //
+    pub dependency_chain_clients: Option<SettlementLayerClientResource>, //
 }
 
 #[derive(Debug, IntoContext)]
@@ -87,6 +87,7 @@ impl EthWatchLayer {
             contracts_resource.ecosystem_contracts.server_notifier_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
+            false,
         )
     }
 }
@@ -134,7 +135,7 @@ impl WiringLayer for EthWatchLayer {
             )),
         };
 
-        let dependency_l2_chain_clients: Option<Vec<Box<dyn L2EthClient>>> =
+        let dependency_l2_chain_clients: Option<Vec<Box<dyn ZkSyncExtentionEthClient>>> =
             // if let Some(dependency_chain_client) = input.dependency_chain_clients.clone() {
             //     let mut clients: Vec<Box<dyn L2EthClient>> = Vec::new();
             //     // let contracts_config: GatewayChainConfig = self.gateway_chain_config.unwrap();
@@ -158,7 +159,7 @@ impl WiringLayer for EthWatchLayer {
             //     }
             //     Some(clients)
             // } else {
-                None
+                None;
             // };
         println!(
             "dependency_l2_chain_clients: {:?}",

@@ -1,7 +1,9 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
-    InteropRoot, ProtocolVersionId,
+    l2_to_l1_log::UserL2ToL1Log,
+    ProtocolVersionId, H256,
+    InteropRoot,
 };
 
 use crate::{
