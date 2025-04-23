@@ -1,10 +1,7 @@
 use serde::{de::DeserializeOwned, Serialize};
-use zksync_prover_interface::{
-    api::{
-        PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
-        SubmitProofGenerationDataResponse,
-    },
-    outputs::L1BatchProofForL1,
+use zksync_prover_interface::api::{
+    PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
+    SubmitProofGenerationDataResponse,
 };
 use zksync_types::L1BatchNumber;
 pub(crate) struct HttpClient {
@@ -37,21 +34,14 @@ impl HttpClient {
     pub(crate) async fn fetch_proof(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<(L1BatchNumber, L1BatchProofForL1)>, reqwest::Error> {
+    ) -> Result<Option<PollGeneratedProofsResponse>, reqwest::Error> {
         tracing::info!("Sending request to {}", POLL_GENERATED_PROOFS_ENDPOINT);
 
         let endpoint = self.api_url.clone() + POLL_GENERATED_PROOFS_ENDPOINT;
 
         let request = PollGeneratedProofsRequest { l1_batch_number };
 
-        let response: Option<PollGeneratedProofsResponse> =
-            self.send_http_request(request, &endpoint).await?;
-
-        if let Some(response) = response {
-            Ok(Some((response.l1_batch_number, response.proof.into())))
-        } else {
-            Ok(None)
-        }
+        self.send_http_request(request, &endpoint).await
     }
 
     async fn send_http_request<Req, Resp>(
