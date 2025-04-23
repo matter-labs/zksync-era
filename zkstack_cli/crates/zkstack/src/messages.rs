@@ -9,10 +9,7 @@ use url::Url;
 use zksync_consensus_roles::attester;
 
 use crate::{
-    commands::chain::{
-        gateway_migration::MigrationDirection,
-        gateway_migration_calldata::GatewayMigrationProgressState,
-    },
+    commands::chain::gateway_common::{GatewayMigrationProgressState, MigrationDirection},
     utils::forge::WalletOwner,
 };
 

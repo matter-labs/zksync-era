@@ -39,10 +39,7 @@ use crate::{
     accept_ownership::{set_da_validator_pair, start_migrate_chain_from_gateway},
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
-        gateway_migration::{
-            await_for_tx_to_complete, extract_and_wait_for_priority_ops, extract_priority_ops,
-            send_tx,
-        },
+        gateway_common::{extract_and_wait_for_priority_ops, send_tx},
         init::get_l1_da_validator,
         utils::{get_ethers_provider, get_zk_client},
     },

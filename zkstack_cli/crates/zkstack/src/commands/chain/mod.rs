@@ -3,13 +3,12 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
-use grant_gateway_whitelist::GrantGatewayWhitelistScriptArgs;
-use notify_server_calldata::{NotifyServerCalldataArgs, NotifyServerCalldataScriptArgs};
+use grant_gateway_whitelist::GrantGatewayWhitelistCalldataArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
 #[cfg(feature = "gateway")]
-use crate::commands::chain::gateway_migration::MigrationDirection;
+use crate::commands::chain::gateway_common::MigrationDirection;
 use crate::commands::chain::{
     args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
     genesis::GenesisCommand, init::ChainInitCommand,
@@ -24,12 +23,13 @@ pub(crate) mod set_transaction_filterer;
 
 #[cfg(feature = "gateway")]
 pub(crate) mod convert_to_gateway;
-
+#[cfg(feature = "gateway")]
+pub(crate) mod gateway_common;
 #[cfg(feature = "gateway")]
 pub(crate) mod grant_gateway_whitelist;
 
 #[cfg(feature = "gateway")]
-pub(crate) mod gateway_migration_calldata;
+pub(crate) mod migrate_to_gateway_calldata;
 
 #[cfg(feature = "gateway")]
 pub(crate) mod admin_call_builder;
@@ -40,14 +40,14 @@ pub mod deploy_paymaster;
 mod enable_evm_emulator;
 #[cfg(feature = "gateway")]
 mod finalize_chain_migration_from_gw;
-#[cfg(feature = "gateway")]
-pub mod gateway_migration;
 pub mod genesis;
 pub mod init;
 #[cfg(feature = "gateway")]
 mod migrate_from_gateway;
 #[cfg(feature = "gateway")]
 mod migrate_from_gateway_calldata;
+#[cfg(feature = "gateway")]
+pub mod migrate_to_gateway;
 #[cfg(feature = "gateway")]
 mod notify_server_calldata;
 pub mod register_chain;
@@ -99,13 +99,15 @@ pub enum ChainCommands {
     /// Provides calldata to set transaction filterer for a chain
     SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
     #[cfg(feature = "gateway")]
-    GrantGatewayTransactionFiltererWhitelistCalldata(GrantGatewayWhitelistScriptArgs),
+    GrantGatewayTransactionFiltererWhitelistCalldata(GrantGatewayWhitelistCalldataArgs),
     #[cfg(feature = "gateway")]
-    NotifyAboutToGatewayUpdateCalldata(NotifyServerCalldataScriptArgs),
+    NotifyAboutToGatewayUpdateCalldata(notify_server_calldata::NotifyServerCalldataArgs),
     #[cfg(feature = "gateway")]
-    NotifyAboutFromGatewayUpdateCalldata(NotifyServerCalldataScriptArgs),
+    NotifyAboutFromGatewayUpdateCalldata(notify_server_calldata::NotifyServerCalldataArgs),
     #[cfg(feature = "gateway")]
-    MigrateToGatewayCalldata(gateway_migration_calldata::MigrateToGatewayCalldataScriptArgs),
+    MigrateToGatewayCalldata(migrate_to_gateway_calldata::MigrateToGatewayCalldataArgs),
+    #[cfg(feature = "gateway")]
+    MigrateFromGatewayCalldata(migrate_from_gateway_calldata::MigrateFromGatewayCalldataArgs),
     #[cfg(feature = "gateway")]
     FinalizeChainMigrationFromGateway(
         finalize_chain_migration_from_gw::FinalizeChainMigrationFromGatewayScriptArgs,
@@ -115,7 +117,7 @@ pub enum ChainCommands {
     ConvertToGateway(ForgeScriptArgs),
     /// Migrate chain to gateway
     #[cfg(feature = "gateway")]
-    MigrateToGateway(gateway_migration::MigrateToGatewayArgs),
+    MigrateToGateway(migrate_to_gateway::MigrateToGatewayArgs),
     /// Migrate chain from gateway
     #[cfg(feature = "gateway")]
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
@@ -167,7 +169,11 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         #[cfg(feature = "gateway")]
         ChainCommands::MigrateToGatewayCalldata(args) => {
-            gateway_migration_calldata::run(shell, args).await
+            migrate_to_gateway_calldata::run(shell, args).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::MigrateFromGatewayCalldata(args) => {
+            migrate_from_gateway_calldata::run(shell, args).await
         }
         #[cfg(feature = "gateway")]
         ChainCommands::FinalizeChainMigrationFromGateway(args) => {
@@ -180,16 +186,16 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         #[cfg(feature = "gateway")]
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
-        ChainCommands::MigrateToGateway(args) => gateway_migration::run(args, shell).await,
+        ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
         #[cfg(feature = "gateway")]
         ChainCommands::NotifyAboutToGatewayUpdate(args) => {
-            gateway_migration::notify_server(args, shell, MigrationDirection::ToGateway).await
+            gateway_common::notify_server(args, shell, MigrationDirection::ToGateway).await
         }
         #[cfg(feature = "gateway")]
         ChainCommands::NotifyAboutFromGatewayUpdate(args) => {
-            gateway_migration::notify_server(args, shell, MigrationDirection::FromGateway).await
+            gateway_common::notify_server(args, shell, MigrationDirection::FromGateway).await
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
     }

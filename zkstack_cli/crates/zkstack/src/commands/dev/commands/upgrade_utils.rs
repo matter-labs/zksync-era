@@ -11,7 +11,7 @@ use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
 pub(crate) fn print_error(err: anyhow::Error) {
     logger::error(format!(
         "Chain is not ready to finalize the upgrade due to the reason:\n{:#?}",
-        erri
+        err
     ));
     logger::info("Once the chain is ready, you can re-run this command to obtain the calls to finalize the upgrade");
     logger::info("If you want to display finalization params anyway, pass `--force-display-finalization-params=true`.");

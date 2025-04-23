@@ -7,10 +7,11 @@ use ethers::{
     utils::hex,
 };
 use xshell::Shell;
+use zkstack_cli_common::logger;
 use zkstack_cli_config::EcosystemConfig;
 use zksync_types::{
-    url::SensitiveUrl, web3::keccak256, Address, L2ChainId, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    U256,
+    address_to_u256, u256_to_address, url::SensitiveUrl, web3::keccak256, Address, L2ChainId, H256,
+    L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
 };
 use zksync_web3_decl::client::{Client, L2};
 
@@ -67,4 +68,11 @@ pub fn display_admin_script_output(result: AdminScriptOutput) {
 
     logger::info(format!("Total data: {}", hex::encode(&data)));
     logger::info(format!("Total value: {}", value));
+}
+
+pub(crate) fn apply_l1_to_l2_alias(addr: Address) -> Address {
+    let offset: Address = "1111000000000000000000000000000000001111".parse().unwrap();
+    let addr_with_offset = address_to_u256(&addr) + address_to_u256(&offset);
+
+    u256_to_address(&addr_with_offset)
 }

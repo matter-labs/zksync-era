@@ -25,8 +25,9 @@ use zksync_types::{Address, L1ChainId};
 
 use super::{
     admin_call_builder::{AdminCall, AdminCallBuilder},
-    gateway_migration::MigrationDirection,
-    gateway_migration_calldata::{get_gateway_migration_state, GatewayMigrationProgressState},
+    gateway_common::{
+        get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
+    },
     utils::{display_admin_script_output, get_default_foundry_path},
 };
 use crate::{
@@ -39,7 +40,7 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct NotifyServerCalldataArgs {
+pub struct NotifyServerCallsArgs {
     pub l1_bridgehub_addr: Address,
     pub l2_chain_id: u64,
     pub l1_rpc_url: String,
@@ -49,7 +50,7 @@ pub async fn get_notify_server_calls(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
     forge_path: &Path,
-    args: NotifyServerCalldataArgs,
+    args: NotifyServerCallsArgs,
     direction: MigrationDirection,
 ) -> anyhow::Result<AdminScriptOutput> {
     let admin_call_output = match direction {
@@ -83,9 +84,9 @@ pub async fn get_notify_server_calls(
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct NotifyServerCalldataScriptArgs {
+pub struct NotifyServerCalldataArgs {
     #[clap(flatten)]
-    pub params: NotifyServerCalldataArgs,
+    pub params: NotifyServerCallsArgs,
     pub l2_rpc_url: Option<String>,
     pub gw_rpc_url: Option<String>,
     pub no_cross_check: Option<bool>,
@@ -93,7 +94,7 @@ pub struct NotifyServerCalldataScriptArgs {
 
 pub async fn run(
     shell: &Shell,
-    args: NotifyServerCalldataScriptArgs,
+    args: NotifyServerCalldataArgs,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
     let should_cross_check = !args.no_cross_check.unwrap_or_default();

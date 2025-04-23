@@ -34,7 +34,7 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct GrantGatewayWhitelistScriptArgs {
+pub struct GrantGatewayWhitelistCalldataArgs {
     pub bridgehub_addr: Address,
 
     pub gateway_chain_id: u64,
@@ -45,7 +45,7 @@ pub struct GrantGatewayWhitelistScriptArgs {
     pub grantees: Vec<Address>,
 }
 
-pub async fn run(shell: &Shell, args: GrantGatewayWhitelistScriptArgs) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: GrantGatewayWhitelistCalldataArgs) -> anyhow::Result<()> {
     let mut results = vec![];
 
     for grantee in args.grantees {
