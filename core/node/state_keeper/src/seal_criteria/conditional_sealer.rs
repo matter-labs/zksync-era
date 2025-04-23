@@ -37,10 +37,10 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
     /// Returns fractions of the criteria's capacity filled in the batch.
     fn capacity_filled(
         &self,
-        _tx_count: usize,
-        _l1_tx_count: usize,
-        _block_data: &SealData,
-        _protocol_version: ProtocolVersionId,
+        tx_count: usize,
+        l1_tx_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
     ) -> Vec<(&'static str, f64)>;
 }
 
