@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{hash::Hash, path::Path, sync::Arc};
 
 use anyhow::Context;
 use clap::Parser;
@@ -18,6 +18,7 @@ use zkstack_cli_common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     logger,
+    spinner::Spinner,
     wallets::Wallet,
 };
 use zkstack_cli_config::{
@@ -47,6 +48,7 @@ use crate::{
         set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
     commands::chain::utils::get_ethers_provider,
+    consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -61,9 +63,6 @@ pub struct MigrateToGatewayArgs {
     #[clap(long)]
     pub gateway_chain_name: String,
 }
-
-// 50 gwei
-const MAX_EXPECTED_L1_GAS_PRICE: u64 = 50_000_000_000;
 
 abigen!(
     BridgehubAbi,
@@ -124,10 +123,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gateway_contract_config = gateway_chain_config.get_contracts_config()?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-    let chain_access_control_restriction = chain_contracts_config
-        .l1
-        .access_control_restriction_addr
-        .context("chain_access_control_restriction")?;
 
     logger::info("Migrating the chain to the Gateway...");
 
@@ -155,7 +150,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             l1_bridgehub_addr: chain_contracts_config
                 .ecosystem_contracts
                 .bridgehub_proxy_addr,
-            max_l1_gas_price: MAX_EXPECTED_L1_GAS_PRICE,
+            max_l1_gas_price: DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
             l2_chain_id: chain_config.chain_id.as_u64(),
             gateway_chain_id: gateway_chain_config.chain_id.as_u64(),
             gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone().into(),
@@ -186,6 +181,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .governor
             .private_key_h256()
             .unwrap(),
+        "migrating to gateway",
     )
     .await?;
 
@@ -251,7 +247,7 @@ pub(crate) async fn await_for_tx_to_complete(
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub(crate) enum MigrationDirection {
+pub enum MigrationDirection {
     FromGateway,
     ToGateway,
 }
@@ -303,6 +299,7 @@ pub(crate) async fn notify_server(
             .governor
             .private_key_h256()
             .unwrap(),
+        "notifying server",
     )
     .await?;
 
@@ -315,6 +312,7 @@ pub(crate) async fn send_tx(
     value: U256,
     l1_rpc_url: String,
     private_key: H256,
+    description: &str,
 ) -> anyhow::Result<TransactionReceipt> {
     // 1. Connect to provider
     let provider = Provider::<Http>::try_from(&l1_rpc_url)?;
@@ -326,19 +324,29 @@ pub(crate) async fn send_tx(
     // 3. Create a transaction
     let tx = TransactionRequest::new().to(to).data(data).value(value);
 
+    let spinner = Spinner::new(&format!("Sending transaction for {description}..."));
+
     // 4. Sign the transaction
     let client = SignerMiddleware::new(provider.clone(), wallet.clone());
     let pending_tx = client.send_transaction(tx, None).await?;
+    spinner.finish();
 
-    println!(
-        "Transaction {:#?} has been sent! Waiting...",
+    logger::info(&format!(
+        "Transaction sent! Hash: {:#?}",
         pending_tx.tx_hash()
-    );
+    ));
+
+    let spinner = Spinner::new("Waiting for transaction to complete");
 
     // 5. Await receipt
     let receipt: TransactionReceipt = pending_tx.await?.context("Receipt not found")?;
 
-    println!("Transaciton {:#?} confirmed!", receipt.transaction_hash);
+    spinner.finish();
+
+    logger::info(&format!(
+        "Transaciton {:#?} completed!",
+        receipt.transaction_hash
+    ));
 
     Ok(receipt)
 }

@@ -55,7 +55,10 @@ use crate::{
         init::get_l1_da_validator,
         utils::{get_ethers_provider, get_zk_client},
     },
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
+    messages::{
+        message_for_gateway_migration_progress_state, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_DA_PAIR_REGISTRATION_SPINNER,
+    },
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -105,8 +108,6 @@ pub async fn run(
     shell: &Shell,
     params: FinalizeChainMigrationFromGatewayScriptArgs,
 ) -> anyhow::Result<()> {
-    let contracts_foundry_path = get_default_foundry_path(shell)?;
-
     let should_cross_check = !params.no_cross_check.unwrap_or_default();
 
     if should_cross_check {
@@ -124,34 +125,15 @@ pub async fn run(
         .await?;
 
         match state {
-            GatewayMigrationProgressState::NotStarted => {
-                logger::warn("Notification has not yet been sent. Please use the command to send notification first.");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::NotificationSent => {
-                logger::info("Notification has been sent, but the server has not yet picked it up. Please wait");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::NotificationReceived => {
-                logger::info("The server has received the notification about the migration, but it needs to finish all outstanding transactions. Please wait");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::ServerReady => {
-                logger::info(
-                    "The server is ready to start the migration. Please use the command to prepare the calldata",
-                );
-                return Ok(());
-            }
-            GatewayMigrationProgressState::AwaitingFinalization => {
-                logger::info("The transaction to migrate chain on top of Gateway has been processed, but the GW chain has not yet finalized it");
-                return Ok(());
-            }
             GatewayMigrationProgressState::PendingManualFinalization => {
                 logger::info("The chain migration to Gateway has been finalized on the Gateway side. Finalizing the migration...");
             }
-            GatewayMigrationProgressState::Finished => {
-                logger::info("The migration in this direction has been already finished");
-                return Ok(());
+            _ => {
+                let msg = message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::FromGateway,
+                );
+                logger::info(&msg);
             }
         }
     }

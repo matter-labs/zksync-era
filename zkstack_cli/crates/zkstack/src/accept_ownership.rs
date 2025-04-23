@@ -421,8 +421,6 @@ impl AdminScriptOutput {
     }
 }
 
-const ADMIN_OUTPUT: &str = "script-out/output-accept-admin.toml";
-
 pub async fn call_script(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -430,6 +428,7 @@ pub async fn call_script(
     mode: AdminScriptMode,
     calldata: Bytes,
     l1_rpc_url: String,
+    description: &str,
 ) -> anyhow::Result<AdminScriptOutput> {
     let forge = Forge::new(foundry_contracts_path)
         .script(
@@ -440,28 +439,22 @@ pub async fn call_script(
         .with_rpc_url(l1_rpc_url)
         .with_calldata(&calldata);
 
-    let forge = match mode {
-        AdminScriptMode::OnlySave => forge,
+    let (forge, spiner_text) = match mode {
+        AdminScriptMode::OnlySave => (forge, format!("Preparing calldata for {description}")),
         AdminScriptMode::Broadcast(wallet) => {
             let forge = forge.with_broadcast();
             let forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Governor)?;
             check_the_balance(&forge).await?;
 
-            forge
+            (forge, format!("Executing {description}"))
         }
     };
 
-    // TODO: maybe add spinner here.
+    let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(foundry_contracts_path);
 
-    let output_path = foundry_contracts_path.join(ADMIN_OUTPUT);
-
-    println!(
-        "foundry_contracts_path = {:#?} output_path = {:#?}",
-        foundry_contracts_path, output_path
-    );
-
+    let spinner = Spinner::new(&spiner_text);
     forge.run(shell)?;
-
+    spinner.finish();
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
 }
 
@@ -494,6 +487,10 @@ pub(crate) async fn set_transaction_filterer(
         mode,
         calldata,
         l1_rpc_url,
+        &format!(
+            "setting transaction filterer {:#?} for chain {}",
+            transaction_filterer_addr, chain_id
+        ),
     )
     .await
 }
@@ -522,6 +519,7 @@ pub(crate) async fn grant_gateway_whitelist(
         mode,
         calldata,
         l1_rpc_url,
+        &format!("granting gateway whitelist for {:#?}", grantee),
     )
     .await
 }
@@ -550,6 +548,7 @@ pub(crate) async fn revoke_gateway_whitelist(
         mode,
         calldata,
         l1_rpc_url,
+        &format!("revoking gateway whitelist for {:#?}", address),
     )
     .await
 }
@@ -593,6 +592,10 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
         mode,
         calldata,
         l1_rpc_url,
+        &format!(
+            "setting DA validator pair (SL = {:#?}, L2 = {:#?}) via gateway",
+            l1_da_validator, l2_da_validator
+        ),
     )
     .await
 }
@@ -634,6 +637,7 @@ pub(crate) async fn enable_validator_via_gateway(
         mode,
         calldata,
         l1_rpc_url,
+        &format!("enabling validator {:#?} via gateway", validator_address),
     )
     .await
 }
@@ -661,6 +665,7 @@ pub(crate) async fn notify_server_migration_to_gateway(
         mode,
         calldata,
         l1_rpc_url,
+        "notifying migration to gateway to the server",
     )
     .await
 }
@@ -700,6 +705,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
         mode,
         calldata,
         l1_rpc_url,
+        "finalizing migration to gateway",
     )
     .await
 }
@@ -727,6 +733,7 @@ pub(crate) async fn notify_server_migration_from_gateway(
         mode,
         calldata,
         l1_rpc_url,
+        "notifying migration from gateway to the server",
     )
     .await
 }
@@ -745,6 +752,7 @@ pub(crate) async fn admin_l1_l2_tx(
     refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
+    let hex_encoded_data = hex::encode(&data.0);
     let calldata = ACCEPT_ADMIN
         .encode(
             "adminL1L2Tx",
@@ -768,6 +776,10 @@ pub(crate) async fn admin_l1_l2_tx(
         mode,
         calldata,
         l1_rpc_url,
+        &format!(
+            "executing ChainAdmin transaction (to = {:#?}, data = {}, value = {:#?})",
+            to, hex_encoded_data, value,
+        ),
     )
     .await
 }
@@ -807,6 +819,7 @@ pub async fn start_migrate_chain_from_gateway(
         mode,
         calldata,
         l1_rpc_url,
+        "starting chain migration from gateway",
     )
     .await
 }

@@ -183,7 +183,7 @@ pub async fn run(
     )
     .await?;
 
-    // TODO: maybe we should include this data here in a separate multicall.
+    // TODO(X): Include it here in a separate multicall.
     logger::warn("Note that the output below DOES NOT calls for setting the DA validator on L1 and so on. This will have to be done separately");
 
     display_admin_script_output(output);

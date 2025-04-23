@@ -46,6 +46,7 @@ use crate::{
         init::get_l1_da_validator,
         utils::{get_ethers_provider, get_zk_client},
     },
+    consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -69,9 +70,6 @@ lazy_static! {
         .unwrap(),
     );
 }
-
-// 50 gwei
-const MAX_EXPECTED_L1_GAS_PRICE: u64 = 50_000_000_000;
 
 pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -105,7 +103,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         chain_contracts_config
             .ecosystem_contracts
             .bridgehub_proxy_addr,
-        MAX_EXPECTED_L1_GAS_PRICE,
+        DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
         chain_config.chain_id.as_u64(),
         gateway_chain_config.chain_id.as_u64(),
         hex::decode(&l1_diamond_cut_data)
@@ -141,6 +139,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .governor
             .private_key_h256()
             .unwrap(),
+        "migrating from gateway",
     )
     .await?;
 

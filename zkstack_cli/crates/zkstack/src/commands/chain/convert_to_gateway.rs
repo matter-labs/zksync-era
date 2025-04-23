@@ -93,16 +93,14 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     chain_contracts_config.set_transaction_filterer(output.gateway_tx_filterer_proxy);
     chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    for grantee in vec![
+    for grantee in [
         ecosystem_config.get_contracts_config()?.l1.governance_addr,
         chain_deployer_wallet.address,
         chain_contracts_config
             .ecosystem_contracts
             .stm_deployment_tracker_proxy_addr
             .context("No CTM deployment tracker")?,
-    ]
-    .into_iter()
-    {
+    ] {
         grant_gateway_whitelist(
             shell,
             &args,

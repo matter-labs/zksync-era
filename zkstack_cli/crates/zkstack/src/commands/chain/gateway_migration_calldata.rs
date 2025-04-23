@@ -55,12 +55,9 @@ use crate::{
     commands::chain::{
         migrate_from_gateway::check_whether_gw_transaction_is_finalized, utils::get_ethers_provider,
     },
-    messages::MSG_CHAIN_NOT_INITIALIZED,
+    messages::{message_for_gateway_migration_progress_state, MSG_CHAIN_NOT_INITIALIZED},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
-
-// 50 gwei
-const MAX_EXPECTED_L1_GAS_PRICE: u64 = 50_000_000_000;
 
 abigen!(
     BridgehubAbi,
@@ -517,15 +514,11 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         .settlement_layer(params.l2_chain_id.into())
         .await?;
 
-    println!("here");
-
     let zk_chain_l1_address = l1_bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
 
     if zk_chain_l1_address == Address::zero() {
         anyhow::bail!("Chain with id {} does not exist!", params.l2_chain_id);
     }
-
-    println!("here2");
 
     // Checking whether the user has already done the migration
     if current_settlement_layer == U256::from(params.gateway_chain_id) {
@@ -534,13 +527,11 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         // The recovery of the chain is not handled by the tool right now.
         anyhow::bail!("The chain is already on top of Gateway!");
     }
-    println!("here4");
 
     let ctm_asset_id = l1_bridgehub
         .ctm_asset_id_from_chain_id(params.l2_chain_id.into())
         .await?;
     let ctm_gw_address = gw_bridgehub.ctm_asset_id_to_address(ctm_asset_id).await?;
-    println!("here3");
 
     if ctm_gw_address == Address::zero() {
         anyhow::bail!("{} does not have a CTM deployed!", params.gateway_chain_id);
@@ -577,8 +568,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         }
     };
 
-    println!("here6");
-
     let finalize_migrate_to_gateway_output = finalize_migrate_to_gateway(
         shell,
         forge_args,
@@ -596,7 +585,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     result.extend(finalize_migrate_to_gateway_output.calls);
 
-    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the SL one
+    // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
     let (_, l2_da_validator) = l1_zk_chain.get_da_validator_pair().await?;
 
     // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
@@ -606,7 +595,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         .await?;
     if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
         // TODO(X): We should really check it on our own here, but it is hard with the current interfaces
-        println!("WARNING: Your chain is a permanent rollup! Ensure that the new L1 SL provider is compatible with Gateway RollupDAManager!");
+        logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
     }
 
     let da_validator_encoding_result = set_da_validator_pair_via_gateway(
@@ -653,12 +642,15 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         }
 
         let current_validator_balance = gw_provider.get_balance(validator, None).await?;
-        println!("current balance = {}", current_validator_balance);
+        logger::info(&format!(
+            "Current balance of {:#?} = {}",
+            validator, current_validator_balance
+        ));
         if current_validator_balance < params.min_validator_balance {
-            println!(
-                "Sohuld send {}",
+            logger::info(&format!(
+                "Will send {} of the ZK Gateway base token",
                 params.min_validator_balance - current_validator_balance
-            );
+            ));
             let supply_validator_balance_calls = admin_l1_l2_tx(
                 shell,
                 forge_args,
@@ -750,34 +742,21 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataScriptArgs) -> a
         .await?;
 
         match state {
-            GatewayMigrationProgressState::NotStarted => {
-                logger::warn("Notification has not yet been sent. Please use the command to send notification first.");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::NotificationSent => {
-                logger::info("Notification has been sent, but the server has not yet picked it up. Please wait");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::NotificationReceived => {
-                logger::info("The server has received the notification about the migration, but it needs to finish all outstanding transactions. Please wait");
-                return Ok(());
-            }
             GatewayMigrationProgressState::ServerReady => {
                 logger::info(
                     "The server is ready to start the migration. Preparing the calldata...",
                 );
                 // It is the expected case, it will be handled later in the file
             }
-            GatewayMigrationProgressState::AwaitingFinalization => {
-                logger::info("The transaction to migrate chain on top of Gateway has been submitted, but the server has not yet processed it");
-                return Ok(());
-            }
             GatewayMigrationProgressState::PendingManualFinalization => {
                 unreachable!("`GatewayMigrationProgressState::PendingManualFinalization` should not be returned for migration to Gateway")
             }
-            GatewayMigrationProgressState::Finished => {
-                logger::info("The migration in this direction has been already finished");
-                return Ok(());
+            _ => {
+                let msg = message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::ToGateway,
+                );
+                logger::info(&msg);
             }
         }
     }

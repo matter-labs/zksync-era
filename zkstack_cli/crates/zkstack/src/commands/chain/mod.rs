@@ -41,7 +41,7 @@ mod enable_evm_emulator;
 #[cfg(feature = "gateway")]
 mod finalize_chain_migration_from_gw;
 #[cfg(feature = "gateway")]
-mod gateway_migration;
+pub mod gateway_migration;
 pub mod genesis;
 pub mod init;
 #[cfg(feature = "gateway")]
@@ -106,6 +106,10 @@ pub enum ChainCommands {
     NotifyAboutFromGatewayUpdateCalldata(NotifyServerCalldataScriptArgs),
     #[cfg(feature = "gateway")]
     MigrateToGatewayCalldata(gateway_migration_calldata::MigrateToGatewayCalldataScriptArgs),
+    #[cfg(feature = "gateway")]
+    FinalizeChainMigrationFromGateway(
+        finalize_chain_migration_from_gw::FinalizeChainMigrationFromGatewayScriptArgs,
+    ),
     /// Prepare chain to be an eligible gateway
     #[cfg(feature = "gateway")]
     ConvertToGateway(ForgeScriptArgs),
@@ -164,6 +168,10 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         #[cfg(feature = "gateway")]
         ChainCommands::MigrateToGatewayCalldata(args) => {
             gateway_migration_calldata::run(shell, args).await
+        }
+        #[cfg(feature = "gateway")]
+        ChainCommands::FinalizeChainMigrationFromGateway(args) => {
+            finalize_chain_migration_from_gw::run(shell, args).await
         }
         #[cfg(feature = "gateway")]
         ChainCommands::NotifyAboutFromGatewayUpdateCalldata(args) => {

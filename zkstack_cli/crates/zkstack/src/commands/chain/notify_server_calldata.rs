@@ -34,7 +34,7 @@ use crate::{
         grant_gateway_whitelist, notify_server_migration_from_gateway,
         notify_server_migration_to_gateway, AdminScriptMode, AdminScriptOutput,
     },
-    messages::MSG_CHAIN_NOT_INITIALIZED,
+    messages::{message_for_gateway_migration_progress_state, MSG_CHAIN_NOT_INITIALIZED},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -117,11 +117,9 @@ pub async fn run(
             GatewayMigrationProgressState::NotStarted => {
                 logger::info("Migration in this direction has not yet started. Preparing the calldata for the notification.");
             }
-            GatewayMigrationProgressState::Finished => {
-                logger::info("Migration in this direction has already finished");
-            }
             _ => {
-                logger::info("Notification has been already sent, please use the command to generate the migration call instead");
+                let msg = message_for_gateway_migration_progress_state(status, direction);
+                logger::info(&msg);
                 return Ok(());
             }
         }
