@@ -68,18 +68,18 @@ impl EthWatch {
         let sl_client: Arc<dyn ZkSyncExtentionEthClient> = sl_client.into();
         let dependency_l2_chain_clients: Option<Vec<Arc<dyn ZkSyncExtentionEthClient>>> =
             dependency_l2_chain_clients
-                .map(|clients| clients.into_iter().map(|client| client.into()).collect()); 
+                .map(|clients| clients.into_iter().map(|client| client.into()).collect());
         let dependency_chain_clients: Option<Vec<Arc<dyn EthClient>>> =
             if let Some(dependency_l2_chain_clients) = dependency_l2_chain_clients.clone() {
                 Some(
                     dependency_l2_chain_clients
                         .into_iter()
                         .map(|client| client.clone().into_base())
-                        .collect()
+                        .collect(),
                 )
             } else {
                 None
-            }; 
+            };
 
         let sl_eth_client = sl_client.clone().into_base();
 
@@ -98,7 +98,8 @@ impl EthWatch {
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
         let l1_interop_root_processor =
-            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None).await;
+            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None)
+                .await;
         // let batch_root_processor = L1BatchRootProcessor::new(
         //     state.chain_batch_root_number_lower_bound,
         //     state.batch_merkle_tree,

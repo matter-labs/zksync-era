@@ -160,7 +160,7 @@ impl WiringLayer for EthWatchLayer {
             //     Some(clients)
             // } else {
                 None;
-            // };
+        // };
         println!(
             "dependency_l2_chain_clients: {:?}",
             input.dependency_chain_clients

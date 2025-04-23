@@ -2,8 +2,7 @@ use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
     l2_to_l1_log::UserL2ToL1Log,
-    ProtocolVersionId, H256,
-    InteropRoot,
+    InteropRoot, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -106,7 +105,7 @@ impl ExecuteBatches {
                                 message
                                     .iter()
                                     .map(|message| message.clone().into_token())
-                                .collect(),
+                                    .collect(),
                             )
                         })
                         .collect(),
