@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use ethabi::ethereum_types::{Address, H64};
+use ethabi::ethereum_types::{self, Address, H64};
 use serde::{
     de::{Error, Unexpected, Visitor},
     ser::SerializeStruct,
