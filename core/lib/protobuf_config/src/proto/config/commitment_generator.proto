@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package zksync.config.commitment_generator;
-
-message CommitmentGenerator {
-  optional uint32 max_parallelism = 1;
-}
