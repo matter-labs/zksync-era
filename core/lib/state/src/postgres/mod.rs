@@ -678,12 +678,4 @@ impl ReadStorage for PostgresStorage<'_> {
         );
         value.expect("failed getting enumeration index for key")
     }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
-    }
 }

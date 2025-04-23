@@ -89,14 +89,6 @@ impl ReadStorage for StorageSnapshot {
         });
         entry.and_then(|(_, idx)| (idx > 0).then_some(idx))
     }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
-    }
 }
 
 /// [`StorageSnapshot`] wrapper implementing [`ReadStorage`] trait. Created using [`with_fallback()`](StorageSnapshot::with_fallback()).
@@ -183,13 +175,13 @@ impl<S: ReadStorage> ReadStorage for StorageWithSnapshot<S> {
         )
     }
 
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
-    }
+    // fn get_interop_root(
+    //     &mut self,
+    //     _chain_id: SLChainId,
+    //     _block_number: L2BlockNumber,
+    // ) -> Option<H256> {
+    //     None // kl todo
+    // }
 }
 
 #[cfg(test)]

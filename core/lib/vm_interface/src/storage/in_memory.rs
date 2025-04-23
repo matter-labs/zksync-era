@@ -130,14 +130,6 @@ impl ReadStorage for &InMemoryStorage {
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.state.get(&key.hashed_key()).map(|(_, idx)| *idx)
     }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
-    }
 }
 
 impl ReadStorage for InMemoryStorage {
@@ -155,13 +147,5 @@ impl ReadStorage for InMemoryStorage {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         (&*self).get_enumeration_index(key)
-    }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
     }
 }

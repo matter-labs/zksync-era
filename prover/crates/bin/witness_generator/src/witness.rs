@@ -43,16 +43,4 @@ impl ReadStorage for WitnessStorage {
     fn get_enumeration_index(&mut self, _key: &StorageKey) -> Option<u64> {
         unreachable!("Enumeration index should not be used in the witness storage")
     }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        // self.storage
-        //     .blocks_dal()
-        //     .get_message_root(l1_batch_number)
-        //     .await
-        None
-    }
 }
