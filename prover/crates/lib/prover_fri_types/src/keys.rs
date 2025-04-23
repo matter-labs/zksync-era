@@ -1,7 +1,7 @@
 //! Different key types for object store.
 
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, ChainAwareL1BatchNumber
+    basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, ChainAwareL1BatchNumber,
 };
 
 /// Storage key for a [AggregationWrapper`].

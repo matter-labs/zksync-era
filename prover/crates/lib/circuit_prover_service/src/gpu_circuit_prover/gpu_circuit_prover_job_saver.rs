@@ -78,7 +78,12 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .context("failed to start db transaction")?;
                 transaction
                     .fri_prover_jobs_dal()
-                    .save_proof(metadata.id, metadata.batch_number.chain_id(), metadata.pick_time.elapsed(), &blob_url)
+                    .save_proof(
+                        metadata.id,
+                        metadata.batch_number.chain_id(),
+                        metadata.pick_time.elapsed(),
+                        &blob_url,
+                    )
                     .await;
 
                 if is_scheduler_proof {

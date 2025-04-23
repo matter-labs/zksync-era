@@ -69,7 +69,10 @@ impl StoredObject for CircuitWrapper {
             aggregation_round,
             depth,
         } = key;
-        format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin", block_number = batch_number.batch_number())
+        format!(
+            "{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
+            block_number = batch_number.batch_number()
+        )
     }
 
     serialize_using_bincode!();
