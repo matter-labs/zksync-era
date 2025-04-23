@@ -30,8 +30,6 @@ zkstack_cli_git_version_macro = { version = "0.1.2", path = "crates/git_version_
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
-# FIXME: this may not be the right way
-zksync_config = { path = "../core/lib/config" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
 zksync_contracts = { path = "../core/lib/contracts" }
 zksync_consensus_roles = "=0.9.0"

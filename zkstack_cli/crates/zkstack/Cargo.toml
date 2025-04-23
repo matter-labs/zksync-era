@@ -44,7 +44,6 @@ zksync_consensus_crypto.workspace = true
 zksync_web3_decl.workspace = true
 zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
-zksync_config.workspace = true
 prost.workspace = true
 reqwest.workspace = true
 
@@ -60,4 +59,5 @@ xshell.workspace = true
 # These should be available for outside users until stabilized.
 gateway = []
 v27_evm_interpreter = ["gateway"]
+# FIXME: remove this `default`
 default = ["v27_evm_interpreter"]
