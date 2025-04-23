@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use zksync_types::{web3::keccak256_concat, L2BlockNumber, InteropRoot, H256};
+use zksync_types::{web3::keccak256_concat, InteropRoot, L2BlockNumber, H256};
 
 use crate::{
     interface::{L2Block, L2BlockEnv},
@@ -22,7 +22,7 @@ pub(crate) struct BootloaderL2Block {
     pub(crate) first_tx_index: usize,
     pub(crate) max_virtual_blocks_to_create: u32,
     pub(crate) txs: Vec<BootloaderTx>,
-    pub(crate) msg_roots: Vec<InteropRoot>,
+    pub(crate) interop_roots: Vec<InteropRoot>,
 }
 
 impl BootloaderL2Block {
@@ -35,7 +35,7 @@ impl BootloaderL2Block {
             first_tx_index: first_tx_place,
             max_virtual_blocks_to_create: l2_block.max_virtual_blocks_to_create,
             txs: vec![],
-            msg_roots: l2_block.msg_roots,
+            interop_roots: l2_block.interop_roots,
         }
     }
 

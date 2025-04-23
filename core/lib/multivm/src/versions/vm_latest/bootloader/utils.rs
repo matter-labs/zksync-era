@@ -137,7 +137,7 @@ fn apply_l2_block_inner(
     ]);
 
     bootloader_l2_block
-        .msg_roots
+        .interop_roots
         .iter()
         .enumerate()
         .for_each(|(offset, msg_root)| {

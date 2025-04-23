@@ -16,10 +16,9 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    InteropRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
@@ -550,7 +549,7 @@ mod tests {
             first_l2_block: L2BlockParams {
                 timestamp: 1,
                 virtual_blocks: 1,
-                msg_roots: vec![],
+                interop_roots: vec![],
             },
             pubdata_params: Default::default(),
         };

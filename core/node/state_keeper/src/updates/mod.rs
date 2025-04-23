@@ -64,7 +64,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
-                l1_batch_env.first_l2_block.msg_roots.clone(),
+                l1_batch_env.first_l2_block.interop_roots.clone(),
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
@@ -94,7 +94,7 @@ impl UpdatesManager {
         L2BlockParams {
             timestamp: self.l2_block.timestamp,
             virtual_blocks: self.l2_block.virtual_blocks,
-            msg_roots: vec![],
+            interop_roots: vec![],
         }
     }
 
@@ -201,7 +201,7 @@ impl UpdatesManager {
             self.l2_block.get_l2_block_hash(),
             next_l2_block_params.virtual_blocks,
             self.protocol_version,
-            next_l2_block_params.msg_roots,
+            next_l2_block_params.interop_roots,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
@@ -285,7 +285,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
-            msg_roots: vec![],
+            interop_roots: vec![],
         });
         updates_manager.push_l2_block();
 

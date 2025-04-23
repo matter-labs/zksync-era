@@ -7,7 +7,7 @@ pub struct L2BlockEnv {
     pub timestamp: u64,
     pub prev_block_hash: H256,
     pub max_virtual_blocks_to_create: u32,
-    pub msg_roots: Vec<InteropRoot>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 impl L2BlockEnv {
     pub fn from_l2_block_data(execution_data: &L2BlockExecutionData) -> Self {
@@ -16,7 +16,7 @@ impl L2BlockEnv {
             timestamp: execution_data.timestamp,
             prev_block_hash: execution_data.prev_block_hash,
             max_virtual_blocks_to_create: execution_data.virtual_blocks,
-            msg_roots: execution_data.msg_roots.clone(),
+            interop_roots: execution_data.interop_roots.clone(),
         }
     }
 }
@@ -28,7 +28,7 @@ impl Clone for L2BlockEnv {
             timestamp: self.timestamp,
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.max_virtual_blocks_to_create,
-            msg_roots: self.msg_roots.clone(),
+            interop_roots: self.interop_roots.clone(),
         }
     }
 }
@@ -40,7 +40,7 @@ pub struct StoredL2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
     pub txs_rolling_hash: H256,
-    pub msg_roots: Vec<InteropRoot>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl Clone for StoredL2BlockEnv {
@@ -49,7 +49,7 @@ impl Clone for StoredL2BlockEnv {
             number: self.number,
             timestamp: self.timestamp,
             txs_rolling_hash: self.txs_rolling_hash,
-            msg_roots: self.msg_roots.clone(),
+            interop_roots: self.interop_roots.clone(),
         }
     }
 }

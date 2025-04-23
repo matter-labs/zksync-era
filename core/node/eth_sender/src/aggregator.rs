@@ -12,12 +12,11 @@ use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
-    InteropRoot,
     l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchNumber, ProtocolVersionId,
+    Address, InteropRoot, L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -303,7 +302,7 @@ impl Aggregator {
         for batch in &l1_batches {
             let message_roots = storage
                 .message_root_dal()
-                .get_msg_roots_batch(batch.header.number)
+                .get_interop_roots_batch(batch.header.number)
                 .await
                 .unwrap();
 

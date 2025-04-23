@@ -155,7 +155,7 @@ impl InteropRootDal<'_, '_> {
         Ok(records)
     }
 
-    pub async fn get_msg_roots_batch(
+    pub async fn get_interop_roots_batch(
         &mut self,
         batch_number: L1BatchNumber,
     ) -> DalResult<Vec<InteropRoot>> {
@@ -169,7 +169,7 @@ impl InteropRootDal<'_, '_> {
             "#,
             i64::from(batch_number.0)
         )
-        .instrument("get_msg_roots_batch")
+        .instrument("get_interop_roots_batch")
         .with_arg("batch_number", &batch_number)
         .fetch_all(self.storage)
         .await?

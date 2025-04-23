@@ -18,9 +18,9 @@ use zksync_multivm::{
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, InteropRoot,
-    l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, L2BlockNumber, Transaction,
+    block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
+    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
+    utils::display_timestamp, InteropRoot, L1BatchNumber, L2BlockNumber, Transaction,
 };
 
 use crate::{
@@ -500,7 +500,7 @@ impl ZkSyncStateKeeper {
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
                         virtual_blocks: l2_block.virtual_blocks,
-                        msg_roots: self.load_l2_block_message_root(l2_block.number).await?,
+                        interop_roots: self.load_l2_block_message_root(l2_block.number).await?,
                     },
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -630,7 +630,7 @@ impl ZkSyncStateKeeper {
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
-                next_l2_block_params.msg_roots = self.io.load_latest_message_root().await?;
+                next_l2_block_params.interop_roots = self.io.load_latest_message_root().await?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 

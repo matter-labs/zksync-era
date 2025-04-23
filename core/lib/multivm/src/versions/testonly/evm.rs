@@ -254,7 +254,7 @@ pub(crate) fn test_real_emulator_block_info<VM: TestedVm>() {
         timestamp: first_block.timestamp + 5,
         prev_block_hash: block_hasher.finalize(ProtocolVersionId::latest()),
         max_virtual_blocks_to_create: 1,
-        msg_roots: vec![],
+        interop_roots: vec![],
     };
     vm.vm.start_new_l2_block(second_block.clone());
 

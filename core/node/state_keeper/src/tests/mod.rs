@@ -254,7 +254,7 @@ async fn pending_batch_is_applied() {
                 .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(1)],
-            msg_roots: vec![],
+            interop_roots: vec![],
         },
         L2BlockExecutionData {
             number: L2BlockNumber(2),
@@ -263,7 +263,7 @@ async fn pending_batch_is_applied() {
                 .finalize(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             txs: vec![random_tx(2)],
-            msg_roots: vec![],
+            interop_roots: vec![],
         },
     ]);
 
@@ -386,7 +386,7 @@ async fn l2_block_timestamp_after_pending_batch() {
             .finalize(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         txs: vec![random_tx(1)],
-        msg_roots: vec![],
+        interop_roots: vec![],
     }]);
 
     TestScenario::new()

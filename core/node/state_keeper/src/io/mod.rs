@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    InteropRoot, ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
+    L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -57,7 +57,7 @@ pub struct L2BlockParams {
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
     pub virtual_blocks: u32,
-    pub msg_roots: Vec<InteropRoot>,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].

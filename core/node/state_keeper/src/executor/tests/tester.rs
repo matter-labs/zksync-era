@@ -246,7 +246,7 @@ impl Tester {
             timestamp: current_timestamp,
             prev_block_hash: snapshot.l2_block_hash,
             max_virtual_blocks_to_create: 1,
-            msg_roots: vec![],
+            interop_roots: vec![],
         };
 
         self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env, pubdata_params)
@@ -644,7 +644,7 @@ impl StorageSnapshot {
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             timestamp: 100,
             max_virtual_blocks_to_create: 1,
-            msg_roots: vec![],
+            interop_roots: vec![],
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
 

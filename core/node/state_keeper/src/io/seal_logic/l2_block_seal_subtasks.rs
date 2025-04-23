@@ -475,10 +475,13 @@ impl L2BlockSealSubtask for MarkInteropRootsAsSealed {
 
         connection
             .message_root_dal()
-            .mark_interop_roots_as_executed(&command.l2_block.msg_roots, command.l2_block.number)
+            .mark_interop_roots_as_executed(
+                &command.l2_block.interop_roots,
+                command.l2_block.number,
+            )
             .await?;
 
-        progress.observe(command.l2_block.msg_roots.len());
+        progress.observe(command.l2_block.interop_roots.len());
         Ok(())
     }
 
@@ -587,7 +590,7 @@ mod tests {
                 prev_block_hash: Default::default(),
                 virtual_blocks: Default::default(),
                 protocol_version: ProtocolVersionId::latest(),
-                msg_roots: vec![],
+                interop_roots: vec![],
             },
             first_tx_index: 0,
             fee_account_address: Default::default(),

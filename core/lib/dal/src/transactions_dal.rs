@@ -11,8 +11,8 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, h256_to_u256, l1::L1Tx, l2::L2Tx,
-    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, InteropRoot, PriorityOpId, ProtocolVersionId, Transaction,
+    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, InteropRoot,
+    L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -2258,7 +2258,7 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
-            let msg_roots = self.get_interop_roots(number).await?;
+            let interop_roots = self.get_interop_roots(number).await?;
 
             data.push(L2BlockExecutionData {
                 number,
@@ -2266,7 +2266,7 @@ impl TransactionsDal<'_, '_> {
                 prev_block_hash,
                 virtual_blocks: l2_block_row.virtual_blocks as u32,
                 txs,
-                msg_roots,
+                interop_roots,
             });
         }
         Ok(data)

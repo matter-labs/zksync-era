@@ -116,7 +116,7 @@ impl Harness {
             timestamp: self.current_block.clone().timestamp + 1,
             prev_block_hash: hash_block(self.current_block.clone(), tx_hashes),
             max_virtual_blocks_to_create: self.current_block.max_virtual_blocks_to_create,
-            msg_roots: vec![],
+            interop_roots: vec![],
         };
         vm.start_new_l2_block(self.current_block.clone());
     }

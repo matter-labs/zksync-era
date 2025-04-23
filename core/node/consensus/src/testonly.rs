@@ -282,7 +282,7 @@ impl StateKeeper {
                     first_l2_block: L2BlockParams {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
-                        msg_roots: vec![],
+                        interop_roots: vec![],
                     },
                     pubdata_params: Default::default(),
                 },
@@ -296,7 +296,7 @@ impl StateKeeper {
                 params: L2BlockParams {
                     timestamp: self.last_timestamp,
                     virtual_blocks: 0,
-                    msg_roots: vec![],
+                    interop_roots: vec![],
                 },
                 number: self.last_block,
             }
