@@ -11,60 +11,60 @@ pub struct MessageRootDal<'a, 'c> {
 }
 
 impl MessageRootDal<'_, '_> {
-    pub async fn set_message_root(
+    pub async fn set_interop_root(
         &mut self,
         chain_id: SLChainId,
         number: L1BatchNumber,
-        message_root: &[H256],
+        interop_root: &[H256],
         // proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
         println!(
-            "set_message_root {:?} {:?} {:?}",
-            chain_id.0, number.0, message_root
+            "set_interop_root {:?} {:?} {:?}",
+            chain_id.0, number.0, interop_root
         );
-        let sides = message_root
+        let sides = interop_root
             .iter()
             .map(|root| root.as_bytes().to_vec())
             .collect::<Vec<_>>();
         sqlx::query!(
             r#"
-            INSERT INTO message_roots (
-                chain_id, dependency_block_number, message_root_sides
+            INSERT INTO interop_roots (
+                chain_id, dependency_block_number, interop_root_sides
             )
             VALUES ($1, $2, $3)
             ON CONFLICT (chain_id, dependency_block_number)
-            DO UPDATE SET message_root_sides = excluded.message_root_sides;
+            DO UPDATE SET interop_root_sides = excluded.interop_root_sides;
             "#,
             chain_id.0 as i64,
             i64::from(number.0),
             &sides
         )
-        .instrument("set_message_root")
+        .instrument("set_interop_root")
         .with_arg("chain_id", &chain_id)
         .with_arg("number", &number)
-        .with_arg("message_root", &message_root)
+        .with_arg("interop_root", &interop_root)
         .execute(self.storage)
         .await?;
 
         Ok(())
     }
 
-    pub async fn get_new_message_roots(&mut self) -> DalResult<Vec<MessageRoot>> {
+    pub async fn get_new_interop_roots(&mut self) -> DalResult<Vec<MessageRoot>> {
         // kl todo only load MAX_MSG_ROOTS_IN_BATCH message roots
         let records = sqlx::query!(
             r#"
             SELECT *
-            FROM message_roots
+            FROM interop_roots
             WHERE processed_block_number IS NULL;
             "#,
         )
-        .instrument("get_new_message_roots")
+        .instrument("get_new_interop_roots")
         .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|rec| {
             let sides = rec
-                .message_root_sides
+                .interop_root_sides
                 .iter()
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();
@@ -79,34 +79,34 @@ impl MessageRootDal<'_, '_> {
         Ok(records)
     }
 
-    pub async fn reset_message_roots_state(
+    pub async fn reset_interop_roots_state(
         &mut self,
         l2block_number: L2BlockNumber,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE message_roots
+            UPDATE interop_roots
             SET processed_block_number = NULL
             WHERE processed_block_number = $1
             "#,
             l2block_number.0 as i32
         )
-        .instrument("reset_message_roots_state")
+        .instrument("reset_interop_roots_state")
         .fetch_optional(self.storage)
         .await?;
         Ok(())
     }
 
-    pub async fn mark_message_roots_as_executed(
+    pub async fn mark_interop_roots_as_executed(
         &mut self,
-        message_roots: &[MessageRoot],
+        interop_roots: &[MessageRoot],
         l2block_number: L2BlockNumber,
     ) -> DalResult<()> {
         let mut db_transaction = self.storage.start_transaction().await?;
-        for root in message_roots {
+        for root in interop_roots {
             sqlx::query!(
                 r#"
-                UPDATE message_roots
+                UPDATE interop_roots
                 SET processed_block_number = $1
                 WHERE
                     chain_id = $2
@@ -117,32 +117,32 @@ impl MessageRootDal<'_, '_> {
                 root.chain_id as i32,
                 root.block_number as i32
             )
-            .instrument("mark_message_roots_as_executed")
+            .instrument("mark_interop_roots_as_executed")
             .execute(&mut db_transaction)
             .await?;
         }
         db_transaction.commit().await?;
         Ok(())
     }
-    pub async fn get_message_roots(
+    pub async fn get_interop_roots(
         &mut self,
         l2block_number: L2BlockNumber,
     ) -> DalResult<Vec<MessageRoot>> {
         let records = sqlx::query!(
             r#"
             SELECT *
-            FROM message_roots
+            FROM interop_roots
             WHERE processed_block_number = $1
             "#,
             l2block_number.0 as i32
         )
-        .instrument("get_message_roots")
+        .instrument("get_interop_roots")
         .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|rec| {
             let sides = rec
-                .message_root_sides
+                .interop_root_sides
                 .iter()
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();
@@ -164,9 +164,9 @@ impl MessageRootDal<'_, '_> {
         let roots = sqlx::query!(
             r#"
             SELECT *
-            FROM message_roots
+            FROM interop_roots
             JOIN miniblocks
-                ON message_roots.processed_block_number = miniblocks.number
+                ON interop_roots.processed_block_number = miniblocks.number
             WHERE l1_batch_number = $1
             "#,
             i64::from(batch_number.0)
@@ -178,7 +178,7 @@ impl MessageRootDal<'_, '_> {
         .into_iter()
         .map(|rec| {
             let sides = rec
-                .message_root_sides
+                .interop_root_sides
                 .iter()
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();

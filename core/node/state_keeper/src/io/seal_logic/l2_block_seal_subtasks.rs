@@ -475,7 +475,7 @@ impl L2BlockSealSubtask for MarkMessageRootsAsSealed {
 
         connection
             .message_root_dal()
-            .mark_message_roots_as_executed(&command.l2_block.msg_roots, command.l2_block.number)
+            .mark_interop_roots_as_executed(&command.l2_block.msg_roots, command.l2_block.number)
             .await?;
 
         progress.observe(command.l2_block.msg_roots.len());
@@ -489,7 +489,7 @@ impl L2BlockSealSubtask for MarkMessageRootsAsSealed {
     ) -> anyhow::Result<()> {
         storage
             .message_root_dal()
-            .reset_message_roots_state(last_sealed_l2_block)
+            .reset_interop_roots_state(last_sealed_l2_block)
             .await?;
         Ok(())
     }

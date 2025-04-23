@@ -469,7 +469,7 @@ impl StateKeeperIO for ExternalIO {
 
     async fn load_latest_message_root(&self) -> anyhow::Result<Vec<MessageRoot>> {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let message_root = storage.message_root_dal().get_new_message_roots().await?;
+        let message_root = storage.message_root_dal().get_new_interop_roots().await?;
         Ok(message_root)
     }
 
@@ -480,7 +480,7 @@ impl StateKeeperIO for ExternalIO {
         let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let message_root = storage
             .message_root_dal()
-            .get_message_roots(l2block_number)
+            .get_interop_roots(l2block_number)
             .await?;
         Ok(message_root)
     }

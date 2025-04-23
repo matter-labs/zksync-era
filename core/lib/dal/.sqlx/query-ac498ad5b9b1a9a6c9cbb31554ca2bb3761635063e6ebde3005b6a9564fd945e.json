@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM message_roots\n            JOIN miniblocks\n                ON message_roots.processed_block_number = miniblocks.number\n            WHERE l1_batch_number = $1\n            ",
+  "query": "\n            SELECT *\n            FROM interop_roots\n            JOIN miniblocks\n                ON interop_roots.processed_block_number = miniblocks.number\n            WHERE l1_batch_number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -20,7 +20,7 @@
       },
       {
         "ordinal": 3,
-        "name": "message_root_sides",
+        "name": "interop_root_sides",
         "type_info": "ByteaArray"
       },
       {
@@ -140,7 +140,7 @@
       },
       {
         "ordinal": 27,
-        "name": "message_roots_assigned",
+        "name": "interop_roots_assigned",
         "type_info": "Bool"
       }
     ],
@@ -180,5 +180,5 @@
       false
     ]
   },
-  "hash": "152eec772b43aa7ae78aa60b8b4f6d3098775006ad4171cc068b2bcac6653fc6"
+  "hash": "ac498ad5b9b1a9a6c9cbb31554ca2bb3761635063e6ebde3005b6a9564fd945e"
 }

@@ -14,7 +14,7 @@
                 "PriorityTransactions",
                 "ChainBatchRoot",
                 "ServerNotification",
-                "MessageRoot"
+                "InteropRoot"
               ]
             }
           }

@@ -133,7 +133,7 @@ impl EventProcessor for MessageRootProcessor {
             println!("chain_id in global {:?}", chain_id);
             transaction
                 .message_root_dal()
-                .set_message_root(
+                .set_interop_root(
                     SLChainId(chain_id),
                     L1BatchNumber(block_number as u32),
                     &root,
@@ -162,7 +162,7 @@ impl EventProcessor for MessageRootProcessor {
     }
 
     fn event_type(&self) -> EventType {
-        EventType::MessageRoot
+        EventType::InteropRoot
     }
 
     fn only_finalized_block(&self) -> bool {

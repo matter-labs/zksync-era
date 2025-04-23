@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE interop_roots\n                SET processed_block_number = $1\n                WHERE\n                    chain_id = $2\n                    AND processed_block_number IS NULL\n                    AND dependency_block_number <= $3\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d869b6dccf986f6b1610beef54f67f5a5ddb5a438c33afb9e0d6c4845b44096b"
+}

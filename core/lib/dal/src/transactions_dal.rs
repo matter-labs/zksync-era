@@ -2111,25 +2111,25 @@ impl TransactionsDal<'_, '_> {
             .await
     }
 
-    pub async fn get_message_roots(
+    pub async fn get_interop_roots(
         &mut self,
         l2block_number: L2BlockNumber,
     ) -> DalResult<Vec<MessageRoot>> {
         let records = sqlx::query!(
             r#"
             SELECT *
-            FROM message_roots
+            FROM interop_roots
             WHERE processed_block_number = $1
             "#,
             l2block_number.0 as i32
         )
-        .instrument("get_message_roots")
+        .instrument("get_interop_roots")
         .fetch_all(self.storage)
         .await?
         .into_iter()
         .map(|rec| {
             let sides = rec
-                .message_root_sides
+                .interop_root_sides
                 .iter()
                 .map(|side| h256_to_u256(H256::from_slice(side)))
                 .collect::<Vec<_>>();
@@ -2258,7 +2258,7 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
-            let msg_roots = self.get_message_roots(number).await?;
+            let msg_roots = self.get_interop_roots(number).await?;
 
             data.push(L2BlockExecutionData {
                 number,
