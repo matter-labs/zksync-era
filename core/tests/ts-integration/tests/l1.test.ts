@@ -9,7 +9,6 @@ import { TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import {
-    bigIntMax,
     deployContract,
     getTestContract,
     scaledGasPrice,
