@@ -15,7 +15,7 @@ use crate::{
 
 #[async_trait]
 impl ArtifactsManager for Scheduler {
-    type InputMetadata = L1BatchId;
+    type InputMetadata = JobId;
     type InputArtifacts = FriProofWrapper;
     type OutputArtifacts = SchedulerArtifacts;
     type BlobUrls = String;
@@ -25,9 +25,7 @@ impl ArtifactsManager for Scheduler {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let key = *metadata;
-        let artifacts = object_store
-            .get((key.batch_number().0, key.chain_id()))
-            .await?;
+        let artifacts = object_store.get((key.id(), key.chain_id())).await?;
 
         Ok(artifacts)
     }
