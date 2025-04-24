@@ -369,8 +369,8 @@ impl Aggregator {
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
     ) -> Option<AggregatedOperation> {
-        /// The commit operation is not aggregated at the moment. The code below relies on `limit`
-        /// being set to 1 when defining the pubdata commitment mode.
+        // The commit operation is not aggregated at the moment. The code below relies on `limit`
+        // being set to 1 when defining the pubdata commitment mode.
         if limit != 1 {
             tracing::error!(
                 "Commit operation is not aggregated anymore. \
