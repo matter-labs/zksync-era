@@ -402,6 +402,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
             is_verifier_pre_fflonk: self.sample(rng),
             gas_limit_mode: self.sample(rng),
+            max_acceptable_base_fee_in_wei: self.sample(rng),
         }
     }
 }
@@ -554,6 +555,9 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
                 tee_proof_generation_timeout_in_secs: self.sample(rng),
                 tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
             },
+            gateway_api_url: self.sample(rng),
+            proof_fetch_interval_in_secs: self.sample(rng),
+            proof_gen_data_submit_interval_in_secs: self.sample(rng),
         }
     }
 }

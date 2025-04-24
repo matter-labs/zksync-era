@@ -64,10 +64,32 @@ pub struct ProofDataHandlerConfig {
     // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
     // doesn't work with `envy`: https://github.com/softprops/envy/issues/26
     pub tee_config: TeeConfig,
+    #[serde(default)]
+    pub gateway_api_url: Option<String>,
+    #[serde(default = "ProofDataHandlerConfig::default_proof_fetch_interval_in_secs")]
+    pub proof_fetch_interval_in_secs: u16,
+    #[serde(default = "ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs")]
+    pub proof_gen_data_submit_interval_in_secs: u16,
 }
 
 impl ProofDataHandlerConfig {
     pub fn proof_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.proof_generation_timeout_in_secs as u64)
+    }
+
+    pub fn proof_fetch_interval(&self) -> Duration {
+        Duration::from_secs(self.proof_fetch_interval_in_secs as u64)
+    }
+
+    pub fn proof_gen_data_submit_interval(&self) -> Duration {
+        Duration::from_secs(self.proof_gen_data_submit_interval_in_secs as u64)
+    }
+
+    pub fn default_proof_fetch_interval_in_secs() -> u16 {
+        10
+    }
+
+    pub fn default_proof_gen_data_submit_interval_in_secs() -> u16 {
+        10
     }
 }
