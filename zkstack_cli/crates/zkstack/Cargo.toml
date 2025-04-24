@@ -59,5 +59,3 @@ xshell.workspace = true
 # These should be available for outside users until stabilized.
 gateway = []
 v27_evm_interpreter = ["gateway"]
-# FIXME: remove this `default`
-default = ["v27_evm_interpreter"]
