@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256};
 
 use super::{ReadStorage, StoragePtr, WriteStorage};
 

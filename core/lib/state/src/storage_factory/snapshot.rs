@@ -1,4 +1,4 @@
-use zksync_types::{L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::StorageWithSnapshot;
 
 use super::metrics::{AccessKind, SNAPSHOT_METRICS};

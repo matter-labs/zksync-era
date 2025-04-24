@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
-use zksync_types::{get_known_code_key, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{get_known_code_key, StorageKey, StorageValue, H256};
 
 pub use self::{
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed

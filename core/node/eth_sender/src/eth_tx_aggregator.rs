@@ -604,6 +604,13 @@ impl EthTxAggregator {
             op_restrictions.execute_restriction = reason;
         }
 
+        if gateway_migration_state == GatewayMigrationState::InProgress {
+            let reason = Some("Gateway migration started");
+            op_restrictions.commit_restriction = reason;
+            op_restrictions.prove_restriction = reason;
+            op_restrictions.execute_restriction = reason;
+        }
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(

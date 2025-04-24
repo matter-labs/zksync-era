@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use backon::{BlockingRetryable, ConstantBuilder};
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{L1BatchNumber, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};

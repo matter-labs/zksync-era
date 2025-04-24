@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{web3, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{web3, StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
