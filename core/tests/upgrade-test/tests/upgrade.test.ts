@@ -5,7 +5,7 @@ import * as ethers from 'ethers';
 import { expect } from 'chai';
 import fs from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { Bytes, BytesLike } from '@ethersproject/bytes';
+import { BytesLike } from '@ethersproject/bytes';
 import { BigNumberish } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import {
@@ -156,6 +156,8 @@ describe('Upgrade test', function () {
         // could lead to flacky issues.
         if (chainWalletConfig.governor.private_key == ecosystemWalletConfig.governor.private_key) {
             ecosystemGovWallet = l1AdminGovWallet;
+        } else {
+            ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         }
 
         upgradeAddress = await deployDefaultUpgradeImpl(ecosystemGovWallet);
@@ -249,17 +251,25 @@ describe('Upgrade test', function () {
 
     step('Publish bytecodes', async () => {
         const bootloaderCode = readCode(
-            'contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json',
+            // Different versions of foundry have different versions of the artifacts' paths
+            [
+                'contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json',
+                'contracts/system-contracts/zkout/playground_batch.yul/playground_batch.json'
+            ],
             'contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin'
         );
 
         const defaultAACode = readCode(
-            'contracts/system-contracts/zkout/DefaultAccount.sol/DefaultAccount.json',
+            ['contracts/system-contracts/zkout/DefaultAccount.sol/DefaultAccount.json'],
             'contracts/system-contracts/artifacts-zk/contracts-preprocessed/DefaultAccount.sol/DefaultAccount.json'
         );
 
         const evmEmulatorCode = readCode(
-            'contracts/system-contracts/zkout/EvmEmulator.yul/contracts-preprocessed/EvmEmulator.yul.json'
+            // Different versions of foundry have different versions of the artifacts' paths
+            [
+                'contracts/system-contracts/zkout/EvmEmulator.yul/contracts-preprocessed/EvmEmulator.yul.json',
+                'contracts/system-contracts/zkout/EvmEmulator.yul/EvmEmulator.json'
+            ]
         );
 
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
@@ -542,19 +552,23 @@ describe('Upgrade test', function () {
     }
 });
 
-function readCode(newPath: string, legacyPath?: string): string {
-    let path = `${pathToHome}/${newPath}`;
-    if (existsSync(path)) {
-        return '0x'.concat(require(path).bytecode.object);
-    } else if (legacyPath) {
-        path = `${pathToHome}/${legacyPath}`;
+function readCode(newPaths: string[], legacyPath?: string): string {
+    for (const newPath of newPaths) {
+        let path = `${pathToHome}/${newPath}`;
+        if (existsSync(path)) {
+            return '0x'.concat(require(path).bytecode.object);
+        }
+    }
+
+    if (legacyPath) {
+        const path = `${pathToHome}/${legacyPath}`;
         if (path.endsWith('.zbin')) {
             return ethers.hexlify(readFileSync(path));
         } else {
             return require(path).bytecode;
         }
     } else {
-        throw new Error(`Cannot read contract at ${newPath}`);
+        throw new Error(`Cannot read contract at ${newPaths.join(',')}`);
     }
 }
 
