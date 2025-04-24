@@ -29,9 +29,9 @@ impl From<L1BatchId> for JobId {
     }
 }
 
-impl Into<L1BatchId> for JobId {
-    fn into(self) -> L1BatchId {
-        L1BatchId::new(self.chain_id, L1BatchNumber(self.id))
+impl From<JobId> for L1BatchId {
+    fn from(job_id: JobId) -> Self {
+        L1BatchId::new(job_id.chain_id, L1BatchNumber(job_id.id))
     }
 }
 
