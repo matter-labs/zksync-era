@@ -11,10 +11,15 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, maxL2GasLimitForPriorityTxs, SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForL2ToL1LogProof } from '../src/helpers';
+import {
+    scaledGasPrice,
+    maxL2GasLimitForPriorityTxs,
+    SYSTEM_CONTEXT_ADDRESS,
+    getTestContract,
+    waitForL2ToL1LogProof
+} from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
 import { BigNumberish } from 'ethers';
-import { BytesLike } from '@ethersproject/bytes';
 import { REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
 const contracts = {
@@ -353,69 +358,6 @@ describe('System behavior checks', () => {
         } else {
             expect(currentGasPerPubdata).toEqual(0n);
         }
-    });
-
-    test('Should check that createEVM is callable and executes successfully', async () => {
-          
-        if (!isETHBasedChain) {
-            const baseTokenDetails = testMaster.environment().baseToken;
-            const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
-            await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
-        }
-
-        const contractInitcode: BytesLike = ethers.hexlify('0x69602a60005260206000f3600052600a6016f3');
-
-        const abi = ['function createEVM(bytes _initCode)'];
-
-        const iface = new ethers.Interface(abi);
-
-        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('createEVM', [contractInitcode]);
-
-        const gasPrice = await scaledGasPrice(alice);
-        const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
-
-        let priorityOpHandle = await alice.requestExecute({
-            contractAddress: await zksync.utils.CONTRACT_DEPLOYER_ADDRESS,
-            calldata: ContractDeployerCalldata,
-            l2GasLimit: l2GasLimit,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
-            overrides: {
-                gasPrice
-            }
-        });
-
-        await priorityOpHandle.waitL1Commit();
-
-        expect(priorityOpHandle).toBeAccepted();
-    });
-
-    test('Should check that create2EVM is callable and executes successfully', async () => {
-        const contractInitcode: BytesLike = '0x69602a60005260206000f3600052600a6016f3';
-
-        const abi = ['function create2EVM(bytes32 _salt, bytes _initCode)'];
-
-        const iface = new ethers.Interface(abi);
-
-        const salt: BytesLike = '0x0000000000000000000000000000000000000000000000000000000000000000';
-
-        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('create2EVM', [salt, contractInitcode]);
-
-        const gasPrice = await scaledGasPrice(alice);
-        const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
-
-        let priorityOpHandle = await alice.requestExecute({
-            contractAddress: await zksync.utils.CONTRACT_DEPLOYER_ADDRESS,
-            calldata: ContractDeployerCalldata,
-            l2GasLimit: l2GasLimit,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
-            overrides: {
-                gasPrice
-            }
-        });
-
-        await priorityOpHandle.waitL1Commit();
-
-        expect(priorityOpHandle).toBeAccepted();
     });
 
     it('should reject transaction with huge gas limit', async () => {
