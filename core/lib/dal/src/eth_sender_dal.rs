@@ -26,7 +26,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_inflight_txs(
         &mut self,
         operator_address: Address,
-        consider_null_operator_address: bool,
+        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
@@ -209,7 +209,7 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         limit: u64,
         operator_address: Address,
-        consider_null_operator_address: bool,
+        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
