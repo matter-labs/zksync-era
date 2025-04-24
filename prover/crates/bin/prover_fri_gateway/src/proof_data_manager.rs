@@ -3,11 +3,7 @@ use std::sync::Arc;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
-<<<<<<< HEAD
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchId, L1BatchNumber, L2ChainId};
-=======
-use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchNumber};
->>>>>>> main
 
 use super::error::ProcessorError;
 
