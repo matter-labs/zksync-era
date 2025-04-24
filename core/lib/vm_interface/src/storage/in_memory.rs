@@ -2,8 +2,8 @@ use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use zksync_types::{
     block::DeployedContract, bytecode::BytecodeHash, get_code_key, get_known_code_key,
-    get_system_context_init_logs, system_contracts::get_system_smart_contracts, L2BlockNumber,
-    L2ChainId, SLChainId, StorageKey, StorageLog, StorageValue, H256,
+    get_system_context_init_logs, system_contracts::get_system_smart_contracts, L2ChainId,
+    StorageKey, StorageLog, StorageValue, H256,
 };
 
 use super::ReadStorage;

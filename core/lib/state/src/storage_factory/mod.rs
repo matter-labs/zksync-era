@@ -5,9 +5,7 @@ use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
-use zksync_types::{
-    u256_to_h256, L1BatchNumber, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256,
-};
+use zksync_types::{u256_to_h256, L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};

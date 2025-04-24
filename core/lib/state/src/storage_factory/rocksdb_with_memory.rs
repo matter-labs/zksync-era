@@ -3,7 +3,7 @@ use std::{
     ops::RangeInclusive,
 };
 
-use zksync_types::{L1BatchNumber, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 use crate::RocksdbStorage;

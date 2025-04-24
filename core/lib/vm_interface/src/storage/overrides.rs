@@ -5,7 +5,7 @@ use std::{
     fmt,
 };
 
-use zksync_types::{AccountTreeId, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{AccountTreeId, StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
