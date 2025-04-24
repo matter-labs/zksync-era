@@ -7,6 +7,7 @@ pub mod genesis;
 pub mod lint;
 pub(crate) mod lint_utils;
 pub mod prover;
+pub mod rich_account;
 pub mod send_transactions;
 pub mod snapshot;
 pub(crate) mod sql_fmt;

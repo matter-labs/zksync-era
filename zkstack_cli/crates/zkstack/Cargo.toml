@@ -11,6 +11,7 @@ description.workspace = true
 keywords.workspace = true
 
 [dependencies]
+alloy.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
