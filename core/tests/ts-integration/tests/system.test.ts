@@ -11,16 +11,9 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import {
-    scaledGasPrice,
-    maxL2GasLimitForPriorityTxs,
-    SYSTEM_CONTEXT_ADDRESS,
-    getTestContract,
-    waitForL2ToL1LogProof
-} from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForL2ToL1LogProof } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
 import { BigNumberish } from 'ethers';
-import { REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
 const contracts = {
     counter: getTestContract('Counter'),
@@ -32,26 +25,10 @@ const BUILTIN_CREATE2_FACTORY_ADDRESS = '0x0000000000000000000000000000000000010
 describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
-    let isETHBasedChain: boolean;
-    let baseTokenAddress: string; // Used only for base token implementation
-    let expectedL2Costs: bigint;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
-        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
-        const gasPrice = await scaledGasPrice(alice);
-        if (!isETHBasedChain) {
-            expectedL2Costs =
-                ((await alice.getBaseCost({
-                    gasLimit: maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit),
-                    gasPerPubdataByte: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
-                    gasPrice
-                })) *
-                    140n) /
-                100n;
-        }
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
