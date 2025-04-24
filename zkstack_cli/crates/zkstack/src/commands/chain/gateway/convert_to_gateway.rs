@@ -185,7 +185,7 @@ pub async fn gateway_vote_preparation(
 ) -> anyhow::Result<DeployGatewayCTMOutput> {
     input.save(
         shell,
-        GATEWAY_VOTE_PREPARATION.input(&chain_config.link_to_code),
+        GATEWAY_VOTE_PREPARATION.input(&chain_config.path_to_l1_foundry()),
     )?;
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -202,7 +202,7 @@ pub async fn gateway_vote_preparation(
 
     DeployGatewayCTMOutput::read(
         shell,
-        GATEWAY_VOTE_PREPARATION.output(&chain_config.link_to_code),
+        GATEWAY_VOTE_PREPARATION.output(&chain_config.path_to_l1_foundry()),
     )
 }
 
@@ -218,7 +218,7 @@ pub async fn deploy_gateway_tx_filterer(
 ) -> anyhow::Result<GatewayTxFiltererOutput> {
     input.save(
         shell,
-        DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.link_to_code),
+        DEPLOY_GATEWAY_TX_FILTERER.input(&chain_config.path_to_l1_foundry()),
     )?;
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -239,6 +239,6 @@ pub async fn deploy_gateway_tx_filterer(
 
     GatewayTxFiltererOutput::read(
         shell,
-        DEPLOY_GATEWAY_TX_FILTERER.output(&chain_config.link_to_code),
+        DEPLOY_GATEWAY_TX_FILTERER.output(&chain_config.path_to_l1_foundry()),
     )
 }

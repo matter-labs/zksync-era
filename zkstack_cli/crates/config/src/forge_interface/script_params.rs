@@ -11,13 +11,13 @@ pub struct ForgeScriptParams {
 
 impl ForgeScriptParams {
     // Path to the input file for forge script
-    pub fn input(&self, link_to_code: &Path) -> PathBuf {
-        link_to_code.join(L1_CONTRACTS_FOUNDRY).join(self.input)
+    pub fn input(&self, path_to_l1_foundry: &Path) -> PathBuf {
+        path_to_l1_foundry.join(self.input)
     }
 
     // Path to the output file for forge script
-    pub fn output(&self, link_to_code: &Path) -> PathBuf {
-        link_to_code.join(L1_CONTRACTS_FOUNDRY).join(self.output)
+    pub fn output(&self, path_to_l1_foundry: &Path) -> PathBuf {
+        path_to_l1_foundry.join(self.output)
     }
 
     // Path to the script
