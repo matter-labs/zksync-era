@@ -15,13 +15,12 @@ use zkstack_cli_config::{
             FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
         },
     },
-    raw::RawConfig,
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig, GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
-use zksync_basic_types::commitment::L1BatchCommitmentMode;
-use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, H160, U256};
+use zksync_system_constants::{L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
 
 use super::args::gateway_upgrade::{GatewayUpgradeArgs, GatewayUpgradeArgsFinal};
 use crate::{
@@ -100,7 +99,7 @@ async fn no_governance_prepare(
     let genesis_config_path = ecosystem_config
         .get_default_configs_path()
         .join(GENESIS_FILE);
-    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
