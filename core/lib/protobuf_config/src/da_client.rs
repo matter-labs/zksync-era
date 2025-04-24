@@ -58,14 +58,14 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             }),
             proto::data_availability_client::Config::Celestia(conf) => Celestia(CelestiaConfig {
                 api_node_url: required(&conf.api_node_url).context("namespace")?.clone(),
-                proof_eq_service_grpc_url: required(&conf.eq_service_grpc_url).context("namespace")?.clone(),
+                eq_service_grpc_url: required(&conf.eq_service_grpc_url).context("namespace")?.clone(),
                 namespace: required(&conf.namespace).context("namespace")?.clone(),
                 chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
                 celestia_core_tendermint_rpc_url: required(&conf.celestia_core_tendermint_rpc_url).context("celestia_core_tendermint_rpc_url")?.clone(),
                 blobstream_contract_address: required(&conf.blobstream_contract_address).context("blobstream_contract_address")?.clone(),
-                num_pages: *required(&conf.num_pages).context("num_pages")?,
-                page_size: *required(&conf.page_size).context("page_size")?,
+                blobstream_events_num_pages: *required(&conf.blobstream_events_num_pages).context("blobstream_events_num_pages")?,
+                blobstream_events_page_size: *required(&conf.blobstream_events_page_size).context("blobstream_events_page_size")?,
             }),
             proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
                 disperser_rpc: required(&conf.disperser_rpc)
@@ -143,14 +143,14 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             Celestia(config) => {
                 proto::data_availability_client::Config::Celestia(proto::CelestiaConfig {
                     api_node_url: Some(config.api_node_url.clone()),
-                    eq_service_grpc_url: Some(config.proof_eq_service_grpc_url.clone()),
+                    eq_service_grpc_url: Some(config.eq_service_grpc_url.clone()),
                     namespace: Some(config.namespace.clone()),
                     chain_id: Some(config.chain_id.clone()),
                     timeout_ms: Some(config.timeout_ms),
                     celestia_core_tendermint_rpc_url: Some(config.celestia_core_tendermint_rpc_url.clone()),
                     blobstream_contract_address: Some(config.blobstream_contract_address.clone()),
-                    num_pages: Some(config.num_pages),
-                    page_size: Some(config.page_size),
+                    blobstream_events_num_pages: Some(config.blobstream_events_num_pages),
+                    blobstream_events_page_size: Some(config.blobstream_events_page_size),
                 })
             }
             Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {

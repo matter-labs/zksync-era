@@ -42,6 +42,7 @@ pub enum ValidiumType {
     NoDA,
     Avail((AvailConfig, AvailSecrets)),
     EigenDA,
+    Celestia((CelestiaConfig, CelestiaSecrets)),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
