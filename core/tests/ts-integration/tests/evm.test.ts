@@ -1,9 +1,6 @@
 import { TestMaster } from '../src';
 import * as fs from 'fs';
-import * as zksync from 'zksync-ethers';
-import { ethers, BytesLike } from 'ethers';
-import { scaledGasPrice, maxL2GasLimitForPriorityTxs } from '../src/helpers';
-import { REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
+import { ethers } from 'ethers';
 
 interface ContractData {
     readonly abi: ethers.InterfaceAbi;
