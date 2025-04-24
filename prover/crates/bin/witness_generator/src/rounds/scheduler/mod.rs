@@ -29,7 +29,9 @@ use zksync_types::{
 
 use super::JobMetadata;
 use crate::{
-    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, rounds::JobManager,
+    artifacts::{ArtifactsManager, JobId},
+    metrics::WITNESS_GENERATOR_METRICS,
+    rounds::JobManager,
     utils::SchedulerPartialInputWrapper,
 };
 
@@ -126,7 +128,7 @@ impl JobManager for Scheduler {
     ) -> anyhow::Result<Self::Job> {
         let started_at = Instant::now();
         let wrapper = Self::get_artifacts(
-            JobId::new(&metadata.recursion_tip_job_id, metadata.batch_id.chain_id()),
+            &JobId::new(&metadata.recursion_tip_job_id, metadata.batch_id.chain_id()),
             object_store,
         )
         .await?;
