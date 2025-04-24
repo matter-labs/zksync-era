@@ -97,10 +97,21 @@ impl ZksNamespaceServer for ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None, None)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn get_l2_to_l1_log_proof_precommit(
+        &self,
+        tx_hash: H256,
+        index: Option<usize>,
+        l2_message_index: Option<usize>,
+    ) -> RpcResult<Option<L2ToL1LogProof>> {
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None, l2_message_index)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    } //
 
     async fn get_l2_to_l1_log_proof_until_target(
         &self,
@@ -108,7 +119,7 @@ impl ZksNamespaceServer for ZksNamespace {
         index: Option<usize>,
         log_proof_target: Option<LogProofTarget>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, log_proof_target)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, log_proof_target, None)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

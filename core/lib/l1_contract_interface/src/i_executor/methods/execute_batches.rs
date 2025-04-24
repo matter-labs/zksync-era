@@ -1,7 +1,8 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
-    InteropRoot, ProtocolVersionId,
+    l2_to_l1_log::UserL2ToL1Log,
+    InteropRoot, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -15,6 +16,9 @@ pub struct ExecuteBatches {
     pub l1_batches: Vec<L1BatchWithMetadata>,
     pub priority_ops_proofs: Vec<PriorityOpsMerkleProof>,
     pub dependency_roots: Vec<Vec<InteropRoot>>,
+    pub logs: Vec<Vec<UserL2ToL1Log>>,
+    pub messages: Vec<Vec<Vec<u8>>>,
+    pub message_roots: Vec<H256>, //
 }
 
 impl ExecuteBatches {
@@ -83,6 +87,33 @@ impl ExecuteBatches {
                                     .collect(),
                             )
                         })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.logs
+                        .iter()
+                        .map(|log| {
+                            Token::Array(log.iter().map(|log| log.clone().0.into_token()).collect())
+                        })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.messages
+                        .iter()
+                        .map(|message| {
+                            Token::Array(
+                                message
+                                    .iter()
+                                    .map(|message| message.clone().into_token())
+                                    .collect(),
+                            )
+                        })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.message_roots
+                        .iter()
+                        .map(|root| Token::FixedBytes(root.0.as_slice().try_into().unwrap()))
                         .collect(),
                 ),
             ]);
