@@ -228,7 +228,7 @@ impl DataAvailabilityFetcher {
                 da_details.l2_da_validator,
             )
             .await
-            .map_err(|err| to_fatal_error(err.generalize()))?;
+            .map_err(|err| to_retriable_error(err.generalize()))?;
 
         tracing::debug!(
             "Updated L1 batch #{} with DA blob id: {}",

@@ -31,7 +31,15 @@ impl DataAvailabilityDal<'_, '_> {
         da_inclusion_data: Option<&[u8]>,
         l2_validator_address: Option<Address>,
     ) -> DalResult<()> {
-        let update_result = sqlx::query!(
+        let instrumentation = Instrumented::new("insert_l1_batch_da")
+            .with_arg("number", &number)
+            .with_arg("blob_id", &blob_id)
+            .with_arg("sent_at", &sent_at)
+            .with_arg("pubdata_type", &pubdata_type)
+            .with_arg("da_inclusion_data", &da_inclusion_data)
+            .with_arg("l2_validator_address", &l2_validator_address);
+
+        let query = sqlx::query!(
             r#"
             INSERT INTO
             data_availability (
@@ -54,17 +62,22 @@ impl DataAvailabilityDal<'_, '_> {
             pubdata_type.to_string(),
             l2_validator_address.map(|addr| addr.as_bytes().to_vec()),
             sent_at,
-        )
-        .instrument("insert_l1_batch_da")
-        .with_arg("number", &number)
-        .with_arg("blob_id", &blob_id)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
+        );
+
+        let update_result = instrumentation
+            .clone()
+            .with(query)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
 
         if update_result.rows_affected() == 0 {
-            tracing::error!("L1 batch #{number}: batch DA was attempted to be inserted twice");
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "L1 batch #{number}: batch DA was attempted to be inserted twice"
+            ));
+            return Err(err);
         }
+
         Ok(())
     }
 
@@ -375,7 +388,7 @@ impl DataAvailabilityDal<'_, '_> {
                 data_availability
             WHERE
                 inclusion_data IS NOT NULL
-                AND l1_batch_number > $1
+                AND l1_batch_number >= $1
             ORDER BY
                 l1_batch_number DESC
             LIMIT
