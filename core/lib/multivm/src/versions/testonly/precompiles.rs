@@ -74,7 +74,6 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     vm.vm.push_transaction(tx);
 
     let exec_result = vm.vm.execute(InspectExecutionMode::OneTx);
-    println!("{:?}", exec_result);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let sha_count = exec_result.statistics.circuit_statistic.sha256
@@ -145,8 +144,6 @@ pub(crate) fn test_ecadd<VM: TestedVm>() {
 
     let ecadd_count = exec_result.statistics.circuit_statistic.ecadd
         * ProtocolGeometry::latest().config().cycles_per_ecadd_circuit as f32;
-    println!("{:?}", exec_result);
-    println!("{:?}", ecadd_count);
     assert!(ecadd_count >= 0.001, "{ecadd_count}");
 }
 
@@ -181,8 +178,6 @@ pub(crate) fn test_ecmul<VM: TestedVm>() {
 
     let ecmul_count = exec_result.statistics.circuit_statistic.ecmul
         * ProtocolGeometry::latest().config().cycles_per_ecmul_circuit as f32;
-    println!("{:?}", exec_result);
-    println!("{:?}", ecmul_count);
     assert!(ecmul_count >= 0.001, "{ecmul_count}");
 }
 
@@ -219,8 +214,6 @@ pub(crate) fn test_ecpairing<VM: TestedVm>() {
         * ProtocolGeometry::latest()
             .config()
             .cycles_per_ecpairing_circuit as f32;
-    println!("{:?}", exec_result);
-    println!("{:?}", ecpairing_count);
     assert!(ecpairing_count >= 0.001, "{ecpairing_count}");
 }
 
@@ -251,14 +244,11 @@ pub(crate) fn test_modexp<VM: TestedVm>() {
     vm.vm.push_transaction(tx);
 
     let exec_result = vm.vm.execute(InspectExecutionMode::OneTx);
-    println!("{:?}", exec_result);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let modexp_count = exec_result.statistics.circuit_statistic.modexp
         * ProtocolGeometry::latest()
             .config()
             .cycles_per_modexp_circuit as f32;
-    println!("{:?}", exec_result);
-    println!("{:?}", modexp_count);
     assert!(modexp_count >= 0.001, "{modexp_count}");
 }

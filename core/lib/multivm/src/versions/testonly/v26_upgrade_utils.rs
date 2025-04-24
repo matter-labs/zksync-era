@@ -2,7 +2,7 @@ use super::TestedVm;
 
 pub(crate) fn test_trivial_test_storage_logs<VM: TestedVm>() {
     // let (vm, test_data) = setup_v26_unsafe_deposits_detection::<VM>();
-    // assert_eq!(test_data, get_test_data_second_option());
+    // assert_eq!(test_data, get_test_data());
 
     // let storage_ptr = vm.storage.clone();
     // let borrowed = storage_ptr.borrow();
