@@ -41,10 +41,12 @@ describe('genesis recovery', () => {
     let ethRpcUrl: string;
     let externalNodeUrl: string;
     let extNodeHealthUrl: string;
+    let deploymentMode: string;
 
     before('prepare environment', async () => {
         const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
         const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
+        const genesisConfig = loadConfig({ pathToHome, chain: chainName, config: 'genesis.yaml' });
         const externalNodeGeneralConfig = loadConfig({
             pathToHome,
             chain: chainName,
@@ -56,6 +58,7 @@ describe('genesis recovery', () => {
         apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
         externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
         extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
+        deploymentMode = genesisConfig.l1_batch_commit_data_generator_mode;
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
@@ -99,7 +102,8 @@ describe('genesis recovery', () => {
             await logsPath(chainName, 'external-node.log'),
             pathToHome,
             NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
-            chainName
+            chainName,
+            deploymentMode
         );
 
         const mainNodeBatchNumber = await mainNode.getL1BatchNumber();
@@ -121,7 +125,8 @@ describe('genesis recovery', () => {
                         await logsPath(chainName, 'external-node.log'),
                         pathToHome,
                         NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
-                        chainName
+                        chainName,
+                        deploymentMode
                     );
                 }
                 continue;
@@ -189,7 +194,8 @@ describe('genesis recovery', () => {
             externalNodeProcess.logs,
             pathToHome,
             NodeComponents.WITH_TREE_FETCHER,
-            chainName
+            chainName,
+            deploymentMode
         );
 
         let isNodeReady = false;
