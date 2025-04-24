@@ -29,27 +29,6 @@ pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     H256(keccak256(&encoded_data))
 }
 
-pub fn get_ethers_provider(url: &str) -> anyhow::Result<Arc<Provider<Http>>> {
-    let provider = match Provider::<Http>::try_from(url) {
-        Ok(provider) => provider,
-        Err(err) => {
-            anyhow::bail!("Connection error: {:#?}", err);
-        }
-    };
-
-    Ok(Arc::new(provider))
-}
-
-pub fn get_zk_client(url: &str, l2_chain_id: u64) -> anyhow::Result<Client<L2>> {
-    let client = Client::http(SensitiveUrl::from_str(url).unwrap())
-        .context("failed creating JSON-RPC client for main node")?
-        .for_network(L2ChainId::new(l2_chain_id).unwrap().into())
-        .with_allowed_requests_per_second(NonZeroUsize::new(100_usize).unwrap())
-        .build();
-
-    Ok(client)
-}
-
 pub fn get_default_foundry_path(shell: &Shell) -> anyhow::Result<PathBuf> {
     Ok(EcosystemConfig::from_file(shell)?.path_to_l1_foundry())
 }
@@ -68,11 +47,4 @@ pub fn display_admin_script_output(result: AdminScriptOutput) {
 
     logger::info(format!("Total data: {}", hex::encode(&data)));
     logger::info(format!("Total value: {}", value));
-}
-
-pub(crate) fn apply_l1_to_l2_alias(addr: Address) -> Address {
-    let offset: Address = "1111000000000000000000000000000000001111".parse().unwrap();
-    let addr_with_offset = address_to_u256(&addr) + address_to_u256(&offset);
-
-    u256_to_address(&addr_with_offset)
 }

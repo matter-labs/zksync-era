@@ -6,7 +6,9 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use xshell::Shell;
-use zkstack_cli_common::{logger, wallets::Wallet, zks_provider::ZKSProvider};
+use zkstack_cli_common::{
+    ethereum::get_zk_client, logger, wallets::Wallet, zks_provider::ZKSProvider,
+};
 use zksync_types::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
@@ -17,7 +19,7 @@ use super::{
     messages::message_for_gateway_migration_progress_state,
     migrate_from_gateway::finish_migrate_chain_from_gateway,
 };
-use crate::commands::chain::utils::{get_default_foundry_path, get_zk_client};
+use crate::commands::chain::utils::get_default_foundry_path;
 
 lazy_static! {
     static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(

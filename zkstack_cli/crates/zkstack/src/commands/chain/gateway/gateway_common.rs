@@ -12,7 +12,12 @@ use ethers::{
     types::{Filter, TransactionReceipt, TransactionRequest},
 };
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
+use zkstack_cli_common::{
+    ethereum::{get_ethers_provider, get_zk_client},
+    forge::ForgeScriptArgs,
+    logger,
+    spinner::Spinner,
+};
 use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::{Address, H256, U256, U64};
 use zksync_contracts::bridgehub_contract;
@@ -30,10 +35,7 @@ use super::{
 };
 use crate::{
     abi::{BridgehubAbi, ChainTypeManagerAbi, ZkChainAbi},
-    commands::chain::{
-        admin_call_builder::AdminCallBuilder,
-        utils::{get_ethers_provider, get_zk_client},
-    },
+    commands::chain::admin_call_builder::AdminCallBuilder,
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };

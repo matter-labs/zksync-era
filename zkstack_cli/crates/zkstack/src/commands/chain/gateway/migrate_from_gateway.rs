@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
+    ethereum::{get_ethers_provider, get_zk_client},
     forge::{Forge, ForgeScriptArgs},
     logger,
     spinner::Spinner,
@@ -38,7 +39,6 @@ use crate::{
         admin_call_builder::AdminCallBuilder,
         gateway::gateway_common::{extract_and_wait_for_priority_ops, send_tx},
         init::get_l1_da_validator,
-        utils::{get_ethers_provider, get_zk_client},
     },
     consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},

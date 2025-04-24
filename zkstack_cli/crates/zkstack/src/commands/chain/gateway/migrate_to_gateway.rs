@@ -2,7 +2,9 @@ use anyhow::Context;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, logger};
+use zkstack_cli_common::{
+    config::global_config, ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger,
+};
 use zkstack_cli_config::{EcosystemConfig, GatewayChainConfigPatch};
 use zkstack_cli_types::L1BatchCommitmentMode;
 use zksync_basic_types::{Address, U256};
@@ -13,10 +15,8 @@ use super::{
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
 };
 use crate::{
-    abi::BridgehubAbi,
-    commands::chain::{admin_call_builder::AdminCallBuilder, utils::get_ethers_provider},
-    consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-    messages::MSG_CHAIN_NOT_INITIALIZED,
+    abi::BridgehubAbi, commands::chain::admin_call_builder::AdminCallBuilder,
+    consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS, messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]

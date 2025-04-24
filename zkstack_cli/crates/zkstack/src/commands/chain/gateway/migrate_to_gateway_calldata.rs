@@ -10,7 +10,7 @@ use ethers::{
     providers::{Middleware, Provider},
 };
 use xshell::Shell;
-use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
+use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
 use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
@@ -29,11 +29,9 @@ use crate::{
     },
     commands::chain::{
         admin_call_builder::AdminCall,
-        utils::{
-            apply_l1_to_l2_alias, display_admin_script_output, get_default_foundry_path,
-            get_ethers_provider,
-        },
+        utils::{display_admin_script_output, get_default_foundry_path},
     },
+    utils::addresses::apply_l1_to_l2_alias,
 };
 
 // The most reliable way to precompute the address is to simulate `createNewChain` function
