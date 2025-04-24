@@ -41,7 +41,7 @@ lazy_static! {
             "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
             "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public",
             "function setTransactionFilterer(address _bridgehubAddr, uint256 _chainId, address _transactionFiltererAddress, bool _shouldSend) external",
-            "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address _grantee, bool _shouldSend)",
+            "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address[] calldata _grantee, bool _shouldSend)",
             "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, address refundRecipient, bool _shouldSend) public view",
             "function revokeGatewayWhitelist(address _bridgehub, uint256 _chainId, address _address, bool _shouldSend) public",
             "function enableValidatorViaGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,address validatorAddress,address gatewayValidatorTimelock, address refundRecipient,bool shouldSend) public",
@@ -408,18 +408,6 @@ impl From<AdminScriptOutputInner> for AdminScriptOutput {
     }
 }
 
-impl AdminScriptOutput {
-    pub(crate) fn extend(&mut self, other: AdminScriptOutput) -> anyhow::Result<()> {
-        if other.admin_address != self.admin_address {
-            anyhow::bail!("Admin address is incorrect");
-        }
-
-        self.calls.extend(other.calls);
-
-        Ok(())
-    }
-}
-
 pub async fn call_script(
     shell: &Shell,
     forge_args: &ForgeScriptArgs,
@@ -503,13 +491,23 @@ pub(crate) async fn grant_gateway_whitelist(
     mode: AdminScriptMode,
     chain_id: u64,
     bridgehub: Address,
-    grantee: Address,
+    grantees: Vec<Address>,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
+    let comma_separated_grantees = grantees
+        .iter()
+        .map(|addr| format!("{:#?}", addr))
+        .collect::<Vec<_>>()
+        .join(", ");
     let calldata = ACCEPT_ADMIN
         .encode(
             "grantGatewayWhitelist",
-            (bridgehub, U256::from(chain_id), grantee, mode.should_send()),
+            (
+                bridgehub,
+                U256::from(chain_id),
+                grantees,
+                mode.should_send(),
+            ),
         )
         .unwrap();
 
@@ -520,7 +518,7 @@ pub(crate) async fn grant_gateway_whitelist(
         mode,
         calldata,
         l1_rpc_url,
-        &format!("granting gateway whitelist for {:#?}", grantee),
+        &format!("granting gateway whitelist for {comma_separated_grantees}"),
     )
     .await
 }

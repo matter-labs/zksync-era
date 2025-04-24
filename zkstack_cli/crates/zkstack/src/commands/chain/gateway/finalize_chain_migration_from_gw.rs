@@ -14,12 +14,10 @@ use super::{
         get_gateway_migration_state, get_migration_transaction, GatewayMigrationProgressState,
         MigrationDirection,
     },
+    messages::message_for_gateway_migration_progress_state,
     migrate_from_gateway::finish_migrate_chain_from_gateway,
-    utils::get_default_foundry_path,
 };
-use crate::{
-    commands::chain::utils::get_zk_client, messages::message_for_gateway_migration_progress_state,
-};
+use crate::commands::chain::utils::{get_default_foundry_path, get_zk_client};
 
 lazy_static! {
     static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(

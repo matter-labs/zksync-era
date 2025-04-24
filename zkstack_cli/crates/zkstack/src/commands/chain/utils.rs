@@ -16,7 +16,7 @@ use zksync_types::{
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    accept_ownership::AdminScriptOutput, commands::chain::admin_call_builder::AdminCallBuilder,
+    admin_functions::AdminScriptOutput, commands::chain::admin_call_builder::AdminCallBuilder,
 };
 
 pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {

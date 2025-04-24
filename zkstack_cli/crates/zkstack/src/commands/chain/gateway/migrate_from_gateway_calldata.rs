@@ -10,13 +10,13 @@ use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{traits::ReadConfig, ContractsConfig};
 
-use super::{
-    gateway_common::{
-        get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
-    },
-    utils::{display_admin_script_output, get_default_foundry_path},
+use super::gateway_common::{
+    get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
 };
-use crate::accept_ownership::{start_migrate_chain_from_gateway, AdminScriptMode};
+use crate::{
+    admin_functions::{start_migrate_chain_from_gateway, AdminScriptMode},
+    commands::chain::utils::{display_admin_script_output, get_default_foundry_path},
+};
 
 lazy_static! {
     static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(

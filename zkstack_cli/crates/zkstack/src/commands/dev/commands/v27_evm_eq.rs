@@ -19,9 +19,12 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use crate::commands::{
-    chain::admin_call_builder::{AdminCall, AdminCallBuilder},
-    dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+use crate::{
+    abi::{BridgehubAbi, ZkChainAbi},
+    commands::{
+        chain::admin_call_builder::{AdminCall, AdminCallBuilder},
+        dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+    },
 };
 
 #[derive(Debug, Default)]
@@ -29,66 +32,6 @@ pub struct FetchedChainInfo {
     hyperchain_addr: Address,
     chain_admin_addr: Address,
 }
-
-// Bridgehub ABI
-abigen!(
-    BridgehubAbi,
-    r"[
-    function getHyperchain(uint256)(address)
-]"
-);
-
-// L1SharedBridgeLegacyStore ABI
-abigen!(
-    L1SharedBridgeLegacyAbi,
-    r"[
-    function l2BridgeAddress(uint256 _chainId)(address)
-]"
-);
-
-// L2WrappedBaseTokenStore ABI
-abigen!(
-    L2WrappedBaseTokenStoreAbi,
-    r"[
-    function l2WBaseTokenAddress(uint256 _chainId)(address)
-]"
-);
-
-// L2WrappedBaseTokenStore ABI
-abigen!(
-    L2NativeTokenVaultAbi,
-    r"[
-    function assetId(address)(bytes32)
-    function L2_LEGACY_SHARED_BRIDGE()(address)
-]"
-);
-
-abigen!(
-    L2LegacySharedBridgeAbi,
-    r"[
-    function l1TokenAddress(address)(address)
-]"
-);
-
-// ZKChain ABI
-abigen!(
-    ZKChainAbi,
-    r"[
-    function getPubdataPricingMode()(uint256)
-    function getBaseToken()(address)
-    function getAdmin()(address)
-    function getTotalBatchesCommitted() external view returns (uint256)
-    function getTotalBatchesVerified() external view returns (uint256)
-]"
-);
-
-// ZKChain ABI
-abigen!(
-    ValidatorTimelockAbi,
-    r"[
-    function validators(uint256 _chainId, address _validator)(bool)
-]"
-);
 
 async fn verify_next_batch_new_version(
     batch_number: u32,
@@ -149,7 +92,7 @@ pub async fn check_chain_readiness(
 
     let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
 
-    let zkchain = ZKChainAbi::new(diamond_proxy_addr, l1_client.clone());
+    let zkchain = ZkChainAbi::new(diamond_proxy_addr, l1_client.clone());
     let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
     let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
@@ -175,12 +118,12 @@ pub async fn fetch_chain_info(
     let chain_id = U256::from(args.chain_id);
 
     let bridgehub = BridgehubAbi::new(upgrade_info.bridgehub_addr, client.clone());
-    let hyperchain_addr = bridgehub.get_hyperchain(chain_id).await?;
+    let hyperchain_addr = bridgehub.get_zk_chain(chain_id).await?;
     if hyperchain_addr == Address::zero() {
         anyhow::bail!("Chain not present in bridgehub");
     }
 
-    let zkchain = ZKChainAbi::new(hyperchain_addr, client.clone());
+    let zkchain = ZkChainAbi::new(hyperchain_addr, client.clone());
 
     let chain_admin_addr = zkchain.get_admin().await?;
 

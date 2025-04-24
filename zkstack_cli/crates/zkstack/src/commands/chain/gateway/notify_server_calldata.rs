@@ -11,14 +11,14 @@ use super::{
     gateway_common::{
         get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
     },
-    utils::{display_admin_script_output, get_default_foundry_path},
+    messages::message_for_gateway_migration_progress_state,
 };
 use crate::{
-    accept_ownership::{
+    admin_functions::{
         notify_server_migration_from_gateway, notify_server_migration_to_gateway, AdminScriptMode,
         AdminScriptOutput,
     },
-    messages::message_for_gateway_migration_progress_state,
+    commands::chain::utils::{display_admin_script_output, get_default_foundry_path},
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]

@@ -4,7 +4,7 @@ use xshell::Shell;
 use zksync_types::Address;
 
 use super::utils::{display_admin_script_output, get_default_foundry_path};
-use crate::accept_ownership::{set_transaction_filterer, AdminScriptMode};
+use crate::admin_functions::{set_transaction_filterer, AdminScriptMode};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct SetTransactionFiltererArgs {

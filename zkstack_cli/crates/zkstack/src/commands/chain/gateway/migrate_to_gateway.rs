@@ -1,6 +1,5 @@
 use anyhow::Context;
 use clap::Parser;
-use ethers::contract::abigen;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, forge::ForgeScriptArgs, logger};
@@ -10,12 +9,13 @@ use zksync_basic_types::{Address, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
-    admin_call_builder::AdminCallBuilder,
     gateway_common::{extract_and_wait_for_priority_ops, send_tx},
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayParams},
 };
 use crate::{
-    commands::chain::utils::get_ethers_provider, consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
+    abi::BridgehubAbi,
+    commands::chain::{admin_call_builder::AdminCallBuilder, utils::get_ethers_provider},
+    consts::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
@@ -29,43 +29,6 @@ pub struct MigrateToGatewayArgs {
     #[clap(long)]
     pub gateway_chain_name: String,
 }
-
-abigen!(
-    BridgehubAbi,
-    r"[
-    function settlementLayer(uint256)(uint256)
-    function getZKChain(uint256)(address)
-    function ctmAssetIdToAddress(bytes32)(address)
-    function ctmAssetIdFromChainId(uint256)(bytes32)
-    function baseTokenAssetId(uint256)(bytes32)
-    function chainTypeManager(uint256)(address)
-]"
-);
-
-abigen!(
-    ZkChainAbi,
-    r"[
-    function getDAValidatorPair()(address,address)
-    function getAdmin()(address)
-    function getProtocolVersion()(uint256)
-]"
-);
-
-abigen!(
-    ChainTypeManagerAbi,
-    r"[
-    function validatorTimelock()(address)
-    function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
-    function serverNotifierAddress()(address)
-]"
-);
-
-abigen!(
-    ValidatorTimelockAbi,
-    r"[
-    function validators(uint256 _chainId, address _validator)(bool)
-]"
-);
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;

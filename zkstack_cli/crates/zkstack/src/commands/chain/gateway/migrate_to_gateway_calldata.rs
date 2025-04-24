@@ -16,59 +16,25 @@ use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
-    admin_call_builder::AdminCall,
     gateway_common::{
         get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
     },
-    utils::{apply_l1_to_l2_alias, display_admin_script_output, get_default_foundry_path},
+    messages::message_for_gateway_migration_progress_state,
 };
 use crate::{
-    accept_ownership::{
+    abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
+    admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
         set_da_validator_pair_via_gateway, AdminScriptOutput,
     },
-    commands::chain::utils::get_ethers_provider,
-    messages::message_for_gateway_migration_progress_state,
+    commands::chain::{
+        admin_call_builder::AdminCall,
+        utils::{
+            apply_l1_to_l2_alias, display_admin_script_output, get_default_foundry_path,
+            get_ethers_provider,
+        },
+    },
 };
-
-abigen!(
-    BridgehubAbi,
-    r"[
-    function settlementLayer(uint256)(uint256)
-    function getZKChain(uint256)(address)
-    function ctmAssetIdToAddress(bytes32)(address)
-    function ctmAssetIdFromChainId(uint256)(bytes32)
-    function baseTokenAssetId(uint256)(bytes32)
-    function chainTypeManager(uint256)(address)
-]"
-);
-
-abigen!(
-    ZkChainAbi,
-    r"[
-    function getDAValidatorPair()(address,address)
-    function getAdmin()(address)
-    function getProtocolVersion()(uint256)
-    function getTotalBatchesCommitted()(uint256)
-    function getTotalBatchesExecuted()(uint256)
-]"
-);
-
-abigen!(
-    ChainTypeManagerAbi,
-    r"[
-    function validatorTimelock()(address)
-    function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
-    function serverNotifierAddress()(address)
-]"
-);
-
-abigen!(
-    ValidatorTimelockAbi,
-    r"[
-    function validators(uint256 _chainId, address _validator)(bool)
-]"
-);
 
 // The most reliable way to precompute the address is to simulate `createNewChain` function
 async fn precompute_chain_address_on_gateway(
@@ -187,7 +153,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         shell,
         forge_args,
         foundry_contracts_path,
-        crate::accept_ownership::AdminScriptMode::OnlySave,
+        crate::admin_functions::AdminScriptMode::OnlySave,
         params.l1_bridgehub_addr,
         params.max_l1_gas_price,
         params.l2_chain_id,
@@ -217,7 +183,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         shell,
         forge_args,
         foundry_contracts_path,
-        crate::accept_ownership::AdminScriptMode::OnlySave,
+        crate::admin_functions::AdminScriptMode::OnlySave,
         params.l1_bridgehub_addr,
         params.max_l1_gas_price.into(),
         params.l2_chain_id,
@@ -242,7 +208,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                 shell,
                 forge_args,
                 foundry_contracts_path,
-                crate::accept_ownership::AdminScriptMode::OnlySave,
+                crate::admin_functions::AdminScriptMode::OnlySave,
                 params.l1_bridgehub_addr,
                 params.max_l1_gas_price.into(),
                 params.l2_chain_id,
@@ -270,7 +236,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
                 shell,
                 forge_args,
                 foundry_contracts_path,
-                crate::accept_ownership::AdminScriptMode::OnlySave,
+                crate::admin_functions::AdminScriptMode::OnlySave,
                 params.l1_bridgehub_addr,
                 params.max_l1_gas_price,
                 params.gateway_chain_id,

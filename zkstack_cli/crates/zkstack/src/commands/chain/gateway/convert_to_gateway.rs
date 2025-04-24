@@ -28,7 +28,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::ProverMode;
 
 use crate::{
-    accept_ownership::{
+    admin_functions::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
         set_transaction_filterer, AdminScriptMode,
     },
@@ -90,28 +90,28 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     chain_contracts_config.set_transaction_filterer(output.gateway_tx_filterer_proxy);
     chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    for grantee in [
+    let grantees = vec![
         ecosystem_config.get_contracts_config()?.l1.governance_addr,
         chain_deployer_wallet.address,
         chain_contracts_config
             .ecosystem_contracts
             .stm_deployment_tracker_proxy_addr
             .context("No CTM deployment tracker")?,
-    ] {
-        grant_gateway_whitelist(
-            shell,
-            &args,
-            &chain_config.path_to_l1_foundry(),
-            AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
-            chain_config.chain_id.as_u64(),
-            chain_contracts_config
-                .ecosystem_contracts
-                .bridgehub_proxy_addr,
-            grantee,
-            l1_url.clone(),
-        )
-        .await?;
-    }
+    ];
+
+    grant_gateway_whitelist(
+        shell,
+        &args,
+        &chain_config.path_to_l1_foundry(),
+        AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
+        chain_config.chain_id.as_u64(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        grantees,
+        l1_url.clone(),
+    )
+    .await?;
 
     let vote_preparation_output = gateway_vote_preparation(
         shell,
@@ -232,7 +232,7 @@ pub async fn deploy_gateway_tx_filterer(
         )
         .with_broadcast();
 
-    // Governor private key is required for this script
+    // This script can be run by any wallet without privileges
     forge = fill_forge_private_key(forge, Some(deployer), WalletOwner::Deployer)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;

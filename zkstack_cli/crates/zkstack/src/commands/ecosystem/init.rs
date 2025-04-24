@@ -30,7 +30,7 @@ use super::{
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
-    accept_ownership::{accept_admin, accept_owner},
+    admin_functions::{accept_admin, accept_owner},
     commands::{
         chain::{self},
         ecosystem::create_configs::{

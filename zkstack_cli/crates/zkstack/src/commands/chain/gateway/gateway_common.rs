@@ -25,49 +25,18 @@ use zksync_types::{
 use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
-    admin_call_builder::AdminCallBuilder,
+    migrate_from_gateway::check_whether_gw_transaction_is_finalized,
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
-    utils::get_zk_client,
 };
 use crate::{
+    abi::{BridgehubAbi, ChainTypeManagerAbi, ZkChainAbi},
     commands::chain::{
-        migrate_from_gateway::check_whether_gw_transaction_is_finalized, utils::get_ethers_provider,
+        admin_call_builder::AdminCallBuilder,
+        utils::{get_ethers_provider, get_zk_client},
     },
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
-
-abigen!(
-    BridgehubAbi,
-    r"[
-    function settlementLayer(uint256)(uint256)
-    function getZKChain(uint256)(address)
-    function ctmAssetIdToAddress(bytes32)(address)
-    function ctmAssetIdFromChainId(uint256)(bytes32)
-    function baseTokenAssetId(uint256)(bytes32)
-    function chainTypeManager(uint256)(address)
-]"
-);
-
-abigen!(
-    ZkChainAbi,
-    r"[
-    function getDAValidatorPair()(address,address)
-    function getAdmin()(address)
-    function getProtocolVersion()(uint256)
-    function getTotalBatchesCommitted()(uint256)
-    function getTotalBatchesExecuted()(uint256)
-]"
-);
-
-abigen!(
-    ChainTypeManagerAbi,
-    r"[
-    function validatorTimelock()(address)
-    function forwardedBridgeMint(uint256 _chainId,bytes calldata _ctmData)(address)
-    function serverNotifierAddress()(address)
-]"
-);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MigrationDirection {
@@ -104,6 +73,8 @@ pub enum GatewayMigrationProgressState {
     Finished,
 }
 
+const MAX_SEARCHING_MIGRATION_TXS_INTERVAL: chrono::Duration = chrono::Duration::days(5);
+
 pub(crate) async fn get_migration_transaction(
     sl_rpc_url: &str,
     bridgehub_address: Address,
@@ -126,9 +97,14 @@ pub(crate) async fn get_migration_transaction(
 
     let bridgehub_contract = bridgehub_contract();
 
-    let max_interval_to_search = Utc::now() - chrono::Duration::days(5);
+    let max_interval_to_search = Utc::now() - MAX_SEARCHING_MIGRATION_TXS_INTERVAL;
     let latest_event_log = loop {
         let lower_bound = search_upper_bound.saturating_sub(DEFAULT_EVENTS_BLOCK_RANGE);
+
+        logger::info(format!(
+            "Checking block range: {}..={}",
+            lower_bound, search_upper_bound
+        ));
 
         let filter = Filter::new()
             .address(bridgehub_address)

@@ -7,7 +7,7 @@ use anyhow::Context;
 use clap::Parser;
 use ethers::{
     abi::{parse_abi, Address},
-    contract::{abigen, BaseContract},
+    contract::BaseContract,
     providers::{Http, Provider},
     utils::hex,
 };
@@ -32,10 +32,11 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    accept_ownership::{set_da_validator_pair, start_migrate_chain_from_gateway},
+    abi::ZkChainAbi,
+    admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
-        gateway_common::{extract_and_wait_for_priority_ops, send_tx},
+        gateway::gateway_common::{extract_and_wait_for_priority_ops, send_tx},
         init::get_l1_da_validator,
         utils::{get_ethers_provider, get_zk_client},
     },
@@ -89,7 +90,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         shell,
         &args.forge_args,
         &ecosystem_config.path_to_l1_foundry(),
-        crate::accept_ownership::AdminScriptMode::OnlySave,
+        crate::admin_functions::AdminScriptMode::OnlySave,
         chain_contracts_config
             .ecosystem_contracts
             .bridgehub_proxy_addr,
@@ -209,13 +210,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
 }
 
 const LOOK_WAITING_TIME_MS: u64 = 200;
-
-abigen!(
-    ZkChainAbi,
-    r"[
-    function getTotalBatchesExecuted()(uint256)
-]"
-);
 
 pub(crate) async fn check_whether_gw_transaction_is_finalized(
     gateway_provider: &Client<L2>,
