@@ -36,7 +36,7 @@ describe('System behavior checks', () => {
     let baseTokenAddress: string; // Used only for base token implementation
     let expectedL2Costs: bigint;
 
-    beforeAll(async () => {
+    beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
