@@ -160,7 +160,6 @@ describe('Upgrade test', function () {
             ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
         }
 
-        upgradeAddress = await deployDefaultUpgradeImpl(ecosystemGovWallet);
         forceDeployBytecode = contracts.counterBytecode;
 
         l1ChainAdminContract = new ethers.Contract(
@@ -179,6 +178,11 @@ describe('Upgrade test', function () {
             tester.syncWallet.providerL1
         );
         ecosystemGovernance = await l1CtmContract.owner();
+
+        upgradeAddress = await deployDefaultUpgradeImpl(
+            ecosystemGovWallet,
+            contractsConfig.ecosystem_contracts.bridgehub_proxy_addr
+        );
     });
 
     step('Run server and execute some transactions', async () => {
@@ -507,7 +511,7 @@ describe('Upgrade test', function () {
     // Note, that since Gateway is deployed with a whitelist, deploying new contracts is not allowed there by default.
     // To not bother with whitelisting in this test, we will perform an L1->L2 transaction via a governor (always whitelisted)
     // to deploy the default account.
-    async function deployDefaultUpgradeImpl(governorWallet: ethers.Wallet): Promise<string> {
+    async function deployDefaultUpgradeImpl(governorWallet: ethers.Wallet, bridgehubAddr: string): Promise<string> {
         const bytecodePath = gatewayInfo
             ? pathToHome + '/contracts/l1-contracts/zkout/DefaultUpgrade.sol/DefaultUpgrade.json'
             : pathToHome + '/contracts/l1-contracts/out/DefaultUpgrade.sol/DefaultUpgrade.json';
@@ -528,14 +532,14 @@ describe('Upgrade test', function () {
             const governanceData = await prepareGovernanceCalldata(
                 CONTRACT_DEPLOYER_ADDRESS,
                 CONTRACT_DEPLOYER.encodeFunctionData('create2', [salt, bytecodeHash, '0x']),
-                await (await alice.getBridgehubContract()).getAddress(),
+                bridgehubAddr,
                 governorWallet.provider,
                 [bytecode],
                 gatewayInfo
             );
 
             console.log('Scheduling deployment of the default upgrade');
-            await sendGovernanceOperation(governanceData.scheduleTransparentOperation, 0, gatewayInfo.gatewayProvider);
+            await sendGovernanceOperation(governanceData.scheduleTransparentOperation, 0, null);
 
             console.log('Executing deployment of the default upgrade');
             await sendGovernanceOperation(
@@ -544,7 +548,12 @@ describe('Upgrade test', function () {
                 gatewayInfo.gatewayProvider
             );
 
-            return zksync_utils.create2Address(zksync_utils.applyL1ToL2Alias(ecosystemGovernance), bytecodeHash, salt);
+            return zksync_utils.create2Address(
+                zksync_utils.applyL1ToL2Alias(ecosystemGovernance),
+                bytecodeHash,
+                salt,
+                '0x'
+            );
         } else {
             const factory = new ethers.ContractFactory([], bytecode, governorWallet);
             return (await factory.deploy()).getAddress();
