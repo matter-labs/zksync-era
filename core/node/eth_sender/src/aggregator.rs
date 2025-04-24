@@ -16,7 +16,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchId, L1BatchNumber, L2ChainId, ProtocolVersionId,
+    L1BatchId, L1BatchNumber, L2ChainId, ProtocolVersionId,
 };
 
 use super::{

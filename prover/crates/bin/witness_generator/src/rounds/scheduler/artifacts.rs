@@ -6,7 +6,7 @@ use zksync_circuit_prover_service::types::circuit_wrapper::CircuitWrapper;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{keys::FriCircuitKey, FriProofWrapper};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchId};
+use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::{
     artifacts::{ArtifactsManager, JobId},
