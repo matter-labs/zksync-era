@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
@@ -226,6 +226,7 @@ impl EthSenderTester {
                 assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
+            .with_sender(Address::from_str("0xb10b000000000000000000000000000000000000").unwrap())
             .build();
         gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway_blobs = Box::new(gateway_blobs);
