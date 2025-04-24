@@ -106,13 +106,12 @@ impl Aggregator {
     pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
-        custom_commit_sender_addr: Option<Address>,
+        custom_commit_sender_addr: bool,
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
-        let operate_4844_mode: bool =
-            custom_commit_sender_addr.is_some() && !settlement_layer.is_gateway();
+        let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
         let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_layer
