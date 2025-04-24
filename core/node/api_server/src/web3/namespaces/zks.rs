@@ -493,7 +493,7 @@ impl ZksNamespace {
 
         let tx = storage
             .eth_sender_dal()
-            .get_last_sent_eth_storage_tx(eth_tx_id.unwrap())
+            .get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id.unwrap())
             .await
             .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
 
