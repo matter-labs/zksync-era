@@ -228,21 +228,21 @@ pub async fn run(args: TrackPriorityOpsArgs) -> anyhow::Result<()> {
         default_from_block
     };
 
-    let limit = if let Some(x) = args.limit {
-        x
-    } else {
+    let limit = args.limit.unwrap_or_else(|| {
         logger::info(format!(
             "No `--limit` provided. {DEFAULT_DISPLAYED_TXS_LIMIT} will be used as default"
         ));
         DEFAULT_DISPLAYED_TXS_LIMIT
-    };
+    });
 
-    let delay = if let Some(x) = args.update_frequency_ms {
-        Duration::from_millis(x)
-    } else {
-        logger::info(format!("No `--upgrade-frequency-ms` provided. {DEFAULT_INTERVALS_SECS} seconds will be used as default"));
-        Duration::from_secs(DEFAULT_INTERVALS_SECS)
-    };
+    let delay = args.update_frequency_ms
+        .map(Duration::from_millis)
+        .unwrap_or_else(|| {
+            logger::info(format!(
+                "No `--upgrade-frequency-ms` provided. {DEFAULT_INTERVALS_SECS} seconds will be used as default"
+            ));
+            Duration::from_secs(DEFAULT_INTERVALS_SECS)
+        });
 
     let priority_op_sender = if let Some(l1_sender) = args.l1_op_sender {
         // The actual sender may be aliased
