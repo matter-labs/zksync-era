@@ -67,7 +67,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5, $6)
-            ON CONFLICT (l1_batch_number) DO NOTHING
+            ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
