@@ -246,7 +246,7 @@ impl JobManager for NodeAggregation {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<JobMetadata<Self::Metadata>>> {
+    ) -> anyhow::Result<Option<Self::Metadata>> {
         let pod_name = get_current_pod_name();
         let Some(metadata) = connection_pool
             .connection()
@@ -258,10 +258,12 @@ impl JobManager for NodeAggregation {
             return Ok(None);
         };
 
-        Ok(Some(JobMetadata::new(
-            metadata.id,
-            metadata.batch_id.chain_id(),
-            metadata,
-        )))
+        Ok(Some(metadata))
+    }
+}
+
+impl JobMetadata for NodeAggregationJobMetadata {
+    fn job_id(&self) -> JobId {
+        JobId::new(self.id, self.batch_id.chain_id())
     }
 }

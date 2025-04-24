@@ -8,7 +8,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
+use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 use crate::artifacts::{ArtifactsManager, JobId};
 
@@ -27,42 +27,14 @@ use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::metrics::WITNESS_GENERATOR_METRICS;
 
-pub struct JobMetadata<M: Clone> {
-    id: u32,
-    chain_id: L2ChainId,
-    metadata: M,
-}
-
-impl<M: Clone> JobMetadata<M> {
-    pub fn new(id: u32, chain_id: L2ChainId, metadata: M) -> Self {
-        Self {
-            id,
-            chain_id,
-            metadata,
-        }
-    }
-
-    pub fn job_id(&self) -> JobId {
-        JobId::new(self.id, self.chain_id)
-    }
-
-    pub fn id(&self) -> u32 {
-        self.id
-    }
-
-    pub fn chain_id(&self) -> L2ChainId {
-        self.chain_id
-    }
-
-    pub fn metadata(&self) -> M {
-        self.metadata.clone()
-    }
+pub trait JobMetadata {
+    fn job_id(&self) -> JobId;
 }
 
 #[async_trait]
 pub trait JobManager: ArtifactsManager {
     type Job: Send + 'static;
-    type Metadata: Clone + Send + 'static;
+    type Metadata: Clone + Send + JobMetadata + 'static;
 
     const ROUND: AggregationRound;
     const SERVICE_NAME: &'static str;
@@ -83,7 +55,7 @@ pub trait JobManager: ArtifactsManager {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<JobMetadata<Self::Metadata>>>;
+    ) -> anyhow::Result<Option<Self::Metadata>>;
 }
 
 #[derive(Debug)]
@@ -138,13 +110,9 @@ where
             tracing::info!("Processing {:?} job {:?}", R::ROUND, job_metadata.job_id());
             Ok(Some((
                 job_metadata.job_id(),
-                R::prepare_job(
-                    job_metadata.metadata(),
-                    &*self.object_store,
-                    self.keystore.clone(),
-                )
-                .await
-                .context("prepare_job()")?,
+                R::prepare_job(job_metadata, &*self.object_store, self.keystore.clone())
+                    .await
+                    .context("prepare_job()")?,
             )))
         } else {
             Ok(None)

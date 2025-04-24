@@ -17,10 +17,11 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchId,
 };
 
+use super::JobMetadata;
 use crate::{
-    artifacts::ArtifactsManager,
+    artifacts::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::{basic_circuits::utils::generate_witness, JobManager, JobMetadata},
+    rounds::{basic_circuits::utils::generate_witness, JobManager},
 };
 
 mod artifacts;
@@ -118,7 +119,7 @@ impl JobManager for BasicCircuits {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<JobMetadata<Self::Metadata>>> {
+    ) -> anyhow::Result<Option<Self::Metadata>> {
         let pod_name = get_current_pod_name();
         if let Some(batch_id) = connection_pool
             .connection()
@@ -128,13 +129,15 @@ impl JobManager for BasicCircuits {
             .get_next_basic_circuit_witness_job(protocol_version, &pod_name)
             .await
         {
-            Ok(Some(JobMetadata {
-                id: batch_id.batch_number().0,
-                chain_id: batch_id.chain_id(),
-                metadata: batch_id,
-            }))
+            Ok(Some(batch_id))
         } else {
             Ok(None)
         }
+    }
+}
+
+impl JobMetadata for L1BatchId {
+    fn job_id(&self) -> JobId {
+        JobId::new(self.batch_number().0, self.chain_id())
     }
 }

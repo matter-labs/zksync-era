@@ -43,10 +43,11 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchId,
 };
 
+use super::JobMetadata;
 use crate::{
     artifacts::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::{JobManager, JobMetadata},
+    rounds::JobManager,
     utils::ClosedFormInputWrapper,
 };
 
@@ -222,7 +223,7 @@ impl JobManager for RecursionTip {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<JobMetadata<Self::Metadata>>> {
+    ) -> anyhow::Result<Option<Self::Metadata>> {
         let pod_name = get_current_pod_name();
         let Some((l1_batch_id, number_of_final_node_jobs)) = connection_pool
             .connection()
@@ -251,13 +252,15 @@ impl JobManager for RecursionTip {
             number_of_final_node_jobs, final_node_proof_job_ids.len()
         );
 
-        Ok(Some(JobMetadata::new(
-            l1_batch_id.batch_number().0,
-            l1_batch_id.chain_id(),
-            RecursionTipJobMetadata {
-                batch_id: l1_batch_id,
-                final_node_proof_job_ids,
-            },
-        )))
+        Ok(Some(RecursionTipJobMetadata {
+            batch_id: l1_batch_id,
+            final_node_proof_job_ids,
+        }))
+    }
+}
+
+impl JobMetadata for RecursionTipJobMetadata {
+    fn job_id(&self) -> JobId {
+        JobId::new(self.batch_id.batch_number().0, self.batch_id.chain_id())
     }
 }

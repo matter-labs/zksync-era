@@ -128,7 +128,7 @@ impl JobManager for Scheduler {
     ) -> anyhow::Result<Self::Job> {
         let started_at = Instant::now();
         let wrapper = Self::get_artifacts(
-            &JobId::new(&metadata.recursion_tip_job_id, metadata.batch_id.chain_id()),
+            &JobId::new(metadata.recursion_tip_job_id, metadata.batch_id.chain_id()),
             object_store,
         )
         .await?;
@@ -181,7 +181,7 @@ impl JobManager for Scheduler {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<JobMetadata<Self::Metadata>>> {
+    ) -> anyhow::Result<Option<Self::Metadata>> {
         let pod_name = get_current_pod_name();
         let Some(l1_batch_id) = connection_pool
             .connection()
@@ -203,13 +203,15 @@ impl JobManager for Scheduler {
                 l1_batch_id
             ))?;
 
-        Ok(Some(JobMetadata::new(
-            l1_batch_id.batch_number().0,
-            l1_batch_id.chain_id(),
-            SchedulerWitnessJobMetadata {
-                batch_id: l1_batch_id,
-                recursion_tip_job_id,
-            },
-        )))
+        Ok(Some(SchedulerWitnessJobMetadata {
+            batch_id: l1_batch_id,
+            recursion_tip_job_id,
+        }))
+    }
+}
+
+impl JobMetadata for SchedulerWitnessJobMetadata {
+    fn job_id(&self) -> JobId {
+        JobId::new(self.batch_id.batch_number().0, self.batch_id.chain_id())
     }
 }
