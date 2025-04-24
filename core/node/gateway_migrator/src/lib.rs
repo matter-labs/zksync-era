@@ -82,7 +82,7 @@ impl GatewayMigrator {
                 }
                 Err(GatewayMigratorError::ContractCall(ContractCallError::EthereumGateway(
                     err,
-                ))) if err.is_retriable() => {
+                ))) if err.is_retryable() => {
                     tracing::info!("Transient error fetching data from SL: {err}");
                 }
                 Err(err) => {

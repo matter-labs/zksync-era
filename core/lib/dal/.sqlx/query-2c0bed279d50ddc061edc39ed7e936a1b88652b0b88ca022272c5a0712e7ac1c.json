@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                eth_txs_history.*,\n                eth_txs.blob_sidecar\n            FROM\n                eth_txs_history\n            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n            WHERE\n                eth_tx_id = $1\n            ORDER BY\n                eth_txs_history.created_at DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                eth_txs_history.*,\n                eth_txs.blob_sidecar\n            FROM\n                eth_txs_history\n            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n            WHERE\n                eth_tx_id = $1 AND sent_successfully = TRUE\n            ORDER BY\n                eth_txs_history.created_at DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -75,6 +75,11 @@
       },
       {
         "ordinal": 14,
+        "name": "sent_successfully",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -99,8 +104,9 @@
       true,
       true,
       true,
+      false,
       true
     ]
   },
-  "hash": "c013947660883612b83bfd207c26c5e9dc50b533524bf856740215aacb8ff5bd"
+  "hash": "2c0bed279d50ddc061edc39ed7e936a1b88652b0b88ca022272c5a0712e7ac1c"
 }
