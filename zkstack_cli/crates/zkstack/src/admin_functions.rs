@@ -483,6 +483,7 @@ pub(crate) async fn set_transaction_filterer(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn grant_gateway_whitelist(
     shell: &Shell,
@@ -523,6 +524,7 @@ pub(crate) async fn grant_gateway_whitelist(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn revoke_gateway_whitelist(
     shell: &Shell,
@@ -553,6 +555,7 @@ pub(crate) async fn revoke_gateway_whitelist(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn set_da_validator_pair_via_gateway(
     shell: &Shell,
@@ -601,6 +604,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn enable_validator_via_gateway(
     shell: &Shell,
@@ -644,6 +648,7 @@ pub(crate) async fn enable_validator_via_gateway(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_to_gateway(
     shell: &Shell,
@@ -673,6 +678,7 @@ pub(crate) async fn notify_server_migration_to_gateway(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn finalize_migrate_to_gateway(
     shell: &Shell,
@@ -714,6 +720,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn notify_server_migration_from_gateway(
     shell: &Shell,
@@ -743,6 +750,7 @@ pub(crate) async fn notify_server_migration_from_gateway(
     .await
 }
 
+#[cfg(feature = "gateway")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn admin_l1_l2_tx(
     shell: &Shell,

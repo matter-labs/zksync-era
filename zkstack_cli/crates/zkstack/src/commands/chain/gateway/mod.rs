@@ -4,6 +4,7 @@ use grant_gateway_whitelist::GrantGatewayWhitelistCalldataArgs;
 use xshell::Shell;
 use zkstack_cli_common::forge::ForgeScriptArgs;
 
+mod constants;
 pub(crate) mod convert_to_gateway;
 pub(crate) mod finalize_chain_migration_from_gw;
 pub(crate) mod gateway_common;

@@ -112,6 +112,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             set_transaction_filterer::run(shell, args).await
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
+        #[cfg(feature = "gateway")]
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }

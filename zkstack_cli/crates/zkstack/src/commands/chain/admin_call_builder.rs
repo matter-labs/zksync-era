@@ -3,8 +3,8 @@ use ethers::{
     utils::hex,
 };
 use serde::Serialize;
-use zksync_contracts::{chain_admin_contract, hyperchain_contract, DIAMOND_CUT};
-use zksync_types::{ethabi, web3::Bytes, Address, U256};
+use zksync_contracts::chain_admin_contract;
+use zksync_types::{ethabi, Address, U256};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
@@ -78,7 +78,6 @@ where
 #[derive(Debug, Clone)]
 pub struct AdminCallBuilder {
     calls: Vec<AdminCall>,
-    zkchain_abi: ethabi::Contract,
     chain_admin_abi: ethabi::Contract,
 }
 
@@ -86,7 +85,6 @@ impl AdminCallBuilder {
     pub fn new(calls: Vec<AdminCall>) -> Self {
         Self {
             calls,
-            zkchain_abi: hyperchain_contract(),
             chain_admin_abi: chain_admin_contract(),
         }
     }
@@ -96,12 +94,15 @@ impl AdminCallBuilder {
         &mut self,
         hyperchain_addr: Address,
         protocol_version: u64,
-        diamond_cut_data: Bytes,
+        diamond_cut_data: zksync_types::web3::Bytes,
     ) {
-        let diamond_cut = DIAMOND_CUT.decode_input(&diamond_cut_data.0).unwrap()[0].clone();
+        let diamond_cut = zksync_contracts::DIAMOND_CUT
+            .decode_input(&diamond_cut_data.0)
+            .unwrap()[0]
+            .clone();
+        let zkchain_abi = zksync_contracts::hyperchain_contract();
 
-        let data = self
-            .zkchain_abi
+        let data = zkchain_abi
             .function("upgradeChainFromVersion")
             .unwrap()
             .encode_input(&[Token::Uint(protocol_version.into()), diamond_cut])
@@ -123,6 +124,7 @@ impl AdminCallBuilder {
         serde_json::to_string_pretty(&self.calls).unwrap()
     }
 
+    #[cfg(feature = "v27_evm_interpreter")]
     pub fn display(&self) {
         // Serialize with pretty printing
         let serialized = serde_json::to_string_pretty(&self.calls).unwrap();
