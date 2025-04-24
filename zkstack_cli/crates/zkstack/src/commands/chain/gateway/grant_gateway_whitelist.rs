@@ -1,7 +1,6 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
-use zkstack_cli_common::logger;
 use zksync_types::Address;
 
 use crate::{

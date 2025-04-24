@@ -6,7 +6,6 @@ use anyhow::Context;
 use clap::Parser;
 use ethers::{
     abi::{encode, Token},
-    contract::abigen,
     providers::{Middleware, Provider},
 };
 use xshell::Shell;

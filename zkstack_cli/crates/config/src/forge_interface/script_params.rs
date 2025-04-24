@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use crate::consts::L1_CONTRACTS_FOUNDRY;
-
 #[derive(PartialEq, Debug, Clone)]
 pub struct ForgeScriptParams {
     input: &'static str,

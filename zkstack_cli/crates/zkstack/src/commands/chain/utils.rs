@@ -1,19 +1,10 @@
-use std::{num::NonZeroUsize, path::PathBuf, str::FromStr, sync::Arc};
+use std::path::PathBuf;
 
-use anyhow::Context;
-use ethers::{
-    abi::encode,
-    providers::{Http, Provider},
-    utils::hex,
-};
+use ethers::{abi::encode, utils::hex};
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::EcosystemConfig;
-use zksync_types::{
-    address_to_u256, u256_to_address, url::SensitiveUrl, web3::keccak256, Address, L2ChainId, H256,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, U256,
-};
-use zksync_web3_decl::client::{Client, L2};
+use zksync_types::{web3::keccak256, Address, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256};
 
 use crate::{
     admin_functions::AdminScriptOutput, commands::chain::admin_call_builder::AdminCallBuilder,

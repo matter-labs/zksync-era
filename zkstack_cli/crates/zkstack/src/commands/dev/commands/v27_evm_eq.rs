@@ -1,22 +1,15 @@
-use std::{num::NonZeroUsize, str::FromStr};
-
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    contract::abigen,
-    providers::{Http, Provider},
-    utils::hex,
-};
+use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
 use zkstack_cli_config::traits::{ReadConfig, ZkStackConfig};
 use zksync_basic_types::{
-    protocol_version::ProtocolVersionId, url::SensitiveUrl, web3::Bytes, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, U256,
+    protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
 use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
+    client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
 };
 

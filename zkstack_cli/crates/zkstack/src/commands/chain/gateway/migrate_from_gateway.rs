@@ -262,6 +262,7 @@ async fn await_for_withdrawal_to_finalize(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn finish_migrate_chain_from_gateway(
     shell: &Shell,
     forge_args: ForgeScriptArgs,

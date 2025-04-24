@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::Context;
 use chrono::Utc;
 use ethers::{
-    contract::abigen,
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
