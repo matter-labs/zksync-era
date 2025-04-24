@@ -125,7 +125,11 @@ impl JobManager for Scheduler {
         keystore: Keystore,
     ) -> anyhow::Result<Self::Job> {
         let started_at = Instant::now();
-        let wrapper = Self::get_artifacts(JobId::new(&metadata.recursion_tip_job_id, metadata.batch_id.chain_id()), object_store).await?;
+        let wrapper = Self::get_artifacts(
+            JobId::new(&metadata.recursion_tip_job_id, metadata.batch_id.chain_id()),
+            object_store,
+        )
+        .await?;
         let recursion_tip_proof = match wrapper {
             FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
                 "Expected only recursive proofs for scheduler l1 batch {}, got Base",
