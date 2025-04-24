@@ -38,6 +38,16 @@ impl TxSink for WhitelistedDeployPoolSink {
         execution_output: &SandboxExecutionOutput,
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
+        // Check if the transaction initiator is allowlisted
+        let initiator = tx.initiator_account();
+        if self.shared_allow_list.is_address_allowed(&initiator).await {
+            // If it's allowlisted, permit all deployments in this transaction
+            return self
+                .master_pool_sink
+                .submit_tx(tx, execution_output, validation_traces)
+                .await;
+        }
+
         // Enforce the deployment allowlist by scanning for ContractDeployed events.
         // Each such event should follow this format:
         //   event ContractDeployed(address indexed deployerAddress, bytes32 indexed bytecodeHash, address indexed contractAddress);
