@@ -34,7 +34,7 @@ version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "891477e0c6a8957309ee5c45a6368af3ae14bb510732d2684ffa19af310920f9"
 dependencies = [
- "getrandom 0.2.15",
+ "getrandom 0.2.16",
  "once_cell",
  "version_check",
 ]
@@ -46,7 +46,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
  "cfg-if",
- "getrandom 0.2.15",
+ "getrandom 0.2.16",
  "once_cell",
  "version_check",
  "zerocopy 0.7.35",
@@ -337,9 +337,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.28.1"
+version = "0.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ddeb19ee86cb16ecfc871e5b0660aff6285760957aaedda6284cf0e790d3769"
+checksum = "bfa9b6986f250236c27e5a204062434a773a13243d2ffc2955f37bdba4c5c6a1"
 dependencies = [
  "bindgen",
  "cc",
@@ -508,9 +508,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-http"
-version = "0.62.0"
+version = "0.62.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5949124d11e538ca21142d1fba61ab0a2a2c1bc3ed323cdb3e4b878bfb83166"
+checksum = "99335bec6cdc50a346fda1437f9fefe33abf8c99060739a546a16457f2862ca9"
 dependencies = [
  "aws-smithy-eventstream",
  "aws-smithy-runtime-api",
@@ -521,7 +521,6 @@ dependencies = [
  "http 0.2.12",
  "http 1.3.1",
  "http-body 0.4.6",
- "once_cell",
  "percent-encoding",
  "pin-project-lite",
  "pin-utils",
@@ -567,12 +566,11 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-observability"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "445d065e76bc1ef54963db400319f1dd3ebb3e0a74af20f7f7630625b0cc7cc0"
+checksum = "9364d5989ac4dd918e5cc4c4bdcc61c9be17dcd2586ea7f69e348fc7c6cab393"
 dependencies = [
  "aws-smithy-runtime-api",
- "once_cell",
 ]
 
 [[package]]
@@ -587,9 +585,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-runtime"
-version = "1.8.1"
+version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0152749e17ce4d1b47c7747bdfec09dac1ccafdcbc741ebf9daa2a373356730f"
+checksum = "14302f06d1d5b7d333fd819943075b13d27c7700b414f574c3c35859bfb55d5e"
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-http",
@@ -603,7 +601,6 @@ dependencies = [
  "http 1.3.1",
  "http-body 0.4.6",
  "http-body 1.0.1",
- "once_cell",
  "pin-project-lite",
  "pin-utils",
  "tokio",
@@ -612,9 +609,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-runtime-api"
-version = "1.7.4"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3da37cf5d57011cb1753456518ec76e31691f1f474b73934a284eb2a1c76510f"
+checksum = "a1e5d9e3a80a18afa109391fb5ad09c3daf887b516c6fd805a157c6ea7994a57"
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-types",
@@ -629,9 +626,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-types"
-version = "1.3.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "836155caafba616c0ff9b07944324785de2ab016141c3550bd1c07882f8cee8f"
+checksum = "40076bd09fadbc12d5e026ae080d0930defa606856186e31d83ccc6a255eeaf3"
 dependencies = [
  "base64-simd",
  "bytes",
@@ -2588,9 +2585,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4567c8db10ae91089c99af84c68c38da3ec2f087c3f82960bcdbf3656b6f4d7"
+checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3969,9 +3966,9 @@ dependencies = [
 
 [[package]]
 name = "libm"
-version = "0.2.11"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
+checksum = "c9627da5196e5d8ed0b0495e61e518847578da83483c37288316d9b2e03a7f72"
 
 [[package]]
 name = "libsqlite3-sys"
@@ -5341,7 +5338,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
- "getrandom 0.2.15",
+ "getrandom 0.2.16",
 ]
 
 [[package]]
@@ -5606,7 +5603,7 @@ checksum = "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7"
 dependencies = [
  "cc",
  "cfg-if",
- "getrandom 0.2.15",
+ "getrandom 0.2.16",
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
@@ -7224,9 +7221,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.14"
+version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b9590b93e6fcc1739458317cccd391ad3955e2bde8913edf6f95f9e65a8f034"
+checksum = "66a539a9ad6d5d281510d5bd368c973d636c02dbf8a67300bfb6b950696ad7df"
 dependencies = [
  "bytes",
  "futures-core",
@@ -8591,19 +8588,6 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.150.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "498df75124a03a9c39e35f299c12403342b15ebc1d2735d6819c14420d32eb0e"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 0.150.21",
-]
-
-[[package]]
-name = "zk_evm_abstractions"
 version = "0.151.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c91ea662a71ec92c72f5d1628486d1e68c1a50fd13e07ef57dcd2a6d4161b68f"
@@ -8708,23 +8692,6 @@ dependencies = [
  "ethereum-types",
  "k256 0.13.4",
  "lazy_static",
- "sha2 0.10.8",
- "sha3 0.10.8",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "0.150.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1278d83a4d3c0d479de5ecffd267b8caacd3b3c5355e2a623406a7d216495cc5"
-dependencies = [
- "bitflags 2.9.0",
- "blake2 0.10.6",
- "ethereum-types",
- "k256 0.13.4",
- "lazy_static",
- "p256 0.13.2",
- "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
 ]
@@ -9725,22 +9692,22 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a05288e092ece683b9d3de5654d3fc747792bc55201a9e9375ad12f440e0c0c"
+checksum = "43b3bc8ecfdfdc986aff5229f995340cad4c7c1967f0ad96ac870d354847925f"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.150.21",
- "zkevm_opcode_defs 0.150.21",
+ "zk_evm_abstractions 0.152.1",
+ "zkevm_opcode_defs 0.152.1",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "603c54ea4253fa03e9844e874e13c105fd09a79499b88d7a2bc762252c1b7ce6"
+checksum = "a24e80c29891fcdfe80f273b60a72c1778268c9719a7224d2e15b8e3712f8c62"
 dependencies = [
  "primitive-types",
 ]
