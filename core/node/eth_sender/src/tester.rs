@@ -402,7 +402,7 @@ impl EthSenderTester {
             .await
             .unwrap()
             .eth_sender_dal()
-            .get_last_sent_eth_tx_hash(l1_batch_number, operation_type)
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(l1_batch_number, operation_type)
             .await
             .unwrap();
         if !self.settlement_layer.is_gateway() {
@@ -599,7 +599,7 @@ impl EthSenderTester {
             .await
             .unwrap()
             .eth_sender_dal()
-            .get_last_sent_eth_tx_hash(l1_batch_number, operation_type)
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(l1_batch_number, operation_type)
             .await
             .unwrap();
         let max_id = self
