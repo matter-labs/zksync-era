@@ -10,7 +10,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest,
-    SubmitProofRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+    SubmitProofRequest, SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
 
@@ -106,9 +106,15 @@ fn create_proof_processing_router(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
                     let Json(SubmitProofRequest::Proof(proof)) = payload;
-                    submit_proof_processor
+                    match submit_proof_processor
                         .save_proof(l1_batch_number, (*proof).into())
                         .await
+                    {
+                        Ok(_) => {
+                            (StatusCode::OK, Json(SubmitProofResponse::Success)).into_response()
+                        }
+                        Err(e) => e.into_response(),
+                    }
                 },
             ),
         );

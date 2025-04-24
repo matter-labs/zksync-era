@@ -59,11 +59,11 @@ impl ProofFetcher {
             };
 
             match self.client.fetch_proof(batch_to_fetch).await {
-                Ok(Some((batch_number, proof))) => {
+                Ok(Some(response)) => {
                     tracing::info!("Received proof for batch {batch_to_fetch}");
 
                     self.processor
-                        .save_proof(batch_number, proof)
+                        .save_proof(response.l1_batch_number, response.proof.into())
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;
                     continue;
