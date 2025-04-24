@@ -626,7 +626,7 @@ impl ResolvedL1BatchForL2Block {
     }
 }
 
-pub struct StoragePubdataParams {
+pub(crate) struct StoragePubdataParams {
     pub l2_da_validator_address: Vec<u8>,
     pub pubdata_type: String,
 }

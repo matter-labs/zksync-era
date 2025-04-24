@@ -221,6 +221,7 @@ impl BlocksDal<'_, '_> {
             last_processed_batch.0 as i32
         )
         .instrument("get_earliest_l1_batch_number")
+        .with_arg("last_processed_batch", &last_processed_batch)
         .report_latency()
         .fetch_one(self.storage)
         .await?;

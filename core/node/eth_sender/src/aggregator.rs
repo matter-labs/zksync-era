@@ -369,6 +369,16 @@ impl Aggregator {
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
     ) -> Option<AggregatedOperation> {
+        /// The commit operation is not aggregated at the moment. The code below relies on `limit`
+        /// being set to 1 when defining the pubdata commitment mode.
+        if limit != 1 {
+            tracing::error!(
+                "Commit operation is not aggregated anymore. \
+                The limit of commit operation is set to 1."
+            );
+            return None;
+        }
+
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()

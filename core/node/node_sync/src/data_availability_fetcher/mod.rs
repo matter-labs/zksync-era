@@ -133,11 +133,7 @@ impl DataAvailabilityFetcher {
             return Ok(None);
         };
 
-        Ok(if l1_batch_to_fetch <= last_l1_batch {
-            Some(l1_batch_to_fetch)
-        } else {
-            None
-        })
+        Ok(Some(l1_batch_to_fetch))
     }
 
     async fn step(&mut self) -> Result<StepOutcome, DataAvailabilityFetcherError> {
