@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL\n                AND is_gateway = $3\n                AND id > COALESCE(\n                    (SELECT\n                        eth_tx_id\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND eth_txs.from_addr IS NOT DISTINCT FROM $2\n                        AND is_gateway = $3\n                        AND sent_successfully = TRUE\n                    ORDER BY eth_tx_id DESC LIMIT 1),\n                    0\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                (\n                    from_addr = $1\n                    OR\n                    (from_addr IS NULL AND $2)\n                )\n                AND confirmed_eth_tx_history_id IS NULL\n                AND is_gateway = $3\n                AND id <= COALESCE(\n                    (SELECT\n                        eth_tx_id\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND (\n                            from_addr = $1\n                            OR\n                            (from_addr IS NULL AND $2)\n                        )\n                        AND is_gateway = $3\n                    ORDER BY eth_tx_id DESC LIMIT 1),\n                    0\n                )\n            ORDER BY\n                id\n            ",
   "describe": {
     "columns": [
       {
@@ -86,8 +86,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int8",
         "Bytea",
+        "Bool",
         "Bool"
       ]
     },
@@ -110,5 +110,5 @@
       true
     ]
   },
-  "hash": "55d807cafe778ec9ea4ef8f49b02752faca0ead95ff177e266447486bb161f93"
+  "hash": "14a1e9bf60809d904c26a757d672d52328dd3aaedf057bf33aa5ff5cf3f36c75"
 }
