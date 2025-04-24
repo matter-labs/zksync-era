@@ -69,9 +69,12 @@ pub async fn get_notify_server_calls(
 pub struct NotifyServerCalldataArgs {
     #[clap(flatten)]
     pub params: NotifyServerCallsArgs,
+    #[clap(long)]
     pub l2_rpc_url: Option<String>,
+    #[clap(long)]
     pub gw_rpc_url: Option<String>,
-    pub no_cross_check: Option<bool>,
+    #[clap(long, default_missing_value = "false")]
+    pub no_cross_check: bool,
 }
 
 pub async fn run(
@@ -79,9 +82,7 @@ pub async fn run(
     args: NotifyServerCalldataArgs,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
-    let should_cross_check = !args.no_cross_check.unwrap_or_default();
-
-    if should_cross_check {
+    if !args.no_cross_check {
         let status = get_gateway_migration_state(
             args.params.l1_rpc_url.clone(),
             args.params.l1_bridgehub_addr,

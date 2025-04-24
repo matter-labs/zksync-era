@@ -257,32 +257,47 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 #[derive(Parser, Debug)]
 #[command()]
 pub struct MigrateToGatewayCalldataArgs {
+    #[clap(long)]
     pub l1_rpc_url: String,
+    #[clap(long)]
     pub l1_bridgehub_addr: Address,
+    #[clap(long)]
     pub max_l1_gas_price: u64,
+    #[clap(long)]
     pub l2_chain_id: u64,
+    #[clap(long)]
     pub gateway_chain_id: u64,
-
+    #[clap(long)]
     pub gateway_config_path: String,
-
+    #[clap(long)]
     pub gateway_rpc_url: String,
+    #[clap(long)]
     pub new_sl_da_validator: Address,
+    #[clap(long)]
     pub validator_1: Address,
+    #[clap(long)]
     pub validator_2: Address,
+    #[clap(long)]
     pub min_validator_balance: U256,
+    #[clap(long)]
     pub refund_recipient: Option<Address>,
 
     /// RPC URL of the chain being migrated (L2).
+    #[clap(long)]
     pub l2_rpc_url: Option<String>,
 
     /// Whether to force providing the full migration calldata even if the chain
     /// isn't strictly ready for final calls.
+    #[clap(long, default_missing_value = "false")]
     pub no_cross_check: Option<bool>,
 }
 
 impl MigrateToGatewayCalldataArgs {
     /// Converts into `MigrateToGatewayParams` by injecting the provided diamond cut.
-    pub fn into_migrate_params(self, gateway_diamond_cut: Vec<u8>) -> MigrateToGatewayParams {
+    pub(crate) fn into_migrate_params(
+        self,
+        gateway_diamond_cut: Vec<u8>,
+    ) -> MigrateToGatewayParams {
         MigrateToGatewayParams {
             l1_rpc_url: self.l1_rpc_url,
             l1_bridgehub_addr: self.l1_bridgehub_addr,

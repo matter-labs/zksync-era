@@ -11,13 +11,13 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct GrantGatewayWhitelistCalldataArgs {
+    #[clap(long)]
     pub bridgehub_addr: Address,
-
+    #[clap(long)]
     pub gateway_chain_id: u64,
-
+    #[clap(long)]
     pub l1_rpc_url: String,
-
-    /// Who to grant the whitelist to.
+    #[clap(long)]
     pub grantees: Vec<Address>,
 }
 

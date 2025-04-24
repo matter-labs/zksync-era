@@ -30,24 +30,31 @@ lazy_static! {
 #[derive(Parser, Debug)]
 #[command()]
 pub struct MigrateFromGatewayCalldataArgs {
+    #[clap(long)]
     pub l1_rpc_url: String,
+    #[clap(long)]
     pub l1_bridgehub_addr: Address,
+    #[clap(long)]
     pub max_l1_gas_price: u64,
+    #[clap(long)]
     pub l2_chain_id: u64,
+    #[clap(long)]
     pub gateway_chain_id: u64,
-
+    #[clap(long)]
     pub ecosystem_contracts_config_path: String,
-
+    #[clap(long)]
     pub gateway_rpc_url: String,
-
+    #[clap(long)]
     pub refund_recipient: Address,
 
     /// RPC URL of the chain being migrated (L2).
+    #[clap(long)]
     pub l2_rpc_url: Option<String>,
 
     /// Whether to force providing the full migration calldata even if the chain
     /// isn't strictly ready for final calls.
-    pub no_cross_check: Option<bool>,
+    #[clap(long, default_missing_value = "false")]
+    pub no_cross_check: bool,
 }
 
 /// Produces the calldata necessary to perform (or continue) a migration to Gateway.
@@ -56,9 +63,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
     let forge_args = Default::default();
     let contracts_foundry_path = get_default_foundry_path(shell)?;
 
-    let should_cross_check = !params.no_cross_check.unwrap_or_default();
-
-    if should_cross_check {
+    if !params.no_cross_check {
         let state = get_gateway_migration_state(
             params.l1_rpc_url.clone(),
             params.l1_bridgehub_addr,
@@ -132,8 +137,9 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
     )
     .await?;
 
-    // TODO(X): Include it here in a separate multicall.
-    logger::warn("Note that the output below DOES NOT calls for setting the DA validator on L1 and so on. This will have to be done separately");
+    // TODO(X): The output below only contains the data needed to start migration from the Gateway.
+    // However after the migration is finalized, the chain admin will have to reset the validator DA pair on L1.
+    // This calldata is not yet present here, but it should be.
 
     display_admin_script_output(output);
 

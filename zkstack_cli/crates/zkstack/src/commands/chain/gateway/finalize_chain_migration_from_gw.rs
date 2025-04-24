@@ -31,21 +31,25 @@ lazy_static! {
 #[derive(Parser, Debug)]
 #[command()]
 pub struct FinalizeChainMigrationFromGatewayArgs {
+    #[clap(long)]
     pub l1_rpc_url: String,
+    #[clap(long)]
     pub l1_bridgehub_addr: Address,
+    #[clap(long)]
     pub l2_chain_id: u64,
+    #[clap(long)]
     pub gateway_chain_id: u64,
-
+    #[clap(long)]
     pub gateway_rpc_url: String,
-
+    #[clap(long)]
     pub private_key: String,
-
     /// RPC URL of the chain being migrated (L2).
+    #[clap(long)]
     pub l2_rpc_url: Option<String>,
-
     /// Whether to force providing the full migration calldata even if the chain
     /// isn't strictly ready for final calls.
-    pub no_cross_check: Option<bool>,
+    #[clap(long, default_missing_value = "false")]
+    pub no_cross_check: bool,
 }
 
 /// Produces the calldata necessary to perform (or continue) a migration to Gateway.
@@ -54,9 +58,7 @@ pub async fn run(
     shell: &Shell,
     params: FinalizeChainMigrationFromGatewayArgs,
 ) -> anyhow::Result<()> {
-    let should_cross_check = !params.no_cross_check.unwrap_or_default();
-
-    if should_cross_check {
+    if !params.no_cross_check {
         let state = get_gateway_migration_state(
             params.l1_rpc_url.clone(),
             params.l1_bridgehub_addr,
