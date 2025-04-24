@@ -13245,7 +13245,7 @@ dependencies = [
  "axum 0.7.9",
  "chrono",
  "hyper 1.6.0",
- "reqwest 0.12.9",
+ "reqwest 0.12.15",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
