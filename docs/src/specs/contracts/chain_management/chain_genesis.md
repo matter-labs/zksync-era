@@ -1,7 +1,5 @@
 # Creating new chains with BridgeHub
 
-[back to readme](../README.md)
-
 The main contract of the whole hyperchain ecosystem is called _`BridgeHub`_. It contains:
 
 - the registry from chainId to CTMs that is responsible for that chainId

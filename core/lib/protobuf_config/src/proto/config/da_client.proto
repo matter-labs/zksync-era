@@ -23,6 +23,7 @@ message AvailClientConfig {
   optional string api_node_url = 1;
   optional uint32 app_id = 2;
   optional string finality_state = 3;
+  optional uint64 dispatch_timeout_ms = 4;
 }
 
 message AvailGasRelayConfig {
@@ -53,6 +54,7 @@ message EigenConfig {
     string points_source_path = 9;
     Url points_source_url = 10;
   }
+  repeated uint32 custom_quorum_numbers = 11;
   reserved 1,2;
   reserved "rpc_node_url","inclusion_polling_interval_ms";
 }

@@ -1,6 +1,6 @@
 use std::mem;
 
-use zk_evm_1_5_0::aux_structures::Timestamp;
+use zk_evm_1_5_2::aux_structures::Timestamp;
 use zksync_vm_interface::VmEvent;
 
 use crate::{
@@ -23,7 +23,7 @@ use crate::{
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_0>,
+        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_2>,
         execution_mode: VmExecutionMode,
         custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> VmExecutionResultAndLogs {
@@ -47,14 +47,14 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Collect the result from the default tracers.
     fn inspect_and_collect_results(
         &mut self,
-        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_0>,
+        dispatcher: &mut TracerDispatcher<S, H::Vm1_5_2>,
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
         custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
         let refund_tracers = with_refund_tracer
             .then_some(RefundsTracer::new(self.batch_env.clone(), self.subversion));
-        let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_0> = DefaultExecutionTracer::new(
+        let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_2> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
             self.system_env
                 .base_system_smart_contracts
@@ -119,7 +119,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Execute vm with given tracers until the stop reason is reached.
     fn execute_with_default_tracer(
         &mut self,
-        tracer: &mut DefaultExecutionTracer<S, H::Vm1_5_0>,
+        tracer: &mut DefaultExecutionTracer<S, H::Vm1_5_2>,
     ) -> VmExecutionStopReason {
         tracer.initialize_tracer(&mut self.state);
         let result = loop {

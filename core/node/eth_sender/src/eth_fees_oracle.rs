@@ -15,8 +15,8 @@ pub(crate) struct EthFees {
     pub(crate) base_fee_per_gas: u64,
     pub(crate) priority_fee_per_gas: u64,
     pub(crate) blob_base_fee_per_gas: Option<u64>,
-    #[allow(dead_code)]
-    pub(crate) pubdata_price: Option<u64>,
+    pub(crate) max_gas_per_pubdata_price: Option<u64>,
+    pub(crate) gas_limit: u64,
 }
 
 pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
@@ -33,6 +33,7 @@ pub(crate) struct GasAdjusterFeesOracle {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub max_gas_limit: u64,
 }
 
 impl GasAdjusterFeesOracle {
@@ -67,14 +68,16 @@ impl GasAdjusterFeesOracle {
                     previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
                     blob_base_fee_per_gas,
                 ),
-                pubdata_price: None,
+                max_gas_per_pubdata_price: None,
+                gas_limit: self.max_gas_limit,
             });
         }
         Ok(EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
-            pubdata_price: None,
+            max_gas_per_pubdata_price: None,
+            gas_limit: self.max_gas_limit,
         })
     }
 
@@ -130,7 +133,60 @@ impl GasAdjusterFeesOracle {
             base_fee_per_gas,
             blob_base_fee_per_gas: None,
             priority_fee_per_gas,
-            pubdata_price: None,
+            max_gas_per_pubdata_price: None,
+            gas_limit: self.max_gas_limit,
+        })
+    }
+
+    fn calculate_fees_for_gateway_tx(
+        &self,
+        previous_sent_tx: &Option<TxHistory>,
+        time_in_mempool_in_l1_blocks: u32,
+    ) -> Result<EthFees, EthSenderError> {
+        // we cap it to not allow nearly infinite values when a tx is stuck for a long time
+        let capped_time_in_mempool_in_l1_blocks = min(
+            time_in_mempool_in_l1_blocks,
+            self.time_in_mempool_in_l1_blocks_cap,
+        );
+        let mut base_fee_per_gas = self
+            .gas_adjuster
+            .get_base_fee(capped_time_in_mempool_in_l1_blocks);
+        self.assert_fee_is_not_zero(base_fee_per_gas, "base");
+        if let Some(previous_sent_tx) = previous_sent_tx {
+            self.verify_base_fee_not_too_low_on_resend(
+                previous_sent_tx.id,
+                previous_sent_tx.base_fee_per_gas,
+                base_fee_per_gas,
+            )?;
+        }
+
+        let mut gas_per_pubdata = self
+            .gas_adjuster
+            .get_gateway_price_per_pubdata(capped_time_in_mempool_in_l1_blocks);
+
+        if let Some(previous_sent_tx) = previous_sent_tx {
+            // Increase `gas_per_pubdata_fee`. Increase by at least 20%  for having the same behaviour as for L1
+            base_fee_per_gas = max(
+                base_fee_per_gas,
+                (previous_sent_tx.base_fee_per_gas * 6) / 5 + 1,
+            );
+
+            // Increase `gas_per_pubdata_fee`. Increase by at least 20%  for having the same behaviour as for L1
+            gas_per_pubdata =
+                if let Some(prev_gas_per_pubdata) = previous_sent_tx.max_gas_per_pubdata {
+                    max(gas_per_pubdata, (prev_gas_per_pubdata * 6) / 5 + 1)
+                } else {
+                    gas_per_pubdata
+                };
+        }
+
+        Ok(EthFees {
+            base_fee_per_gas,
+            blob_base_fee_per_gas: None,
+            // We ignore priority fee for gateway
+            priority_fee_per_gas: 0,
+            max_gas_per_pubdata_price: Some(gas_per_pubdata),
+            gas_limit: self.max_gas_limit,
         })
     }
 
@@ -172,11 +228,14 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
         time_in_mempool_in_l1_blocks: u32,
         operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError> {
-        let has_blob_sidecar = operator_type == OperatorType::Blob;
-        if has_blob_sidecar {
-            self.calculate_fees_with_blob_sidecar(previous_sent_tx)
-        } else {
-            self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool_in_l1_blocks)
+        match operator_type {
+            OperatorType::NonBlob => {
+                self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool_in_l1_blocks)
+            }
+            OperatorType::Blob => self.calculate_fees_with_blob_sidecar(previous_sent_tx),
+            OperatorType::Gateway => {
+                self.calculate_fees_for_gateway_tx(previous_sent_tx, time_in_mempool_in_l1_blocks)
+            }
         }
     }
 }

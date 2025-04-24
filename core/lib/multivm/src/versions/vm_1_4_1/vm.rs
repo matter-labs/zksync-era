@@ -3,7 +3,6 @@ use std::rc::Rc;
 use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    message_root::MessageRoot,
     Transaction,
 };
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
@@ -110,10 +109,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env);
-    }
-
-    fn insert_message_root(&mut self, _msg_root: MessageRoot) {
-        // Do nothing, because vm 1.4.1 doesn't support message roots
     }
 
     fn inspect_transaction_with_bytecode_compression(

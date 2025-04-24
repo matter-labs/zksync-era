@@ -1,7 +1,5 @@
 # ZKsync fee model
 
-[back to readme](../README.md)
-
 This document will assume that you already know how gas & fees work on Ethereum.
 
 On Ethereum, all the computational, as well as storage costs, are represented via one unit: gas. Each operation costs a certain amount of gas, which is generally constant (though it may change during [upgrades](https://blog.ethereum.org/2021/03/08/ethereum-berlin-upgrade-announcement)).
@@ -92,7 +90,7 @@ Note, that before the transaction is executed, the system can not know how many 
 
 ### `MAX_TRANSACTION_GAS_LIMIT`
 
-A recommended maximal amount of gas that a transaction can spend on computation is `MAX_TRANSACTION_GAS_LIMIT`. But in case the operator trusts the user, the operator may provide the [trusted gas limit](../../../../../contracts/system-contracts/bootloader/bootloader.yul#L1242), i.e. the limit which exceeds `MAX_TRANSACTION_GAS_LIMIT` assuming that the operator knows what he is doing. This can be helpful in the case of a hyperchain with different parameters.
+A recommended maximal amount of gas that a transaction can spend on computation is `MAX_TRANSACTION_GAS_LIMIT`. But in case the operator trusts the user, the operator may provide the [trusted gas limit](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L1242), i.e. the limit which exceeds `MAX_TRANSACTION_GAS_LIMIT` assuming that the operator knows what he is doing. This can be helpful in the case of a hyperchain with different parameters.
 
 ### Derivation of `baseFee` and `gasPerPubdata`
 
@@ -264,7 +262,7 @@ The above assumptions work in the pre-charge model (calldata based rollups) or p
 
 If a user really needs to limit the amount of gas that the subcall takes, all the subcalls should be routed through a special contract, that will guarantee that the total cost of the subcall wont be larger than the gas provided (by reverting if needed).
 
-An implementation of this special contract can be seen [here](../../../../../contracts/gas-bound-caller/contracts/GasBoundCaller.sol). Note, that this contract is _not_ a system one and it will be deployed on some fixed, but not kernel space address.
+An implementation of this special contract can be seen [here](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/gas-bound-caller/contracts/GasBoundCaller.sol). Note, that this contract is _not_ a system one and it will be deployed on some fixed, but not kernel space address.
 
 #### 1. Case of when a malicious contract consumes a large, but processable amount of pubdata\*\*
 

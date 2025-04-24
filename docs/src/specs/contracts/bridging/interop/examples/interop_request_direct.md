@@ -1,5 +1,4 @@
 # Interop Center example scenarios
-[back to readme](../../../README.md)
 
 ### Handling base tokens
 
@@ -9,7 +8,7 @@ In other words, in the current release base assets can only be transferred throu
 
 ## L1→L2 communication via `Bridgehub.requestL2TransactionDirect`
 
-L1→L2 communication allows users on L1 to create a request for a transaction to happen on L2. This is the primary censorship resistance mechanism. If you are interested, you can read more on L1→L2 communications [here](../../../settlement_contracts/priority_queue/processing_of_l1-l2_txs.md), but for now just understanding that L1→L2 communication allows to request transactions to happen on L2 is enough.
+L1→L2 communication allows users on L1 to create a request for a transaction to happen on L2. This is the primary censorship resistance mechanism. If you are interested, you can read more on L1→L2 communications [here](../../../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md), but for now just understanding that L1→L2 communication allows to request transactions to happen on L2 is enough.
 
 The L1→L2 communication is also the only way to mint a base asset at the moment. Fees to the operator as well as `msg.value` will be minted on `L2BaseToken` after the corresponding L1→L2 tx has been processed.
 

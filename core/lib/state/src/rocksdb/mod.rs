@@ -32,7 +32,7 @@ use itertools::{Either, Itertools};
 use tokio::sync::watch;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
-use zksync_types::{L1BatchNumber, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 #[cfg(test)]
@@ -670,13 +670,5 @@ impl ReadStorage for RocksdbStorage {
         // only be deployed when the migration is finished.
         Self::read_state_value(&self.db, key.hashed_key())
             .map(|state_value| state_value.enum_index.unwrap())
-    }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
     }
 }

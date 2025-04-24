@@ -75,6 +75,8 @@ pub struct MultiVmBaseSystemContracts<C> {
     vm_evm_emulator: BaseSystemContracts,
     /// Contracts to be used after the interop upgrade
     interop: BaseSystemContracts,
+    /// Contracts to be used after the full interop upgrade
+    full_interop: BaseSystemContracts,
     // We use `fn() -> C` marker so that the `MultiVmBaseSystemContracts` unconditionally implements `Send + Sync`.
     _contracts_kind: PhantomData<fn() -> C>,
 }
@@ -109,9 +111,12 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version25 => &self.vm_protocol_defense,
             ProtocolVersionId::Version26 => &self.gateway,
             ProtocolVersionId::Version27 => &self.vm_evm_emulator,
-
+            // TODO: use v28 contracts
+            ProtocolVersionId::Version28 => &self.vm_evm_emulator,
+            ProtocolVersionId::Version29 => &self.interop,
+            ProtocolVersionId::Version30 => &self.full_interop,
             // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version28 | ProtocolVersionId::Version29 => &self.interop,
+            ProtocolVersionId::Version31 => &self.full_interop,
         };
         base.clone()
     }
@@ -136,6 +141,7 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
             gateway: BaseSystemContracts::estimate_gas_gateway(),
             vm_evm_emulator: BaseSystemContracts::estimate_gas_evm_emulator(),
             interop: BaseSystemContracts::estimate_gas_interop(),
+            full_interop: BaseSystemContracts::estimate_gas_full_interop(),
             _contracts_kind: PhantomData,
         }
     }
@@ -160,6 +166,7 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             gateway: BaseSystemContracts::playground_gateway(),
             vm_evm_emulator: BaseSystemContracts::playground_evm_emulator(),
             interop: BaseSystemContracts::playground_interop(),
+            full_interop: BaseSystemContracts::playground_full_interop(),
             _contracts_kind: PhantomData,
         }
     }

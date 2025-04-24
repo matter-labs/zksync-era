@@ -383,6 +383,7 @@ impl ContractVerificationDal<'_, '_> {
                         address = $1
                         AND topic1 = $2
                         AND topic4 = $3
+                    ORDER BY miniblock_number DESC, event_index_in_block DESC
                     LIMIT
                         1
                 ) deploy_event

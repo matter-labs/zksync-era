@@ -189,7 +189,7 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
             message: messageRead,
             l2MessageIndex: l2MessageIndexRead,
             proof: proofRead
-        } = await sender_chain_utilityWallet.getFinalizeWithdrawalParams(withdrawalHash, index, 0, gatewayChainId);
+        } = await sender_chain_utilityWallet.getFinalizeWithdrawalParams(withdrawalHash, index, 0, 'gw_message_root');
         // const logProof = await sender_chain_utilityWallet.provider.getLogProof(
         //     withdrawalHash,
         //     index,

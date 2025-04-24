@@ -2,12 +2,8 @@
 
 ## Introduction & prerequisites
 
-[back to readme](../../README.md)
-
 This document assumes that the reader has general knowledge of how ZKsync Era works and how our ecosystem used to be
 like at the moment of shared bridge in general.
-
-To read the documentation about the current system, you can read [here](../../README.md).
 
 For more info about the previous one, you can reach out to the following documentation:
 

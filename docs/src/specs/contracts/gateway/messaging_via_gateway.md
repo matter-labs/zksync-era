@@ -1,7 +1,5 @@
 # Messaging via Gateway
 
-[back to readme](../README.md)
-
 ## Deeper dive into MessageRoot contract and how L3→L1 communication works
 
 Before, when were just settling on L1, a chain’s message root was just the merkle tree of L2→L1 logs that were sent within this batch. However, this new model will have to be amended to be able to perform messages to L1 coming from an L3 that settles on top of Gateway.

@@ -149,7 +149,7 @@ where
             l2_batch_number: log.l1_batch_number.unwrap_or_default(),
             l2_message_index: proof.id.into(),
             l2_tx_number_in_block: l1_batch_tx_id,
-            message: message.into(),
+            message,
             sender,
             proof,
         })

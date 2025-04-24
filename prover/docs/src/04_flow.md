@@ -165,8 +165,10 @@ run, and which outputs we should produce.
 
 As of Jul 2024, we have 35 circuit types mapped to 5 aggregation layers.
 
-_Note:_ specifics of each circuit type and aggregation layers are out of scope for this document, but you can find more
+```admonish note
+The specifics of each circuit type and aggregation layers are out of scope for this document, but you can find more
 information on that in the [further reading](99_further_reading.md) section.
+```
 
 ## Protocol versions
 

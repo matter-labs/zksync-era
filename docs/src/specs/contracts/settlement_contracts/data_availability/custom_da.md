@@ -1,7 +1,5 @@
 # Custom DA support
 
-[back to readme](../../README.md)
-
 ## Intro
 
 We introduced modularity into our contracts to support multiple DA layers, easier support for Validium and Rollup mode, and to settlement via the Gateway.

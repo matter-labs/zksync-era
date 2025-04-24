@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::{L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256};
 
 use super::{ReadStorage, StoragePtr, WriteStorage};
 
@@ -57,6 +57,7 @@ impl StorageViewStats {
 }
 
 /// `StorageView` is a buffer for `StorageLog`s between storage and transaction execution code.
+///
 /// In order to commit transactions logs should be submitted to the underlying storage
 /// after a transaction is executed.
 ///
@@ -136,14 +137,6 @@ where
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         (**self).get_enumeration_index(key)
-    }
-
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        (**self).get_message_root(chain_id, block_number)
     }
 }
 
@@ -235,13 +228,13 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
         self.storage_handle.get_enumeration_index(key)
     }
 
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        self.storage_handle.get_message_root(chain_id, block_number)
-    }
+    // fn get_interop_root(
+    //     &mut self,
+    //     chain_id: SLChainId,
+    //     block_number: L2BlockNumber,
+    // ) -> Option<H256> {
+    //     self.storage_handle.get_interop_root(chain_id, block_number)
+    // }
 }
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
@@ -277,8 +270,10 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     }
 }
 
-/// Immutable wrapper around [`StorageView`] that reads directly from the underlying storage ignoring any
-/// modifications in the [`StorageView`]. Used by the fast VM, which has its own internal management of writes.
+/// Immutable wrapper around [`StorageView`] for direct reads.
+///
+/// Reads directly from the underlying storage ignoring any modifications in the [`StorageView`].
+/// Used by the fast VM, which has its own internal management of writes.
 #[derive(Debug)]
 pub struct ImmutableStorageView<S>(StoragePtr<StorageView<S>>);
 
@@ -321,13 +316,13 @@ impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
         self.0.borrow_mut().get_enumeration_index(key)
     }
 
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        self.0.borrow_mut().get_message_root(chain_id, block_number)
-    }
+    // fn get_interop_root(
+    //     &mut self,
+    //     chain_id: SLChainId,
+    //     block_number: L2BlockNumber,
+    // ) -> Option<H256> {
+    //     self.0.borrow_mut().get_interop_root(chain_id, block_number)
+    // }
 }
 
 #[cfg(test)]

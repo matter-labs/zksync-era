@@ -20,8 +20,9 @@ use super::{
 pub mod l1_batch_updates;
 pub mod l2_block_updates;
 
-/// Most of the information needed to seal the l1 batch / L2 block is contained within the VM,
-/// things that are not captured there are accumulated externally.
+/// Most of the information needed to seal the l1 batch / L2 block is contained within the VM.
+///
+/// Things that are not captured there are accumulated externally.
 /// `L2BlockUpdates` keeps updates for the pending L2 block.
 /// `L1BatchUpdates` keeps updates for the already sealed L2 blocks of the pending L1 batch.
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent
@@ -63,6 +64,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
+                l1_batch_env.first_l2_block.interop_roots.clone(),
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
@@ -86,12 +88,13 @@ impl UpdatesManager {
     }
 
     pub(crate) fn get_next_l2_block_params_or_batch_params(&mut self) -> L2BlockParams {
-        if let Some(next_l2_block_params) = self.next_l2_block_params {
+        if let Some(next_l2_block_params) = self.next_l2_block_params.clone() {
             return next_l2_block_params;
         }
         L2BlockParams {
             timestamp: self.l2_block.timestamp,
             virtual_blocks: self.l2_block.virtual_blocks,
+            interop_roots: vec![],
         }
     }
 
@@ -198,6 +201,7 @@ impl UpdatesManager {
             self.l2_block.get_l2_block_hash(),
             next_l2_block_params.virtual_blocks,
             self.protocol_version,
+            next_l2_block_params.interop_roots,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
@@ -213,7 +217,7 @@ impl UpdatesManager {
     }
 
     pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
-        self.next_l2_block_params
+        self.next_l2_block_params.clone()
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
@@ -281,6 +285,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates_manager.push_l2_block();
 

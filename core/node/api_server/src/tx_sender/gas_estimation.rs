@@ -422,6 +422,7 @@ impl<'a> GasEstimator<'a> {
         .into()
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     async fn step(
         &self,
         tx_gas_limit: u64,

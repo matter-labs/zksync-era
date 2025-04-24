@@ -16,10 +16,9 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    message_root::MessageRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
@@ -29,6 +28,7 @@ use super::{
 };
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
+///
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
 /// into the state keeper.
 ///
@@ -466,11 +466,22 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
-        // let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        // let message_root = storage.message_roots_dal().get_latest_message_root().await?;
-        // Ok(message_root)
-        Ok(None)
+    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
+        let interop_root = storage.interop_root_dal().get_new_interop_roots().await?;
+        Ok(interop_root)
+    }
+
+    async fn load_l2_block_interop_root(
+        &self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<InteropRoot>> {
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
+        let interop_root = storage
+            .interop_root_dal()
+            .get_interop_roots(l2block_number)
+            .await?;
+        Ok(interop_root)
     }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
@@ -538,6 +549,7 @@ mod tests {
             first_l2_block: L2BlockParams {
                 timestamp: 1,
                 virtual_blocks: 1,
+                interop_roots: vec![],
             },
             pubdata_params: Default::default(),
         };

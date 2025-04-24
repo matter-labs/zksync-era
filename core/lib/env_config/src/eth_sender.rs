@@ -9,11 +9,11 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for EthConfig {
     fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            sender: SenderConfig::from_env().ok(),
-            gas_adjuster: GasAdjusterConfig::from_env().ok(),
-            watcher: EthWatchConfig::from_env().ok(),
-        })
+        Ok(Self::new(
+            SenderConfig::from_env().ok(),
+            GasAdjusterConfig::from_env().ok(),
+            EthWatchConfig::from_env().ok(),
+        ))
     }
 }
 
@@ -61,8 +61,8 @@ mod tests {
 
     fn expected_config() -> (EthConfig, L1Secrets) {
         (
-            EthConfig {
-                sender: Some(SenderConfig {
+            EthConfig::new(
+                Some(SenderConfig {
                     aggregated_block_commit_deadline: 30,
                     aggregated_block_prove_deadline: 3_000,
                     aggregated_block_execute_deadline: 4_000,
@@ -84,7 +84,7 @@ mod tests {
                     time_in_mempool_in_l1_blocks_cap: 2000,
                     is_verifier_pre_fflonk: true,
                 }),
-                gas_adjuster: Some(GasAdjusterConfig {
+                Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
                     max_base_fee_samples: 10000,
                     pricing_formula_parameter_a: 1.5,
@@ -97,13 +97,12 @@ mod tests {
                     num_samples_for_blob_base_fee_estimate: 10,
                     internal_pubdata_pricing_multiplier: 1.0,
                     max_blob_base_fee: None,
-                    settlement_mode: Default::default(),
                 }),
-                watcher: Some(EthWatchConfig {
+                Some(EthWatchConfig {
                     confirmations_for_eth_event: Some(0),
                     eth_node_poll_interval: 300,
                 }),
-            },
+            ),
             L1Secrets {
                 l1_rpc_url: "http://127.0.0.1:8545".to_string().parse().unwrap(),
                 gateway_rpc_url: Some("http://127.0.0.1:8547".to_string().parse().unwrap()),
@@ -164,7 +163,7 @@ mod tests {
         let actual = EthConfig::from_env().unwrap();
         assert_eq!(actual, expected_config().0);
         let private_key = actual
-            .sender
+            .get_eth_sender_config_for_sender_layer_data_layer()
             .unwrap()
             .private_key()
             .unwrap()

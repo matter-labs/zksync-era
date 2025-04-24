@@ -19,9 +19,8 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    message_root::MessageRoot, protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, L2ChainId,
-    Transaction,
+    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
+    utils::display_timestamp, InteropRoot, L1BatchNumber, L2BlockNumber, Transaction,
 };
 
 use crate::{
@@ -57,6 +56,7 @@ impl Error {
 }
 
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
+///
 /// It's responsible for taking all the data from the `StateKeeperIO`, feeding it into `BatchExecutor` objects
 /// and calling `SealManager` to decide whether an L2 block or L1 batch should be sealed.
 ///
@@ -95,7 +95,6 @@ impl ZkSyncStateKeeper {
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         match self.run_inner(stop_receiver).await {
-            Ok(_) => unreachable!(),
             Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
             Err(Error::Canceled) => {
                 tracing::info!("Stop signal received, state keeper is shutting down");
@@ -315,11 +314,14 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
-    async fn load_latest_message_root(&mut self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+    async fn load_l2_block_interop_root(
+        &mut self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<InteropRoot>> {
         self.io
-            .load_latest_message_root()
+            .load_l2_block_interop_root(l2block_number)
             .await
-            .with_context(|| format!("failed loading message root"))
+            .with_context(|| "failed loading message root".to_string())
     }
 
     #[tracing::instrument(
@@ -444,7 +446,7 @@ impl ZkSyncStateKeeper {
             display_timestamp(block_env.timestamp)
         );
         batch_executor
-            .start_next_l2_block(block_env)
+            .start_next_l2_block(block_env.clone())
             .await
             .with_context(|| {
                 format!("failed starting L2 block with {block_env:?} in batch executor")
@@ -498,6 +500,7 @@ impl ZkSyncStateKeeper {
                     L2BlockParams {
                         timestamp: l2_block.timestamp,
                         virtual_blocks: l2_block.virtual_blocks,
+                        interop_roots: self.load_l2_block_interop_root(l2_block.number).await?,
                     },
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
@@ -611,7 +614,6 @@ impl ZkSyncStateKeeper {
 
                 return Ok(());
             }
-            let message_roots = self.load_latest_message_root().await?;
 
             if !updates_manager.has_next_block_params()
                 && self.io.should_seal_l2_block(updates_manager)
@@ -624,19 +626,12 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(updates_manager).await?;
 
                 // Get a tentative new l2 block parameters
-                let next_l2_block_params = self
+                let mut next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+                next_l2_block_params.interop_roots = self.io.load_latest_interop_root().await?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
-            }
-            if message_roots.is_some() {
-                for message_root in message_roots.unwrap() {
-                    if L2ChainId::from(message_root.chain_id) == self.io.chain_id() {
-                        continue;
-                    }
-                    // batch_executor.insert_message_root(message_root).await?;
-                }
             }
 
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();

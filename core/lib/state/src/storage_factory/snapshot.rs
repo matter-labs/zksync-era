@@ -1,4 +1,4 @@
-use zksync_types::{L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::StorageWithSnapshot;
 
 use super::metrics::{AccessKind, SNAPSHOT_METRICS};
@@ -42,14 +42,6 @@ impl ReadStorage for FallbackStorage<'_> {
         let output = self.0.get_enumeration_index(key);
         latency.observe();
         output
-    }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
     }
 }
 

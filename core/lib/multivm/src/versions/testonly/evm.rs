@@ -40,7 +40,7 @@ pub(crate) fn test_evm_deployment_tx<VM: TestedVm>() {
         &TestEvmContract::counter().abi,
         &[Token::Uint(initial_counter)],
     );
-    vm.vm.push_transaction(tx);
+    vm.vm.push_transaction(tx.into());
 
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "{result:#?}");
@@ -254,8 +254,9 @@ pub(crate) fn test_real_emulator_block_info<VM: TestedVm>() {
         timestamp: first_block.timestamp + 5,
         prev_block_hash: block_hasher.finalize(ProtocolVersionId::latest()),
         max_virtual_blocks_to_create: 1,
+        interop_roots: vec![],
     };
-    vm.vm.start_new_l2_block(second_block);
+    vm.vm.start_new_l2_block(second_block.clone());
 
     let tx = account.get_l2_tx_for_execute(create_test_block_execute(evm_abi, &second_block), None);
     let (_, vm_result) = vm
