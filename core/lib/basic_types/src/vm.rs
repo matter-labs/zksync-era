@@ -20,6 +20,7 @@ pub enum VmVersion {
     VmEvmEmulator,
     VmEcPrecompiles,
     VmInterop,
+    VmFullInterop,
 }
 
 impl VmVersion {
