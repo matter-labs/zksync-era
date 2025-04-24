@@ -8,7 +8,10 @@ use ethers::{
     providers::{Http, Middleware, Provider},
     types::{Filter, H256},
 };
-use zkstack_cli_common::logger;
+use zkstack_cli_common::{
+    ethereum::{get_ethers_provider, get_zk_client_from_url},
+    logger,
+};
 use zksync_basic_types::Address;
 use zksync_contracts::hyperchain_contract;
 use zksync_types::l1::L1Tx;
@@ -17,13 +20,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
-use crate::{
-    consts::DEFAULT_EVENTS_BLOCK_RANGE,
-    utils::{
-        addresses::apply_l1_to_l2_alias,
-        providers::{get_ethers_provider, get_zk_client},
-    },
-};
+use crate::{consts::DEFAULT_EVENTS_BLOCK_RANGE, utils::addresses::apply_l1_to_l2_alias};
 
 const DEFAULT_DISPLAYED_TXS_LIMIT: usize = 20;
 const DEFAULT_INTERVALS_SECS: u64 = 2;
@@ -46,8 +43,6 @@ struct TxStatus {
 #[derive(Clone, Debug, Parser)]
 pub struct TrackPriorityOpsArgs {
     #[clap(long)]
-    l2_chain_id: u64,
-    #[clap(long)]
     l1_rpc_url: String,
     #[clap(long)]
     l2_rpc_url: String,
@@ -61,6 +56,10 @@ pub struct TrackPriorityOpsArgs {
     watch: Option<bool>,
     #[clap(long)]
     update_frequency_ms: Option<u64>,
+    #[clap(long)]
+    l2_tx_hash: Option<String>,
+    #[clap(long)]
+    l1_tx_hash: Option<String>,
 }
 
 fn ethers_log_to_zk_log(log: ethers::types::Log) -> zksync_types::web3::Log {
@@ -82,6 +81,7 @@ fn ethers_log_to_zk_log(log: ethers::types::Log) -> zksync_types::web3::Log {
 
 /// Returns txs status.
 /// Note, that for better UX it returns it in reversed order.
+#[allow(clippy::too_many_arguments)]
 async fn get_txs_status(
     l1_provider: Arc<Provider<Http>>,
     l2_zk_client: &Client<L2>,
@@ -89,6 +89,8 @@ async fn get_txs_status(
     limit: usize,
     diamond_proxy_address: Address,
     priority_op_sender: Option<Address>,
+    l1_tx_hash: Option<H256>,
+    l2_tx_hash: Option<H256>,
 ) -> anyhow::Result<Vec<TxStatus>> {
     let topic = hyperchain_contract()
         .event("NewPriorityRequest")
@@ -118,6 +120,12 @@ async fn get_txs_status(
         let eth_tx_hash = log
             .transaction_hash
             .context("Historical log lacking transaction hash")?;
+        if let Some(expected_l1_tx_hash) = l1_tx_hash {
+            if eth_tx_hash != expected_l1_tx_hash {
+                continue;
+            }
+        }
+
         let block_number = log
             .block_number
             .context("Historical log lacking block number")?;
@@ -125,6 +133,14 @@ async fn get_txs_status(
 
         if let Some(expected_sender) = priority_op_sender {
             if l1_tx.common_data.sender != expected_sender {
+                continue;
+            }
+        }
+
+        let priority_tx_hash = l1_tx.hash();
+
+        if let Some(expected_l2_tx_hash) = l2_tx_hash {
+            if expected_l2_tx_hash != priority_tx_hash {
                 continue;
             }
         }
@@ -138,8 +154,6 @@ async fn get_txs_status(
             .context("Can not find block for Historical log")?
             .timestamp
             .as_u64();
-
-        let priority_tx_hash = l1_tx.hash();
 
         let tx_status = l2_zk_client
             .get_transaction_receipt(priority_tx_hash)
@@ -173,6 +187,10 @@ async fn get_txs_status(
 }
 
 fn display_statuses(statuses: Vec<TxStatus>) {
+    if statuses.is_empty() {
+        println!("No priority transactions were found with the given constraints");
+    }
+
     for status in statuses.iter() {
         let (emoji, description) = match &status.state {
             PriorityTxState::Success => ("✅", "Success".to_string()),
@@ -182,6 +200,8 @@ fn display_statuses(statuses: Vec<TxStatus>) {
             }
         };
 
+        // Note, that here we use `println` instead of native logging to better control
+        // the output format.
         println!("{} {} {:#?}", emoji, description, status.priority_tx_hash);
         println!("\tEthereum transaction hash: {:?}", status.eth_tx_hash);
         println!(
@@ -194,7 +214,7 @@ fn display_statuses(statuses: Vec<TxStatus>) {
 // Main function
 pub async fn run(args: TrackPriorityOpsArgs) -> anyhow::Result<()> {
     let l1_provider = get_ethers_provider(&args.l1_rpc_url)?;
-    let l2_zk_client = get_zk_client(&args.l2_rpc_url, args.l2_chain_id)?;
+    let l2_zk_client = get_zk_client_from_url(&args.l2_rpc_url).await?;
 
     let from_block = if let Some(x) = args.from_block {
         x
@@ -240,6 +260,9 @@ pub async fn run(args: TrackPriorityOpsArgs) -> anyhow::Result<()> {
         None
     };
 
+    let l1_tx_hash = args.l1_tx_hash.map(|x| x.parse()).transpose()?;
+    let l2_tx_hash = args.l2_tx_hash.map(|x| x.parse()).transpose()?;
+
     let diamond_proxy_address = l2_zk_client.get_main_l1_contract().await?;
 
     if !args.watch.unwrap_or_default() {
@@ -250,6 +273,8 @@ pub async fn run(args: TrackPriorityOpsArgs) -> anyhow::Result<()> {
             limit,
             diamond_proxy_address,
             priority_op_sender,
+            l1_tx_hash,
+            l2_tx_hash,
         )
         .await?;
 
@@ -265,6 +290,8 @@ pub async fn run(args: TrackPriorityOpsArgs) -> anyhow::Result<()> {
             limit,
             diamond_proxy_address,
             priority_op_sender,
+            l1_tx_hash,
+            l2_tx_hash,
         )
         .await?;
 
