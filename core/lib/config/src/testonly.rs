@@ -555,6 +555,9 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
                 tee_proof_generation_timeout_in_secs: self.sample(rng),
                 tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
             },
+            gateway_api_url: self.sample(rng),
+            proof_fetch_interval_in_secs: self.sample(rng),
+            proof_gen_data_submit_interval_in_secs: self.sample(rng),
         }
     }
 }
