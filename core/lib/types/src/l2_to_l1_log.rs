@@ -4,6 +4,7 @@ use zksync_system_constants::{BLOB1_LINEAR_HASH_KEY_PRE_GATEWAY, PUBDATA_CHUNK_P
 use crate::{
     blob::{num_blobs_created, num_blobs_required},
     commitment::SerializeCommitment,
+    ethabi::Token,
     Address, ProtocolVersionId, H256,
 };
 

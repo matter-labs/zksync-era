@@ -4,7 +4,7 @@ use anyhow::Context;
 use secrecy::ExposeSecret;
 use zksync_basic_types::{
     secrets::{APIKey, PrivateKey, SeedPhrase},
-    url::SensitiveUrl,
+    url::SensitiveUrl, SLChainId
 };
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},

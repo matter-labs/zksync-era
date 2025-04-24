@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_basic_types::SLChainId;
 use zksync_config::{
     configs::{eth_sender::SenderConfig, L1Secrets},
     EthConfig, EthWatchConfig, GasAdjusterConfig,
