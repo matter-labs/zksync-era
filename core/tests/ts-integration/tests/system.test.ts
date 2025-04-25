@@ -23,6 +23,16 @@ import { BigNumberish } from 'ethers';
 import { BytesLike } from '@ethersproject/bytes';
 import { REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
+const contractDeployerEvmAbi = [
+    'function createEVM(bytes _initCode)',
+    'function create2EVM(bytes32 _salt, bytes _initCode)'
+];
+
+const contractDeployerEvmInterface = new ethers.Interface(contractDeployerEvmAbi);
+
+// Init code for a simple EVM contract that always returns 42.
+const simpleContractInitCode: BytesLike = '0x69602a60005260206000f3600052600a6016f3';
+
 const contracts = {
     counter: getTestContract('Counter'),
     events: getTestContract('Emitter')
@@ -373,13 +383,9 @@ describe('System behavior checks', () => {
             await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
         }
 
-        const contractInitcode: BytesLike = ethers.hexlify('0x69602a60005260206000f3600052600a6016f3');
-
-        const abi = ['function createEVM(bytes _initCode)'];
-
-        const iface = new ethers.Interface(abi);
-
-        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('createEVM', [contractInitcode]);
+        const ContractDeployerCalldata: BytesLike = contractDeployerEvmInterface.encodeFunctionData('createEVM', [
+            simpleContractInitCode
+        ]);
 
         const gasPrice = await scaledGasPrice(alice);
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
@@ -405,15 +411,10 @@ describe('System behavior checks', () => {
             return;
         }
 
-        const contractInitcode: BytesLike = '0x69602a60005260206000f3600052600a6016f3';
-
-        const abi = ['function create2EVM(bytes32 _salt, bytes _initCode)'];
-
-        const iface = new ethers.Interface(abi);
-
-        const salt: BytesLike = '0x0000000000000000000000000000000000000000000000000000000000000000';
-
-        const ContractDeployerCalldata: BytesLike = iface.encodeFunctionData('create2EVM', [salt, contractInitcode]);
+        const ContractDeployerCalldata: BytesLike = contractDeployerEvmInterface.encodeFunctionData('create2EVM', [
+            ethers.ZeroHash,
+            simpleContractInitCode
+        ]);
 
         const gasPrice = await scaledGasPrice(alice);
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
