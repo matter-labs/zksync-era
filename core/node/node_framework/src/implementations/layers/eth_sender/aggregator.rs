@@ -149,7 +149,6 @@ impl WiringLayer for EthTxAggregatorLayer {
             object_store,
             eth_client_blobs.is_some(),
             self.l1_batch_commit_data_generator_mode,
-            self.zksync_network_id,
             replica_pool.clone(),
             input.settlement_mode.0,
         )

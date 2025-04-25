@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs, protocol_version::ProtocolSemanticVersion,
-    witness_block_state::WitnessStorageState, L1BatchId, L1BatchNumber, ProtocolVersionId, U256,
+    basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchId,
+    L1BatchNumber, ProtocolVersionId, U256,
 };
 
 use crate::{
@@ -12,7 +12,8 @@ use crate::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
     outputs::{
-        FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1, TypedL1BatchProofForL1,
+        FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchProofForL1Key, PlonkL1BatchProofForL1,
+        TypedL1BatchProofForL1,
     },
     Bincode, CBOR,
 };
@@ -125,25 +126,38 @@ impl From<L1BatchProofForL1<Bincode>> for L1BatchProofForL1<CBOR> {
 
 impl StoredObject for L1BatchProofForL1<Bincode> {
     const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = (L1BatchId, ProtocolSemanticVersion);
+    type Key<'a> = L1BatchProofForL1Key;
 
     fn fallback_key(key: Self::Key<'_>) -> Option<String> {
-        let (l1_batch_id, protocol_version) = key;
-        let semver_suffix = protocol_version.to_string().replace('.', "_");
-        Some(format!(
-            "l1_batch_proof_{l1_batch_number}_{semver_suffix}.bin",
-            l1_batch_number = l1_batch_id.batch_number().0
-        ))
+        if let L1BatchProofForL1Key::Prover((l1_batch_id, protocol_version)) = key {
+            let semver_suffix = protocol_version.to_string().replace('.', "_");
+            Some(format!(
+                "l1_batch_proof_{batch_number}_{semver_suffix}.cbor",
+                batch_number = l1_batch_id.batch_number().0
+            ))
+        } else {
+            None
+        }
     }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        let (l1_batch_id, protocol_version) = key;
-        let semver_suffix = protocol_version.to_string().replace('.', "_");
-        format!(
-            "l1_batch_proof_{l1_batch_number}_{chain_id}_{semver_suffix}.bin",
-            l1_batch_number = l1_batch_id.batch_number().0,
-            chain_id = l1_batch_id.chain_id().inner()
-        )
+        match key {
+            L1BatchProofForL1Key::Core((l1_batch_number, protocol_version)) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
+                format!(
+                    "l1_batch_proof_{batch_number}_{semver_suffix}.cbor",
+                    batch_number = l1_batch_number.0
+                )
+            }
+            L1BatchProofForL1Key::Prover((l1_batch_id, protocol_version)) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
+                format!(
+                    "l1_batch_proof_{batch_number}_{chain_id}_{semver_suffix}.cbor",
+                    batch_number = l1_batch_id.batch_number().0,
+                    chain_id = l1_batch_id.chain_id()
+                )
+            }
+        }
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

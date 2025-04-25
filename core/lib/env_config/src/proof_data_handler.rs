@@ -36,6 +36,7 @@ mod tests {
                 ProofDataHandlerConfig::default_proof_fetch_interval_in_secs(),
             proof_gen_data_submit_interval_in_secs:
                 ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs(),
+            fetch_zero_chain_id_proofs: false,
         }
     }
 
@@ -48,6 +49,7 @@ mod tests {
             PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"
             PROOF_DATA_HANDLER_TEE_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
             PROOF_DATA_HANDLER_TEE_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
+            PROOF_DATA_HANDLER_FETCH_ZERO_CHAIN_ID_PROOFS="false"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

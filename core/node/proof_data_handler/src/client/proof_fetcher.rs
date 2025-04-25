@@ -60,31 +60,19 @@ impl ProofFetcher {
                 continue;
             };
 
-            let l1_batch_id = L1BatchId::new(self.processor.chain_id(), batch_to_fetch);
+            if let Err(e) = self
+                .client
+                .fetch_proof(L1BatchId::new(self.processor.chain_id(), batch_to_fetch))
+                .await
+            {
+                tracing::error!("Request failed to get proof for batch {batch_to_fetch}: {e}");
+            }
 
-            match self.client.fetch_proof(l1_batch_id).await {
-                Ok(Some(response)) => {
-                    if response.l1_batch_id.chain_id() != self.processor.chain_id() {
-                        tracing::error!(
-                            "Received proof for batch {batch_to_fetch} with wrong chain id"
-                        );
-                        return Err(anyhow::anyhow!(
-                            "Received proof for batch {batch_to_fetch} with wrong chain id"
-                        ));
-                    }
-
-                    tracing::info!("Received proof for batch {batch_to_fetch}");
-
-                    self.processor
-                        .save_proof(l1_batch_id, response.proof.into())
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?;
-                    continue;
-                }
-                Ok(None) => {
-                    tracing::info!("No proof is ready yet");
-                }
-                Err(e) => {
+            if self.config.fetch_zero_chain_id_proofs {
+                if let Err(e) = self
+                    .fetch_proof(L1BatchId::new(L2ChainId::zero(), batch_to_fetch))
+                    .await
+                {
                     tracing::error!("Request failed to get proof for batch {batch_to_fetch}: {e}");
                 }
             }
@@ -97,5 +85,33 @@ impl ProofFetcher {
         }
 
         Ok(())
+    }
+
+    async fn fetch_proof(&self, l1_batch_id: L1BatchId) -> anyhow::Result<()> {
+        match self.client.fetch_proof(l1_batch_id).await {
+            Ok(Some(response)) => {
+                if l1_batch_id.chain_id() != L2ChainId::zero()
+                    && response.l1_batch_id.chain_id() != self.processor.chain_id()
+                {
+                    tracing::error!("Received proof for batch {l1_batch_id} with wrong chain id");
+                    return Err(anyhow::anyhow!(
+                        "Received proof for batch {l1_batch_id} with wrong chain id"
+                    ));
+                }
+
+                tracing::info!("Received proof for batch {l1_batch_id}");
+
+                self.processor
+                    .save_proof(l1_batch_id, response.proof.into())
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                Ok(())
+            }
+            Ok(None) => {
+                tracing::info!("No proof for batch {l1_batch_id} is ready yet");
+                Ok(())
+            }
+            Err(e) => Err(anyhow::anyhow!(e)),
+        }
     }
 }

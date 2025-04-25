@@ -6,7 +6,10 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::{outputs::L1BatchProofForL1, Bincode};
+use zksync_prover_interface::{
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
+    Bincode,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -16,7 +19,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    L1BatchId, L1BatchNumber, L2ChainId, ProtocolVersionId,
+    L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -42,7 +45,6 @@ pub struct Aggregator {
     /// means no wait is needed: nonces will still provide the correct ordering of
     /// transactions.
     operate_4844_mode: bool,
-    chain_id: L2ChainId,
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
@@ -109,7 +111,6 @@ impl Aggregator {
         blob_store: Arc<dyn ObjectStore>,
         custom_commit_sender_addr: bool,
         commitment_mode: L1BatchCommitmentMode,
-        chain_id: L2ChainId,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
@@ -193,7 +194,6 @@ impl Aggregator {
             config,
             blob_store,
             operate_4844_mode,
-            chain_id,
             commitment_mode,
             priority_merkle_tree: None,
             pool,
@@ -473,7 +473,6 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         blob_store: &dyn ObjectStore,
         is_4844_mode: bool,
-        chain_id: L2ChainId,
     ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
@@ -531,13 +530,8 @@ impl Aggregator {
             })
             .collect();
 
-        let proof = load_wrapped_fri_proofs_for_range(
-            batch_to_prove,
-            chain_id,
-            blob_store,
-            &allowed_versions,
-        )
-        .await;
+        let proof =
+            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions).await;
         let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
@@ -617,7 +611,6 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
-                    self.chain_id,
                 )
                 .await
             }
@@ -640,7 +633,6 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
-                    self.chain_id,
                 )
                 .await
                 {
@@ -704,20 +696,21 @@ async fn extract_ready_subrange(
 
 pub async fn load_wrapped_fri_proofs_for_range(
     l1_batch_number: L1BatchNumber,
-    chain_id: L2ChainId,
     blob_store: &dyn ObjectStore,
     allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
-    let batch_id = L1BatchId::new(chain_id, l1_batch_number);
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((batch_id, *version))
+            .get::<L1BatchProofForL1>(L1BatchProofForL1Key::Core((l1_batch_number, *version)))
             .await
         {
             Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => {
                 match blob_store
-                    .get::<L1BatchProofForL1<Bincode>>((batch_id, *version))
+                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
+                        l1_batch_number,
+                        *version,
+                    )))
                     .await
                 {
                     Ok(proof) => return Some(proof.into()),

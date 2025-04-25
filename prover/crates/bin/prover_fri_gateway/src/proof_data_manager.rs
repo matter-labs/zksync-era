@@ -2,7 +2,11 @@ use std::sync::Arc;
 
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1, Bincode};
+use zksync_prover_interface::{
+    api::ProofGenerationData,
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
+    Bincode,
+};
 use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchId};
 
 use super::error::ProcessorError;
@@ -34,18 +38,27 @@ impl ProofDataManager {
         };
 
         let proof = if status == ProofCompressionJobStatus::Successful {
-            let proof: L1BatchProofForL1 =
-                match self.blob_store.get((l1_batch_id, protocol_version)).await {
-                    Ok(proof) => proof,
-                    Err(ObjectStoreError::KeyNotFound(_)) => self
-                        .blob_store
-                        .get::<L1BatchProofForL1<Bincode>>((l1_batch_id, protocol_version))
-                        .await
-                        .map(|proof| proof.into())?,
-                    Err(e) => {
-                        return Err(ProcessorError::ObjectStoreErr(e));
-                    }
-                };
+            let proof: L1BatchProofForL1 = match self
+                .blob_store
+                .get(L1BatchProofForL1Key::Prover((
+                    l1_batch_id,
+                    protocol_version,
+                )))
+                .await
+            {
+                Ok(proof) => proof,
+                Err(ObjectStoreError::KeyNotFound(_)) => self
+                    .blob_store
+                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Prover((
+                        l1_batch_id,
+                        protocol_version,
+                    )))
+                    .await
+                    .map(|proof| proof.into())?,
+                Err(e) => {
+                    return Err(ProcessorError::ObjectStoreErr(e));
+                }
+            };
             proof
         } else {
             unreachable!(
@@ -74,7 +87,10 @@ impl ProofDataManager {
             return Ok(None);
         };
 
-        let proof: L1BatchProofForL1 = match self.blob_store.get((batch_id, protocol_version)).await
+        let proof: L1BatchProofForL1 = match self
+            .blob_store
+            .get(L1BatchProofForL1Key::Prover((batch_id, protocol_version)))
+            .await
         {
             Ok(proof) => proof,
             Err(ObjectStoreError::KeyNotFound(_)) => {

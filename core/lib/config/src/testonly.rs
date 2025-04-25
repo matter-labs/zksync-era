@@ -558,6 +558,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
             gateway_api_url: self.sample(rng),
             proof_fetch_interval_in_secs: self.sample(rng),
             proof_gen_data_submit_interval_in_secs: self.sample(rng),
+            fetch_zero_chain_id_proofs: self.sample(rng),
         }
     }
 }

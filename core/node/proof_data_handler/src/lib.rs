@@ -108,7 +108,7 @@ fn create_proof_processing_router(
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
                     let Json(SubmitProofRequest::Proof(proof)) = payload;
                     match submit_proof_processor
-                        .save_proof(L1BatchId::new(L2ChainId::zero(), l1_batch_number), (*proof).into())
+                        .save_proof(L1BatchId::new(l2_chain_id, l1_batch_number), (*proof).into())
                         .await
                     {
                         Ok(_) => {
