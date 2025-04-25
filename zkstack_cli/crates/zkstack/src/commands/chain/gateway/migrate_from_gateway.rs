@@ -237,7 +237,7 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
         return Ok(false);
     }
 
-    // TODO(X): investigate why waiting for the tx proof is not enough.
+    // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
     // This is not expected behavior.
     let gateway_contract = ZkChainAbi::new(gateway_diamond_proxy, l1_provider);
     Ok(gateway_contract.get_total_batches_executed().await? >= U256::from(batch_number.as_u64()))

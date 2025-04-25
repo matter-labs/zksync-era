@@ -36,7 +36,7 @@ pub(crate) fn decode_admin_calls(encoded_calls: &[u8]) -> anyhow::Result<Vec<Adm
             let subfields = call.into_tuple().unwrap();
 
             AdminCall {
-                // TODO(X): For now, only empty descriptions are available
+                // TODO(EVM-999): For now, only empty descriptions are available
                 description: "".into(),
                 // The type was checked during decoding, so "unwrap" is safe
                 target: subfields[0].clone().into_address().unwrap(),

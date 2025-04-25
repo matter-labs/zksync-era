@@ -100,7 +100,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     // Checking whether the user has already done the migration
     if current_settlement_layer == U256::from(params.gateway_chain_id) {
-        // TODO: it may happen that the user has started the migration, but it failed for some reason (e.g. the provided
+        // TODO(EVM-1001): it may happen that the user has started the migration, but it failed for some reason (e.g. the provided
         // diamond cut was not correct).
         // The recovery of the chain is not handled by the tool right now.
         anyhow::bail!("The chain is already on top of Gateway!");
@@ -170,7 +170,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         .get_storage_at(zk_chain_l1_address, H256::from_low_u64_be(57), None)
         .await?;
     if is_permanent_rollup_slot == H256::from_low_u64_be(1) {
-        // TODO(X): We should really check it on our own here, but it is hard with the current interfaces
+        // TODO(EVM-1002): We should really check it on our own here, but it is hard with the current interfaces
         logger::warn("WARNING: Your chain is a permanent rollup! Ensure that the new settlement layer DA provider is compatible with Gateway RollupDAManager!");
     }
 

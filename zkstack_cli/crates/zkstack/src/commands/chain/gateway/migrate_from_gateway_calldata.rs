@@ -136,7 +136,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
     )
     .await?;
 
-    // TODO(X): The output below only contains the data needed to start migration from the Gateway.
+    // TODO(EVM-1000): The output below only contains the data needed to start migration from the Gateway.
     // However after the migration is finalized, the chain admin will have to reset the validator DA pair on L1.
     // This calldata is not yet present here, but it should be.
 
