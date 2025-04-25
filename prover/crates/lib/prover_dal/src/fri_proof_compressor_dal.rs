@@ -7,7 +7,7 @@ use zksync_basic_types::{
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
-    L1BatchId, L1BatchNumber, L2ChainId,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
