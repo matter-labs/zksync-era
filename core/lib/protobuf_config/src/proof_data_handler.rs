@@ -74,7 +74,7 @@ impl ProtoRepr for proto::ProofDataHandler {
             proof_gen_data_submit_interval_in_secs: Some(
                 this.proof_gen_data_submit_interval_in_secs.into(),
             ),
-            fetch_zero_chain_id_proofs: Some(this.fetch_zero_chain_id_proofs.into()),
+            fetch_zero_chain_id_proofs: Some(this.fetch_zero_chain_id_proofs),
         }
     }
 }
