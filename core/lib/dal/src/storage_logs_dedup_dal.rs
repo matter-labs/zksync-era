@@ -84,7 +84,16 @@ impl StorageLogsDedupDal<'_, '_> {
         hashed_keys: &[H256],
     ) -> DalResult<()> {
         let last_index = self.max_enumeration_index().await?.unwrap_or(0);
+        self.insert_initial_writes_inner(l1_batch_number, hashed_keys, last_index)
+            .await
+    }
 
+    async fn insert_initial_writes_inner(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys: &[H256],
+        last_index: u64,
+    ) -> DalResult<()> {
         let hashed_keys_len = hashed_keys.len();
         let copy = CopyStatement::new(
             "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
@@ -307,6 +316,36 @@ impl StorageLogsDedupDal<'_, '_> {
                 index: row.index as u64,
             })
             .collect()
+    }
+
+    // Should only be used in tests.
+    #[doc(hidden)]
+    async fn max_enumeration_index_naive(&mut self) -> DalResult<Option<u64>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                MAX(index) AS "max?"
+            FROM
+                initial_writes
+            "#,
+        )
+        .instrument("max_enumeration_index_naive")
+        .fetch_one(self.storage)
+        .await?
+        .max
+        .map(|max| max as u64))
+    }
+
+    // Should only be used in tests.
+    #[doc(hidden)]
+    pub async fn insert_initial_writes_non_sequential(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys: &[H256],
+    ) -> DalResult<()> {
+        let last_index = self.max_enumeration_index_naive().await?.unwrap_or(0);
+        self.insert_initial_writes_inner(l1_batch_number, hashed_keys, last_index)
+            .await
     }
 }
 
