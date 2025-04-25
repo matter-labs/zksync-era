@@ -144,10 +144,9 @@ impl StorageLogsDedupDal<'_, '_> {
     async fn max_enumeration_index(&mut self) -> DalResult<Option<u64>> {
         Ok(sqlx::query!(
             r#"
-            SELECT
-                MAX(INDEX) AS "max?"
-            FROM
-                INITIAL_WRITES
+            SELECT MAX(index) AS "max?"
+            FROM initial_writes
+            WHERE l1_batch_number = (SELECT MAX(l1_batch_number) FROM initial_writes)
             "#,
         )
         .instrument("max_enumeration_index")
