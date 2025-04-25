@@ -1,27 +1,24 @@
-use std::{num::NonZeroUsize, str::FromStr};
-
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    contract::abigen,
-    providers::{Http, Provider},
-    utils::hex,
-};
+use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::ethereum::{get_ethers_provider, get_zk_client};
 use zkstack_cli_config::traits::{ReadConfig, ZkStackConfig};
 use zksync_basic_types::{
-    protocol_version::ProtocolVersionId, url::SensitiveUrl, web3::Bytes, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, U256,
+    protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
 use zksync_web3_decl::{
-    client::{Client, DynClient, L2},
+    client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
 };
 
-use crate::commands::dev::commands::upgrade_utils::{
-    print_error, set_upgrade_timestamp_calldata, AdminCallBuilder,
+use crate::{
+    abi::{BridgehubAbi, ZkChainAbi},
+    commands::{
+        chain::admin_call_builder::{AdminCall, AdminCallBuilder},
+        dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
+    },
 };
 
 #[derive(Debug, Default)]
@@ -29,66 +26,6 @@ pub struct FetchedChainInfo {
     hyperchain_addr: Address,
     chain_admin_addr: Address,
 }
-
-// Bridgehub ABI
-abigen!(
-    BridgehubAbi,
-    r"[
-    function getHyperchain(uint256)(address)
-]"
-);
-
-// L1SharedBridgeLegacyStore ABI
-abigen!(
-    L1SharedBridgeLegacyAbi,
-    r"[
-    function l2BridgeAddress(uint256 _chainId)(address)
-]"
-);
-
-// L2WrappedBaseTokenStore ABI
-abigen!(
-    L2WrappedBaseTokenStoreAbi,
-    r"[
-    function l2WBaseTokenAddress(uint256 _chainId)(address)
-]"
-);
-
-// L2WrappedBaseTokenStore ABI
-abigen!(
-    L2NativeTokenVaultAbi,
-    r"[
-    function assetId(address)(bytes32)
-    function L2_LEGACY_SHARED_BRIDGE()(address)
-]"
-);
-
-abigen!(
-    L2LegacySharedBridgeAbi,
-    r"[
-    function l1TokenAddress(address)(address)
-]"
-);
-
-// ZKChain ABI
-abigen!(
-    ZKChainAbi,
-    r"[
-    function getPubdataPricingMode()(uint256)
-    function getBaseToken()(address)
-    function getAdmin()(address)
-    function getTotalBatchesCommitted() external view returns (uint256)
-    function getTotalBatchesVerified() external view returns (uint256)
-]"
-);
-
-// ZKChain ABI
-abigen!(
-    ValidatorTimelockAbi,
-    r"[
-    function validators(uint256 _chainId, address _validator)(bool)
-]"
-);
 
 async fn verify_next_batch_new_version(
     batch_number: u32,
@@ -131,7 +68,7 @@ pub async fn check_chain_readiness(
 
     let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
 
-    let zkchain = ZKChainAbi::new(diamond_proxy_addr, l1_provider.clone());
+    let zkchain = ZkChainAbi::new(diamond_proxy_addr, l1_provider.clone());
     let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
     let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
@@ -150,36 +87,19 @@ pub async fn fetch_chain_info(
     let chain_id = U256::from(args.chain_id);
 
     let bridgehub = BridgehubAbi::new(upgrade_info.bridgehub_addr, l1_provider.clone());
-    let hyperchain_addr = bridgehub.get_hyperchain(chain_id).await?;
-    if hyperchain_addr == Address::zero() {
+    let zkchain_addr = bridgehub.get_zk_chain(chain_id).await?;
+    if zkchain_addr == Address::zero() {
         anyhow::bail!("Chain not present in bridgehub");
     }
 
-    let zkchain = ZKChainAbi::new(hyperchain_addr, l1_provider.clone());
+    let zkchain = ZkChainAbi::new(zkchain_addr, l1_provider.clone());
 
     let chain_admin_addr = zkchain.get_admin().await?;
 
     Ok(FetchedChainInfo {
-        hyperchain_addr,
+        hyperchain_addr: zkchain_addr,
         chain_admin_addr,
     })
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct AdminCall {
-    description: String,
-    target: Address,
-    #[serde(serialize_with = "serialize_hex")]
-    data: Vec<u8>,
-    value: U256,
-}
-
-fn serialize_hex<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let hex_string = format!("0x{}", hex::encode(bytes));
-    serializer.serialize_str(&hex_string)
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -262,7 +182,7 @@ pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> a
         };
     }
 
-    let mut admin_calls_finalize = AdminCallBuilder::new();
+    let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
 
     admin_calls_finalize.append_execute_upgrade(
         chain_info.hyperchain_addr,
@@ -272,7 +192,7 @@ pub(crate) async fn run(shell: &Shell, args: V27EvmInterpreterCalldataArgs) -> a
 
     admin_calls_finalize.display();
 
-    let chain_admin_calldata = admin_calls_finalize.compile_full_calldata();
+    let (chain_admin_calldata, _) = admin_calls_finalize.compile_full_calldata();
 
     println!(
         "Full calldata to call `ChainAdmin` with : {}",
