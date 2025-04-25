@@ -192,11 +192,11 @@ impl WiringLayer for EthTxAggregatorLayer {
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
 
-        input
-            .app_health
-            .0
-            .insert_component(eth_tx_aggregator.health_check())
-            .map_err(WiringError::internal)?;
+        // input
+        //     .app_health
+        //     .0
+        //     .insert_component(eth_tx_aggregator.health_check())
+        //     .map_err(WiringError::internal)?;
 
         Ok(Output { eth_tx_aggregator })
     }

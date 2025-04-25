@@ -100,8 +100,8 @@ impl OperationSkippingRestrictions {
 
     fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
         let op = AggregatedOperation::Execute(execute_op?);
-        self.check_for_continuation(&op, self.execute_restriction)
-            .then_some(op)
+        let reason = "execute_txs_temporarily_disabled";
+        self.check_for_continuation(&op, Some(reason)).then_some(op)
     }
 }
 
