@@ -152,19 +152,13 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
 
-        Ok(DispatchResponse::from(hex::encode(blob_key.to_bytes())))
+        Ok(DispatchResponse::from(blob_key.to_hex()))
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
-        let bytes = hex::decode(blob_id)
+        let blob_key = BlobKey::from_hex(blob_id)
             .map_err(|_| anyhow::anyhow!("Failed to decode blob id: {}", blob_id))
             .map_err(to_non_retriable_da_error)?;
-        let blob_key = BlobKey::from_bytes(
-            bytes
-                .try_into()
-                .map_err(|_| anyhow::anyhow!("Failed to convert bytes to a 32-byte array"))
-                .map_err(to_non_retriable_da_error)?,
-        );
         let eigen_dacert = self
             .client
             .get_inclusion_data(&blob_key)
@@ -172,8 +166,10 @@ impl DataAvailabilityClient for EigenDAClient {
             .map_err(to_retriable_da_error)?;
         if let Some(eigen_dacert) = eigen_dacert {
             println!("EigenDA cert: {:?}", eigen_dacert);
-            //let inclusion_data = eigen_dacert.to_bytes(); // todo
-            let inclusion_data = vec![];
+            let inclusion_data = eigen_dacert
+                .to_bytes()
+                .map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes"))
+                .map_err(to_non_retriable_da_error)?;
             if let Some(verified) = self
                 .check_inclusion_data_verification(&inclusion_data)
                 .await?
