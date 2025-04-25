@@ -61,7 +61,6 @@ impl ProofFetcher {
             };
 
             if let Err(e) = self
-                .client
                 .fetch_proof(L1BatchId::new(self.processor.chain_id(), batch_to_fetch))
                 .await
             {
