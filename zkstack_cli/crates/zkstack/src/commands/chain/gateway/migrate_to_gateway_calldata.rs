@@ -79,8 +79,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     foundry_contracts_path: &Path,
     params: MigrateToGatewayParams,
 ) -> anyhow::Result<(Address, Vec<AdminCall>)> {
-    // TODO: add checks about chain notification.
-
     let refund_recipient = params.refund_recipient.unwrap_or(params.validator_1);
     let mut result = vec![];
 
@@ -252,7 +250,6 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 }
 
 #[derive(Parser, Debug)]
-#[command()]
 pub struct MigrateToGatewayCalldataArgs {
     #[clap(long)]
     pub l1_rpc_url: String,

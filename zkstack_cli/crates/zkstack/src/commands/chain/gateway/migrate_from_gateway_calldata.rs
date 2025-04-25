@@ -28,7 +28,6 @@ lazy_static! {
 }
 
 #[derive(Parser, Debug)]
-#[command()]
 pub struct MigrateFromGatewayCalldataArgs {
     #[clap(long)]
     pub l1_rpc_url: String,

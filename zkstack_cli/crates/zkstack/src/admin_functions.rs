@@ -29,7 +29,7 @@ use crate::{
 };
 
 lazy_static! {
-    static ref ACCEPT_ADMIN: BaseContract = BaseContract::from(
+    static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(
         parse_abi(&[
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
@@ -69,7 +69,7 @@ pub async fn accept_admin(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode("chainAdminAcceptAdmin", (admin, target_address))
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
@@ -98,7 +98,7 @@ pub async fn accept_owner(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode("governanceAcceptOwner", (governor_contract, target_address))
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
@@ -130,7 +130,7 @@ pub async fn set_da_validator_pair(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "setDAValidatorPair",
             (
@@ -168,7 +168,7 @@ pub async fn make_permanent_rollup(
     let mut forge_args = forge_args.clone();
     forge_args.resume = false;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "makePermanentRollup",
             (chain_admin_addr, diamond_proxy_address),
@@ -202,7 +202,7 @@ pub async fn governance_execute_calls(
 
     let governance_address = ecosystem_config.get_contracts_config()?.l1.governance_addr;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "governanceExecuteCalls",
             (Token::Bytes(encoded_calls), governance_address),
@@ -242,7 +242,7 @@ pub async fn admin_execute_upgrade(
         .context("no access_control_restriction_addr")?;
     let diamond_proxy = chain_contracts_config.l1.diamond_proxy_addr;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "adminExecuteUpgrade",
             (
@@ -287,7 +287,7 @@ pub async fn admin_schedule_upgrade(
         .access_control_restriction_addr
         .context("no access_control_restriction_addr")?;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "adminScheduleUpgrade",
             (
@@ -335,7 +335,7 @@ pub async fn admin_update_validator(
         .access_control_restriction_addr
         .context("no access_control_restriction_addr")?;
 
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "updateValidator",
             (
@@ -456,7 +456,7 @@ pub(crate) async fn set_transaction_filterer(
     transaction_filterer_addr: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "setTransactionFilterer",
             (
@@ -500,7 +500,7 @@ pub(crate) async fn grant_gateway_whitelist(
         .map(|addr| format!("{:#?}", addr))
         .collect::<Vec<_>>()
         .join(", ");
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "grantGatewayWhitelist",
             (
@@ -536,7 +536,7 @@ pub(crate) async fn revoke_gateway_whitelist(
     address: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "revokeGatewayWhitelist",
             (bridgehub, U256::from(chain_id), address, mode.should_send()),
@@ -572,7 +572,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "setDAValidatorPairWithGateway",
             (
@@ -620,7 +620,7 @@ pub(crate) async fn enable_validator_via_gateway(
     refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "enableValidatorViaGateway",
             (
@@ -659,7 +659,7 @@ pub(crate) async fn notify_server_migration_to_gateway(
     bridgehub: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "notifyServerMigrationToGateway",
             (bridgehub, U256::from(chain_id), mode.should_send()),
@@ -693,7 +693,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
     refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "migrateChainToGateway",
             (
@@ -731,7 +731,7 @@ pub(crate) async fn notify_server_migration_from_gateway(
     bridgehub: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "notifyServerMigrationFromGateway",
             (bridgehub, U256::from(chain_id), mode.should_send()),
@@ -767,7 +767,7 @@ pub(crate) async fn admin_l1_l2_tx(
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let hex_encoded_data = hex::encode(&data.0);
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "adminL1L2Tx",
             (
@@ -812,7 +812,7 @@ pub async fn start_migrate_chain_from_gateway(
     refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ACCEPT_ADMIN
+    let calldata = ADMIN_FUNCTIONS
         .encode(
             "startMigrateChainFromGateway",
             (

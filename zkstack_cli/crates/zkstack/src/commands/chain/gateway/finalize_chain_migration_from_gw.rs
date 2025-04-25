@@ -31,7 +31,6 @@ lazy_static! {
 }
 
 #[derive(Parser, Debug)]
-#[command()]
 pub struct FinalizeChainMigrationFromGatewayArgs {
     #[clap(long)]
     pub l1_rpc_url: String,
