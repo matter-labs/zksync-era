@@ -4,7 +4,7 @@ use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchId, L2ChainId};
 
 use super::http_client::HttpClient;
 use crate::processor::{Locking, Processor};
@@ -21,12 +21,14 @@ impl ProofFetcher {
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         let processor = Processor::new(
             blob_store.clone(),
             pool.clone(),
             config.clone(),
             commitment_mode,
+            l2_chain_id,
         );
 
         let Some(api_url) = config.gateway_api_url.clone() else {
@@ -58,12 +60,23 @@ impl ProofFetcher {
                 continue;
             };
 
-            match self.client.fetch_proof(batch_to_fetch).await {
+            let l1_batch_id = L1BatchId::new(self.processor.chain_id(), batch_to_fetch);
+
+            match self.client.fetch_proof(l1_batch_id).await {
                 Ok(Some(response)) => {
+                    if response.l1_batch_id.chain_id() != self.processor.chain_id() {
+                        tracing::error!(
+                            "Received proof for batch {batch_to_fetch} with wrong chain id"
+                        );
+                        return Err(anyhow::anyhow!(
+                            "Received proof for batch {batch_to_fetch} with wrong chain id"
+                        ));
+                    }
+
                     tracing::info!("Received proof for batch {batch_to_fetch}");
 
                     self.processor
-                        .save_proof(response.l1_batch_number, response.proof.into())
+                        .save_proof(l1_batch_id, response.proof.into())
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;
                     continue;

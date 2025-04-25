@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 use crate::{client::ProverApiClient, proof_data_manager::ProofDataManager, traits::PeriodicApi};
 
@@ -40,7 +40,7 @@ impl PeriodicApi for ProofSubmitter {
     const SERVICE_NAME: &'static str = "ProofSubmitter";
 
     async fn get_next_request(&self) -> anyhow::Result<Option<(Self::JobId, SubmitProofRequest)>> {
-        let Some((l1_batch_number, proof)) = self
+        let Some((l1_batch_id, proof)) = self
             .manager
             .get_next_proof()
             .await
@@ -50,7 +50,7 @@ impl PeriodicApi for ProofSubmitter {
         };
 
         Ok(Some((
-            l1_batch_number,
+            l1_batch_id.batch_number(),
             SubmitProofRequest::Proof(Box::new(proof.into())),
         )))
     }
@@ -70,7 +70,9 @@ impl PeriodicApi for ProofSubmitter {
         response: Self::Response,
     ) -> anyhow::Result<()> {
         tracing::info!("Received response: {:?}", response);
-        self.manager.save_successful_sent_proof(job_id).await?;
+        self.manager
+            .save_successful_sent_proof(L1BatchId::new(L2ChainId::zero(), job_id))
+            .await?;
         Ok(())
     }
 }

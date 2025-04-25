@@ -42,6 +42,7 @@ pub struct Processor<PM: ProcessorMode> {
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    chain_id: L2ChainId,
     _marker: std::marker::PhantomData<PM>,
 }
 
@@ -51,14 +52,20 @@ impl<PM: ProcessorMode> Processor<PM> {
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        chain_id: L2ChainId,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
             commitment_mode,
+            chain_id,
             _marker: std::marker::PhantomData,
         }
+    }
+
+    pub fn chain_id(&self) -> L2ChainId {
+        self.chain_id
     }
 
     pub async fn get_oldest_not_proven_batch(
@@ -169,6 +176,7 @@ impl<PM: ProcessorMode> Processor<PM> {
 
         Ok(ProofGenerationData {
             l1_batch_number,
+            chain_id: self.chain_id,
             batch_sealed_at,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
@@ -231,20 +239,14 @@ impl Processor<Locking> {
 
     pub async fn save_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        l1_batch_id: L1BatchId,
         proof: L1BatchProofForL1,
     ) -> Result<(), ProcessorError> {
-        tracing::info!("Received proof for block number: {:?}", l1_batch_number);
+        tracing::info!("Received proof for block number: {:?}", l1_batch_id);
 
         let blob_url = self
             .blob_store
-            .put(
-                (
-                    L1BatchId::new(L2ChainId::zero(), l1_batch_number),
-                    proof.protocol_version(),
-                ),
-                &proof,
-            )
+            .put((l1_batch_id, proof.protocol_version()), &proof)
             .await?;
 
         let aggregation_coords = proof.aggregation_result_coords();
@@ -258,7 +260,7 @@ impl Processor<Locking> {
 
         let l1_batch = storage
             .blocks_dal()
-            .get_l1_batch_metadata(l1_batch_number)
+            .get_l1_batch_metadata(l1_batch_id.batch_number())
             .await?
             .expect("Proved block without metadata");
 
@@ -321,25 +323,19 @@ impl Processor<Locking> {
 
         storage
             .proof_generation_dal()
-            .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
+            .save_proof_artifacts_metadata(l1_batch_id.batch_number(), &blob_url)
             .await?;
         Ok(())
     }
 
-    pub async fn save_skipped_proof(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<(), ProcessorError> {
-        tracing::info!(
-            "Received skipped proof for block number: {:?}",
-            l1_batch_number
-        );
+    pub async fn save_skipped_proof(&self, l1_batch_id: L1BatchId) -> Result<(), ProcessorError> {
+        tracing::info!("Received skipped proof for block number: {:?}", l1_batch_id);
         self.pool
             .connection()
             .await
             .unwrap()
             .proof_generation_dal()
-            .mark_proof_generation_job_as_skipped(l1_batch_number)
+            .mark_proof_generation_job_as_skipped(l1_batch_id.batch_number())
             .await
             .map_err(Into::into)
     }
@@ -370,7 +366,7 @@ impl Processor<Readonly> {
         binary_proof: Vec<u8>,
         protocol_version: ProtocolSemanticVersion,
     ) -> Result<(), ProcessorError> {
-        let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
+        let batch_id = L1BatchId::new(self.chain_id, l1_batch_number);
         let expected_proof: L1BatchProofForL1<CBOR> =
             match self.blob_store.get((batch_id, protocol_version)).await {
                 Ok(proof) => proof,

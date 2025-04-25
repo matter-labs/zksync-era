@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
-use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchId, L1BatchNumber, L2ChainId};
+use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1, Bincode};
+use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchId};
 
 use super::error::ProcessorError;
 
@@ -20,8 +20,8 @@ impl ProofDataManager {
 
     pub(crate) async fn get_next_proof(
         &self,
-    ) -> Result<Option<(L1BatchNumber, L1BatchProofForL1)>, ProcessorError> {
-        let Some((l1_batch_number, protocol_version, status)) = self
+    ) -> Result<Option<(L1BatchId, L1BatchProofForL1)>, ProcessorError> {
+        let Some((l1_batch_id, protocol_version, status)) = self
             .pool
             .connection()
             .await
@@ -34,10 +34,18 @@ impl ProofDataManager {
         };
 
         let proof = if status == ProofCompressionJobStatus::Successful {
-            // TODO: remove this once we have a proper L1BatchId
-            let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
             let proof: L1BatchProofForL1 =
-                self.blob_store.get((batch_id, protocol_version)).await?;
+                match self.blob_store.get((l1_batch_id, protocol_version)).await {
+                    Ok(proof) => proof,
+                    Err(ObjectStoreError::KeyNotFound(_)) => self
+                        .blob_store
+                        .get::<L1BatchProofForL1<Bincode>>((l1_batch_id, protocol_version))
+                        .await
+                        .map(|proof| proof.into())?,
+                    Err(e) => {
+                        return Err(ProcessorError::ObjectStoreErr(e));
+                    }
+                };
             proof
         } else {
             unreachable!(
@@ -46,16 +54,13 @@ impl ProofDataManager {
             );
         };
 
-        Ok(Some((l1_batch_number, proof)))
+        Ok(Some((l1_batch_id, proof)))
     }
 
     pub(crate) async fn get_proof_for_batch(
         &self,
-        batch_number: L1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Result<Option<L1BatchProofForL1>, ProcessorError> {
-        // TODO: remove this once we have a proper L1BatchId
-        let batch_id = L1BatchId::new(L2ChainId::zero(), batch_number);
-
         let protocol_version = self
             .pool
             .connection()
@@ -85,11 +90,8 @@ impl ProofDataManager {
 
     pub(crate) async fn save_successful_sent_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Result<(), ProcessorError> {
-        // TODO: remove this once we have a proper L1BatchId
-        let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
-
         self.pool
             .connection()
             .await
@@ -104,8 +106,7 @@ impl ProofDataManager {
         &self,
         data: ProofGenerationData,
     ) -> Result<(), ProcessorError> {
-        // TODO: remove this once we have a proper L1BatchId
-        let batch_id = L1BatchId::new(L2ChainId::zero(), data.l1_batch_number);
+        let batch_id = L1BatchId::new(data.chain_id, data.l1_batch_number);
 
         let witness_inputs = self
             .blob_store

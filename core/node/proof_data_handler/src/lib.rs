@@ -12,7 +12,7 @@ use zksync_prover_interface::api::{
     ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest,
     SubmitProofRequest, SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
+use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchId, L1BatchNumber, L2ChainId};
 
 pub use crate::{
     client::ProofDataHandlerClient,
@@ -81,6 +81,7 @@ fn create_proof_processing_router(
             connection_pool.clone(),
             config.clone(),
             commitment_mode,
+            l2_chain_id,
         );
         let submit_proof_processor = get_proof_gen_processor.clone();
 
@@ -107,7 +108,7 @@ fn create_proof_processing_router(
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
                     let Json(SubmitProofRequest::Proof(proof)) = payload;
                     match submit_proof_processor
-                        .save_proof(l1_batch_number, (*proof).into())
+                        .save_proof(L1BatchId::new(L2ChainId::zero(), l1_batch_number), (*proof).into())
                         .await
                     {
                         Ok(_) => {

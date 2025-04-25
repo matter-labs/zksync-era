@@ -3,7 +3,8 @@ use zksync_prover_interface::api::{
     PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
     SubmitProofGenerationDataResponse,
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::L1BatchId;
+
 pub(crate) struct HttpClient {
     api_url: String,
     client: reqwest::Client,
@@ -33,13 +34,13 @@ impl HttpClient {
 
     pub(crate) async fn fetch_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        l1_batch_id: L1BatchId,
     ) -> Result<Option<PollGeneratedProofsResponse>, reqwest::Error> {
         tracing::info!("Sending request to {}", POLL_GENERATED_PROOFS_ENDPOINT);
 
         let endpoint = self.api_url.clone() + POLL_GENERATED_PROOFS_ENDPOINT;
 
-        let request = PollGeneratedProofsRequest { l1_batch_number };
+        let request = PollGeneratedProofsRequest { l1_batch_id };
 
         self.send_http_request(request, &endpoint).await
     }
