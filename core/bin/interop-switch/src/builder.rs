@@ -1,10 +1,9 @@
-use zksync_types::url::SensitiveUrl;
-
 use anyhow::Context;
 use zksync_node_framework::{
     implementations::layers::interop_switch::InteropSwitchLayer,
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_types::url::SensitiveUrl;
 
 pub struct InteropSwitchBuilder {
     node: ZkStackServiceBuilder,

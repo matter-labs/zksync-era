@@ -1,8 +1,8 @@
 mod builder;
-use zksync_types::url::SensitiveUrl;
-
 use std::str::FromStr;
+
 use zksync_config::configs::ObservabilityConfig;
+use zksync_types::url::SensitiveUrl;
 
 fn main() -> anyhow::Result<()> {
     let node = builder::InteropSwitchBuilder::new(vec![
