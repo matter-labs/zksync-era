@@ -5,16 +5,17 @@ use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::pos
 use processor::Locking;
 use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationDataRequest, ProofGenerationDataResponse, RegisterTeeAttestationRequest,
-    SubmitProofRequest, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+    SubmitProofRequest, SubmitProofResponse, SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId};
 
 pub use crate::{
+    client::ProofDataHandlerClient,
     errors::ProcessorError,
     processor::{Processor, Readonly},
 };
@@ -22,6 +23,7 @@ pub use crate::{
 #[cfg(test)]
 mod tests;
 
+mod client;
 mod errors;
 mod metrics;
 mod processor;
@@ -33,6 +35,7 @@ pub async fn run_server(
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
+    api_mode: ApiMode,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
@@ -41,6 +44,7 @@ pub async fn run_server(
         blob_store,
         connection_pool,
         config,
+        api_mode,
         commitment_mode,
         l2_chain_id,
     );
@@ -65,18 +69,22 @@ fn create_proof_processing_router(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
+    api_mode: ApiMode,
     commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 ) -> Router {
-    let get_proof_gen_processor = Processor::<Locking>::new(
-        blob_store.clone(),
-        connection_pool.clone(),
-        config.clone(),
-        commitment_mode,
-    );
-    let submit_proof_processor = get_proof_gen_processor.clone();
-    let mut router = Router::new()
-        .route(
+    let mut router = Router::new();
+
+    if api_mode == ApiMode::Legacy {
+        let get_proof_gen_processor = Processor::<Locking>::new(
+            blob_store.clone(),
+            connection_pool.clone(),
+            config.clone(),
+            commitment_mode,
+        );
+        let submit_proof_processor = get_proof_gen_processor.clone();
+
+        router = router.route(
             "/proof_generation_data",
             post(
                 // we use post method because the returned data is not idempotent,
@@ -98,12 +106,19 @@ fn create_proof_processing_router(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitProofRequest>| async move {
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
                     let Json(SubmitProofRequest::Proof(proof)) = payload;
-                    submit_proof_processor
+                    match submit_proof_processor
                         .save_proof(l1_batch_number, (*proof).into())
                         .await
+                    {
+                        Ok(_) => {
+                            (StatusCode::OK, Json(SubmitProofResponse::Success)).into_response()
+                        }
+                        Err(e) => e.into_response(),
+                    }
                 },
             ),
         );
+    }
 
     if config.tee_config.tee_support {
         let get_tee_proof_gen_processor =
