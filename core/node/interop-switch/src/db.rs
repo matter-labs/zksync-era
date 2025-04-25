@@ -14,28 +14,38 @@ use crate::{
 pub struct InMemoryDb {
     bundles: HashMap<H256, InteropBundle>,
     triggers: HashMap<H256, InteropTrigger>,
+    processed_blocks: HashMap<L2ChainId, u64>,
 }
 
 #[async_trait::async_trait]
 impl DbClient for InMemoryDb {
     async fn save_interop_trigger(&mut self, tx: InteropTrigger) -> anyhow::Result<()> {
-        todo!()
+        dbg!(&tx);
+        self.triggers.insert(tx.tx_hash, tx);
+        Ok(())
     }
 
     async fn save_interop_triggers(&mut self, txs: Vec<InteropTrigger>) -> anyhow::Result<()> {
-        todo!()
+        for tx in txs {
+            self.save_interop_trigger(tx).await?;
+        }
+        Ok(())
     }
 
     async fn save_interop_bundle(&mut self, tx: InteropBundle) -> anyhow::Result<()> {
-        todo!()
+        self.bundles.insert(tx.bundle_hash, tx);
+        Ok(())
     }
 
     async fn save_interop_bundles(&mut self, txs: Vec<InteropBundle>) -> anyhow::Result<()> {
-        todo!()
+        for tx in txs {
+            self.save_interop_bundle(tx).await?;
+        }
+        Ok(())
     }
 
-    async fn get_interop_bundle(&mut self, tx_hash: H256) -> anyhow::Result<InteropBundle> {
-        todo!()
+    async fn get_interop_bundle(&mut self, tx_hash: H256) -> anyhow::Result<Option<InteropBundle>> {
+        Ok(self.bundles.get(&tx_hash).cloned())
     }
 
     async fn get_interop_tx(&mut self, tx_hash: H256) -> anyhow::Result<()> {
@@ -49,14 +59,19 @@ impl DbClient for InMemoryDb {
     async fn update_processed_blocks(
         &mut self,
         src_chain_id: L2ChainId,
-        from_block: u64,
+        _from_block: u64,
         to_block: u64,
     ) -> anyhow::Result<()> {
-        todo!()
+        self.processed_blocks.insert(src_chain_id, to_block);
+        Ok(())
     }
 
     async fn get_last_processed_block(&mut self, src_chain_id: L2ChainId) -> anyhow::Result<u64> {
-        todo!()
+        Ok(self
+            .processed_blocks
+            .get(&src_chain_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn inject_new_fee_bundle(

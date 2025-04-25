@@ -1,12 +1,12 @@
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
-use serde::{Deserialize, Serialize};
+use anyhow::bail;
 use tokio::sync::watch::Receiver;
 use zksync_basic_types::{Address, L2ChainId, H256, U256};
 
 use crate::types::{InteropBundle, InteropTrigger};
 pub use crate::{
-    chain::{DestinationChain, SourceChain},
+    chain::{DestinationChain, LocalDestinationChain, SourceChain},
     listener::InteropListener,
 };
 
@@ -16,12 +16,12 @@ mod listener;
 mod types;
 
 #[async_trait::async_trait]
-pub trait DbClient {
+pub trait DbClient: Clone {
     async fn save_interop_trigger(&mut self, tx: InteropTrigger) -> anyhow::Result<()>;
     async fn save_interop_triggers(&mut self, txs: Vec<InteropTrigger>) -> anyhow::Result<()>;
     async fn save_interop_bundle(&mut self, tx: InteropBundle) -> anyhow::Result<()>;
     async fn save_interop_bundles(&mut self, txs: Vec<InteropBundle>) -> anyhow::Result<()>;
-    async fn get_interop_bundle(&mut self, tx_hash: H256) -> anyhow::Result<InteropBundle>;
+    async fn get_interop_bundle(&mut self, tx_hash: H256) -> anyhow::Result<Option<InteropBundle>>;
     async fn get_interop_tx(&mut self, tx_hash: H256) -> anyhow::Result<()>;
     async fn commit_interop_tx(&mut self, tx_hash: H256) -> anyhow::Result<()>;
     async fn update_processed_blocks(
@@ -53,14 +53,14 @@ pub struct InteropSender<C: DbClient> {
 }
 
 impl<C: DbClient> InteropSender<C> {
-    pub async fn start(&self, db: &C) -> anyhow::Result<()> {
+    pub async fn start(self, db: C) -> anyhow::Result<()> {
         // Start sending interop transactions to the destination chain
         // and handle them accordingly.
         Ok(())
     }
 }
 
-impl<C: DbClient + Debug> InteropSwitch<C> {
+impl<C: DbClient + Debug + Send + Sync + 'static> InteropSwitch<C> {
     pub fn new(
         src_chains: Vec<SourceChain>,
         dst_chains: Vec<Box<dyn DestinationChain>>,
@@ -76,10 +76,12 @@ impl<C: DbClient + Debug> InteropSwitch<C> {
     }
 
     pub async fn run(mut self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+        println!("Starting interop switch...");
+        let mut tasks = vec![];
         for src_chain in &self.src_chains {
             for dst_chain in &self.dst_chains {
-                let listener = InteropListener::new(src_chain.clone(), dst_chain.chain_id(), 100);
-                listener.start(&mut self.db).await?;
+                let listener = InteropListener::new(src_chain.clone(), dst_chain.chain_id(), 10000);
+                tasks.push(tokio::spawn(listener.start(self.db.clone())));
             }
         }
 
@@ -88,9 +90,19 @@ impl<C: DbClient + Debug> InteropSwitch<C> {
                 dst_chain: dst_chain.clone(),
                 _phantom_data: Default::default(),
             };
-            sender.start(&self.db).await?;
+            tasks.push(tokio::spawn(sender.start(self.db.clone())));
         }
 
+        let job_completion = futures::future::try_join_all(tasks);
+
+        tokio::select! {
+            res = job_completion => {
+                res?;
+            },
+            _ = stop_receiver.changed() => {
+                bail!("Received stop signal");
+            }
+        }
         Ok(())
     }
 }

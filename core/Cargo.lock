@@ -5022,7 +5022,10 @@ dependencies = [
  "anyhow",
  "tokio",
  "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_interop_switch",
  "zksync_node_framework",
+ "zksync_protobuf_config",
  "zksync_types",
 ]
 
@@ -12771,6 +12774,8 @@ version = "27.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
+ "futures 0.3.31",
+ "hex",
  "serde",
  "tokio",
  "zksync_basic_types",

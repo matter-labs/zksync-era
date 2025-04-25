@@ -1,7 +1,9 @@
 use std::{fmt::Debug, sync::Arc};
 
 use anyhow::Context;
-use zksync_interop_switch::{db::InMemoryDb, DbClient, InteropSwitch, SourceChain};
+use zksync_interop_switch::{
+    db::InMemoryDb, DbClient, DestinationChain, InteropSwitch, SourceChain,
+};
 use zksync_types::url::SensitiveUrl;
 use zksync_web3_decl::client::{Client, L2};
 
@@ -17,7 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct InteropSwitchLayer {
     src_chains: Vec<SensitiveUrl>,
-    dst_chains: Vec<SensitiveUrl>,
+    dst_chains: Vec<Box<dyn DestinationChain>>,
 }
 
 #[derive(Debug, FromContext)]
@@ -32,7 +34,7 @@ pub struct Output {
 }
 
 impl InteropSwitchLayer {
-    pub fn new(src_chains: Vec<SensitiveUrl>, dst_chains: Vec<SensitiveUrl>) -> Self {
+    pub fn new(src_chains: Vec<SensitiveUrl>, dst_chains: Vec<Box<dyn DestinationChain>>) -> Self {
         Self {
             src_chains,
             dst_chains,
@@ -67,7 +69,11 @@ impl WiringLayer for InteropSwitchLayer {
         }
 
         Ok(Output {
-            interop_switch_task: InteropSwitch::new(src_chains, vec![], InMemoryDb::default()),
+            interop_switch_task: InteropSwitch::new(
+                src_chains,
+                self.dst_chains,
+                InMemoryDb::default(),
+            ),
         })
     }
 }

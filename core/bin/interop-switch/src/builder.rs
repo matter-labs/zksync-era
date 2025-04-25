@@ -1,9 +1,10 @@
 use anyhow::Context;
+use zksync_interop_switch::{DestinationChain, LocalDestinationChain};
 use zksync_node_framework::{
     implementations::layers::interop_switch::InteropSwitchLayer,
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_types::url::SensitiveUrl;
+use zksync_types::{url::SensitiveUrl, L2ChainId};
 
 pub struct InteropSwitchBuilder {
     node: ZkStackServiceBuilder,
@@ -22,8 +23,12 @@ impl InteropSwitchBuilder {
         self.node.runtime_handle()
     }
     pub fn add_interop_switch_layer(mut self) -> anyhow::Result<Self> {
-        self.node
-            .add_layer(InteropSwitchLayer::new(self.src_chains.clone(), vec![]));
+        let dst_chain =
+            Box::new(LocalDestinationChain::new(L2ChainId::from(1))) as Box<dyn DestinationChain>;
+        self.node.add_layer(InteropSwitchLayer::new(
+            self.src_chains.clone(),
+            vec![dst_chain],
+        ));
         Ok(self)
     }
 

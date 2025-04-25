@@ -5,7 +5,7 @@ use zksync_basic_types::{
     Address, L2ChainId, H256,
 };
 use zksync_contracts::interop_center_contract;
-use zksync_system_constants::L2_INTEROP_HANDLER_ADDRESS;
+use zksync_system_constants::{L2_INTEROP_CENTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS};
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::EthNamespaceClient,
@@ -38,10 +38,15 @@ impl SourceChain {
         Self {
             chain_id: L2ChainId::new(chain_id.as_u64()).expect("Invalid chain ID from client"),
             client,
-            interop_center_address: L2_INTEROP_HANDLER_ADDRESS,
+            interop_center_address: L2_INTEROP_CENTER_ADDRESS,
             bundle_event,
             trigger_event,
         }
+    }
+
+    pub async fn get_last_block(&self) -> anyhow::Result<u64> {
+        let block = self.client.get_block_number().await?;
+        Ok(block.as_u64())
     }
 
     pub async fn get_new_interop_triggers(
@@ -65,9 +70,9 @@ impl SourceChain {
         logs.into_iter()
             .filter_map(|log| {
                 let trigger = InteropTrigger::try_from(log).unwrap();
-                if trigger.dst_chain_id != l2chain_id {
-                    return None;
-                }
+                // if trigger.dst_chain_id != l2chain_id {
+                //     return None;
+                // }
                 Some(trigger)
             })
             .collect()
@@ -79,7 +84,27 @@ impl SourceChain {
         to_block: u64,
         l2chain_id: L2ChainId,
     ) -> Vec<InteropBundle> {
-        vec![]
+        let filter = FilterBuilder::default()
+            .from_block(BlockNumber::Number(from_block.into()))
+            .to_block(BlockNumber::Number(to_block.into()))
+            .address(vec![self.interop_center_address])
+            .topics(Some(vec![self.bundle_event]), None, None, None)
+            .build();
+        let bundle_logs = self
+            .client
+            .get_logs(filter.into())
+            .await
+            .expect("Failed to get logs");
+        bundle_logs
+            .into_iter()
+            .filter_map(|log| {
+                let trigger = InteropBundle::try_from(log).unwrap();
+                // if trigger.dst_chain_id != l2chain_id {
+                //     return None;
+                // }
+                Some(trigger)
+            })
+            .collect()
     }
 }
 
@@ -89,8 +114,14 @@ pub trait DestinationChain: 'static + fmt::Debug + Send + Sync {
 }
 
 #[derive(Debug, Clone)]
-struct LocalDestinationChain {
+pub struct LocalDestinationChain {
     chain_id: L2ChainId,
+}
+
+impl LocalDestinationChain {
+    pub fn new(chain_id: L2ChainId) -> Self {
+        Self { chain_id }
+    }
 }
 
 impl DestinationChain for LocalDestinationChain {

@@ -22,10 +22,15 @@ impl<C: DbClient> InteropListener<C> {
         }
     }
 
-    pub async fn start(&self, db: &mut C) -> anyhow::Result<()> {
+    pub async fn start(self, mut db: C) -> anyhow::Result<()> {
         loop {
             let from_block = db.get_last_processed_block(self.src_chain.chain_id).await?;
-            let to_block = from_block + self.listener_step;
+            let last_block = self.src_chain.get_last_block().await?;
+            if from_block >= last_block {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+            let to_block = std::cmp::min(from_block + self.listener_step, last_block);
             let bundles = self
                 .src_chain
                 .get_new_interop_bundles(from_block, to_block, self.dst_chain)
