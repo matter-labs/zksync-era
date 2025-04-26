@@ -31,6 +31,11 @@ mod tests {
                 tee_proof_generation_timeout_in_secs: 600,
                 tee_batch_permanently_ignored_timeout_in_hours: 240,
             },
+            gateway_api_url: None,
+            proof_fetch_interval_in_secs:
+                ProofDataHandlerConfig::default_proof_fetch_interval_in_secs(),
+            proof_gen_data_submit_interval_in_secs:
+                ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs(),
         }
     }
 

@@ -419,7 +419,7 @@ jobs:
           --chain gateway \
           --validium-type no-da
           
-          ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+          ci_run zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
@@ -431,9 +431,9 @@ jobs:
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
-          ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
-          ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
-          ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
