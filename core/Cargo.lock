@@ -13044,6 +13044,7 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-types",
+ "ethabi",
  "flate2",
  "futures 0.3.31",
  "hex",
@@ -13070,8 +13071,10 @@ dependencies = [
  "zksync_config",
  "zksync_da_client",
  "zksync_env_config",
+ "zksync_eth_client",
  "zksync_object_store",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
