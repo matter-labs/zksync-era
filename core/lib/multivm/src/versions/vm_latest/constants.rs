@@ -126,7 +126,7 @@ pub(crate) const fn get_interop_root_offset(subversion: MultiVmSubversion) -> us
     get_next_interop_root_number_offset(subversion) + 1
 }
 
-pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 100;
+pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;
 
 pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
 
