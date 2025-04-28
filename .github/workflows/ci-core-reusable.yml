@@ -252,30 +252,12 @@ jobs:
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
       
 
-      - name: Initialize ecosystem 0
+      - name: Initialize ecosystem 
         run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-      - name: initialize ecosystem 1
-        continue-on-error: true
-        run: |
-          ci_run zkstack ecosystem init --dev \
-          --ignore-prerequisites --verbose \
-          --observability=false
-      - name: initialize ecosystem 2
-        run: |
+          ci_run zkstack dev clean containers && zkstack up -o false
+          ci_run zkstack dev contracts
           ci_run zkstack dev generate-genesis
-          ci_run rm -rf ./chains/era/configs/*
-          ci_run rm -rf ./chains/second/configs/*
-          ci_run rm -rf ./chains/gateway/configs/*
-          ci_run cat ./etc/env/file_based/genesis.yaml
-      - name: Initialize ecosystem 3
-        run: |
-          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_era \
+          ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
           --observability=false
 
