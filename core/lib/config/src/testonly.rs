@@ -402,6 +402,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
             is_verifier_pre_fflonk: self.sample(rng),
             gas_limit_mode: self.sample(rng),
+            max_acceptable_base_fee_in_wei: self.sample(rng),
         }
     }
 }
@@ -470,6 +471,19 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
+            api_mode: self.sample(rng),
+            port: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::fri_prover_gateway::ApiMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover_gateway::ApiMode {
+        type T = configs::fri_prover_gateway::ApiMode;
+
+        match rng.gen_range(0..2) {
+            0 => T::Legacy,
+            _ => T::ProverCluster,
         }
     }
 }
@@ -541,6 +555,9 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
                 tee_proof_generation_timeout_in_secs: self.sample(rng),
                 tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
             },
+            gateway_api_url: self.sample(rng),
+            proof_fetch_interval_in_secs: self.sample(rng),
+            proof_gen_data_submit_interval_in_secs: self.sample(rng),
         }
     }
 }

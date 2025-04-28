@@ -4,7 +4,7 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
-    accept_ownership::accept_admin,
+    admin_functions::accept_admin,
     messages::{
         MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_OWNERSHIP_TRANSFERRED,
     },

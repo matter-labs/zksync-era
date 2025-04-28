@@ -26,6 +26,9 @@ pub struct ProofGenerationData {
     pub l1_verifier_config: L1VerifierConfig,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitProofGenerationDataResponse;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ProofGenerationDataResponse {
     Success(Option<Box<ProofGenerationData>>),
@@ -64,8 +67,17 @@ pub struct TeeProofGenerationDataRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
     Proof(Box<JsonL1BatchProofForL1>),
-    // The proof generation was skipped due to sampling
-    SkippedProofGeneration,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PollGeneratedProofsRequest {
+    pub l1_batch_number: L1BatchNumber,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PollGeneratedProofsResponse {
+    pub l1_batch_number: L1BatchNumber,
+    pub proof: JsonL1BatchProofForL1,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

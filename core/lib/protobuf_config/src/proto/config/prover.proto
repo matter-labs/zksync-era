@@ -49,6 +49,8 @@ message ProverGateway {
   optional uint32 prometheus_listener_port = 3; // required; u16
   optional string prometheus_pushgateway_url = 4; // required
   optional uint64 prometheus_push_interval_ms = 5; // optional; ms
+  optional ApiMode api_mode = 8; // optional
+  optional uint32 port = 9; // required; u16
   
   reserved 6, 7;
   reserved "http_port", "ws_port";
@@ -77,7 +79,15 @@ message ProofDataHandler {
   optional uint64 first_tee_processed_batch = 4; // optional
   optional uint32 tee_proof_generation_timeout_in_secs = 5; // optional
   optional uint32 tee_batch_permanently_ignored_timeout_in_hours = 6; // optional
+  optional string gateway_api_url = 10; // optional
+  optional uint32 proof_fetch_interval_in_secs = 11; // optional
+  optional uint32 proof_gen_data_submit_interval_in_secs = 12; // optional
 
   reserved 7,8,9;
   reserved "api_url", "batch_readiness_check_interval_in_secs", "retry_connection_interval_in_secs";
+}
+
+enum ApiMode {
+  LEGACY = 0;
+  PROVER_CLUSTER = 1;
 }
