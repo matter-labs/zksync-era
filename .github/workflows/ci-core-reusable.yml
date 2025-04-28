@@ -254,8 +254,13 @@ jobs:
 
       - name: Initialize ecosystem 
         run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
           ci_run zkstack dev contracts
           ci_run zkstack dev generate-genesis
+          
           ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
           --observability=false
