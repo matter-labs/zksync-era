@@ -251,16 +251,30 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
       
-
-      - name: Initialize ecosystem 
+      - name: Initialize ecosystem 0
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zkstack dev contracts
+      - name: initialize ecosystem 1
+        continue-on-error: true
+        run: |
+          ci_run zkstack ecosystem init --dev \
+          --ignore-prerequisites --verbose \
+          --observability=false
+
+      - name: initialize ecosystem 2
+        run: |
           ci_run zkstack dev generate-genesis
-          
+          ci_run rm -rf ./chains/era/configs/*
+          ci_run rm -rf ./chains/second/configs/*
+          ci_run rm -rf ./chains/gateway/configs/*
+          ci_run cat ./etc/env/file_based/genesis.yaml
+
+
+      - name: Initialize ecosystem 3
+        run: |
           ci_run zkstack ecosystem init --dev \
           --ignore-prerequisites --verbose \
           --observability=false
