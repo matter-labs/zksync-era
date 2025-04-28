@@ -1,4 +1,5 @@
 use circuit_sequencer_api::geometry_config::ProtocolGeometry;
+use zk_evm_1_5_2::zk_evm_abstractions::precompiles::PrecompileAddress;
 use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute};
 
@@ -6,7 +7,13 @@ use super::{tester::VmTesterBuilder, TestedVm};
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    vm_latest::{
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+        old_vm::{
+            history_recorder::HistoryDisabled, oracles::precompile::PrecompilesProcessorWithHistory,
+        },
+        MultiVmSubversion,
+    },
 };
 
 pub(crate) fn test_keccak<VM: TestedVm>() {
@@ -114,16 +121,13 @@ pub(crate) fn test_ecrecover<VM: TestedVm>() {
 }
 
 pub(crate) fn test_ecadd<VM: TestedVm>() {
-    // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
+    // Execute simple transfer and check that exactly 1 `ecadd` call was made (it's done during tx validation).
     let mut vm = VmTesterBuilder::new()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
 
-    // calldata for `doEcAdd()`, assuming the wrapper method in the contract is implemented like `function doEcAdd() public { ... }`
-    // You may need to generate the correct selector + inputs depending on how you wrote your wrapper.
-    // Here's a placeholder for calling doEcAdd()
     let ecadd_calldata = "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002";
     let address = Address::from_low_u64_be(6);
 
@@ -148,16 +152,13 @@ pub(crate) fn test_ecadd<VM: TestedVm>() {
 }
 
 pub(crate) fn test_ecmul<VM: TestedVm>() {
-    // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
+    // Execute simple transfer and check that exactly 1 `ecmul` call was made (it's done during tx validation).
     let mut vm = VmTesterBuilder::new()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
 
-    // calldata for `doEcMul()`, assuming the wrapper method in the contract is implemented like `function doEcMul() public { ... }`
-    // You may need to generate the correct selector + inputs depending on how you wrote your wrapper.
-    // Here's a placeholder for calling doEcMul()
     let ecmul_calldata = "0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000230644e72e131a029b85045b68181585d2833e84879b9709143e1f593f00000000000000000000000000000000000000000000000000000000000000000000000";
     let address = Address::from_low_u64_be(7);
 
@@ -182,16 +183,13 @@ pub(crate) fn test_ecmul<VM: TestedVm>() {
 }
 
 pub(crate) fn test_ecpairing<VM: TestedVm>() {
-    // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
+    // Execute simple transfer and check that exactly 1 `ecpairing` call was made (it's done during tx validation).
     let mut vm = VmTesterBuilder::new()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
 
-    // calldata for `doEcPairing()`, assuming the wrapper method in the contract is implemented like `function doEcPairing() public { ... }`
-    // You may need to generate the correct selector + inputs depending on how you wrote your wrapper.
-    // Here's a placeholder for calling doEcPairing()
     let ecpairing_calldata = "105456a333e6d636854f987ea7bb713dfd0ae8371a72aea313ae0c32c0bf10160cf031d41b41557f3e7e3ba0c51bebe5da8e6ecd855ec50fc87efcdeac168bcc0476be093a6d2b4bbf907172049874af11e1b6267606e00804d3ff0037ec57fd3010c68cb50161b7d1d96bb71edfec9880171954e56871abf3d93cc94d745fa114c059d74e5b6c4ec14ae5864ebe23a71781d86c29fb8fb6cce94f70d3de7a2101b33461f39d9e887dbb100f170a2345dde3c07e256d1dfa2b657ba5cd030427000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000021a2c3013d2ea92e13c800cde68ef56a294b883f6ac35d25f587c09b1b3c635f7290158a80cd3d66530f74dc94c94adb88f5cdb481acca997b6e60071f08a115f2f997f3dbd66a7afe07fe7862ce239edba9e05c5afff7f8a1259c9733b2dfbb929d1691530ca701b4a106054688728c9972c8512e9789e9567aae23e302ccd75";
     let address = Address::from_low_u64_be(8);
 
@@ -218,16 +216,13 @@ pub(crate) fn test_ecpairing<VM: TestedVm>() {
 }
 
 pub(crate) fn test_modexp<VM: TestedVm>() {
-    // Execute simple transfer and check that exactly 1 `ecrecover` call was made (it's done during tx validation).
+    // Execute simple transfer and check that exactly 1 `modexp` call was made (it's done during tx validation).
     let mut vm = VmTesterBuilder::new()
         .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
 
-    // calldata for `doModExp()`, assuming the wrapper method in the contract is implemented like `function doModExp() public { ... }`
-    // You may need to generate the correct selector + inputs depending on how you wrote your wrapper.
-    // Here's a placeholder for calling doModExp()
     let modexp_calldata = "000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000100";
     let address = Address::from_low_u64_be(5);
 
@@ -251,4 +246,28 @@ pub(crate) fn test_modexp<VM: TestedVm>() {
             .config()
             .cycles_per_modexp_circuit as f32;
     assert!(modexp_count >= 0.001, "{modexp_count}");
+}
+
+pub(crate) fn test_v28_precompiles_disabled<VM: TestedVm>() {
+    // Build the VM environment with a version lower than EcPrecompiles
+    let processor =
+        PrecompilesProcessorWithHistory::<HistoryDisabled>::new(MultiVmSubversion::EvmEmulator);
+
+    // List of v28 precompile addresses to check
+    let v28_precompile_addresses = [
+        PrecompileAddress::Modexp as u16,
+        PrecompileAddress::ECAdd as u16,
+        PrecompileAddress::ECMul as u16,
+        PrecompileAddress::ECPairing as u16,
+    ];
+
+    // Check that each v28 precompile address resolves to None
+    for &address in &v28_precompile_addresses {
+        let resolved = processor.resolve_precompile_address(address);
+        assert!(
+            resolved.is_none(),
+            "Expected None for precompile address {address}, got {:?}",
+            resolved
+        );
+    }
 }
