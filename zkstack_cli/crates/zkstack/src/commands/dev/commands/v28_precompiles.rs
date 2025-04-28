@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{bail, ensure, Context};
 use clap::Parser;
 use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,7 @@ use crate::{
         },
         dev::commands::upgrade_utils::{print_error, set_upgrade_timestamp_calldata},
     },
+    utils::addresses::apply_l1_to_l2_alias,
 };
 
 #[derive(Debug, Default)]
@@ -30,7 +31,6 @@ pub struct FetchedChainInfo {
     hyperchain_addr: Address,
     chain_admin_addr: Address,
     gw_hyperchain_addr: Address,
-    gw_chain_admin_addr: Address,
     l1_asset_router_proxy: Address,
     settlement_layer: u64,
 }
@@ -57,7 +57,7 @@ async fn verify_next_batch_new_version(
             next_l2_block.as_u64()
         )
     })?;
-    anyhow::ensure!(
+    ensure!(
         protocol_version >= ProtocolVersionId::Version28,
         "THe block does not yet contain the v28 (Precompiles) upgrade"
     );
@@ -78,7 +78,6 @@ pub async fn check_chain_readiness(
     let l2_client = get_zk_client(&l2_rpc_url, l2_chain_id)?;
 
     let gw_client = get_ethers_provider(&gw_rpc_url)?;
-    let gw_client_l2 = get_zk_client(&gw_rpc_url, gw_chain_id)?;
 
     if settlement_layer == gw_chain_id {
         // GW
@@ -89,8 +88,8 @@ pub async fn check_chain_readiness(
         let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
         let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
-        verify_next_batch_new_version(batches_committed, &gw_client_l2).await?;
-        verify_next_batch_new_version(batches_verified, &gw_client_l2).await?;
+        verify_next_batch_new_version(batches_committed, &l2_client).await?;
+        verify_next_batch_new_version(batches_verified, &l2_client).await?;
     } else {
         // L1
         let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
@@ -117,7 +116,7 @@ pub async fn fetch_chain_info(
     let bridgehub = BridgehubAbi::new(upgrade_info.bridgehub_addr, l1_provider.clone());
     let zkchain_addr = bridgehub.get_zk_chain(chain_id).await?;
     if zkchain_addr == Address::zero() {
-        anyhow::bail!("Chain not present in bridgehub");
+        bail!("Chain not present in bridgehub");
     }
 
     let settlement_layer = bridgehub.settlement_layer(chain_id).await?;
@@ -133,18 +132,20 @@ pub async fn fetch_chain_info(
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_client.clone());
     let gw_zkchain_addr = gw_bridgehub.get_zk_chain(chain_id).await?;
 
-    let gw_chain_admin_addr = if gw_zkchain_addr != Address::zero() {
-        let gw_zkchain = ZkChainAbi::new(gw_zkchain_addr, gw_client.clone());
-        gw_zkchain.get_admin().await?
-    } else {
-        Address::zero()
-    };
+    if gw_zkchain_addr != Address::zero() {
+        if gw_zkchain_addr != apply_l1_to_l2_alias(chain_admin_addr) {
+            bail!(
+                "Provided gw_zkchain_addr ({:?}) does not match the expected aliased L1 chain_admin_addr ({:?})",
+                gw_zkchain_addr,
+                apply_l1_to_l2_alias(chain_admin_addr)
+            );
+        }
+    }
 
     Ok(FetchedChainInfo {
         hyperchain_addr: zkchain_addr,
         chain_admin_addr,
         gw_hyperchain_addr: gw_zkchain_addr,
-        gw_chain_admin_addr,
         l1_asset_router_proxy,
         settlement_layer: settlement_layer.as_u64(),
     })
