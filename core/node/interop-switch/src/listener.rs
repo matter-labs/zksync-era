@@ -12,7 +12,7 @@ pub struct InteropListener<C: DbClient> {
     _phantom_data: PhantomData<C>,
 }
 
-impl<C: DbClient> InteropListener<C> {
+impl<C: DbClient + Send> InteropListener<C> {
     pub fn new(src_chain: SourceChain, dst_chain: L2ChainId, listener_step: u64) -> Self {
         Self {
             src_chain,

@@ -20,27 +20,12 @@ pub struct InMemoryDb {
 #[async_trait::async_trait]
 impl DbClient for InMemoryDb {
     async fn save_interop_trigger(&mut self, tx: InteropTrigger) -> anyhow::Result<()> {
-        dbg!(&tx);
         self.triggers.insert(tx.tx_hash, tx);
-        Ok(())
-    }
-
-    async fn save_interop_triggers(&mut self, txs: Vec<InteropTrigger>) -> anyhow::Result<()> {
-        for tx in txs {
-            self.save_interop_trigger(tx).await?;
-        }
         Ok(())
     }
 
     async fn save_interop_bundle(&mut self, tx: InteropBundle) -> anyhow::Result<()> {
         self.bundles.insert(tx.bundle_hash, tx);
-        Ok(())
-    }
-
-    async fn save_interop_bundles(&mut self, txs: Vec<InteropBundle>) -> anyhow::Result<()> {
-        for tx in txs {
-            self.save_interop_bundle(tx).await?;
-        }
         Ok(())
     }
 
