@@ -5,6 +5,26 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
+HELP=$(cat <<'HELP_EOF'
+Usage: run_on_all_chains.sh CMD CHAINS LOG_DIR [...CHAIN_ARGS]
+  Runs CMD on CHAINS (comma-separated) redirecting stdout + stderr of each command to a file in LOG_DIR.
+  CHAIN_ARGS allow specifying additional chain-specific args; they are encoded as `$chain:$args`.
+
+Examples:
+  run_on_all_chains.sh 'zkstack dev test integration' era,validium logs 'era:--evm'
+    This will run integration tests for 'era' and 'validium' chains, with an additional '--evm' flag
+    passed just to the 'era' chain.
+HELP_EOF
+)
+
+if [ "$1" == "--help" ]; then
+    echo "$HELP"
+    exit 0
+elif [ "$#" -lt 3 ]; then
+    echo -e "${RED}Error:${NC} expected at least 3 args"
+    echo "$HELP"
+    exit 2
+fi
 
 command=$1
 chain_list=$2
@@ -13,9 +33,22 @@ IFS=',' read -r -a chains <<< "$chain_list"
 pids=()
 statuses=()
 
+# Read chain-specific args
+shift 3
+additional_chain_args=()
+for arg in "$@"; do
+    for i in "${!chains[@]}"; do
+        if [ "${chains[$i]}" == "${arg/:*/}" ]; then
+            additional_chain_args[$i]="${arg/*:/}"
+        fi
+    done
+done
+
 # Start background processes
 for i in "${!chains[@]}"; do
-    eval "$command --chain ${chains[$i]} &> ${log_dir}/${chains[$i]}.log" &
+    full_command="$command ${additional_chain_args[$i]} --chain ${chains[$i]} &> ${log_dir}/${chains[$i]}.log"
+    echo "Running command: $full_command"
+    eval "$full_command" &
     pids+=($!)
 done
 

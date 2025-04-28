@@ -89,7 +89,13 @@ impl ArtifactsManager for NodeAggregation {
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(artifacts.block_number)
+            .await
+            .unwrap();
+        let batch_sealed_at = transaction
+            .fri_basic_witness_generator_dal()
+            .get_batch_sealed_at_timestamp(artifacts.block_number)
             .await;
+
         match artifacts.next_aggregations.len() > 1 {
             true => {
                 transaction
@@ -100,6 +106,7 @@ impl ArtifactsManager for NodeAggregation {
                         AggregationRound::NodeAggregation,
                         artifacts.depth,
                         protocol_version_id,
+                        batch_sealed_at,
                     )
                     .await;
                 transaction
@@ -111,6 +118,7 @@ impl ArtifactsManager for NodeAggregation {
                         artifacts.depth,
                         &blob_urls.aggregation_urls,
                         protocol_version_id,
+                        batch_sealed_at,
                     )
                     .await;
             }
@@ -127,6 +135,7 @@ impl ArtifactsManager for NodeAggregation {
                         &blob_url,
                         true,
                         protocol_version_id,
+                        batch_sealed_at,
                     )
                     .await
             }

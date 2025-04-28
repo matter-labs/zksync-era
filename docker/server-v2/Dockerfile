@@ -38,5 +38,6 @@ COPY contracts/l2-contracts/zkout/ /contracts/l2-contracts/zkout/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
+COPY core/lib/dal/migrations/ /migrations
 
 ENTRYPOINT ["zksync_server"]

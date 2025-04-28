@@ -5,6 +5,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::AuxOutputWitnessWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_interface::{inputs::WitnessInputData, Bincode};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
@@ -28,7 +29,15 @@ impl ArtifactsManager for BasicCircuits {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let l1_batch_number = *metadata;
-        let data = object_store.get(l1_batch_number).await.unwrap();
+        let data: WitnessInputData = match object_store.get(l1_batch_number).await {
+            Ok(data) => data,
+            Err(err_cbor) => object_store
+                .get::<WitnessInputData<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(|err_bincode| anyhow::anyhow!("Getting data with bincode failed with {err_bincode}, getting data with CBOR failed with {err_cbor}"))?,
+        };
+
         Ok(BasicWitnessGeneratorJob {
             block_number: l1_batch_number,
             data,
@@ -73,7 +82,13 @@ impl ArtifactsManager for BasicCircuits {
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
             .protocol_version_for_l1_batch(L1BatchNumber(job_id))
+            .await
+            .unwrap();
+        let batch_sealed_at = transaction
+            .fri_basic_witness_generator_dal()
+            .get_batch_sealed_at_timestamp(L1BatchNumber(job_id))
             .await;
+
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
@@ -82,6 +97,7 @@ impl ArtifactsManager for BasicCircuits {
                 AggregationRound::BasicCircuits,
                 0,
                 protocol_version_id,
+                batch_sealed_at,
             )
             .await;
 

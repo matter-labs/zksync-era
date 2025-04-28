@@ -1,7 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
@@ -135,6 +134,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         } else {
             input.eth_client.context("eth_client missing")?.0
         };
+
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
@@ -142,15 +142,12 @@ impl WiringLayer for EthTxAggregatorLayer {
         let object_store = input.object_store.0;
 
         // Create and add tasks.
-        let eth_client_blobs_addr = eth_client_blobs
-            .as_deref()
-            .map(BoundEthInterface::sender_account);
 
         let config = input.sender_config;
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
-            eth_client_blobs_addr,
+            eth_client_blobs.is_some(),
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
             input.settlement_mode.0,
@@ -162,12 +159,12 @@ impl WiringLayer for EthTxAggregatorLayer {
             config.clone(),
             aggregator,
             eth_client,
+            eth_client_blobs,
             validator_timelock_addr,
             state_transition_manager_address,
             multicall3_addr,
             diamond_proxy_addr,
             self.zksync_network_id,
-            eth_client_blobs_addr,
             input.settlement_mode.0,
         )
         .await;

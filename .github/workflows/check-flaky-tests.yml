@@ -1,0 +1,21 @@
+name: Check flaky tests
+
+# Special workflow to check if the core integration tests are flaky
+# it runs on every push to the main branch and repeats core integration tests 10 times
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+
+  check-flaky-tests:
+    uses: ./.github/workflows/ci-core-reusable.yml

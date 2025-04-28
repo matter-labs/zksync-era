@@ -36,6 +36,19 @@ impl ProtoRepr for proto::ProofDataHandler {
                         configs::TeeConfig::default_tee_batch_permanently_ignored_timeout_in_hours,
                     ),
             },
+            gateway_api_url: self.gateway_api_url.as_ref().map(|x| x.to_string()),
+            proof_fetch_interval_in_secs: self
+                .proof_fetch_interval_in_secs
+                .map(|x| x as u16)
+                .unwrap_or_else(
+                    configs::ProofDataHandlerConfig::default_proof_fetch_interval_in_secs,
+                ),
+            proof_gen_data_submit_interval_in_secs: self
+                .proof_gen_data_submit_interval_in_secs
+                .map(|x| x as u16)
+                .unwrap_or_else(
+                    configs::ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs,
+                ),
         })
     }
 
@@ -52,6 +65,11 @@ impl ProtoRepr for proto::ProofDataHandler {
                 this.tee_config
                     .tee_batch_permanently_ignored_timeout_in_hours
                     .into(),
+            ),
+            gateway_api_url: this.gateway_api_url.as_ref().map(|x| x.to_string()),
+            proof_fetch_interval_in_secs: Some(this.proof_fetch_interval_in_secs.into()),
+            proof_gen_data_submit_interval_in_secs: Some(
+                this.proof_gen_data_submit_interval_in_secs.into(),
             ),
         }
     }

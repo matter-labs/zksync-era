@@ -14,7 +14,7 @@ use zksync_config::{
     EigenConfig,
 };
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_eth_client::EthInterface;
@@ -155,18 +155,28 @@ impl DataAvailabilityClient for EigenDAClient {
         Ok(DispatchResponse::from(blob_key.to_hex()))
     }
 
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        // TODO: return a quick confirmation in `dispatch_blob` and await here
+        Ok(Some(FinalityResponse {
+            blob_id: dispatch_request_id,
+        }))
+    }
+
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
         let blob_key = BlobKey::from_hex(blob_id)
             .map_err(|_| anyhow::anyhow!("Failed to decode blob id: {}", blob_id))
             .map_err(to_non_retriable_da_error)?;
-        let eigen_dacert = self
+        let eigenda_cert = self
             .client
             .get_inclusion_data(&blob_key)
             .await
             .map_err(to_retriable_da_error)?;
-        if let Some(eigen_dacert) = eigen_dacert {
-            println!("EigenDA cert: {:?}", eigen_dacert);
-            let inclusion_data = eigen_dacert
+        if let Some(eigenda_cert) = eigenda_cert {
+            println!("EigenDA cert: {:?}", eigenda_cert);
+            let inclusion_data = eigenda_cert
                 .to_bytes()
                 .map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes"))
                 .map_err(to_non_retriable_da_error)?;

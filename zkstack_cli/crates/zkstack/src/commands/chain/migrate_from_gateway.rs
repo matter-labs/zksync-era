@@ -25,8 +25,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig},
     EcosystemConfig,
 };
-use zksync_basic_types::{H256, U256, U64};
-use zksync_types::L2ChainId;
+use zksync_basic_types::{L2ChainId, H256, U256, U64};
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
@@ -73,10 +72,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config
-        .get_secrets_config()
-        .await?
-        .get::<String>("l1.l1_rpc_url")?;
+    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
 
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
@@ -87,8 +83,8 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )?;
     preparation_config.save(shell, preparation_config_path)?;
 
-    let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-    let gateway_chain_chain_config = chain_config.get_gateway_chain_config().unwrap();
+    let chain_contracts_config = chain_config.get_contracts_config()?;
+    let gateway_chain_chain_config = chain_config.get_gateway_chain_config().await?;
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
     let chain_access_control_restriction =
         chain_contracts_config.l1.access_control_restriction_addr;
@@ -103,7 +99,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
                 (
                     chain_admin_addr,
                     chain_access_control_restriction.context("chain_access_control_restriction")?,
-                    gateway_chain_chain_config.chain_admin_addr,
+                    gateway_chain_chain_config.chain_admin_addr()?,
                     U256::from(chain_config.chain_id.as_u64()),
                 ),
             )
@@ -115,7 +111,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     .await?;
 
     let general_config = gateway_chain_config.get_general_config().await?;
-    let l2_rpc_url = general_config.get::<String>("api.web3_json_rpc.http_url")?;
+    let l2_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = Provider::<Http>::try_from(&l2_rpc_url)?;
 
     let client: Client<L2> = Client::http(l2_rpc_url.parse().context("invalid L2 RPC URL")?)?

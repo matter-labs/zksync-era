@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -13,7 +14,7 @@ use tokio::fs;
 use zksync_circuit_prover_service::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     types::{
-        circuit::Circuit, circuit_prover_payload::GpuCircuitProverPayload,
+        circuit_prover_payload::GpuCircuitProverPayload,
         witness_vector_generator_payload::WitnessVectorGeneratorPayload,
     },
     witness_vector_generator::WitnessVectorGeneratorExecutor,
@@ -24,7 +25,7 @@ use zksync_prover_fri_types::{
     circuit_definitions::boojum::{
         cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField,
     },
-    CircuitWrapper, ProverServiceDataKey,
+    ProverServiceDataKey,
 };
 use zksync_prover_job_processor::Executor;
 use zksync_prover_keystore::{
@@ -47,10 +48,6 @@ async fn create_witness_vector(
         .get(metadata.into())
         .await
         .context("failed to get circuit_wrapper from object store")?;
-    let circuit = match circuit_wrapper {
-        CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
-        _ => panic!("Unsupported circuit"),
-    };
     tracing::info!("Circuit loaded");
 
     tracing::info!("Loading finalization hints from disk...");
@@ -80,7 +77,7 @@ async fn create_witness_vector(
     let executor = WitnessVectorGeneratorExecutor {};
     let wvg = executor.execute(
         WitnessVectorGeneratorPayload {
-            circuit,
+            circuit_wrapper,
             finalization_hints,
         },
         metadata,
@@ -113,10 +110,6 @@ async fn run_prover(
         .get(metadata.into())
         .await
         .context("failed to get circuit_wrapper from object store")?;
-    let circuit = match circuit_wrapper {
-        CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
-        _ => panic!("Unsupported circuit"),
-    };
     tracing::info!("Circuit loaded");
 
     let setup_data = keystore
@@ -132,7 +125,7 @@ async fn run_prover(
     let prover = GpuCircuitProverExecutor::new(prover_context);
     let _ = prover.execute(
         GpuCircuitProverPayload {
-            circuit,
+            circuit_wrapper,
             witness_vector,
             setup_data,
         },
@@ -167,6 +160,7 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
         depth: caps["depth"].parse()?,
         is_node_final_proof: false,
         pick_time: Instant::now(),
+        batch_sealed_at: DateTime::<Utc>::default(),
     })
 }
 
@@ -180,6 +174,7 @@ fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
         depth,
         is_node_final_proof: _,
         pick_time: _,
+        batch_sealed_at: _,
     } = metadata;
     format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector")
 }
