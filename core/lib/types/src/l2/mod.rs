@@ -4,12 +4,12 @@ use anyhow::Context as _;
 use num_enum::TryFromPrimitive;
 use rlp::Rlp;
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::web3::AuthorizationList;
 use zksync_crypto_primitives::K256PrivateKey;
 
 use self::error::SignError;
 use crate::{
-    api,
-    api::TransactionRequest,
+    api::{self, TransactionRequest},
     fee::{encoding_len, Fee},
     helpers::unix_timestamp_ms,
     transaction_request::PaymasterParams,
@@ -17,8 +17,8 @@ use crate::{
     web3::Bytes,
     Address, EIP712TypedStructure, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
     PackedEthSignature, StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
-    EIP_712_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
-    U256, U64,
+    EIP_712_TX_TYPE, EIP_7702_TX_TYPE, H256, LEGACY_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE,
+    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
 
 pub mod error;
@@ -32,6 +32,7 @@ pub enum TransactionType {
     LegacyTransaction = 0,
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
+    EIP7702Transaction = 4,
     // EIP 712 transaction with additional fields specified for ZKsync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
@@ -46,6 +47,7 @@ impl TransactionType {
             TransactionType::LegacyTransaction
                 | TransactionType::EIP2930Transaction
                 | TransactionType::EIP1559Transaction
+                | TransactionType::EIP7702Transaction,
         )
     }
 }
@@ -58,6 +60,8 @@ pub struct L2TxCommonData {
     pub initiator_address: Address,
     pub signature: Vec<u8>,
     pub transaction_type: TransactionType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authorization_list: Option<AuthorizationList>,
     /// This input consists of raw transaction bytes when we receive it from API.    
     /// But we still use this structure for zksync-rs and tests, and we don't have raw tx before
     /// creating the structure. We setup this field manually later for consistency.    
@@ -88,6 +92,7 @@ impl L2TxCommonData {
             transaction_type,
             input,
             paymaster_params,
+            authorization_list: None,
         }
     }
 
@@ -139,6 +144,7 @@ impl Default for L2TxCommonData {
             transaction_type: TransactionType::EIP712Transaction,
             input: Default::default(),
             paymaster_params: Default::default(),
+            authorization_list: None,
         }
     }
 }
@@ -178,6 +184,7 @@ impl L2Tx {
                 transaction_type: TransactionType::EIP712Transaction,
                 input: None,
                 paymaster_params,
+                authorization_list: None,
             },
             received_timestamp_ms: unix_timestamp_ms(),
             raw_bytes: None,
@@ -339,6 +346,7 @@ impl From<L2Tx> for TransactionRequest {
             raw: tx.raw_bytes,
             transaction_type: None,
             access_list: None,
+            authorization_list: tx.common_data.authorization_list.clone(),
             eip712_meta: None,
             chain_id: tx.common_data.extract_chain_id(),
         };
@@ -356,7 +364,7 @@ impl From<L2Tx> for TransactionRequest {
                     paymaster_params: Some(tx.common_data.paymaster_params),
                 });
             }
-            EIP_1559_TX_TYPE | EIP_2930_TX_TYPE => {
+            EIP_1559_TX_TYPE | EIP_2930_TX_TYPE | EIP_7702_TX_TYPE => {
                 base_tx_req.max_priority_fee_per_gas =
                     Some(tx.common_data.fee.max_priority_fee_per_gas);
                 base_tx_req.transaction_type = Some(U64::from(tx_type));
@@ -507,6 +515,7 @@ mod tests {
                 transaction_type: TransactionType::LegacyTransaction,
                 input: None,
                 paymaster_params: PaymasterParams::default(),
+                authorization_list: None,
             },
             received_timestamp_ms: Default::default(),
             raw_bytes: None,

@@ -12,9 +12,11 @@ use crate::{
     l1::L1Tx,
     l2::{L2Tx, TransactionType},
     u256_to_h256,
-    web3::{keccak256, keccak256_concat, AccessList, Bytes},
+    web3::{
+        keccak256, keccak256_concat, AccessList, AuthorizationList, AuthorizationListItem, Bytes,
+    },
     Address, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
-    PackedEthSignature, StructBuilder, H256, LEGACY_TX_TYPE, U256, U64,
+    PackedEthSignature, StructBuilder, EIP_7702_TX_TYPE, H256, LEGACY_TX_TYPE, U256, U64,
 };
 
 /// Call contract request (eth_call / eth_estimateGas)
@@ -58,6 +60,9 @@ pub struct CallRequest {
     /// Access list
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_list: Option<AccessList>,
+    /// Authorization list
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorization_list: Option<AuthorizationList>,
     /// EIP712 meta
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub eip712_meta: Option<Eip712Meta>,
@@ -191,6 +196,8 @@ pub enum SerializationTransactionError {
     DecodeRlpError(#[from] DecoderError),
     #[error("invalid signature")]
     MalformedSignature,
+    #[error("malformed authorization list item with index {0}")]
+    MalformedAuthorizationListItem(usize),
     #[error("wrong chain id {}", .0.unwrap_or_default())]
     WrongChainId(Option<u64>),
     #[error("malformed paymaster params")]
@@ -250,6 +257,8 @@ pub struct TransactionRequest {
     pub transaction_type: Option<U64>,
     /// Access list
     pub access_list: Option<AccessList>,
+    /// Authorization list (EIP-7702)
+    pub authorization_list: Option<AuthorizationList>,
     pub eip712_meta: Option<Eip712Meta>,
     /// Chain ID
     pub chain_id: Option<u64>,
@@ -314,6 +323,18 @@ impl EIP712TypedStructure for TransactionRequest {
     const TYPE_NAME: &'static str = "Transaction";
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
+        // We would prefer to return an error here, but the interface doesn't support that
+        // and we need to enforce that the authorization list is not provided for EIP-712 transactions.
+        assert!(
+            self.authorization_list.is_none()
+                || self
+                    .authorization_list
+                    .as_ref()
+                    .map(|l| l.is_empty())
+                    .unwrap_or(true),
+            "Authorization list is not supported for EIP-712 txs"
+        );
+
         let meta = self
             .eip712_meta
             .as_ref()
@@ -511,6 +532,28 @@ impl TransactionRequest {
                 rlp.append(&self.input.0);
                 access_list_rlp(rlp, &self.access_list);
             }
+            // EIP-7702 (0x04)
+            Some(x) if x == EIP_7702_TX_TYPE.into() => {
+                // TODO: Should we add more safety rails, e.g. ensure that EIP712 meta is not provided?
+
+                rlp.append(
+                    &self
+                        .chain_id
+                        .ok_or(SerializationTransactionError::WrongChainId(None))?,
+                );
+                rlp.append(&self.nonce);
+                rlp_opt(rlp, &self.max_priority_fee_per_gas);
+                rlp.append(&self.gas_price);
+                rlp.append(&self.gas);
+                // To cannot be `null` for EIP-7702 transactions.
+                let to = self
+                    .to
+                    .ok_or(SerializationTransactionError::ToAddressIsNull)?;
+                rlp.append(&to);
+                rlp.append(&self.value);
+                access_list_rlp(rlp, &self.access_list);
+                authorization_list_rlp(rlp, &self.authorization_list);
+            }
             // EIP-712
             Some(x) if x == EIP_712_TX_TYPE.into() => {
                 rlp.append(&self.nonce);
@@ -650,6 +693,55 @@ impl TransactionRequest {
                     s: Some(rlp.val_at(11)?),
                     raw: Some(Bytes(rlp.as_raw().to_vec())),
                     transaction_type: Some(EIP_1559_TX_TYPE.into()),
+                    ..Self::decode_eip1559_fields(&rlp, 1)?
+                }
+            }
+            Some(&EIP_7702_TX_TYPE) => {
+                rlp = Rlp::new(&bytes[1..]);
+                if rlp.item_count()? != 13 {
+                    return Err(DecoderError::RlpIncorrectListLen.into());
+                }
+                rlp.item_count()?;
+                if let Ok(access_list_rlp) = rlp.at(8) {
+                    if access_list_rlp.item_count()? > 0 {
+                        return Err(SerializationTransactionError::AccessListsNotSupported);
+                    }
+                }
+                let authorization_list_rlp = rlp.at(9)?;
+                let authorization_list_item_count = authorization_list_rlp.item_count()?;
+                let mut authorization_list = Vec::with_capacity(authorization_list_item_count);
+                for i in 0..authorization_list_item_count {
+                    let item = authorization_list_rlp.at(i)?;
+                    if item.item_count()? != 6 {
+                        return Err(
+                            SerializationTransactionError::MalformedAuthorizationListItem(i),
+                        );
+                    }
+                    let chain_id = item.val_at(0)?;
+                    let address = item.val_at(1)?;
+                    let nonce = item.val_at(2)?;
+                    let y_parity = item.val_at(3)?;
+                    let r = item.val_at(4)?;
+                    let s = item.val_at(5)?;
+                    let item = AuthorizationListItem {
+                        chain_id,
+                        address,
+                        nonce,
+                        y_parity,
+                        r,
+                        s,
+                    };
+                    authorization_list.push(item);
+                }
+
+                Self {
+                    chain_id: Some(rlp.val_at(0)?),
+                    v: Some(rlp.val_at(10)?),
+                    r: Some(rlp.val_at(11)?),
+                    s: Some(rlp.val_at(12)?),
+                    raw: Some(Bytes(rlp.as_raw().to_vec())),
+                    transaction_type: Some(EIP_7702_TX_TYPE.into()),
+                    authorization_list: Some(authorization_list),
                     ..Self::decode_eip1559_fields(&rlp, 1)?
                 }
             }
@@ -844,6 +936,7 @@ impl L2Tx {
         tx.common_data.transaction_type = match value.transaction_type.map(|t| t.as_u64() as u8) {
             Some(EIP_712_TX_TYPE) => TransactionType::EIP712Transaction,
             Some(EIP_1559_TX_TYPE) => TransactionType::EIP1559Transaction,
+            Some(EIP_7702_TX_TYPE) => TransactionType::EIP7702Transaction,
             Some(EIP_2930_TX_TYPE) => TransactionType::EIP2930Transaction,
             _ => TransactionType::LegacyTransaction,
         };
@@ -926,6 +1019,7 @@ impl From<CallRequest> for TransactionRequest {
             transaction_type: call_request.transaction_type,
             access_list: call_request.access_list,
             eip712_meta: call_request.eip712_meta,
+            authorization_list: call_request.authorization_list,
             ..Default::default()
         }
     }
@@ -987,6 +1081,23 @@ fn access_list_rlp(rlp: &mut RlpStream, access_list: &Option<AccessList>) {
             rlp.begin_list(2);
             rlp.append(&item.address);
             rlp.append_list(&item.storage_keys);
+        }
+    } else {
+        rlp.begin_list(0);
+    }
+}
+
+fn authorization_list_rlp(rlp: &mut RlpStream, authorization_list: &Option<AuthorizationList>) {
+    if let Some(authorization_list) = authorization_list {
+        rlp.begin_list(authorization_list.len());
+        for item in authorization_list {
+            rlp.begin_list(6);
+            rlp.append(&item.chain_id);
+            rlp.append(&item.address);
+            rlp.append(&item.nonce);
+            rlp.append(&item.y_parity);
+            rlp.append(&item.r);
+            rlp.append(&item.s);
         }
     } else {
         rlp.begin_list(0);
@@ -1477,6 +1588,7 @@ mod tests {
             nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,
+            authorization_list: None,
             eip712_meta: None,
         };
 
@@ -1504,6 +1616,7 @@ mod tests {
             nonce: Some(U256::from(123u32)),
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,
+            authorization_list: None,
             eip712_meta: None,
         };
         let l2_tx = L2Tx::from_request(
@@ -1561,6 +1674,7 @@ mod tests {
             nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,
+            authorization_list: None,
             eip712_meta: None,
         };
 
@@ -1571,5 +1685,26 @@ mod tests {
             try_to_l2_tx,
             Err(SerializationTransactionError::ToAddressIsNull)
         );
+    }
+
+    #[test]
+    fn rlp_decode_7702() {
+        let rlp = hex::decode(
+            "04f8cb8201048001840564eba18304f05a9400000000000000000000000000000000000080018203e880c0f85ef85c8201049400000000000000000000000000000000000080010180a09732937ba3de2800af90a73693b1d5c6171ab706c74c5c58092eebb0c8c83f2aa05f144b1a71680590a263eb7b22f66f3807334b01fba030feb1cb833a2f64a6a001a0929ff64f7063d6051748fb0cda1f87949625a012fa403eb302c42c0e0c550abba03955758dd3e964267eee258cdf02265819f8f293a3f0e1aca0e4a261af4a32a1"
+        ).unwrap();
+        let (tx, _) = TransactionRequest::from_bytes(rlp.as_slice(), L2ChainId::from(260)).unwrap();
+        assert_eq!(tx.transaction_type, Some(EIP_7702_TX_TYPE.into()));
+        let authorization_list = tx.authorization_list.unwrap();
+        assert_eq!(authorization_list.len(), 1);
+        assert_eq!(
+            authorization_list[0].address,
+            Address::from_slice(
+                hex::decode("0000000000000000000000000000000000008001")
+                    .unwrap()
+                    .as_slice()
+            )
+        );
+        assert_eq!(authorization_list[0].nonce, 1.into());
+        assert_eq!(authorization_list[0].chain_id, 260.into());
     }
 }

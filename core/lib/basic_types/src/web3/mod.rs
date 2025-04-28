@@ -649,6 +649,23 @@ impl<'a> Deserialize<'a> for BlockNumber {
     }
 }
 
+// Manual implementation of `AuthorizationList` from EIP7702.
+
+/// Authorization list
+pub type AuthorizationList = Vec<AuthorizationListItem>;
+
+/// Authorization list item
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthorizationListItem {
+    pub chain_id: U256,
+    pub address: Address,
+    pub nonce: U256,
+    pub y_parity: U256,
+    pub r: H256,
+    pub s: H256,
+}
+
 // `AccessList`, `AccessListItem`, `TransactionReceipt`, `SignedTransaction`: from `web3::types::transaction`
 
 /// Access list
