@@ -258,25 +258,10 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-      - name: initialize ecosystem 1
-        continue-on-error: true
-        run: |
-          ci_run zkstack ecosystem init --dev \
-          --ignore-prerequisites --verbose \
-          --observability=false
-
-      - name: initialize ecosystem 2
-        run: |
-          ci_run zkstack dev generate-genesis
-          ci_run rm -rf ./chains/era/configs/*
-          ci_run rm -rf ./chains/second/configs/*
-          ci_run rm -rf ./chains/gateway/configs/*
-          ci_run cat ./etc/env/file_based/genesis.yaml
-
-
-      - name: Initialize ecosystem 3
-        run: |
-          ci_run zkstack ecosystem init --dev \
+          ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_era \
           --ignore-prerequisites --verbose \
           --observability=false
 
@@ -303,7 +288,11 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
 
-          ci_run zkstack chain init --dev \
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_validium \
           --chain validium \
           --validium-type no-da
 
@@ -395,6 +384,27 @@ jobs:
       - name: Initialize gateway chain
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
+          ci_run zkstack chain create \
+          --chain-name gateway \
+          --chain-id 505 \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator false
+          
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_gateway \
+          --chain gateway \
+          --validium-type no-da
+          
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
