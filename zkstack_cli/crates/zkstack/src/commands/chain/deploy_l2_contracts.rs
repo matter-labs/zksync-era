@@ -132,7 +132,7 @@ async fn build_and_deploy(
     .await?;
     update_config(
         shell,
-        &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+        &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.path_to_l1_foundry()),
     )?;
     Ok(())
 }
@@ -267,7 +267,7 @@ async fn call_forge(
     let secrets = chain_config.get_secrets_config().await?;
     input.save(
         shell,
-        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.input(&chain_config.path_to_l1_foundry()),
     )?;
 
     let mut forge = Forge::new(&foundry_contracts_path)

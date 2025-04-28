@@ -10,6 +10,8 @@ pub struct DeployGatewayCTMOutput {
     pub validium_da_validator: Address,
     pub relayed_sl_da_validator: Address,
     pub diamond_cut_data: String,
+    pub governance_calls_to_execute: String,
+    pub ecosystem_admin_calls_to_execute: String,
 }
 
 impl ZkStackConfig for DeployGatewayCTMOutput {}

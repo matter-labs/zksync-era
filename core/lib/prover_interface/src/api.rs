@@ -21,6 +21,9 @@ pub struct ProofGenerationData {
     pub l1_verifier_config: L1VerifierConfig,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitProofGenerationDataResponse;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ProofGenerationDataResponse {
     Success(Option<Box<ProofGenerationData>>),
@@ -45,8 +48,7 @@ pub enum SubmitProofRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PollGeneratedProofsRequest {
-    pub batch_number: L1BatchNumber,
-    pub protocol_version: ProtocolSemanticVersion,
+    pub l1_batch_number: L1BatchNumber,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

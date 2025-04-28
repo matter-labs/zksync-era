@@ -19,6 +19,11 @@ mod tests {
         ProofDataHandlerConfig {
             http_port: 3320,
             proof_generation_timeout_in_secs: 18000,
+            gateway_api_url: None,
+            proof_fetch_interval_in_secs:
+                ProofDataHandlerConfig::default_proof_fetch_interval_in_secs(),
+            proof_gen_data_submit_interval_in_secs:
+                ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs(),
         }
     }
 
