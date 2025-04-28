@@ -81,39 +81,32 @@ impl StorageLogsDedupDal<'_, '_> {
     pub async fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        written_hashed_keys: &[H256],
+        hashed_keys: &[H256],
     ) -> DalResult<()> {
-        let hashed_keys: Vec<_> = written_hashed_keys.iter().map(H256::as_bytes).collect();
-
         let last_index = self.max_enumeration_index().await?.unwrap_or(0);
-        let indices: Vec<_> = ((last_index + 1)..=(last_index + hashed_keys.len() as u64))
-            .map(|x| x as i64)
-            .collect();
 
-        sqlx::query!(
-            r#"
-            INSERT INTO
-            initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at)
-            SELECT
-                u.hashed_key,
-                u.index,
-                $3,
-                NOW(),
-                NOW()
-            FROM
-                UNNEST($1::bytea [], $2::bigint []) AS u (hashed_key, index)
-            "#,
-            &hashed_keys as &[&[u8]],
-            &indices,
-            i64::from(l1_batch_number.0)
+        let hashed_keys_len = hashed_keys.len();
+        let copy = CopyStatement::new(
+            "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
+             FROM STDIN WITH (DELIMITER '|')",
         )
         .instrument("insert_initial_writes")
         .with_arg("l1_batch_number", &l1_batch_number)
-        .with_arg("hashed_keys.len", &hashed_keys.len())
-        .execute(self.storage)
+        .with_arg("hashed_keys.len", &hashed_keys_len)
+        .start(self.storage)
         .await?;
 
-        Ok(())
+        let mut bytes: Vec<u8> = Vec::new();
+        let now = Utc::now().naive_utc().to_string();
+        for (i, hashed_key) in hashed_keys.iter().enumerate() {
+            let enum_index = last_index + i as u64 + 1;
+            let row = format!(
+                "\\\\x{:x}|{}|{}|{}|{}\n",
+                hashed_key, enum_index, l1_batch_number, now, now,
+            );
+            bytes.extend_from_slice(row.as_bytes());
+        }
+        copy.send(&bytes).await
     }
 
     pub async fn get_protective_reads_for_l1_batch(
