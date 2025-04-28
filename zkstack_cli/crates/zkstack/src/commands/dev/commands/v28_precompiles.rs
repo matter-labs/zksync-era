@@ -8,6 +8,7 @@ use zkstack_cli_config::traits::{ReadConfig, ZkStackConfig};
 use zksync_basic_types::{
     protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
 };
+use zksync_types::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
@@ -31,6 +32,7 @@ pub struct FetchedChainInfo {
     gw_hyperchain_addr: Address,
     gw_chain_admin_addr: Address,
     l1_asset_router_proxy: Address,
+    settlement_layer: u64,
 }
 
 async fn verify_next_batch_new_version(
@@ -69,6 +71,7 @@ pub async fn check_chain_readiness(
     gw_rpc_url: String,
     l2_chain_id: u64,
     gw_chain_id: u64,
+    settlement_layer: u64,
 ) -> anyhow::Result<()> {
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
 
@@ -77,25 +80,28 @@ pub async fn check_chain_readiness(
     let gw_client = get_ethers_provider(&gw_rpc_url)?;
     let gw_client_l2 = get_zk_client(&gw_rpc_url, gw_chain_id)?;
 
-    // L1
-    let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
+    if settlement_layer == gw_chain_id {
+        // GW
+        let diamond_proxy_addr = (BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_client.clone()))
+            .get_zk_chain(l2_chain_id.into())
+            .await?;
+        let zkchain = ZkChainAbi::new(diamond_proxy_addr, gw_client.clone());
+        let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
+        let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
-    let zkchain = ZkChainAbi::new(diamond_proxy_addr, gw_client.clone());
-    let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
-    let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
+        verify_next_batch_new_version(batches_committed, &gw_client_l2).await?;
+        verify_next_batch_new_version(batches_verified, &gw_client_l2).await?;
+    } else {
+        // L1
+        let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
 
-    verify_next_batch_new_version(batches_committed, &l2_client).await?;
-    verify_next_batch_new_version(batches_verified, &l2_client).await?;
+        let zkchain = ZkChainAbi::new(diamond_proxy_addr, l1_provider.clone());
+        let batches_committed = zkchain.get_total_batches_committed().await?.as_u32();
+        let batches_verified = zkchain.get_total_batches_verified().await?.as_u32();
 
-    // GW
-    let diamond_proxy_addr = gw_client_l2.get_main_l1_contract().await?;
-
-    let gw_zkchain = ZkChainAbi::new(diamond_proxy_addr, l1_provider.clone());
-    let gw_batches_committed = gw_zkchain.get_total_batches_committed().await?.as_u32();
-    let gw_batches_verified = gw_zkchain.get_total_batches_verified().await?.as_u32();
-
-    verify_next_batch_new_version(gw_batches_committed, &gw_client_l2).await?;
-    verify_next_batch_new_version(gw_batches_verified, &gw_client_l2).await?;
+        verify_next_batch_new_version(batches_committed, &l2_client).await?;
+        verify_next_batch_new_version(batches_verified, &l2_client).await?;
+    }
 
     Ok(())
 }
@@ -114,6 +120,7 @@ pub async fn fetch_chain_info(
         anyhow::bail!("Chain not present in bridgehub");
     }
 
+    let settlement_layer = bridgehub.settlement_layer(chain_id).await?;
     let zkchain = ZkChainAbi::new(zkchain_addr, l1_provider.clone());
 
     let chain_admin_addr = zkchain.get_admin().await?;
@@ -123,15 +130,15 @@ pub async fn fetch_chain_info(
 
     let gw_client = get_ethers_provider(&args.gw_rpc_url)?;
 
-    let gw_bridgehub = BridgehubAbi::new(upgrade_info.gw_bridgehub_addr, gw_client.clone());
+    let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_client.clone());
     let gw_zkchain_addr = gw_bridgehub.get_zk_chain(chain_id).await?;
-    if gw_zkchain_addr == Address::zero() {
-        anyhow::bail!("Chain not present in gateway bridgehub");
-    }
 
-    let gw_zkchain = ZkChainAbi::new(gw_zkchain_addr, gw_client.clone());
-
-    let gw_chain_admin_addr = gw_zkchain.get_admin().await?;
+    let gw_chain_admin_addr = if gw_zkchain_addr != Address::zero() {
+        let gw_zkchain = ZkChainAbi::new(gw_zkchain_addr, gw_client.clone());
+        gw_zkchain.get_admin().await?
+    } else {
+        Address::zero()
+    };
 
     Ok(FetchedChainInfo {
         hyperchain_addr: zkchain_addr,
@@ -139,6 +146,7 @@ pub async fn fetch_chain_info(
         gw_hyperchain_addr: gw_zkchain_addr,
         gw_chain_admin_addr,
         l1_asset_router_proxy,
+        settlement_layer: settlement_layer.as_u64(),
     })
 }
 
@@ -181,7 +189,6 @@ pub struct V28UpgradeInfo {
     l1_chain_id: u32,
     gw_chain_id: u32,
     pub(crate) bridgehub_addr: Address,
-    pub(crate) gw_bridgehub_addr: Address,
 
     // Information from upgrade
     chain_upgrade_diamond_cut: Bytes,
@@ -230,6 +237,7 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
             args.gw_rpc_url.clone(),
             args.chain_id,
             args.gw_chain_id,
+            chain_info.settlement_layer,
         )
         .await;
 
@@ -239,55 +247,57 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
         };
     }
 
-    let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
+    if chain_info.settlement_layer == args.gw_chain_id {
+        let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
-    admin_calls_finalize.append_execute_upgrade(
-        chain_info.hyperchain_addr,
-        upgrade_info.old_protocol_version,
-        upgrade_info.chain_upgrade_diamond_cut.clone(),
-    );
+        admin_calls_gw.append_execute_upgrade(
+            chain_info.gw_hyperchain_addr,
+            upgrade_info.old_protocol_version,
+            upgrade_info.chain_upgrade_diamond_cut.clone(),
+        );
 
-    admin_calls_finalize.display();
+        admin_calls_gw.prepare_upgrade_chain_on_gateway_calls(
+            &shell,
+            forge_args,
+            &foundry_contracts_path,
+            args.chain_id,
+            args.gw_chain_id,
+            upgrade_info.bridgehub_addr,
+            upgrade_info.l1_gas_price,
+            upgrade_info.old_protocol_version,
+            chain_info.gw_hyperchain_addr,
+            chain_info.l1_asset_router_proxy,
+            chain_info.chain_admin_addr,
+            upgrade_info.gateway_diamond_cut.into(),
+            args.l1_rpc_url.clone(),
+        );
 
-    let (chain_admin_calldata, _) = admin_calls_finalize.compile_full_calldata();
+        admin_calls_gw.display();
 
-    println!(
-        "Full calldata to call `ChainAdmin` with : {}",
-        hex::encode(&chain_admin_calldata)
-    );
+        let (gw_chain_admin_calldata, _) = admin_calls_gw.compile_full_calldata();
 
-    let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
+        println!(
+            "Full calldata to call `ChainAdmin` with : {}",
+            hex::encode(&gw_chain_admin_calldata)
+        );
+    } else {
+        let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
 
-    admin_calls_gw.append_execute_upgrade(
-        chain_info.gw_hyperchain_addr,
-        upgrade_info.old_protocol_version,
-        upgrade_info.chain_upgrade_diamond_cut.clone(),
-    );
+        admin_calls_finalize.append_execute_upgrade(
+            chain_info.hyperchain_addr,
+            upgrade_info.old_protocol_version,
+            upgrade_info.chain_upgrade_diamond_cut.clone(),
+        );
 
-    admin_calls_gw.prepare_upgrade_chain_on_gateway_calls(
-        &shell,
-        forge_args,
-        &foundry_contracts_path,
-        args.chain_id,
-        args.gw_chain_id,
-        upgrade_info.bridgehub_addr,
-        upgrade_info.l1_gas_price,
-        upgrade_info.old_protocol_version,
-        chain_info.gw_hyperchain_addr,
-        chain_info.l1_asset_router_proxy,
-        chain_info.chain_admin_addr,
-        upgrade_info.gateway_diamond_cut.into(),
-        args.l1_rpc_url.clone(),
-    );
+        admin_calls_finalize.display();
 
-    admin_calls_gw.display();
+        let (chain_admin_calldata, _) = admin_calls_finalize.compile_full_calldata();
 
-    let (gw_chain_admin_calldata, _) = admin_calls_gw.compile_full_calldata();
-
-    println!(
-        "Full calldata to call `ChainAdmin` with : {}",
-        hex::encode(&gw_chain_admin_calldata)
-    );
+        println!(
+            "Full calldata to call `ChainAdmin` with : {}",
+            hex::encode(&chain_admin_calldata)
+        );
+    }
 
     Ok(())
 }

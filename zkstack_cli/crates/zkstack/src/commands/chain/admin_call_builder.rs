@@ -11,6 +11,7 @@ use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
 
+#[cfg(feature = "gateway")]
 use crate::admin_functions::prepare_upgrade_zk_chain_on_gateway;
 
 #[derive(Debug, Clone, Serialize)]
