@@ -4,12 +4,12 @@ With the introduction of [custom DA validators](./custom_da.md), any pubdata log
 
 This document describes how the standard pubdata format looks. This is the format that is enforced for [permanent rollup chains](../../chain_management/admin_role.md#ispermanentrollup-setting).
 
-Pubdata in ZKsync can be divided up into 4 different categories:
+Pubdata in ZKsync can be divided up into 4 categories:
 
 1. L2 to L1 Logs  
 2. L2 to L1 Messages  
 3. Smart Contract Bytecodes  
-4. Storage writes  
+4. Storage Writes  
 
 Using data corresponding to these 4 facets across all executed batches, we’re able to reconstruct the full state of L2. To restore the state we just need to filter all of the transactions to the L1 ZKsync contract for only the `commitBatches` transactions where the proposed block has been referenced by a corresponding `executeBatches` call (the reason for this is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed batches that have been executed, we will then pull the transaction input and the relevant fields, applying them in order to reconstruct the current state of L2.
 
@@ -22,7 +22,7 @@ We will now refer to the logs that are created by users and Merklized as _user_ 
 | System logs                                                                                                     | User logs                                                                                                                                                                                                                           |
 | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Emitted by VM via an opcode.                                                                                    | VM knows nothing about them.                                                                                                                                                                                                        |
-| Consistency and correctness is enforced by the verifier on L1 (i.e. their hash is part of the block commitment). | Consistency and correctness is enforced by the L1Messenger system contract. The correctness of the behavior of the L1Messenger is enforced implicitly by the prover in the sense that it proves the correctness of the execution overall. |
+| Consistency and correctness are enforced by the verifier on L1 (i.e. their hash is part of the block commitment). | Consistency and correctness is enforced by the L1Messenger system contract. The correctness of the behavior of the L1Messenger is enforced implicitly by the prover in the sense that it proves the correctness of the execution overall. |
 | We don’t calculate their Merkle root.                                                                           | We calculate their Merkle root on the L1Messenger system contract.                                                                                                                                                                  |
 | There is a constant small number of these logs.                                                                 | We can have as many as possible as long as the commitBatches function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected).                                                   |
 | In EIP-4844 they will remain part of the calldata.                                                              | In EIP-4844 they will become part of the blobs.                                                                                                                                                                                     |
@@ -74,7 +74,7 @@ At the end of the execution, the bootloader will [provide](https://github.com/ma
 If the user wants to send an L2→L1 message, its preimage is [appended](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/L1Messenger.sol#L126) to the message’s rolling hash to:
 
 ```
-chainedMessagesHash = keccak256(chainedMessagesHash, keccak256(message))
+chainedMessagesHash = keccak256(abi.encode(chainedMessagesHash, hash));
 ```
 
 A very similar approach for bytecodes is used, where their rolling hash is calculated and then the preimages are provided at the end of the batch to form the full pubdata for the batch.

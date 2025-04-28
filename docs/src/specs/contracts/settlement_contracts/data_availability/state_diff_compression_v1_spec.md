@@ -9,7 +9,7 @@ This compression strategy will utilize a similar idea for treating keys and valu
 
 ## Keys
 
-Keys will be packed in the same way as they were before. The only change is that we’ll avoid using the 8-byte enumeration index and will pack it to the minimal necessary number of bytes. This number will be part of the pubdata. Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something cheaper for keys that have been used already. The opportunity comes when remembering the IDs for accounts to spare some bytes on nonce/balance key, but ultimately the complexity may not be worth it.
+Keys will be packed in the same way as they were before. The only change is that we’ll avoid using the 8-byte enumeration index and will pack it to the minimal necessary number of bytes. That byte-length is encoded in the pubdata. Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something cheaper for keys that have been used already. The opportunity comes when remembering the IDs for accounts to spare some bytes on nonce/balance key, but ultimately the complexity may not be worth it.
 
 There is some room for optimization of the keys that are being written for the first time, however, optimizing those is more complex and achieves only a one-time effect (when the key is published for the first time), so they may be in scope of the future upgrades.
 

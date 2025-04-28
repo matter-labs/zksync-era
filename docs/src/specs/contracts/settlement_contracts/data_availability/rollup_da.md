@@ -36,7 +36,7 @@ It calls the `PubdataChunkPublisher` system contract to split this pubdata into 
 To give the flexibility of checking different DA, we send the following data to L1:
 
 - State diff hash. As it will be used on L1 to confirm the correctness of the provided uncompressed storage diffs.
-- The hash of the `_totalPubdata`. In case the size of pubdata is small, it will allow the operator also use just standard Ethereum calldata for the DA.
+- The hash of the `_totalPubdata`. In case the size of pubdata is small, it will allow the operator to also just use the standard Ethereum calldata for the DA.
 - Send the `blobHash` array.
 
 ### RollupL1DAValidator
