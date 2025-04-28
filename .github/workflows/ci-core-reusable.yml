@@ -254,7 +254,6 @@ jobs:
 
       - name: Initialize ecosystem 
         run: |
-          ci_run zkstack dev clean containers && zkstack up -o false
           ci_run zkstack dev contracts
           ci_run zkstack dev generate-genesis
           ci_run zkstack ecosystem init --dev \
