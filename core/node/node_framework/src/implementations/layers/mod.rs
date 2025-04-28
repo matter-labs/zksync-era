@@ -16,6 +16,7 @@ pub mod gas_adjuster;
 pub mod gateway_migrator_layer;
 pub mod healtcheck_server;
 pub mod house_keeper;
+pub mod interop_switch;
 pub mod l1_batch_commitment_mode_validation;
 pub mod l1_gas;
 pub mod logs_bloom_backfill;

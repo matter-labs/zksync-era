@@ -45,10 +45,11 @@ function readContract(path: string, fileName: string, contractName?: string) {
     contractName = contractName || fileName;
     return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${contractName}.json`, { encoding: 'utf-8' }));
 }
+
 export const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}`, 'Bridgehub');
 export const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}`, 'InteropCenter');
 export const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}`, 'InteropHandler');
-export const ArtifactMessageRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2MessageRootStorage');
+export const ArtifactMessageRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2InteropRootStorage');
 export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, 'L2MessageVerification');
 export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
 export const ArtifactMintableERC20 = readContract('../../../contracts/l1-contracts/zkout/', 'TestnetERC20Token');

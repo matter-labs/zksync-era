@@ -59,15 +59,14 @@ contract LegacySharedBridgeTest {
             )
         );
 
-
         // Now, we need to try and deposit it
-        (bool success, ) = SystemContractsHelper.mimicCall(
+        (bool success,) = SystemContractsHelper.mimicCall(
             address(l2SharedProxyProxyAddr),
             AddressAliasHelper.applyL1ToL2Alias(l1SharedBridge),
             abi.encodeCall(
                 L2SharedBridgeV25.finalizeDeposit,
                 (
-                    // The l1 sender / l2 receiver do not matter much
+                // The l1 sender / l2 receiver do not matter much
                     address(uint160(0xffffffff)),
                     address(uint160(0xffffffff)),
                     legacyL1Token,
@@ -93,7 +92,7 @@ contract LegacySharedBridgeTest {
             newAddress: address(L2_ASSET_ROUTER_ADDR),
             callConstructor: true,
             value: 0,
-            // solhint-disable-next-line func-named-parameters
+        // solhint-disable-next-line func-named-parameters
             input: abi.encode(
                 l1ChainId,
                 DUMMY_ERA_CHAIN_ID,
@@ -112,7 +111,7 @@ contract LegacySharedBridgeTest {
             newAddress: L2_NATIVE_TOKEN_VAULT_ADDR,
             callConstructor: true,
             value: 0,
-            // solhint-disable-next-line func-named-parameters
+        // solhint-disable-next-line func-named-parameters
             input: abi.encode(
                 l1ChainId,
                 address(this),
