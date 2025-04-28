@@ -58,12 +58,4 @@ impl DbClient for InMemoryDb {
             .cloned()
             .unwrap_or_default())
     }
-
-    async fn inject_new_fee_bundle(
-        &mut self,
-        tx_hash: H256,
-        fee_bundle: Vec<u8>,
-    ) -> anyhow::Result<()> {
-        todo!()
-    }
 }
