@@ -70,6 +70,8 @@ pub struct ProofDataHandlerConfig {
     pub proof_fetch_interval_in_secs: u16,
     #[serde(default = "ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs")]
     pub proof_gen_data_submit_interval_in_secs: u16,
+    #[serde(default = "ProofDataHandlerConfig::default_fetch_zero_chain_id_proofs")]
+    pub fetch_zero_chain_id_proofs: bool,
 }
 
 impl ProofDataHandlerConfig {
@@ -91,5 +93,9 @@ impl ProofDataHandlerConfig {
 
     pub fn default_proof_gen_data_submit_interval_in_secs() -> u16 {
         10
+    }
+
+    pub fn default_fetch_zero_chain_id_proofs() -> bool {
+        true
     }
 }

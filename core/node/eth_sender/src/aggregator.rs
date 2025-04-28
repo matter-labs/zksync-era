@@ -6,7 +6,10 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::{outputs::L1BatchProofForL1, Bincode};
+use zksync_prover_interface::{
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
+    Bincode,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -16,7 +19,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    L1BatchId, L1BatchNumber, L2ChainId, ProtocolVersionId,
+    L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -696,16 +699,18 @@ pub async fn load_wrapped_fri_proofs_for_range(
     blob_store: &dyn ObjectStore,
     allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
-    let batch_id = L1BatchId::new(L2ChainId::zero(), l1_batch_number);
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((batch_id, *version))
+            .get::<L1BatchProofForL1>(L1BatchProofForL1Key::Core((l1_batch_number, *version)))
             .await
         {
             Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => {
                 match blob_store
-                    .get::<L1BatchProofForL1<Bincode>>((batch_id, *version))
+                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
+                        l1_batch_number,
+                        *version,
+                    )))
                     .await
                 {
                     Ok(proof) => return Some(proof.into()),

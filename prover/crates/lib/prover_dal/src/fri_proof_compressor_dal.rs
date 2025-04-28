@@ -7,7 +7,7 @@ use zksync_basic_types::{
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
-    L1BatchId, L1BatchNumber, L2ChainId,
+    L1BatchId, L2ChainId,
 };
 use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
@@ -188,7 +188,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn get_least_proven_block_not_sent_to_server(
         &mut self,
     ) -> Option<(
-        L1BatchNumber,
+        L1BatchId,
         ProtocolSemanticVersion,
         ProofCompressionJobStatus,
     )> {
@@ -196,21 +196,18 @@ impl FriProofCompressorDal<'_, '_> {
             r#"
             SELECT
                 l1_batch_number,
+                chain_id,
                 status,
                 protocol_version,
                 protocol_version_patch
             FROM
                 proof_compression_jobs_fri
             WHERE
-                l1_batch_number = (
-                    SELECT
-                        MIN(l1_batch_number)
-                    FROM
-                        proof_compression_jobs_fri
-                    WHERE
-                        status = $1
-                        OR status = $2
-                )
+                status IN ($1, $2)
+            ORDER BY
+                batch_sealed_at ASC
+            LIMIT
+                1
             "#,
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::Skipped.to_string()
@@ -220,7 +217,7 @@ impl FriProofCompressorDal<'_, '_> {
         .ok()?;
         match row {
             Some(row) => Some((
-                L1BatchNumber(row.l1_batch_number as u32),
+                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
                 ProtocolSemanticVersion::new(
                     ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
                     VersionPatch(row.protocol_version_patch as u32),
