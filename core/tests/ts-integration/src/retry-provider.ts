@@ -213,8 +213,11 @@ class EthersTransactionResponse extends ethers.TransactionResponse implements Au
 
 /** Wallet that retries `sendTransaction` requests on "nonce expired" errors, provided that it's possible (i.e., no nonce is set in the request). */
 export class RetryableL1Wallet extends ethers.Wallet {
+    public ethersProvider: EthersRetryProvider;
+
     constructor(key: string, provider: EthersRetryProvider) {
         super(key, provider);
+        this.ethersProvider = provider;
     }
 
     override async sendTransaction(tx: TransactionRequest): Promise<TransactionResponse> {
@@ -253,10 +256,46 @@ export class RetryableWallet extends zksync.Wallet {
     ): Promise<R> {
         const reporter = (<RetryProvider>this.provider!).reporter;
         for (let i = 0; i < maxAttempts; i += 1) {
-            const deposit = await this.deposit(depositData);
+            let gasEstimated = false;
             try {
+                const deposit = await this.deposit(depositData);
+                gasEstimated = true;
                 return await check(deposit);
             } catch (err: any) {
+                if (!gasEstimated) {
+                    console.log(err);
+
+                    const dataRegex = /"data"\s*:\s*"(?<hash>0x[a-fA-F0-9]+)"/;
+                    const dataMatch = err.toString().match(dataRegex);
+
+                    const fromRegex = /"from"\s*:\s*"(?<hash>0x[a-fA-F0-9]+)"/;
+                    const fromMatch = err.toString().match(fromRegex);
+
+                    const toRegex = /"to"\s*:\s*"(?<hash>0x[a-fA-F0-9]+)"/;
+                    const toMatch = err.toString().match(toRegex);
+
+                    if (dataMatch?.groups?.hash && fromMatch?.groups?.hash && toMatch?.groups?.hash) {
+                        console.log('data:', dataMatch.groups.hash);
+                        console.log('from:', fromMatch.groups.hash);
+                        console.log('to:', toMatch.groups.hash);
+
+                        const callTrace = await this.ethWallet().ethersProvider.send('debug_traceCall', [
+                            {
+                                data: dataMatch.groups.hash,
+                                from: fromMatch.groups.hash,
+                                to: toMatch.groups.hash,
+                                gasLimit: 10_000_000
+                            },
+                            { tracer: 'callTracer' }
+                        ]);
+                        console.log(JSON.stringify(callTrace));
+                    } else {
+                        console.log('no data');
+                    }
+
+                    throw err;
+                }
+
                 if (i + 1 == maxAttempts) {
                     reporter.debug('Last deposit check failed', deposit, err);
                     throw err;
