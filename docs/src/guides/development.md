@@ -136,6 +136,53 @@ specific state. Please refer to our CI scripts
 [ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to
 have a better understanding of the process.
 
+In simple terms, the integration-test workflow consists of three phases:
+
+1. **Initializing the ecosystem**
+
+   ```bash
+   zkstack dev clean all         # remove any previous state
+   zkstack containers            # start required Docker containers
+   zkstack ecosystem init        # set up blockchain and contracts
+   ```
+
+2. **Starting the server**
+
+   ```bash
+   zkstack server                # spin up the server
+   ```
+
+   This command starts the server and occupies the current terminal window. Open a new terminal window for any
+   subsequent commands.
+
+3. **Running integration tests**
+
+   ```bash
+   zkstack dev test integration  # run the integration tests
+   ```
+
+> _Note: This is a high-level summary and does not reflect every nuance in `ci-core-reusable.yml`._
+
+### Running upgrade tests
+
+Similar to integration tests, the whole setup is complicated and it is recommended to refer to our CI scripts
+[ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to
+have a better understanding of the process.
+
+In simple terms, the upgrade-test workflow consists of three phases:
+
+1. **Initializing the ecosystem**  
+   Same as for integration tests workflow.
+2. **Starting the server**  
+   Same as for integration tests workflow.
+3. **Running integration tests**
+
+   ```bash
+   ZKSYNC_HOME=<path_to_zksync_era> zkstack dev test upgrade # run the upgrade tests
+   ```
+
+> _Note: This is a high-level summary and does not reflect every nuance in `ci-core-reusable.yml`._
+
 ### Running load tests
 
 The current load test implementation only supports the legacy bridge. To use it, you need to create a new chain with

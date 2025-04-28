@@ -28,17 +28,22 @@ impl WhitelistedDeployPoolSink {
             shared_allow_list,
         }
     }
-}
 
-#[async_trait::async_trait]
-impl TxSink for WhitelistedDeployPoolSink {
-    async fn submit_tx(
+    /// Checks if the deployment is allowed based on the allowlist rules.
+    /// Returns Ok(()) if allowed, or Err(SubmitTxError::DeployerNotInAllowList) if not allowed.
+    async fn check_if_deployment_allowed(
         &self,
         tx: &L2Tx,
         execution_output: &SandboxExecutionOutput,
-        validation_traces: ValidationTraces,
-    ) -> Result<L2TxSubmissionResult, SubmitTxError> {
-        // Enforce the deployment allowlist by scanning for ContractDeployed events.
+    ) -> Result<(), SubmitTxError> {
+        // Check if the transaction initiator is allowlisted
+        let initiator = tx.initiator_account();
+        if self.shared_allow_list.is_address_allowed(&initiator).await {
+            // If initiator is allowlisted, permit all deployments in this transaction
+            return Ok(());
+        }
+
+        // If initiator is not allowlisted, enforce the deployment allowlist by scanning for ContractDeployed events.
         // Each such event should follow this format:
         //   event ContractDeployed(address indexed deployerAddress, bytes32 indexed bytecodeHash, address indexed contractAddress);
         // We extract the deployer address from topic[1] and verify it is whitelisted.
@@ -68,7 +73,23 @@ impl TxSink for WhitelistedDeployPoolSink {
             }
         }
 
-        // If all deployment events pass the allowlist check, forward the submission.
+        // All checks passed, deployment is allowed
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl TxSink for WhitelistedDeployPoolSink {
+    async fn submit_tx(
+        &self,
+        tx: &L2Tx,
+        execution_output: &SandboxExecutionOutput,
+        validation_traces: ValidationTraces,
+    ) -> Result<L2TxSubmissionResult, SubmitTxError> {
+        // Check if the deployment is allowed based on allowlist rules
+        self.check_if_deployment_allowed(tx, execution_output)
+            .await?;
+
         self.master_pool_sink
             .submit_tx(tx, execution_output, validation_traces)
             .await

@@ -603,6 +603,11 @@ mod precompiles {
     fn modexp() {
         test_modexp::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn v28_precompiles_disabled() {
+        test_v28_precompiles_disabled::<super::ShadowedFastVm>();
+    }
 }
 
 mod refunds {

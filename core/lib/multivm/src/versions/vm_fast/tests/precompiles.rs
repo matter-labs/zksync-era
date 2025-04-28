@@ -6,7 +6,7 @@ use crate::{
     versions::testonly::{
         precompiles::{
             test_ecadd, test_ecmul, test_ecpairing, test_ecrecover, test_keccak, test_modexp,
-            test_sha256,
+            test_sha256, test_v28_precompiles_disabled,
         },
         VmTesterBuilder,
     },
@@ -46,6 +46,11 @@ fn ecpairing() {
 #[test]
 fn modexp() {
     test_modexp::<Vm<_>>();
+}
+
+#[test]
+fn v28_precompiles_disabled() {
+    test_v28_precompiles_disabled::<Vm<_>>();
 }
 
 #[test]
