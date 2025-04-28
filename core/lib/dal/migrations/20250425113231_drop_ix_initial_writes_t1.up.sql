@@ -1,1 +1,1 @@
-DROP INDEX ix_initial_writes_t1;
+DROP INDEX IF EXISTS ix_initial_writes_t1;
