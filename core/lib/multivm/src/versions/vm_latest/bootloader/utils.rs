@@ -136,32 +136,103 @@ fn apply_l2_block_inner(
         ),
     ]);
 
+    // kl todo : The current setup might lead to WG and SK differences.
+    // Currently for each l2 block the bootloader state has those roots loaded in.
+    // In the WG we will probably load in all interop roots for the whole batch.
+    println!("blockNumber: {}", bootloader_l2_block.number);
+    // find the element in bootloader memory that has the dummy interop root
+    // if it does not exist, do nothing
+    // if the dummy interop root is found remove it from the bootloader memory
+    // let dummy_interop_root = InteropRoot::dummy_interop_root();
+    let mut dummy_interop_root_slot = get_interop_root_offset(subversion);
+    const DUMMY_MAX_BLOCK_NUMBER: u32 = 4294967295;
+    if let Some(index) = memory.iter().position(|(slot, value)| {
+        if *slot < get_interop_root_offset(subversion)
+            || *slot
+                > get_compressed_bytecodes_offset(subversion)
+                    + 32 * bootloader_l2_block.interop_roots.len()
+        {
+            return false;
+        }
+
+        *value == U256::from(DUMMY_MAX_BLOCK_NUMBER)
+    }) {
+        dummy_interop_root_slot = memory[index].0 - 2;
+        println!("index: {}", index);
+        println!("removing from offset: {}", dummy_interop_root_slot);
+        println!("removing from memory: {:?}", memory[index - 2]);
+        println!("removing from memory: {:?}", memory[index - 1]);
+        println!("removing from memory: {:?}", memory[index]);
+        println!("removing from memory: {:?}", memory[index + 1]);
+        println!("removing from memory: {:?}", memory[index + 2]);
+
+        // we remove all the slots related to the dummy root
+        memory.remove(index - 2);
+        memory.remove(index - 1);
+        memory.remove(index);
+        memory.remove(index + 1);
+        memory.remove(index + 2);
+    }
+
+    if !start_new_l2_block && bootloader_l2_block.interop_roots.len() == 0 {
+        println!("no interop roots to apply");
+        return;
+    }
+
+    let mut applied_interop_roots = 0;
     bootloader_l2_block
         .interop_roots
         .iter()
         .enumerate()
         .for_each(|(offset, interop_root)| {
+            if (offset != bootloader_l2_block.interop_roots.len() - 1)
+                && interop_root.block_number == DUMMY_MAX_BLOCK_NUMBER
+            {
+                println!(
+                    "filtering interop_root_offset: {}",
+                    dummy_interop_root_slot + offset * INTEROP_ROOT_SLOTS_SIZE
+                );
+                println!("filtering interop_root: {:?}", interop_root);
+                return;
+            }
+
+            println!(
+                "adding interop_root_offset: {}",
+                dummy_interop_root_slot + offset * INTEROP_ROOT_SLOTS_SIZE
+            );
+            println!("adding interop_root: {:?}", interop_root);
             apply_interop_root(
                 memory,
-                offset,
+                dummy_interop_root_slot + applied_interop_roots * INTEROP_ROOT_SLOTS_SIZE,
                 interop_root.clone(),
                 subversion,
                 bootloader_l2_block.number,
-            )
+            );
+            applied_interop_roots += 1;
         });
+
+    println!(
+        "adding dummy root: {}",
+        dummy_interop_root_slot + applied_interop_roots * INTEROP_ROOT_SLOTS_SIZE
+    );
+
+    // apply_interop_root(
+    //     memory,
+    //     dummy_interop_root_slot + applied_interop_roots * INTEROP_ROOT_SLOTS_SIZE,
+    //     InteropRoot::dummy_interop_root(),
+    //     subversion,
+    //     bootloader_l2_block.number,
+    // );
 }
 
 pub(crate) fn apply_interop_root(
     memory: &mut BootloaderMemory,
-    interop_root_offset: usize,
+    interop_root_slot: usize,
     interop_root: InteropRoot,
     subversion: MultiVmSubversion,
     l2_block_number: u32,
 ) {
-    let interop_root_slot = get_interop_root_offset(subversion);
     // println!("interop_root_slot 2: {}", interop_root_slot);
-    // println!("interop_root_offset: {}", interop_root_offset);
-    // println!("interop_root: {:?}", interop_root);
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
         U256::from(l2_block_number),
@@ -171,7 +242,7 @@ pub(crate) fn apply_interop_root(
     ];
 
     u256_words.extend(interop_root.sides);
-    // println!("u256_words: {:?}", u256_words);
+    println!("u256_words: {:?}", u256_words);
     // println!(
     //     "zipped 0 {:?}",
     //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
@@ -200,11 +271,7 @@ pub(crate) fn apply_interop_root(
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[3]
     // ); // Map the U256 words into memory slots
-    memory.extend(
-        (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
-            ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
-            .zip(u256_words),
-    )
+    memory.extend((interop_root_slot..interop_root_slot + u256_words.len()).zip(u256_words))
 }
 
 fn bootloader_memory_input(

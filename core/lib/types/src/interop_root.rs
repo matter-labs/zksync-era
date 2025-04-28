@@ -30,6 +30,14 @@ impl InteropRoot {
             ),
         ]) //
     }
+
+    pub fn dummy_interop_root() -> Self {
+        Self {
+            chain_id: 54321,
+            block_number: 4294967295,
+            sides: vec![U256::from_dec_str("111222").unwrap()],
+        }
+    }
 }
 
 impl Clone for InteropRoot {
