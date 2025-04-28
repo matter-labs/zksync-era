@@ -257,8 +257,9 @@ export class RetryableWallet extends zksync.Wallet {
         const reporter = (<RetryProvider>this.provider!).reporter;
         for (let i = 0; i < maxAttempts; i += 1) {
             let gasEstimated = false;
+            let deposit;
             try {
-                const deposit = await this.deposit(depositData);
+                deposit = await this.deposit(depositData);
                 gasEstimated = true;
                 return await check(deposit);
             } catch (err: any) {
