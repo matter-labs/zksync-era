@@ -1,13 +1,8 @@
-use std::path::Path;
-
 use ethers::{
     abi::{decode, ParamType, Token},
-    types::Bytes,
     utils::hex,
 };
 use serde::Serialize;
-use xshell::Shell;
-use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
 
