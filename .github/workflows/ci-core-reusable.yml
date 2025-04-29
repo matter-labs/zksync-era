@@ -217,6 +217,12 @@ jobs:
         run: |
           ci_localnet_up
 
+      - name: Set safe git directories
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
@@ -227,8 +233,8 @@ jobs:
           SERVER_LOGS_DIR=logs/server
           INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests
           INTEGRATION_TESTS_EN_LOGS_DIR=logs/integration_tests/en
-          SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery/
-          GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery/
+          SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery
+          GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery
           EXTERNAL_NODE_LOGS_DIR=logs/external_node
           FEES_LOGS_DIR=logs/fees
           REVERT_LOGS_DIR=logs/revert
@@ -251,12 +257,18 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 
+      - name: Build tested binaries
+        run: |
+          ci_run zkstack server build
+          ci_run zkstack external-node build
+          ci_run zkstack contract-verifier build
+
+      - name: Build test dependencies
+        run: |
+          ci_run zkstack dev test build
+
       - name: Initialize ecosystem
         run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-
           ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
           --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -407,7 +419,7 @@ jobs:
           --chain gateway \
           --validium-type no-da
           
-          ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+          ci_run zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
@@ -415,17 +427,13 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
-      - name: Build test dependencies
-        run: |
-          ci_run zkstack dev test build
-
       - name: Migrate chains to gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
-          ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
-          ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
-          ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
@@ -439,14 +447,6 @@ jobs:
           ci_run pkill -9 zksync_server
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
-
-
-
-      - name: Build tested binaries
-        run: |
-          ci_run zkstack server build
-          ci_run zkstack external-node build
-          ci_run zkstack contract-verifier build
 
       - name: Initialize Contract verifier
         run: |
@@ -553,12 +553,12 @@ jobs:
 
       - name: Fee projection tests
         run: |
-          ci_run killall -INT zksync_server || true
+          ci_run ./bin/stop_nodes.sh
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
           fi
 
           # Always run the chain-specific fee tests
@@ -575,29 +575,29 @@ jobs:
 
       - name: Run revert tests
         run: |
-          ci_run killall -INT zksync_server || true
-          ci_run killall -INT zksync_external_node || true
+          ci_run ./bin/stop_nodes.sh
+          ci_run ./bin/stop_nodes.sh --en
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
           fi
 
           # Always run the chain-specific revert tests
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.REVERT_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.REVERT_LOGS_DIR }}
 
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
-          ci_run killall -INT zksync_server || true
+          ci_run ./bin/stop_nodes.sh
 
           # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
           fi
 
           # Always run the upgrade test against era

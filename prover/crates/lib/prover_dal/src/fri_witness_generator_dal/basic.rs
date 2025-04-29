@@ -8,6 +8,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalError,
+    instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -49,7 +51,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: chrono::DateTime<chrono::Utc>,
-    ) {
+    ) -> Result<(), DalError> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -73,9 +75,11 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             protocol_version.patch.0 as i32,
             batch_sealed_at.naive_utc(),
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("save_witness_inputs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.
@@ -223,7 +227,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
     pub async fn protocol_version_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> ProtocolSemanticVersion {
+    ) -> Option<ProtocolSemanticVersion> {
         let result = sqlx::query!(
             r#"
             SELECT
@@ -236,14 +240,16 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             "#,
             i64::from(l1_batch_number.0)
         )
-        .fetch_one(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await
         .unwrap();
 
-        ProtocolSemanticVersion::new(
-            ProtocolVersionId::try_from(result.protocol_version.unwrap() as u16).unwrap(),
-            VersionPatch(result.protocol_version_patch as u32),
-        )
+        result.map(|row| {
+            ProtocolSemanticVersion::new(
+                ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
+                VersionPatch(row.protocol_version_patch as u32),
+            )
+        })
     }
 
     pub async fn get_basic_witness_generator_job_for_batch(
