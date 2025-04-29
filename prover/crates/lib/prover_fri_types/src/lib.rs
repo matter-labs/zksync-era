@@ -222,8 +222,12 @@ impl StoredObject for AuxOutputWitnessWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
     type Key<'a> = L1BatchId;
 
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("aux_output_witness_{}.bin", key.batch_number().0))
+    }
+
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aux_output_witness_{key}.bin")
+        format!("aux_output_witness_{}_{}.bin", key.batch_number().0, key.chain_id().as_u64())
     }
 
     serialize_using_bincode!();
