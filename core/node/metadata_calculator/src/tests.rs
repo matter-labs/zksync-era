@@ -682,9 +682,8 @@ fn create_config(
     mode: MerkleTreeMode,
 ) -> (MerkleTreeConfig, OperationsManagerConfig) {
     let db_config = MerkleTreeConfig {
-        path: db_path.join("new"),
         mode,
-        ..MerkleTreeConfig::default()
+        ..MerkleTreeConfig::for_tests(db_path.join("new"))
     };
 
     let operation_config = OperationsManagerConfig {

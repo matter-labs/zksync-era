@@ -31,10 +31,8 @@ impl WellKnown for MerkleTreeMode {
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
 pub struct MerkleTreeConfig {
     /// Path to the RocksDB data directory for Merkle tree.
-    #[config(default_t = "./db/lightweight-new".into())]
     pub path: PathBuf,
     /// Operation mode for the Merkle tree. If not specified, the full mode will be used.
     #[config(default)]
@@ -59,12 +57,25 @@ pub struct MerkleTreeConfig {
     pub max_l1_batches_per_iter: usize,
 }
 
+impl MerkleTreeConfig {
+    /// Creates a config for test purposes.
+    pub fn for_tests(path: PathBuf) -> Self {
+        Self {
+            path,
+            mode: MerkleTreeMode::default(),
+            multi_get_chunk_size: 500,
+            block_cache_size_mb: ByteSize::new(128, SizeUnit::MiB),
+            memtable_capacity_mb: ByteSize::new(256, SizeUnit::MiB),
+            stalled_writes_timeout_sec: Duration::from_secs(30),
+            max_l1_batches_per_iter: 20,
+        }
+    }
+}
+
 /// Database configuration.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
 pub struct DBConfig {
     /// Path to the RocksDB data directory that serves state cache.
-    #[config(default_t = "./db/state_keeper".into())]
     pub state_keeper_db_path: PathBuf,
     /// Merkle tree configuration.
     #[config(nest)]

@@ -210,9 +210,8 @@ impl StateKeeper {
 
         let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
         let merkle_tree_config = MerkleTreeConfig {
-            path: rocksdb_dir.path().join("merkle_tree"),
             mode: MerkleTreeMode::Lightweight,
-            ..Default::default()
+            ..MerkleTreeConfig::for_tests(rocksdb_dir.path().join("merkle_tree"))
         };
         let operation_manager_config = OperationsManagerConfig {
             delay_interval: Duration::from_millis(100),

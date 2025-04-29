@@ -365,10 +365,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     .await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let merkle_tree_config = MerkleTreeConfig {
-        path: temp_dir.path().to_owned(),
-        ..MerkleTreeConfig::default()
-    };
+    let merkle_tree_config = MerkleTreeConfig::for_tests(temp_dir.path().to_owned());
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
         &OperationsManagerConfig {
