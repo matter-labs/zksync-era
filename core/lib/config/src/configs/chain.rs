@@ -26,8 +26,7 @@ impl Default for FeeModelVersion {
     }
 }
 
-// TODO: `Default` implementation is used all over the place, and it's not reasonable; replace with the example config
-#[derive(Debug, Clone, Default, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
     #[config(default_t = 8_192)]
@@ -124,6 +123,39 @@ pub struct StateKeeperConfig {
     /// which is capable of saving protective reads is run.
     #[config(default)]
     pub protective_reads_persistence_enabled: bool,
+}
+
+impl StateKeeperConfig {
+    /// Creates a config object suitable for use in unit tests.
+    /// Values mostly repeat the values used in the localhost environment.
+    pub fn for_tests() -> Self {
+        Self {
+            transaction_slots: 250,
+            l1_batch_commit_deadline_ms: Duration::from_millis(2500),
+            l2_block_commit_deadline_ms: Duration::from_secs(1),
+            l2_block_seal_queue_capacity: 10,
+            l2_block_max_payload_size: ByteSize(1_000_000),
+            max_single_tx_gas: 6000000,
+            max_allowed_l2_tx_gas_limit: 4000000000,
+            reject_tx_at_geometry_percentage: 0.95,
+            reject_tx_at_eth_params_percentage: 0.95,
+            reject_tx_at_gas_percentage: 0.95,
+            close_block_at_geometry_percentage: 0.95,
+            close_block_at_eth_params_percentage: 0.95,
+            close_block_at_gas_percentage: 0.95,
+            compute_overhead_part: 0.0,
+            pubdata_overhead_part: 1.0,
+            batch_overhead_l1_gas: 800_000,
+            max_gas_per_batch: 200_000_000,
+            max_pubdata_per_batch: ByteSize(100_000),
+            minimal_l2_gas_price: 100000000,
+            fee_model_version: FeeModelVersion::V2,
+            validation_computational_gas_limit: 300000,
+            save_call_traces: true,
+            max_circuits_per_batch: 24100,
+            protective_reads_persistence_enabled: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]

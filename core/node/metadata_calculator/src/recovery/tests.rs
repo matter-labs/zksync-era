@@ -373,7 +373,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         },
         &StateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         },
     );
     let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())

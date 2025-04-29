@@ -143,7 +143,7 @@ impl Tester {
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-            ..StateKeeperConfig::default()
+            ..StateKeeperConfig::for_tests()
         };
         let wallets = Wallets::for_tests();
         let io = MempoolIO::new(

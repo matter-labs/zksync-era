@@ -65,7 +65,7 @@ mod tests {
         let config = StateKeeperConfig {
             max_single_tx_gas,
             close_block_at_gas_percentage,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         };
 
         let criterion = L1L2TxsCriterion;

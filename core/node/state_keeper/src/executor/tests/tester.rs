@@ -60,8 +60,7 @@ pub(super) struct TestConfig {
 
 impl TestConfig {
     pub(super) fn new(fast_vm_mode: FastVmMode) -> Self {
-        let config = StateKeeperConfig::default();
-
+        let config = StateKeeperConfig::for_tests();
         Self {
             trace_calls: false,
             vm_gas_limit: None,

@@ -218,7 +218,7 @@ impl StateKeeper {
         };
         let state_keeper_config = StateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         };
         let config = MetadataCalculatorConfig::for_main_node(
             &merkle_tree_config,

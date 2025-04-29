@@ -501,7 +501,7 @@ async fn shutting_down_calculator() {
         &operation_config,
         &StateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         },
         pool.clone(),
         None,
@@ -649,7 +649,7 @@ pub(crate) async fn setup_calculator(
         &operation_manager,
         &StateKeeperConfig {
             protective_reads_persistence_enabled: sealed_protective_reads,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         },
         pool,
         Some(store.clone()),
@@ -669,7 +669,7 @@ async fn setup_lightweight_calculator(
         &operation_config,
         &StateKeeperConfig {
             protective_reads_persistence_enabled: sealed_protective_reads,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         },
         pool,
         None,

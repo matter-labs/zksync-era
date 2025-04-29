@@ -27,7 +27,7 @@ pub(crate) async fn create_test_tx_sender(
     tx_executor: SandboxExecutor,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let web3_config = Web3JsonRpcConfig::for_tests();
-    let state_keeper_config = StateKeeperConfig::default();
+    let state_keeper_config = StateKeeperConfig::for_tests();
     let wallets = Wallets::for_tests();
     let tx_sender_config = TxSenderConfig::new(
         &state_keeper_config,
