@@ -48,7 +48,8 @@ lazy_static! {
             "function adminL1L2Tx(address bridgehub,uint256 l1GasPrice,uint256 chainId,address to,uint256 value,bytes calldata data,address refundRecipient,bool _shouldSend) public",
             "function notifyServerMigrationFromGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
             "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)"
+            "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)",
+            "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)"
         ])
         .unwrap(),
     );
@@ -794,6 +795,54 @@ pub(crate) async fn admin_l1_l2_tx(
             "executing ChainAdmin transaction (to = {:#?}, data = {}, value = {:#?})",
             to, hex_encoded_data, value,
         ),
+    )
+    .await
+}
+
+#[cfg(feature = "gateway")]
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn prepare_upgrade_zk_chain_on_gateway(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    gateway_chain_id: u64,
+    bridgehub: Address,
+    l1_gas_price: u64,
+    old_protocol_version: u64,
+    chain_diamond_proxy_on_gateway: Address,
+    l1_asset_router_proxy: Address,
+    refund_recipient: Address,
+    upgrade_cut_data: Bytes,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "prepareUpgradeZKChainOnGateway",
+            (
+                U256::from(l1_gas_price),
+                U256::from(old_protocol_version),
+                upgrade_cut_data,
+                chain_diamond_proxy_on_gateway,
+                U256::from(gateway_chain_id),
+                U256::from(chain_id),
+                bridgehub,
+                l1_asset_router_proxy,
+                refund_recipient,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        "prepare calldata to upgrade ZK chain on Gateway",
     )
     .await
 }
