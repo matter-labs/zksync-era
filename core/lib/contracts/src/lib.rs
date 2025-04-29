@@ -597,7 +597,7 @@ impl BaseSystemContracts {
 
     pub fn playground_precompiles() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_precompiles/playground_batch.yul/playground_batch.yul.zbin",
+            "etc/multivm_bootloaders/vm_precompiles/playground_batch.yul/Bootloader.zbin",
         );
 
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
@@ -689,7 +689,7 @@ impl BaseSystemContracts {
 
     pub fn estimate_gas_precompiles() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
-            "etc/multivm_bootloaders/vm_precompiles/fee_estimate.yul/fee_estimate.yul.zbin",
+            "etc/multivm_bootloaders/vm_precompiles/fee_estimate.yul/Bootloader.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
