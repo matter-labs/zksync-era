@@ -251,6 +251,7 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
       
+
       - name: Initialize ecosystem 0
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
@@ -302,11 +303,7 @@ jobs:
           --ignore-prerequisites \
           --evm-emulator false
 
-          ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_validium \
+          ci_run zkstack chain init --dev \
           --chain validium \
           --validium-type no-da
 
@@ -398,27 +395,6 @@ jobs:
       - name: Initialize gateway chain
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
-          ci_run zkstack chain create \
-          --chain-name gateway \
-          --chain-id 505 \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites \
-          --evm-emulator false
-          
-          ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_gateway \
-          --chain gateway \
-          --validium-type no-da
-          
           ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
