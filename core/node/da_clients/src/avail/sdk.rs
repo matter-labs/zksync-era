@@ -475,45 +475,46 @@ impl GasRelayClient {
         );
 
         tokio::time::sleep(Self::DEFAULT_INCLUSION_DELAY).await;
-        let status_response = (|| async {
-            self.api_client
+        for _ in 0..self.max_retries {
+            let status_response = self
+                .api_client
                 .get(&status_url)
                 .header("x-api-key", &self.api_key)
                 .send()
+                .await?;
+
+            let status_response_bytes = status_response
+                .bytes()
                 .await
-        })
-        .retry(
-            &ConstantBuilder::default()
-                .with_delay(Self::RETRY_DELAY)
-                .with_max_times(self.max_retries),
+                .context("Failed to read response body")?;
+
+            let status_response =
+                match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
+                    Ok(response) => {
+                        tracing::debug!("Status response: {:?}", response);
+
+                        response
+                    }
+                    Err(_) => {
+                        bail!(
+                            "Unexpected status response from gas relay: {:?}",
+                            String::from_utf8_lossy(&status_response_bytes).as_ref()
+                        )
+                    }
+                };
+
+            match (
+                status_response.submission.block_hash,
+                status_response.submission.extrinsic_index,
+            ) {
+                (Some(block_hash), Some(ext_idx)) => return Ok((block_hash, ext_idx)),
+                _ => tokio::time::sleep(Self::RETRY_DELAY).await,
+            }
+        }
+
+        bail!(
+            "Failed to get the status of the submission after {} retries",
+            self.max_retries
         )
-        .await?;
-
-        let status_response_bytes = status_response
-            .bytes()
-            .await
-            .context("Failed to read response body")?;
-
-        let status_response =
-            match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
-                Ok(response) => response,
-                Err(_) => {
-                    bail!(
-                        "Unexpected status response from gas relay: {:?}",
-                        String::from_utf8_lossy(&status_response_bytes).as_ref()
-                    )
-                }
-            };
-
-        let (block_hash, extrinsic_index) = (
-            status_response.submission.block_hash.ok_or_else(|| {
-                anyhow::anyhow!("Block hash not found in the response from the gas relay")
-            })?,
-            status_response.submission.extrinsic_index.ok_or_else(|| {
-                anyhow::anyhow!("Extrinsic index not found in the response from the gas relay")
-            })?,
-        );
-
-        Ok((block_hash, extrinsic_index))
     }
 }
