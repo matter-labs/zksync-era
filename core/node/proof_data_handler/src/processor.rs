@@ -8,7 +8,7 @@ use zksync_prover_interface::{
     inputs::{
         L1BatchMetadataHashes, VMRunWitnessInputData, WitnessInputData, WitnessInputMerklePaths,
     },
-    outputs::L1BatchProofForL1,
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
     Bincode, CBOR,
 };
 use zksync_types::{
@@ -16,7 +16,7 @@ use zksync_types::{
     commitment::{serialize_commitments, L1BatchCommitmentMode},
     protocol_version::ProtocolSemanticVersion,
     web3::keccak256,
-    L1BatchNumber, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    L1BatchId, L1BatchNumber, L2ChainId, ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
 };
 
 use crate::{errors::ProcessorError, metrics::METRICS};
@@ -42,6 +42,7 @@ pub struct Processor<PM: ProcessorMode> {
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    chain_id: L2ChainId,
     _marker: std::marker::PhantomData<PM>,
 }
 
@@ -51,14 +52,20 @@ impl<PM: ProcessorMode> Processor<PM> {
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        chain_id: L2ChainId,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
             commitment_mode,
+            chain_id,
             _marker: std::marker::PhantomData,
         }
+    }
+
+    pub fn chain_id(&self) -> L2ChainId {
+        self.chain_id
     }
 
     pub async fn get_oldest_not_proven_batch(
@@ -169,6 +176,7 @@ impl<PM: ProcessorMode> Processor<PM> {
 
         Ok(ProofGenerationData {
             l1_batch_number,
+            chain_id: self.chain_id,
             batch_sealed_at,
             witness_input_data: blob,
             protocol_version: protocol_version.version,
@@ -231,14 +239,17 @@ impl Processor<Locking> {
 
     pub async fn save_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        l1_batch_id: L1BatchId,
         proof: L1BatchProofForL1,
     ) -> Result<(), ProcessorError> {
-        tracing::info!("Received proof for block number: {:?}", l1_batch_number);
+        tracing::info!("Received proof for block number: {l1_batch_id}");
 
         let blob_url = self
             .blob_store
-            .put((l1_batch_number, proof.protocol_version()), &proof)
+            .put(
+                L1BatchProofForL1Key::Core((l1_batch_id.batch_number(), proof.protocol_version())),
+                &proof,
+            )
             .await?;
 
         let aggregation_coords = proof.aggregation_result_coords();
@@ -252,7 +263,7 @@ impl Processor<Locking> {
 
         let l1_batch = storage
             .blocks_dal()
-            .get_l1_batch_metadata(l1_batch_number)
+            .get_l1_batch_metadata(l1_batch_id.batch_number())
             .await?
             .expect("Proved block without metadata");
 
@@ -315,25 +326,19 @@ impl Processor<Locking> {
 
         storage
             .proof_generation_dal()
-            .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
+            .save_proof_artifacts_metadata(l1_batch_id.batch_number(), &blob_url)
             .await?;
         Ok(())
     }
 
-    pub async fn save_skipped_proof(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<(), ProcessorError> {
-        tracing::info!(
-            "Received skipped proof for block number: {:?}",
-            l1_batch_number
-        );
+    pub async fn save_skipped_proof(&self, l1_batch_id: L1BatchId) -> Result<(), ProcessorError> {
+        tracing::info!("Received skipped proof for block number: {l1_batch_id}");
         self.pool
             .connection()
             .await
             .unwrap()
             .proof_generation_dal()
-            .mark_proof_generation_job_as_skipped(l1_batch_number)
+            .mark_proof_generation_job_as_skipped(l1_batch_id.batch_number())
             .await
             .map_err(Into::into)
     }
@@ -366,13 +371,19 @@ impl Processor<Readonly> {
     ) -> Result<(), ProcessorError> {
         let expected_proof: L1BatchProofForL1<CBOR> = match self
             .blob_store
-            .get((l1_batch_number, protocol_version))
+            .get(L1BatchProofForL1Key::Core((
+                l1_batch_number,
+                protocol_version,
+            )))
             .await
         {
             Ok(proof) => proof,
             Err(_) => self
                 .blob_store
-                .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, protocol_version))
+                .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
+                    l1_batch_number,
+                    protocol_version,
+                )))
                 .await
                 .map(Into::into)?,
         };

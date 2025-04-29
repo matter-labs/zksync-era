@@ -37,6 +37,7 @@ async fn request_tee_proof_inputs() {
                 ProofDataHandlerConfig::default_proof_fetch_interval_in_secs(),
             proof_gen_data_submit_interval_in_secs:
                 ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs(),
+            fetch_zero_chain_id_proofs: true,
         },
         ApiMode::Legacy,
         L1BatchCommitmentMode::Rollup,
@@ -103,6 +104,7 @@ async fn submit_tee_proof() {
                 ProofDataHandlerConfig::default_proof_fetch_interval_in_secs(),
             proof_gen_data_submit_interval_in_secs:
                 ProofDataHandlerConfig::default_proof_gen_data_submit_interval_in_secs(),
+            fetch_zero_chain_id_proofs: true,
         },
         ApiMode::Legacy,
         L1BatchCommitmentMode::Rollup,

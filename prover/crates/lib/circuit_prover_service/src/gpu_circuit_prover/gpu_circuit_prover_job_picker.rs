@@ -79,7 +79,7 @@ impl JobPicker for GpuCircuitProverJobPicker {
         tracing::info!(
             "Finished picking gpu circuit prover job {}, on batch {}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()
