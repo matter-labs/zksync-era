@@ -779,11 +779,9 @@ impl OptionalENConfig {
     }
 
     fn from_env() -> anyhow::Result<Self> {
-        let mut result: OptionalENConfig = envy::prefixed("EN_")
+        envy::prefixed("EN_")
             .from_env()
-            .context("could not load external node config")?;
-        result.snapshots_recovery_object_store = snapshot_recovery_object_store_config().ok();
-        Ok(result)
+            .context("could not load external node config")
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -1110,14 +1108,6 @@ pub fn generate_consensus_secrets() {
     println!("node_key: {}", node_key.encode());
 }
 
-/// Configuration for snapshot recovery. Should be loaded optionally, only if snapshot recovery is enabled.
-pub(crate) fn snapshot_recovery_object_store_config() -> anyhow::Result<ObjectStoreConfig> {
-    todo!()
-    /*envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
-    .from_env::<ObjectStoreConfig>()
-    .context("failed loading snapshot object store config from env variables")*/
-}
-
 #[derive(Debug, Deserialize)]
 pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
@@ -1184,39 +1174,50 @@ impl ExternalNodeConfig<()> {
         };
 
         // Consensus and secrets are read from files even with the env-based config.
-        let mut config_sources = ConfigSources::default();
+        let mut consensus_sources = ConfigSources::default();
         if let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") {
             let yaml = ConfigFilePaths::read_yaml(path.as_ref())?;
-            config_sources.push(Prefixed::new(yaml, "consensus"));
+            consensus_sources.push(Prefixed::new(yaml, "consensus"));
         }
         if let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") {
             let yaml = ConfigFilePaths::read_yaml(path.as_ref())?;
-            config_sources.push(Prefixed::new(yaml, "secrets.consensus"));
+            consensus_sources.push(Prefixed::new(yaml, "secrets.consensus"));
         }
 
+        // Consensus configs are loaded from files even with file-based config.
         let mut consensus_schema = ConfigSchema::new(&ConsensusConfig::DESCRIPTION, "consensus");
         consensus_schema
             .insert(&ConsensusSecrets::DESCRIPTION, "secrets.consensus")
             .context("cannot create consensus config schema")?;
-        let mut repo = ConfigRepository::new(&consensus_schema).with_all(config_sources);
+        let mut repo = ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
         repo.deserializer_options().coerce_variant_names = true;
         let consensus = repo.single()?.parse_opt().log_all_errors()?;
         let consensus_secrets = repo.single()?.parse().log_all_errors()?;
 
-        let mut da_schema = ConfigSchema::new(&DAClientConfig::DESCRIPTION, "da");
-        da_schema
+        let mut env_schema = ConfigSchema::new(&DAClientConfig::DESCRIPTION, "da");
+        env_schema
             .insert(&DataAvailabilitySecrets::DESCRIPTION, "da")
-            .context("cannot create DA config schema")?;
+            .context("cannot add DA secrets to config schema")?;
+        env_schema
+            .insert(&ObjectStoreConfig::DESCRIPTION, "snapshots_object_store")
+            .context("cannot add snapshots object store to config schema")?;
         let mut repo =
-            ConfigRepository::new(&da_schema).with(smart_config::Environment::prefixed("EN_"));
+            ConfigRepository::new(&env_schema).with(smart_config::Environment::prefixed("EN_"));
         repo.deserializer_options().coerce_variant_names = true;
         let da_config = repo.single()?.parse_opt().log_all_errors()?;
         let da_secrets = repo.single()?.parse_opt().log_all_errors()?;
 
+        let mut optional = OptionalENConfig::from_env()?;
+        optional.snapshots_recovery_object_store = repo
+            .get("snapshots_object_store")
+            .unwrap() // safe: we've mounted the config right above
+            .parse_opt()
+            .log_all_errors()?;
+
         Ok(Self {
             required: RequiredENConfig::from_env()?,
             postgres: PostgresConfig::from_env()?,
-            optional: OptionalENConfig::from_env()?,
+            optional,
             observability: Some(observability),
             prometheus,
             experimental: envy::prefixed("EN_EXPERIMENTAL_")
