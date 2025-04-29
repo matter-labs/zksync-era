@@ -6,7 +6,6 @@ COPY src src/
 COPY package.json .
 COPY drizzle.config.ts .
 COPY esbuild.ts .
-COPY .eslintrc.cjs .
 COPY tsconfig.json .
 
 RUN yarn install
