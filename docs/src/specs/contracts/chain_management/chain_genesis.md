@@ -1,6 +1,6 @@
 # Creating new chains with BridgeHub
 
-The main contract of the whole hyperchain ecosystem is called _`BridgeHub`_. It contains:
+The main contract of the whole ZK Chains ecosystem is called _`BridgeHub`_. It contains:
 
 - the registry from chainId to CTMs that is responsible for that chainId
 - the base token for each chainId.
@@ -9,7 +9,7 @@ The main contract of the whole hyperchain ecosystem is called _`BridgeHub`_. It 
 - the whitelist of settlement layers
 - etc
 
-BridgeHub is responsible for creating new chains. It is also the main point of entry for L1→L2 transactions for all the chains. Users won't be able to interact with chains directly, all the actions must be done through the BridgeHub, which will ensure that the fees have been paid and will route the call to the corresponding chain. One of the reasons it was done this way was to have the unified interface for all chains that will ever be included in the hyperchain ecosystem.
+BridgeHub is responsible for creating new chains. It is also the main point of entry for L1→L2 transactions for all the chains. Users won't be able to interact with chains directly, all the actions must be done through the BridgeHub, which will ensure that the fees have been paid and will route the call to the corresponding chain. One of the reasons it was done this way was to have the unified interface for all chains that will ever be included in the ZK Chains ecosystem.
 
 To create a chain, the `BridgeHub.createNewChain` function needs to be called:
 
