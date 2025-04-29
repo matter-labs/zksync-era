@@ -230,6 +230,10 @@ impl From<u32> for L2ChainId {
     }
 }
 
+/// Unique identifier of the L1 batch for provers.
+///
+/// With prover cluster, we can have multiple L2 chains being processed in parallel, and each L2 chain can have multiple batches,
+/// so the type identifies the batch uniquely.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct L1BatchId {
     chain_id: L2ChainId,

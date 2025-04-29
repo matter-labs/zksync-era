@@ -95,7 +95,7 @@ impl JobProcessor for ProofCompressor {
         else {
             anyhow::bail!("Scheduler proof is missing from database for batch {l1_batch_id}");
         };
-        tracing::info!("Started proof compression for L1 batch: {:?}", l1_batch_id);
+        tracing::info!("Started proof compression for L1 batch: {l1_batch_id}");
         let observer = METRICS.blob_fetch_time.start();
 
         let fri_proof: FriProofWrapper = self.blob_store.get((fri_proof_id, l1_batch_id.chain_id()))

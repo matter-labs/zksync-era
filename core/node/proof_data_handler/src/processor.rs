@@ -242,7 +242,7 @@ impl Processor<Locking> {
         l1_batch_id: L1BatchId,
         proof: L1BatchProofForL1,
     ) -> Result<(), ProcessorError> {
-        tracing::info!("Received proof for block number: {:?}", l1_batch_id);
+        tracing::info!("Received proof for block number: {l1_batch_id}");
 
         let blob_url = self
             .blob_store
@@ -332,7 +332,7 @@ impl Processor<Locking> {
     }
 
     pub async fn save_skipped_proof(&self, l1_batch_id: L1BatchId) -> Result<(), ProcessorError> {
-        tracing::info!("Received skipped proof for block number: {:?}", l1_batch_id);
+        tracing::info!("Received skipped proof for block number: {l1_batch_id}");
         self.pool
             .connection()
             .await
