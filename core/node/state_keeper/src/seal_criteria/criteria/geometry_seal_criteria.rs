@@ -18,7 +18,6 @@ impl SealCriterion for CircuitsCriterion {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
-        _block_open_timestamp_ms: u128,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -64,6 +63,22 @@ impl SealCriterion for CircuitsCriterion {
         }
     }
 
+    fn capacity_filled(
+        &self,
+        config: &StateKeeperConfig,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        let batch_tip_circuit_overhead =
+            circuit_statistics_bootloader_batch_tip_overhead(protocol_version.into());
+        let used = (block_data.execution_metrics.circuit_statistic.total()
+            + batch_tip_circuit_overhead) as f64;
+        let full = config.max_circuits_per_batch as f64;
+        Some(used / full)
+    }
+
     fn prom_criterion_name(&self) -> &'static str {
         "circuits_criterion"
     }
@@ -93,7 +108,6 @@ mod tests {
         let config = get_config();
         let block_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             0,
             0,
             &SealData {
@@ -114,7 +128,6 @@ mod tests {
         let config = get_config();
         let block_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             0,
             0,
             &SealData {
@@ -135,7 +148,6 @@ mod tests {
         let config = get_config();
         let block_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             0,
             0,
             &SealData {
@@ -156,7 +168,6 @@ mod tests {
         let config = get_config();
         let block_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             0,
             0,
             &SealData::default(),
