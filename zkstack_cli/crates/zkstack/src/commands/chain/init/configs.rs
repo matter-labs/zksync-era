@@ -75,7 +75,7 @@ pub async fn init_configs(
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) | Some(ValidiumType::Celestia(_, _)) => {
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => {
             general_config.remove_da_client();
         }
         Some(ValidiumType::Avail((avail_config, _))) => {
