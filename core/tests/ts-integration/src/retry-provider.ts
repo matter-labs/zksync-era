@@ -265,7 +265,7 @@ export class RetryableWallet extends zksync.Wallet {
             } catch (err: any) {
                 if (!gasEstimated) {
                     console.log(err);
-                    console.log(JSON.stringify(err.payload));
+                    console.log(JSON.stringify(err.info));
 
                     const dataRegex = /"data"\s*:\s*"(?<hash>0x[a-fA-F0-9]+)"/;
                     const dataMatch = err.toString().match(dataRegex);
@@ -281,13 +281,10 @@ export class RetryableWallet extends zksync.Wallet {
                         console.log('from:', fromMatch.groups.hash);
                         console.log('to:', toMatch.groups.hash);
 
+                        let call = err.info.payload.params[0];
+                        call.gasLimit = 10_000_000;
                         const callTrace = await this.ethWallet().ethersProvider.send('debug_traceCall', [
-                            {
-                                data: dataMatch.groups.hash,
-                                from: fromMatch.groups.hash,
-                                to: toMatch.groups.hash,
-                                gasLimit: 10_000_000
-                            },
+                            call,
                             'latest',
                             { tracer: 'callTracer' }
                         ]);
