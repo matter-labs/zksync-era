@@ -12,6 +12,7 @@ pub mod snapshot;
 pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
+pub mod track_priority_txs;
 #[cfg(feature = "gateway")]
 pub mod upgrade_utils;
 #[cfg(feature = "v27_evm_interpreter")]

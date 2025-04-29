@@ -106,6 +106,7 @@ eth:
     pubdata_sending_mode: BLOBS
     is_verifier_pre_fflonk: true
     gas_limit_mode: CALCULATED
+    max_acceptable_base_fee_in_wei: 100000000000
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100
@@ -147,12 +148,14 @@ data_handler:
   tee_proof_generation_timeout_in_secs: 60
   tee_batch_permanently_ignored_timeout_in_hours: 240
   tee_support: true
+  gateway_api_url: http://127.0.0.1:3322
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 15
   prometheus_listener_port: 3310
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
+  port: 3322
 proof_compressor:
   compression_mode: 5
   prometheus_listener_port: 3321
