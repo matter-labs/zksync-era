@@ -113,10 +113,7 @@ pub async fn init(shell: &Shell) -> anyhow::Result<()> {
     db_config = adjust_localhost_for_docker(db_config)?;
 
     let mut services: HashMap<String, DockerComposeService> = HashMap::new();
-    let l2_rpc_url = chain_config
-        .get_general_config()
-        .await?
-        .l2_http_url()?;
+    let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
     let l2_rpc_url = Url::parse(l2_rpc_url.as_str())?;
     let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url)?;
 
