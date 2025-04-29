@@ -521,7 +521,7 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
         },
         VmVersion::VmInterop => {
             crate::vm_latest::constants::get_used_bootloader_memory_words(
-                crate::vm_latest::MultiVmSubversion::VmInterop,
+                crate::vm_latest::MultiVmSubversion::Interop,
             )
         }
     }
