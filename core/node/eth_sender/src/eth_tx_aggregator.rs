@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -23,7 +25,7 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
-    web3::{contract::Error as Web3ContractError, BlockNumber, CallRequest},
+    web3::{contract::Error as Web3ContractError, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
@@ -66,19 +68,17 @@ pub struct EthTxAggregator {
     pub(super) state_transition_chain_contract: Address,
     state_transition_manager_address: Address,
     functions: ZkSyncFunctions,
-    base_nonce: u64,
-    base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit
-    /// transactions. The `Some` then contains the address of this custom operator
-    /// address.
-    custom_commit_sender_addr: Option<Address>,
+    /// transactions. The `Some` then contains client for this custom operator address.
+    eth_client_blobs: Option<Box<dyn BoundEthInterface>>,
     pool: ConnectionPool<Core>,
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
     priority_tree_start_index: Option<usize>,
     settlement_layer: SettlementLayer,
+    initial_pending_nonces: HashMap<Address, u64>,
 }
 
 struct TxData {
@@ -95,29 +95,26 @@ impl EthTxAggregator {
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Box<dyn BoundEthInterface>,
+        eth_client_blobs: Option<Box<dyn BoundEthInterface>>,
         config_timelock_contract_address: Address,
         state_transition_manager_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
-        custom_commit_sender_addr: Option<Address>,
         settlement_layer: SettlementLayer,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
-        let functions = ZkSyncFunctions::default();
-        let base_nonce = eth_client.pending_nonce().await.unwrap().as_u64();
+        let eth_client_blobs = eth_client_blobs.map(|c| c.for_component("eth_tx_aggregator"));
 
-        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
-            Some(addr) => Some(
-                (*eth_client)
-                    .as_ref()
-                    .nonce_at_for_account(addr, BlockNumber::Pending)
-                    .await
-                    .unwrap()
-                    .as_u64(),
-            ),
-            None => None,
-        };
+        let functions = ZkSyncFunctions::default();
+
+        let mut initial_pending_nonces = HashMap::new();
+        for client in eth_client_blobs.iter().chain(std::iter::once(&eth_client)) {
+            let address = client.sender_account();
+            let nonce = client.pending_nonce().await.unwrap().as_u64();
+
+            initial_pending_nonces.insert(address, nonce);
+        }
 
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
@@ -130,15 +127,14 @@ impl EthTxAggregator {
             l1_multicall3_address,
             state_transition_chain_contract,
             functions,
-            base_nonce,
-            base_nonce_custom_commit_sender,
             rollup_chain_id,
-            custom_commit_sender_addr,
+            eth_client_blobs,
             pool,
             sl_chain_id,
             health_updater: ReactiveHealthCheck::new("eth_tx_aggregator").1,
             priority_tree_start_index: None,
             settlement_layer,
+            initial_pending_nonces,
         }
     }
 
@@ -784,8 +780,12 @@ impl EthTxAggregator {
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
         let sender_addr = match (op_type, is_gateway) {
-            (AggregatedActionType::Commit, false) => self.custom_commit_sender_addr,
-            (_, _) => None,
+            (AggregatedActionType::Commit, false) => self
+                .eth_client_blobs
+                .as_ref()
+                .map(|c| c.sender_account())
+                .unwrap_or_else(|| self.eth_client.sender_account()),
+            (_, _) => self.eth_client.sender_account(),
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =
@@ -818,7 +818,7 @@ impl EthTxAggregator {
                 op_type,
                 timelock_contract_address,
                 Some(eth_tx_predicted_gas),
-                sender_addr,
+                Some(sender_addr),
                 encoded_aggregated_op.sidecar,
                 is_gateway,
             )
@@ -843,23 +843,18 @@ impl EthTxAggregator {
     async fn get_next_nonce(
         &self,
         storage: &mut Connection<'_, Core>,
-        from_addr: Option<Address>,
+        from_addr: Address,
     ) -> Result<u64, EthSenderError> {
         let is_gateway = self.settlement_layer.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(from_addr, is_gateway)
+            .get_next_nonce(Some(from_addr), is_gateway)
             .await
             .unwrap()
             .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
-        let l1_nonce = if from_addr.is_none() {
-            self.base_nonce
-        } else {
-            self.base_nonce_custom_commit_sender
-                .expect("custom base nonce is expected to be initialized; qed")
-        };
+        let l1_nonce = self.initial_pending_nonces[&from_addr];
         tracing::info!(
             "Next nonce from db: {}, nonce from L1: {} for address: {:?}",
             db_nonce,

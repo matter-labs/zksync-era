@@ -85,7 +85,7 @@ struct MockExecutedTx {
 }
 
 /// Mutable part of [`MockSettlementLayer`] that needs to be synchronized via an `RwLock`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct MockSettlementLayerInner {
     block_number: u64,
     executed_txs: HashMap<H256, MockExecutedTx>,
@@ -93,6 +93,23 @@ struct MockSettlementLayerInner {
     current_nonce: u64,
     pending_nonce: u64,
     nonces: BTreeMap<u64, u64>,
+    pub sender: Address,
+    pub return_error_on_tx_request: bool,
+}
+
+impl Default for MockSettlementLayerInner {
+    fn default() -> Self {
+        Self {
+            block_number: 0,
+            executed_txs: Default::default(),
+            sent_txs: Default::default(),
+            current_nonce: 0,
+            pending_nonce: 0,
+            nonces: Default::default(),
+            sender: MOCK_SENDER_ACCOUNT,
+            return_error_on_tx_request: false,
+        }
+    }
 }
 
 impl MockSettlementLayerInner {
@@ -133,7 +150,7 @@ impl MockSettlementLayerInner {
     }
 
     fn get_transaction_count(&self, address: Address, block: web3::BlockNumber) -> U256 {
-        if address != MOCK_SENDER_ACCOUNT {
+        if address != self.sender {
             unimplemented!("Getting nonce for custom account is not supported");
         }
 
@@ -169,7 +186,12 @@ impl MockSettlementLayerInner {
             self.pending_nonce += 1;
         }
         self.sent_txs.insert(mock_tx_hash, mock_tx);
-        Ok(mock_tx_hash)
+
+        if self.return_error_on_tx_request {
+            Err(ClientError::Custom("transport error".to_owned()))
+        } else {
+            Ok(mock_tx_hash)
+        }
     }
 
     /// Processes a transaction-like `eth_call` which is used in `EthInterface::failure_reason()`.
@@ -288,6 +310,11 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayerBuilder<Net> {
             non_ordering_confirmations,
             ..self
         }
+    }
+
+    pub fn with_sender(self, sender: Address) -> Self {
+        self.inner.write().unwrap().sender = sender;
+        self
     }
 
     /// Sets the `eth_call` handler. There are "standard" calls that will not be routed to the handler
@@ -601,6 +628,10 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
     pub fn into_client(self) -> MockClient<Net> {
         self.client
     }
+
+    pub fn set_return_error_on_tx_request(&self, value: bool) {
+        self.inner.write().unwrap().return_error_on_tx_request = value;
+    }
 }
 
 impl<T: SupportedMockSLNetwork> AsRef<dyn EthInterface> for MockSettlementLayer<T> {
@@ -634,7 +665,7 @@ impl<Net: SupportedMockSLNetwork + SupportedMockSLNetwork> BoundEthInterface
     }
 
     fn sender_account(&self) -> Address {
-        MOCK_SENDER_ACCOUNT
+        self.inner.read().unwrap().sender
     }
 
     async fn sign_prepared_tx_for_addr(

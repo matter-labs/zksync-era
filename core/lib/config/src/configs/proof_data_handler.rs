@@ -31,6 +31,11 @@ pub struct ProofDataHandlerConfig {
     pub proof_generation_timeout_in_secs: Duration,
     #[config(flatten)]
     pub tee_config: TeeConfig,
+    pub gateway_api_url: Option<String>,
+    #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]
+    pub proof_fetch_interval_in_secs: Duration,
+    #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]
+    pub proof_gen_data_submit_interval_in_secs: Duration,
 }
 
 #[cfg(test)]
@@ -49,6 +54,9 @@ mod tests {
                 tee_proof_generation_timeout_in_secs: Duration::from_secs(600),
                 tee_batch_permanently_ignored_timeout_in_hours: Duration::from_secs(240 * 3600),
             },
+            gateway_api_url: Some("http://gateway/".to_owned()),
+            proof_fetch_interval_in_secs: Duration::from_secs(15),
+            proof_gen_data_submit_interval_in_secs: Duration::from_secs(20),
         }
     }
 
@@ -61,6 +69,9 @@ mod tests {
             PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"
             PROOF_DATA_HANDLER_TEE_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
             PROOF_DATA_HANDLER_TEE_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
+            PROOF_DATA_HANDLER_GATEWAY_API_URL="http://gateway/"
+            PROOF_DATA_HANDLER_PROOF_FETCH_INTERVAL_IN_SECS=15
+            PROOF_DATA_HANDLER_PROOF_GEN_DATA_SUBMIT_INTERVAL_IN_SECS=20
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -79,6 +90,9 @@ mod tests {
           first_tee_processed_batch: 1337
           tee_proof_generation_timeout_in_secs: 600
           tee_batch_permanently_ignored_timeout_in_hours: 240
+          gateway_api_url: "http://gateway/"
+          proof_fetch_interval_in_secs: 15
+          proof_gen_data_submit_interval_in_secs: 20
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();

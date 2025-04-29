@@ -52,6 +52,7 @@ impl EthConfig {
                 time_in_mempool_in_l1_blocks_cap: 1800,
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
+                max_acceptable_base_fee_in_wei: 100000000000,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -169,6 +170,9 @@ pub struct SenderConfig {
     pub is_verifier_pre_fflonk: bool,
     #[config(default)]
     pub gas_limit_mode: GasLimitMode,
+    /// Max acceptable base fee the sender is allowed to use to send L1 txs.
+    #[config(default_t = u64::MAX)]
+    pub max_acceptable_base_fee_in_wei: u64,
 }
 
 impl SenderConfig {
@@ -280,6 +284,7 @@ mod tests {
                 time_in_mempool_in_l1_blocks_cap: 2000,
                 is_verifier_pre_fflonk: false,
                 gas_limit_mode: GasLimitMode::Calculated,
+                max_acceptable_base_fee_in_wei: 100_000_000_000,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -339,6 +344,7 @@ mod tests {
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
+            ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -373,6 +379,7 @@ mod tests {
             time_in_mempool_in_l1_blocks_cap: 2000
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
+            max_acceptable_base_fee_in_wei: 100000000000
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

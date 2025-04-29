@@ -8,7 +8,7 @@ use axum::{
 };
 use serde_json::json;
 use tower::ServiceExt;
-use zksync_config::configs::{ProofDataHandlerConfig, TeeConfig};
+use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig, TeeConfig};
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::api::SubmitTeeProofRequest;
@@ -28,6 +28,9 @@ fn test_config() -> ProofDataHandlerConfig {
             tee_proof_generation_timeout_in_secs: Duration::from_secs(600),
             tee_batch_permanently_ignored_timeout_in_hours: Duration::from_secs(10 * 24 * 3_600),
         },
+        gateway_api_url: None,
+        proof_fetch_interval_in_secs: Duration::from_secs(10),
+        proof_gen_data_submit_interval_in_secs: Duration::from_secs(10),
     }
 }
 
@@ -39,6 +42,7 @@ async fn request_tee_proof_inputs() {
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
+        ApiMode::Legacy,
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
@@ -90,6 +94,7 @@ async fn submit_tee_proof() {
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
+        ApiMode::Legacy,
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
