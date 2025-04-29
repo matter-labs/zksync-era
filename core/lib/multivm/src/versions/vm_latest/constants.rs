@@ -27,6 +27,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles => 63_800_000,
+        MultiVmSubversion::Interop => 63_992_000, //kl todo vg todo change when memory layout is finalized for interop typeA
     }
 }
 
@@ -71,7 +72,8 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
         // With gateway upgrade we increased max number of factory dependencies
         MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles => 64,
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => 64,
     }
 }
 
