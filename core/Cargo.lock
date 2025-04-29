@@ -3313,7 +3313,9 @@ dependencies = [
 
 [[package]]
 name = "eq-common"
-version = "0.1.4"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6bf51718c05e6c94a7c420b51918071876aba1bea720660e3473e514a1a9f6d"
 dependencies = [
  "bincode",
  "celestia-types",
@@ -3328,7 +3330,9 @@ dependencies = [
 
 [[package]]
 name = "eq-sdk"
-version = "0.1.4"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e156b1d9bb93a0a31a2fe9f91de5fcd62ced5884db60c86cf2a3e3beab87f76"
 dependencies = [
  "base64 0.22.1",
  "celestia-types",
