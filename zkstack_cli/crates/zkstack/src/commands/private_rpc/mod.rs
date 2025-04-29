@@ -109,7 +109,7 @@ pub async fn init(shell: &Shell) -> anyhow::Result<()> {
 
     let mut db_config = prompt_db_config(&chain_config)?;
 
-    initialize_private_rpc_database(&shell, &chain_config, &db_config).await?;
+    initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
     db_config = adjust_localhost_for_docker(db_config)?;
 
     let mut services: HashMap<String, DockerComposeService> = HashMap::new();

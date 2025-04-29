@@ -329,7 +329,7 @@ pub(super) fn msg_private_rpc_initializing_database_for(chain: &str) -> String {
 }
 
 pub(super) fn msg_private_rpc_docker_image_being_built() -> String {
-    format!("Building private-proxy docker image, it may take a while...")
+    "Building private-proxy docker image, it may take a while...".to_string()
 }
 pub(super) fn msg_private_rpc_docker_compose_file_generated(path: Display) -> String {
     format!("Generated private proxy docker-compose file and stored it at {path}")
