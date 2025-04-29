@@ -1,8 +1,10 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::{
     master_pool_sink::MasterPoolSink,
-    whitelist::{AllowListTask, WhitelistedDeployPoolSink},
+    whitelist::{AllowListTask, SharedAllowList, WhitelistedDeployPoolSink},
 };
 
 use crate::{
@@ -32,7 +34,7 @@ pub struct Input {
 pub struct Output {
     pub tx_sink: TxSinkResource,
     #[context(task)]
-    pub allow_list_task: AllowListTask,
+    pub allow_list_task: Option<AllowListTask>,
 }
 
 #[async_trait]
@@ -48,14 +50,23 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
         let pool = input.master_pool.get().await?;
         let master_pool_sink = MasterPoolSink::new(pool);
 
-        let allow_list_task = AllowListTask::from_config(self.deployment_allowlist);
+        let (task, shared_list) = match self.deployment_allowlist {
+            DeploymentAllowlist::Dynamic(allow_list) => {
+                let allow_list_task = AllowListTask::from_config(allow_list);
+                let shared = allow_list_task.shared();
+                (Some(allow_list_task), shared)
+            }
+            DeploymentAllowlist::Static(addresses) => (
+                None,
+                SharedAllowList::new(HashSet::from_iter(addresses.into_iter())),
+            ),
+        };
 
-        let tx_sink =
-            WhitelistedDeployPoolSink::new(master_pool_sink, allow_list_task.shared()).into();
+        let tx_sink = WhitelistedDeployPoolSink::new(master_pool_sink, shared_list).into();
 
         Ok(Output {
             tx_sink,
-            allow_list_task,
+            allow_list_task: task,
         })
     }
 }

@@ -381,7 +381,7 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        if deployment_allowlist.is_enabled() {
+        if let Some(deployment_allowlist) = deployment_allowlist {
             self.node.add_layer(WhitelistedMasterPoolSinkLayer {
                 deployment_allowlist: deployment_allowlist.clone(),
             });

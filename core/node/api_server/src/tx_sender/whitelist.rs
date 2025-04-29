@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc, time::Duration};
 use reqwest::Client;
 use serde::Deserialize;
 use tokio::sync::{watch, RwLock};
-use zksync_config::configs::api::DeploymentAllowlist;
+use zksync_config::configs::api::DeploymentAllowlistDynamic;
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_multivm::interface::{tracer::ValidationTraces, VmEvent};
 use zksync_types::{h256_to_address, l2::L2Tx, Address, CONTRACT_DEPLOYER_ADDRESS};
@@ -107,6 +107,10 @@ pub struct SharedAllowList {
 }
 
 impl SharedAllowList {
+    pub fn new(addresses: HashSet<Address>) -> Self {
+        let inner = Arc::new(RwLock::new(addresses));
+        Self { inner }
+    }
     fn writer(&self) -> &Arc<RwLock<HashSet<Address>>> {
         &self.inner
     }
@@ -127,7 +131,7 @@ pub struct AllowListTask {
 
 impl AllowListTask {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-    pub fn from_config(deployment_allowlist: DeploymentAllowlist) -> Self {
+    pub fn from_config(deployment_allowlist: DeploymentAllowlistDynamic) -> Self {
         Self {
             url: deployment_allowlist
                 .http_file_url()
