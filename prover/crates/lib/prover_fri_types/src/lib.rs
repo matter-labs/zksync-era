@@ -227,7 +227,11 @@ impl StoredObject for AuxOutputWitnessWrapper {
     }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aux_output_witness_{}_{}.bin", key.batch_number().0, key.chain_id().as_u64())
+        format!(
+            "aux_output_witness_{}_{}.bin",
+            key.batch_number().0,
+            key.chain_id().as_u64()
+        )
     }
 
     serialize_using_bincode!();
