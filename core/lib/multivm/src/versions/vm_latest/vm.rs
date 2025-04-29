@@ -44,7 +44,7 @@ pub(crate) enum MultiVmSubversion {
     Gateway,
     EvmEmulator,
     EcPrecompiles,
-    Interop
+    Interop,
 }
 
 impl MultiVmSubversion {
