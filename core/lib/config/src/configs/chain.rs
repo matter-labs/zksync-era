@@ -26,9 +26,8 @@ impl Default for FeeModelVersion {
     }
 }
 
-// FIXME: which of these params have reasonable defaults?
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
+// TODO: `Default` implementation is used all over the place, and it's not reasonable; replace with the example config
+#[derive(Debug, Clone, Default, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
     #[config(default_t = 8_192)]
@@ -80,25 +79,22 @@ pub struct StateKeeperConfig {
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
     #[config(default_t = 0.95)]
     pub close_block_at_gas_percentage: f64,
+
+    // Parameters without defaults.
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
-    #[config(default_t = 100_000_000)]
     pub minimal_l2_gas_price: u64,
     /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
     /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
     /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
-    #[config(default_t = 0.0)]
     pub compute_overhead_part: f64,
     /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
     /// It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
     /// If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
-    #[config(default_t = 1.0)]
     pub pubdata_overhead_part: f64,
     /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
-    #[config(default_t = 800_000)]
     pub batch_overhead_l1_gas: u64,
     /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
-    #[config(default_t = 200_000_000)]
     pub max_gas_per_batch: u64,
     /// The maximum amount of pubdata that can be used by the batch.
     /// This variable should not exceed:
@@ -106,25 +102,22 @@ pub struct StateKeeperConfig {
     /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
     /// - the DA layer's blob size limit for the DA layer-based validiums
     /// - 100 MB for the object store-based or no-da validiums
-    #[config(default_t = ByteSize(500_000), with = SizeUnit::Bytes)]
+    #[config(with = SizeUnit::Bytes)]
     pub max_pubdata_per_batch: ByteSize,
 
     /// The version of the fee model to use.
     #[config(default_t = FeeModelVersion::V2, with = Serde![str])]
     pub fee_model_version: FeeModelVersion,
-
     /// Max number of computational gas that validation step is allowed to take.
     #[config(default_t = 300_000)]
     pub validation_computational_gas_limit: u32,
     #[config(default_t = true)]
     pub save_call_traces: bool,
-
     /// The maximal number of circuits that a batch can support.
     /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
     /// the recursion layers' circuits.
     #[config(default_t = 31_100)]
     pub max_circuits_per_batch: usize,
-
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads can be written asynchronously in VM runner instead.
     /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
