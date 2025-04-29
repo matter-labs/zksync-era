@@ -254,10 +254,6 @@ impl GeneralConfigPatch {
         self.0.insert_yaml("da_client.avail", client)
     }
 
-    pub fn set_celestia_client(&mut self, client: &CelestiaConfig) -> anyhow::Result<()> {
-        self.0.insert_yaml("da_client.celestia", client)
-    }
-
     fn set_object_store(&mut self, prefix: &str, config: &ObjectStoreConfig) -> anyhow::Result<()> {
         self.0
             .insert(&format!("{prefix}.max_retries"), config.max_retries)?;
