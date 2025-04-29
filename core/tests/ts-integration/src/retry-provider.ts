@@ -265,6 +265,7 @@ export class RetryableWallet extends zksync.Wallet {
             } catch (err: any) {
                 if (!gasEstimated) {
                     console.log(err);
+                    console.log(JSON.stringify(err.payload));
 
                     const dataRegex = /"data"\s*:\s*"(?<hash>0x[a-fA-F0-9]+)"/;
                     const dataMatch = err.toString().match(dataRegex);
@@ -287,6 +288,7 @@ export class RetryableWallet extends zksync.Wallet {
                                 to: toMatch.groups.hash,
                                 gasLimit: 10_000_000
                             },
+                            'latest',
                             { tracer: 'callTracer' }
                         ]);
                         console.log(JSON.stringify(callTrace));
