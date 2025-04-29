@@ -70,8 +70,7 @@ pub fn is_retryable(err: &ClientError) -> bool {
             // At least some RPC providers use "internal error" in case of the server being overloaded
 
             err.code() == ErrorCode::ServerIsBusy.code()
-                || (err.code() == ErrorCode::InternalError.code()
-                    && !err.message() == "nonce too high")
+                || err.code() == ErrorCode::InternalError.code()
         }
         _ => false,
     }
