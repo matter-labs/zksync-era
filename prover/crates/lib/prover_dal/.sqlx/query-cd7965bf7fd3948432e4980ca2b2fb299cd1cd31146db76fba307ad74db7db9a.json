@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            node_aggregation_witness_jobs_fri (\n                l1_batch_number, circuit_id, status, created_at, updated_at\n            )\n            VALUES\n            ($1, $2, 'waiting_for_proofs', NOW(), NOW())\n            ON CONFLICT (l1_batch_number, chain_id, circuit_id, depth) DO\n            UPDATE\n            SET\n            status = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cd7965bf7fd3948432e4980ca2b2fb299cd1cd31146db76fba307ad74db7db9a"
+}

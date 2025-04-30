@@ -13085,6 +13085,7 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
+ "zksync_tee_proof_data_handler",
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
@@ -13554,6 +13555,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_tee_proof_data_handler"
+version = "27.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "axum 0.7.9",
+ "chrono",
+ "hyper 1.5.1",
+ "jsonrpsee",
+ "reqwest 0.12.9",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_multivm",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_tee_prover_interface",
+ "zksync_types",
+ "zksync_vm_executor",
+]
+
+[[package]]
 name = "zksync_tee_prover"
 version = "27.4.0-non-semver-compat"
 dependencies = [
@@ -13575,9 +13604,23 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_env_config",
  "zksync_node_framework",
- "zksync_prover_interface",
+ "zksync_tee_prover_interface",
  "zksync_tee_verifier",
  "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_tee_prover_interface"
+version = "27.4.0-non-semver-compat"
+dependencies = [
+ "bincode",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+ "zksync_vm_interface",
 ]
 
 [[package]]
@@ -13595,6 +13638,7 @@ dependencies = [
  "zksync_merkle_tree",
  "zksync_multivm",
  "zksync_prover_interface",
+ "zksync_tee_prover_interface",
  "zksync_types",
 ]
 
