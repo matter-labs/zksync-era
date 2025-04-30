@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM proof_compression_jobs_fri\n            WHERE\n                l1_batch_number = $1\n                AND chain_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "23993a95d51cc49ce02523cac10a40aecb253284888866a6ad21fc81578ac7bf"
+}

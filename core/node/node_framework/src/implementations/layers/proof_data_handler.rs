@@ -4,7 +4,7 @@ use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::ProofDataHandlerClient;
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -22,6 +22,7 @@ use crate::{
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
     api_mode: ApiMode,
 }
 
@@ -43,11 +44,13 @@ impl ProofDataHandlerLayer {
     pub fn new(
         proof_data_handler_config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
         api_mode: ApiMode,
     ) -> Self {
         Self {
             proof_data_handler_config,
             commitment_mode,
+            l2_chain_id,
             api_mode,
         }
     }
@@ -71,6 +74,7 @@ impl WiringLayer for ProofDataHandlerLayer {
             blob_store,
             main_pool,
             commitment_mode: self.commitment_mode,
+            l2_chain_id: self.l2_chain_id,
             api_mode: self.api_mode,
         };
 
@@ -85,6 +89,7 @@ pub struct ProofDataHandlerTask {
     main_pool: ConnectionPool<Core>,
     api_mode: ApiMode,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -99,6 +104,7 @@ impl Task for ProofDataHandlerTask {
             self.blob_store.clone(),
             self.main_pool.clone(),
             self.commitment_mode,
+            self.l2_chain_id,
             self.api_mode.clone(),
             stop_receiver.clone().0,
         );
@@ -111,6 +117,7 @@ impl Task for ProofDataHandlerTask {
                 self.main_pool,
                 self.proof_data_handler_config,
                 self.commitment_mode,
+                self.l2_chain_id,
             );
 
             let client_task = client.run(stop_receiver.0);

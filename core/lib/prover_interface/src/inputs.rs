@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchNumber,
-    ProtocolVersionId, H256, U256,
+    basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchId,
+    L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{FormatMarker, CBOR};
@@ -213,10 +213,21 @@ pub struct WitnessInputData<FM: FormatMarker = CBOR> {
 impl StoredObject for WitnessInputData {
     const BUCKET: Bucket = Bucket::WitnessInput;
 
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = L1BatchId;
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!(
+            "witness_inputs_{batch_number}.cbor",
+            batch_number = key.batch_number().0
+        ))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_inputs_{key}.cbor")
+        format!(
+            "witness_inputs_{batch_number}_{chain_id}.cbor",
+            batch_number = key.batch_number().0,
+            chain_id = key.chain_id().inner()
+        )
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {

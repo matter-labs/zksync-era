@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH deleted AS (\n                DELETE FROM prover_jobs_fri AS p\n                USING proof_compression_jobs_fri AS c\n                WHERE\n                    p.status NOT IN ('queued', 'in_progress', 'in_gpu_proof', 'failed')\n                    AND p.updated_at < NOW() - $1::INTERVAL\n                    AND p.l1_batch_number = c.l1_batch_number\n                    AND p.chain_id = c.chain_id\n                    AND c.status = 'sent_to_server'\n                RETURNING p.*\n            ),\n            inserted_count AS (\n                INSERT INTO prover_jobs_fri_archive\n                SELECT * FROM deleted\n            )\n            SELECT COUNT(*) FROM deleted\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1055f6977fe5753b4f1bda213b027bbec1aae905efd0f95f27ac545aa23f4df2"
+}
