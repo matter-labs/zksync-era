@@ -7,7 +7,7 @@ use smart_config::{
 };
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
-// FIXME: do URL params have reasonable defaults?
+// TODO: remove `#[derive(Deserialize)]` once env-based config in EN is reworked
 
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(tag = "avail_client_type")]
@@ -48,17 +48,25 @@ impl WellKnown for AvailFinalityState {
     const DE: Self::Deserializer = Serde![str];
 }
 
-#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
     #[config(default)]
+    #[serde(default)]
     pub finality_state: AvailFinalityState,
     #[config(default_t = Duration::from_secs(180))]
+    #[serde(default = "AvailDefaultConfig::default_dispatch_timeout")]
     pub dispatch_timeout: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
+impl AvailDefaultConfig {
+    const fn default_dispatch_timeout() -> Duration {
+        Duration::from_secs(180)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
 pub struct AvailGasRelayConfig {
     pub gas_relay_api_url: String,
     #[config(default_t = 5)]

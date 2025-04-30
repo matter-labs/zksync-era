@@ -50,8 +50,12 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
-use self::observability::ObservabilityENConfig;
+use self::{
+    env_config::{da_client_config_from_env, da_client_secrets_from_env},
+    observability::ObservabilityENConfig,
+};
 
+mod env_config;
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -779,9 +783,11 @@ impl OptionalENConfig {
     }
 
     fn from_env() -> anyhow::Result<Self> {
-        envy::prefixed("EN_")
+        let mut result: OptionalENConfig = envy::prefixed("EN_")
             .from_env()
-            .context("could not load external node config")
+            .context("could not load external node config")?;
+        result.snapshots_recovery_object_store = snapshot_recovery_object_store_config().ok();
+        Ok(result)
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -1108,6 +1114,12 @@ pub fn generate_consensus_secrets() {
     println!("node_key: {}", node_key.encode());
 }
 
+fn snapshot_recovery_object_store_config() -> anyhow::Result<ObjectStoreConfig> {
+    envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
@@ -1194,30 +1206,10 @@ impl ExternalNodeConfig<()> {
         let consensus = repo.single()?.parse_opt().log_all_errors()?;
         let consensus_secrets = repo.single()?.parse().log_all_errors()?;
 
-        let mut env_schema = ConfigSchema::new(&DAClientConfig::DESCRIPTION, "da");
-        env_schema
-            .insert(&DataAvailabilitySecrets::DESCRIPTION, "da")
-            .context("cannot add DA secrets to config schema")?;
-        env_schema
-            .insert(&ObjectStoreConfig::DESCRIPTION, "snapshots_object_store")
-            .context("cannot add snapshots object store to config schema")?;
-        let mut repo =
-            ConfigRepository::new(&env_schema).with(smart_config::Environment::prefixed("EN_"));
-        repo.deserializer_options().coerce_variant_names = true;
-        let da_config = repo.single()?.parse_opt().log_all_errors()?;
-        let da_secrets = repo.single()?.parse_opt().log_all_errors()?;
-
-        let mut optional = OptionalENConfig::from_env()?;
-        optional.snapshots_recovery_object_store = repo
-            .get("snapshots_object_store")
-            .unwrap() // safe: we've mounted the config right above
-            .parse_opt()
-            .log_all_errors()?;
-
         Ok(Self {
             required: RequiredENConfig::from_env()?,
             postgres: PostgresConfig::from_env()?,
-            optional,
+            optional: OptionalENConfig::from_env()?,
             observability: Some(observability),
             prometheus,
             experimental: envy::prefixed("EN_EXPERIMENTAL_")
@@ -1231,7 +1223,10 @@ impl ExternalNodeConfig<()> {
                 .from_env::<TreeComponentConfig>()
                 .context("could not load external node config (tree component params)")?,
             consensus_secrets,
-            data_availability: (da_config, da_secrets),
+            data_availability: (
+                da_client_config_from_env("EN_DA_").ok(),
+                da_client_secrets_from_env("EN_DA_").ok(),
+            ),
             remote: (),
         })
     }
