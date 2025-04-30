@@ -16,7 +16,7 @@ use crate::{
             get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
             get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
             INTEROP_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
-            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, get_interop_blocks_begin_offset
         },
         MultiVmSubversion,
     },
@@ -135,6 +135,8 @@ fn apply_l2_block_inner(
             },
         ),
     ]);
+    println!("block_number: {}", bootloader_l2_block.number);
+    println!("applying interop roots {}", bootloader_l2_block.interop_roots.len());
 
     bootloader_l2_block
         .interop_roots
@@ -149,6 +151,8 @@ fn apply_l2_block_inner(
                 bootloader_l2_block.number,
             )
         });
+
+    apply_interop_root_number_in_block_number(memory, subversion, bootloader_l2_block.interop_roots.len());
 }
 
 pub(crate) fn apply_interop_root(
@@ -161,7 +165,7 @@ pub(crate) fn apply_interop_root(
     let interop_root_slot = get_interop_root_offset(subversion);
     // println!("interop_root_slot 2: {}", interop_root_slot);
     // println!("interop_root_offset: {}", interop_root_offset);
-    // println!("interop_root: {:?}", interop_root);
+    println!("setting interop_root: {:?}", interop_root);
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
         U256::from(l2_block_number),
@@ -205,6 +209,36 @@ pub(crate) fn apply_interop_root(
             ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
             .zip(u256_words),
     )
+}
+
+pub(crate) fn apply_interop_root_number_in_block_number(
+    memory: &mut BootloaderMemory,
+    subversion: MultiVmSubversion,
+    number_of_interop_roots: usize,
+) {
+    let mut number_of_non_one_blocks = 0;
+    if let Some(_index) = memory.iter().position(|(slot, value)| {
+        if *slot < get_interop_blocks_begin_offset(subversion)
+            || *slot
+                >= get_interop_root_offset(subversion)
+        {
+            return false;
+        }
+        println!("finding emptyslot: {}", slot);
+        println!("finding empty value: {}", value);
+        true
+        // *value != U256::from(1)
+    }) {
+        number_of_non_one_blocks += 1;
+    }
+    let first_empty_slot = get_interop_blocks_begin_offset(subversion) + number_of_non_one_blocks;
+    println!("first_empty_slot: {}", first_empty_slot);
+    println!("number_of_interop_roots: {}", number_of_interop_roots);
+    let number_of_interop_roots_plus_one : U256 = (number_of_interop_roots + 1).into();
+    println!("pushing to memory: {}", number_of_interop_roots_plus_one);
+    memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
+    println!("memory: {:?}", memory[memory.len() - 2]);
+    println!("memory: {:?}", memory[memory.len() - 1]);
 }
 
 fn bootloader_memory_input(
