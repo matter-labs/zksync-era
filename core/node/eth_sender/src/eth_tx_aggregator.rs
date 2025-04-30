@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Add};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -39,6 +39,12 @@ use crate::{
     Aggregator, EthSenderError,
 };
 
+#[derive(Debug)]
+pub struct DAValidatorPair {
+    l1_validator: Address,
+    l2_validator: Address,
+}
+
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -52,6 +58,7 @@ pub struct MulticallData {
     /// validator timelock in the config. However, it is expected that it will be done eventually.
     pub stm_validator_timelock_address: Address,
     pub stm_protocol_version_id: ProtocolVersionId,
+    pub da_validator_pair: DAValidatorPair,
 }
 
 /// The component is responsible for aggregating l1 batches into eth_txs.
@@ -265,6 +272,18 @@ impl EthTxAggregator {
             calldata: get_stm_validator_timelock_input,
         };
 
+        let get_da_validator_pair_input = self
+            .functions
+            .get_da_validator_pair
+            .encode_input(&[])
+            .unwrap();
+
+        let get_da_validator_pair_call = Multicall3Call {
+            target: self.state_transition_chain_contract,
+            allow_failure: ALLOW_FAILURE,
+            calldata: get_da_validator_pair_input,
+        };
+
         let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
@@ -273,6 +292,7 @@ impl EthTxAggregator {
             get_protocol_version_call.into_token(),
             get_stm_protocol_version_call.into_token(),
             get_stm_validator_timelock_call.into_token(),
+            get_da_validator_pair_call.into_token(),
         ];
 
         let mut evm_emulator_hash_requested = false;
@@ -381,12 +401,18 @@ impl EthTxAggregator {
                 "STM validator timelock address",
             )?;
 
+            let da_validator_pair = Self::parse_da_validator_pair(
+                call_results_iterator.next().unwrap(),
+                "contract DA validator pair",
+            )?;
+
             return Ok(MulticallData {
                 base_system_contracts_hashes,
                 verifier_address,
                 chain_protocol_version_id,
                 stm_protocol_version_id,
                 stm_validator_timelock_address,
+                da_validator_pair,
             });
         }
         parse_error(&[token])
@@ -430,6 +456,33 @@ impl EthTxAggregator {
         }
 
         Ok(Address::from_slice(&multicall_data[12..]))
+    }
+
+    fn parse_da_validator_pair(
+        data: Token,
+        name: &'static str,
+    ) -> Result<DAValidatorPair, EthSenderError> {
+        // In the first word of the output, the L1 DA validator is present
+        const L1_DA_VALIDATOR_OFFSET: usize = 12;
+        // In the second word of the output, the L2 DA validator is present
+        const L2_DA_VALIDATOR_OFFSET: usize = 32 + 12;
+
+        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        if multicall_data.len() != 64 {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!(
+                    "multicall3 {name} data is not of the len of 32: {:?}",
+                    multicall_data
+                ),
+            )));
+        }
+
+        let pair = DAValidatorPair {
+            l1_validator: Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]),
+            l2_validator: Address::from_slice(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]),
+        };
+
+        Ok(pair)
     }
 
     fn timelock_contract_address(
@@ -532,6 +585,7 @@ impl EthTxAggregator {
             chain_protocol_version_id,
             stm_protocol_version_id,
             stm_validator_timelock_address,
+            da_validator_pair,
         } = self.get_multicall_data().await.map_err(|err| {
             tracing::error!("Failed to get multicall data {err:?}");
             err
@@ -580,6 +634,17 @@ impl EthTxAggregator {
             .await
             .then_some("there is a pending gateway upgrade"),
         };
+
+        // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
+        // send new commit transactions before the da validator pair is updated
+        if da_validator_pair.l1_validator == Address::zero()
+            || da_validator_pair.l2_validator == Address::zero()
+        {
+            let reason = Some("DA validator pair is not set on L1");
+            op_restrictions.commit_restriction = reason;
+            // We only disable commit operations, the rest are allowed
+        }
+
         if self.config.tx_aggregation_paused {
             let reason = Some("tx aggregation is paused");
             op_restrictions.commit_restriction = reason;

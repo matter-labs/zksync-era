@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use ethers::{abi::encode, utils::hex};
 use xshell::Shell;
-use zkstack_cli_common::logger;
+use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
 use zkstack_cli_config::EcosystemConfig;
 use zksync_types::{web3::keccak256, Address, H256, L2_NATIVE_TOKEN_VAULT_ADDRESS, U256};
 
 use crate::{
-    admin_functions::AdminScriptOutput, commands::chain::admin_call_builder::AdminCallBuilder,
+    abi::BridgehubAbi, admin_functions::AdminScriptOutput,
+    commands::chain::admin_call_builder::AdminCallBuilder,
 };
 
 pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {

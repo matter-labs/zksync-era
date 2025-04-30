@@ -17,6 +17,7 @@ pub(super) struct ZkSyncFunctions {
 
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
+    pub(super) get_da_validator_pair: Function,
     pub(super) get_verifier: Function,
     pub(super) get_evm_emulator_bytecode_hash: Option<Function>,
     pub(super) get_verifier_params: Function,
@@ -70,6 +71,7 @@ impl Default for ZkSyncFunctions {
             get_function(&zksync_contract, "getL2DefaultAccountBytecodeHash");
         let get_evm_emulator_bytecode_hash =
             get_optional_function(&zksync_contract, "getL2EvmSimulatorBytecodeHash");
+        let get_da_validator_pair = get_function(&zksync_contract, "getDAValidatorPair");
         let get_verifier = get_function(&zksync_contract, "getVerifier");
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
@@ -86,6 +88,7 @@ impl Default for ZkSyncFunctions {
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,
             get_evm_emulator_bytecode_hash,
+            get_da_validator_pair,
             get_verifier,
             get_verifier_params,
             get_protocol_version,

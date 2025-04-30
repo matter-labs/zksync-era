@@ -3,6 +3,7 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
@@ -24,6 +25,7 @@ mod gateway;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
+mod set_da_validator_pair_calldata;
 mod set_token_multiplier_setter;
 pub(crate) mod set_transaction_filterer;
 mod setup_legacy_bridge;
@@ -72,6 +74,8 @@ pub enum ChainCommands {
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Provides calldata to set transaction filterer for a chain
     SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
+    /// Provides calldata to set DA validator pair for a chain
+    SetDAValidatorPairCalldata(SetDAValidatorPairCalldataArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
     #[command(subcommand, alias = "gw")]
@@ -107,6 +111,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::SetTransactionFiltererCalldata(args) => {
             set_transaction_filterer::run(shell, args).await
+        }
+        ChainCommands::SetDAValidatorPairCalldata(args) => {
+            set_da_validator_pair_calldata::run(shell, args).await
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
