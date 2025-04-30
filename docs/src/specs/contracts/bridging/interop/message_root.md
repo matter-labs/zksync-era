@@ -4,7 +4,7 @@
 
 The message root is the contract on L1 that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
 
-The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../../gateway/nested_l3_l1_messaging.md).
+The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../../gateway/l2_gw_l1_messaging.md).
 
 ![MessageRoot](../img/message_root.png)
 
@@ -28,7 +28,7 @@ The structure has the following recursive format:
     - `chain_id` — the chain id of the chain the batches of which are aggregated.
 - `MessageRoot` — the root of the binary full merkle tree over `ChainIdLeaf[]`.
 
-Note that the `MessageRoot` appears twice in the structure. So the structure is recursive, chains can aggregate other chains, this is used for the [`Gateway`](../../gateway/nested_l3_l1_messaging.md)
+Note that the `MessageRoot` appears twice in the structure. So the structure is recursive, chains can aggregate other chains, this is used for the [`Gateway`](../../gateway/l2_gw_l1_messaging.md)
 
 ## Appending new batch root leaves
 
