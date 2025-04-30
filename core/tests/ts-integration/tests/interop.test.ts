@@ -249,7 +249,7 @@ describe('Interop checks', () => {
         feeCallStarters: InteropCallStarter[],
         execCallStarters: InteropCallStarter[]
     ) {
-        const destinationChainId = (await interop2Provider.getNetwork()).chainId.toString(16);
+        const destinationChainId = (await interop2Provider.getNetwork()).chainId;
 
         const tx = await interop1InteropCenter.requestInterop(
             destinationChainId,
@@ -325,7 +325,7 @@ describe('Interop checks', () => {
         let interopTx = {
             from: L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
             to: L2_INTEROP_HANDLER_ADDRESS,
-            chainId: (await receiverProvider.getNetwork()).chainId.toString(),
+            chainId: (await receiverProvider.getNetwork()).chainId,
             data: txData,
             nonce: nonce,
             customData: {
