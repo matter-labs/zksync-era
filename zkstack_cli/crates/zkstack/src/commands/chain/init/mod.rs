@@ -7,7 +7,7 @@ use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
 use zksync_basic_types::Address;
 
 use crate::{
-    accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},
+    admin_functions::{accept_admin, make_permanent_rollup, set_da_validator_pair},
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
