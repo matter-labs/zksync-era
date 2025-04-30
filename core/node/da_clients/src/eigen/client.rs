@@ -1,10 +1,12 @@
 use std::str::FromStr;
 
 use rust_eigenda_v2_client::{
-    core::{BlobKey, Payload, PayloadForm},
+    core::BlobKey,
     payload_disperser::{PayloadDisperser, PayloadDisperserConfig},
-    utils::{PrivateKey, SecretUrl},
+    rust_eigenda_signers::signers::private_key::Signer,
+    utils::SecretUrl,
 };
+use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
@@ -46,9 +48,14 @@ impl EigenDAClient {
             disperser_rpc: config.disperser_rpc,
             use_secure_grpc_flag: config.authenticated,
         };
-        let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
+        let private_key = secrets
+            .private_key
+            .0
+            .expose_secret()
+            .parse()
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        let client = PayloadDisperser::new(payload_disperser_config, private_key)
+        let signer = Signer::new(private_key);
+        let client = PayloadDisperser::new(payload_disperser_config, signer)
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
         Ok(Self { client })
@@ -115,7 +122,7 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        PayloadDisperser::blob_size_limit()
+        PayloadDisperser::<Signer>::blob_size_limit()
     }
 
     fn client_type(&self) -> ClientType {
