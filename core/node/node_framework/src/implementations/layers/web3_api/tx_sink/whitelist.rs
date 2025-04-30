@@ -1,10 +1,6 @@
-use std::collections::HashSet;
-
 use async_trait::async_trait;
-use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::{
-    master_pool_sink::MasterPoolSink,
-    whitelist::{AllowListTask, WhitelistedDeployPoolSink},
+    master_pool_sink::MasterPoolSink, whitelist::WhitelistedDeployPoolSink,
 };
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
@@ -13,30 +9,24 @@ use crate::{
         pools::{MasterPool, PoolResource},
         web3_api::TxSinkResource,
     },
-    service::StopReceiver,
-    task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext, Resource,
+    FromContext, IntoContext,
 };
 
 /// Wiring layer for [`WhitelistedDeployPoolSink`] that wraps a `MasterPoolSink` and enables allowlist filtering.
-pub struct WhitelistedMasterPoolSinkLayer {
-    pub deployment_allowlist: DeploymentAllowlist,
-}
+pub struct WhitelistedMasterPoolSinkLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    pub shared_allow_list: SharedAllowList,
 }
 
 #[derive(Debug, IntoContext)]
 #[context(crate = crate)]
 pub struct Output {
     pub tx_sink: TxSinkResource,
-    pub shared_allow_list: SharedAllowList,
-    #[context(task)]
-    pub allow_list_task: Option<AllowListTask>,
 }
 
 #[async_trait]
@@ -52,49 +42,12 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
         let pool = input.master_pool.get().await?;
         let master_pool_sink = MasterPoolSink::new(pool);
 
-        let (task, shared_list) = match self.deployment_allowlist {
-            DeploymentAllowlist::Dynamic(allow_list) => {
-                let allow_list_task = AllowListTask::from_config(allow_list);
-                let shared = allow_list_task.shared();
-                (Some(allow_list_task), shared)
-            }
-            DeploymentAllowlist::Static(addresses) => (
-                None,
-                SharedAllowList::new(HashSet::from_iter(addresses.into_iter())),
-            ),
-        };
-
         let tx_sink = WhitelistedDeployPoolSink::new(
             master_pool_sink,
-            DeploymentTxFilter::new(shared_list.clone()),
+            DeploymentTxFilter::new(input.shared_allow_list),
         )
         .into();
 
-        Ok(Output {
-            tx_sink,
-            shared_allow_list: shared_list,
-            allow_list_task: task,
-        })
-    }
-}
-
-impl Resource for SharedAllowList {
-    fn name() -> String {
-        "shared_allow_list".to_string()
-    }
-}
-
-#[async_trait]
-impl Task for AllowListTask {
-    fn id(&self) -> TaskId {
-        "api_allowlist_task".into()
-    }
-
-    fn kind(&self) -> TaskKind {
-        TaskKind::Task
-    }
-
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await
+        Ok(Output { tx_sink })
     }
 }

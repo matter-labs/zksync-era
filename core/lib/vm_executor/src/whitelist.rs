@@ -15,6 +15,7 @@ impl SharedAllowList {
         let inner = Arc::new(RwLock::new(addresses));
         Self { inner }
     }
+
     pub fn writer(&self) -> &Arc<RwLock<HashSet<Address>>> {
         &self.inner
     }
