@@ -640,7 +640,7 @@ impl EthTxAggregator {
         if da_validator_pair.l1_validator == Address::zero()
             || da_validator_pair.l2_validator == Address::zero()
         {
-            let reason = Some("DA validator pair is not set on L1");
+            let reason = Some("DA validator pair is not set on the settlement layer");
             op_restrictions.commit_restriction = reason;
             // We only disable commit operations, the rest are allowed
         }

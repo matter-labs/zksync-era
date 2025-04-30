@@ -113,7 +113,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
         )
         .await?;
 
-        logger::warn("IMPORTANT: The prepared calldata only works for chains that settle on top of Gateway, if you wish to prepare calldata to set DA pair after migration to L1, please provide an `--expicit-settlement-layer-chain-id` params");
+        logger::warn("IMPORTANT: The prepared calldata only works for chains that settle on top of Gateway, if you wish to prepare calldata to set DA pair after migration to L1, please provide the `--expicit-settlement-layer-chain-id` param");
 
         output
     };
