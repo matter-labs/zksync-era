@@ -313,7 +313,7 @@ The batch information slots [are used at the beginning of the batch](https://git
 
 - `[266757..1626756]` – slots where the final batch pubdata is supplied to be verified by the [L2DAValidator](../settlement_contracts/data_availability/custom_da.md).
 
-But briefly, this space is used for the calldata to the L1Messenger’s `publishPubdataAndClearState` function, which accepts the address of the L2DAValidator as well as the pubdata for it to check. The L2DAValidator is a contract that is responsible to ensure efficiency [when handling pubdata](../settlement_contracts/data_availability/custom_da.md). Typically, the calldata `L2DAValidator` would include uncompressed preimages for bytecodes, L2->L1 messages, L2->L1 logs, etc as their compressed counterparts. However, the exact implementation may vary across various ZK chains.
+But briefly, this space is used for the calldata to the L1Messenger’s `publishPubdataAndClearState` function, which accepts the option of DA pubdata commitment scheme as well as the pubdata for it to check. It is expected that input includes uncompressed preimages for bytecodes, L2->L1 messages, L2->L1 logs, etc as their compressed counterparts. Different pubdata commitment schemes can be used by different L1 DA validators.
 
 Note, that while the realistic number of pubdata that can be published in a batch is ~780kb, the size of the calldata to L1Messenger may be a lot larger due to the fact that this method also accepts the original uncompressed state diff entries. These will not be published to L1, but will be used to verify the correctness of the compression.
 
@@ -647,7 +647,7 @@ One of the most expensive resource for a rollup is data availability, so in orde
 The contract provides two methods:
 
 - `publishCompressedBytecode` that verifies the correctness of the bytecode compression and publishes it in form of a message to the DA layer.
-- `verifyCompressedStateDiffs` that can verify the correctness of our standard state diff compression. This method can be used by common L2DAValidators and it is for instance utilized by the [RollupL2DAValidator](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol).
+- `verifyCompressedStateDiffs` that can verify the correctness of our standard state diff compression. This method is used by [L1Messenger](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/L1Messenger.sol) system contract.
 
 You can read more about how custom DA is handled [here](../settlement_contracts/data_availability/custom_da.md).
 
@@ -655,7 +655,7 @@ You can read more about how custom DA is handled [here](../settlement_contracts/
 
 This contract is responsible for separating pubdata into chunks that each fit into a [4844 blob](../settlement_contracts/data_availability/rollup_da.md) and calculating the hash of the preimage of said blob. If a chunk's size is less than the total number of bytes for a blob, we pad it on the right with zeroes as the circuits will require that the chunk is of exact size.
 
-This contract can be utilized by L2DAValidators, e.g. [RollupL2DAValidator](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol) uses it to compress the pubdata into blobs.
+This contract is used by [L1Messenger](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/L1Messenger.sol) system contract to compress the pubdata into blobs.
 
 ### CodeOracle
 
