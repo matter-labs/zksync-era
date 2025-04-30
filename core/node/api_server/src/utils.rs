@@ -95,17 +95,17 @@ pub(crate) async fn fill_transaction_receipts(
 ) -> Result<Vec<TransactionReceipt>, Web3Error> {
     receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
-    let mut deployments = Vec::with_capacity(receipts.len());
-    for receipt in &receipts {
-        deployments.push(if receipt.inner.to.is_none() {
+    let deployments = receipts.iter().map(|receipt| {
+        if receipt.inner.to.is_none() {
             Some(DeploymentTransactionType::Evm)
         } else if receipt.inner.to == Some(CONTRACT_DEPLOYER_ADDRESS) {
-            DeploymentParams::decode(&receipt.calldata.0)?.map(DeploymentTransactionType::EraVm)
+            DeploymentParams::decode(&receipt.calldata.0).map(DeploymentTransactionType::EraVm)
         } else {
             // Not a deployment transaction.
             None
-        });
-    }
+        }
+    });
+    let deployments: Vec<_> = deployments.collect();
 
     // Get the AA type for deployment transactions to filter out custom AAs below.
     let deployment_receipts = receipts
