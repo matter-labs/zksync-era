@@ -3,6 +3,7 @@ use std::{collections::HashSet, str::FromStr};
 use anyhow::Context as _;
 use clap::Parser;
 use node_builder::ExternalNodeBuilder;
+use zksync_config::{full_config_schema, sources::ConfigFilePaths};
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::config::{generate_consensus_secrets, ExternalNodeConfig};
@@ -19,6 +20,14 @@ enum Command {
     /// Generates consensus secret keys to use in the secrets file.
     /// Prints the keys to the stdout, you need to copy the relevant keys into your secrets file.
     GenerateSecrets,
+    /// Configuration-related tools.
+    Config {
+        /// If set, debugs configuration instead of printing help.
+        #[arg(long)]
+        debug: bool,
+        /// Allows filtering config params by path.
+        filter: Option<String>,
+    },
 }
 
 /// External node for ZKsync Era.
@@ -126,6 +135,33 @@ fn main() -> anyhow::Result<()> {
     if let Some(cmd) = &opt.command {
         match cmd {
             Command::GenerateSecrets => generate_consensus_secrets(),
+            Command::Config { debug, filter } => {
+                let schema = full_config_schema(true);
+                let printer = smart_config_commands::Printer::stdout();
+                if *debug {
+                    let config_file_paths = ConfigFilePaths {
+                        general: opt.config_path.clone(),
+                        secrets: opt.secrets_path.clone(),
+                        external_node: opt.external_node_config_path.clone(),
+                        consensus: opt.consensus_path.clone(),
+                        ..ConfigFilePaths::default()
+                    };
+                    let config_sources = config_file_paths.into_config_sources("EN_")?;
+                    let repo = config_sources.build_repository(&schema);
+
+                    printer.print_debug(&repo, |param| {
+                        filter.as_ref().map_or(true, |needle| {
+                            param.all_paths().any(|path| path.contains(needle))
+                        })
+                    })?;
+                } else {
+                    printer.print_help(&schema, |param| {
+                        filter.as_ref().map_or(true, |needle| {
+                            param.all_paths().any(|path| path.contains(needle))
+                        })
+                    })?;
+                }
+            }
         }
         return Ok(());
     }

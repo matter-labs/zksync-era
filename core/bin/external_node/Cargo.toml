@@ -45,6 +45,7 @@ zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
 vise.workspace = true
+smart-config-commands.workspace = true
 
 async-trait.workspace = true
 anyhow.workspace = true

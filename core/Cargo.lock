@@ -12197,6 +12197,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "smart-config",
+ "smart-config-commands",
  "tempfile",
  "test-casing",
  "tokio",
