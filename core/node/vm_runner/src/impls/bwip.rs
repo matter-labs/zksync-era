@@ -341,7 +341,7 @@ async fn assert_database_witness_input_data(
         if BytecodeMarker::new(hash).expect("Failed to get bytecode marker") != BytecodeMarker::Evm
         {
             assert!(
-                used_bytecodes.contains_key(hash),
+                used_bytecodes.contains_key(&h256_to_u256(hash)),
                 "{} factory dependency is not found in DB",
                 hash
             );
