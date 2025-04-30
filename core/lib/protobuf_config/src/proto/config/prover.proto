@@ -78,6 +78,7 @@ message ProofDataHandler {
   optional string gateway_api_url = 10; // optional
   optional uint32 proof_fetch_interval_in_secs = 11; // optional
   optional uint32 proof_gen_data_submit_interval_in_secs = 12; // optional
+  optional bool fetch_zero_chain_id_proofs = 13; // optional
 
   reserved 3, 4, 5, 6, 7, 8, 9;
   reserved "api_url", "batch_readiness_check_interval_in_secs", "retry_connection_interval_in_secs";

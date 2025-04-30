@@ -11,7 +11,7 @@ use zksync_prover_interface::api::{
     ProofGenerationDataRequest, ProofGenerationDataResponse, SubmitProofRequest,
     SubmitProofResponse,
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber};
+use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchId, L1BatchNumber, L2ChainId};
 
 pub use crate::{
     client::ProofDataHandlerClient,
@@ -29,6 +29,7 @@ pub async fn run_server(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
     api_mode: ApiMode,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -40,6 +41,7 @@ pub async fn run_server(
         config,
         api_mode,
         commitment_mode,
+        l2_chain_id,
     );
 
     let listener = tokio::net::TcpListener::bind(bind_address)
@@ -64,6 +66,7 @@ fn create_proof_processing_router(
     config: ProofDataHandlerConfig,
     api_mode: ApiMode,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 ) -> Router {
     let mut router = Router::new();
 
@@ -73,6 +76,7 @@ fn create_proof_processing_router(
             connection_pool.clone(),
             config.clone(),
             commitment_mode,
+            l2_chain_id,
         );
         let submit_proof_processor = get_proof_gen_processor.clone();
 
@@ -99,7 +103,7 @@ fn create_proof_processing_router(
                     let l1_batch_number = L1BatchNumber(l1_batch_number.0);
                     let Json(SubmitProofRequest::Proof(proof)) = payload;
                     match submit_proof_processor
-                        .save_proof(l1_batch_number, (*proof).into())
+                        .save_proof(L1BatchId::new(l2_chain_id, l1_batch_number), (*proof).into())
                         .await
                     {
                         Ok(_) => {

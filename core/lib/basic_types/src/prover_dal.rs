@@ -6,13 +6,14 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchId,
+    L1BatchNumber, L2ChainId,
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {
     pub id: u32,
-    pub block_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub batch_sealed_at: DateTime<Utc>,
     pub circuit_id: u8,
     pub aggregation_round: AggregationRound,
@@ -75,6 +76,7 @@ impl JobCountStatistics {
 #[derive(Debug)]
 pub struct StuckJobs {
     pub id: u64,
+    pub chain_id: L2ChainId,
     pub status: String,
     pub attempts: u64,
     pub circuit_id: Option<u32>,
@@ -85,7 +87,7 @@ pub struct StuckJobs {
 #[derive(Debug, Clone)]
 pub struct LeafAggregationJobMetadata {
     pub id: u32,
-    pub block_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub circuit_id: u8,
     pub prover_job_ids_for_proofs: Vec<u32>,
 }
@@ -93,7 +95,7 @@ pub struct LeafAggregationJobMetadata {
 #[derive(Debug, Clone)]
 pub struct NodeAggregationJobMetadata {
     pub id: u32,
-    pub block_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub circuit_id: u8,
     pub depth: u16,
     pub prover_job_ids_for_proofs: Vec<u32>,
@@ -200,7 +202,7 @@ pub struct WitnessJobInfo {
 #[derive(Debug)]
 pub struct ProverJobInfo {
     pub id: u32,
-    pub block_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub circuit_type: String,
     pub position: JobPosition,
     pub input_length: u64,
@@ -221,7 +223,7 @@ pub struct JobExtendedStatistics {
 #[derive(Debug, Clone)]
 pub struct ProverJobFriInfo {
     pub id: u32,
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub circuit_id: u32,
     pub circuit_blob_url: String,
     pub aggregation_round: AggregationRound,
@@ -247,7 +249,7 @@ pub trait Stallable {
 
 #[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub witness_inputs_blob_url: Option<String>,
     pub attempts: u32,
     pub status: WitnessJobStatus,
@@ -273,7 +275,7 @@ impl Stallable for BasicWitnessGeneratorJobInfo {
 #[derive(Debug, Clone)]
 pub struct LeafWitnessGeneratorJobInfo {
     pub id: u32,
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub circuit_id: u32,
     pub closed_form_inputs_blob_url: Option<String>,
     pub attempts: u32,
@@ -301,7 +303,7 @@ impl Stallable for LeafWitnessGeneratorJobInfo {
 #[derive(Debug, Clone)]
 pub struct NodeWitnessGeneratorJobInfo {
     pub id: u32,
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub circuit_id: u32,
     pub depth: u32,
     pub status: WitnessJobStatus,
@@ -329,7 +331,7 @@ impl Stallable for NodeWitnessGeneratorJobInfo {
 
 #[derive(Debug, Clone)]
 pub struct RecursionTipWitnessGeneratorJobInfo {
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub status: WitnessJobStatus,
     pub attempts: u32,
     pub processing_started_at: Option<NaiveDateTime>,
@@ -354,7 +356,7 @@ impl Stallable for RecursionTipWitnessGeneratorJobInfo {
 
 #[derive(Debug, Clone)]
 pub struct SchedulerWitnessGeneratorJobInfo {
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub scheduler_partial_input_blob_url: String,
     pub status: WitnessJobStatus,
     pub processing_started_at: Option<NaiveDateTime>,
@@ -395,7 +397,7 @@ pub enum ProofCompressionJobStatus {
 
 #[derive(Debug, Clone)]
 pub struct ProofCompressionJobInfo {
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub attempts: u32,
     pub status: ProofCompressionJobStatus,
     pub fri_proof_blob_url: Option<String>,
@@ -412,7 +414,7 @@ pub struct ProofCompressionJobInfo {
 /// DTO containing information about L1 Batch Proof.
 #[derive(Debug, Clone)]
 pub struct ProofGenerationTime {
-    pub l1_batch_number: L1BatchNumber,
+    pub batch_id: L1BatchId,
     pub time_taken: NaiveTime,
     pub created_at: NaiveDateTime,
 }
