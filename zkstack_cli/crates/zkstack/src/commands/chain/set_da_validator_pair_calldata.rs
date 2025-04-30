@@ -9,10 +9,7 @@ use zksync_types::{Address, L2_BRIDGEHUB_ADDRESS};
 use super::utils::{display_admin_script_output, get_default_foundry_path};
 use crate::{
     abi::BridgehubAbi,
-    admin_functions::{
-        set_da_validator_pair, set_da_validator_pair_via_gateway, set_transaction_filterer,
-        AdminScriptMode,
-    },
+    admin_functions::{set_da_validator_pair, set_da_validator_pair_via_gateway, AdminScriptMode},
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -62,7 +59,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
             format!("chain_id {current_sl_chain_id} (ZK Gateway)")
         };
 
-        logger::warn(&format!("Explicit settlement layer not provided! We will use the current settlement layer retrieved from L1: {chain_description_text}"));
+        logger::warn(format!("Explicit settlement layer not provided! We will use the current settlement layer retrieved from L1: {chain_description_text}"));
 
         current_sl_chain_id
     };
