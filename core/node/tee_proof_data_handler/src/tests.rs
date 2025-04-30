@@ -8,30 +8,22 @@ use axum::{
 };
 use serde_json::json;
 use tower::ServiceExt;
-use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig, TeeConfig};
+use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::MockObjectStore;
-use zksync_prover_interface::api::SubmitTeeProofRequest;
+use zksync_tee_prover_interface::api::SubmitTeeProofRequest;
 use zksync_types::{
     commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber, L2ChainId,
 };
 
 use crate::create_proof_processing_router;
 
-fn test_config() -> ProofDataHandlerConfig {
-    ProofDataHandlerConfig {
+fn test_config() -> TeeProofDataHandlerConfig {
+    TeeProofDataHandlerConfig {
         http_port: 1337,
-        proof_generation_timeout_in_secs: Duration::from_secs(10),
-        tee_config: TeeConfig {
-            tee_support: true,
-            first_tee_processed_batch: L1BatchNumber(0),
-            tee_proof_generation_timeout_in_secs: Duration::from_secs(600),
-            tee_batch_permanently_ignored_timeout_in_hours: Duration::from_secs(10 * 24 * 3_600),
-        },
-        gateway_api_url: None,
-        proof_fetch_interval_in_secs: Duration::from_secs(10),
-        proof_gen_data_submit_interval_in_secs: Duration::from_secs(10),
-        fetch_zero_chain_id_proofs: true,
+        first_processed_batch: L1BatchNumber(0),
+        proof_generation_timeout_in_secs: Duration::from_secs(600),
+        batch_permanently_ignored_timeout_in_hours: Duration::from_secs(10 * 24 * 3_600),
     }
 }
 
@@ -43,7 +35,6 @@ async fn request_tee_proof_inputs() {
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
-        ApiMode::Legacy,
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
@@ -95,7 +86,6 @@ async fn submit_tee_proof() {
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
-        ApiMode::Legacy,
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );

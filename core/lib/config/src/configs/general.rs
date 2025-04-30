@@ -19,7 +19,7 @@ use crate::{
         CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
         FriWitnessGeneratorConfig, GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, Secrets,
+        ProofDataHandlerConfig, Secrets, TeeProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -57,6 +57,8 @@ pub struct GeneralConfig {
     pub prometheus_config: PrometheusConfig,
     #[config(nest, rename = "data_handler")]
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
+    #[config(nest, rename = "tee_data_handler")]
+    pub tee_proof_data_handler_config: Option<TeeProofDataHandlerConfig>,
     #[config(nest, rename = "db", alias = "database")]
     pub db_config: DBConfig,
     #[config(nest)]
