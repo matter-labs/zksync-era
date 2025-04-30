@@ -52,20 +52,19 @@ message Web3JsonRpc {
 
 message DeploymentAllowlist {
   message Dynamic {
-    optional string http_file_url = 1;
-    optional uint64 refresh_interval_secs = 2;
+    optional string http_file_url = 3;
+    optional uint64 refresh_interval_secs = 4;
   }
 
   message Static {
-    repeated string addresses = 1;
+    repeated string addresses = 5;
   }
 
   oneof allow_list {
-    Dynamic dynamic = 1;
-    Static static = 2;
+    Dynamic dynamic = 6;
+    Static static = 7;
   }
 }
-
 
 message HealthCheck {
   optional uint32 port = 1; // required; u16

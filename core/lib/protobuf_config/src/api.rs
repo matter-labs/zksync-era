@@ -258,7 +258,7 @@ impl ProtoRepr for proto::DeploymentAllowlist {
                 })
             }
         };
-        proto::DeploymentAllowlist {
+        Self {
             allow_list: Some(allow_list),
         }
     }
