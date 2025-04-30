@@ -551,6 +551,7 @@ impl TransactionRequest {
                     .ok_or(SerializationTransactionError::ToAddressIsNull)?;
                 rlp.append(&to);
                 rlp.append(&self.value);
+                rlp.append(&self.input.0);
                 access_list_rlp(rlp, &self.access_list);
                 authorization_list_rlp(rlp, &self.authorization_list);
             }
@@ -616,6 +617,7 @@ impl TransactionRequest {
         }
 
         rlp.finalize_unbounded_list();
+        assert!(rlp.is_finished(), "RLP encoding is not finished");
         Ok(())
     }
 
@@ -854,10 +856,6 @@ impl TransactionRequest {
         default_signed_message: H256,
     ) -> Result<Address, SerializationTransactionError> {
         let signature = self.get_signature()?;
-        PackedEthSignature::deserialize_packed(&signature)
-            .map_err(|_| SerializationTransactionError::MalformedSignature)?
-            .signature_recover_signer(&default_signed_message)
-            .map_err(|_| SerializationTransactionError::MalformedSignature)?;
 
         let address = PackedEthSignature::deserialize_packed(&signature)
             .map_err(|_| SerializationTransactionError::MalformedSignature)?
@@ -940,6 +938,10 @@ impl L2Tx {
             Some(EIP_2930_TX_TYPE) => TransactionType::EIP2930Transaction,
             _ => TransactionType::LegacyTransaction,
         };
+        if tx.common_data.transaction_type == TransactionType::EIP7702Transaction {
+            tx.common_data.authorization_list = value.authorization_list;
+        }
+
         // For fee calculation we use the same structure, as a result, signature may not be provided
         tx.set_raw_signature(raw_signature);
 
@@ -1688,13 +1690,14 @@ mod tests {
     }
 
     #[test]
-    fn rlp_decode_7702() {
+    fn rlp_7702_roundtrip() {
         let rlp = hex::decode(
             "04f8cb8201048001840564eba18304f05a9400000000000000000000000000000000000080018203e880c0f85ef85c8201049400000000000000000000000000000000000080010180a09732937ba3de2800af90a73693b1d5c6171ab706c74c5c58092eebb0c8c83f2aa05f144b1a71680590a263eb7b22f66f3807334b01fba030feb1cb833a2f64a6a001a0929ff64f7063d6051748fb0cda1f87949625a012fa403eb302c42c0e0c550abba03955758dd3e964267eee258cdf02265819f8f293a3f0e1aca0e4a261af4a32a1"
         ).unwrap();
-        let (tx, _) = TransactionRequest::from_bytes(rlp.as_slice(), L2ChainId::from(260)).unwrap();
+        let (tx, _hash) =
+            TransactionRequest::from_bytes(rlp.as_slice(), L2ChainId::from(260)).unwrap();
         assert_eq!(tx.transaction_type, Some(EIP_7702_TX_TYPE.into()));
-        let authorization_list = tx.authorization_list.unwrap();
+        let authorization_list = tx.authorization_list.clone().unwrap();
         assert_eq!(authorization_list.len(), 1);
         assert_eq!(
             authorization_list[0].address,
@@ -1706,5 +1709,12 @@ mod tests {
         );
         assert_eq!(authorization_list[0].nonce, 1.into());
         assert_eq!(authorization_list[0].chain_id, 260.into());
+
+        let signature = tx.get_packed_signature().unwrap();
+        let mut rlp_stream = RlpStream::new();
+        tx.rlp(&mut rlp_stream, Some(&signature)).unwrap();
+        let roundtrip_rlp = rlp_stream.as_raw();
+        // // Split the first byte (tx type) from initial RLP.
+        assert_eq!(&rlp[1..], roundtrip_rlp);
     }
 }
