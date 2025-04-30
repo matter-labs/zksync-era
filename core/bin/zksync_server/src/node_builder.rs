@@ -63,6 +63,7 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
+        tee_proof_data_handler::TeeProofDataHandlerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -353,6 +354,15 @@ impl MainNodeBuilder {
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.genesis_config.l2_chain_id,
             gateway_config.api_mode,
+        ));
+        Ok(self)
+    }
+
+    fn add_tee_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TeeProofDataHandlerLayer::new(
+            try_load_config!(self.configs.tee_proof_data_handler_config),
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -720,6 +730,7 @@ impl MainNodeBuilder {
             config,
             proof_data_handler_config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
 
         Ok(self)
@@ -854,6 +865,9 @@ impl MainNodeBuilder {
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
+                }
+                Component::TeeProofDataHandler => {
+                    self = self.add_tee_proof_data_handler_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;

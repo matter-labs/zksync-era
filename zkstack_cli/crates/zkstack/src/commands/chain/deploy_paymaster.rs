@@ -37,7 +37,7 @@ pub async fn deploy_paymaster(
     let foundry_contracts_path = chain_config.path_to_l1_foundry();
     input.save(
         shell,
-        DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+        DEPLOY_PAYMASTER_SCRIPT_PARAMS.input(&chain_config.path_to_l1_foundry()),
     )?;
     let secrets = chain_config.get_secrets_config().await?;
 
@@ -65,7 +65,7 @@ pub async fn deploy_paymaster(
 
     let output = DeployPaymasterOutput::read(
         shell,
-        DEPLOY_PAYMASTER_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+        DEPLOY_PAYMASTER_SCRIPT_PARAMS.output(&chain_config.path_to_l1_foundry()),
     )?;
 
     contracts_config.l2.testnet_paymaster_addr = output.paymaster;

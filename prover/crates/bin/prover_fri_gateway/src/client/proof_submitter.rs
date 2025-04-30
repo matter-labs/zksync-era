@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
-use zksync_types::L1BatchNumber;
+use zksync_types::L1BatchId;
 
 use crate::{client::ProverApiClient, proof_data_manager::ProofDataManager, traits::PeriodicApi};
 
@@ -34,13 +34,13 @@ impl ProofSubmitter {
 
 #[async_trait]
 impl PeriodicApi for ProofSubmitter {
-    type JobId = L1BatchNumber;
+    type JobId = L1BatchId;
     type Request = SubmitProofRequest;
     type Response = SubmitProofResponse;
     const SERVICE_NAME: &'static str = "ProofSubmitter";
 
     async fn get_next_request(&self) -> anyhow::Result<Option<(Self::JobId, SubmitProofRequest)>> {
-        let Some((l1_batch_number, proof)) = self
+        let Some((l1_batch_id, proof)) = self
             .manager
             .get_next_proof()
             .await
@@ -50,7 +50,7 @@ impl PeriodicApi for ProofSubmitter {
         };
 
         Ok(Some((
-            l1_batch_number,
+            l1_batch_id,
             SubmitProofRequest::Proof(Box::new(proof.into())),
         )))
     }
@@ -60,13 +60,17 @@ impl PeriodicApi for ProofSubmitter {
         job_id: Self::JobId,
         request: SubmitProofRequest,
     ) -> reqwest::Result<Self::Response> {
-        let endpoint = format!("{}/{job_id}", self.client.api_url);
+        let endpoint = format!(
+            "{}/{job_id}",
+            self.client.api_url,
+            job_id = job_id.batch_number()
+        );
         self.client.send_http_request(request, &endpoint).await
     }
 
     async fn handle_response(
         &self,
-        job_id: L1BatchNumber,
+        job_id: L1BatchId,
         response: Self::Response,
     ) -> anyhow::Result<()> {
         tracing::info!("Received response: {:?}", response);
