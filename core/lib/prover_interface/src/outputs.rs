@@ -9,11 +9,8 @@ use circuit_definitions::{
 };
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
-use serde_with::{hex::Hex, serde_as};
-use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject, _reexports::BoxedError};
-use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchId, L1BatchNumber,
-};
+use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId, L1BatchNumber};
 
 use crate::{FormatMarker, CBOR};
 
@@ -149,24 +146,6 @@ impl<FM: FormatMarker> From<PlonkL1BatchProofForL1> for L1BatchProofForL1<FM> {
     }
 }
 
-/// A "final" TEE proof that can be sent to the L1 contract.
-#[serde_as]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct L1BatchTeeProofForL1 {
-    // signature generated within the TEE enclave, using the privkey corresponding to the pubkey
-    #[serde_as(as = "Hex")]
-    pub signature: Vec<u8>,
-    // pubkey used for signature verification; each key pair is attested by the TEE attestation
-    // stored in the db
-    #[serde_as(as = "Hex")]
-    pub pubkey: Vec<u8>,
-    // data that was signed
-    #[serde_as(as = "Hex")]
-    pub proof: Vec<u8>,
-    // type of TEE used for attestation
-    pub tee_type: TeeType,
-}
-
 impl fmt::Debug for L1BatchProofForL1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -197,14 +176,6 @@ impl fmt::Debug for FflonkL1BatchProofForL1 {
         formatter
             .debug_struct("FflonkL1BatchProofForL1")
             .field("aggregation_result_coords", &self.aggregation_result_coords)
-            .finish_non_exhaustive()
-    }
-}
-
-impl fmt::Debug for L1BatchTeeProofForL1 {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("L1BatchTeeProofForL1")
             .finish_non_exhaustive()
     }
 }
@@ -264,15 +235,4 @@ impl StoredObject for L1BatchProofForL1 {
         ciborium::from_reader(&bytes[..])
             .map_err(|e| BoxedError::from(format!("Failed to deserialize L1BatchProofForL1: {e}")))
     }
-}
-
-impl StoredObject for L1BatchTeeProofForL1 {
-    const BUCKET: Bucket = Bucket::ProofsTee;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("l1_batch_tee_proof_{key}.bin")
-    }
-
-    serialize_using_bincode!();
 }

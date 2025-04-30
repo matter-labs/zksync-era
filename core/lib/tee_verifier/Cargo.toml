@@ -16,6 +16,7 @@ zksync_crypto_primitives.workspace = true
 zksync_merkle_tree.workspace = true
 zksync_multivm.workspace = true
 zksync_prover_interface.workspace = true
+zksync_tee_prover_interface.workspace = true
 zksync_types.workspace = true
 
 anyhow.workspace = true
@@ -25,6 +26,5 @@ tracing.workspace = true
 
 [dev-dependencies]
 zksync_contracts.workspace = true
-zksync_prover_interface.workspace = true
 
 bincode.workspace = true
