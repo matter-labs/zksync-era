@@ -440,6 +440,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn contract_address_not_filled_for_bogus_deployment() {
+        let mut alice = Account::random();
+        let mut calldata = Execute::encode_deploy_params_create(H256::zero(), H256::zero(), vec![]);
+        // Truncate the calldata so that it contains the valid Solidity selector for `create()`, but cannot be decoded.
+        calldata.truncate(5);
+        let bogus_deployment = alice.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        );
+        let deployment_hash = bogus_deployment.hash();
+
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        prepare_storage(&mut storage, alice.address()).await;
+        persist_block_with_transactions(&pool, vec![bogus_deployment]).await;
+
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[deployment_hash])
+            .await
+            .unwrap();
+        let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+            .await
+            .unwrap();
+
+        assert_eq!(filled_receipts.len(), 1);
+        assert_eq!(filled_receipts[0].to, Some(CONTRACT_DEPLOYER_ADDRESS));
+        assert_eq!(filled_receipts[0].contract_address, None);
+        assert_eq!(filled_receipts[0].status, 0.into());
+    }
+
+    #[tokio::test]
     async fn various_deployments() {
         let mut alice = Account::random();
         let (create2_execute, create2_params) = Execute::for_create2_deploy(
