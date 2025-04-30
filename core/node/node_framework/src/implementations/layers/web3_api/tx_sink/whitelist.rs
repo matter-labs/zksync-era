@@ -4,8 +4,9 @@ use async_trait::async_trait;
 use zksync_config::configs::api::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::{
     master_pool_sink::MasterPoolSink,
-    whitelist::{AllowListTask, SharedAllowList, WhitelistedDeployPoolSink},
+    whitelist::{AllowListTask, WhitelistedDeployPoolSink},
 };
+use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use crate::{
     implementations::resources::{
@@ -15,7 +16,7 @@ use crate::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+    FromContext, IntoContext, Resource,
 };
 
 /// Wiring layer for [`WhitelistedDeployPoolSink`] that wraps a `MasterPoolSink` and enables allowlist filtering.
@@ -33,6 +34,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     pub tx_sink: TxSinkResource,
+    pub shared_allow_list: SharedAllowList,
     #[context(task)]
     pub allow_list_task: Option<AllowListTask>,
 }
@@ -62,12 +64,23 @@ impl WiringLayer for WhitelistedMasterPoolSinkLayer {
             ),
         };
 
-        let tx_sink = WhitelistedDeployPoolSink::new(master_pool_sink, shared_list).into();
+        let tx_sink = WhitelistedDeployPoolSink::new(
+            master_pool_sink,
+            DeploymentTxFilter::new(shared_list.clone()),
+        )
+        .into();
 
         Ok(Output {
             tx_sink,
+            shared_allow_list: shared_list,
             allow_list_task: task,
         })
+    }
+}
+
+impl Resource for SharedAllowList {
+    fn name() -> String {
+        "shared_allow_list".to_string()
     }
 }
 

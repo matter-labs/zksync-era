@@ -64,6 +64,7 @@ message DeploymentAllowlist {
     Dynamic dynamic = 6;
     Static static = 7;
   }
+  reserved 1, 2; reserved "http_file_url", "refresh_interval_secs";
 }
 
 message HealthCheck {

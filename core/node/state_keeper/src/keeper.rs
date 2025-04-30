@@ -22,6 +22,7 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
     utils::display_timestamp, L1BatchNumber, Transaction,
 };
+use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
 use crate::{
     executor::TxExecutionResult,
@@ -73,6 +74,7 @@ pub struct ZkSyncStateKeeper {
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
+    deployment_tx_filter: Option<DeploymentTxFilter>,
 }
 
 impl ZkSyncStateKeeper {
@@ -82,6 +84,7 @@ impl ZkSyncStateKeeper {
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
+        deployment_tx_filter: Option<DeploymentTxFilter>,
     ) -> Self {
         Self {
             io: sequencer,
@@ -90,6 +93,7 @@ impl ZkSyncStateKeeper {
             sealer,
             storage_factory,
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
+            deployment_tx_filter,
         }
     }
 
@@ -858,7 +862,6 @@ impl ZkSyncStateKeeper {
                 ..
             } => {
                 let tx_execution_status = &tx_result.result;
-
                 tracing::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in L2 block {}) \
                     status: {:?}. Tx execution metrics: {:?}, block execution metrics: {:?}",
@@ -873,6 +876,21 @@ impl ZkSyncStateKeeper {
                     &tx_execution_metrics,
                     updates_manager.pending_execution_metrics() + **tx_execution_metrics,
                 );
+
+                if let Some(tx_filter) = &self.deployment_tx_filter {
+                    if !tx_filter
+                        .check_if_deployment_allowed(tx.initiator_account(), &tx_result.logs.events)
+                        .await
+                    {
+                        tracing::warn!(
+                            "Deployment transaction {tx:?} is not allowed. Mark it as unexecutable."
+                        );
+                        return Ok((
+                            SealResolution::Unexecutable(UnexecutableReason::DeploymentNotAllowed),
+                            exec_result,
+                        ));
+                    }
+                }
 
                 let encoding_len = tx.encoding_len();
 
