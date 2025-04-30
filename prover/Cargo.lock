@@ -991,8 +991,7 @@ dependencies = [
 [[package]]
 name = "boojum-cuda"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2643f87f985620c61acde8fcb2d94f8a178c3182199c9df45d79217dc881fedb"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "boojum",
  "cmake",
@@ -1176,8 +1175,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a12a33e7c16d7cf3549e3f282a0fa1b4d84253a895ad0d34b5ddefc822a6ea17"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -1190,8 +1188,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08055c36b3dbcdefa42ed06cb5d453e090d7694faa7147f23eece06884a0440f"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "derivative",
  "serde",
@@ -1202,8 +1199,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7a52138983ea94b367d689fc6183ad60a769d6c7ce8041c5120cb5074486ea2"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "derivative",
  "rayon",
@@ -2095,8 +2091,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 [[package]]
 name = "era_cudart"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a7970bcffb2b0627571ffb5a0859b3450ba7baab8b3ae1ba5964399c9030b4e"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -2106,8 +2101,7 @@ dependencies = [
 [[package]]
 name = "era_cudart_sys"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cce2971222667467cd5d3b4d8c1dd5c3792cc16bda46a213e195aa15566a0cf1"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "regex-lite",
 ]
@@ -2244,8 +2238,7 @@ dependencies = [
 [[package]]
 name = "fflonk-cuda"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6e1eb8b7c34552a79ef0bfd67ccfcad781d7ccd0f23d8cc1cc41044f7796274"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "bincode",
  "byteorder",
@@ -4962,8 +4955,7 @@ dependencies = [
 [[package]]
 name = "proof-compression"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c50a422701ae83ad718eb57ca5a70f416792dc3ee3164d6d79c1d0e247e80d2"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "bincode",
  "byteorder",
@@ -6320,8 +6312,7 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 [[package]]
 name = "shivini"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c0ab5b382bd2b245a196d26dcda68c7c135d9b223163ce1d42273f8af8fc878"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "bincode",
  "boojum",
@@ -8333,8 +8324,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4587cac12bc0a037b29b5c12fe107f06d1f2d1f62f64ebed6ce4c6bf5290c58a"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8387,8 +8377,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c91ea662a71ec92c72f5d1628486d1e68c1a50fd13e07ef57dcd2a6d4161b68f"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -8400,8 +8389,7 @@ dependencies = [
 [[package]]
 name = "zkevm-assembly"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf6a1904b4f732fee8427a4134a4c765e37071474dffa1aaf663df4c43a21cc1"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -8420,8 +8408,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6eff71bb382effb931c81471c72e66041fe2f17bfdfaf1e02fffc8a06c18e1f"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -8499,8 +8486,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb02c38d4486568f3ce4aed592a26139aa942eb3cef973a78cfc053cddc54d06"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6",
@@ -8516,8 +8502,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1129439a7d4626c854fab8ccb4911ff741bad2d9f9ee3048d9d954497ff7848"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -8527,6 +8512,7 @@ dependencies = [
  "crossbeam",
  "derivative",
  "env_logger 0.9.3",
+ "ethabi",
  "hex",
  "rand 0.4.6",
  "rayon",
@@ -8544,8 +8530,7 @@ dependencies = [
 [[package]]
 name = "zksync-gpu-ffi"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b354f44edf79677954b4610893cb4d1b9c50912024e206e9f8f99be3c4923d8e"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "cmake",
  "crossbeam",
@@ -8559,8 +8544,7 @@ dependencies = [
 [[package]]
 name = "zksync-gpu-prover"
 version = "0.153.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd8365c1321fc066fc995250da4f91104786535618a90e2ab9cbc7a964985e3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=vv-prepare-0-153-4#b602de768de822851d4a41d17f123d18ff8867be"
 dependencies = [
  "bit-vec 0.6.3",
  "cfg-if",
@@ -8970,8 +8954,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.151.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c19d2640f29d4886b764a53a007f4025d0d0713e331580333a520a90feeec6b"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
 dependencies = [
  "boojum",
  "derivative",
