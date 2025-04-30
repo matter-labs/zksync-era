@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use async_trait::async_trait;
-use zksync_config::configs::api::DeploymentAllowlist;
+use zksync_config::configs::chain::DeploymentAllowlist;
 use zksync_node_api_server::tx_sender::whitelist::AllowListTask;
 use zksync_vm_executor::whitelist::SharedAllowList;
 

@@ -40,7 +40,6 @@ message Web3JsonRpc {
   optional bool extended_api_tracing = 33; // optional, default false
   optional bool estimate_gas_optimize_search = 34; // optional, default false
   optional uint32 latest_values_max_block_lag = 35; // optional
-  optional DeploymentAllowlist custom_deployment_allowlist = 37;
 
   reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
   reserved 11; reserved "request_timeout";
@@ -50,22 +49,6 @@ message Web3JsonRpc {
   reserved 36; reserved "deployment_allowlist";
 }
 
-message DeploymentAllowlist {
-  message Dynamic {
-    optional string http_file_url = 3;
-    optional uint64 refresh_interval_secs = 4;
-  }
-
-  message Static {
-    repeated string addresses = 5;
-  }
-
-  oneof allow_list {
-    Dynamic dynamic = 6;
-    Static static = 7;
-  }
-  reserved 1, 2; reserved "http_file_url", "refresh_interval_secs";
-}
 
 message HealthCheck {
   optional uint32 port = 1; // required; u16

@@ -95,7 +95,6 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
-                deployment_allowlist: None,
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,

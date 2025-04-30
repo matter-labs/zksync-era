@@ -3,7 +3,7 @@ use std::{collections::HashSet, time::Duration};
 use reqwest::Client;
 use serde::Deserialize;
 use tokio::sync::watch;
-use zksync_config::configs::api::DeploymentAllowlistDynamic;
+use zksync_config::configs::chain::DeploymentAllowlistDynamic;
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_multivm::interface::tracer::ValidationTraces;
 use zksync_types::{l2::L2Tx, Address};

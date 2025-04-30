@@ -365,9 +365,7 @@ impl MainNodeBuilder {
     }
 
     fn add_allow_list_task_layer(mut self) -> anyhow::Result<Self> {
-        let allow_list = try_load_config!(self.configs.api_config)
-            .web3_json_rpc
-            .deployment_allowlist;
+        let allow_list = try_load_config!(self.configs.state_keeper_config).deployment_allowlist;
 
         if let Some(allow_list) = allow_list {
             self.node.add_layer(DeploymentAllowListLayer {
@@ -380,7 +378,7 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
-        let deployment_allowlist = rpc_config.deployment_allowlist.clone();
+        let deployment_allowlist = sk_config.deployment_allowlist.clone();
 
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,

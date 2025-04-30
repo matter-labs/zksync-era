@@ -1,16 +1,13 @@
 use std::num::{NonZeroU32, NonZeroUsize};
 
 use anyhow::Context as _;
-use zksync_config::configs::{api, api::DeploymentAllowlistDynamic, ApiConfig};
+use zksync_config::configs::{api, ApiConfig};
 use zksync_protobuf::{
-    repr::{read_optional_repr, read_required_repr, ProtoRepr},
+    repr::{read_required_repr, ProtoRepr},
     required,
 };
 
-use crate::{
-    parse_h160,
-    proto::{api as proto, api::deployment_allowlist::AllowList},
-};
+use crate::{parse_h160, proto::api as proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
@@ -153,7 +150,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .context("whitelisted_tokens_for_aa")?,
             extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
             api_namespaces,
-            deployment_allowlist: read_optional_repr(&self.custom_deployment_allowlist)?,
         })
     }
 
@@ -218,48 +214,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .collect(),
             extended_api_tracing: Some(this.extended_api_tracing),
             api_namespaces: this.api_namespaces.clone().unwrap_or_default(),
-            custom_deployment_allowlist: this
-                .deployment_allowlist
-                .as_ref()
-                .map(proto::DeploymentAllowlist::build),
-        }
-    }
-}
-
-impl ProtoRepr for proto::DeploymentAllowlist {
-    type Type = zksync_config::configs::api::DeploymentAllowlist;
-
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        let res = match required(&self.allow_list).context("DeploymentAllowlist")? {
-            AllowList::Dynamic(list) => Self::Type::Dynamic(DeploymentAllowlistDynamic::new(
-                list.http_file_url.clone(),
-                list.refresh_interval_secs,
-            )),
-            AllowList::Static(list) => {
-                let res: Result<Vec<_>, _> =
-                    list.addresses.iter().map(|item| parse_h160(item)).collect();
-                Self::Type::Static(res?)
-            }
-        };
-        Ok(res)
-    }
-
-    fn build(this: &Self::Type) -> Self {
-        let allow_list = match this {
-            api::DeploymentAllowlist::Dynamic(list) => {
-                AllowList::Dynamic(proto::deployment_allowlist::Dynamic {
-                    http_file_url: list.http_file_url().map(String::from),
-                    refresh_interval_secs: Some(list.refresh_interval().as_secs()),
-                })
-            }
-            api::DeploymentAllowlist::Static(list) => {
-                AllowList::Static(proto::deployment_allowlist::Static {
-                    addresses: list.iter().map(|item| format!("{:?}", item)).collect(),
-                })
-            }
-        };
-        Self {
-            allow_list: Some(allow_list),
         }
     }
 }
