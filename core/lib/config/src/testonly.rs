@@ -548,15 +548,21 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
-            tee_config: configs::TeeConfig {
-                tee_support: self.sample(rng),
-                first_tee_processed_batch: L1BatchNumber(rng.gen()),
-                tee_proof_generation_timeout_in_secs: self.sample(rng),
-                tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
-            },
             gateway_api_url: self.sample(rng),
             proof_fetch_interval_in_secs: self.sample(rng),
             proof_gen_data_submit_interval_in_secs: self.sample(rng),
+            fetch_zero_chain_id_proofs: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::TeeProofDataHandlerConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TeeProofDataHandlerConfig {
+        configs::TeeProofDataHandlerConfig {
+            http_port: self.sample(rng),
+            first_processed_batch: L1BatchNumber(rng.gen()),
+            proof_generation_timeout_in_secs: self.sample(rng),
+            batch_permanently_ignored_timeout_in_hours: self.sample(rng),
         }
     }
 }
@@ -1031,6 +1037,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             witness_generator_config: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),
+            tee_proof_data_handler_config: self.sample(rng),
             db_config: self.sample(rng),
             eth: self.sample(rng),
             snapshot_creator: self.sample(rng),

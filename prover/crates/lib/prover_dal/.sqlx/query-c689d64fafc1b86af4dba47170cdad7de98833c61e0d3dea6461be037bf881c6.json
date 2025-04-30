@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                batch_sealed_at\n            FROM\n                witness_inputs_fri\n            WHERE\n                l1_batch_number = $1\n                AND chain_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "batch_sealed_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c689d64fafc1b86af4dba47170cdad7de98833c61e0d3dea6461be037bf881c6"
+}

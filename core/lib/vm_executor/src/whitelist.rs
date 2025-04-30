@@ -12,7 +12,7 @@ pub struct SharedAllowList {
 
 impl From<Vec<Address>> for SharedAllowList {
     fn from(addresses: Vec<Address>) -> Self {
-        let inner = Arc::new(RwLock::new(HashSet::from_iter(addresses.into_iter())));
+        let inner = Arc::new(RwLock::new(HashSet::from_iter(addresses)));
         Self { inner }
     }
 }

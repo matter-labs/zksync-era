@@ -474,7 +474,7 @@ async fn check_deployment_allow_list() {
         )
         .await;
 
-    /// Alice is allowed to deploy contracts.
+    // Alice is allowed to deploy contracts.
     let filter = DeploymentTxFilter::new(SharedAllowList::from(vec![alice.address()]));
 
     // Check that Alice can deploy contracts.
