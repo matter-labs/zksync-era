@@ -25,7 +25,7 @@ while true; do
     fi
 
     # Run the SQL query and capture the result
-    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM transactions;" -t -A)
+    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM transactions WHERE miniblock_number = 1;" -t -A)
 
     # Check if the result is more or equal to 1
     if [ "$RESULT" -ge 1 ]; then
