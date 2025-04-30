@@ -34,7 +34,7 @@ while true; do
         echo "Current status is $STATUS"
         exit 0  # Exit with zero status to succeed CI
     else
-        STATUS=$(psql $DATABASE_URL -c "SELECT count(*), contract_address, l1_batch_number, miniblock_number FROM transactions WHERE l1_batch_number = $BATCH_NUMBER GROUP BY l1_batch_number, contract_address, miniblock_number;" -t -A)
+        STATUS=$(psql $DATABASE_URL -c "SELECT count(*), contract_address, l1_batch_number, miniblock_number FROM transactions GROUP BY l1_batch_number, contract_address, miniblock_number;" -t -A)
         echo "Current status is $STATUS"
         echo "Retrying in $INTERVAL seconds..."
     fi
