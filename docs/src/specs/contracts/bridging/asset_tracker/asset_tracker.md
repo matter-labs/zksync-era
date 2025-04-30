@@ -106,7 +106,7 @@ function moveBalanceToSL(uint256 chainId, bytes32 assetId) {
 
 The AssetTracker contracts will be deployed on the GW and the L1, but we might only allow interop and asset trackers on GW, since using them on L1 is expensive. 
 
-On GW we will also track the balances of the chains. To do this we will parse the L1->L3 messages as they are processed, and L3->L1 messages are processed same as L2->L1 messages on L1. 
+On GW we will also track the balances of the chains. To do this we will parse the L1->L2 messages as they are processed, and L2->L1 messages are processed same as L2->L1 messages on L1. 
 
 ## How full ZK IP could look like with the same user interface (+ migration) could look like
 
