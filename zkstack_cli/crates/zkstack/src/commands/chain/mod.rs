@@ -11,9 +11,6 @@ use crate::commands::chain::{
     genesis::GenesisCommand, init::ChainInitCommand,
 };
 
-#[cfg(feature = "gateway")]
-mod gateway;
-
 mod accept_chain_ownership;
 pub(crate) mod admin_call_builder;
 pub(crate) mod args;
@@ -23,6 +20,7 @@ pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 mod enable_evm_emulator;
+mod gateway;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
@@ -76,7 +74,6 @@ pub enum ChainCommands {
     SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
-    #[cfg(feature = "gateway")]
     #[command(subcommand, alias = "gw")]
     Gateway(gateway::GatewayComamnds),
 }
@@ -112,7 +109,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             set_transaction_filterer::run(shell, args).await
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
-        #[cfg(feature = "gateway")]
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }
