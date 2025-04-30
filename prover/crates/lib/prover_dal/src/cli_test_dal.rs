@@ -61,7 +61,7 @@ impl CliTestDal<'_, '_> {
             )
             VALUES
             ($1, $2, 'waiting_for_proofs', 2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number, circuit_id) DO
+            ON CONFLICT (l1_batch_number, chain_id, circuit_id) DO
             UPDATE
             SET
             status = $3
@@ -89,7 +89,7 @@ impl CliTestDal<'_, '_> {
             )
             VALUES
             ($1, $2, 'waiting_for_proofs', NOW(), NOW())
-            ON CONFLICT (l1_batch_number, circuit_id, depth) DO
+            ON CONFLICT (l1_batch_number, chain_id, circuit_id, depth) DO
             UPDATE
             SET
             status = $3
@@ -112,7 +112,7 @@ impl CliTestDal<'_, '_> {
             )
             VALUES
             ($1, 'waiting_for_proofs', 1, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO
+            ON CONFLICT (l1_batch_number, chain_id) DO
             UPDATE
             SET
             status = $2
@@ -142,7 +142,7 @@ impl CliTestDal<'_, '_> {
             )
             VALUES
             ($1, '', 'waiting_for_proofs', NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO
+            ON CONFLICT (l1_batch_number, chain_id) DO
             UPDATE
             SET
             status = $2
@@ -166,7 +166,7 @@ impl CliTestDal<'_, '_> {
             proof_compression_jobs_fri (l1_batch_number, status, created_at, updated_at)
             VALUES
             ($1, $2, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO
+            ON CONFLICT (l1_batch_number, chain_id) DO
             UPDATE
             SET
             status = $2

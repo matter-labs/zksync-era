@@ -19,7 +19,8 @@ use crate::commands::{
     explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
-pub mod accept_ownership;
+pub mod abi;
+pub mod admin_functions;
 mod commands;
 mod consts;
 mod defaults;

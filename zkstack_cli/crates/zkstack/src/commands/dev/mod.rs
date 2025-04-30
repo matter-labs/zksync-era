@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use commands::status::args::StatusArgs;
+use commands::{status::args::StatusArgs, track_priority_txs::TrackPriorityOpsArgs};
 use messages::MSG_STATUS_ABOUT;
 #[cfg(feature = "v27_evm_interpreter")]
 use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
@@ -49,6 +49,8 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
+    #[command(about = MSG_GENERATE_GENESIS_ABOUT)]
+    TrackPriorityOps(TrackPriorityOpsArgs),
     #[cfg(feature = "v27_evm_interpreter")]
     #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
     V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
@@ -70,6 +72,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
+        DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
         #[cfg(feature = "v27_evm_interpreter")]
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
             commands::v27_evm_eq::run(shell, args).await?

@@ -63,6 +63,7 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
+        tee_proof_data_handler::TeeProofDataHandlerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -72,7 +73,7 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::MasterPoolSinkLayer,
+            tx_sink::{whitelist::WhitelistedMasterPoolSinkLayer, MasterPoolSinkLayer},
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -347,8 +348,19 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        let gateway_config = try_load_config!(self.configs.prover_gateway);
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
+            gateway_config.api_mode,
+        ));
+        Ok(self)
+    }
+
+    fn add_tee_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TeeProofDataHandlerLayer::new(
+            try_load_config!(self.configs.tee_proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.genesis_config.l2_chain_id,
         ));
@@ -364,6 +376,7 @@ impl MainNodeBuilder {
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+        let deployment_allowlist = rpc_config.deployment_allowlist.clone();
 
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
@@ -378,7 +391,13 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        self.node.add_layer(MasterPoolSinkLayer);
+        if deployment_allowlist.is_enabled() {
+            self.node.add_layer(WhitelistedMasterPoolSinkLayer {
+                deployment_allowlist: deployment_allowlist.clone(),
+            });
+        } else {
+            self.node.add_layer(MasterPoolSinkLayer);
+        }
 
         let layer = TxSenderLayer::new(
             postgres_storage_caches_config,
@@ -706,9 +725,12 @@ impl MainNodeBuilder {
 
     fn add_external_proof_integration_api_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_proof_integration_api_config);
+        let proof_data_handler_config = try_load_config!(self.configs.proof_data_handler_config);
         self.node.add_layer(ExternalProofIntegrationApiLayer::new(
             config,
+            proof_data_handler_config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
 
         Ok(self)
@@ -843,6 +865,9 @@ impl MainNodeBuilder {
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
+                }
+                Component::TeeProofDataHandler => {
+                    self = self.add_tee_proof_data_handler_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;

@@ -4,10 +4,8 @@ pub use circuit_definitions;
 use circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
     circuit_definitions::{
-        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
-        recursion_layer::{
-            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
-        },
+        base_layer::ZkSyncBaseLayerProof,
+        recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType},
     },
     zkevm_circuits::scheduler::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
@@ -17,10 +15,8 @@ use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, ProtocolVersionId,
+    L1BatchId, L2ChainId, ProtocolVersionId,
 };
-
-use crate::keys::FriCircuitKey;
 
 pub mod keys;
 
@@ -34,31 +30,6 @@ pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSe
     patch: PROVER_PROTOCOL_PATCH,
 };
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-#[allow(clippy::large_enum_variant)]
-pub enum CircuitWrapper {
-    Base(ZkSyncBaseLayerCircuit),
-    Recursive(ZkSyncRecursiveLayerCircuit),
-}
-
-impl StoredObject for CircuitWrapper {
-    const BUCKET: Bucket = Bucket::ProverJobsFri;
-    type Key<'a> = FriCircuitKey;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        let FriCircuitKey {
-            block_number,
-            sequence_number,
-            circuit_id,
-            aggregation_round,
-            depth,
-        } = key;
-        format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum FriProofWrapper {
     Base(ZkSyncBaseLayerProof),
@@ -67,10 +38,14 @@ pub enum FriProofWrapper {
 
 impl StoredObject for FriProofWrapper {
     const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = u32;
+    type Key<'a> = (u32, L2ChainId);
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("proof_{}.bin", key.0))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("proof_{key}.bin")
+        format!("proof_{}_{}.bin", key.0, key.1)
     }
 
     serialize_using_bincode!();
@@ -245,10 +220,18 @@ pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksFiel
 
 impl StoredObject for AuxOutputWitnessWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = L1BatchId;
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("aux_output_witness_{}.bin", key.batch_number().0))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aux_output_witness_{key}.bin")
+        format!(
+            "aux_output_witness_{}_{}.bin",
+            key.batch_number().0,
+            key.chain_id().as_u64()
+        )
     }
 
     serialize_using_bincode!();
