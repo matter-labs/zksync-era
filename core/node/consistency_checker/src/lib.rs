@@ -726,6 +726,8 @@ impl ConsistencyChecker {
                             while node is configured to check on chain with id {}",
                             self.chain_data.chain_id
                         );
+                        batch_number += 1;
+                        continue;
                     } else {
                         // Chain migrated to different SL, throw error so it can restart and reload SL data.
                         anyhow::bail!(

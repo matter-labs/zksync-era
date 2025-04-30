@@ -31,6 +31,7 @@ fn test_config() -> ProofDataHandlerConfig {
         gateway_api_url: None,
         proof_fetch_interval_in_secs: Duration::from_secs(10),
         proof_gen_data_submit_interval_in_secs: Duration::from_secs(10),
+        fetch_zero_chain_id_proofs: true,
     }
 }
 

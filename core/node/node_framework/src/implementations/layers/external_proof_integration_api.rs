@@ -3,7 +3,7 @@ use zksync_config::configs::{
 };
 use zksync_external_proof_integration_api::Api;
 use zksync_proof_data_handler::{Processor, Readonly};
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -22,6 +22,7 @@ pub struct ExternalProofIntegrationApiLayer {
     external_proof_integration_api_config: ExternalProofIntegrationApiConfig,
     proof_data_handler_config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -43,11 +44,13 @@ impl ExternalProofIntegrationApiLayer {
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig,
         proof_data_handler_config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             external_proof_integration_api_config,
             proof_data_handler_config,
             commitment_mode,
+            l2_chain_id,
         }
     }
 }
@@ -70,6 +73,7 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
             replica_pool,
             self.proof_data_handler_config,
             self.commitment_mode,
+            self.l2_chain_id,
         );
         let task = Api::new(
             processor,

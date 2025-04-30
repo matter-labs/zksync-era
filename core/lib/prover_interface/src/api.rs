@@ -6,7 +6,7 @@ use serde_with::{hex::Hex, serde_as};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     tee_types::TeeType,
-    L1BatchNumber,
+    L1BatchId, L1BatchNumber, L2ChainId,
 };
 
 use crate::{
@@ -19,6 +19,8 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
+    #[serde(default = "L2ChainId::zero")]
+    pub chain_id: L2ChainId,
     #[serde(default = "chrono::Utc::now")]
     pub batch_sealed_at: chrono::DateTime<chrono::Utc>,
     pub witness_input_data: WitnessInputData,
@@ -71,12 +73,12 @@ pub enum SubmitProofRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PollGeneratedProofsRequest {
-    pub l1_batch_number: L1BatchNumber,
+    pub l1_batch_id: L1BatchId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PollGeneratedProofsResponse {
-    pub l1_batch_number: L1BatchNumber,
+    pub l1_batch_id: L1BatchId,
     pub proof: JsonL1BatchProofForL1,
 }
 

@@ -36,6 +36,8 @@ pub struct ProofDataHandlerConfig {
     pub proof_fetch_interval_in_secs: Duration,
     #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]
     pub proof_gen_data_submit_interval_in_secs: Duration,
+    #[config(default_t = true)]
+    pub fetch_zero_chain_id_proofs: bool,
 }
 
 #[cfg(test)]
@@ -57,6 +59,7 @@ mod tests {
             gateway_api_url: Some("http://gateway/".to_owned()),
             proof_fetch_interval_in_secs: Duration::from_secs(15),
             proof_gen_data_submit_interval_in_secs: Duration::from_secs(20),
+            fetch_zero_chain_id_proofs: false,
         }
     }
 
@@ -72,6 +75,7 @@ mod tests {
             PROOF_DATA_HANDLER_GATEWAY_API_URL="http://gateway/"
             PROOF_DATA_HANDLER_PROOF_FETCH_INTERVAL_IN_SECS=15
             PROOF_DATA_HANDLER_PROOF_GEN_DATA_SUBMIT_INTERVAL_IN_SECS=20
+            PROOF_DATA_HANDLER_FETCH_ZERO_CHAIN_ID_PROOFS=false
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -93,6 +97,7 @@ mod tests {
           gateway_api_url: "http://gateway/"
           proof_fetch_interval_in_secs: 15
           proof_gen_data_submit_interval_in_secs: 20
+          fetch_zero_chain_id_proofs: false
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();
