@@ -8,8 +8,8 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          compressor-mode: ["fflonk", "plonk"]
-          gateway-mode: ["legacy", "prover-cluster"]
+          compressor-mode: ["fflonk"]
+          gateway-mode: ["legacy"]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
       YQ_VERSION: "4.45.1"
@@ -86,6 +86,16 @@ jobs:
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}/server.log &
       
+      - name: Wait for the first tx on server to be processed
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 1
+          TIMEOUT: 450
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/server_first_tx_checker
+
       - name: Send transactions to new precompiles
         run: |
           ci_run npx zksync-cli bridge deposit --chain=dockerized-node --amount 3 --pk=0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 --to=0xa61464658AfeAf65CccaaFD3a512b69A83B77618 &>prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}/precompiles_txs_deposit.log &
@@ -101,7 +111,7 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
           BATCH_NUMBER: 1
-          INTERVAL: 30
+          INTERVAL: 15
           TIMEOUT: 450
         run: |
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \

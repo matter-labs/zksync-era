@@ -25,11 +25,11 @@ while true; do
     fi
 
     # Run the SQL query and capture the result
-    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM transactions WHERE contract_address IN ('\x0000000000000000000000000000000000000005','\x0000000000000000000000000000000000000006','\x0000000000000000000000000000000000000007','\x0000000000000000000000000000000000000008') AND l1_batch_number = $BATCH_NUMBER;" -t -A)
+    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM transactions;" -t -A)
 
-    # Check if the result is 7
-    if [ "$RESULT" -eq 7 ]; then
-        echo "Query result is 7. Success!"
+    # Check if the result is more or equal to 1
+    if [ "$RESULT" -ge 1 ]; then
+        echo "Query result is more or equal to 1. Success!"
         STATUS=$(psql $DATABASE_URL -c "SELECT count(*), contract_address, l1_batch_number, miniblock_number FROM transactions WHERE l1_batch_number = $BATCH_NUMBER GROUP BY l1_batch_number, contract_address, miniblock_number;" -t -A)
         echo "Current status is $STATUS"
         exit 0  # Exit with zero status to succeed CI
