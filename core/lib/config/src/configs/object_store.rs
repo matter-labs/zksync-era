@@ -138,7 +138,6 @@ mod tests {
         );
     }
 
-    // Migration path: use tagged enums for object stores
     #[test]
     fn file_backed_from_yaml() {
         let yaml = r#"

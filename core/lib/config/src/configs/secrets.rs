@@ -159,7 +159,6 @@ mod tests {
         assert_secrets(secrets);
     }
 
-    // Migration path: use tagged enum for DA secrets
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"

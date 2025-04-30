@@ -130,10 +130,6 @@ mod tests {
         assert_eq!(config, expected_config());
     }
 
-    // Migration path:
-    // - Use tagged object store
-    // - Copy `experimental.drop_storage_key_preimages` -> `drop_storage_key_preimages`
-    // - Copy `experimental.tree_recovery_parallel_persistence_buffer` -> `tree.parallel_persistence_buffer`.
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"

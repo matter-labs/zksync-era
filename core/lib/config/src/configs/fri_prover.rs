@@ -65,7 +65,6 @@ mod tests {
         assert_eq!(config, expected_config());
     }
 
-    // Migration path: use tagged enums for object stores
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"
