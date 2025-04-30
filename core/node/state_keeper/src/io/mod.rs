@@ -46,8 +46,8 @@ pub struct PendingBatchData {
 
 #[derive(Debug, Copy, Clone, Default, PartialEq)]
 pub struct L2BlockParams {
-    /// The timestamp of the L2 block.
-    pub timestamp: u64,
+    /// The timestamp of the L2 block in ms.
+    pub timestamp_ms: u128,
     /// The maximal number of virtual blocks that can be created within this L2 block.
     /// During the migration from displaying users `batch.number` to L2 block number in Q3 2023
     /// in order to make the process smoother for users, we temporarily display the virtual blocks for users.
@@ -57,6 +57,13 @@ pub struct L2BlockParams {
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
     pub virtual_blocks: u32,
+}
+
+impl L2BlockParams {
+    /// The timestamp of the L2 block in seconds.
+    pub fn timestamp(&self) -> u64 {
+        u64::try_from(self.timestamp_ms / 1000).unwrap()
+    }
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
@@ -87,7 +94,7 @@ impl L1BatchParams {
         let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
-            self.first_l2_block.timestamp,
+            self.first_l2_block.timestamp(),
             previous_batch_hash,
             self.fee_input,
             cursor.next_l2_block,
@@ -136,7 +143,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     ) -> anyhow::Result<Option<L2BlockParams>>;
 
     /// Update the next block params timestamp
-    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64);
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u128);
 
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.

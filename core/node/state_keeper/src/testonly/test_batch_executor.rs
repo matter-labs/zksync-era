@@ -198,11 +198,11 @@ impl TestScenario {
     pub(crate) fn update_l2_block_timestamp(
         mut self,
         description: &'static str,
-        new_timestamp: u64,
+        new_timestamp_ms: u128,
     ) -> Self {
         self.actions.push_back(ScenarioItem::UpdateBlockTimestamp(
             description,
-            new_timestamp,
+            new_timestamp_ms,
         ));
         self
     }
@@ -309,7 +309,7 @@ enum ScenarioItem {
         Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
     ),
     /// Update block timestamp with a new timestamp.
-    UpdateBlockTimestamp(&'static str, u64),
+    UpdateBlockTimestamp(&'static str, u128),
 }
 
 impl fmt::Debug for ScenarioItem {
@@ -720,7 +720,7 @@ impl StateKeeperIO for TestIO {
             operator_address: self.fee_account,
             fee_input: self.fee_input,
             first_l2_block: L2BlockParams {
-                timestamp: self.timestamp,
+                timestamp_ms: u128::from(self.timestamp * 1000),
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
@@ -738,7 +738,7 @@ impl StateKeeperIO for TestIO {
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
         let params = L2BlockParams {
-            timestamp: self.timestamp,
+            timestamp_ms: u128::from(self.timestamp * 1000),
             // 1 is just a constant used for tests.
             virtual_blocks: 1,
         };
@@ -747,7 +747,7 @@ impl StateKeeperIO for TestIO {
         Ok(Some(params))
     }
 
-    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64) {
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u128) {
         let action = self.pop_next_item("update_next_l2_block_timestamp");
 
         if let ScenarioItem::UpdateBlockTimestamp(_, timestamp) = action {

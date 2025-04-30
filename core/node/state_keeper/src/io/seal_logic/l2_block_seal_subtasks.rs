@@ -540,7 +540,7 @@ mod tests {
                 txs_encoding_size: Default::default(),
                 payload_encoding_size: Default::default(),
                 l1_tx_count: 0,
-                timestamp: 1,
+                timestamp_ms: 1000,
                 number: L2BlockNumber(1),
                 prev_block_hash: Default::default(),
                 virtual_blocks: Default::default(),
@@ -602,7 +602,7 @@ mod tests {
         // Insert block header.
         let l2_block_header = L2BlockHeader {
             number: l2_block_seal_command.l2_block.number,
-            timestamp: l2_block_seal_command.l2_block.timestamp,
+            timestamp: l2_block_seal_command.l2_block.timestamp(),
             hash: l2_block_seal_command.l2_block.get_l2_block_hash(),
             l1_tx_count: 0,
             l2_tx_count: 1,

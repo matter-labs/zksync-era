@@ -195,7 +195,7 @@ mod tests {
                 operator_address: Address::default(),
                 fee_input: BatchFeeInput::default(),
                 first_l2_block: L2BlockParams {
-                    timestamp: 1,
+                    timestamp_ms: 1000,
                     virtual_blocks: 1,
                 },
                 pubdata_params: Default::default(),
@@ -208,7 +208,7 @@ mod tests {
     fn l2_block() -> SyncAction {
         SyncAction::L2Block {
             params: L2BlockParams {
-                timestamp: 1,
+                timestamp_ms: 1000,
                 virtual_blocks: 1,
             },
             number: 1.into(),
