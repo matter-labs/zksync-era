@@ -1,0 +1,44 @@
+name: Release-please
+
+# Give permissions to the release-please to open, update PRs
+# and commit to PRs the repository to update Cargo.lock
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+  attestations: write
+
+# Run the workflow on push to the main branch or manually
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+
+  # Prepare the release PR with changelog updates and create github releases
+  release-please:
+    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@38ec28e7851f7ac0498f04ccb0f68ce81586541d # v1
+    secrets:
+      slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}  # Slack webhook for notifications
+      gh_token: ${{ secrets.RELEASE_TOKEN }}                # GitHub token for release-please
+      cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }}  # Crates.io token for publishing
+    with:
+      config: '.github/release-please/config.json'          # Path to the configuration file
+      manifest: '.github/release-please/manifest.json'      # Path to the manifest file
+      update-cargo-lock: true                               # Update Cargo.lock file in the release PR
+      publish-to-crates-io: true                            # Enable publishing to crates.io
+      upgrade-dependencies: true                            # Upgrade cross-workspace dependencies
+      version-suffix: 'non-semver-compat'                   # Version suffix for the crates.io release
+      workspace-dirs: 'core prover zkstack_cli'             # List of additional workspace directories to update Cargo.lock
+      dependencies: 'clang libclang-dev'                    # Additional Linux dependencies to install
+
+  # Trigger workflow to publish zkstack binaries
+  release-zkstack-cli-bins:
+    if: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--release_created == 'true' }}
+    needs: release-please
+    uses: ./.github/workflows/release-zkstack-bins.yml
+    with:
+      tag: ${{ fromJSON(needs.release-please.outputs.all).zkstack_cli--tag_name }}
+    secrets: inherit

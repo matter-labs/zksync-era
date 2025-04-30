@@ -1,0 +1,67 @@
+name: Deploy prover docs
+
+on:
+  push:
+    branches:
+      - "main"
+    tags:
+      - "prover-v*.*.*"
+    paths:
+      - 'prover/docs/**'
+      - '.github/workflows/deploy-prover-docs.yml'
+  pull_request:
+    paths:
+      - 'prover/docs/**'
+      - '.github/workflows/deploy-prover-docs.yml'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or commit to deploy the prover docs. If empty, use the ref that triggered the workflow."
+        required: false
+        default: ""
+      version:
+        type: string
+        description: "Version of the documentation to deploy"
+        required: false
+        default: "latest"
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+
+  deploy-prover-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      DOCS_DIR: 'prover/docs'
+      PROJECT: 'prover'
+      ENABLE_TESTS: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+
+      - name: Extract version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: extract-version
+        shell: 'bash -ex {0}'
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#*-}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy prover docs
+        uses: matter-labs/deploy-mdbooks@c72ae3825faeb7d20cbf3e67714f7253dd0ee7cb # v1
+        with:
+          version: ${{ inputs.version || steps.extract-version.outputs.version || github.ref_name }}
+          docs-dir: ${{ env.DOCS_DIR }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-tests: ${{ env.ENABLE_TESTS }}
+          project: ${{ env.PROJECT }}
+          deploy: ${{ github.event_name != 'pull_request' }}
