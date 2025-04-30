@@ -89,3 +89,4 @@
 
 - [Announcements](announcements/README.md)
   - [Attester Committee](announcements/attester_commitee.md)
+  - [Configuration Format Changes](announcements/config_format_changes.md)
