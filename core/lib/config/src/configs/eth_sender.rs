@@ -127,7 +127,6 @@ pub struct SenderConfig {
     #[config(default_t = 30)]
     pub max_txs_in_flight: u64,
     /// The mode in which proofs are sent.
-    #[config(default_t = ProofSendingMode::SkipEveryProof)]
     pub proof_sending_mode: ProofSendingMode,
     #[config(default_t = 4_000_000)]
     pub max_aggregated_tx_gas: u64,
