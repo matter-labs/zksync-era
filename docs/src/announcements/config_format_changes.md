@@ -89,8 +89,12 @@ core_object_store:
 
 #### DA client
 
-DA client configs at `da_client` in `general.yaml` (+ at `da_client.avail` if the Avail DA client is configured) and at
-`da` in `secrets.yaml`.
+DA client configs at `da_client` in `general.yaml` and at `da` in `secrets.yaml`. Additionally, some clients have
+additional enumerations:
+
+- If the Avail DA client is configured, `da_client.avail` specifies the client subtype: `full_client` or `gas_relay`.
+- If the Eigen DA client is configured, `da_client.eigen` specifies the EC points source: `points_source_url` or
+  `points_source_path`.
 
 As an example, take the following fragment of `general.yaml` before migration:
 
@@ -117,7 +121,39 @@ da_client:
   client: Avail
 ```
 
-As in the previous case, it is possible to define a config that will be parsed both by old and new node versions.
+As in the previous case, it is possible to define a config that will be parsed both by old and new node versions by
+deep-merging the old and new configs.
+
+An example for the Eigen DA client:
+
+```yaml
+# Before migration
+da_client:
+  eigen:
+    disperser_rpc: https://disperser-holesky.eigenda.xyz:443
+    settlement_layer_confirmation_depth: 0
+    eigenda_eth_rpc: https://holesky.infura.io/v3/CORRECT_HORSE
+    eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+    wait_for_finalization: true
+    authenticated: true
+    points_source_url:
+      g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
+      g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+---
+# After migration
+da_client:
+  client: Eigen
+  disperser_rpc: https://disperser-holesky.eigenda.xyz:443
+  settlement_layer_confirmation_depth: 0
+  eigenda_eth_rpc: https://holesky.infura.io/v3/CORRECT_HORSE
+  eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+  wait_for_finalization: true
+  authenticated: true
+  points:
+    source: Url
+    g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
+    g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+```
 
 For `secrets.yaml`, the change is as follows:
 
