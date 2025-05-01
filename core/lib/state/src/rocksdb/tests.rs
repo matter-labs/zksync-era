@@ -114,13 +114,18 @@ async fn rocksdb_storage_basics() {
     }
 }
 
-async fn sync_test_storage(dir: &TempDir, conn: &mut Connection<'_, Core>) -> RocksdbStorage {
+async fn sync_test_storage(dir: &TempDir, pool: &ConnectionPool<Core>) -> RocksdbStorage {
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let builder = RocksdbStorage::builder(dir.path())
+    let (rocksdb, _) = RocksdbStorage::builder(dir.path())
         .await
-        .expect("Failed initializing RocksDB");
-    builder
-        .synchronize(conn, &stop_receiver, None)
+        .expect("Failed initializing RocksDB")
+        .ensure_ready(pool, &stop_receiver)
+        .await
+        .expect("Failed recovering RocksDB")
+        .expect("recovery interrupted");
+    let mut conn = pool.connection().await.unwrap();
+    rocksdb
+        .synchronize(&mut conn, &stop_receiver, None)
         .await
         .unwrap()
         .expect("Storage synchronization unexpectedly stopped")
@@ -128,17 +133,25 @@ async fn sync_test_storage(dir: &TempDir, conn: &mut Connection<'_, Core>) -> Ro
 
 async fn sync_test_storage_and_check_recovery(
     dir: &TempDir,
-    conn: &mut Connection<'_, Core>,
+    pool: &ConnectionPool<Core>,
     expect_recovery: bool,
 ) -> RocksdbStorage {
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut builder = RocksdbStorage::builder(dir.path())
+    let (rocksdb, init_strategy) = RocksdbStorage::builder(dir.path())
         .await
-        .expect("Failed initializing RocksDB");
-    let was_recovered = builder.ensure_ready(conn, &stop_receiver).await.unwrap();
-    assert_eq!(was_recovered, expect_recovery);
-    builder
-        .synchronize(conn, &stop_receiver, None)
+        .expect("Failed initializing RocksDB")
+        .ensure_ready(pool, &stop_receiver)
+        .await
+        .unwrap()
+        .expect("initialization interrupted");
+    assert_eq!(
+        matches!(init_strategy, InitStrategy::Recovery),
+        expect_recovery
+    );
+
+    let mut conn = pool.connection().await.unwrap();
+    rocksdb
+        .synchronize(&mut conn, &stop_receiver, None)
         .await
         .unwrap()
         .expect("Storage synchronization unexpectedly stopped")
@@ -152,9 +165,10 @@ async fn rocksdb_storage_syncing_with_postgres() {
     let storage_logs = gen_storage_logs(20..40);
     create_l2_block(&mut conn, L2BlockNumber(1), &storage_logs).await;
     create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
+    drop(conn);
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = sync_test_storage(&dir, &mut conn).await;
+    let mut storage = sync_test_storage(&dir, &pool).await;
 
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
     for log in &storage_logs {
@@ -176,11 +190,15 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let mut storage = RocksdbStorage::builder(dir.path())
+    let (mut storage, _) = RocksdbStorage::builder(dir.path())
         .await
-        .expect("Failed initializing RocksDB");
+        .expect("Failed initializing RocksDB")
+        .ensure_ready(&pool, &stop_receiver)
+        .await
+        .unwrap()
+        .expect("recovery interrupted");
     let expected_l1_batch_number = AtomicU32::new(0);
-    storage.0.listener.on_l1_batch_synced = Arc::new(move |number: L1BatchNumber| {
+    storage.listener.on_l1_batch_synced = Arc::new(move |number: L1BatchNumber| {
         assert_eq!(
             number.0,
             expected_l1_batch_number.fetch_add(1, Ordering::Relaxed)
@@ -200,6 +218,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
         .await
         .expect("Failed initializing RocksDB");
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
+    let storage = storage.get().await.unwrap();
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let mut storage = storage
@@ -257,7 +276,7 @@ async fn rocksdb_storage_revert() {
     create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = sync_test_storage(&dir, &mut conn).await;
+    let mut storage = sync_test_storage(&dir, &pool).await;
 
     // Perform some sanity checks before the revert.
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
@@ -277,7 +296,10 @@ async fn rocksdb_storage_revert() {
         }
     }
 
-    storage.revert(&mut conn, L1BatchNumber(1)).await.unwrap();
+    storage
+        .roll_back(&mut conn, L1BatchNumber(1))
+        .await
+        .unwrap();
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
     {
         for log in &inserted_storage_logs {
@@ -306,6 +328,7 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
     let mut conn = pool.connection().await.unwrap();
     let (snapshot_recovery, mut storage_logs) =
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
+    drop(conn);
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
@@ -313,7 +336,7 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
         .unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let (_, next_l1_batch) = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
     assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
@@ -352,9 +375,10 @@ async fn recovering_factory_deps_from_snapshot() {
             .await
             .unwrap();
     }
+    drop(conn);
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = sync_test_storage(&dir, &mut conn).await;
+    let mut storage = sync_test_storage(&dir, &pool).await;
 
     for (bytecode_hash, bytecode) in &all_factory_deps {
         assert_eq!(storage.load_factory_dep(*bytecode_hash).unwrap(), *bytecode);
@@ -399,9 +423,10 @@ async fn recovering_from_snapshot_and_following_logs() {
     )
     .await;
     create_l1_batch(&mut conn, snapshot_recovery.l1_batch_number + 2, &[]).await;
+    drop(conn);
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = sync_test_storage_and_check_recovery(&dir, &mut conn, true).await;
+    let mut storage = sync_test_storage_and_check_recovery(&dir, &pool, true).await;
 
     for (i, log) in new_storage_logs.iter().enumerate() {
         assert_eq!(storage.read_value(&log.key), log.value);
@@ -428,19 +453,21 @@ async fn recovering_from_snapshot_and_following_logs() {
     }
 
     drop(storage);
-    sync_test_storage_and_check_recovery(&dir, &mut conn, false).await;
+    sync_test_storage_and_check_recovery(&dir, &pool, false).await;
 }
 
 async fn partially_recover_storage(
-    conn: &mut Connection<'_, Core>,
+    pool: &ConnectionPool<Core>,
     temp_dir: &TempDir,
     from_genesis: bool,
 ) -> (Vec<StorageLog>, u64) {
+    let mut conn = pool.connection().await.unwrap();
     let storage_logs = if from_genesis {
-        prepare_postgres_with_log_count(conn, 2_000).await
+        prepare_postgres_with_log_count(&mut conn, 2_000).await
     } else {
-        prepare_postgres_for_snapshot_recovery(conn).await.1
+        prepare_postgres_for_snapshot_recovery(&mut conn).await.1
     };
+    drop(conn);
     let log_chunk_size = storage_logs.len() as u64 / 5;
 
     let mut storage = RocksdbStorage::new(temp_dir.path().into(), RocksdbStorageOptions::default())
@@ -456,7 +483,7 @@ async fn partially_recover_storage(
     });
 
     let err = storage
-        .ensure_ready(conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap_err();
     assert_matches!(err, RocksdbSyncError::Interrupted);
@@ -476,11 +503,9 @@ async fn partially_recover_storage(
 #[tokio::test]
 async fn recovery_fault_tolerance(from_genesis: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.connection().await.unwrap();
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
 
-    let (storage_logs, log_chunk_size) =
-        partially_recover_storage(&mut conn, &dir, from_genesis).await;
+    let (storage_logs, log_chunk_size) = partially_recover_storage(&pool, &dir, from_genesis).await;
 
     // Resume recovery and check that no chunks are recovered twice.
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -491,10 +516,10 @@ async fn recovery_fault_tolerance(from_genesis: bool) {
         assert!(chunk_id >= 2);
     });
     let (strategy, next_l1_batch) = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
-    assert_matches!(strategy, Strategy::Recovery);
+    assert_matches!(strategy, InitStrategy::Recovery);
     if from_genesis {
         assert_eq!(next_l1_batch, L1BatchNumber(1));
     } else {
@@ -520,6 +545,7 @@ async fn entire_workflow_for_genesis_recovery() {
         .append_storage_logs(L2BlockNumber(0), &more_logs)
         .await
         .unwrap();
+    drop(conn);
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
@@ -529,10 +555,10 @@ async fn entire_workflow_for_genesis_recovery() {
     let log_chunk_size = 100;
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let (strategy, next_l1_batch) = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
-    assert_matches!(strategy, Strategy::Recovery);
+    assert_matches!(strategy, InitStrategy::Recovery);
     assert_eq!(next_l1_batch, L1BatchNumber(1));
 
     let recovery_l1_batch = storage.recovery_l1_batch_number().await.unwrap();
@@ -567,10 +593,10 @@ async fn recovery_with_pruning() {
     let log_chunk_size = 10;
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let (strategy, next_l1_batch) = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
-    assert_matches!(strategy, Strategy::Recovery);
+    assert_matches!(strategy, InitStrategy::Recovery);
     assert_eq!(next_l1_batch, L1BatchNumber(2));
 
     for log in &storage_logs {
@@ -588,10 +614,11 @@ async fn recovery_with_pruning() {
         is_synced_for_listener.store(true, Ordering::Relaxed);
     });
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    storage
-        .update_from_postgres(&mut conn, &stop_receiver, None)
+    let mut storage = storage
+        .synchronize(&mut conn, &stop_receiver, None)
         .await
-        .unwrap();
+        .unwrap()
+        .expect("sync interrupted");
 
     assert!(is_synced.load(Ordering::Relaxed));
     for log in storage_logs.iter().chain(&overwritten_logs) {
@@ -619,6 +646,7 @@ async fn recovery_with_pruning_and_overwritten_logs() {
     let new_logs = gen_storage_logs(40..60);
     create_l2_block(&mut conn, L2BlockNumber(3), &new_logs).await;
     create_l1_batch(&mut conn, L1BatchNumber(3), &new_logs).await;
+    drop(conn);
 
     let pruning_stats = prune_storage(&pool, L1BatchNumber(2)).await;
     assert!(pruning_stats.deleted_storage_logs > 0);
@@ -630,10 +658,10 @@ async fn recovery_with_pruning_and_overwritten_logs() {
     let log_chunk_size = 10;
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let (strategy, next_l1_batch) = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
-    assert_matches!(strategy, Strategy::Recovery);
+    assert_matches!(strategy, InitStrategy::Recovery);
     assert_eq!(next_l1_batch, L1BatchNumber(3));
 
     for log in &storage_logs {
@@ -645,10 +673,9 @@ async fn recovery_with_pruning_and_overwritten_logs() {
 #[tokio::test]
 async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.connection().await.unwrap();
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
 
-    let (_, log_chunk_size) = partially_recover_storage(&mut conn, &dir, from_genesis).await;
+    let (_, log_chunk_size) = partially_recover_storage(&pool, &dir, from_genesis).await;
 
     // Create 2 batches and prune one of them from the storage. This is required to always prune some data.
     let (latest_l1_batch, latest_l2_block) = if from_genesis {
@@ -658,13 +685,14 @@ async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
         (status.l1_batch_number, status.l2_block_number)
     };
 
+    let mut conn = pool.connection().await.unwrap();
     for i in 1_u32..=2 {
         let log_start_idx = 10_000 * u64::from(i);
         let new_logs = gen_storage_logs(log_start_idx..log_start_idx + 50);
         create_l2_block(&mut conn, latest_l2_block + i, &new_logs).await;
         create_l1_batch(&mut conn, latest_l1_batch + i, &new_logs).await;
     }
-
+    drop(conn);
     prune_storage(&pool, latest_l1_batch + 1).await;
 
     // Restart recovery. Additional pruning should be detected.
@@ -673,7 +701,7 @@ async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
         .await
         .unwrap();
     let err = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap_err();
     let RocksdbSyncError::Internal(err) = err else {
@@ -712,6 +740,7 @@ async fn recovery_detects_additional_pruning_in_progress() {
         create_l2_block(&mut conn, L2BlockNumber(i), &new_logs).await;
         create_l1_batch(&mut conn, L1BatchNumber(i), &new_logs).await;
     }
+    drop(conn);
 
     let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
         .await
@@ -721,7 +750,7 @@ async fn recovery_detects_additional_pruning_in_progress() {
 
     let log_chunk_size = 10;
     let err = storage
-        .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
+        .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap_err();
     let RocksdbSyncError::Internal(err) = err else {

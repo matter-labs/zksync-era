@@ -4,7 +4,9 @@ use std::{num::NonZeroU32, ops};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Connection, Core, CoreDal};
+use zksync_dal::{
+    storage_logs_dal::StorageRecoveryLogEntry, Connection, ConnectionPool, Core, CoreDal, DalError,
+};
 use zksync_types::{snapshots::uniform_hashed_keys_chunk, L1BatchNumber, L2BlockNumber, H256};
 
 use super::{
@@ -13,7 +15,7 @@ use super::{
 };
 
 #[derive(Debug)]
-pub(super) enum Strategy {
+pub enum InitStrategy {
     Complete,
     Recovery,
     Genesis,
@@ -123,16 +125,21 @@ impl RocksdbStorage {
     #[tracing::instrument(skip_all, ret)]
     pub(super) async fn ensure_ready(
         &mut self,
-        storage: &mut Connection<'_, Core>,
+        pool: &ConnectionPool<Core>,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(Strategy, L1BatchNumber), RocksdbSyncError> {
+    ) -> Result<(InitStrategy, L1BatchNumber), RocksdbSyncError> {
         if let Some(l1_batch_number) = self.l1_batch_number().await {
             tracing::info!(?l1_batch_number, "RocksDB storage is ready");
-            return Ok((Strategy::Complete, l1_batch_number));
+            return Ok((InitStrategy::Complete, l1_batch_number));
         }
 
-        let init_params = InitParameters::new(storage, desired_log_chunk_size).await?;
+        let mut storage = pool
+            .connection_tagged("state_keeper")
+            .await
+            .map_err(DalError::generalize)?;
+        let init_params = InitParameters::new(&mut storage, desired_log_chunk_size).await?;
+
         if let Some(recovery_batch_number) = self.recovery_l1_batch_number().await? {
             tracing::info!(?recovery_batch_number, "Resuming storage recovery");
             let init_params = init_params.as_ref().context(
@@ -148,13 +155,14 @@ impl RocksdbStorage {
         }
 
         Ok(if let Some(init_params) = init_params {
-            self.recover_from_snapshot(storage, &init_params, stop_receiver)
+            // FIXME: parallelize recovery
+            self.recover_from_snapshot(&mut storage, &init_params, stop_receiver)
                 .await?;
-            (Strategy::Recovery, init_params.l1_batch + 1)
+            (InitStrategy::Recovery, init_params.l1_batch + 1)
         } else {
             tracing::info!("Initializing RocksDB storage from genesis");
-            // No recovery snapshot; we're initializing the cache from the genesis
-            (Strategy::Genesis, L1BatchNumber(0))
+            self.set_l1_batch_number(L1BatchNumber(0), false).await?;
+            (InitStrategy::Genesis, L1BatchNumber(0))
         })
     }
 
@@ -173,7 +181,7 @@ impl RocksdbStorage {
         }
         tracing::info!("Recovering secondary storage from snapshot: {init_parameters:?}");
 
-        self.set_recovery_l1_batch_number(init_parameters.l1_batch)
+        self.set_l1_batch_number(init_parameters.l1_batch, true)
             .await?;
         self.recover_factory_deps(storage, init_parameters).await?;
 
