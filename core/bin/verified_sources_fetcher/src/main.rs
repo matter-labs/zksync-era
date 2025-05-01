@@ -8,8 +8,6 @@ use zksync_types::contract_verification::api::SourceCodeData;
 async fn main() {
     let config_sources = ConfigFilePaths::default().into_config_sources("").unwrap();
 
-    // FIXME: observability? error handling?
-
     let schema = full_config_schema(false);
     let repo = config_sources.build_repository(&schema);
     let config: DatabaseSecrets = repo.single().unwrap().parse().unwrap();
