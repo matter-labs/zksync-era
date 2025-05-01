@@ -1,5 +1,14 @@
 # Changelog
 
+## [27.5.1](https://github.com/matter-labs/zksync-era/compare/core-v27.5.0...core-v27.5.1) (2025-05-01)
+
+
+### Bug Fixes
+
+* **api:** Fix `contractAddress` in transaction receipts for unparseable deployment calldata ([#3927](https://github.com/matter-labs/zksync-era/issues/3927)) ([82e9e05](https://github.com/matter-labs/zksync-era/commit/82e9e05e3f50658af867454cbdb880818feff37d))
+* **eth-sender:** consider null from_addr in `get_next_nonce` ([#3933](https://github.com/matter-labs/zksync-era/issues/3933)) ([5b3c733](https://github.com/matter-labs/zksync-era/commit/5b3c7337f504a25b4cdea2ae550256755eb03432))
+* witness inputs filename ([#3932](https://github.com/matter-labs/zksync-era/issues/3932)) ([7aa3c5f](https://github.com/matter-labs/zksync-era/commit/7aa3c5fc3b872c3a1e13fab3a2fc3d467aae44a5))
+
 ## [27.5.0](https://github.com/matter-labs/zksync-era/compare/core-v27.4.0...core-v27.5.0) (2025-04-30)
 
 
