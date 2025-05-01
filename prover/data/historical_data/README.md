@@ -15,5 +15,6 @@ version.
 | 24.1    | fixes                                |                 |                    |
 | 25.0    | protocol defence                     |                 | no circuit changes |
 | 26.0    | gateway & bridges                    |                 | no circuit changes |
+| 28.0    | gateway precompiles                  |                 | added 4 circuits   |
 
 And from version 24, we switched to semver (so 0.24.0, 0.24.1 etc).
