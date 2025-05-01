@@ -78,23 +78,23 @@ jobs:
               - '!**/*.md'
               - '!**/*.MD'
 
-  # ci-for-core-lint:
-  #   name: CI for Core lint Components
-  #   needs: changed_files
-  #   if: contains(github.ref_name, 'release-please--branches')
-  #   uses: ./.github/workflows/ci-core-lint-reusable.yml
+  ci-for-core-lint:
+    name: CI for Core lint Components
+    needs: changed_files
+    if: contains(github.ref_name, 'release-please--branches')
+    uses: ./.github/workflows/ci-core-lint-reusable.yml
 
-  # ci-for-core:
-  #   name: CI for Core Components
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   uses: ./.github/workflows/ci-core-reusable.yml
+  ci-for-core:
+    name: CI for Core Components
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-core-reusable.yml
 
-  # ci-for-prover:
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   name: CI for Prover Components
-  #   uses: ./.github/workflows/ci-prover-reusable.yml
+  ci-for-prover:
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    name: CI for Prover Components
+    uses: ./.github/workflows/ci-prover-reusable.yml
 
   e2e-for-prover:
     name: E2E Test for Prover Components
@@ -102,88 +102,87 @@ jobs:
     if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/ci-prover-e2e.yml
 
-  # ci-for-docs:
-  #   needs: changed_files
-  #   if: needs.changed_files.outputs.docs == 'true'
-  #   name: CI for Docs
-  #   uses: ./.github/workflows/ci-docs-reusable.yml
+  ci-for-docs:
+    needs: changed_files
+    if: needs.changed_files.outputs.docs == 'true'
+    name: CI for Docs
+    uses: ./.github/workflows/ci-docs-reusable.yml
 
-  # # What needs to be ran for both core and prover
-  # ci-for-common:
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   name: CI for Common Components (prover or core)
-  #   uses: ./.github/workflows/ci-common-reusable.yml
+  # What needs to be ran for both core and prover
+  ci-for-common:
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    name: CI for Common Components (prover or core)
+    uses: ./.github/workflows/ci-common-reusable.yml
 
-  # build-core-images:
-  #   name: Build core images
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   uses: ./.github/workflows/build-core-template.yml
-  #   with:
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-  #     action: "build"
-  #   secrets:
-  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  build-core-images:
+    name: Build core images
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-core-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # build-tee-prover-images:
-  #   name: Build TEE Prover images
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   uses: ./.github/workflows/build-tee-prover-template.yml
-  #   with:
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-  #     action: "build"
-  #   secrets:
-  #     ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+  build-tee-prover-images:
+    name: Build TEE Prover images
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-tee-prover-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
 
-  # build-contract-verifier:
-  #   name: Build contract verifier
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   uses: ./.github/workflows/build-contract-verifier-template.yml
-  #   with:
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-  #     action: "build"
-  #   secrets:
-  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  build-contract-verifier:
+    name: Build contract verifier
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-contract-verifier-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # build-prover-images:
-  #   name: Build prover images
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   uses: ./.github/workflows/build-prover-template.yml
-  #   with:
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-  #     action: "build"
-  #     ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-  #     is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
-  #   secrets:
-  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  build-prover-images:
+    name: Build prover images
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-prover-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # build-witness-generator-image-avx512:
-  #   name: Build prover images with avx512 instructions
-  #   needs: changed_files
-  #   if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-  #   uses: ./.github/workflows/build-witness-generator-template.yml
-  #   with:
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
-  #     action: "build"
-  #     WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
-  #     ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-  #   secrets:
-  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  build-witness-generator-image-avx512:
+    name: Build prover images with avx512 instructions
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-witness-generator-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
+      action: "build"
+      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   ci-success:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    # needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images, e2e-for-prover ]
-    needs: [ e2e-for-prover ]
+    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images, e2e-for-prover ]
     steps:
       - name: Status
         run: |
