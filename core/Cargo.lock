@@ -2158,8 +2158,9 @@ dependencies = [
 
 [[package]]
 name = "circuit_definitions"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2df1f35a89caee75e87f667638844ac63cd3ff07d2725d1bd0b86c9203f2af33"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -2171,24 +2172,26 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "775c6949d8dd90c81f6e0d516b49b1a710a62276be84a4fd58f402fa089fd42c"
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.151.5",
+ "zk_evm 0.151.7",
  "zkevm_circuits",
 ]
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0edb8e7c4325d0f82ca91e6b8be9f7c96ef76d15194dd130aa2815e236900ad3"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.151.5",
+ "zk_evm 0.151.7",
  "zksync_bellman",
 ]
 
@@ -11241,8 +11244,9 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78e54e9c5d566b4e0cefaf62507be89610ca7766dc3397e9222cbe433870b0df"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11250,7 +11254,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.151.5",
+ "zk_evm_abstractions 0.151.7",
 ]
 
 [[package]]
@@ -11294,14 +11298,15 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a567541c98b85f29ccf06f63b96287c82ffb216706b84bb20ad083e4ee49b3d7"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.151.5",
+ "zkevm_opcode_defs 0.151.7",
 ]
 
 [[package]]
@@ -11358,8 +11363,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_circuits"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b649b8d0b8daef4022308d97a10d6ff5c22be16380896567ccf649bdfec6129c"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -11371,7 +11377,7 @@ dependencies = [
  "seq-macro",
  "serde",
  "smallvec",
- "zkevm_opcode_defs 0.151.5",
+ "zkevm_opcode_defs 0.151.7",
  "zksync_cs_derive",
 ]
 
@@ -11436,8 +11442,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31e6cdb765d11ce237d7e7acd1589d523f186939acb8508f2443df66fd4f094a"
 dependencies = [
  "bitflags 2.6.0",
  "blake2 0.10.6",
@@ -11570,7 +11577,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zk_evm 0.151.5",
+ "zk_evm 0.151.7",
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
@@ -12338,8 +12345,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.151.5"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=vv-add-evm-deploy-tracer-in-witgen#92d15bc46e07f049d3f3b409bd14c4c00d71e679"
+version = "0.151.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5916e013215328d5290d54dae198662ab60b24fe0034aa3b3280cb6499d27191"
 dependencies = [
  "boojum",
  "derivative",
@@ -12488,7 +12496,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.151.5",
+ "zk_evm 0.151.7",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_mini_merkle_tree",
@@ -12529,7 +12537,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "vise",
- "zk_evm 0.151.5",
+ "zk_evm 0.151.7",
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",
