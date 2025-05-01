@@ -1,6 +1,6 @@
 # Standard pubdata format
 
-With the introduction of [custom DA validators](./custom_da.md), any pubdata logic can be applied for each chain (including calldata-based pubdata); however, ZK chains are generally optimized for a state-diffs–based rollup model.
+With the introduction of [custom DA validation](./custom_da.md), different pubdata logic can be applied for each chain (including calldata-based pubdata); however, ZK chains are generally optimized for a state-diffs–based rollup model.
 
 This document describes how the standard pubdata format looks. This is the format that is enforced for [permanent rollup chains](../../chain_management/admin_role.md#ispermanentrollup-setting).
 
@@ -15,7 +15,7 @@ Using data corresponding to these 4 facets across all executed batches, we’re 
 
 ## L2→L1 communication
 
-We will implement the calculation of the Merkle root of the L2→L1 messages via a system contract as part of the `L1Messenger`. Basically, whenever a new user-emitted log that needs to be Merklized is created, the `L1Messenger` contract will append it to its rolling hash and then, at the end of the batch during the formation of the blob, it will receive the original preimages from the operator, verify their consistency, and send those to the L2DAValidator to facilitate the DA protocol.
+We will implement the calculation of the Merkle root of the L2→L1 messages via a system contract as part of the `L1Messenger`. Basically, whenever a new user-emitted log that needs to be Merklized is created, the `L1Messenger` contract will append it to its rolling hash and then, at the end of the batch during the formation of the blob, it will receive the original preimages from the operator, verify their consistency, and send those to the `L2DAValidator` library to facilitate the DA protocol.
 
 We will now refer to the logs that are created by users and Merklized as _user_ logs, and the logs that are emitted natively by the VM as _system_ logs. Here is a short comparison table for better understanding:
 
@@ -67,7 +67,7 @@ Note that the user is charged for the future computation needed to calculate the
 
 At the end of the execution, the bootloader will [provide](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L2676) a list of all the L2ToL1 logs (this will be provided by the operator in the memory of the bootloader). The L1Messenger checks that the rolling hash from the provided logs is the same as in the `chainedLogsHash` and calculates the Merkle tree of the provided messages. Right now, we always build the Merkle tree of size `16384`, but we charge the user as if the tree were built dynamically based on the number of leaves. The implementation of the dynamic tree has been postponed until later upgrades.
 
-> Note that, unlike most other parts of pubdata, the user L2→L1 must always be validated by the trusted `L1Messenger` system contract. If we moved this responsibility to L2DAValidator it would be possible for a malicious operator to provide incorrect data and forge transactions out of names of certain users.
+> Note that, unlike most other parts of pubdata, the user L2→L1 must always be validated by the trusted `L1Messenger` system contract. If we moved this responsibility to `L2DAValidator` library it would be possible for a malicious operator to provide incorrect data and forge transactions out of names of certain users.
 
 ### Long L2→L1 messages & bytecodes
 
@@ -88,7 +88,7 @@ The content of the L2→L1 logs by the L1Messenger will go to the blob of EIP-48
 The only places where the built-in L2→L1 messaging should continue to be used:
 
 - Logs by SystemContext (they are needed on commit to check the previous block hash).  
-- Logs by L1Messenger for the Merkle root of the L2→L1 tree as well as the data needed for L1DAValidator.  
+- Logs by L1Messenger for the Merkle root of the L2→L1 tree as well as the data needed for `L1DAValidator`.  
 - `chainedPriorityTxsHash` and `numberOfLayer1Txs` from the bootloader (read more about it below).
 
 ### Obtaining `txNumberInBlock`
@@ -99,7 +99,7 @@ To have the same log format, the `txNumberInBlock` must be obtained. While it is
 
 The bootloader has a memory segment dedicated to the ABI-encoded data of the L1ToL2Messenger to perform the `publishPubdataAndClearState` call.
 
-At the end of the execution of the batch, the operator should provide the corresponding data in the bootloader memory, i.e., user L2→L1 logs, long messages, bytecodes, etc. After that, the [call](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L2676) is performed to the `L1Messenger` system contract, which would call the L2DAValidator to check the adherence of the pubdata to the specified format.
+At the end of the execution of the batch, the operator should provide the corresponding data in the bootloader memory, i.e., user L2→L1 logs, long messages, bytecodes, etc. After that, the [call](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/bootloader/bootloader.yul#L2676) is performed to the `L1Messenger` system contract, which would call the `L2DAValidator` library to check the adherence of the pubdata to the specified format.
 
 ## Bytecode Publishing
 
@@ -239,14 +239,14 @@ Note that values like `initial_value`, `address`, and `key` are not used in the 
 #### **L2**
 
 1. The operator provides both full `stateDiffs` (i.e. the array of the structs above) and the compressed state diffs (i.e. the array containing the state diffs, compressed by the algorithm explained [below](#state-diff-compression-format)).  
-2. The L2DAValidator must verify that the compressed version is consistent with the original stateDiffs and send the _hash_ of the `stateDiffs` to its L1 counterpart. It will also include the compressed state diffs in the totalPubdata to be published onto L1.  
+2. The `L2DAValidator` library must verify that the compressed version is consistent with the original stateDiffs and send the _hash_ of the `stateDiffs` to its L1 counterpart. It will also include the compressed state diffs in the totalPubdata to be published onto L1.  
 
 #### **L1**
 
-1. During block commitment, the standard DA protocol follows and the L1DAValidator is responsible for checking that the operator has provided the preimage for the `_totalPubdata`. More on how this is checked can be seen [here](./rollup_da.md).  
+1. During block commitment, the standard DA protocol follows and the `L1DAValidator` is responsible for checking that the operator has provided the preimage for the `_totalPubdata`. More on how this is checked can be seen [here](./rollup_da.md).  
 2. The block commitment [includes](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L550) _the hash of the `stateDiffs`_. Thus, ZKP verification will fail if the provided stateDiffs hash is not correct.  
 
-It is a secure construction because the proof can be verified only if both the execution was correct and the hash of the `stateDiffs` is correct. This means that the L2DAValidator indeed received the array of correct `stateDiffs` and, assuming the L2DAValidator is working correctly, double-checked that the compression is in the correct format, while L1 contracts at the commit stage double-checked that the operator provided the preimage for the compressed state diffs.
+It is a secure construction because the proof can be verified only if both the execution was correct and the hash of the `stateDiffs` is correct. This means that the `L2DAValidator` library indeed received the array of correct `stateDiffs` and, assuming the `L2DAValidator` is working correctly, double-checked that the compression is in the correct format, while L1 contracts at the commit stage double-checked that the operator provided the preimage for the compressed state diffs.
 
 ### State diff compression format
 
