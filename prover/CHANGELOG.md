@@ -1,5 +1,20 @@
 # Changelog
 
+## [20.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.2.0...prover-v20.3.0) (2025-04-30)
+
+
+### Features
+
+* Proof data handler client ([#3874](https://github.com/matter-labs/zksync-era/issues/3874)) ([daf6f7b](https://github.com/matter-labs/zksync-era/commit/daf6f7b80a018204693f8ad7296574b8b55dc6d9))
+* **prover:** Add support of H100 into provers and gpu-checker ([#3887](https://github.com/matter-labs/zksync-era/issues/3887)) ([ec9e4a9](https://github.com/matter-labs/zksync-era/commit/ec9e4a9da99502e8e853574ea3a27cd0bb16e8fe))
+* Reversed prover gateway server ([#3855](https://github.com/matter-labs/zksync-era/issues/3855)) ([a78c3ae](https://github.com/matter-labs/zksync-era/commit/a78c3ae1f74c0f4adfc9b94681c7b80b44dd16f1))
+* rework prover job identifiers ([#3888](https://github.com/matter-labs/zksync-era/issues/3888)) ([073326f](https://github.com/matter-labs/zksync-era/commit/073326f124eae808ef0e25694e99f0dab5ee7af4))
+
+
+### Bug Fixes
+
+* Aux output witness object store key ([#3918](https://github.com/matter-labs/zksync-era/issues/3918)) ([4609d0f](https://github.com/matter-labs/zksync-era/commit/4609d0fc28a4cb201242017bf6433126dee39343))
+
 ## [20.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.1.0...prover-v20.2.0) (2025-04-11)
 
 
