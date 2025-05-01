@@ -114,6 +114,16 @@ impl ContractsConfig {
                 .deployed_addresses
                 .avail_l1_da_validator_addr,
         );
+        self.l1.eigenda_l1_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .eigenda_l1_validator_addr,
+        );
+        self.l1.eigenda_cert_and_blob_verifier_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .eigenda_cert_and_blob_verifier_addr,
+        );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
         self.ecosystem_contracts.server_notifier_proxy_addr = Some(
             deploy_l1_output
@@ -259,9 +269,15 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub no_da_validium_l1_validator_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eigenda_l1_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
+    // `Option` to be able to parse configs from previous protocol version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eigenda_cert_and_blob_verifier_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
