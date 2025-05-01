@@ -132,7 +132,7 @@ impl StoredObject for L1BatchProofForL1<Bincode> {
         if let L1BatchProofForL1Key::Prover((l1_batch_id, protocol_version)) = key {
             let semver_suffix = protocol_version.to_string().replace('.', "_");
             Some(format!(
-                "l1_batch_proof_{batch_number}_{semver_suffix}.cbor",
+                "l1_batch_proof_{batch_number}_{semver_suffix}.bin",
                 batch_number = l1_batch_id.batch_number().0
             ))
         } else {
@@ -145,14 +145,14 @@ impl StoredObject for L1BatchProofForL1<Bincode> {
             L1BatchProofForL1Key::Core((l1_batch_number, protocol_version)) => {
                 let semver_suffix = protocol_version.to_string().replace('.', "_");
                 format!(
-                    "l1_batch_proof_{batch_number}_{semver_suffix}.cbor",
+                    "l1_batch_proof_{batch_number}_{semver_suffix}.bin",
                     batch_number = l1_batch_number.0
                 )
             }
             L1BatchProofForL1Key::Prover((l1_batch_id, protocol_version)) => {
                 let semver_suffix = protocol_version.to_string().replace('.', "_");
                 format!(
-                    "l1_batch_proof_{batch_number}_{chain_id}_{semver_suffix}.cbor",
+                    "l1_batch_proof_{batch_number}_{chain_id}_{semver_suffix}.bin",
                     batch_number = l1_batch_id.batch_number().0,
                     chain_id = l1_batch_id.chain_id()
                 )
