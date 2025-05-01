@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            scheduler_witness_jobs_fri (\n                l1_batch_number,\n                chain_id,\n                scheduler_partial_input_blob_url,\n                protocol_version,\n                status,\n                created_at,\n                updated_at,\n                protocol_version_patch,\n                batch_sealed_at\n            )\n            VALUES\n            ($1, $2, $3, $4, 'waiting_for_proofs', NOW(), NOW(), $5, $6)\n            ON CONFLICT (l1_batch_number, chain_id) DO\n            UPDATE\n            SET\n            updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Text",
+        "Int4",
+        "Int4",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a751d4f46c055775c7b0b7e08ebfe9df3e5c3e0736784363b5ec7269b22583a3"
+}

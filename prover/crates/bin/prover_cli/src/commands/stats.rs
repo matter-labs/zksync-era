@@ -55,7 +55,7 @@ fn display_proof_generation_time(proof_generation_times: Vec<ProofGenerationTime
     for proof_generation_time in proof_generation_times {
         println!(
             "{}\t{:?}\t\t{}",
-            proof_generation_time.l1_batch_number,
+            proof_generation_time.batch_id.batch_number().0,
             proof_generation_time.time_taken,
             proof_generation_time.created_at
         );

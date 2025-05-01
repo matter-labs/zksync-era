@@ -267,6 +267,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .eth_sender_dal()
             .get_inflight_txs(
                 tester.manager.operator_address(OperatorType::NonBlob),
+                false,
                 false
             )
             .await
@@ -324,6 +325,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .eth_sender_dal()
             .get_inflight_txs(
                 tester.manager.operator_address(OperatorType::NonBlob),
+                false,
                 false
             )
             .await
