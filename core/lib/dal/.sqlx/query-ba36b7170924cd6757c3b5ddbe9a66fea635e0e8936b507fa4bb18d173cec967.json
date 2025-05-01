@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT count(serial_number) FROM tee_dcap_collateral_certs\n                WHERE serial_number = $1 \n                AND issuer = $2\n                AND sha256 = $3\n                AND transaction_timestamp() < not_after\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ba36b7170924cd6757c3b5ddbe9a66fea635e0e8936b507fa4bb18d173cec967"
+}

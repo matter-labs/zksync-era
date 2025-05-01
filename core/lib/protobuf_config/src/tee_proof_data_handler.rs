@@ -27,7 +27,12 @@ impl ProtoRepr for proto::TeeProofDataHandler {
                 .map(|x| x as u16)
                 .unwrap_or_else(
                     configs::TeeProofDataHandlerConfig::default_tee_batch_permanently_ignored_timeout_in_hours,
-                ), })
+                ),
+            dcap_collateral_refresh_in_secs: self.dcap_collateral_refresh_in_secs
+                .unwrap_or_else(
+                    configs::TeeProofDataHandlerConfig::default_dcap_collateral_refresh_in_secs,
+                ),
+        })
     }
 
     fn build(this: &Self::Type) -> Self {
@@ -38,6 +43,7 @@ impl ProtoRepr for proto::TeeProofDataHandler {
             batch_permanently_ignored_timeout_in_hours: Some(
                 this.batch_permanently_ignored_timeout_in_hours.into(),
             ),
+            dcap_collateral_refresh_in_secs: Some(this.dcap_collateral_refresh_in_secs),
         }
     }
 }

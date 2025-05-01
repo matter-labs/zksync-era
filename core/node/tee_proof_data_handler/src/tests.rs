@@ -24,6 +24,7 @@ fn test_config() -> TeeProofDataHandlerConfig {
         first_processed_batch: L1BatchNumber(0),
         proof_generation_timeout_in_secs: Duration::from_secs(600),
         batch_permanently_ignored_timeout_in_hours: Duration::from_secs(10 * 24 * 3_600),
+        dcap_collateral_refresh_in_hours: Duration::from_secs(24 * 60 * 60),
     }
 }
 
