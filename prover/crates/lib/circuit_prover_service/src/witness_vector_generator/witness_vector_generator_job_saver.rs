@@ -44,7 +44,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
     #[tracing::instrument(
         name = "witness_vector_generator_save_job",
         skip_all,
-        fields(l1_batch = % data.1.block_number)
+        fields(l1_batch = % data.1.batch_id)
     )]
     async fn save_job_result(
         &self,
@@ -60,7 +60,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                 tracing::info!(
                     "Started transferring witness vector generator job {}, on batch {}, for circuit {}, at round {}",
                     metadata.id,
-                    metadata.block_number,
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round
                 );
@@ -71,7 +71,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                 tracing::info!(
                     "Finished transferring witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
                     metadata.id,
-                    metadata.block_number,
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round,
                     start_time.elapsed()
@@ -85,7 +85,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                 tracing::info!(
                     "Started saving failure for witness vector generator job {}, on batch {}, for circuit {}, at round {}",
                     metadata.id,
-                    metadata.block_number,
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round
                 );
@@ -99,7 +99,7 @@ impl JobSaver for WitnessVectorGeneratorJobSaver {
                 tracing::info!(
                     "Finished saving failure for witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
                     metadata.id,
-                    metadata.block_number,
+                    metadata.batch_id,
                     metadata.circuit_id,
                     metadata.aggregation_round,
                     start_time.elapsed()
