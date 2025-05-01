@@ -168,6 +168,8 @@ jobs:
         run: |
           ci_run zkstack dev config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
           ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          # remember Era server PID so that we can restart it durting DA migration test
+          ERA_SERVER_PID=$!
           ci_run sleep 60
 
       - name: Perform loadtest
@@ -513,6 +515,40 @@ jobs:
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
+
+
+      - name: DA migration tests
+        run: |
+          # deploy L2 DA validator
+          ci_run zkstack chain deploy-l2da-validator
+          # set pubdata pricing mode to validium
+          ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
+          
+          yq -i '.l1_batch_commit_data_generator_mode = "Validium"' /chains/era/configs/general.yaml
+          yq -i '.da_client.no_da = {}' /chains/era/configs/general.yaml
+          yq -i '.eth.sender.pubdata_sending_mode = CUSTOM' /chains/era/configs/general.yaml
+          yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' /chains/era/configs/general.yaml
+          
+          # restarting the server so that config changes take effect  
+          kill $ERA_SERVER_PID
+          ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          ERA_SERVER_PID=$!
+          ci_run sleep 60
+          
+          # Update DA valdiator addresses on L1
+          ci_run zkstack chain set-da-validator-pair
+          
+          # disable inclusion verification transition and restart the server
+          yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' /chains/era/configs/general.yaml
+          kill $ERA_SERVER_PID
+          ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          ci_run sleep 60
+          
+          # run integration tests to make sure all went well
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
+            "era" ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
+
 
       - name: Run recovery tests (from snapshot)
         run: |

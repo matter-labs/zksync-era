@@ -103,6 +103,9 @@ pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
     "Token multiplier setter updated to";
+pub(super) const MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER: &str =
+    "Updating pubdata pricing mode...";
+pub(super) const MSG_PUBDATA_PRICING_MODE_UPDATED_TO: &str = "Pubdata pricing mode updated to";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
