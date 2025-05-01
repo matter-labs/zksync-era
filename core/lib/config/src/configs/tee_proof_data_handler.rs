@@ -1,9 +1,10 @@
 use std::time::Duration;
 
+use serde::Deserialize;
 use smart_config::{de::Serde, metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::L1BatchNumber;
 
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Deserialize, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct TeeProofDataHandlerConfig {
     pub http_port: u16,
     /// All batches before this one are considered to be processed.
@@ -17,6 +18,9 @@ pub struct TeeProofDataHandlerConfig {
     /// Timeout in hours after which a batch will be permanently ignored if repeated retries failed.
     #[config(default_t = 10 * TimeUnit::Days, with = TimeUnit::Hours)]
     pub batch_permanently_ignored_timeout_in_hours: Duration,
+    // How frequently to attempt to refresh the dcap collateral in hours.
+    #[config(default_t = 24 * TimeUnit::Hours, with = TimeUnit::Hours)]
+    pub dcap_collateral_refresh_in_hours: Duration,
 }
 
 #[cfg(test)]
@@ -31,6 +35,7 @@ mod tests {
             first_processed_batch: L1BatchNumber(123),
             proof_generation_timeout_in_secs: Duration::from_secs(90),
             batch_permanently_ignored_timeout_in_hours: 5 * TimeUnit::Days,
+            dcap_collateral_refresh_in_hours: 24 * TimeUnit::Hours,
         }
     }
 

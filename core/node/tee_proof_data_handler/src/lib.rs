@@ -1,9 +1,9 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{future::IntoFuture, net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use tee_request_processor::TeeRequestProcessor;
-use tokio::sync::watch;
+use tokio::{join, sync::watch};
 use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
@@ -12,10 +12,12 @@ use zksync_tee_prover_interface::api::{
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
+mod collateral;
 mod errors;
 mod metrics;
 pub mod node;
 mod tee_request_processor;
+
 #[cfg(test)]
 mod tests;
 
@@ -25,31 +27,50 @@ pub async fn run_server(
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
-    mut stop_receiver: watch::Receiver<bool>,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::info!("Starting proof data handler server on {bind_address}");
     let app = create_proof_processing_router(
-        blob_store,
-        connection_pool,
-        config,
-        commitment_mode,
-        l2_chain_id,
+        blob_store.clone(),
+        connection_pool.clone(),
+        config.clone(),
+        commitment_mode.clone(),
+        l2_chain_id.clone(),
     );
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
         .with_context(|| format!("Failed binding proof data handler server to {bind_address}"))?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop request sender for proof data handler server was dropped without sending a signal");
-            }
-            tracing::info!("Stop request received, proof data handler server is shutting down");
-        })
-        .await
+
+    let mut server_stop_receiver = stop_receiver.clone();
+    let server = tokio::spawn(
+            axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                if server_stop_receiver.changed().await.is_err() {
+                    tracing::warn!("Stop signal sender for proof data handler server was dropped without sending a signal");
+                }
+                tracing::info!("Stop signal received, proof data handler server is shutting down");
+            }).into_future()
+        );
+
+    let updater = tokio::spawn(collateral::updater(
+        blob_store,
+        connection_pool,
+        config,
+        commitment_mode,
+        l2_chain_id,
+        stop_receiver,
+    ));
+
+    let (server, updater) = join!(server, updater);
+    server
+        .context("Proof data handler server join failed")?
         .context("Proof data handler server failed")?;
-    tracing::info!("Proof data handler server shut down");
+    updater
+        .context("DCAP collateral updater join failed")?
+        .context("DCAP collateral updater failed")?;
+    tracing::info!("Proof data handler server and DCAP collateral updater shut down");
     Ok(())
 }
 

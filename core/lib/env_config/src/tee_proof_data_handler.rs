@@ -23,6 +23,7 @@ mod tests {
             first_processed_batch: L1BatchNumber(1337),
             proof_generation_timeout_in_secs: 600,
             batch_permanently_ignored_timeout_in_hours: 240,
+            dcap_collateral_refresh_in_secs: 60,
         }
     }
 
@@ -33,6 +34,7 @@ mod tests {
             TEE_PROOF_DATA_HANDLER_FIRST_PROCESSED_BATCH="1337"
             TEE_PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
             TEE_PROOF_DATA_HANDLER_BATCH_PERMANENTLY_IGNORED_TIMEOUT_IN_HOURS="240"
+            TEE_PROOF_DATA_HANDLER_DCAP_COLLATERAL_REFRESH_IN_SECS=60"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

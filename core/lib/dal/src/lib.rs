@@ -4,6 +4,7 @@
 #![warn(clippy::cast_lossless)]
 
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
+use tee_dcap_collateral_dal::TeeDcapCollateralDal;
 use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::{Connection, IsolationLevel},
@@ -61,6 +62,7 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
+pub mod tee_dcap_collateral_dal;
 pub mod tee_proof_generation_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
@@ -123,6 +125,8 @@ where
     fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a>;
 
     fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a>;
+
+    fn tee_dcap_collateral_dal(&mut self) -> TeeDcapCollateralDal<'_, 'a>;
 
     fn system_dal(&mut self) -> SystemDal<'_, 'a>;
 
@@ -242,6 +246,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a> {
         TeeProofGenerationDal { storage: self }
+    }
+
+    fn tee_dcap_collateral_dal(&mut self) -> TeeDcapCollateralDal<'_, 'a> {
+        TeeDcapCollateralDal { storage: self }
     }
 
     fn system_dal(&mut self) -> SystemDal<'_, 'a> {
