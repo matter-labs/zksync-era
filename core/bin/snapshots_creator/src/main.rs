@@ -16,7 +16,7 @@ use zksync_config::{
     configs::{DatabaseSecrets, PrometheusConfig},
     full_config_schema,
     sources::ConfigFilePaths,
-    ParseResultExt, SnapshotsCreatorConfig,
+    ConfigRepositoryExt, SnapshotsCreatorConfig,
 };
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
@@ -74,9 +74,9 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema(false);
     let repo = config_sources.build_repository(&schema);
-    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
-    let creator_config: SnapshotsCreatorConfig = repo.single()?.parse().log_all_errors()?;
-    let prometheus_config: PrometheusConfig = repo.single()?.parse().log_all_errors()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let creator_config: SnapshotsCreatorConfig = repo.parse()?;
+    let prometheus_config: PrometheusConfig = repo.parse()?;
 
     let prometheus_exporter_task =
         maybe_enable_prometheus_metrics(&prometheus_config, stop_receiver);

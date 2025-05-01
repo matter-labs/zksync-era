@@ -20,7 +20,7 @@ use zksync_config::{
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ContractsConfig, DBConfig, EthConfig, ParseResultExt, PostgresConfig,
+    ConfigRepositoryExt, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_contracts::getters_facet_contract;
 use zksync_dal::{ConnectionPool, Core};
@@ -134,22 +134,16 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema(false);
     let repo = config_sources.build_repository(&schema);
-    let wallets_config: Option<Wallets> = repo.single()?.parse_opt().log_all_errors()?;
-    let genesis_config = repo
-        .single::<GenesisConfigWrapper>()?
-        .parse()
-        .log_all_errors()?
-        .genesis;
-    let eth_sender: EthConfig = repo.single()?.parse().log_all_errors()?;
-    let db_config: DBConfig = repo.single()?.parse().log_all_errors()?;
-    let protective_reads_writer_config: ProtectiveReadsWriterConfig =
-        repo.single()?.parse().log_all_errors()?;
-    let basic_witness_input_producer_config: BasicWitnessInputProducerConfig =
-        repo.single()?.parse().log_all_errors()?;
-    let contracts: ContractsConfig = repo.single()?.parse().log_all_errors()?;
-    let postgres_config: PostgresConfig = repo.single()?.parse().log_all_errors()?;
-    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
-    let l1_secrets: L1Secrets = repo.single()?.parse().log_all_errors()?;
+    let wallets_config: Option<Wallets> = repo.parse_opt()?;
+    let genesis_config = repo.parse::<GenesisConfigWrapper>()?.genesis;
+    let eth_sender: EthConfig = repo.parse()?;
+    let db_config: DBConfig = repo.parse()?;
+    let protective_reads_writer_config: ProtectiveReadsWriterConfig = repo.parse()?;
+    let basic_witness_input_producer_config: BasicWitnessInputProducerConfig = repo.parse()?;
+    let contracts: ContractsConfig = repo.parse()?;
+    let postgres_config: PostgresConfig = repo.parse()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let l1_secrets: L1Secrets = repo.parse()?;
 
     let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
 
@@ -334,11 +328,7 @@ async fn main() -> anyhow::Result<()> {
             if rollback_postgres {
                 block_reverter.enable_rolling_back_postgres();
                 if rollback_snapshots {
-                    let object_store_config = repo
-                        .get("snapshot_creator.object_store")
-                        .context("no snapshots object store config")?
-                        .parse()
-                        .log_all_errors()?;
+                    let object_store_config = repo.parse_at("snapshot_creator.object_store")?;
                     block_reverter.enable_rolling_back_snapshot_objects(
                         ObjectStoreFactory::new(object_store_config)
                             .create_store()

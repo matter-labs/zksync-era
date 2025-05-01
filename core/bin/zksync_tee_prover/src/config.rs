@@ -9,7 +9,7 @@ use url::Url;
 use zksync_basic_types::tee_types::TeeType;
 use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
-    ParseResultExt,
+    ConfigRepositoryExt,
 };
 use zksync_vlog::ObservabilityGuard;
 
@@ -112,19 +112,16 @@ impl AppConfig {
             config_repo = config_repo.with(metadata);
         }
 
-        let observability_config: ObservabilityConfig = config_repo
-            .single()?
-            .parse()
-            .context("ObservabilityConfig")?;
+        let observability_config: ObservabilityConfig = config_repo.parse()?;
         let observability_guard = observability_config
             .install()
             .context("installing observability failed")?;
 
         let this = Self {
-            prometheus: config_repo.single()?.parse().log_all_errors()?,
+            prometheus: config_repo.parse()?,
             prover: TeeProverConfig {
-                sig_conf: config_repo.single()?.parse().log_all_errors()?,
-                prover_api: config_repo.single()?.parse().log_all_errors()?,
+                sig_conf: config_repo.parse()?,
+                prover_api: config_repo.parse()?,
             },
         };
         Ok((this, observability_guard))

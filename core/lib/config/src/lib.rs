@@ -1,7 +1,5 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-pub use smart_config::ConfigRepository;
-
 pub use crate::configs::{
     contracts::chain::ContractsConfig, full_config_schema, ApiConfig, AvailConfig,
     BaseTokenAdjusterConfig, CelestiaConfig, ContractVerifierConfig, DAClientConfig,
@@ -10,7 +8,7 @@ pub use crate::configs::{
     PostgresConfig, SnapshotsCreatorConfig,
 };
 #[cfg(feature = "observability_ext")]
-pub use crate::observability_ext::ParseResultExt;
+pub use crate::observability_ext::ConfigRepositoryExt;
 
 pub mod configs;
 #[cfg(feature = "observability_ext")]

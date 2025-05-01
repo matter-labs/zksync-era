@@ -7,7 +7,7 @@ use zksync_config::{
     configs::{wallets::Wallets, ContractsConfig, GeneralConfig, GenesisConfigWrapper, Secrets},
     full_config_schema,
     sources::ConfigFilePaths,
-    ParseResultExt,
+    ConfigRepositoryExt,
 };
 use zksync_core_leftovers::{Component, Components};
 
@@ -119,17 +119,15 @@ fn main() -> anyhow::Result<()> {
     };
 
     let repo = config_sources.build_repository(&schema);
-    let configs: GeneralConfig = repo.single()?.parse().log_all_errors()?;
-    let wallets: Wallets = repo.single()?.parse().log_all_errors()?;
-    let secrets: Secrets = repo.single()?.parse().log_all_errors()?;
-    let contracts_config: ContractsConfig = repo.single()?.parse().log_all_errors()?;
+    let configs: GeneralConfig = repo.parse()?;
+    let wallets: Wallets = repo.parse()?;
+    let secrets: Secrets = repo.parse()?;
+    let contracts_config: ContractsConfig = repo.parse()?;
     let genesis = repo
-        .single::<GenesisConfigWrapper>()?
-        .parse()
-        .log_all_errors()?
+        .parse::<GenesisConfigWrapper>()?
         .genesis
         .context("missing genesis config")?;
-    let consensus = repo.single()?.parse_opt().log_all_errors()?;
+    let consensus = repo.parse_opt()?;
 
     if let Some(CliCommand::Config {
         debug: true,

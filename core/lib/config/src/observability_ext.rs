@@ -1,6 +1,11 @@
 //! Extensions for the `ObservabilityConfig` to install the observability stack.
 
-use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig, ParseErrors};
+use std::any;
+
+use anyhow::Context;
+use smart_config::{
+    ConfigRepository, ConfigSchema, DescribeConfig, DeserializeConfig, ParseErrors,
+};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
@@ -16,7 +21,7 @@ impl ConfigSources {
         repo.deserializer_options().coerce_variant_names = true;
         // - `unwrap()` is safe: `Self` is the only top-level config, so an error would require for it to have a recursive definition.
         // - While logging is not enabled at this point, we use `log_all_errors()` for more intelligent error summarization.
-        repo.single().unwrap().parse().log_all_errors()
+        repo.single().unwrap().parse().map_err(log_all_errors)
     }
 
     /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
@@ -110,45 +115,69 @@ impl PrometheusConfig {
     }
 }
 
-pub trait ParseResultExt<T> {
-    fn log_all_errors(self) -> anyhow::Result<T>;
+fn log_all_errors(errors: ParseErrors) -> anyhow::Error {
+    const MAX_DISPLAYED_ERRORS: usize = 5;
+
+    let mut displayed_errors = String::new();
+    let mut error_count = 0;
+    for (i, err) in errors.iter().enumerate() {
+        tracing::error!(
+            path = err.path(),
+            origin = %err.origin(),
+            config = err.config().ty.name_in_code(),
+            param = err.param().map(|param| param.rust_field_name),
+            "{}",
+            err.inner()
+        );
+
+        if i < MAX_DISPLAYED_ERRORS {
+            displayed_errors += &format!("{}. {err}\n", i + 1);
+        }
+        error_count += 1;
+    }
+
+    let maybe_truncation_message = if error_count > MAX_DISPLAYED_ERRORS {
+        format!("; showing first {MAX_DISPLAYED_ERRORS} (all errors are logged at ERROR level)")
+    } else {
+        String::new()
+    };
+
+    anyhow::anyhow!(
+        "failed parsing config param(s): {error_count} error(s) in total{maybe_truncation_message}\n{displayed_errors}"
+    )
 }
 
-impl<T> ParseResultExt<T> for Result<T, ParseErrors> {
-    fn log_all_errors(self) -> anyhow::Result<T> {
-        const MAX_DISPLAYED_ERRORS: usize = 5;
+pub trait ConfigRepositoryExt {
+    /// Parses a configuration from this repo. The configuration must have a unique mounting point.
+    fn parse<C: DeserializeConfig>(&self) -> anyhow::Result<C>;
 
-        match self {
-            Ok(val) => Ok(val),
-            Err(errors) => {
-                let mut displayed_errors = String::new();
-                let mut error_count = 0;
-                for (i, err) in errors.iter().enumerate() {
-                    tracing::error!(
-                        path = err.path(),
-                        origin = %err.origin(),
-                        config = err.config().ty.name_in_code(),
-                        param = err.param().map(|param| param.rust_field_name),
-                        "{}",
-                        err.inner()
-                    );
+    /// Parses an optional configuration from this repo. The configuration must have a unique mounting point.
+    fn parse_opt<C: DeserializeConfig>(&self) -> anyhow::Result<Option<C>>;
 
-                    if i < MAX_DISPLAYED_ERRORS {
-                        displayed_errors += &format!("{}. {err}\n", i + 1);
-                    }
-                    error_count += 1;
-                }
+    fn parse_at<C: DeserializeConfig>(&self, prefix: &str) -> anyhow::Result<C>;
+}
 
-                let maybe_truncation_message = if error_count > MAX_DISPLAYED_ERRORS {
-                    format!("; showing first {MAX_DISPLAYED_ERRORS} (all errors are logged at ERROR level)")
-                } else {
-                    String::new()
-                };
+// TODO: report param values via visitor
+impl ConfigRepositoryExt for ConfigRepository<'_> {
+    /// Parses a configuration from this repo. The configuration must have a unique mounting point.
+    fn parse<C: DeserializeConfig>(&self) -> anyhow::Result<C> {
+        self.single()?.parse().map_err(log_all_errors)
+    }
 
-                Err(anyhow::anyhow!(
-                    "failed parsing config param(s): {error_count} error(s) in total{maybe_truncation_message}\n{displayed_errors}"
-                ))
-            }
-        }
+    /// Parses an optional configuration from this repo. The configuration must have a unique mounting point.
+    fn parse_opt<C: DeserializeConfig>(&self) -> anyhow::Result<Option<C>> {
+        self.single()?.parse_opt().map_err(log_all_errors)
+    }
+
+    fn parse_at<C: DeserializeConfig>(&self, prefix: &str) -> anyhow::Result<C> {
+        self.get(prefix)
+            .with_context(|| {
+                format!(
+                    "config `{}` is missing at `{prefix}`",
+                    any::type_name::<C>()
+                )
+            })?
+            .parse()
+            .map_err(log_all_errors)
     }
 }

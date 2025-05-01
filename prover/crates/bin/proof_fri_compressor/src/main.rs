@@ -10,7 +10,7 @@ use zksync_config::{
     configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
     full_config_schema,
     sources::ConfigFilePaths,
-    ParseResultExt,
+    ConfigRepositoryExt,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
@@ -58,8 +58,8 @@ async fn main() -> anyhow::Result<()> {
     let _observability_guard = config_sources.observability()?.install()?;
 
     let repo = config_sources.build_repository(&schema);
-    let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
-    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config

@@ -2,12 +2,10 @@
 
 use anyhow::Context as _;
 use clap::Parser;
-use smart_config::{ConfigSchema, DescribeConfig, Environment};
+use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig, Environment};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
-use zksync_config::{
-    sources::ConfigFilePaths, ConfigRepository, ObjectStoreConfig, ParseResultExt,
-};
+use zksync_config::{sources::ConfigFilePaths, ConfigRepositoryExt, ObjectStoreConfig};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     snapshots::{SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey},
@@ -48,8 +46,7 @@ impl Cli {
         }
         config_repo.deserializer_options().coerce_variant_names = true;
 
-        let object_store_config: ObjectStoreConfig =
-            config_repo.single()?.parse().log_all_errors()?;
+        let object_store_config: ObjectStoreConfig = config_repo.parse()?;
         let object_store = ObjectStoreFactory::new(object_store_config)
             .create_store()
             .await

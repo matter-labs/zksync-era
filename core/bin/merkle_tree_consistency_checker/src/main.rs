@@ -2,7 +2,7 @@ use std::{path::Path, time::Instant};
 
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_config::{full_config_schema, sources::ConfigFilePaths, DBConfig, ParseResultExt};
+use zksync_config::{full_config_schema, sources::ConfigFilePaths, ConfigRepositoryExt, DBConfig};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
@@ -56,11 +56,6 @@ fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema(false);
     let repo = config_sources.build_repository(&schema);
-
-    let db_config: DBConfig = repo
-        .single()
-        .context("DB config is not unique in config schema")?
-        .parse()
-        .log_all_errors()?;
+    let db_config: DBConfig = repo.parse()?;
     Cli::parse().run(&db_config)
 }

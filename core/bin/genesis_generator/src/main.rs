@@ -6,8 +6,8 @@
 use anyhow::Context as _;
 use clap::Parser;
 use zksync_config::{
-    configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths, GenesisConfig,
-    ParseResultExt,
+    configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths, ConfigRepositoryExt,
+    GenesisConfig,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema(false);
     let repo = config_sources.build_repository(&schema);
-    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
 
     let original_genesis: GenesisConfig =
         tokio::task::spawn_blocking(|| GenesisConfig::read(DEFAULT_GENESIS_FILE_PATH.as_ref()))

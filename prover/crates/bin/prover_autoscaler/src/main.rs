@@ -7,7 +7,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_config::{sources::ConfigSources, ParseResultExt};
+use zksync_config::{sources::ConfigSources, ConfigRepositoryExt};
 use zksync_prover_autoscaler::{
     agent,
     cluster_types::ClusterName,
@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
     let full_config_schema = ConfigSchema::new(&ProverAutoscalerConfig::DESCRIPTION, "");
     let config_repo = config_sources.build_repository(&full_config_schema);
-    let general_config: ProverAutoscalerConfig = config_repo.single()?.parse().log_all_errors()?;
+    let general_config: ProverAutoscalerConfig = config_repo.parse()?;
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);

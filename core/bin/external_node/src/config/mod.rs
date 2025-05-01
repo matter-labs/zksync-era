@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Context;
 use serde::{de, Deserialize, Deserializer};
-use smart_config::{ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
+use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
@@ -26,7 +26,7 @@ use zksync_config::{
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepository, DAClientConfig, ObjectStoreConfig, ParseResultExt,
+    ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -1203,8 +1203,8 @@ impl ExternalNodeConfig<()> {
             .context("cannot create consensus config schema")?;
         let mut repo = ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
         repo.deserializer_options().coerce_variant_names = true;
-        let consensus = repo.single()?.parse_opt().log_all_errors()?;
-        let consensus_secrets = repo.single()?.parse().log_all_errors()?;
+        let consensus = repo.parse_opt()?;
+        let consensus_secrets = repo.parse()?;
 
         Ok(Self {
             required: RequiredENConfig::from_env()?,
@@ -1255,11 +1255,11 @@ impl ExternalNodeConfig<()> {
 
         let schema = full_config_schema(true);
         let repo = config_sources.build_repository(&schema);
-        let general_config: GeneralConfig = repo.single()?.parse().log_all_errors()?;
-        let external_node_config: ENConfig = repo.single()?.parse().log_all_errors()?;
-        let secrets_config: Secrets = repo.single()?.parse().log_all_errors()?;
+        let general_config: GeneralConfig = repo.parse()?;
+        let external_node_config: ENConfig = repo.parse()?;
+        let secrets_config: Secrets = repo.parse()?;
         let consensus = if has_consensus {
-            Some(repo.single::<ConsensusConfig>()?.parse().log_all_errors()?)
+            Some(repo.parse::<ConsensusConfig>()?)
         } else {
             None
         };

@@ -7,7 +7,7 @@ use zksync_config::{
     configs::{ContractVerifierSecrets, DatabaseSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
-    ContractVerifierConfig, ParseResultExt,
+    ConfigRepositoryExt, ContractVerifierConfig,
 };
 use zksync_contract_verifier_lib::{etherscan::EtherscanVerifier, ContractVerifier};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -71,10 +71,9 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema(false);
     let repo = config_sources.build_repository(&schema);
-    let database_secrets: DatabaseSecrets = repo.single()?.parse().log_all_errors()?;
-    let contract_verifier_secrets: ContractVerifierSecrets =
-        repo.single()?.parse().log_all_errors()?;
-    let verifier_config: ContractVerifierConfig = repo.single()?.parse().log_all_errors()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let contract_verifier_secrets: ContractVerifierSecrets = repo.parse()?;
+    let verifier_config: ContractVerifierConfig = repo.parse()?;
 
     let pool = ConnectionPool::<Core>::singleton(
         database_secrets
