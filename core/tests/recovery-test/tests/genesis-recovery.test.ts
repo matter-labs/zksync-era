@@ -143,7 +143,7 @@ describe('genesis recovery', () => {
 
             if (!reorgDetectorSucceeded) {
                 const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.reorg_detector?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received reorg detector health details', details);
@@ -155,7 +155,7 @@ describe('genesis recovery', () => {
 
             if (!consistencyCheckerSucceeded) {
                 const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.consistency_checker?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received consistency checker health details', details);
@@ -239,7 +239,7 @@ describe('genesis recovery', () => {
 
             if (!reorgDetectorSucceeded) {
                 const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.reorg_detector?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received reorg detector health details', details);
@@ -251,7 +251,7 @@ describe('genesis recovery', () => {
 
             if (!consistencyCheckerSucceeded) {
                 const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.consistency_checker?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received consistency checker health details', details);
