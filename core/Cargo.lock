@@ -2209,6 +2209,7 @@ dependencies = [
  "derivative",
  "serde",
  "zk_evm 0.152.1",
+ "zkevm_circuits",
 ]
 
 [[package]]
@@ -11605,9 +11606,9 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.151.7"
+version = "0.151.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78e54e9c5d566b4e0cefaf62507be89610ca7766dc3397e9222cbe433870b0df"
+checksum = "4587cac12bc0a037b29b5c12fe107f06d1f2d1f62f64ebed6ce4c6bf5290c58a"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11615,7 +11616,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.151.7",
+ "zk_evm_abstractions 0.151.5",
 ]
 
 [[package]]
@@ -12917,7 +12918,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "vise",
- "zk_evm 0.151.7",
+ "zk_evm 0.151.5",
  "zksync_config",
  "zksync_consensus_roles",
  "zksync_contracts",

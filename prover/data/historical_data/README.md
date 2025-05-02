@@ -4,7 +4,7 @@ This directory contains historical verification keys and hashes. The name of the
 version.
 
 | Version | Description                          | Circuit version | Other                   |
-| ------- | ------------------------------------ | --------------- | ------------------------|
+| ------- | ------------------------------------ | --------------- | ----------------------- |
 | 18      | boojum - 1.4.0                       | 1.4.0           |                         |
 | 19      | boojum fix                           |                 |                         |
 | 20      | fee model - 1.4.1                    | 1.4.1           |                         |
