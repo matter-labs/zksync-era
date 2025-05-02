@@ -11,3 +11,4 @@ mod zk_evm_1_3_3;
 mod zk_evm_1_4_0;
 mod zk_evm_1_4_1;
 mod zk_evm_1_5_0;
+mod zk_evm_1_5_2;

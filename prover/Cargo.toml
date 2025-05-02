@@ -41,8 +41,8 @@ once_cell = "1.18"
 proptest = "1.2.0"
 rand = "0.8"
 regex = "1.10.4"
-reqwest = "0.12"
-reqwest-middleware = "0.3.3"
+reqwest = "=0.12.9"
+reqwest-middleware = "=0.3.3"
 reqwest-retry = "0.7.0"
 ring = "0.17.8"
 rustls = { version = "0.23.12", features = ["ring"] }
@@ -66,18 +66,22 @@ tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.3.0"
 
-circuit_definitions = "=0.151.7"
-circuit_sequencer_api = "=0.151.7"
-zkevm_test_harness = "=0.151.7"
-fflonk = "=0.31.0"
-franklin-crypto = "=0.31.0"
+circuit_definitions = "=0.152.1"
+circuit_sequencer_api = "=0.152.1"
+zkevm_test_harness = "=0.152.1"
+
+fflonk = "=0.32.1"
+franklin-crypto = "=0.32.1"
 
 # GPU proving dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.153.4" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.4" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.4" }
-shivini = "=0.153.4"
-boojum-cuda = "=0.153.4"
+
+proof-compression-gpu = { package = "proof-compression", version = "=0.154.1" }
+
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.1" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.1" }
+
+shivini = "=0.154.1"
+boojum-cuda = "=0.154.1"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }

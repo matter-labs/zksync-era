@@ -3,6 +3,8 @@ use commands::{status::args::StatusArgs, track_priority_txs::TrackPriorityOpsArg
 use messages::MSG_STATUS_ABOUT;
 #[cfg(feature = "v27_evm_interpreter")]
 use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
+#[cfg(feature = "v28_precompiles")]
+use messages::MSG_V28_PRECOMPILES_UPGRADE;
 use xshell::Shell;
 
 use self::commands::{
@@ -54,6 +56,9 @@ pub enum DevCommands {
     #[cfg(feature = "v27_evm_interpreter")]
     #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
     V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
+    #[cfg(feature = "v28_precompiles")]
+    #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
+    GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -76,6 +81,10 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         #[cfg(feature = "v27_evm_interpreter")]
         DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
             commands::v27_evm_eq::run(shell, args).await?
+        }
+        #[cfg(feature = "v28_precompiles")]
+        DevCommands::GenerateV28UpgradeCalldata(args) => {
+            commands::v28_precompiles::run(shell, args).await?
         }
     }
     Ok(())
