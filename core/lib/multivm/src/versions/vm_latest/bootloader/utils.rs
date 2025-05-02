@@ -191,7 +191,6 @@ fn apply_l2_block_inner(
     if !start_new_l2_block {
         return;
     }
-    
 
     apply_interop_root_number_in_block_number(
         memory,

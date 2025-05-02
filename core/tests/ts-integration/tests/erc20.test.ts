@@ -224,7 +224,7 @@ describe('L1 ERC20 contract checks', () => {
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
 
-        await waitForInteropRootNonZero(alice,  506n, parseInt(params.proof[25].slice(2, 34), 16));
+        await waitForInteropRootNonZero(alice, 506n, parseInt(params.proof[25].slice(2, 34), 16));
 
         // sma TODO hacky workaround for now to rewrite the much needed block number--remove when available!
         // sma TODO end of hacky workaround
@@ -245,7 +245,7 @@ describe('L1 ERC20 contract checks', () => {
             ArtifactL2InteropRootStorage.abi,
             alice.provider
         );
-        while (await l2InteropRootStorage.msgRoots(chainId, l1BatchNumber) === ethers.ZeroHash) {
+        while ((await l2InteropRootStorage.msgRoots(chainId, l1BatchNumber)) === ethers.ZeroHash) {
             await (
                 await alice.deposit({
                     token: ETH_ADDRESS_IN_CONTRACTS,
