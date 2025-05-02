@@ -11,7 +11,6 @@ use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::is_retryable,
-    jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
 
