@@ -46,6 +46,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Component for exposing APIs to TEE prover for providing proof generation data and accepting proofs.
+    TeeProofDataHandler,
     /// Component generating BFT consensus certificates for L2 blocks.
     Consensus,
     /// Component generating commitment for L1 batches.

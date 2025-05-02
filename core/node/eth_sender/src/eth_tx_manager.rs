@@ -59,6 +59,7 @@ impl EthTxManager {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
             time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
+            max_acceptable_base_fee_in_wei: config.max_acceptable_base_fee_in_wei,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_client,
@@ -132,6 +133,7 @@ impl EthTxManager {
             .await
             .unwrap();
 
+        let operator_type = self.operator_type(tx);
         let EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
@@ -140,10 +142,8 @@ impl EthTxManager {
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             time_in_mempool_in_l1_blocks,
-            self.operator_type(tx),
+            operator_type,
         )?;
-
-        let operator_type = self.operator_type(tx);
 
         let blob_gas_price = if tx.blob_sidecar.is_some() {
             Some(
@@ -345,13 +345,10 @@ impl EthTxManager {
         }
     }
 
-    pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Option<Address> {
-        if operator_type == OperatorType::Blob {
-            self.l1_interface.get_blobs_operator_account()
-        } else {
-            None
-        }
+    pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Address {
+        self.l1_interface.get_operator_account(operator_type)
     }
+
     // Monitors the in-flight transactions, marks mined ones as confirmed,
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions_single_operator(
@@ -370,6 +367,7 @@ impl EthTxManager {
                 .eth_sender_dal()
                 .get_inflight_txs(
                     self.operator_address(operator_type),
+                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
@@ -523,10 +521,15 @@ impl EthTxManager {
     fn operator_type(&self, tx: &EthTx) -> OperatorType {
         if tx.is_gateway {
             OperatorType::Gateway
-        } else if tx.from_addr.is_none() {
-            OperatorType::NonBlob
         } else {
-            OperatorType::Blob
+            match tx.from_addr {
+                Some(a) if a == self.operator_address(OperatorType::NonBlob) => {
+                    OperatorType::NonBlob
+                }
+                Some(a) if a == self.operator_address(OperatorType::Blob) => OperatorType::Blob,
+                Some(a) => panic!("Cannot infer operator type for {a:#?}"),
+                None => OperatorType::NonBlob,
+            }
         }
     }
 
@@ -649,6 +652,7 @@ impl EthTxManager {
             .eth_sender_dal()
             .get_inflight_txs(
                 self.operator_address(operator_type),
+                operator_type != OperatorType::Blob,
                 operator_type == OperatorType::Gateway,
             )
             .await
@@ -665,7 +669,8 @@ impl EthTxManager {
                 .eth_sender_dal()
                 .get_new_eth_txs(
                     number_of_available_slots_for_eth_txs,
-                    &self.operator_address(operator_type),
+                    self.operator_address(operator_type),
+                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await

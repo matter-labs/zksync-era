@@ -246,31 +246,33 @@ pub enum DeploymentParams {
 }
 
 impl DeploymentParams {
-    pub fn decode(calldata: &[u8]) -> anyhow::Result<Option<Self>> {
+    /// Returns `None` if calldata doesn't correspond to the 4 deploying `ContractDeployer` methods,
+    /// or if it cannot be decoded.
+    pub fn decode(calldata: &[u8]) -> Option<Self> {
         if calldata.len() < 4 {
-            return Ok(None);
+            return None;
         }
         let (short_signature, token_data) = calldata.split_at(4);
-        Ok(match short_signature {
+        match short_signature {
             sig if sig == *CREATE_FUNCTION => {
-                ethabi::decode(CREATE_PARAMS, token_data)?;
+                ethabi::decode(CREATE_PARAMS, token_data).ok()?;
                 Some(Self::Create)
             }
             sig if sig == *CREATE2_FUNCTION => {
-                let tokens = ethabi::decode(CREATE_PARAMS, token_data)?;
+                let tokens = ethabi::decode(CREATE_PARAMS, token_data).ok()?;
                 Some(Self::Create2(Create2DeploymentParams::from_tokens(tokens)))
             }
             sig if sig == *CREATE_ACC_FUNCTION => {
-                ethabi::decode(CREATE_ACC_PARAMS, token_data)?;
+                ethabi::decode(CREATE_ACC_PARAMS, token_data).ok()?;
                 Some(Self::CreateAccount)
             }
             sig if sig == *CREATE2_ACC_FUNCTION => {
-                let tokens = ethabi::decode(CREATE_ACC_PARAMS, token_data)?;
+                let tokens = ethabi::decode(CREATE_ACC_PARAMS, token_data).ok()?;
                 Some(Self::Create2Account(Create2DeploymentParams::from_tokens(
                     tokens,
                 )))
             }
             _ => None,
-        })
+        }
     }
 }
