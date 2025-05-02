@@ -126,7 +126,7 @@ impl EthTxManager {
         tx: &EthTx,
         time_in_mempool_in_l1_blocks: u32,
         current_block: L1BlockNumber,
-    ) -> Result<(H256, bool), EthSenderError> {
+    ) -> Result<H256, EthSenderError> {
         let previous_sent_tx = storage
             .eth_sender_dal()
             .get_last_sent_successfully_eth_tx(tx.id)
@@ -275,7 +275,7 @@ impl EthTxManager {
             );
             return Err(error);
         }
-        Ok((signed_tx.hash, send_result.is_ok()))
+        Ok(signed_tx.hash)
     }
 
     fn gas_limit(&self, tx: &EthTx, max_gas_per_pubdata_price: Option<u64>) -> U256 {
