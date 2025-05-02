@@ -169,7 +169,7 @@ fn setup_v26_unsafe_deposits_detection<VM: TestedVm>() -> (VmTester<VM>, V26Test
     (vm, test_data)
 }
 
-fn encode_regisration(l2_token_address: Address) -> Vec<u8> {
+fn encode_registration(l2_token_address: Address) -> Vec<u8> {
     let contract = l2_native_token_vault();
 
     contract
@@ -259,7 +259,7 @@ pub(crate) fn test_post_registration_storage_logs<VM: TestedVm>() {
         }),
         execute: Execute {
             contract_address: Some(L2_NATIVE_TOKEN_VAULT_ADDRESS),
-            calldata: encode_regisration(test_data.l2_token_address),
+            calldata: encode_registration(test_data.l2_token_address),
             value: Default::default(),
             factory_deps: vec![],
         },
