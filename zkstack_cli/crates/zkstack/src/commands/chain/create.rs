@@ -79,7 +79,8 @@ pub(crate) async fn create_chain_inner(
         .list_of_chains()
         .iter()
         .position(|x| *x == args.chain_name)
-        .unwrap() as u32;
+        .unwrap() as u32
+        + 1;
     println!(
         "ecosystem_config.list_of_chains(): {:?}",
         ecosystem_config.list_of_chains()
