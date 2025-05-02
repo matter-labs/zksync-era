@@ -74,7 +74,7 @@ jobs:
         working-directory: ./chains/proving_chain/configs
         if: matrix.gateway-mode == 'prover-cluster'
         run: |
-          yq -e -i '.prover_gateway.api_mode = "PROVER_CLUSTER"' general.yaml
+          sudo yq -e -i '.prover_gateway.api_mode = "PROVER_CLUSTER"' general.yaml
           yq '.prover_gateway.api_mode' < general.yaml
 
       - name: Change block_commit_deadline_ms to 60000 to submit txs to batch 1
