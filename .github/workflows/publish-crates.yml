@@ -33,7 +33,7 @@ jobs:
       ZKSYNC_USE_CUDA_STUBS: true
     steps:
       - name: Publish crates
-        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@1cc7a2470c97ee4dc5ee644cd5785ccc8fe97c3d # v1
+        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@38ec28e7851f7ac0498f04ccb0f68ce81586541d # v1
         with:
           slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }} # Slack webhook for notifications
           cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }} # Crates.io token for publishing

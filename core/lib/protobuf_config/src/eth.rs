@@ -5,6 +5,24 @@ use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{proto::eth as proto, read_optional_repr};
 
+impl proto::GasLimitMode {
+    fn new(x: &configs::eth_sender::GasLimitMode) -> Self {
+        use configs::eth_sender::GasLimitMode as From;
+        match x {
+            From::Maximum => proto::GasLimitMode::Maximum,
+            From::Calculated => proto::GasLimitMode::Calculated,
+        }
+    }
+
+    fn parse(&self) -> configs::eth_sender::GasLimitMode {
+        use configs::eth_sender::GasLimitMode as TO;
+        match self {
+            Self::Maximum => TO::Maximum,
+            Self::Calculated => TO::Calculated,
+        }
+    }
+}
+
 impl proto::ProofSendingMode {
     fn new(x: &configs::eth_sender::ProofSendingMode) -> Self {
         use configs::eth_sender::ProofSendingMode as From;
@@ -113,6 +131,16 @@ impl ProtoRepr for proto::Sender {
                 .time_in_mempool_in_l1_blocks_cap
                 .unwrap_or(Self::Type::default_time_in_mempool_in_l1_blocks_cap()),
             is_verifier_pre_fflonk: self.is_verifier_pre_fflonk.unwrap_or(true),
+            gas_limit_mode: self
+                .gas_limit_mode
+                .map(proto::GasLimitMode::try_from)
+                .transpose()
+                .context("gas_limit_mode")?
+                .map(|a| a.parse())
+                .unwrap_or(Self::Type::default_gas_limit_mode()),
+            max_acceptable_base_fee_in_wei: self
+                .max_acceptable_base_fee_in_wei
+                .unwrap_or(Self::Type::default_max_acceptable_base_fee_in_wei()),
         })
     }
 
@@ -142,6 +170,8 @@ impl ProtoRepr for proto::Sender {
             tx_aggregation_paused: Some(this.tx_aggregation_paused),
             time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
             is_verifier_pre_fflonk: Some(this.is_verifier_pre_fflonk),
+            gas_limit_mode: Some(proto::GasLimitMode::new(&this.gas_limit_mode).into()),
+            max_acceptable_base_fee_in_wei: Some(this.max_acceptable_base_fee_in_wei),
         }
     }
 }

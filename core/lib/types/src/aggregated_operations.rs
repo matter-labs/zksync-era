@@ -41,11 +41,3 @@ impl FromStr for AggregatedActionType {
         }
     }
 }
-
-/// Additional gas cost of processing `Execute` operation per batch.
-/// It's applicable iff SL is Ethereum.
-pub const L1_BATCH_EXECUTE_BASE_COST: u32 = 30_000;
-
-/// Additional gas cost of processing `Execute` operation per L1->L2 tx.
-/// It's applicable iff SL is Ethereum.
-pub const L1_OPERATION_EXECUTE_COST: u32 = 12_500;

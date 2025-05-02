@@ -221,6 +221,7 @@ impl TestScenario {
             output_handler,
             Arc::new(sealer),
             Arc::new(MockReadStorageFactory),
+            None,
         );
         let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
@@ -672,9 +673,13 @@ impl TestIO {
     }
 }
 
+#[async_trait]
 impl IoSealCriteria for TestIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        (self.l1_batch_seal_fn)(manager)
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
+        Ok((self.l1_batch_seal_fn)(manager))
     }
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {

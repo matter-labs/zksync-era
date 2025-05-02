@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            recursion_tip_witness_jobs_fri (\n                l1_batch_number, status, number_of_final_node_jobs, created_at, updated_at\n            )\n            VALUES\n            ($1, 'waiting_for_proofs', 1, NOW(), NOW())\n            ON CONFLICT (l1_batch_number, chain_id) DO\n            UPDATE\n            SET\n            status = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bcbbe257dd0f71f01c8bdf4fd02f794e4d423055102032be87494d8886083ce3"
+}
