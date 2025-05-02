@@ -6,10 +6,11 @@ use std::{
 
 use serde::Deserialize;
 use smart_config::{
-    de::{Entries, Qualified, Serde, WellKnown},
-    metadata::TimeUnit,
+    de,
+    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown},
+    metadata::{BasicTypes, ParamMetadata, TypeDescription},
     value::SecretString,
-    DescribeConfig, DeserializeConfig,
+    DescribeConfig, DeserializeConfig, ErrorWithOrigin,
 };
 use zksync_basic_types::{ethabi, L2ChainId};
 use zksync_concurrency::{limiter, time};
@@ -112,6 +113,33 @@ impl RpcConfig {
     }
 }
 
+#[derive(Debug)]
+struct CustomDurationFormat;
+
+impl de::DeserializeParam<Duration> for CustomDurationFormat {
+    const EXPECTING: BasicTypes = BasicTypes::OBJECT;
+
+    fn describe(&self, description: &mut TypeDescription) {
+        description.set_details("object with `seconds` and `nanos` fields");
+    }
+
+    fn deserialize_param(
+        &self,
+        ctx: DeserializeContext<'_>,
+        param: &'static ParamMetadata,
+    ) -> Result<Duration, ErrorWithOrigin> {
+        // We cannot deserialize `Duration` directly because it expects an object with the `secs` (not `seconds`!) and `nanos` fields.
+        #[derive(Deserialize)]
+        struct SerdeDuration {
+            seconds: u64,
+            nanos: u32,
+        }
+
+        let duration = SerdeDuration::deserialize(ctx.current_value_deserializer(param.name)?)?;
+        Ok(Duration::new(duration.seconds, duration.nanos))
+    }
+}
+
 /// Config (shared between main node and external node).
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ConsensusConfig {
@@ -128,7 +156,8 @@ pub struct ConsensusConfig {
     pub max_payload_size: usize,
 
     /// View timeout duration.
-    #[config(default_t = Duration::from_secs(2), with = TimeUnit::Millis)]
+    // FIXME: using a custom format for duration is counter-productive.
+    #[config(default_t = Duration::from_secs(2), with = CustomDurationFormat)]
     pub view_timeout: Duration,
 
     /// Maximal allowed size of the sync-batch payloads in bytes.
@@ -238,7 +267,9 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000
-            view_timeout: 3000
+            view_timeout:
+              seconds: 3
+              nanos: 0
             gossip_dynamic_inbound_limit: 10
             gossip_static_inbound:
             - node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291
@@ -276,7 +307,9 @@ mod tests {
             public_addr: 127.0.0.1:2954
             debug_page_addr: 127.0.0.1:3000
             max_payload_size: 2000000
-            view_timeout: 3000
+            view_timeout:
+              seconds: 3
+              nanos: 0
             gossip_dynamic_inbound_limit: 10
             gossip_static_inbound:
             - node:public:ed25519:5c270ee08cae1179a65845a62564ae5d216cbe2c97ed5083f512f2df353bb291
