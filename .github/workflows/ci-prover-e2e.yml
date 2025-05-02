@@ -80,7 +80,7 @@ jobs:
       - name: Change block_commit_deadline_ms to 60000 to submit txs to batch 1
         working-directory: ./chains/proving_chain/configs
         run: |
-          yq -e -i '.state_keeper.block_commit_deadline_ms = "60000"' general.yaml
+          sudo yq -e -i '.state_keeper.block_commit_deadline_ms = "60000"' general.yaml
           yq '.state_keeper.block_commit_deadline_ms' general.yaml
 
       - name: Prepare prover subsystem
