@@ -158,6 +158,7 @@ pub struct V28PrecompilesCalldataArgs {
     upgrade_description_path: String,
     chain_id: u64,
     gw_chain_id: u64,
+    l1_gas_price: u64,
     l1_rpc_url: String,
     l2_rpc_url: String,
     gw_rpc_url: String,
@@ -196,9 +197,6 @@ pub struct V28UpgradeInfo {
 
     new_protocol_version: u64,
     old_protocol_version: u64,
-
-    // FIXME: move it as a separate CLI param
-    l1_gas_price: u64,
 
     gateway_diamond_cut: Bytes,
 }
@@ -260,13 +258,13 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
 
         admin_calls_gw
             .prepare_upgrade_chain_on_gateway_calls(
-                &shell,
+                shell,
                 forge_args,
                 &foundry_contracts_path,
                 args.chain_id,
                 args.gw_chain_id,
                 upgrade_info.bridgehub_addr,
-                upgrade_info.l1_gas_price,
+                args.l1_gas_price,
                 upgrade_info.old_protocol_version,
                 chain_info.gw_hyperchain_addr,
                 chain_info.l1_asset_router_proxy,
