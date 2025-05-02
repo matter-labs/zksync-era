@@ -180,7 +180,12 @@ impl RocksdbStorage {
         if *stop_receiver.borrow() {
             return Err(RocksdbSyncError::Interrupted);
         }
-        tracing::info!("Recovering secondary storage from snapshot: {init_parameters:?}");
+
+        tracing::info!(
+            ?init_parameters,
+            concurrency = pool.max_size(),
+            "Recovering secondary storage from snapshot"
+        );
 
         let mut storage = pool.connection_tagged("state_keeper").await?;
         self.set_l1_batch_number(init_parameters.l1_batch, true)
