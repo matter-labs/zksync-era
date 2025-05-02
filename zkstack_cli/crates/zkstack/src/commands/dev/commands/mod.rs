@@ -17,3 +17,5 @@ pub mod track_priority_txs;
 pub mod upgrade_utils;
 #[cfg(feature = "v27_evm_interpreter")]
 pub mod v27_evm_eq;
+#[cfg(feature = "v28_precompiles")]
+pub mod v28_precompiles;

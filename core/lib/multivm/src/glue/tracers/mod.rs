@@ -52,7 +52,7 @@ pub trait MultiVmTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait IntoLatestTracer<S: WriteStorage, H: HistoryMode> {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_5_0>;
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_5_2>;
 }
 
 pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
@@ -98,9 +98,9 @@ impl<S, T, H> IntoLatestTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,
-    T: crate::vm_latest::VmTracer<S, H::Vm1_5_0> + Clone + 'static,
+    T: crate::vm_latest::VmTracer<S, H::Vm1_5_2> + Clone + 'static,
 {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_5_0> {
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_5_2> {
         Box::new(self.clone())
     }
 }
