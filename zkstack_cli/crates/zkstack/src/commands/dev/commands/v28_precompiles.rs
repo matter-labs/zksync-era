@@ -253,7 +253,7 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
         let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
         admin_calls_gw.append_execute_upgrade(
-            chain_info.gw_hyperchain_addr,
+            chain_info.hyperchain_addr,
             upgrade_info.old_protocol_version,
             upgrade_info.chain_upgrade_diamond_cut.clone(),
         );
