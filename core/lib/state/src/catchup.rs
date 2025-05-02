@@ -184,7 +184,6 @@ impl AsyncCatchupTask {
             tracing::info!("RocksDB cache recovery was interrupted");
             return Ok(());
         };
-        dbg!(&init_strategy);
 
         if matches!(init_strategy, InitStrategy::Recovery) {
             let elapsed = started_at.elapsed();
