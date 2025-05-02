@@ -121,7 +121,9 @@ pub(crate) const fn get_last_processed_block_number_offset(subversion: MultiVmSu
 /// We store the next messageRoot number to be processed.
 /// For each txs we check if the next messageRoot belongs to a block that we should process, if yes we store it and continue to the next.
 /// If no, we stop.
-pub(crate) const fn get_current_number_of_roots_in_block_offset(subversion: MultiVmSubversion) -> usize {
+pub(crate) const fn get_current_number_of_roots_in_block_offset(
+    subversion: MultiVmSubversion,
+) -> usize {
     get_last_processed_block_number_offset(subversion) + 1
 }
 
