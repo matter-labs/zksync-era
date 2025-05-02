@@ -323,7 +323,7 @@ impl StateKeeperIO for ExternalIO {
                     .blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
-                        timestamp: params.first_l2_block.timestamp,
+                        timestamp: params.first_l2_block.timestamp(),
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
@@ -363,7 +363,7 @@ impl StateKeeperIO for ExternalIO {
         }
     }
 
-    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u64) {}
+    fn update_next_l2_block_timestamp(&mut self, _block_timestamp: &mut u128) {}
 
     async fn wait_for_next_tx(
         &mut self,
@@ -533,7 +533,7 @@ mod tests {
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams {
-                timestamp: 1,
+                timestamp_ms: 1000,
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),

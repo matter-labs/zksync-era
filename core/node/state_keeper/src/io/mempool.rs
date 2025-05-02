@@ -193,7 +193,7 @@ impl StateKeeperIO for MempoolIO {
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
                 first_l2_block: L2BlockParams {
-                    timestamp: unsealed_storage_batch.timestamp,
+                    timestamp_ms: u128::from(unsealed_storage_batch.timestamp) * 1000,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
@@ -206,9 +206,10 @@ impl StateKeeperIO for MempoolIO {
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            // We cannot create two L1 batches or L2 blocks with the same timestamp (forbidden by the bootloader).
+            // We cannot create two L1 batches with the same timestamp (forbidden by the bootloader).
             // Hence, we wait until the current timestamp is larger than the timestamp of the previous L2 block.
             // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
+            // TODO: sleep past not previous block timestamp but rather batch timestamp.
             let timestamp = tokio::time::timeout_at(
                 deadline.into(),
                 sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
@@ -279,7 +280,7 @@ impl StateKeeperIO for MempoolIO {
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
                 first_l2_block: L2BlockParams {
-                    timestamp,
+                    timestamp_ms: millis_since_epoch(),
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
@@ -291,37 +292,25 @@ impl StateKeeperIO for MempoolIO {
 
     async fn wait_for_new_l2_block_params(
         &mut self,
-        cursor: &IoCursor,
-        max_wait: Duration,
+        _cursor: &IoCursor,
+        _max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
-        // We must provide different timestamps for each L2 block.
-        // If L2 block sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
-        let timeout_result = tokio::time::timeout(
-            max_wait,
-            sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
-        )
-        .await;
-        let Ok(timestamp) = timeout_result else {
-            return Ok(None);
-        };
-
         Ok(Some(L2BlockParams {
-            timestamp,
+            timestamp_ms: millis_since_epoch(),
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
         }))
     }
 
-    fn update_next_l2_block_timestamp(&mut self, block_timestamp: &mut u64) {
-        let current_timestamp_millis = millis_since_epoch();
-        let current_timestamp = (current_timestamp_millis / 1_000) as u64;
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u128) {
+        let current_timestamp_ms = millis_since_epoch();
 
-        if current_timestamp < *block_timestamp {
+        if current_timestamp_ms < *block_timestamp_ms {
             tracing::warn!(
-                "Trying to update block timestamp {block_timestamp} with lower value timestamp {current_timestamp}",
+                "Trying to update block timestamp {block_timestamp_ms} with lower value timestamp {current_timestamp_ms}",
             );
         } else {
-            *block_timestamp = current_timestamp;
+            *block_timestamp_ms = current_timestamp_ms;
         }
     }
 

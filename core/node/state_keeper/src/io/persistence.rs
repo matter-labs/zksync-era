@@ -489,6 +489,7 @@ mod tests {
             &default_system_env(),
             Default::default(),
             Default::default(),
+            u128::from(l1_batch_env.first_l2_block.timestamp) * 1000,
         );
         pool.connection()
             .await
@@ -514,7 +515,7 @@ mod tests {
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
         updates.set_next_l2_block_params(L2BlockParams {
-            timestamp: 1,
+            timestamp_ms: 1000,
             virtual_blocks: 1,
         });
         updates.push_l2_block();
@@ -626,7 +627,7 @@ mod tests {
 
         // The second command should lead to blocking
         updates_manager.set_next_l2_block_params(L2BlockParams {
-            timestamp: 2,
+            timestamp_ms: 2000,
             virtual_blocks: 1,
         });
         updates_manager.push_l2_block();
@@ -655,7 +656,7 @@ mod tests {
         persistence.wait_for_all_commands().await;
 
         updates_manager.set_next_l2_block_params(L2BlockParams {
-            timestamp: 3,
+            timestamp_ms: 3000,
             virtual_blocks: 1,
         });
         updates_manager.push_l2_block();
@@ -680,7 +681,7 @@ mod tests {
             let seal_command =
                 updates_manager.seal_l2_block_command(Some(Address::default()), false);
             updates_manager.set_next_l2_block_params(L2BlockParams {
-                timestamp: i,
+                timestamp_ms: i * 1000,
                 virtual_blocks: 1,
             });
             updates_manager.push_l2_block();

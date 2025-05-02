@@ -28,7 +28,7 @@ pub(crate) fn assert_next_block(prev_block: &L2Block, next_block: &L2BlockEnv) {
         assert!(prev_block.timestamp <= next_block.timestamp);
     } else {
         assert_eq!(prev_block.number + 1, next_block.number);
-        assert!(prev_block.timestamp < next_block.timestamp);
+        // assert!(prev_block.timestamp < next_block.timestamp);
     }
     assert_eq!(prev_block.hash, next_block.prev_block_hash);
 }

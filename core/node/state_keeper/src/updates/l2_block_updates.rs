@@ -28,7 +28,7 @@ pub struct L2BlockUpdates {
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
     pub l1_tx_count: usize,
-    pub timestamp: u64,
+    pub timestamp_ms: u128,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
@@ -37,7 +37,7 @@ pub struct L2BlockUpdates {
 
 impl L2BlockUpdates {
     pub(crate) fn new(
-        timestamp: u64,
+        timestamp_ms: u128,
         number: L2BlockNumber,
         prev_block_hash: H256,
         virtual_blocks: u32,
@@ -54,7 +54,7 @@ impl L2BlockUpdates {
             txs_encoding_size: 0,
             payload_encoding_size: 0,
             l1_tx_count: 0,
-            timestamp,
+            timestamp_ms,
             number,
             prev_block_hash,
             virtual_blocks,
@@ -164,7 +164,7 @@ impl L2BlockUpdates {
 
     /// Calculates L2 block hash based on the protocol version.
     pub(crate) fn get_l2_block_hash(&self) -> H256 {
-        let mut digest = L2BlockHasher::new(self.number, self.timestamp, self.prev_block_hash);
+        let mut digest = L2BlockHasher::new(self.number, self.timestamp(), self.prev_block_hash);
         for tx in &self.executed_transactions {
             digest.push_tx_hash(tx.hash);
         }
@@ -174,10 +174,14 @@ impl L2BlockUpdates {
     pub(crate) fn get_env(&self) -> L2BlockEnv {
         L2BlockEnv {
             number: self.number.0,
-            timestamp: self.timestamp,
+            timestamp: self.timestamp(),
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
         }
+    }
+
+    pub fn timestamp(&self) -> u64 {
+        u64::try_from(self.timestamp_ms / 1000).unwrap()
     }
 }
 
