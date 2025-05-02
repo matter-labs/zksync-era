@@ -16,5 +16,6 @@ version.
 | 25.0    | protocol defence                     |                 | no circuit changes      |
 | 26.0    | gateway & bridges                    |                 | no circuit changes      |
 | 27.0    | EVM emulator & FFLONK                | 1.5.1           | compressor keys changed |
+| 28.0    | gateway precompiles                  |                 | added 4 circuits        |
 
 And from version 24, we switched to semver (so 0.24.0, 0.24.1 etc).

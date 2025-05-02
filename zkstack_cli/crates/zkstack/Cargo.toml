@@ -59,3 +59,4 @@ xshell.workspace = true
 # These should be available for outside users until stabilized.
 gateway = []
 v27_evm_interpreter = ["gateway"]
+v28_precompiles = ["gateway"]
