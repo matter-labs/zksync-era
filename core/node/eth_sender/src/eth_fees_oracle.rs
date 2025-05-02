@@ -62,7 +62,7 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool_in_l1_blocks: u32,
     ) -> Result<EthFees, EthSenderError> {
-        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 2.00 + 0.01;
+        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 2.00;
 
         let base_fee_per_gas = self
             .gas_adjuster
@@ -115,7 +115,7 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool_in_l1_blocks: u32,
     ) -> Result<EthFees, EthSenderError> {
-        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 1.10 + 0.01;
+        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 1.10;
 
         // we cap it to not allow nearly infinite values when a tx is stuck for a long time
         let capped_time_in_mempool_in_l1_blocks = min(
@@ -171,7 +171,7 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool_in_l1_blocks: u32,
     ) -> Result<EthFees, EthSenderError> {
-        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 1.10 + 0.01;
+        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 1.10;
 
         // we cap it to not allow nearly infinite values when a tx is stuck for a long time
         let capped_time_in_mempool_in_l1_blocks = min(
