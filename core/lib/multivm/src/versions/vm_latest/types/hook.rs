@@ -1,5 +1,5 @@
 #[derive(Debug, Copy, Clone)]
-pub enum VmHook {
+pub(crate) enum VmHook {
     AccountValidationEntered,
     PaymasterValidationEntered,
     ValidationExited,

@@ -14,7 +14,9 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import {
     L2_MESSAGE_VERIFICATION_ADDRESS,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
     ArtifactL2MessageVerification,
+    ArtifactL2InteropRootStorage,
     ETH_ADDRESS_IN_CONTRACTS,
     ArtifactBridgeHub
 } from '../src/constants';
@@ -221,15 +223,8 @@ describe('L1 ERC20 contract checks', () => {
         const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await delay(10000);
-        await (
-            await alice.deposit({
-                token: ETH_ADDRESS_IN_CONTRACTS,
-                to: alice.address,
-                amount: 1
-            })
-        ).wait();
-        await delay(5000);
+
+        await waitForInteropRootNonZero(alice,  506n, parseInt(params.proof[25].slice(2, 34), 16));
 
         // sma TODO hacky workaround for now to rewrite the much needed block number--remove when available!
         // sma TODO end of hacky workaround
@@ -243,6 +238,25 @@ describe('L1 ERC20 contract checks', () => {
         );
         expect(included).toBe(true);
     });
+
+    async function waitForInteropRootNonZero(alice: zksync.Wallet, chainId: bigint, l1BatchNumber: number) {
+        const l2InteropRootStorage = new zksync.Contract(
+            L2_INTEROP_ROOT_STORAGE_ADDRESS,
+            ArtifactL2InteropRootStorage.abi,
+            alice.provider
+        );
+        while (await l2InteropRootStorage.msgRoots(chainId, l1BatchNumber) === ethers.ZeroHash) {
+            await (
+                await alice.deposit({
+                    token: ETH_ADDRESS_IN_CONTRACTS,
+                    to: alice.address,
+                    amount: 1
+                })
+            ).wait();
+            await delay(5000);
+        }
+        console.log('Interop root is non-zero', await l2InteropRootStorage.msgRoots(chainId, l1BatchNumber));
+    }
 
     function delay(ms: number) {
         return new Promise((resolve) => setTimeout(resolve, ms));
