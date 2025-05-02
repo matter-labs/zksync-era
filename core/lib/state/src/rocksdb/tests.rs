@@ -461,6 +461,8 @@ async fn partially_recover_storage(
     temp_dir: &TempDir,
     from_genesis: bool,
 ) -> (Vec<StorageLog>, u64) {
+    assert_eq!(pool.max_size(), 1);
+
     let mut conn = pool.connection().await.unwrap();
     let storage_logs = if from_genesis {
         prepare_postgres_with_log_count(&mut conn, 2_000).await
@@ -475,9 +477,9 @@ async fn partially_recover_storage(
         .unwrap();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let synced_chunk_count = AtomicU64::new(0);
-    storage.listener.on_logs_chunk_recovered = Arc::new(move |chunk_id| {
-        assert_eq!(chunk_id, synced_chunk_count.fetch_add(1, Ordering::Relaxed));
-        if chunk_id == 2 {
+    storage.listener.on_logs_chunk_recovered = Arc::new(move |_| {
+        let synced_chunk_count = synced_chunk_count.fetch_add(1, Ordering::Relaxed) + 1;
+        if synced_chunk_count == 3 {
             stop_sender.send_replace(true);
         }
     });
@@ -502,7 +504,7 @@ async fn partially_recover_storage(
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn recovery_fault_tolerance(from_genesis: bool) {
-    let pool = ConnectionPool::<Core>::test_pool().await;
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
 
     let (storage_logs, log_chunk_size) = partially_recover_storage(&pool, &dir, from_genesis).await;
@@ -512,9 +514,12 @@ async fn recovery_fault_tolerance(from_genesis: bool) {
     let mut storage = RocksdbStorage::new(dir.path().into(), RocksdbStorageOptions::default())
         .await
         .unwrap();
-    storage.listener.on_logs_chunk_recovered = Arc::new(|chunk_id| {
-        assert!(chunk_id >= 2);
+    let synced_chunk_count = Arc::new(AtomicU64::new(0));
+    let synced_chunk_count_for_listener = synced_chunk_count.clone();
+    storage.listener.on_logs_chunk_recovered = Arc::new(move |_| {
+        synced_chunk_count_for_listener.fetch_add(1, Ordering::Relaxed);
     });
+
     let (strategy, next_l1_batch) = storage
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
@@ -527,6 +532,12 @@ async fn recovery_fault_tolerance(from_genesis: bool) {
     }
     let recovery_l1_batch = storage.recovery_l1_batch_number().await.unwrap();
     assert_eq!(recovery_l1_batch, None); // unset at the end of recovery
+
+    let expected_synced_chunk_count = (storage_logs.len() as u64).div_ceil(log_chunk_size) - 3;
+    assert_eq!(
+        synced_chunk_count.load(Ordering::Relaxed),
+        expected_synced_chunk_count
+    );
 
     for log in &storage_logs {
         assert_eq!(storage.read_value(&log.key), log.value);
@@ -672,7 +683,7 @@ async fn recovery_with_pruning_and_overwritten_logs() {
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
-    let pool = ConnectionPool::<Core>::test_pool().await;
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
 
     let (_, log_chunk_size) = partially_recover_storage(&pool, &dir, from_genesis).await;
@@ -715,21 +726,26 @@ async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
 
 /// Prunes the storage while recovery is in progress.
 #[derive(Debug)]
-struct PruningHandler(ConnectionPool<Core>);
+struct PruningHandler {
+    pool: ConnectionPool<Core>,
+    synced_chunk_count: AtomicU64,
+}
 
 #[async_trait]
 impl AsyncHandler<u64> for PruningHandler {
-    async fn handle(&self, chunk_id: u64) {
-        assert!(chunk_id <= 2);
-        if chunk_id == 2 {
-            prune_storage(&self.0, L1BatchNumber(1)).await;
+    async fn handle(&self, _chunk_id: u64) {
+        let synced_chunk_count = self.synced_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
+        if synced_chunk_count == 3 {
+            prune_storage(&self.pool, L1BatchNumber(1)).await;
         }
     }
 }
 
 #[tokio::test]
 async fn recovery_detects_additional_pruning_in_progress() {
-    let pool = ConnectionPool::<Core>::test_pool().await;
+    // We need a singleton pool to guarantee that all pruning checks won't run before pruning is triggered
+    // by `PruningHandler`.
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut conn = pool.connection().await.unwrap();
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
 
@@ -746,7 +762,10 @@ async fn recovery_detects_additional_pruning_in_progress() {
         .await
         .unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    storage.listener.on_logs_chunk_recovered = Arc::new(PruningHandler(pool.clone()));
+    storage.listener.on_logs_chunk_recovered = Arc::new(PruningHandler {
+        pool: pool.clone(),
+        synced_chunk_count: AtomicU64::new(0),
+    });
 
     let log_chunk_size = 10;
     let err = storage

@@ -3,7 +3,8 @@
 use std::{num::NonZeroU32, ops};
 
 use anyhow::Context as _;
-use tokio::sync::watch;
+use futures::future;
+use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{
     storage_logs_dal::StorageRecoveryLogEntry, Connection, ConnectionPool, Core, CoreDal, DalError,
 };
@@ -139,6 +140,7 @@ impl RocksdbStorage {
             .await
             .map_err(DalError::generalize)?;
         let init_params = InitParameters::new(&mut storage, desired_log_chunk_size).await?;
+        drop(storage);
 
         if let Some(recovery_batch_number) = self.recovery_l1_batch_number().await? {
             tracing::info!(?recovery_batch_number, "Resuming storage recovery");
@@ -155,8 +157,7 @@ impl RocksdbStorage {
         }
 
         Ok(if let Some(init_params) = init_params {
-            // FIXME: parallelize recovery
-            self.recover_from_snapshot(&mut storage, &init_params, stop_receiver)
+            self.recover_from_snapshot(pool, &init_params, stop_receiver)
                 .await?;
             (InitStrategy::Recovery, init_params.l1_batch + 1)
         } else {
@@ -172,7 +173,7 @@ impl RocksdbStorage {
     /// (it would be considered complete even if it failed in the middle).
     async fn recover_from_snapshot(
         &mut self,
-        storage: &mut Connection<'_, Core>,
+        pool: &ConnectionPool<Core>,
         init_parameters: &InitParameters,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), RocksdbSyncError> {
@@ -181,58 +182,47 @@ impl RocksdbStorage {
         }
         tracing::info!("Recovering secondary storage from snapshot: {init_parameters:?}");
 
+        let mut storage = pool.connection_tagged("state_keeper").await?;
         self.set_l1_batch_number(init_parameters.l1_batch, true)
             .await?;
-        self.recover_factory_deps(storage, init_parameters).await?;
+        self.recover_factory_deps(&mut storage, init_parameters)
+            .await?;
 
         if *stop_receiver.borrow() {
             return Err(RocksdbSyncError::Interrupted);
         }
-        let key_chunks = Self::load_key_chunks(storage, init_parameters).await?;
+        let key_chunks = Self::load_key_chunks(&mut storage, init_parameters).await?;
+        drop(storage);
 
-        RECOVERY_METRICS.recovered_chunk_count.set(0);
-        for key_chunk in key_chunks {
-            if *stop_receiver.borrow() {
-                return Err(RocksdbSyncError::Interrupted);
-            }
+        let semaphore = Semaphore::new(pool.max_size() as usize);
+        let total_chunk_count = key_chunks.len();
+        let key_chunks = self.filter_key_chunks(key_chunks, init_parameters).await?;
+        let recovered_chunk_count = total_chunk_count - key_chunks.len();
+        RECOVERY_METRICS
+            .recovered_chunk_count
+            .set(recovered_chunk_count);
+        tracing::info!(
+            "Checked chunk starts; {recovered_chunk_count} chunks are already recovered"
+        );
 
-            let chunk_id = key_chunk.id;
-            let Some(chunk_start) = key_chunk.start_entry else {
-                tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) doesn't have entries in Postgres; skipping");
-                RECOVERY_METRICS.recovered_chunk_count.inc_by(1);
-                continue;
-            };
-
-            // Check whether the chunk is already recovered.
-            let state_value = self.read_state_value_async(chunk_start.key).await;
-            if let Some(state_value) = state_value {
-                if state_value.value != chunk_start.value
-                    || state_value.enum_index != Some(chunk_start.leaf_index)
-                {
-                    let err = anyhow::anyhow!(
-                        "Mismatch between entry for key {:?} in Postgres snapshot for L2 block #{} \
-                         ({chunk_start:?}) and RocksDB cache ({state_value:?}); the recovery procedure may be corrupted",
-                        chunk_start.key,
-                        init_parameters.l1_batch
-                    );
-                    return Err(err.into());
-                }
-                tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) is already recovered; skipping");
-            } else {
-                self.recover_logs_chunk(storage, init_parameters, key_chunk.key_range.clone())
-                    .await
-                    .with_context(|| {
-                        format!(
-                            "failed recovering logs chunk {chunk_id} (hashed key range {:?})",
-                            key_chunk.key_range
-                        )
-                    })?;
-
-                #[cfg(test)]
-                self.listener.on_logs_chunk_recovered.handle(chunk_id).await;
-            }
-            RECOVERY_METRICS.recovered_chunk_count.inc_by(1);
-        }
+        let db_mutex = Mutex::new(self.clone());
+        let chunk_tasks = key_chunks.into_iter().map(|chunk| async {
+            let _permit = semaphore
+                .acquire()
+                .await
+                .context("semaphore is never closed")?;
+            Self::recover_logs_chunk(
+                &db_mutex,
+                pool,
+                init_parameters,
+                chunk,
+                total_chunk_count,
+                stop_receiver,
+            )
+            .await
+        });
+        future::try_join_all(chunk_tasks).await?;
+        drop(db_mutex);
 
         tracing::info!("All chunks recovered; finalizing recovery process");
         self.save(Some(init_parameters.l1_batch + 1)).await?;
@@ -331,37 +321,104 @@ impl RocksdbStorage {
         Ok(())
     }
 
-    async fn recover_logs_chunk(
-        &mut self,
-        storage: &mut Connection<'_, Core>,
+    async fn filter_key_chunks(
+        &self,
+        key_chunks: Vec<KeyChunk>,
         init_parameters: &InitParameters,
-        key_chunk: ops::RangeInclusive<H256>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<KeyChunk>> {
+        let mut retained_chunks = vec![];
+        for key_chunk in key_chunks {
+            let chunk_id = key_chunk.id;
+            let Some(chunk_start) = key_chunk.start_entry else {
+                tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) doesn't have entries in Postgres; skipping");
+                continue;
+            };
+
+            // Check whether the chunk is already recovered.
+            let state_value = self.read_state_value_async(chunk_start.key).await;
+            if let Some(state_value) = state_value {
+                if state_value.value != chunk_start.value
+                    || state_value.enum_index != Some(chunk_start.leaf_index)
+                {
+                    anyhow::bail!(
+                        "Mismatch between entry for key {:?} in Postgres snapshot for L2 block #{} \
+                         ({chunk_start:?}) and RocksDB cache ({state_value:?}); the recovery procedure may be corrupted",
+                        chunk_start.key,
+                        init_parameters.l1_batch
+                    );
+                }
+                tracing::info!("Chunk {chunk_id} (hashed key range {key_chunk:?}) is already recovered; skipping");
+            } else {
+                retained_chunks.push(key_chunk);
+            }
+        }
+        Ok(retained_chunks)
+    }
+
+    #[tracing::instrument(skip_all, fields(id = key_chunk.id, range = ?key_chunk.key_range))]
+    async fn recover_logs_chunk(
+        this: &Mutex<Self>,
+        pool: &ConnectionPool<Core>,
+        init_parameters: &InitParameters,
+        key_chunk: KeyChunk,
+        total_chunk_count: usize,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Result<(), RocksdbSyncError> {
+        let latency =
+            RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
+        let mut storage = pool.connection_tagged("state_keeper").await?;
+        latency.observe();
+
+        if *stop_receiver.borrow() {
+            return Err(RocksdbSyncError::Interrupted);
+        }
+
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
         let all_entries = storage
             .storage_logs_dal()
-            .get_tree_entries_for_l2_block(init_parameters.l2_block, key_chunk.clone())
+            .get_tree_entries_for_l2_block(init_parameters.l2_block, key_chunk.key_range.clone())
             .await?;
         let latency = latency.observe();
-        tracing::debug!(
-            "Loaded {} log entries for chunk {key_chunk:?} in {latency:?}",
-            all_entries.len()
-        );
+        tracing::debug!(?latency, len = all_entries.len(), "Loaded log entries");
 
-        Self::check_pruning_info(storage, init_parameters.l1_batch).await?;
+        if *stop_receiver.borrow() {
+            return Err(RocksdbSyncError::Interrupted);
+        }
+
+        Self::check_pruning_info(&mut storage, init_parameters.l1_batch).await?;
+        drop(storage);
+
+        let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LockDb].start();
+        let mut this = this.lock().await;
+        let latency = latency.observe();
+        tracing::debug!(?latency, "Acquired RocksDB mutex");
+
+        if *stop_receiver.borrow() {
+            return Err(RocksdbSyncError::Interrupted);
+        }
 
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::SaveEntries].start();
-        self.pending_patch.state = all_entries
+        this.pending_patch.state = all_entries
             .into_iter()
             .map(|entry| (entry.key, (entry.value, entry.leaf_index)))
             .collect();
-        self.save(None)
+        this.save(None)
             .await
             .context("failed saving storage logs chunk")?;
         let latency = latency.observe();
-        tracing::debug!("Saved logs chunk {key_chunk:?} to RocksDB in {latency:?}");
+        tracing::debug!(?latency, "Saved logs");
 
-        tracing::info!("Recovered hashed key chunk {key_chunk:?}");
+        let recovered_chunk_count = RECOVERY_METRICS.recovered_chunk_count.inc_by(1) + 1;
+        let chunks_left = total_chunk_count.saturating_sub(recovered_chunk_count);
+        tracing::info!(
+            "Recovered {recovered_chunk_count}/{total_chunk_count} RocksDB cache chunks, there are {chunks_left} left to process",
+        );
+
+        #[cfg(test)]
+        this.listener
+            .on_logs_chunk_recovered
+            .handle(key_chunk.id)
+            .await;
         Ok(())
     }
 }

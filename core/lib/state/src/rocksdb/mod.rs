@@ -130,6 +130,12 @@ impl From<anyhow::Error> for RocksdbSyncError {
     }
 }
 
+impl From<DalError> for RocksdbSyncError {
+    fn from(err: DalError) -> Self {
+        Self::Internal(err.generalize())
+    }
+}
+
 /// Options for [`RocksdbStorage`].
 #[derive(Debug, Clone, Copy)]
 pub struct RocksdbStorageOptions {
