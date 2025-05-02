@@ -191,14 +191,9 @@ impl RocksdbStorageBuilder {
         })
     }
 
-    /// Returns the last processed l1 batch number + 1.
-    ///
-    /// # Panics
-    ///
-    /// Panics on RocksDB errors.
-    // FIXME: replace by get?
-    pub async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
-        self.0.l1_batch_number().await
+    /// Returns the last processed l1 batch number + 1, or `None` if the storage is not initialized.
+    pub(crate) async fn next_l1_batch_number(&self) -> Option<L1BatchNumber> {
+        self.0.next_l1_batch_number_opt().await
     }
 
     /// Ensures that the storage is ready to process L1 batches (i.e., has completed snapshot recovery).
@@ -233,22 +228,10 @@ impl RocksdbStorageBuilder {
     /// Gets the underlying storage if it is initialized. Unlike [`Self::ensure_ready()`], this method
     /// won't attempt to initialize the storage.
     pub async fn get(&self) -> Option<RocksdbStorage> {
-        if self.l1_batch_number().await.is_some() {
+        if self.next_l1_batch_number().await.is_some() {
             Some(self.0.clone())
         } else {
             None
-        }
-    }
-}
-
-// FIXME: remove
-impl From<RocksDB<StateKeeperColumnFamily>> for RocksdbStorage {
-    fn from(value: RocksDB<StateKeeperColumnFamily>) -> Self {
-        Self {
-            db: value,
-            pending_patch: PendingPatch::default(),
-            #[cfg(test)]
-            listener: RocksdbStorageEventListener::default(),
         }
     }
 }
@@ -317,10 +300,7 @@ impl RocksdbStorage {
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
     ) -> anyhow::Result<Option<Self>> {
-        let mut current_l1_batch_number = self
-            .l1_batch_number()
-            .await
-            .context("RocksDB cache is not initialized")?;
+        let mut current_l1_batch_number = self.next_l1_batch_number().await;
 
         let latency = METRICS.update.start();
         let Some(latest_l1_batch_number) =
@@ -596,13 +576,18 @@ impl RocksdbStorage {
             .context("panicked when saving state data into RocksDB")?
     }
 
-    // FIXME: remove `Option`?
     /// Returns the last processed l1 batch number + 1.
     ///
     /// # Panics
     ///
     /// Panics on RocksDB errors.
-    pub async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
+    pub async fn next_l1_batch_number(&self) -> L1BatchNumber {
+        self.next_l1_batch_number_opt()
+            .await
+            .expect("Next L1 batch number is not set for initialized RocksDB cache")
+    }
+
+    async fn next_l1_batch_number_opt(&self) -> Option<L1BatchNumber> {
         let cf = StateKeeperColumnFamily::State;
         let db = self.db.clone();
         let number_bytes =

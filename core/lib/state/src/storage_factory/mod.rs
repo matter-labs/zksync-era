@@ -102,10 +102,7 @@ impl CommonStorage<'static> {
             tracing::info!("Synchronizing RocksDB interrupted");
             return Ok(None);
         };
-        let rocksdb_l1_batch_number = rocksdb
-            .l1_batch_number()
-            .await
-            .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?;
+        let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
         if l1_batch_number + 1 != rocksdb_l1_batch_number {
             anyhow::bail!(
                 "RocksDB synchronized to L1 batch #{} while #{} was expected",
@@ -131,10 +128,7 @@ impl CommonStorage<'static> {
         batch_diffs: &BatchDiffs,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Self> {
-        let rocksdb_l1_batch_number = rocksdb
-            .l1_batch_number()
-            .await
-            .context("Rocksdb storage is not initialized")?;
+        let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
 
         match (l1_batch_number + 1).cmp(&rocksdb_l1_batch_number) {
             Ordering::Equal => {
@@ -395,8 +389,8 @@ mod tests {
         task_handle.await.unwrap().unwrap();
 
         let rocksdb = rocksdb_cell.wait().await.unwrap();
-        let l1_batch_number = rocksdb.l1_batch_number().await;
-        assert_eq!(l1_batch_number, Some(L1BatchNumber(2)));
+        let l1_batch_number = rocksdb.next_l1_batch_number().await;
+        assert_eq!(l1_batch_number, L1BatchNumber(2));
 
         // Check scenario when memory part is not required.
         let storage = CommonStorage::rocksdb_with_memory(

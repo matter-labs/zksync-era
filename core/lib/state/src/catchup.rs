@@ -17,7 +17,7 @@ use crate::{rocksdb::InitStrategy, RocksdbStorage, RocksdbStorageOptions};
 pub struct InitialRocksdbState {
     /// Last processed L1 batch number in the RocksDB cache + 1 (i.e., the batch that the cache is ready to process).
     /// `None` if the cache is empty (i.e., needs recovery).
-    pub l1_batch_number: Option<L1BatchNumber>,
+    pub next_l1_batch_number: Option<L1BatchNumber>,
 }
 
 /// Error returned from [`RocksdbCell`] methods if the corresponding [`AsyncCatchupTask`] has failed
@@ -171,7 +171,7 @@ impl AsyncCatchupTask {
         .context("Failed creating RocksDB storage builder")?;
 
         let initial_state = InitialRocksdbState {
-            l1_batch_number: rocksdb_builder.l1_batch_number().await,
+            next_l1_batch_number: rocksdb_builder.next_l1_batch_number().await,
         };
         tracing::info!("Initialized RocksDB catchup from state: {initial_state:?}");
         self.initial_state_sender.send_replace(Some(initial_state));
@@ -279,10 +279,10 @@ mod tests {
         let task_handle = tokio::spawn(task.run(stop_receiver));
 
         let initial_state = rocksdb_cell.ensure_initialized().await.unwrap();
-        assert_eq!(initial_state.l1_batch_number, None);
+        assert_eq!(initial_state.next_l1_batch_number, None);
 
         let db = rocksdb_cell.wait().await.unwrap();
-        assert_eq!(db.l1_batch_number().await, Some(L1BatchNumber(2)));
+        assert_eq!(db.next_l1_batch_number().await, L1BatchNumber(2));
         task_handle.await.unwrap().unwrap();
         drop(db);
         drop(rocksdb_cell); // should be enough to release RocksDB lock
@@ -293,7 +293,7 @@ mod tests {
         let task_handle = tokio::spawn(task.run(stop_receiver));
 
         let initial_state = rocksdb_cell.ensure_initialized().await.unwrap();
-        assert_eq!(initial_state.l1_batch_number, Some(L1BatchNumber(2)));
+        assert_eq!(initial_state.next_l1_batch_number, Some(L1BatchNumber(2)));
 
         task_handle.await.unwrap().unwrap();
         rocksdb_cell.get().unwrap(); // RocksDB must be caught up at this point
@@ -333,7 +333,7 @@ mod tests {
             if started_at.elapsed() > Duration::from_secs(10) {
                 break;
             }
-            if rocksdb.l1_batch_number().await == Some(L1BatchNumber(3)) {
+            if rocksdb.next_l1_batch_number().await == L1BatchNumber(3) {
                 return;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;

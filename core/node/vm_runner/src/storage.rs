@@ -306,7 +306,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             }
             let mut conn = self.pool.connection_tagged(self.io.name()).await?;
             let latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
-            if rocksdb.l1_batch_number().await == Some(latest_processed_batch + 1) {
+            if rocksdb.next_l1_batch_number().await == latest_processed_batch + 1 {
                 // RocksDB is already caught up, we might not need to do anything.
                 // Just need to check that the memory diff is up-to-date in case this is a fresh start.
                 let last_ready_batch = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;

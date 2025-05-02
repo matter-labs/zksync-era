@@ -129,7 +129,7 @@ impl RocksdbStorage {
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(InitStrategy, L1BatchNumber), RocksdbSyncError> {
-        if let Some(l1_batch_number) = self.l1_batch_number().await {
+        if let Some(l1_batch_number) = self.next_l1_batch_number_opt().await {
             tracing::info!(?l1_batch_number, "RocksDB storage is ready");
             return Ok((InitStrategy::Complete, l1_batch_number));
         }

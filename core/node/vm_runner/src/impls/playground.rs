@@ -244,8 +244,8 @@ impl VmPlayground {
             return Ok(());
         };
 
-        let current_l1_batch = cache.l1_batch_number().await;
-        if current_l1_batch <= Some(last_retained_batch) {
+        let current_l1_batch = cache.next_l1_batch_number().await;
+        if current_l1_batch <= last_retained_batch {
             tracing::info!("Resetting RocksDB cache is not required: its current batch #{current_l1_batch:?} is lower than the target");
             return Ok(());
         }

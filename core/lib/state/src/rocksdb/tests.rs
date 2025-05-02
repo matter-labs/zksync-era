@@ -170,7 +170,7 @@ async fn rocksdb_storage_syncing_with_postgres() {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let mut storage = sync_test_storage(&dir, &pool).await;
 
-    assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
+    assert_eq!(storage.next_l1_batch_number().await, L1BatchNumber(2));
     for log in &storage_logs {
         assert_eq!(storage.read_value(&log.key), log.value);
     }
@@ -217,7 +217,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
     let storage = RocksdbStorage::builder(dir.path())
         .await
         .expect("Failed initializing RocksDB");
-    assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
+    assert_eq!(storage.next_l1_batch_number().await, Some(L1BatchNumber(3)));
     let storage = storage.get().await.unwrap();
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -226,7 +226,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
         .await
         .unwrap()
         .expect("Storage synchronization unexpectedly stopped");
-    assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(6)));
+    assert_eq!(storage.next_l1_batch_number().await, L1BatchNumber(6));
     for log in &storage_logs {
         assert_eq!(storage.read_value(&log.key), log.value);
         assert!(!storage.is_write_initial(&log.key));
@@ -279,7 +279,7 @@ async fn rocksdb_storage_revert() {
     let mut storage = sync_test_storage(&dir, &pool).await;
 
     // Perform some sanity checks before the revert.
-    assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
+    assert_eq!(storage.next_l1_batch_number().await, L1BatchNumber(3));
     {
         for log in &inserted_storage_logs {
             assert_eq!(storage.read_value(&log.key), log.value);
@@ -300,7 +300,7 @@ async fn rocksdb_storage_revert() {
         .roll_back(&mut conn, L1BatchNumber(1))
         .await
         .unwrap();
-    assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(2)));
+    assert_eq!(storage.next_l1_batch_number().await, L1BatchNumber(2));
     {
         for log in &inserted_storage_logs {
             assert_eq!(storage.read_value(&log.key), H256::zero());
@@ -341,8 +341,8 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
         .unwrap();
     assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(
-        storage.l1_batch_number().await,
-        Some(snapshot_recovery.l1_batch_number + 1)
+        storage.next_l1_batch_number().await,
+        snapshot_recovery.l1_batch_number + 1
     );
 
     // Sort logs in the same order as enum indices are assigned (by full `StorageKey`).

@@ -288,7 +288,7 @@ impl BlockReverter {
             return Ok(());
         };
 
-        if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
+        if sk_cache.next_l1_batch_number().await > last_l1_batch_to_keep + 1 {
             let mut storage = self.connection_pool.connection().await?;
             tracing::info!("Rolling back storage cache");
             sk_cache
