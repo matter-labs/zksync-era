@@ -166,6 +166,7 @@ pub struct SenderConfig {
     /// Cap of time in mempool for price calculations
     #[config(default = SenderConfig::default_time_in_mempool_in_l1_blocks_cap)]
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    #[config(default_t = true)]
     pub is_verifier_pre_fflonk: bool,
     #[config(default)]
     pub gas_limit_mode: GasLimitMode,
