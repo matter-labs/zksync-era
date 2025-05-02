@@ -43,15 +43,15 @@ impl DeploymentTxFilter {
         Self { shared_allow_list }
     }
 
-    pub async fn check_if_deployment_allowed(
+    pub async fn find_not_allowed_deployer(
         &self,
         initiator: Address,
         vm_events: &[VmEvent],
-    ) -> bool {
+    ) -> Option<Address> {
         // Check if the transaction initiator is allowlisted
         if self.shared_allow_list.is_address_allowed(&initiator).await {
             // If initiator is allowlisted, permit all deployments in this transaction
-            return true;
+            return None;
         }
 
         // If initiator is not allowlisted, enforce the deployment allowlist by scanning for ContractDeployed events.
@@ -79,11 +79,11 @@ impl DeploymentTxFilter {
                     "Blocking contract deployment. deployer_address {:?} not whitelisted",
                     deployer_address
                 );
-                return false;
+                return Some(deployer_address);
             }
         }
 
         // All checks passed, deployment is allowed
-        true
+        None
     }
 }

@@ -481,31 +481,30 @@ async fn check_deployment_allow_list() {
     let tx = alice.deploy_loadnext_tx();
     let res = executor.execute_tx(tx.tx).await.unwrap();
     assert_executed(&res);
-    assert!(
-        filter
-            .check_if_deployment_allowed(alice.address(), &res.tx_result.logs.events)
-            .await
-    );
+    assert!(filter
+        .find_not_allowed_deployer(alice.address(), &res.tx_result.logs.events)
+        .await
+        .is_none());
 
     // Check that Bob can't deploy contracts.
     let tx = bob.deploy_loadnext_tx();
     let res = executor.execute_tx(tx.tx).await.unwrap();
     assert_executed(&res);
-    assert!(
-        !filter
-            .check_if_deployment_allowed(bob.address(), &res.tx_result.logs.events)
-            .await
+    assert_eq!(
+        filter
+            .find_not_allowed_deployer(bob.address(), &res.tx_result.logs.events)
+            .await,
+        Some(bob.address())
     );
 
     // Check that Bob can execute non deploy transactions.
     let tx = bob.execute();
     let res = executor.execute_tx(tx).await.unwrap();
     assert_executed(&res);
-    assert!(
-        filter
-            .check_if_deployment_allowed(bob.address(), &res.tx_result.logs.events)
-            .await
-    );
+    assert!(filter
+        .find_not_allowed_deployer(bob.address(), &res.tx_result.logs.events)
+        .await
+        .is_none());
 }
 
 /// Checks that we can't execute the same transaction twice.

@@ -879,12 +879,13 @@ impl ZkSyncStateKeeper {
 
                 if let Some(tx_filter) = &self.deployment_tx_filter {
                     if !tx.is_l1()
-                        && !tx_filter
-                            .check_if_deployment_allowed(
+                        && tx_filter
+                            .find_not_allowed_deployer(
                                 tx.initiator_account(),
                                 &tx_result.logs.events,
                             )
                             .await
+                            .is_some()
                     {
                         tracing::warn!(
                                 "Deployment transaction {tx:?} is not allowed. Mark it as unexecutable."

@@ -37,16 +37,14 @@ impl WhitelistedDeployPoolSink {
         tx: &L2Tx,
         execution_output: &SandboxExecutionOutput,
     ) -> Result<(), SubmitTxError> {
-        if self
+        if let Some(not_allowed_deployer) = self
             .tx_filter
-            .check_if_deployment_allowed(tx.initiator_account(), &execution_output.events)
+            .find_not_allowed_deployer(tx.initiator_account(), &execution_output.events)
             .await
         {
-            Ok(())
+            Err(SubmitTxError::DeployerNotInAllowList(not_allowed_deployer))
         } else {
-            Err(SubmitTxError::DeployerNotInAllowList(
-                tx.initiator_account(),
-            ))
+            Ok(())
         }
     }
 }
