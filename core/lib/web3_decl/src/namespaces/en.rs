@@ -1,14 +1,12 @@
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use zksync_config::GenesisConfig;
-use zksync_types::{
-    api::{en, EcosystemContracts},
-    tokens::TokenInfo,
-    Address, L2BlockNumber,
-};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 
-use crate::client::{ForWeb3Network, L2};
+use crate::{
+    client::{ForWeb3Network, L2},
+    types::{EcosystemContractsDto, GenesisConfigDto},
+};
 
 #[cfg_attr(
     feature = "server",
@@ -43,12 +41,12 @@ pub trait EnNamespace {
 
     /// Get genesis configuration
     #[method(name = "genesisConfig")]
-    async fn genesis_config(&self) -> RpcResult<GenesisConfig>;
+    async fn genesis_config(&self) -> RpcResult<GenesisConfigDto>;
 
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]
     async fn whitelisted_tokens_for_aa(&self) -> RpcResult<Vec<Address>>;
 
     #[method(name = "getEcosystemContracts")]
-    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
+    async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContractsDto>;
 }

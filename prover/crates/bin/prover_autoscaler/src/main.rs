@@ -13,8 +13,8 @@ use zksync_prover_autoscaler::{
     global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
-    task_wiring::TaskRunner,
 };
+use zksync_prover_task::TaskRunner;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 

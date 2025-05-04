@@ -1,3 +1,5 @@
+<!--- WIP --->
+
 # Overview
 
 As stated in the introduction, the ZK Stack can be used to launch rollups. These rollups have some operators that are
@@ -16,8 +18,9 @@ that the proof is valid and all the data has been submitted, and the rollup's st
 The core of this mechanism was the execution of transactions. The ZK Stack uses the zkEVM for this, which is similar to
 the EVM, but its role is different than the EVM's role in Ethereum.
 
-Transactions can also be submitted via L1. This happens via the same process that allows [L1<>L2 communication][TODO].
-This method provides the rollup with censorship resistance, and allows trustless bridges to the L1.
+Transactions can also be submitted via L1. This happens via the same process that allows
+[L1<>L2 communication](./contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md). This method
+provides the rollup with censorship resistance, and allows trustless bridges to the L1.
 
 The sequencer collects transactions into blocks [blocks][TODO], similarly to Ethereum. To provide the best UX the
 protocol has small blocks with quick soft confirmations for the users. Unlike Ethereum, the zkEVM does not just have

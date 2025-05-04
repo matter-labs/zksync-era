@@ -48,8 +48,6 @@ impl FromEnv for MerkleTreeApiConfig {
 mod tests {
     use std::num::{NonZeroU32, NonZeroUsize};
 
-    use zksync_config::configs::api::DeploymentAllowlist;
-
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
 
@@ -59,9 +57,7 @@ mod tests {
         ApiConfig {
             web3_json_rpc: Web3JsonRpcConfig {
                 http_port: 3050,
-                http_url: "http://127.0.0.1:3050".into(),
                 ws_port: 3051,
-                ws_url: "ws://127.0.0.1:3051".into(),
                 req_entities_limit: Some(10000),
                 filters_disabled: false,
                 filters_limit: Some(10000),
@@ -99,7 +95,6 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
-                deployment_allowlist: DeploymentAllowlist::default(),
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,

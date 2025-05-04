@@ -4,16 +4,12 @@ use bellman::plonk::better_better_cs::proof::Proof;
 use tokio::fs;
 use zksync_object_store::{Bucket, MockObjectStore, StoredObject};
 use zksync_prover_interface::{
-    api::{SubmitProofRequest, SubmitTeeProofRequest},
+    api::SubmitProofRequest,
     inputs::{StorageLogMetadata, WitnessInputMerklePaths},
-    outputs::{
-        L1BatchProofForL1, L1BatchTeeProofForL1, PlonkL1BatchProofForL1, TypedL1BatchProofForL1,
-    },
+    outputs::{L1BatchProofForL1, PlonkL1BatchProofForL1, TypedL1BatchProofForL1},
     Bincode, CBOR,
 };
-use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber, ProtocolVersionId,
-};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber, ProtocolVersionId};
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
 /// one.
@@ -184,34 +180,14 @@ fn test_proof_request_serialization() {
     }"#;
     let decoded_obj: SubmitProofRequest = serde_json::from_str(&encoded_obj).unwrap();
     let decoded_json: SubmitProofRequest = serde_json::from_str(encoded_json).unwrap();
-    match (decoded_obj, decoded_json) {
-        (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) => {
-            let decoded_obj: L1BatchProofForL1 = (*decoded_obj).into();
-            let decoded_json: L1BatchProofForL1 = (*decoded_json).into();
+    let (SubmitProofRequest::Proof(decoded_obj), SubmitProofRequest::Proof(decoded_json)) =
+        (decoded_obj, decoded_json);
 
-            let obj_coords = decoded_obj.aggregation_result_coords();
-            let json_coords = decoded_json.aggregation_result_coords();
+    let decoded_obj: L1BatchProofForL1 = (*decoded_obj).into();
+    let decoded_json: L1BatchProofForL1 = (*decoded_json).into();
 
-            assert_eq!(obj_coords, json_coords);
-        }
-        _ => panic!("Either decoded_obj or decoded_json is not SubmitProofRequest::Proof"),
-    }
-}
+    let obj_coords = decoded_obj.aggregation_result_coords();
+    let json_coords = decoded_json.aggregation_result_coords();
 
-#[test]
-fn test_tee_proof_request_serialization() {
-    let tee_proof_str = r#"{
-        "signature": "0001020304",
-        "pubkey": "0506070809",
-        "proof": "0A0B0C0D0E",
-        "tee_type": "sgx"
-    }"#;
-    let tee_proof_result = serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_str).unwrap();
-    let tee_proof_expected = SubmitTeeProofRequest(Box::new(L1BatchTeeProofForL1 {
-        signature: vec![0, 1, 2, 3, 4],
-        pubkey: vec![5, 6, 7, 8, 9],
-        proof: vec![10, 11, 12, 13, 14],
-        tee_type: TeeType::Sgx,
-    }));
-    assert_eq!(tee_proof_result, tee_proof_expected);
+    assert_eq!(obj_coords, json_coords);
 }

@@ -15,7 +15,7 @@ use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, ProtocolVersionId,
+    L1BatchId, L2ChainId, ProtocolVersionId,
 };
 
 pub mod keys;
@@ -23,7 +23,7 @@ pub mod keys;
 pub const MAX_COMPRESSION_CIRCUITS: u8 = 5;
 
 // THESE VALUES SHOULD BE UPDATED ON ANY PROTOCOL UPGRADE OF PROVERS
-pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version27;
+pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version28;
 pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(0);
 pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
     minor: PROVER_PROTOCOL_VERSION,
@@ -38,10 +38,14 @@ pub enum FriProofWrapper {
 
 impl StoredObject for FriProofWrapper {
     const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = u32;
+    type Key<'a> = (u32, L2ChainId);
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("proof_{}.bin", key.0))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("proof_{key}.bin")
+        format!("proof_{}_{}.bin", key.0, key.1)
     }
 
     serialize_using_bincode!();
@@ -216,10 +220,18 @@ pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksFiel
 
 impl StoredObject for AuxOutputWitnessWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = L1BatchId;
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!("aux_output_witness_{}.bin", key.batch_number().0))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aux_output_witness_{key}.bin")
+        format!(
+            "aux_output_witness_{}_{}.bin",
+            key.batch_number().0,
+            key.chain_id().as_u64()
+        )
     }
 
     serialize_using_bincode!();

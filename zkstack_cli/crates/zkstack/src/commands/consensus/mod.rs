@@ -262,7 +262,7 @@ impl Setup {
                 }
                 Err(err) => {
                     return Err(anyhow::Error::new(err)
-                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR))
+                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR));
                 }
             };
             if !code.is_empty() {
@@ -270,9 +270,38 @@ impl Setup {
                     addr,
                     code.len(),
                 ));
-                return Ok(());
+                break;
             }
         }
+
+        if verbose {
+            logger::debug(format!("Registry contract was deployed on {addr:?}"));
+        }
+
+        let provider = Arc::new(provider);
+        let registry = self
+            .consensus_registry(provider.clone())
+            .context("consensus_registry")?;
+        let registry_owner = registry.owner().call().await.context("registry.owner()")?;
+        if verbose {
+            logger::debug(format!(
+                "Registry contract has an owner: {registry_owner:?}"
+            ));
+        }
+        loop {
+            let balance = provider
+                .get_balance(registry_owner, None)
+                .await
+                .context("get_balance(registry_owner)")?;
+            if !balance.is_zero() {
+                logger::debug(format!(
+                    "Registry contract owner has non-zero balance: {balance}"
+                ));
+                break;
+            }
+            interval.tick().await;
+        }
+        Ok(())
     }
 
     async fn get_validator_committee(&self) -> anyhow::Result<validator::Committee> {

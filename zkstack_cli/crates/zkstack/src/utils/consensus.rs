@@ -1,6 +1,9 @@
 use anyhow::Context as _;
-use serde::{Deserialize, Serialize};
-use zkstack_cli_config::{raw::PatchedConfig, ChainConfig};
+use serde::Deserialize;
+use zkstack_cli_config::{
+    ChainConfig, ConsensusGenesisSpecs, GeneralConfigPatch, RawConsensusKeys, SecretsConfigPatch,
+    Weighted,
+};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{node, validator};
 
@@ -61,7 +64,7 @@ pub(crate) struct Validator {
 }
 
 pub fn set_genesis_specs(
-    general: &mut PatchedConfig,
+    general: &mut GeneralConfigPatch,
     chain_config: &ChainConfig,
     consensus_keys: &ConsensusSecretKeys,
 ) -> anyhow::Result<()> {
@@ -85,7 +88,7 @@ pub fn set_genesis_specs(
 }
 
 pub(crate) fn set_consensus_secrets(
-    secrets: &mut PatchedConfig,
+    secrets: &mut SecretsConfigPatch,
     consensus_keys: &ConsensusSecretKeys,
 ) -> anyhow::Result<()> {
     let validator_key = consensus_keys.validator_key.encode();

@@ -26,7 +26,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config().await?;
-    let l1_rpc_url = secrets.get("l1.l1_rpc_url")?;
+    let l1_rpc_url = secrets.l1_rpc_url()?;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     register_chain(
         shell,
@@ -56,7 +56,7 @@ pub async fn register_chain(
     sender: Option<String>,
     broadcast: bool,
 ) -> anyhow::Result<()> {
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
+    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
 
     let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
@@ -85,7 +85,7 @@ pub async fn register_chain(
 
     let register_chain_output = RegisterChainOutput::read(
         shell,
-        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.path_to_l1_foundry()),
     )?;
     contracts.set_chain_contracts(&register_chain_output);
     Ok(())
