@@ -243,7 +243,6 @@ describe('L1 ERC20 contract checks', () => {
             1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
         console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
         return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
-
     }
 
     async function waitForInteropRootNonZero(alice: zksync.Wallet, chainId: bigint, l1BatchNumber: number) {
