@@ -1,7 +1,6 @@
-use std::sync::Arc;
-use std::time::SystemTime;
-use anyhow::Context;
+use std::{sync::Arc, time::SystemTime};
 
+use anyhow::Context;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{api::Log, ethabi, L1BatchNumber, L2ChainId, SLChainId, H256};
