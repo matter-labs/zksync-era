@@ -237,11 +237,13 @@ describe('L1 ERC20 contract checks', () => {
         expect(included).toBe(true);
     });
 
-    function getGWBlockNumber(params: FinalizeWithdrawalParams) {
+    function getGWBlockNumber(params: FinalizeWithdrawalParams): number {
         /// see hashProof in MessageHashing.sol for this logic.
         let gwProofIndex =
             1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+        console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
         return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
+
     }
 
     async function waitForInteropRootNonZero(alice: zksync.Wallet, chainId: bigint, l1BatchNumber: number) {
@@ -251,12 +253,16 @@ describe('L1 ERC20 contract checks', () => {
             alice.provider
         );
         let currentRoot = ethers.ZeroHash;
+        let count = 0;
         while (currentRoot === ethers.ZeroHash) {
             /// we need a transfer to load the message root
             await aliceErc20.transfer(alice.address, 1);
 
             currentRoot = await l2InteropRootStorage.msgRoots(parseInt(chainId.toString()), l1BatchNumber);
+            console.log('currentRoot', currentRoot, count);
+            count++;
         }
+        console.log('Interop root is non-zero', currentRoot);
     }
 
     test('Should claim failed deposit', async () => {
