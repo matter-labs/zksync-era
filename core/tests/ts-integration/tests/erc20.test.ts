@@ -20,6 +20,7 @@ import {
     ETH_ADDRESS_IN_CONTRACTS,
     ArtifactBridgeHub
 } from '../src/constants';
+import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
 
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -223,11 +224,8 @@ describe('L1 ERC20 contract checks', () => {
         const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-
-        await waitForInteropRootNonZero(alice, 506n, parseInt(params.proof[25].slice(2, 34), 16));
-
-        // sma TODO hacky workaround for now to rewrite the much needed block number--remove when available!
-        // sma TODO end of hacky workaround
+        let GW_CHAIN_ID = 506n;
+        await waitForInteropRootNonZero(alice, GW_CHAIN_ID, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -239,27 +237,26 @@ describe('L1 ERC20 contract checks', () => {
         expect(included).toBe(true);
     });
 
+    function getGWBlockNumber(params: FinalizeWithdrawalParams) {
+        /// see hashProof in MessageHashing.sol for this logic.
+        let gwProofIndex =
+            1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+        return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
+    }
+
     async function waitForInteropRootNonZero(alice: zksync.Wallet, chainId: bigint, l1BatchNumber: number) {
         const l2InteropRootStorage = new zksync.Contract(
             L2_INTEROP_ROOT_STORAGE_ADDRESS,
             ArtifactL2InteropRootStorage.abi,
             alice.provider
         );
-        while ((await l2InteropRootStorage.msgRoots(chainId, l1BatchNumber)) === ethers.ZeroHash) {
-            await (
-                await alice.deposit({
-                    token: ETH_ADDRESS_IN_CONTRACTS,
-                    to: alice.address,
-                    amount: 1
-                })
-            ).wait();
-            await delay(5000);
-        }
-        console.log('Interop root is non-zero', await l2InteropRootStorage.msgRoots(chainId, l1BatchNumber));
-    }
+        let currentRoot = ethers.ZeroHash;
+        while (currentRoot === ethers.ZeroHash) {
+            /// we need a transfer to load the message root
+            await aliceErc20.transfer(alice.address, 1);
 
-    function delay(ms: number) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
+            currentRoot = await l2InteropRootStorage.msgRoots(parseInt(chainId.toString()), l1BatchNumber);
+        }
     }
 
     test('Should claim failed deposit', async () => {
