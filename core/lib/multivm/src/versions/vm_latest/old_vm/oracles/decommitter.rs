@@ -3,7 +3,7 @@ use std::{
     fmt::Debug,
 };
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     abstractions::{DecommittmentProcessor, Memory, MemoryType},
     aux_structures::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
