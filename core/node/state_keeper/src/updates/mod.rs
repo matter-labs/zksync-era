@@ -208,11 +208,19 @@ impl UpdatesManager {
             .extend_from_sealed_l2_block(old_l2_block_updates);
     }
 
-    pub fn set_next_l2_block_params(&mut self, l2_block_params: L2BlockParams) {
+    pub fn set_next_l2_block_params(&mut self, mut l2_block_params: L2BlockParams) {
         assert!(
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
+        let mut interop_roots = vec![];
+        for interop_root in l2_block_params.interop_roots {
+            if !self.l1_batch.interop_roots.contains(&interop_root) {
+                interop_roots.push(interop_root.clone());
+                self.l1_batch.interop_roots.push(interop_root);
+            }
+        }
+        l2_block_params.interop_roots = interop_roots;
         self.next_l2_block_params = Some(l2_block_params);
     }
 

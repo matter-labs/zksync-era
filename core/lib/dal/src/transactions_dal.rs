@@ -2138,6 +2138,7 @@ impl TransactionsDal<'_, '_> {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,
+                received_timestamp: rec.received_timestamp as u64,
             }
         })
         .collect();

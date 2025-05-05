@@ -116,16 +116,32 @@ pub(crate) const TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO: usize = 4;
 pub(crate) const TX_OPERATOR_L2_BLOCK_INFO_SLOTS: usize =
     (MAX_TXS_IN_BATCH + 1) * TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO;
 
-/// We store the next messageRoot number to be processed.
-/// For each txs we check if the next messageRoot belongs to a block that we should process, if yes we store it and continue to the next.
-/// If no, we stop.
-pub(crate) const fn get_next_interop_root_number_offset(subversion: MultiVmSubversion) -> usize {
+pub(crate) const fn get_last_processed_block_number_offset(subversion: MultiVmSubversion) -> usize {
     get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
 }
 
-/// The actual message roots begin after the next message root number slot
+/// We store the next messageRoot number to be processed.
+/// For each txs we check if the next messageRoot belongs to a block that we should process, if yes we store it and continue to the next.
+/// If no, we stop.
+pub(crate) const fn get_current_number_of_roots_in_block_offset(
+    subversion: MultiVmSubversion,
+) -> usize {
+    get_last_processed_block_number_offset(subversion) + 1
+}
+
+/// The slot starting from which the interop roots are stored.
+pub(crate) const fn get_current_interop_root_offset(subversion: MultiVmSubversion) -> usize {
+    get_current_number_of_roots_in_block_offset(subversion) + 1
+}
+
+/// The slot starting from which the interop roots are stored.
+pub(crate) const fn get_interop_blocks_begin_offset(subversion: MultiVmSubversion) -> usize {
+    get_current_interop_root_offset(subversion) + 1
+}
+
+/// The slot starting from which the interop roots are stored.
 pub(crate) const fn get_interop_root_offset(subversion: MultiVmSubversion) -> usize {
-    get_next_interop_root_number_offset(subversion) + 1
+    get_interop_blocks_begin_offset(subversion) + 100
 }
 
 pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;

@@ -25,121 +25,126 @@
       },
       {
         "ordinal": 4,
-        "name": "number",
+        "name": "received_timestamp",
         "type_info": "Int8"
       },
       {
         "ordinal": 5,
-        "name": "l1_batch_number",
+        "name": "number",
         "type_info": "Int8"
       },
       {
         "ordinal": 6,
-        "name": "timestamp",
+        "name": "l1_batch_number",
         "type_info": "Int8"
       },
       {
         "ordinal": 7,
+        "name": "timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
         "name": "hash",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "l1_tx_count",
         "type_info": "Int4"
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "l2_tx_count",
         "type_info": "Int4"
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "base_fee_per_gas",
         "type_info": "Numeric"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "gas_per_pubdata_limit",
         "type_info": "Int8"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "created_at",
         "type_info": "Timestamp"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "updated_at",
         "type_info": "Timestamp"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "l1_gas_price",
         "type_info": "Int8"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "l2_fair_gas_price",
         "type_info": "Int8"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "bootloader_code_hash",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "default_aa_code_hash",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "protocol_version",
         "type_info": "Int4"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "virtual_blocks",
         "type_info": "Int8"
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "fee_account_address",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "fair_pubdata_price",
         "type_info": "Int8"
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "gas_limit",
         "type_info": "Int8"
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "logs_bloom",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "evm_emulator_code_hash",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "l2_da_validator_address",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "pubdata_type",
         "type_info": "Text"
       },
       {
-        "ordinal": 27,
+        "ordinal": 28,
         "name": "interop_roots_assigned",
         "type_info": "Bool"
       }
@@ -153,6 +158,7 @@
       false,
       false,
       true,
+      false,
       false,
       false,
       true,

@@ -11,7 +11,7 @@ export const L2_ASSET_ROUTER_ADDRESS = '0x00000000000000000000000000000000000100
 export const L2_NATIVE_TOKEN_VAULT_ADDRESS = '0x0000000000000000000000000000000000010004';
 export const L2_MESSAGE_ROOT_ADDRESS = '0x0000000000000000000000000000000000010005';
 // export const L2_NULLIFIER_ADDRESS = '0x0000000000000000000000000000000000010008';
-export const L2_MESSAGE_ROOT_STORAGE_ADDRESS = '0x0000000000000000000000000000000000010008';
+export const L2_INTEROP_ROOT_STORAGE_ADDRESS = '0x0000000000000000000000000000000000010008';
 export const L2_MESSAGE_VERIFICATION_ADDRESS = '0x0000000000000000000000000000000000010009';
 
 export const DEPLOYER_SYSTEM_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000008006';
@@ -32,7 +32,7 @@ function readContract(path: string, fileName: string, contractName?: string) {
     return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${contractName}.json`, { encoding: 'utf-8' }));
 }
 export const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}`, 'Bridgehub');
-export const ArtifactMessageRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2InteropRootStorage');
+export const ArtifactL2InteropRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2InteropRootStorage');
 export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, 'L2MessageVerification');
 export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
 export const ArtifactMintableERC20 = readContract('../../../contracts/l1-contracts/zkout', 'TestnetERC20Token');
