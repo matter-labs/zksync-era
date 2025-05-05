@@ -29,7 +29,7 @@ pub mod register_chain;
 mod set_token_multiplier_setter;
 pub(crate) mod set_transaction_filterer;
 mod setup_legacy_bridge;
-mod utils;
+pub mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {

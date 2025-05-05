@@ -3,11 +3,6 @@ name: CI
 on:
   pull_request:
   merge_group:
-  push:
-    branches:
-      - staging
-      - trying
-      - '!release-please--branches--**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -81,25 +76,25 @@ jobs:
   ci-for-core-lint:
     name: CI for Core lint Components
     needs: changed_files
-    if: contains(github.ref_name, 'release-please--branches')
+    if: contains(github.head_ref, 'release-please--branches')
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
   e2e-for-prover:
     name: E2E Test for Prover Components
     needs: changed_files
-    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/ci-prover-e2e.yml
 
   ci-for-docs:
@@ -111,14 +106,14 @@ jobs:
   # What needs to be ran for both core and prover
   ci-for-common:
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     name: CI for Common Components (prover or core)
     uses: ./.github/workflows/ci-common-reusable.yml
 
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -130,7 +125,7 @@ jobs:
   build-tee-prover-images:
     name: Build TEE Prover images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/build-tee-prover-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -141,7 +136,7 @@ jobs:
   build-contract-verifier:
     name: Build contract verifier
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/build-contract-verifier-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -153,7 +148,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -167,7 +162,7 @@ jobs:
   build-witness-generator-image-avx512:
     name: Build prover images with avx512 instructions
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/build-witness-generator-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512

@@ -6,6 +6,7 @@ use zksync_state::AsyncCatchupTask;
 pub use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{AsyncRocksdbCache, ZkSyncStateKeeper};
 use zksync_storage::RocksDB;
+use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use crate::{
     implementations::resources::{
@@ -43,6 +44,7 @@ pub struct Input {
     pub conditional_sealer: ConditionalSealerResource,
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
+    pub shared_allow_list: Option<SharedAllowList>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -109,6 +111,7 @@ impl WiringLayer for StateKeeperLayer {
             output_handler,
             sealer,
             Arc::new(storage_factory),
+            input.shared_allow_list.map(DeploymentTxFilter::new),
         );
 
         let state_keeper = StateKeeperTask { state_keeper };
