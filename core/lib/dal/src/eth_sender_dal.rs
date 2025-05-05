@@ -712,6 +712,7 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 eth_tx_id = $1
                 AND eth_txs_history.confirmed_at IS NOT NULL
+                AND eth_txs.has_failed IS FALSE
             ORDER BY
                 eth_txs_history.created_at
             LIMIT
