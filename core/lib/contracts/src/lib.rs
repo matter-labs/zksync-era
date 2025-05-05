@@ -63,7 +63,7 @@ const SERVER_NOTIFIER_CONTRACT_FILE: (&str, &str) =
 
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-deps/facets",
-    "Getters.sol/Getters.json",
+    "Getters.sol/GettersFacet.json",
 );
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
