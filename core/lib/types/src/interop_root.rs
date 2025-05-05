@@ -7,6 +7,7 @@ pub struct InteropRoot {
     pub chain_id: u32,
     pub block_number: u32,
     pub sides: Vec<U256>, // The rolling hash of all the transactions in the miniblock
+    pub received_timestamp: u64,
 }
 
 impl InteropRoot {
@@ -15,6 +16,7 @@ impl InteropRoot {
             chain_id,
             block_number,
             sides,
+            received_timestamp: 0,
         }
     }
 
@@ -38,6 +40,7 @@ impl Clone for InteropRoot {
             chain_id: self.chain_id,
             block_number: self.block_number,
             sides: self.sides.clone(),
+            received_timestamp: self.received_timestamp,
         }
     }
 }

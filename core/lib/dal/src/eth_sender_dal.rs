@@ -713,7 +713,7 @@ impl EthSenderDal<'_, '_> {
                 eth_tx_id = $1
                 AND eth_txs_history.confirmed_at IS NOT NULL
             ORDER BY
-                eth_txs_history.created_at DESC
+                eth_txs_history.created_at
             LIMIT
                 1
             "#,

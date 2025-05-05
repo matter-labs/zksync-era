@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM interop_roots\n            WHERE processed_block_number = $1\n            ",
+  "query": "\n            SELECT *\n            FROM interop_roots\n            WHERE processed_block_number IS NULL\n            ORDER BY received_timestamp;\n            ",
   "describe": {
     "columns": [
       {
@@ -30,9 +30,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Int8"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -42,5 +40,5 @@
       false
     ]
   },
-  "hash": "158a7e1854abac4cc73146501f3914404d590597540b493d3b631e15fccd01e7"
+  "hash": "7b5b96402bad3de264bc3c0ee9bf6dbb373facb909d156e9636c0e2eddbd4517"
 }
