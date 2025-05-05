@@ -24,6 +24,36 @@ pub enum EtherscanCodeFormat {
     StandardJsonInput,
 }
 
+/// It is used to represent boolean values in the API requests. "1" means true and "0" means false.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum EtherscanBoolean {
+    #[serde(rename = "1")]
+    True,
+    #[serde(rename = "0")]
+    False,
+}
+
+impl EtherscanBoolean {
+    /// Converts EtherscanBoolean to a boolean value.
+    pub fn to_bool(&self) -> bool {
+        match self {
+            EtherscanBoolean::True => true,
+            EtherscanBoolean::False => false,
+        }
+    }
+}
+
+impl From<bool> for EtherscanBoolean {
+    /// Converts a boolean value to EtherscanBoolean.
+    fn from(value: bool) -> Self {
+        if value {
+            EtherscanBoolean::True
+        } else {
+            EtherscanBoolean::False
+        }
+    }
+}
+
 /// Etherscan verification request. It is used for Etherscan-like API requests and is transformed into
 /// `VerificationIncomingRequest` before being sent to the verifier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +77,7 @@ pub struct EtherscanVerificationRequest {
     #[serde(rename = "zksolcVersion")]
     pub zksolc_version: Option<String>,
     #[serde(rename = "optimizationUsed")]
-    pub optimization_used: Option<bool>,
+    pub optimization_used: Option<EtherscanBoolean>,
     #[serde(rename = "optimizerMode")]
     pub optimizer_mode: Option<String>,
     pub runs: Option<String>,
@@ -56,9 +86,9 @@ pub struct EtherscanVerificationRequest {
     #[serde(rename = "compilermode")]
     pub compiler_mode: Option<String>,
     #[serde(default, rename = "isSystem")]
-    pub is_system: bool,
+    pub is_system: Option<EtherscanBoolean>,
     #[serde(default, rename = "forceEvmla")]
-    pub force_evmla: bool,
+    pub force_evmla: Option<EtherscanBoolean>,
 }
 
 impl EtherscanVerificationRequest {
@@ -94,11 +124,11 @@ impl EtherscanVerificationRequest {
                 },
                 compiler_zksolc_version: self.zksolc_version,
             },
-            optimization_used: self.optimization_used.unwrap_or(false),
+            optimization_used: self.optimization_used.map(|x| x.to_bool()).unwrap_or(false),
             optimizer_mode: self.optimizer_mode,
             constructor_arguments: self.constructor_arguments,
-            is_system: self.is_system,
-            force_evmla: self.force_evmla,
+            is_system: self.is_system.map(|x| x.to_bool()).unwrap_or(false),
+            force_evmla: self.force_evmla.map(|x| x.to_bool()).unwrap_or(false),
             evm_specific: VerificationEvmSettings {
                 evm_version: self.evm_version,
                 optimizer_runs: self.runs.map(|x| x.parse().unwrap()),
@@ -181,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_etherscan_verification_request_deserialize_single_file() {
-        let form = "codeformat=solidity-single-file&sourceCode=contract%20Test%20%7B%7D&constructorArguements=0x&contractaddress=0x1234567890123456789012345678901234567890&contractname=TestContract&compilerversion=v0.8.24%2Bcommit.e11b9ed9&zksolcVersion=v1.5.0&optimizationUsed=true&optimizerMode=z&runs=200&evmversion=london&compilermode=zkevm&isSystem=true&forceEvmla=true";
+        let form = "codeformat=solidity-single-file&sourceCode=contract%20Test%20%7B%7D&constructorArguements=0x&contractaddress=0x1234567890123456789012345678901234567890&contractname=TestContract&compilerversion=v0.8.24%2Bcommit.e11b9ed9&zksolcVersion=v1.5.0&optimizationUsed=1&optimizerMode=z&runs=200&evmversion=london&compilermode=zkevm&isSystem=1&forceEvmla=1";
         let req: EtherscanVerificationRequest = serde_urlencoded::from_str(form).unwrap();
 
         assert_eq!(req.code_format, EtherscanCodeFormat::SingleFile);
@@ -196,18 +226,18 @@ mod tests {
         assert_eq!(req.contract_name, "TestContract");
         assert_eq!(req.compiler_version, "v0.8.24+commit.e11b9ed9");
         assert_eq!(req.zksolc_version, Some("v1.5.0".to_string()));
-        assert_eq!(req.optimization_used, Some(true));
+        assert_eq!(req.optimization_used, Some(EtherscanBoolean::True));
         assert_eq!(req.optimizer_mode, Some("z".to_string()));
         assert_eq!(req.runs, Some("200".to_string()));
         assert_eq!(req.evm_version, Some("london".to_string()));
         assert_eq!(req.compiler_mode, Some("zkevm".to_string()));
-        assert!(req.is_system);
-        assert!(req.force_evmla);
+        assert_eq!(req.is_system, Some(EtherscanBoolean::True));
+        assert_eq!(req.force_evmla, Some(EtherscanBoolean::True));
     }
 
     #[test]
     fn test_etherscan_verification_request_deserialize_json_input() {
-        let form = "codeformat=solidity-standard-json-input&sourceCode={language:\"Solidity\"}&constructorArguements=0x&contractaddress=0x1234567890123456789012345678901234567890&contractname=TestContract&compilerversion=v0.8.24%2Bcommit.e11b9ed9&zksolcVersion=v1.5.0&optimizationUsed=true&optimizerMode=z&runs=200&evmversion=london&compilermode=zkevm&isSystem=true&forceEvmla=true";
+        let form = "codeformat=solidity-standard-json-input&sourceCode={language:\"Solidity\"}&constructorArguements=0x&contractaddress=0x1234567890123456789012345678901234567890&contractname=TestContract&compilerversion=v0.8.24%2Bcommit.e11b9ed9&zksolcVersion=v1.5.0&optimizationUsed=1&optimizerMode=z&runs=200&evmversion=london&compilermode=zkevm&isSystem=1&forceEvmla=1";
         let req: EtherscanVerificationRequest = serde_urlencoded::from_str(form).unwrap();
 
         assert_eq!(req.code_format, EtherscanCodeFormat::StandardJsonInput);
@@ -222,13 +252,13 @@ mod tests {
         assert_eq!(req.contract_name, "TestContract");
         assert_eq!(req.compiler_version, "v0.8.24+commit.e11b9ed9");
         assert_eq!(req.zksolc_version, Some("v1.5.0".to_string()));
-        assert_eq!(req.optimization_used, Some(true));
+        assert_eq!(req.optimization_used, Some(EtherscanBoolean::True));
         assert_eq!(req.optimizer_mode, Some("z".to_string()));
         assert_eq!(req.runs, Some("200".to_string()));
         assert_eq!(req.evm_version, Some("london".to_string()));
         assert_eq!(req.compiler_mode, Some("zkevm".to_string()));
-        assert!(req.is_system);
-        assert!(req.force_evmla);
+        assert_eq!(req.is_system, Some(EtherscanBoolean::True));
+        assert_eq!(req.force_evmla, Some(EtherscanBoolean::True));
     }
 
     #[test]
@@ -243,13 +273,13 @@ mod tests {
             contract_name: "Test".to_string(),
             compiler_version: "v0.8.24+commit.e11b9ed9".to_string(),
             zksolc_version: Some("v1.5.0".to_string()),
-            optimization_used: Some(true),
+            optimization_used: None,
             optimizer_mode: Some("z".to_string()),
             runs: Some("200".to_string()),
             evm_version: Some("london".to_string()),
             compiler_mode: Some("zkevm".to_string()),
-            is_system: false,
-            force_evmla: false,
+            is_system: None,
+            force_evmla: None,
         };
 
         let verification_req = etherscan_req.to_verification_request().unwrap();
@@ -274,7 +304,7 @@ mod tests {
                 compiler_zksolc_version: Some("v1.5.0".to_string())
             }
         );
-        assert!(verification_req.optimization_used);
+        assert!(!verification_req.optimization_used);
         assert_eq!(verification_req.optimizer_mode, Some("z".to_string()));
         assert_eq!(verification_req.constructor_arguments, Bytes(vec![1, 2, 3]));
         assert!(!verification_req.is_system);
@@ -322,8 +352,8 @@ mod tests {
             runs: None,
             evm_version: None,
             compiler_mode: None,
-            is_system: true,
-            force_evmla: true,
+            is_system: Some(EtherscanBoolean::True),
+            force_evmla: Some(EtherscanBoolean::True),
         };
 
         let verification_req = etherscan_req.to_verification_request().unwrap();
@@ -352,7 +382,7 @@ mod tests {
                 compiler_zksolc_version: None
             }
         );
-        assert!(!verification_req.optimization_used); // Default value
+        assert!(!verification_req.optimization_used);
         assert_eq!(verification_req.optimizer_mode, None);
         assert_eq!(verification_req.constructor_arguments, Bytes::default());
         assert!(verification_req.is_system);
@@ -378,13 +408,13 @@ mod tests {
             contract_name: "InvalidJson".to_string(),
             compiler_version: "v0.8.20+commit.a1b2c3d4".to_string(),
             zksolc_version: None,
-            optimization_used: Some(false),
+            optimization_used: None,
             optimizer_mode: None,
             runs: None,
             evm_version: None,
             compiler_mode: None,
-            is_system: false,
-            force_evmla: false,
+            is_system: None,
+            force_evmla: None,
         };
 
         let result = etherscan_req.to_verification_request();
