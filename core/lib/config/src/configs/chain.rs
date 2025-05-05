@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use serde::Deserialize;
 use smart_config::{
@@ -6,6 +6,7 @@ use smart_config::{
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
+use zksync_basic_types::Address;
 
 /// An enum that represents the version of the fee model to use.
 ///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
@@ -123,6 +124,9 @@ pub struct StateKeeperConfig {
     /// which is capable of saving protective reads is run.
     #[config(default)]
     pub protective_reads_persistence_enabled: bool,
+
+    #[config(nest)]
+    pub deployment_allowlist: Option<DeploymentAllowlist>,
 }
 
 impl StateKeeperConfig {
@@ -154,6 +158,7 @@ impl StateKeeperConfig {
             save_call_traces: true,
             max_circuits_per_batch: 24100,
             protective_reads_persistence_enabled: true,
+            deployment_allowlist: None,
         }
     }
 }
@@ -208,9 +213,32 @@ pub struct TimestampAsserterConfig {
     pub min_time_till_end_sec: Duration,
 }
 
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(tag = "source")]
+pub enum DeploymentAllowlist {
+    #[config(alias = "Url")]
+    Dynamic(DeploymentAllowlistDynamic),
+    Static {
+        /// Allowed deployers of the new contracts.
+        addresses: HashSet<Address>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct DeploymentAllowlistDynamic {
+    /// HTTP URL to fetch the file from.
+    pub http_file_url: String,
+    /// Refresh interval between fetches.
+    #[config(default_t = Duration::from_secs(300))]
+    pub refresh_interval: Duration,
+}
+
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test, test_complete},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -240,6 +268,10 @@ mod tests {
             save_call_traces: false,
             max_circuits_per_batch: 24100,
             protective_reads_persistence_enabled: true,
+            deployment_allowlist: Some(DeploymentAllowlist::Dynamic(DeploymentAllowlistDynamic {
+                http_file_url: "http://deployment-allowlist/".to_owned(),
+                refresh_interval: Duration::from_secs(120),
+            })),
         }
     }
 
@@ -270,11 +302,14 @@ mod tests {
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
+            CHAIN_STATE_KEEPER_DEPLOYMENT_ALLOWLIST_SOURCE=Dynamic
+            CHAIN_STATE_KEEPER_DEPLOYMENT_ALLOWLIST_HTTP_FILE_URL=http://deployment-allowlist/
+            CHAIN_STATE_KEEPER_DEPLOYMENT_ALLOWLIST_REFRESH_INTERVAL=2 min
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
             .strip_prefix("CHAIN_STATE_KEEPER_");
-        let config: StateKeeperConfig = test_complete(env).unwrap();
+        let config: StateKeeperConfig = test(env).unwrap();
         assert_eq!(config, expected_state_keeper_config());
     }
 
@@ -305,10 +340,14 @@ mod tests {
           max_circuits_per_batch: 24100
           l2_block_max_payload_size: 1000000
           protective_reads_persistence_enabled: true
+          deployment_allowlist:
+            source: Url
+            http_file_url: http://deployment-allowlist/
+            refresh_interval_secs: 120
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: StateKeeperConfig = test_complete(yaml).unwrap();
+        let config: StateKeeperConfig = test(yaml).unwrap();
         assert_eq!(config, expected_state_keeper_config());
     }
 

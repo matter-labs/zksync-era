@@ -60,3 +60,5 @@ xshell.workspace = true
 gateway = []
 v27_evm_interpreter = ["gateway"]
 v28_precompiles = ["gateway"]
+
+default = ["v28_precompiles"]

@@ -1,5 +1,6 @@
 [package]
 name = "zksync_gateway_migrator"
+description = "Component that handles the migration of the zkSync network from/to gateway"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

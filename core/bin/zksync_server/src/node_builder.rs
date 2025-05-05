@@ -24,6 +24,7 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        allow_list::DeploymentAllowListLayer,
         base_token::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
             base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
@@ -370,10 +371,21 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_allow_list_task_layer(mut self) -> anyhow::Result<Self> {
+        let allow_list = try_load_config!(self.configs.state_keeper_config).deployment_allowlist;
+
+        if let Some(allow_list) = allow_list {
+            self.node.add_layer(DeploymentAllowListLayer {
+                deployment_allowlist: allow_list,
+            });
+        }
+        Ok(self)
+    }
+
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
-        let deployment_allowlist = rpc_config.deployment_allowlist.clone();
+        let deployment_allowlist = sk_config.deployment_allowlist.clone();
 
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size_mb.0,
@@ -384,10 +396,8 @@ impl MainNodeBuilder {
         let vm_config = self.configs.experimental_vm_config.clone();
 
         // On main node we always use master pool sink.
-        if deployment_allowlist.is_enabled() {
-            self.node.add_layer(WhitelistedMasterPoolSinkLayer {
-                deployment_allowlist: deployment_allowlist.clone(),
-            });
+        if deployment_allowlist.is_some() {
+            self.node.add_layer(WhitelistedMasterPoolSinkLayer);
         } else {
             self.node.add_layer(MasterPoolSinkLayer);
         }
@@ -776,6 +786,7 @@ impl MainNodeBuilder {
                     // State keeper is the core component of the sequencer,
                     // which is why we consider it to be responsible for the storage initialization.
                     self = self
+                        .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
                         .add_state_keeper_layer()?
@@ -783,6 +794,7 @@ impl MainNodeBuilder {
                 }
                 Component::HttpApi => {
                     self = self
+                        .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
@@ -791,6 +803,7 @@ impl MainNodeBuilder {
                 }
                 Component::WsApi => {
                     self = self
+                        .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?

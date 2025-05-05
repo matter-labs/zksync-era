@@ -14,6 +14,7 @@ use zksync_types::{
     vm::FastVmMode,
     web3, Execute, PriorityOpId, H256, L2_MESSAGE_ROOT_ADDRESS, U256,
 };
+use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use self::tester::{AccountExt, StorageSnapshot, TestConfig, Tester, TRANSFER_VALUE};
 
@@ -436,6 +437,74 @@ async fn too_big_gas_limit(vm_mode: FastVmMode) {
     let res = executor.execute_tx(big_gas_limit_tx).await.unwrap();
     assert_executed(&res);
     executor.finish_batch().await.unwrap();
+}
+
+#[tokio::test]
+async fn check_deployment_allow_list() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+    let mut bob = Account::random();
+
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    tester.fund(&[bob.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let mut executor = tester
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
+        .await;
+
+    // Alice is allowed to deploy contracts.
+    let filter = DeploymentTxFilter::new(SharedAllowList::from(vec![alice.address()]));
+
+    // Check that Alice can deploy contracts.
+    let tx = alice.deploy_loadnext_tx();
+    let res = executor.execute_tx(tx.tx).await.unwrap();
+    assert_executed(&res);
+    assert!(filter
+        .find_not_allowed_deployer(alice.address(), &res.tx_result.logs.events)
+        .await
+        .is_none());
+
+    // Check that Bob can't deploy contracts.
+    let tx = bob.deploy_loadnext_tx();
+    let res = executor.execute_tx(tx.tx).await.unwrap();
+    assert_executed(&res);
+    assert_eq!(
+        filter
+            .find_not_allowed_deployer(bob.address(), &res.tx_result.logs.events)
+            .await,
+        Some(bob.address())
+    );
+
+    // Check that Bob can execute non deploy transactions.
+    let tx = bob.execute();
+    let res = executor.execute_tx(tx).await.unwrap();
+    assert_executed(&res);
+    assert!(filter
+        .find_not_allowed_deployer(bob.address(), &res.tx_result.logs.events)
+        .await
+        .is_none());
 }
 
 /// Checks that we can't execute the same transaction twice.

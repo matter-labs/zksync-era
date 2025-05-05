@@ -237,9 +237,6 @@ pub struct Web3JsonRpcConfig {
     /// (hundreds or thousands RPS).
     #[config(default)]
     pub extended_api_tracing: bool,
-    /// Configuration options for the deployment allow list
-    #[config(nest)]
-    pub deployment_allowlist: DeploymentAllowlist,
 }
 
 impl Web3JsonRpcConfig {
@@ -313,37 +310,6 @@ pub struct MerkleTreeApiConfig {
     pub port: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
-pub struct DeploymentAllowlist {
-    /// If `Some(url)`, allowlisting is enabled. If `None`, it's disabled.
-    /// If the `String` is empty, treat it as invalid and effectively disable.
-    http_file_url: Option<String>,
-    /// Refresh interval for the allow list.
-    #[config(default_t = Duration::from_secs(300), with = TimeUnit::Seconds)]
-    pub refresh_interval_secs: Duration,
-}
-
-impl DeploymentAllowlist {
-    /// Create a new `DeploymentAllowlist` instance.
-    pub fn new(http_file_url: Option<String>, refresh_interval_secs: Duration) -> Self {
-        Self {
-            http_file_url,
-            refresh_interval_secs,
-        }
-    }
-
-    /// Returns `true` if deployment allowlisting is enabled.
-    pub fn is_enabled(&self) -> bool {
-        self.http_file_url().is_some()
-    }
-
-    /// Returns the allowlist file URL, if present and non-empty.
-    pub fn http_file_url(&self) -> Option<&str> {
-        self.http_file_url.as_deref().filter(|s| !s.is_empty())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use smart_config::{testing::test_complete, Environment, Yaml};
@@ -412,10 +378,6 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
-                deployment_allowlist: DeploymentAllowlist {
-                    http_file_url: Some("http://allowlist/".to_owned()),
-                    refresh_interval_secs: Duration::from_secs(60),
-                },
             },
             healthcheck: HealthCheckConfig {
                 port: 8081,
@@ -458,8 +420,6 @@ mod tests {
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_SIZE=10000
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_UPDATE_INTERVAL=50
-            API_WEB3_JSON_RPC_DEPLOYMENT_ALLOWLIST_HTTP_FILE_URL="http://allowlist/"
-            API_WEB3_JSON_RPC_DEPLOYMENT_ALLOWLIST_REFRESH_INTERVAL_SECS=60
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_TREE_API_URL="http://tree/"
@@ -523,9 +483,6 @@ mod tests {
             extended_api_tracing: true
             estimate_gas_optimize_search: true
             tree_api_url: "http://tree/"
-            deployment_allowlist:
-              http_file_url: "http://allowlist/"
-              refresh_interval_secs: 60
           prometheus:
             listener_port: 3312
             pushgateway_url: http://127.0.0.1:9091

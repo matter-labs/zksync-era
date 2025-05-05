@@ -86,8 +86,11 @@ impl GatewayMigrator {
                     tracing::info!("Transient error fetching data from SL: {err}");
                 }
                 Err(err) => {
+                    // If we have an error related to the getting data from the contract,
+                    // it's safe to ignore it and continue the loop. The only real problem
+                    // could be with missconfigured contracts, but in this case,
+                    // other components will fail
                     tracing::error!("Failed to fetch data from SL: {err}");
-                    return Err(err.into());
                 }
             }
 

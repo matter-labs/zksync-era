@@ -6,11 +6,12 @@ use zksync_state::AsyncCatchupTask;
 pub use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{AsyncRocksdbCache, ZkSyncStateKeeper};
 use zksync_storage::RocksDB;
+use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use crate::{
     implementations::resources::{
         healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource},
+        pools::{MasterPool, PoolResource, ReplicaPool},
         state_keeper::{
             BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
             StateKeeperIOResource,
@@ -42,6 +43,8 @@ pub struct Input {
     pub output_handler: OutputHandlerResource,
     pub conditional_sealer: ConditionalSealerResource,
     pub master_pool: PoolResource<MasterPool>,
+    pub replica_pool: PoolResource<ReplicaPool>,
+    pub shared_allow_list: Option<SharedAllowList>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -93,11 +96,14 @@ impl WiringLayer for StateKeeperLayer {
         let sealer = input.conditional_sealer.0;
         let master_pool = input.master_pool;
 
-        let (storage_factory, rocksdb_catchup) = AsyncRocksdbCache::new(
+        let (storage_factory, mut rocksdb_catchup) = AsyncRocksdbCache::new(
             master_pool.get_custom(2).await?,
             self.state_keeper_db_path,
             self.rocksdb_options,
         );
+        // The number of connections in the recovery DB pool (~recovery concurrency) is based on the Era mainnet recovery runs.
+        let recovery_pool = input.replica_pool.get_custom(10).await?;
+        rocksdb_catchup = rocksdb_catchup.with_recovery_pool(recovery_pool);
 
         let state_keeper = ZkSyncStateKeeper::new(
             io,
@@ -105,6 +111,7 @@ impl WiringLayer for StateKeeperLayer {
             output_handler,
             sealer,
             Arc::new(storage_factory),
+            input.shared_allow_list.map(DeploymentTxFilter::new),
         );
 
         let state_keeper = StateKeeperTask { state_keeper };
