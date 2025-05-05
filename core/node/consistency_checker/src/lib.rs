@@ -23,7 +23,7 @@ use zksync_types::{
     ethabi::{ParamType, Token},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
+    try_stoppable, Address, L1BatchNumber, OrStopped, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 #[cfg(test)]
@@ -676,13 +676,10 @@ impl ConsistencyChecker {
         }
 
         // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
-        let earliest_l1_batch_number =
+        let earliest_l1_batch_number = try_stoppable!(
             wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &mut stop_receiver)
-                .await?;
-
-        let Some(earliest_l1_batch_number) = earliest_l1_batch_number else {
-            return Ok(()); // Stop signal received
-        };
+                .await
+        );
 
         let last_committed_batch = self
             .last_committed_batch()
@@ -802,10 +799,10 @@ async fn wait_for_l1_batch_with_metadata(
     pool: &ConnectionPool<Core>,
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
-) -> anyhow::Result<Option<L1BatchNumber>> {
+) -> Result<L1BatchNumber, OrStopped> {
     loop {
         if *stop_receiver.borrow() {
-            return Ok(None);
+            return Err(OrStopped::Stopped);
         }
 
         let mut storage = pool.connection().await?;
@@ -816,7 +813,7 @@ async fn wait_for_l1_batch_with_metadata(
         drop(storage);
 
         if let Some(number) = sealed_l1_batch_number {
-            return Ok(Some(number));
+            return Ok(number);
         }
         tracing::debug!(
             "No L1 batches with metadata are present in DB; trying again in {poll_interval:?}"
