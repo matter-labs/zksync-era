@@ -27,7 +27,7 @@ use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 #[derive(Debug, Clone)]
 pub struct EigenDAClient {
     client: EigenClient,
-    eth_call_client: Box<DynClient<L1>>,
+    settlement_layer_client: Box<DynClient<L1>>,
     eigenda_cert_and_blob_verifier_addr: Address,
 }
 
@@ -69,17 +69,17 @@ impl EigenDAClient {
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
 
-        let eth_call_client: Client<L1> = Client::http(
+        let settlement_layer_client: Client<L1> = Client::http(
             config
                 .eigenda_eth_rpc
                 .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?,
         )
         .map_err(|e| anyhow::anyhow!("Query client Error: {:?}", e))?
         .build();
-        let eth_call_client = Box::new(eth_call_client) as Box<DynClient<L1>>;
+        let settlement_layer_client = Box::new(settlement_layer_client) as Box<DynClient<L1>>;
         Ok(Self {
             client,
-            eth_call_client,
+            settlement_layer_client,
             eigenda_cert_and_blob_verifier_addr: config.eigenda_cert_and_blob_verifier_addr,
         })
     }
@@ -102,19 +102,25 @@ impl EigenDAClient {
         };
 
         let block_id = self
-            .eth_call_client
+            .settlement_layer_client
             .block_number()
             .await
             .map_err(to_retriable_da_error)?;
         let res = self
-            .eth_call_client
+            .settlement_layer_client
             .as_ref()
             .call_contract_function(call_request, Some(block_id.into()))
             .await
             .map_err(to_retriable_da_error)?;
-        match hex::encode(res.0).as_str() {
-            "0000000000000000000000000000000000000000000000000000000000000000" => Ok(false),
-            "0000000000000000000000000000000000000000000000000000000000000001" => Ok(true),
+
+        if res.0.len() != 32 || res.0[..31].iter().any(|&b| b != 0) {
+            return Err(anyhow::anyhow!("Invalid response from {}", mapping))
+                .map_err(to_non_retriable_da_error);
+        }
+
+        match res.0[31] {
+            0 => Ok(false),
+            1 => Ok(true),
             _ => Err(anyhow::anyhow!("Invalid response from {}", mapping))
                 .map_err(to_non_retriable_da_error),
         }
