@@ -1,3 +1,4 @@
+pub mod allow_list;
 pub mod base_token;
 pub mod batch_status_updater;
 pub mod block_reverter;

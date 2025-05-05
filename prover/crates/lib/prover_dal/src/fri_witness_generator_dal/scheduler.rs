@@ -35,7 +35,9 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri
                     JOIN
                         scheduler_witness_jobs_fri swj
-                        ON prover_jobs_fri.l1_batch_number = swj.l1_batch_number
+                        ON
+                            prover_jobs_fri.l1_batch_number = swj.l1_batch_number
+                            AND prover_jobs_fri.chain_id = swj.chain_id
                     WHERE
                         swj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
