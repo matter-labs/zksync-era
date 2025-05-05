@@ -13678,6 +13678,7 @@ dependencies = [
  "rlp",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "serde_with",
  "thiserror 2.0.12",
  "tracing",

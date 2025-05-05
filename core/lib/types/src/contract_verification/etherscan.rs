@@ -15,12 +15,11 @@ pub struct EtherscanVerification {
 }
 
 /// Code format supported by Etherscan API.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EtherscanCodeFormat {
     #[serde(rename = "solidity-single-file")]
     SingleFile,
 
-    #[default]
     #[serde(rename = "solidity-standard-json-input")]
     StandardJsonInput,
 }
@@ -173,5 +172,289 @@ impl From<VerificationRequestStatus> for EtherscanResponse {
                 verification_status.status
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_etherscan_verification_request_deserialize_single_file() {
+        let form = "codeformat=solidity-single-file&sourceCode=contract%20Test%20%7B%7D&constructorArguements=0x&contractaddress=0x1234567890123456789012345678901234567890&contractname=TestContract&compilerversion=v0.8.24%2Bcommit.e11b9ed9&zksolcVersion=v1.5.0&optimizationUsed=true&optimizerMode=z&runs=200&evmversion=london&compilermode=zkevm&isSystem=true&forceEvmla=true";
+        let req: EtherscanVerificationRequest = serde_urlencoded::from_str(form).unwrap();
+
+        assert_eq!(req.code_format, EtherscanCodeFormat::SingleFile);
+        assert_eq!(req.source_code, "contract Test {}");
+        assert_eq!(req.constructor_arguments, Bytes::default());
+        assert_eq!(
+            req.contract_address,
+            "0x1234567890123456789012345678901234567890"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(req.contract_name, "TestContract");
+        assert_eq!(req.compiler_version, "v0.8.24+commit.e11b9ed9");
+        assert_eq!(req.zksolc_version, Some("v1.5.0".to_string()));
+        assert_eq!(req.optimization_used, Some(true));
+        assert_eq!(req.optimizer_mode, Some("z".to_string()));
+        assert_eq!(req.runs, Some("200".to_string()));
+        assert_eq!(req.evm_version, Some("london".to_string()));
+        assert_eq!(req.compiler_mode, Some("zkevm".to_string()));
+        assert!(req.is_system);
+        assert!(req.force_evmla);
+    }
+
+    #[test]
+    fn test_etherscan_verification_request_deserialize_json_input() {
+        let form = "codeformat=solidity-standard-json-input&sourceCode={language:\"Solidity\"}&constructorArguements=0x&contractaddress=0x1234567890123456789012345678901234567890&contractname=TestContract&compilerversion=v0.8.24%2Bcommit.e11b9ed9&zksolcVersion=v1.5.0&optimizationUsed=true&optimizerMode=z&runs=200&evmversion=london&compilermode=zkevm&isSystem=true&forceEvmla=true";
+        let req: EtherscanVerificationRequest = serde_urlencoded::from_str(form).unwrap();
+
+        assert_eq!(req.code_format, EtherscanCodeFormat::StandardJsonInput);
+        assert_eq!(req.source_code, "{language:\"Solidity\"}");
+        assert_eq!(req.constructor_arguments, Bytes::default());
+        assert_eq!(
+            req.contract_address,
+            "0x1234567890123456789012345678901234567890"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(req.contract_name, "TestContract");
+        assert_eq!(req.compiler_version, "v0.8.24+commit.e11b9ed9");
+        assert_eq!(req.zksolc_version, Some("v1.5.0".to_string()));
+        assert_eq!(req.optimization_used, Some(true));
+        assert_eq!(req.optimizer_mode, Some("z".to_string()));
+        assert_eq!(req.runs, Some("200".to_string()));
+        assert_eq!(req.evm_version, Some("london".to_string()));
+        assert_eq!(req.compiler_mode, Some("zkevm".to_string()));
+        assert!(req.is_system);
+        assert!(req.force_evmla);
+    }
+
+    #[test]
+    fn test_to_verification_request_single_file() {
+        let etherscan_req = EtherscanVerificationRequest {
+            code_format: EtherscanCodeFormat::SingleFile,
+            source_code: "contract Test {}".to_string(),
+            constructor_arguments: Bytes(vec![1, 2, 3]),
+            contract_address: "0x1111111111111111111111111111111111111111"
+                .parse()
+                .unwrap(),
+            contract_name: "Test".to_string(),
+            compiler_version: "v0.8.24+commit.e11b9ed9".to_string(),
+            zksolc_version: Some("v1.5.0".to_string()),
+            optimization_used: Some(true),
+            optimizer_mode: Some("z".to_string()),
+            runs: Some("200".to_string()),
+            evm_version: Some("london".to_string()),
+            compiler_mode: Some("zkevm".to_string()),
+            is_system: false,
+            force_evmla: false,
+        };
+
+        let verification_req = etherscan_req.to_verification_request().unwrap();
+
+        assert_eq!(
+            verification_req.contract_address,
+            "0x1111111111111111111111111111111111111111"
+                .parse()
+                .unwrap()
+        );
+
+        if let SourceCodeData::SolSingleFile(source_code_data) = verification_req.source_code_data {
+            assert_eq!(source_code_data, "contract Test {}");
+        } else {
+            panic!("Expected SourceCodeData::SolSingleFile");
+        }
+        assert_eq!(verification_req.contract_name, "Test");
+        assert_eq!(
+            verification_req.compiler_versions,
+            CompilerVersions::Solc {
+                compiler_solc_version: "0.8.24".to_string(),
+                compiler_zksolc_version: Some("v1.5.0".to_string())
+            }
+        );
+        assert!(verification_req.optimization_used);
+        assert_eq!(verification_req.optimizer_mode, Some("z".to_string()));
+        assert_eq!(verification_req.constructor_arguments, Bytes(vec![1, 2, 3]));
+        assert!(!verification_req.is_system);
+        assert!(!verification_req.force_evmla);
+        assert_eq!(
+            verification_req.evm_specific,
+            VerificationEvmSettings {
+                evm_version: Some("london".to_string()),
+                optimizer_runs: Some(200)
+            }
+        );
+    }
+
+    #[test]
+    fn test_to_verification_request_standard_json() {
+        let standard_json_input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "Greeter.sol": {
+                    "content": "contract Greeter {}"
+                }
+            },
+            "settings": {
+                "outputSelection": {
+                    "*": {
+                        "*": ["*"]
+                    }
+                }
+            }
+        });
+        let source_code_str = serde_json::to_string(&standard_json_input).unwrap();
+
+        let etherscan_req = EtherscanVerificationRequest {
+            code_format: EtherscanCodeFormat::StandardJsonInput,
+            source_code: source_code_str.clone(),
+            constructor_arguments: Bytes::default(),
+            contract_address: "0x2222222222222222222222222222222222222222"
+                .parse()
+                .unwrap(),
+            contract_name: "TestJson".to_string(),
+            compiler_version: "v0.8.24+commit.e11b9ed9".to_string(),
+            zksolc_version: None,
+            optimization_used: None,
+            optimizer_mode: None,
+            runs: None,
+            evm_version: None,
+            compiler_mode: None,
+            is_system: true,
+            force_evmla: true,
+        };
+
+        let verification_req = etherscan_req.to_verification_request().unwrap();
+
+        assert_eq!(
+            verification_req.contract_address,
+            "0x2222222222222222222222222222222222222222"
+                .parse()
+                .unwrap()
+        );
+        if let SourceCodeData::StandardJsonInput(source_code_data) =
+            verification_req.source_code_data
+        {
+            assert_eq!(
+                source_code_data,
+                serde_json::from_str(source_code_str.as_str()).unwrap()
+            );
+        } else {
+            panic!("Expected SourceCodeData::StandardJsonInput");
+        }
+        assert_eq!(verification_req.contract_name, "TestJson");
+        assert_eq!(
+            verification_req.compiler_versions,
+            CompilerVersions::Solc {
+                compiler_solc_version: "0.8.24".to_string(),
+                compiler_zksolc_version: None
+            }
+        );
+        assert!(!verification_req.optimization_used); // Default value
+        assert_eq!(verification_req.optimizer_mode, None);
+        assert_eq!(verification_req.constructor_arguments, Bytes::default());
+        assert!(verification_req.is_system);
+        assert!(verification_req.force_evmla);
+        assert_eq!(
+            verification_req.evm_specific,
+            VerificationEvmSettings {
+                evm_version: None,
+                optimizer_runs: None
+            }
+        );
+    }
+
+    #[test]
+    fn test_to_verification_request_invalid_json() {
+        let etherscan_req = EtherscanVerificationRequest {
+            code_format: EtherscanCodeFormat::StandardJsonInput,
+            source_code: "invalid json".to_string(),
+            constructor_arguments: Bytes::default(),
+            contract_address: "0x3333333333333333333333333333333333333333"
+                .parse()
+                .unwrap(),
+            contract_name: "InvalidJson".to_string(),
+            compiler_version: "v0.8.20+commit.a1b2c3d4".to_string(),
+            zksolc_version: None,
+            optimization_used: Some(false),
+            optimizer_mode: None,
+            runs: None,
+            evm_version: None,
+            compiler_mode: None,
+            is_system: false,
+            force_evmla: false,
+        };
+
+        let result = etherscan_req.to_verification_request();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_etherscan_response_constructors() {
+        let success_resp = EtherscanResponse::successful("Success Result".to_string());
+        assert_eq!(success_resp.status, "1");
+        assert_eq!(success_resp.message, "OK");
+        assert_eq!(success_resp.result, "Success Result");
+
+        let failed_resp = EtherscanResponse::failed("Failure Reason".to_string());
+        assert_eq!(failed_resp.status, "0");
+        assert_eq!(failed_resp.message, "NOTOK");
+        assert_eq!(failed_resp.result, "Failure Reason");
+    }
+
+    #[test]
+    fn test_etherscan_response_from_verification_status() {
+        let queued_status = VerificationRequestStatus {
+            status: "queued".to_string(),
+            error: None,
+            compilation_errors: None,
+        };
+        let queued_resp: EtherscanResponse = queued_status.into();
+        assert_eq!(queued_resp.status, "0");
+        assert_eq!(queued_resp.result, "Pending in queue");
+
+        let in_progress_status = VerificationRequestStatus {
+            status: "in_progress".to_string(),
+            error: None,
+            compilation_errors: None,
+        };
+        let in_progress_resp: EtherscanResponse = in_progress_status.into();
+        assert_eq!(in_progress_resp.status, "0");
+        assert_eq!(in_progress_resp.result, "Pending in queue");
+
+        let successful_status = VerificationRequestStatus {
+            status: "successful".to_string(),
+            error: None,
+            compilation_errors: None,
+        };
+        let successful_resp: EtherscanResponse = successful_status.into();
+        assert_eq!(successful_resp.status, "1");
+        assert_eq!(successful_resp.result, "Pass - Verified");
+
+        let failed_status_with_error = VerificationRequestStatus {
+            status: "failed".to_string(),
+            error: Some("Compilation error".to_string()),
+            compilation_errors: None,
+        };
+        let failed_resp_with_error: EtherscanResponse = failed_status_with_error.into();
+        assert_eq!(failed_resp_with_error.status, "0");
+        assert_eq!(
+            failed_resp_with_error.result,
+            "Fail - Unable to verify. Compilation error"
+        );
+
+        let unknown_status = VerificationRequestStatus {
+            status: "unknown_state".to_string(),
+            error: None,
+            compilation_errors: None,
+        };
+        let unknown_resp: EtherscanResponse = unknown_status.into();
+        assert_eq!(unknown_resp.status, "0");
+        assert_eq!(
+            unknown_resp.result,
+            "Fail - Unable to verify. Unknown verification status: unknown_state."
+        );
     }
 }
