@@ -131,7 +131,7 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
             }
             selector if selector == get_da_validator_pair_selector => {
                 assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
-                let non_zero_address =vec![6u8; 32];
+                let non_zero_address = vec![6u8; 32];
 
                 vec![non_zero_address.clone(), non_zero_address].concat()
             }

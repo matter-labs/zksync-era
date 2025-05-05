@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Add};
+use std::collections::HashMap;
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
