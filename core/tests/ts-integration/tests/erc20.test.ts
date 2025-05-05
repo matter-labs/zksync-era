@@ -17,7 +17,6 @@ import {
     L2_INTEROP_ROOT_STORAGE_ADDRESS,
     ArtifactL2MessageVerification,
     ArtifactL2InteropRootStorage,
-    ETH_ADDRESS_IN_CONTRACTS,
     ArtifactBridgeHub
 } from '../src/constants';
 import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
