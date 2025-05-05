@@ -1,8 +1,13 @@
+use std::path::Path;
+
 use ethers::{
     abi::{decode, ParamType, Token},
+    types::Bytes,
     utils::hex,
 };
 use serde::Serialize;
+use xshell::Shell;
+use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
 
@@ -93,6 +98,7 @@ impl AdminCallBuilder {
     }
 
     #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
         shell: &Shell,
