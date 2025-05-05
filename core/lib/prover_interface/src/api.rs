@@ -2,17 +2,12 @@
 //! This module defines the types used in the API.
 
 use serde::{Deserialize, Serialize};
-use serde_with::{hex::Hex, serde_as};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    tee_types::TeeType,
     L1BatchId, L1BatchNumber, L2ChainId,
 };
 
-use crate::{
-    inputs::{TeeVerifierInput, WitnessInputData},
-    outputs::{JsonL1BatchProofForL1, L1BatchTeeProofForL1},
-};
+use crate::{inputs::WitnessInputData, outputs::JsonL1BatchProofForL1};
 
 // Structs for holding data returned in HTTP responses
 
@@ -38,33 +33,15 @@ pub enum ProofGenerationDataResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
-
-#[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofResponse {
     Success,
     Error(String),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum SubmitTeeProofResponse {
-    Success,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum RegisterTeeAttestationResponse {
-    Success,
 }
 
 // Structs to hold data necessary for making HTTP requests
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationDataRequest {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TeeProofGenerationDataRequest {
-    pub tee_type: TeeType,
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofRequest {
@@ -84,15 +61,3 @@ pub struct PollGeneratedProofsResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyProofRequest(pub Box<JsonL1BatchProofForL1>);
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);
-
-#[serde_as]
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct RegisterTeeAttestationRequest {
-    #[serde_as(as = "Hex")]
-    pub attestation: Vec<u8>,
-    #[serde_as(as = "Hex")]
-    pub pubkey: Vec<u8>,
-}

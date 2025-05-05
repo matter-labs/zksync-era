@@ -738,7 +738,8 @@ impl EthSenderDal<'_, '_> {
     ///   none of the main operator this parameter should be set to `None`.
     pub async fn get_next_nonce(
         &mut self,
-        from_address: Option<Address>,
+        from_address: Address,
+        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Option<u64>> {
         let nonce = sqlx::query!(
@@ -748,15 +749,19 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                -- can't just use equality as NULL != NULL
-                from_addr IS NOT DISTINCT FROM $1
-                AND is_gateway = $2
+                (
+                    from_addr = $1
+                    OR
+                    (from_addr IS NULL AND $2)
+                )
+                AND is_gateway = $3
             ORDER BY
                 id DESC
             LIMIT
                 1
             "#,
-            from_address.as_ref().map(|h160| h160.as_bytes()),
+            from_address.as_bytes(),
+            consider_null_operator_address,
             is_gateway
         )
         .fetch_optional(self.storage.conn())

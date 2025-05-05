@@ -1,0 +1,24 @@
+[package]
+name = "zksync_tee_prover_interface"
+description = "Interfaces for interaction with ZKsync TEE prover subsystem"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_vm_interface.workspace = true
+zksync_object_store.workspace = true
+zksync_prover_interface.workspace = true
+zksync_types.workspace = true
+
+serde_with = { workspace = true, features = ["base64", "hex"] }
+serde.workspace = true
+
+[dev-dependencies]
+bincode.workspace = true
+serde_json.workspace = true

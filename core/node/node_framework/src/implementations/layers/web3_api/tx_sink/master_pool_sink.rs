@@ -30,7 +30,7 @@ impl WiringLayer for MasterPoolSinkLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "master_pook_sink_layer"
+        "master_pool_sink_layer"
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
