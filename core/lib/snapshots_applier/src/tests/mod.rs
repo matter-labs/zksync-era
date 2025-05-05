@@ -588,7 +588,9 @@ async fn applier_returns_error_on_fatal_object_store_error() {
         Arc::new(object_store),
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let err = task.run(stop_receiver).await.unwrap_err();
+    let OrStopped::Internal(err) = task.run(stop_receiver).await.unwrap_err() else {
+        panic!("Recovery unexpectedly stopped");
+    };
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -619,7 +621,10 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
         Arc::new(object_store),
     );
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let err = task.run(stop_receiver).await.unwrap_err();
+    let OrStopped::Internal(err) = task.run(stop_receiver).await.unwrap_err() else {
+        panic!("Recovery unexpectedly stopped");
+    };
+
     assert!(err.chain().any(|cause| {
         matches!(
             cause.downcast_ref::<ObjectStoreError>(),
@@ -744,11 +749,10 @@ async fn snapshot_applier_can_be_canceled() {
     assert!(!task_handle.is_finished());
 
     task_stop_sender.send(true).unwrap();
-    let result = tokio::time::timeout(Duration::from_secs(5), task_handle)
+    let err = tokio::time::timeout(Duration::from_secs(5), task_handle)
         .await
         .expect("Task wasn't canceled")
         .unwrap()
-        .expect("Task erred");
-    assert!(result.canceled);
-    assert!(!result.done_work);
+        .unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 }

@@ -19,7 +19,7 @@ use zksync_types::{
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::TokenInfo,
-    L1BatchNumber, L2BlockNumber, StorageKey, H256,
+    L1BatchNumber, L2BlockNumber, OrStopped, StorageKey, H256,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -76,8 +76,6 @@ enum SnapshotsApplierError {
     Fatal(#[from] anyhow::Error),
     #[error(transparent)]
     Retryable(anyhow::Error),
-    #[error("Snapshot recovery has been canceled")]
-    Canceled,
 }
 
 impl SnapshotsApplierError {
@@ -113,6 +111,8 @@ impl From<EnrichedClientError> for SnapshotsApplierError {
         }
     }
 }
+
+type StopResult<T> = Result<T, OrStopped<SnapshotsApplierError>>;
 
 /// Main node API used by the [`SnapshotsApplier`].
 #[async_trait]
@@ -247,8 +247,6 @@ impl SnapshotsApplierConfig {
 pub struct SnapshotApplierTaskStats {
     /// Did the task do any work?
     pub done_work: bool,
-    /// Was the task canceled?
-    pub canceled: bool,
 }
 
 #[derive(Debug)]
@@ -346,17 +344,14 @@ impl SnapshotsApplierTask {
     pub async fn run(
         self,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<SnapshotApplierTaskStats> {
+    ) -> Result<SnapshotApplierTaskStats, OrStopped> {
         tracing::info!("Starting snapshot recovery with config: {:?}", self.config);
 
         let mut backoff = self.config.initial_retry_backoff;
         let mut last_error = None;
         for retry_id in 0..self.config.retry_count {
             if *stop_receiver.borrow() {
-                return Ok(SnapshotApplierTaskStats {
-                    done_work: false, // Not really relevant, since the node will be shut down.
-                    canceled: true,
-                });
+                return Err(OrStopped::Stopped);
             }
 
             let result = SnapshotsApplier::load_snapshot(&self, &mut stop_receiver).await;
@@ -371,14 +366,13 @@ impl SnapshotsApplierTask {
                     self.health_updater.freeze();
                     return Ok(SnapshotApplierTaskStats {
                         done_work: !matches!(strategy, SnapshotRecoveryStrategy::Completed),
-                        canceled: false,
                     });
                 }
-                Err(SnapshotsApplierError::Fatal(err)) => {
+                Err(OrStopped::Internal(SnapshotsApplierError::Fatal(err))) => {
                     tracing::error!("Fatal error occurred during snapshots recovery: {err:?}");
-                    return Err(err);
+                    return Err(err.into());
                 }
-                Err(SnapshotsApplierError::Retryable(err)) => {
+                Err(OrStopped::Internal(SnapshotsApplierError::Retryable(err))) => {
                     tracing::warn!("Retryable error occurred during snapshots recovery: {err:?}");
                     last_error = Some(err);
                     tracing::info!(
@@ -391,19 +385,16 @@ impl SnapshotsApplierTask {
                     // Stop receiver will be checked on the next iteration.
                     backoff = backoff.mul_f32(self.config.retry_backoff_multiplier);
                 }
-                Err(SnapshotsApplierError::Canceled) => {
+                Err(OrStopped::Stopped) => {
                     tracing::info!("Snapshot recovery has been canceled");
-                    return Ok(SnapshotApplierTaskStats {
-                        done_work: false,
-                        canceled: true,
-                    });
+                    return Err(OrStopped::Stopped);
                 }
             }
         }
 
         let last_error = last_error.unwrap(); // `unwrap()` is safe: `last_error` was assigned at least once
         tracing::error!("Snapshot recovery run out of retries; last error: {last_error:?}");
-        Err(last_error)
+        Err(last_error.into())
     }
 }
 
@@ -663,7 +654,22 @@ impl<'a> SnapshotsApplier<'a> {
     async fn load_snapshot(
         task: &'a SnapshotsApplierTask,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(SnapshotRecoveryStrategy, SnapshotRecoveryStatus), SnapshotsApplierError> {
+    ) -> StopResult<(SnapshotRecoveryStrategy, SnapshotRecoveryStatus)> {
+        let (mut this, strategy) = Self::new(task).await?;
+        this.recover_storage_logs(stop_receiver).await?;
+        for is_chunk_processed in &mut this.applied_snapshot_status.storage_logs_chunks_processed {
+            *is_chunk_processed = true;
+        }
+
+        this.recover_tokens().await?;
+        this.tokens_recovered = true;
+        this.update_health();
+        Ok((strategy, this.applied_snapshot_status))
+    }
+
+    async fn new(
+        task: &'a SnapshotsApplierTask,
+    ) -> Result<(Self, SnapshotRecoveryStrategy), SnapshotsApplierError> {
         let health_updater = &task.health_updater;
         let connection_pool = &task.connection_pool;
         let main_node_client = task.main_node_client.as_ref();
@@ -685,9 +691,9 @@ impl<'a> SnapshotsApplier<'a> {
         .await?;
         tracing::info!("Chosen snapshot recovery strategy: {strategy:?} with status: {applied_snapshot_status:?}");
         let (created_from_scratch, snapshot_version) = match strategy {
-            SnapshotRecoveryStrategy::Completed => return Ok((strategy, applied_snapshot_status)),
             SnapshotRecoveryStrategy::New(version) => (true, version),
             SnapshotRecoveryStrategy::Resumed(version) => (false, version),
+            SnapshotRecoveryStrategy::Completed => (false, SnapshotVersion::Version1),
         };
 
         let mut this = Self {
@@ -702,6 +708,10 @@ impl<'a> SnapshotsApplier<'a> {
             factory_deps_recovered: !created_from_scratch,
             tokens_recovered: false,
         };
+
+        if matches!(strategy, SnapshotRecoveryStrategy::Completed) {
+            return Ok((this, strategy));
+        }
 
         METRICS.storage_logs_chunks_count.set(
             this.applied_snapshot_status
@@ -743,16 +753,7 @@ impl<'a> SnapshotsApplier<'a> {
         drop(storage);
         this.factory_deps_recovered = true;
         this.update_health();
-
-        this.recover_storage_logs(stop_receiver).await?;
-        for is_chunk_processed in &mut this.applied_snapshot_status.storage_logs_chunks_processed {
-            *is_chunk_processed = true;
-        }
-
-        this.recover_tokens().await?;
-        this.tokens_recovered = true;
-        this.update_health();
-        Ok((strategy, this.applied_snapshot_status))
+        Ok((this, strategy))
     }
 
     fn update_health(&self) {
@@ -962,7 +963,7 @@ impl<'a> SnapshotsApplier<'a> {
     async fn recover_storage_logs(
         &self,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(), SnapshotsApplierError> {
+    ) -> StopResult<()> {
         let effective_concurrency =
             (self.connection_pool.max_size() as usize).min(self.max_concurrency);
         tracing::info!(
@@ -986,10 +987,15 @@ impl<'a> SnapshotsApplier<'a> {
                 res?;
             },
             _ = stop_receiver.changed() => {
-                return Err(SnapshotsApplierError::Canceled);
+                return Err(OrStopped::Stopped);
             }
         }
 
+        self.finalize_processing_storage_logs().await?;
+        Ok(())
+    }
+
+    async fn finalize_processing_storage_logs(&self) -> Result<(), SnapshotsApplierError> {
         let mut storage = self
             .connection_pool
             .connection_tagged("snapshots_applier")
@@ -1012,9 +1018,8 @@ impl<'a> SnapshotsApplier<'a> {
                 "mismatch between the expected number of storage logs by enumeration indices ({number_of_logs_by_enum_indices}) \
                  and the actual number of logs in the snapshot ({total_log_count}); the snapshot may be corrupted"
             );
-            return Err(SnapshotsApplierError::Fatal(err));
+            return Err(err.into());
         }
-
         Ok(())
     }
 
