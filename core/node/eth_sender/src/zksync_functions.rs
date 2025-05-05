@@ -1,7 +1,5 @@
 use zksync_contracts::{
-    hyperchain_contract, multicall_contract, state_transition_manager_contract, verifier_contract,
-    POST_SHARED_BRIDGE_COMMIT_FUNCTION, POST_SHARED_BRIDGE_EXECUTE_FUNCTION,
-    POST_SHARED_BRIDGE_PROVE_FUNCTION,
+    getters_facet_contract, hyperchain_contract, multicall_contract, state_transition_manager_contract, verifier_contract, POST_SHARED_BRIDGE_COMMIT_FUNCTION, POST_SHARED_BRIDGE_EXECUTE_FUNCTION, POST_SHARED_BRIDGE_PROVE_FUNCTION
 };
 use zksync_types::ethabi::{Contract, Function};
 
@@ -53,6 +51,7 @@ fn get_optional_function(contract: &Contract, name: &str) -> Option<Function> {
 impl Default for ZkSyncFunctions {
     fn default() -> Self {
         let zksync_contract = hyperchain_contract();
+        let getters_contract = getters_facet_contract();
         let verifier_contract = verifier_contract();
         let multicall_contract = multicall_contract();
         let state_transition_manager_contract = state_transition_manager_contract();
@@ -71,7 +70,7 @@ impl Default for ZkSyncFunctions {
             get_function(&zksync_contract, "getL2DefaultAccountBytecodeHash");
         let get_evm_emulator_bytecode_hash =
             get_optional_function(&zksync_contract, "getL2EvmSimulatorBytecodeHash");
-        let get_da_validator_pair = get_function(&zksync_contract, "getDAValidatorPair");
+        let get_da_validator_pair = get_function(&getters_contract, "getDAValidatorPair");
         let get_verifier = get_function(&zksync_contract, "getVerifier");
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
