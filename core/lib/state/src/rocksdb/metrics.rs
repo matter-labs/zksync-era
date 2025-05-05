@@ -30,7 +30,9 @@ pub(super) enum RecoveryStage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum ChunkRecoveryStage {
+    AcquireConnection,
     LoadEntries,
+    LockDb,
     SaveEntries,
 }
 
@@ -39,7 +41,7 @@ pub(super) enum ChunkRecoveryStage {
 #[metrics(prefix = "server_state_keeper_secondary_storage_recovery")]
 pub(super) struct RocksdbRecoveryMetrics {
     /// Number of chunks recovered.
-    pub recovered_chunk_count: Gauge<u64>,
+    pub recovered_chunk_count: Gauge<usize>,
     /// Latency of a storage recovery stage (not related to the recovery of a particular chunk;
     /// those metrics are tracked in the `chunk_latency` histogram).
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
