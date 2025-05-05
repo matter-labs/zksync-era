@@ -19,9 +19,8 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     LegacyVmInstance,
 };
-use zksync_prover_interface::inputs::{
-    StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
-};
+use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
+use zksync_tee_prover_interface::inputs::V1TeeVerifierInput;
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, u256_to_h256, L1BatchNumber,
     StorageLog, StorageValue, Transaction, H256,
@@ -303,7 +302,8 @@ fn execute_tx<S: ReadStorage>(
 mod tests {
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
-    use zksync_prover_interface::inputs::{TeeVerifierInput, VMRunWitnessInputData};
+    use zksync_prover_interface::inputs::VMRunWitnessInputData;
+    use zksync_tee_prover_interface::inputs::TeeVerifierInput;
 
     use super::*;
 
