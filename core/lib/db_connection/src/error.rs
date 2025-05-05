@@ -29,6 +29,8 @@ impl DalError {
     }
 }
 
+// `DalError` is somewhat frequently converted to `OrStopped` in tasks, so we allow it via `?` instead
+// of forcing users to use `.map_err(DalError::generalize)`.
 impl From<DalError> for OrStopped {
     fn from(err: DalError) -> Self {
         err.generalize().into()

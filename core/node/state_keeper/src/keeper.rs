@@ -20,7 +20,7 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, L1BatchNumber, OrStopped, Transaction,
+    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -122,7 +122,8 @@ impl ZkSyncStateKeeper {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
                 let (system_env, l1_batch_env, pubdata_params) = self
                     .wait_for_new_batch_env(&cursor, &mut stop_receiver)
-                    .await?;
+                    .await
+                    .stop_context("failed getting new batch params")?;
                 PendingBatchData {
                     l1_batch_env,
                     pending_l2_blocks: Vec::new(),
@@ -242,7 +243,8 @@ impl ZkSyncStateKeeper {
         let storage = self
             .storage_factory
             .access_storage(stop_receiver, l1_batch_env.number - 1)
-            .await?;
+            .await
+            .stop_context("failed creating VM storage")?;
         Ok(self
             .batch_executor
             .init_batch(storage, l1_batch_env, system_env, pubdata_params))
@@ -552,7 +554,8 @@ impl ZkSyncStateKeeper {
         // The `wait_for_new_l2_block_params` call is used to initialize the StateKeeperIO with a correct new l2 block params
         let new_l2_block_params = self
             .wait_for_new_l2_block_params(updates_manager, stop_receiver)
-            .await?;
+            .await
+            .stop_context("failed getting L2 block params")?;
         Self::set_l2_block_params(updates_manager, new_l2_block_params);
         Ok(())
     }
@@ -613,7 +616,8 @@ impl ZkSyncStateKeeper {
                 // Get a tentative new l2 block parameters
                 let next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
-                    .await?;
+                    .await
+                    .stop_context("failed getting L2 block params")?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 

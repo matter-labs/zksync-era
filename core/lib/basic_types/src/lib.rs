@@ -27,7 +27,7 @@ pub use self::{
         address_to_h256, address_to_u256, h256_to_address, h256_to_u256, u256_to_address,
         u256_to_h256,
     },
-    errors::OrStopped,
+    errors::{OrStopped, StopContext},
 };
 
 #[macro_use]

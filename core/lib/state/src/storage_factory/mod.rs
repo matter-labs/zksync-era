@@ -4,7 +4,9 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{u256_to_h256, L1BatchNumber, OrStopped, StorageKey, StorageValue, H256};
+use zksync_types::{
+    u256_to_h256, L1BatchNumber, OrStopped, StopContext, StorageKey, StorageValue, H256,
+};
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
@@ -87,6 +89,7 @@ impl CommonStorage<'static> {
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
+    #[tracing::instrument(level = "debug", skip_all, err, fields(l1_batch_number = l1_batch_number.0))]
     pub async fn rocksdb(
         connection: &mut Connection<'_, Core>,
         rocksdb: RocksdbStorage,
@@ -94,7 +97,10 @@ impl CommonStorage<'static> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<Self, OrStopped> {
         tracing::debug!("Catching up RocksDB synchronously");
-        let rocksdb = rocksdb.synchronize(connection, stop_receiver, None).await?;
+        let rocksdb = rocksdb
+            .synchronize(connection, stop_receiver, None)
+            .await
+            .stop_context("Failed to catch up state keeper RocksDB storage to Postgres")?;
         let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
         if l1_batch_number + 1 != rocksdb_l1_batch_number {
             let err = anyhow::anyhow!(

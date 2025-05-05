@@ -125,7 +125,7 @@ impl RocksdbStorage {
     /// # Return value
     ///
     /// Returns the next L1 batch that should be fed to the storage.
-    #[tracing::instrument(skip_all, ret)]
+    #[tracing::instrument(skip_all, ret, err)]
     pub(super) async fn ensure_ready(
         &mut self,
         pool: &ConnectionPool<Core>,
@@ -359,7 +359,7 @@ impl RocksdbStorage {
         Ok(retained_chunks)
     }
 
-    #[tracing::instrument(skip_all, fields(id = key_chunk.id, range = ?key_chunk.key_range))]
+    #[tracing::instrument(skip_all, err, fields(id = key_chunk.id, range = ?key_chunk.key_range))]
     async fn recover_logs_chunk(
         this: &Mutex<Self>,
         pool: &ConnectionPool<Core>,

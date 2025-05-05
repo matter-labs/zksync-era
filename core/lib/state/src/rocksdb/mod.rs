@@ -277,6 +277,12 @@ impl RocksdbStorage {
     ///
     /// - Errors if the local L1 batch number is greater than the last sealed L1 batch number
     ///   in Postgres.
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        err,
+        fields(to_l1_batch_number = ?to_l1_batch_number)
+    )]
     pub async fn synchronize(
         mut self,
         storage: &mut Connection<'_, Core>,

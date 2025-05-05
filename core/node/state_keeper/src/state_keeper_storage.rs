@@ -7,7 +7,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
     AsyncCatchupTask, OwnedStorage, ReadStorageFactory, RocksdbCell, RocksdbStorageOptions,
 };
-use zksync_types::{L1BatchNumber, OrStopped};
+use zksync_types::{L1BatchNumber, OrStopped, StopContext};
 
 /// A [`ReadStorageFactory`] implementation that can produce short-lived [`ReadStorage`] handles
 /// backed by either Postgres or RocksDB (if it's caught up).
@@ -65,7 +65,9 @@ impl ReadStorageFactory for AsyncRocksdbCache {
             .await
             .context("Failed getting a Postgres connection")?;
         if let Some(rocksdb) = rocksdb {
-            OwnedStorage::rocksdb(&mut connection, rocksdb, stop_receiver, l1_batch_number).await
+            OwnedStorage::rocksdb(&mut connection, rocksdb, stop_receiver, l1_batch_number)
+                .await
+                .stop_context("Failed accessing RocksDB storage")
         } else {
             Ok(OwnedStorage::postgres(connection, l1_batch_number)
                 .await?
