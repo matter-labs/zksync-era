@@ -90,6 +90,7 @@ impl AdminCallBuilder {
     }
 
     #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
         shell: &Shell,
