@@ -76,3 +76,19 @@ macro_rules! basic_type {
         }
     };
 }
+
+#[macro_export]
+macro_rules! try_stoppable {
+    ($res:expr) => {
+        match $res {
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err($crate::OrStopped::Stopped) => {
+                ::tracing::info!("Stop signal was received");
+                return Ok(());
+            }
+            ::core::result::Result::Err($crate::OrStopped::Internal(err)) => {
+                return Err(err);
+            }
+        }
+    };
+}

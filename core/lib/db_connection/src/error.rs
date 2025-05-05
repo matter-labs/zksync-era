@@ -1,6 +1,7 @@
 use std::{fmt, panic::Location};
 
 use sqlx::error::BoxDynError;
+use zksync_basic_types::OrStopped;
 
 use crate::connection::ConnectionTags;
 
@@ -25,6 +26,12 @@ impl DalError {
     /// Wraps this error into an `anyhow` wrapper.
     pub fn generalize(self) -> anyhow::Error {
         anyhow::Error::from(self).context("Postgres error")
+    }
+}
+
+impl From<DalError> for OrStopped {
+    fn from(err: DalError) -> Self {
+        err.generalize().into()
     }
 }
 

@@ -29,7 +29,7 @@ use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    OrStopped, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -847,8 +847,8 @@ impl ReadStorageFactory<OwnedStorage> for MockReadStorageFactory {
         &self,
         _stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>> {
+    ) -> Result<OwnedStorage, OrStopped> {
         let storage = InMemoryStorage::default();
-        Ok(Some(OwnedStorage::boxed(storage)))
+        Ok(OwnedStorage::boxed(storage))
     }
 }
