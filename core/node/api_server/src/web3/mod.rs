@@ -614,13 +614,11 @@ impl ApiServer {
         );
         // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
         // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
-        let earliest_l1_batch_number = try_stoppable!(wait_for_l1_batch(
-            &self.pool,
-            self.polling_interval,
-            &mut stop_receiver
-        )
-        .await
-        .stop_context("error while waiting for L1 batch in Postgres"));
+        let earliest_l1_batch_number =
+            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver).await;
+        let earliest_l1_batch_number =
+            try_stoppable!(earliest_l1_batch_number
+                .stop_context("error while waiting for L1 batch in Postgres"));
         tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{earliest_l1_batch_number}");
 
         let batch_request_config = self

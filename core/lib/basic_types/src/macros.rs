@@ -77,6 +77,12 @@ macro_rules! basic_type {
     };
 }
 
+/// Shortcuts both error variants in a `Result<_, OrStopped>`.
+///
+/// The [`Internal`](crate::OrStopped::Internal) variant is mapped to an error, and the [`Stopped`](crate::OrStopped::Stopped)
+/// variant is mapped to `Ok(())`. As such, a method / function where this macro is invoked must return `anyhow::Result<()>`.
+///
+/// This macro makes sense to call in higher-level tasks that compose lower-level code returning `Result<_, OrStopped>`.
 #[macro_export]
 macro_rules! try_stoppable {
     ($res:expr) => {

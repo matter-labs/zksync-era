@@ -1,8 +1,16 @@
 use std::fmt;
 
+/// Represents an error in a stoppable task: either an internal / fatal error, or a task getting stopped
+/// after receiving a stop signal.
+///
+/// The [`Error`](std::error::Error) trait is intentionally not implemented for this enum to force users
+/// to treat the `Stopped` variant with care. Depending on the application, it may not be an error.
+/// Use the [`try_stoppable!` macro](crate::try_stoppable) to handle this variant by early-returning `Ok(())`.
 #[derive(Debug)]
 pub enum OrStopped<E = anyhow::Error> {
+    /// Internal error.
     Internal(E),
+    /// Stop after receiving a signal.
     Stopped,
 }
 
@@ -21,7 +29,9 @@ impl<E> From<E> for OrStopped<E> {
     }
 }
 
+/// Extension trait for `Result<_, OrStopped>` similar to [`anyhow::Context`].
 pub trait StopContext<T>: Sized {
+    /// Adds context to the internal error, if any.
     fn stop_context(self, context: &'static str) -> Result<T, OrStopped>;
 }
 
