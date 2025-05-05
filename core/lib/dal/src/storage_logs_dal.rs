@@ -774,8 +774,12 @@ impl StorageLogsDal<'_, '_> {
                 break;
             }
             // `unwrap()` is safe: `entries` contains >= QUERY_LIMIT items.
-            let next_key = u256_to_h256(h256_to_u256(entries.last().unwrap().key) + 1);
-            key_range = next_key..=*key_range.end();
+            let Some(next_key) = h256_to_u256(entries.last().unwrap().key).checked_add(1.into())
+            else {
+                // A marginal case (likely not reproducible in practice): the last hashed key is `H256::repeat_byte(0xff)`.
+                break;
+            };
+            key_range = u256_to_h256(next_key)..=*key_range.end();
         }
 
         Ok(entries)
