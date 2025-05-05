@@ -172,6 +172,26 @@ da:
 It is recommended (although not strictly necessary) to also rename `da` in `secrets.yaml` to `da_client` (or copy if
 no-downtime migration is required).
 
+#### Deployment allowlist
+
+Configuration at `state_keeper.deployment_allowlist`. The tag field name in this case is `source`:
+
+```yaml
+# Before migration
+state_keeper:
+  deployment_allowlist:
+    dynamic:
+      http_file_url: http://deployment_allowlist/
+      refresh_interval_secs: 60
+---
+# After migration
+state_keeper:
+  deployment_allowlist:
+    source: Dynamic
+    http_file_url: http://deployment_allowlist/
+    refresh_interval_secs: 60
+```
+
 ### Other changes
 
 - `snapshot_recovery.experimental.drop_storage_key_preimages` parameter, if present, should be moved / copied to
