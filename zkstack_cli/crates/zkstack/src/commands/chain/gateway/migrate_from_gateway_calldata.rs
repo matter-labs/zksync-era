@@ -14,7 +14,7 @@ use super::{
     gateway_common::{
         get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
     },
-    messages::{message_for_gateway_migration_progress_state, USA_SET_DA_VALIDATOR_COMMAND_INFO},
+    messages::{message_for_gateway_migration_progress_state, USE_SET_DA_VALIDATOR_COMMAND_INFO},
 };
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi},
@@ -76,7 +76,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 .clone()
                 .context("L2 RPC URL must be provided for cross checking")?,
             params.gateway_rpc_url.clone(),
-            MigrationDirection::ToGateway,
+            MigrationDirection::FromGateway,
         )
         .await?;
 
@@ -111,19 +111,19 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 // the DA validator is not yet set
                 let basic_message = message_for_gateway_migration_progress_state(
                     state,
-                    MigrationDirection::ToGateway,
+                    MigrationDirection::FromGateway,
                 );
                 logger::info(&basic_message);
 
                 if l1_da_validator == Address::zero() || l2_da_validator == Address::zero() {
                     logger::warn("The DA validators are not yet set on the diamond proxy.");
-                    logger::info(USA_SET_DA_VALIDATOR_COMMAND_INFO);
+                    logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);
                 }
             }
             _ => {
                 let msg = message_for_gateway_migration_progress_state(
                     state,
-                    MigrationDirection::ToGateway,
+                    MigrationDirection::FromGateway,
                 );
                 logger::info(&msg);
 
@@ -160,7 +160,7 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
     display_admin_script_output(output);
 
     logger::warn("Note, that the above calldata ONLY includes calldata to start migration from ZK Gateway to L1. Once the migration finishes, the DA validator pair will be reset and so you will have to set again. ");
-    logger::info(USA_SET_DA_VALIDATOR_COMMAND_INFO);
+    logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);
 
     Ok(())
 }
