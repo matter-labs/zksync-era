@@ -124,6 +124,7 @@ pub(crate) fn apply_l2_block(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_l2_block_inner(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
