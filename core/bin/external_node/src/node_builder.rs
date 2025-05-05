@@ -725,7 +725,7 @@ impl ExternalNodeBuilder {
                         .add_state_keeper_layer()?
                         .add_consensus_layer()?
                         .add_pruning_layer()?
-                        .add_consistency_checker_layer()?
+                        // .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?
                         .add_logs_bloom_backfill_layer()?;
