@@ -363,7 +363,7 @@ mod tests {
     fn from_env_eigenv1m0_client() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            DA_CLIENT="Eigen"
+            DA_CLIENT="EigenV1M0"
             DA_DISPERSER_RPC="http://localhost:8080"
             DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
             DA_EIGENDA_ETH_RPC="http://localhost:8545"
