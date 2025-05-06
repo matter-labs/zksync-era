@@ -133,10 +133,12 @@ pub async fn fetch_chain_info(
     let gw_zkchain_addr = gw_bridgehub.get_zk_chain(chain_id).await?;
 
     if gw_zkchain_addr != Address::zero() {
-        if gw_zkchain_addr != apply_l1_to_l2_alias(chain_admin_addr) {
+        let gw_zkchain = ZkChainAbi::new(gw_zkchain_addr, gw_client.clone());
+        let gz_zkchain_admin = gw_zkchain.get_admin().await?;
+        if gz_zkchain_admin != apply_l1_to_l2_alias(chain_admin_addr) {
             bail!(
                 "Provided gw_zkchain_addr ({:?}) does not match the expected aliased L1 chain_admin_addr ({:?})",
-                gw_zkchain_addr,
+                gz_zkchain_admin,
                 apply_l1_to_l2_alias(chain_admin_addr)
             );
         }
@@ -156,6 +158,7 @@ pub struct V28PrecompilesCalldataArgs {
     upgrade_description_path: String,
     chain_id: u64,
     gw_chain_id: u64,
+    l1_gas_price: u64,
     l1_rpc_url: String,
     l2_rpc_url: String,
     gw_rpc_url: String,
@@ -168,7 +171,6 @@ pub struct V28PrecompilesCalldataArgs {
 
 pub struct V28PrecompilesUpgradeArgsInner {
     pub chain_id: u64,
-    pub gw_chain_id: u64,
     pub l1_rpc_url: String,
     pub gw_rpc_url: String,
 }
@@ -177,7 +179,6 @@ impl From<V28PrecompilesCalldataArgs> for V28PrecompilesUpgradeArgsInner {
     fn from(value: V28PrecompilesCalldataArgs) -> Self {
         Self {
             chain_id: value.chain_id,
-            gw_chain_id: value.gw_chain_id,
             l1_rpc_url: value.l1_rpc_url,
             gw_rpc_url: value.gw_rpc_url,
         }
@@ -197,9 +198,7 @@ pub struct V28UpgradeInfo {
     new_protocol_version: u64,
     old_protocol_version: u64,
 
-    l1_gas_price: u64,
-
-    gateway_diamond_cut: Vec<u8>,
+    gateway_diamond_cut: Bytes,
 }
 
 impl ZkStackConfig for V28UpgradeInfo {}
@@ -252,26 +251,28 @@ pub(crate) async fn run(shell: &Shell, args: V28PrecompilesCalldataArgs) -> anyh
         let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
         admin_calls_gw.append_execute_upgrade(
-            chain_info.gw_hyperchain_addr,
+            chain_info.hyperchain_addr,
             upgrade_info.old_protocol_version,
             upgrade_info.chain_upgrade_diamond_cut.clone(),
         );
 
-        admin_calls_gw.prepare_upgrade_chain_on_gateway_calls(
-            &shell,
-            forge_args,
-            &foundry_contracts_path,
-            args.chain_id,
-            args.gw_chain_id,
-            upgrade_info.bridgehub_addr,
-            upgrade_info.l1_gas_price,
-            upgrade_info.old_protocol_version,
-            chain_info.gw_hyperchain_addr,
-            chain_info.l1_asset_router_proxy,
-            chain_info.chain_admin_addr,
-            upgrade_info.gateway_diamond_cut.into(),
-            args.l1_rpc_url.clone(),
-        );
+        admin_calls_gw
+            .prepare_upgrade_chain_on_gateway_calls(
+                shell,
+                forge_args,
+                &foundry_contracts_path,
+                args.chain_id,
+                args.gw_chain_id,
+                upgrade_info.bridgehub_addr,
+                args.l1_gas_price,
+                upgrade_info.old_protocol_version,
+                chain_info.gw_hyperchain_addr,
+                chain_info.l1_asset_router_proxy,
+                chain_info.chain_admin_addr,
+                upgrade_info.gateway_diamond_cut.0.into(),
+                args.l1_rpc_url.clone(),
+            )
+            .await;
 
         admin_calls_gw.display();
 

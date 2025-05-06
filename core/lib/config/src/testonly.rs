@@ -806,10 +806,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
-            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
-                0 => L1BatchCommitmentMode::Rollup,
-                _ => L1BatchCommitmentMode::Validium,
-            },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
             gateway_chain_id: self.sample_opt(|| SLChainId(rng.gen())),
