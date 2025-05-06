@@ -5,7 +5,7 @@ use zksync_config::configs::{
     },
     eth_sender::SenderConfig,
 };
-use zksync_contracts::{bridgehub_contract, getters_facet_contract};
+use zksync_contracts::bridgehub_contract;
 use zksync_dal::{Core, CoreDal};
 use zksync_db_connection::connection::Connection;
 use zksync_eth_client::{

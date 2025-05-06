@@ -4,12 +4,9 @@ use anyhow::{bail, Context};
 use tokio::sync::watch;
 use zksync_basic_types::{ethabi::Contract, settlement::SettlementLayer, L2ChainId, SLChainId};
 use zksync_config::configs::contracts::SettlementLayerSpecificContracts;
-use zksync_contracts::{bridgehub_contract, getters_facet_contract};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_contracts::bridgehub_contract;
 use zksync_eth_client::{
-    contracts_loader::{
-        get_diamond_proxy_contract, get_settlement_layer_address, get_settlement_layer_from_bridgehub
-    },
+    contracts_loader::get_settlement_layer_from_bridgehub,
     ContractCallError, EthInterface,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;

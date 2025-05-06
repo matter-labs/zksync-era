@@ -2,7 +2,7 @@ use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{
-    bridgehub_contract, getters_facet_contract, hyperchain_contract,
+    bridgehub_contract, hyperchain_contract,
     state_transition_manager_contract,
 };
 use zksync_types::{

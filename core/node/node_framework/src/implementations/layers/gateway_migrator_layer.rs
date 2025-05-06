@@ -7,7 +7,6 @@ use crate::{
     implementations::resources::{
         contracts::L1ChainContractsResource,
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
-        pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},

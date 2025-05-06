@@ -20,7 +20,7 @@ use zksync_config::{
     },
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
-use zksync_contracts::{bridgehub_contract, getters_facet_contract};
+use zksync_contracts::bridgehub_contract;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
