@@ -39,8 +39,8 @@ eigenv2m0:
   polynomial_form: COEFF
 ```
 
-You also need to modify `etc/env/file_based/secrets.yaml` to include the private key
-of the account that will be used. You need to add the following field:
+You also need to modify `etc/env/file_based/secrets.yaml` to include the private key of the account that will be used.
+You need to add the following field:
 
 ```yaml
 da:
