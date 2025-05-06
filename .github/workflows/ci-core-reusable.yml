@@ -59,9 +59,6 @@ jobs:
         run: |
           ci_localnet_up
 
-      - name: Install yq
-        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
-
       - name: Init
         run: |
           ci_run run_retried rustup show
@@ -172,8 +169,6 @@ jobs:
         run: |
           ci_run zkstack dev config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
           ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
-          # remember Era server PID so that we can restart it durting DA migration test
-          ERA_SERVER_PID=$!
           ci_run sleep 60
 
       - name: Perform loadtest
@@ -218,6 +213,9 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
+
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
 
       - name: Start services
         run: |
@@ -466,7 +464,9 @@ jobs:
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
           
-          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log
+          # remember Era server PID so that we can restart it durting DA migration test
+          ERA_SERVER_PID=$!
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run zkstack server --ignore-prerequisites --chain consensus \
