@@ -528,10 +528,10 @@ jobs:
           # set pubdata pricing mode to validium
           ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
           
-          yq -i '.l1_batch_commit_data_generator_mode = "Validium"' /chains/era/configs/general.yaml
-          yq -i '.da_client.no_da = {}' /chains/era/configs/general.yaml
-          yq -i '.eth.sender.pubdata_sending_mode = CUSTOM' /chains/era/configs/general.yaml
-          yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' /chains/era/configs/general.yaml
+          yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/general.yaml
+          yq -i '.da_client.no_da = {}' ./chains/era/configs/general.yaml
+          yq -i '.eth.sender.pubdata_sending_mode = CUSTOM' ./chains/era/configs/general.yaml
+          yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
           
           # restarting the server so that config changes take effect  
           kill $ERA_SERVER_PID
@@ -543,7 +543,7 @@ jobs:
           ci_run zkstack chain set-da-validator-pair
           
           # disable inclusion verification transition and restart the server
-          yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' /chains/era/configs/general.yaml
+          yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           kill $ERA_SERVER_PID
           ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
