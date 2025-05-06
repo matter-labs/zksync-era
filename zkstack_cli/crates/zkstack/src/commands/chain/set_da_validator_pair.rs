@@ -28,14 +28,12 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
         .address;
 
-    let governor = &chain_config.get_wallets_config()?.governor;
-
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
 
     set_da_validator_pair(
         shell,
         &args.clone(),
-        &get_default_foundry_path(&shell)?,
+        &get_default_foundry_path(shell)?,
         AdminScriptMode::OnlySave,
         chain_config.chain_id.as_u64(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
