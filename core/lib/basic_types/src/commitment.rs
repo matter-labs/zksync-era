@@ -16,6 +16,19 @@ pub enum L1BatchCommitmentMode {
     Validium,
 }
 
+impl From<PubdataType> for L1BatchCommitmentMode {
+    fn from(value: PubdataType) -> Self {
+        match value {
+            PubdataType::Rollup => L1BatchCommitmentMode::Rollup,
+            PubdataType::NoDA
+            | PubdataType::Avail
+            | PubdataType::Celestia
+            | PubdataType::Eigen
+            | PubdataType::ObjectStore => L1BatchCommitmentMode::Validium,
+        }
+    }
+}
+
 // The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
 // And knowing that, in Ethereum, the response is the index of the enum case.
 // 0 corresponds to Rollup case,

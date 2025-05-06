@@ -10,13 +10,14 @@ use std::{
 use zksync_dal::{
     transactions_web3_dal::ExtendedTransactionReceipt, Connection, Core, CoreDal, DalError,
 };
+use zksync_state::LruCache;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     api::TransactionReceipt,
-    get_code_key, get_nonce_key, h256_to_u256,
+    get_code_key, get_is_account_key, get_nonce_key, h256_to_u256,
     tx::execute::DeploymentParams,
     utils::{decompose_full_nonce, deployed_address_create, deployed_address_evm_create},
-    Address, L2BlockNumber,
+    Address, L2BlockNumber, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -94,17 +95,17 @@ pub(crate) async fn fill_transaction_receipts(
 ) -> Result<Vec<TransactionReceipt>, Web3Error> {
     receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
-    let mut deployments = Vec::with_capacity(receipts.len());
-    for receipt in &receipts {
-        deployments.push(if receipt.inner.to.is_none() {
+    let deployments = receipts.iter().map(|receipt| {
+        if receipt.inner.to.is_none() {
             Some(DeploymentTransactionType::Evm)
         } else if receipt.inner.to == Some(CONTRACT_DEPLOYER_ADDRESS) {
-            DeploymentParams::decode(&receipt.calldata.0)?.map(DeploymentTransactionType::EraVm)
+            DeploymentParams::decode(&receipt.calldata.0).map(DeploymentTransactionType::EraVm)
         } else {
             // Not a deployment transaction.
             None
-        });
-    }
+        }
+    });
+    let deployments: Vec<_> = deployments.collect();
 
     // Get the AA type for deployment transactions to filter out custom AAs below.
     let deployment_receipts = receipts
@@ -114,7 +115,7 @@ pub(crate) async fn fill_transaction_receipts(
     let account_types = if let Some(first_receipt) = deployment_receipts.clone().next() {
         let block_number = L2BlockNumber(first_receipt.inner.block_number.as_u32());
         let from_addresses = deployment_receipts.map(|receipt| receipt.inner.from);
-        get_account_types(storage, from_addresses, block_number).await?
+        get_external_account_types(storage, from_addresses, block_number).await?
     } else {
         HashMap::new()
     };
@@ -122,7 +123,11 @@ pub(crate) async fn fill_transaction_receipts(
     let mut filled_receipts = Vec::with_capacity(receipts.len());
     let mut receipt_indexes_with_unknown_nonce = HashSet::new();
     for (i, (mut receipt, mut deployment)) in receipts.into_iter().zip(deployments).enumerate() {
-        if deployment.is_some() && matches!(account_types[&receipt.inner.from], AccountType::Custom)
+        if deployment.is_some()
+            && matches!(
+                account_types[&receipt.inner.from],
+                ExternalAccountType::Custom
+            )
         {
             // Custom AAs may interpret transaction data in an arbitrary way (or, more realistically, use a custom
             // nonce increment scheme). Hence, we don't even try to assign `contract_address` for a receipt from a custom AA.
@@ -174,16 +179,16 @@ enum DeploymentTransactionType {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum AccountType {
+pub(crate) enum ExternalAccountType {
     Default,
     Custom,
 }
 
-async fn get_account_types(
+async fn get_external_account_types(
     storage: &mut Connection<'_, Core>,
     addresses: impl Iterator<Item = Address>,
     block_number: L2BlockNumber,
-) -> Result<HashMap<Address, AccountType>, Web3Error> {
+) -> Result<HashMap<Address, ExternalAccountType>, Web3Error> {
     let code_keys_to_addresses: HashMap<_, _> = addresses
         .map(|from| (get_code_key(&from).hashed_key(), from))
         .collect();
@@ -206,9 +211,9 @@ async fn get_account_types(
                 .unwrap_or_default();
             // The code key slot is non-zero for custom AAs
             let account_type = if value.is_zero() {
-                AccountType::Default
+                ExternalAccountType::Default
             } else {
-                AccountType::Custom
+                ExternalAccountType::Custom
             };
             (address, account_type)
         })
@@ -259,6 +264,103 @@ async fn fill_receipts_with_unknown_nonce(
         receipt.contract_address = Some(deployed_address_create(sender, deploy_nonce));
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum AccountType {
+    /// Externally owned account.
+    External(ExternalAccountType),
+    /// Non-AA contract.
+    Contract,
+}
+
+impl AccountType {
+    fn is_default(self) -> bool {
+        matches!(self, Self::External(ExternalAccountType::Default))
+    }
+
+    pub(crate) fn is_external(self) -> bool {
+        matches!(self, Self::External(_))
+    }
+}
+
+impl AccountType {
+    async fn with_full_nonce(
+        storage: &mut Connection<'_, Core>,
+        address: Address,
+        block_number: L2BlockNumber,
+    ) -> Result<(Self, U256), Web3Error> {
+        let code_key = get_code_key(&address).hashed_key();
+        let is_account_key = get_is_account_key(&address).hashed_key();
+        let nonce_key = get_nonce_key(&address).hashed_key();
+
+        let values = storage
+            .storage_logs_dal()
+            .get_storage_values(&[nonce_key, code_key, is_account_key], block_number)
+            .await
+            .map_err(DalError::generalize)?;
+        let full_nonce = values[&nonce_key].unwrap_or_default();
+        let code_hash = values[&code_key].unwrap_or_default();
+        let account_info = values[&is_account_key].unwrap_or_default();
+
+        let ty = if code_hash.is_zero() {
+            Self::External(ExternalAccountType::Default)
+        } else if account_info.is_zero() {
+            Self::Contract
+        } else {
+            Self::External(ExternalAccountType::Custom)
+        };
+        Ok((ty, h256_to_u256(full_nonce)))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct AccountTypesCache {
+    cache: LruCache<Address, AccountType>,
+}
+
+impl Default for AccountTypesCache {
+    fn default() -> Self {
+        Self {
+            cache: LruCache::uniform("account_types", 1 << 20 /* 1 MiB */),
+        }
+    }
+}
+
+impl AccountTypesCache {
+    /// Returns the account type and the stored nonce for the specified address. The nonce is intelligently
+    /// selected between the account nonce and deployment nonce, depending on the account type (contract or EOA).
+    pub(crate) async fn get_with_nonce(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        address: Address,
+        block_number: L2BlockNumber,
+    ) -> Result<(AccountType, U256), Web3Error> {
+        let (ty, full_nonce) = if let Some(ty) = self.cache.get(&address) {
+            let nonce_key = get_nonce_key(&address).hashed_key();
+            let full_nonce = storage
+                .storage_web3_dal()
+                .get_historical_value_unchecked(nonce_key, block_number)
+                .await
+                .map_err(DalError::generalize)?;
+            (ty, h256_to_u256(full_nonce))
+        } else {
+            let (ty, full_nonce) =
+                AccountType::with_full_nonce(storage, address, block_number).await?;
+            if !ty.is_default() || !full_nonce.is_zero() {
+                // There's activity for the account in question; its type can be cached since it cannot change in the future.
+                self.cache.insert(address, ty);
+            }
+            (ty, full_nonce)
+        };
+
+        let (account_nonce, deployment_nonce) = decompose_full_nonce(full_nonce);
+        let effective_nonce = match ty {
+            AccountType::Contract => deployment_nonce,
+            AccountType::External(_) => account_nonce,
+        };
+        Ok((ty, effective_nonce))
+    }
 }
 
 #[cfg(test)]
@@ -335,6 +437,43 @@ mod tests {
             deploy_receipt.contract_address,
             Some(deployed_address_create(alice.address(), 0.into()))
         );
+    }
+
+    #[tokio::test]
+    async fn contract_address_not_filled_for_bogus_deployment() {
+        let mut alice = Account::random();
+        let mut calldata = Execute::encode_deploy_params_create(H256::zero(), H256::zero(), vec![]);
+        // Truncate the calldata so that it contains the valid Solidity selector for `create()`, but cannot be decoded.
+        calldata.truncate(5);
+        let bogus_deployment = alice.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        );
+        let deployment_hash = bogus_deployment.hash();
+
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        prepare_storage(&mut storage, alice.address()).await;
+        persist_block_with_transactions(&pool, vec![bogus_deployment]).await;
+
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[deployment_hash])
+            .await
+            .unwrap();
+        let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+            .await
+            .unwrap();
+
+        assert_eq!(filled_receipts.len(), 1);
+        assert_eq!(filled_receipts[0].to, Some(CONTRACT_DEPLOYER_ADDRESS));
+        assert_eq!(filled_receipts[0].contract_address, None);
+        assert_eq!(filled_receipts[0].status, 0.into());
     }
 
     #[tokio::test]
@@ -507,9 +646,9 @@ mod tests {
         let expected_contract_addresses = [Some(account_addr), None, None, None];
         persist_block_with_transactions(&pool, txs).await;
 
-        // Check the account type helper.
+        // Check the account type helpers.
         let mut storage = pool.connection().await.unwrap();
-        let account_types = get_account_types(
+        let account_types = get_external_account_types(
             &mut storage,
             [alice.address, account_addr].into_iter(),
             L2BlockNumber(1),
@@ -517,8 +656,46 @@ mod tests {
         .await
         .unwrap();
 
-        assert_matches!(account_types[&alice.address], AccountType::Default);
-        assert_matches!(account_types[&account_addr], AccountType::Custom);
+        assert_matches!(account_types[&alice.address], ExternalAccountType::Default);
+        assert_matches!(account_types[&account_addr], ExternalAccountType::Custom);
+
+        let counter_addr = deployed_address_create(account_addr, 0.into());
+        let account_types = AccountTypesCache::default();
+        // Check 2 times to verify caching logic.
+        for _ in 0..2 {
+            let (ty, nonce) = account_types
+                .get_with_nonce(&mut storage, alice.address, L2BlockNumber(1))
+                .await
+                .unwrap();
+            assert_matches!(ty, AccountType::External(ExternalAccountType::Default));
+            assert_eq!(nonce, 3.into()); // 3 first txs in the block
+            let (ty, nonce) = account_types
+                .get_with_nonce(&mut storage, account_addr, L2BlockNumber(1))
+                .await
+                .unwrap();
+            assert_matches!(ty, AccountType::External(ExternalAccountType::Custom));
+            assert_eq!(nonce, 1.into()); // deploying counter
+            let (ty, nonce) = account_types
+                .get_with_nonce(&mut storage, counter_addr, L2BlockNumber(1))
+                .await
+                .unwrap();
+            assert_matches!(ty, AccountType::Contract);
+            assert_eq!(nonce, 0.into());
+        }
+
+        // For addresses with no activity, the type should be "the default AA".
+        let empty_address = Address::repeat_byte(0xee);
+        let (ty, nonce) = account_types
+            .get_with_nonce(&mut storage, empty_address, L2BlockNumber(1))
+            .await
+            .unwrap();
+        assert_matches!(ty, AccountType::External(ExternalAccountType::Default));
+        assert_eq!(nonce, 0.into());
+
+        assert!(account_types.cache.get(&alice.address).is_some());
+        assert!(account_types.cache.get(&account_addr).is_some());
+        assert!(account_types.cache.get(&counter_addr).is_some());
+        assert!(account_types.cache.get(&empty_address).is_none());
 
         let receipts = storage
             .transactions_web3_dal()
@@ -536,5 +713,34 @@ mod tests {
             })
             .collect();
         assert_eq!(contract_addresses, expected_contract_addresses);
+    }
+
+    #[tokio::test]
+    async fn getting_nonce_for_evm_contract() {
+        let mut alice = Account::random();
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        StateBuilder::default()
+            .enable_evm_deployments()
+            .with_balance(alice.address(), u64::MAX.into())
+            .apply(storage)
+            .await;
+
+        let deploy_tx = alice.create_evm_counter_deployment(0.into());
+        let counter_address = deployed_address_evm_create(alice.address(), 0.into());
+        persist_block_with_transactions(&pool, vec![deploy_tx.into()]).await;
+
+        let account_types = AccountTypesCache::default();
+        let mut storage = pool.connection().await.unwrap();
+        let (ty, nonce) = account_types
+            .get_with_nonce(&mut storage, counter_address, L2BlockNumber(1))
+            .await
+            .unwrap();
+        assert_matches!(ty, AccountType::Contract);
+        // EVM contracts get the (deployment) nonce set to 1 on creation.
+        assert_eq!(nonce, 1.into());
     }
 }

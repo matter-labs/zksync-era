@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE scheduler_witness_jobs_fri\n            SET\n                status = 'in_progress',\n                attempts = attempts + 1,\n                updated_at = NOW(),\n                processing_started_at = NOW(),\n                picked_by = $2\n            WHERE\n                (l1_batch_number, chain_id) IN (\n                    SELECT\n                        l1_batch_number,\n                        chain_id\n                    FROM\n                        scheduler_witness_jobs_fri\n                    WHERE\n                        status = 'queued'\n                        AND protocol_version = $1\n                        AND protocol_version_patch = $3\n                    ORDER BY\n                        priority DESC,\n                        batch_sealed_at ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n            RETURNING\n            scheduler_witness_jobs_fri.*\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "scheduler_partial_input_blob_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "processing_started_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 4,
+        "name": "time_taken",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 8,
+        "name": "attempts",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "picked_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "priority",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "batch_sealed_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 14,
+        "name": "chain_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "44507626fa90b087cbbf42e57a661985a973a67aed95d4a96846d9d5ace7950c"
+}

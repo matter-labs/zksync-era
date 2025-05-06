@@ -2,7 +2,6 @@ use crate::configs::contracts::{chain::ChainContracts, ecosystem::EcosystemCommo
 
 pub mod chain;
 pub mod ecosystem;
-pub mod gateway;
 
 #[derive(Debug, Clone)]
 pub struct SettlementLayerSpecificContracts {

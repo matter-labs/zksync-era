@@ -11,6 +11,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_types.workspace = true
+
 serde = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 anyhow.workspace = true

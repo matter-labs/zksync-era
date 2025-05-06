@@ -459,9 +459,6 @@ pub(crate) struct OptionalENConfig {
     /// Number of requests per second allocated for the main node HTTP client. Default is 100 requests.
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
     pub main_node_rate_limit_rps: NonZeroUsize,
-
-    #[serde(default)]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
     /// or was synced from genesis.
@@ -682,7 +679,6 @@ impl OptionalENConfig {
                 l2_block_seal_queue_capacity,
                 default_l2_block_seal_queue_capacity
             ),
-            l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
             snapshots_recovery_enabled: general_config
                 .snapshot_recovery
                 .as_ref()
@@ -1537,6 +1533,9 @@ impl ExternalNodeConfig {
             shared_bridge: self.remote.l1_shared_bridge_proxy_addr,
             erc_20_bridge: self.remote.l1_erc20_bridge_proxy_addr,
             base_token_address: self.remote.base_token_addr,
+            server_notifier_addr: self.remote.l1_server_notifier_addr,
+            // We don't need chain admin for external node
+            chain_admin: None,
         }
     }
 
@@ -1545,15 +1544,12 @@ impl ExternalNodeConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: self.remote.l1_bridgehub_proxy_addr,
                 state_transition_proxy_addr: self.remote.l1_state_transition_proxy_addr,
-                server_notifier_addr: self.remote.l1_server_notifier_addr,
                 // Multicall 3 is useless for external node
                 multicall3: None,
                 validator_timelock_addr: None,
             },
             chain_contracts_config: ChainContracts {
                 diamond_proxy_addr: self.l1_diamond_proxy_address(),
-                // We don't need chain admin for external node
-                chain_admin: None,
             },
         }
     }

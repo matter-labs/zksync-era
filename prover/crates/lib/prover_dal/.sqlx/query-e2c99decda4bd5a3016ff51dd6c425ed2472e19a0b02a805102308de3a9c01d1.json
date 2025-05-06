@@ -1,0 +1,73 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE prover_jobs_fri\n            SET\n                status = 'successful',\n                updated_at = NOW(),\n                time_taken = $1,\n                proof_blob_url = $2\n            WHERE\n                id = $3\n                AND chain_id = $4\n            RETURNING\n            prover_jobs_fri.id,\n            prover_jobs_fri.l1_batch_number,\n            prover_jobs_fri.chain_id,\n            prover_jobs_fri.circuit_id,\n            prover_jobs_fri.aggregation_round,\n            prover_jobs_fri.sequence_number,\n            prover_jobs_fri.depth,\n            prover_jobs_fri.is_node_final_proof,\n            prover_jobs_fri.batch_sealed_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "chain_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "circuit_id",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "aggregation_round",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "sequence_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "depth",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "is_node_final_proof",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "batch_sealed_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Time",
+        "Text",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e2c99decda4bd5a3016ff51dd6c425ed2472e19a0b02a805102308de3a9c01d1"
+}

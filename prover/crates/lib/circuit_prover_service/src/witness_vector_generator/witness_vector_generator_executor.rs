@@ -25,7 +25,7 @@ impl Executor for WitnessVectorGeneratorExecutor {
     #[tracing::instrument(
         name = "witness_vector_generator_executor",
         skip_all,
-        fields(l1_batch = % metadata.block_number)
+        fields(l1_batch = % metadata.batch_id)
     )]
     fn execute(
         &self,
@@ -36,21 +36,21 @@ impl Executor for WitnessVectorGeneratorExecutor {
         tracing::info!(
             "Started executing witness vector generator job {}, on batch {}, for circuit {}, at round {}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round
         );
         let WitnessVectorGeneratorPayload {
-            circuit,
+            circuit_wrapper,
             finalization_hints,
         } = input;
-        let witness_vector = circuit
+        let witness_vector = circuit_wrapper
             .synthesize_vector(finalization_hints)
             .context("failed to generate witness vector")?;
         tracing::info!(
             "Finished executing witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()
@@ -59,7 +59,7 @@ impl Executor for WitnessVectorGeneratorExecutor {
             .synthesize_time
             .observe(start_time.elapsed());
         Ok(WitnessVectorGeneratorExecutionOutput {
-            circuit,
+            circuit_wrapper,
             witness_vector,
         })
     }
