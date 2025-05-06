@@ -163,7 +163,7 @@ enum PubdataType {
   NoDA = 1;
   Avail = 2;
   Celestia = 3;
-  EigenV2M0 = 4;
-  EigenV1M0 = 6;
+  EigenV1M0 = 4;
   ObjectStore = 5;
+  EigenV2M0 = 6;
 }

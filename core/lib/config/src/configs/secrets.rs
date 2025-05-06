@@ -24,8 +24,8 @@ pub struct L1Secrets {
 pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
     Celestia(CelestiaSecrets),
-    EigenV2M0(EigenSecretsV2M0),
     EigenV1M0(EigenSecretsV1M0),
+    EigenV2M0(EigenSecretsV2M0),
 }
 
 #[derive(Debug, Clone, PartialEq)]

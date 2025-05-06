@@ -83,8 +83,8 @@ message DataAvailabilityClient {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
     CelestiaConfig celestia = 3;
-    EigenConfigV2M0 eigenv2m0 = 4;
-    EigenConfigV1M0 eigenv1m0 = 6;
+    EigenConfigV1M0 eigenv1m0 = 4;
     NoDAConfig no_da = 5;
+    EigenConfigV2M0 eigenv2m0 = 6;
   }
 }

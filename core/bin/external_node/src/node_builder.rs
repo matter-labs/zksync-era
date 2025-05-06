@@ -365,14 +365,6 @@ impl ExternalNodeBuilder {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
-            (DAClientConfig::EigenV2M0(mut config), DataAvailabilitySecrets::EigenV2M0(secret)) => {
-                if config.eigenda_eth_rpc.is_none() {
-                    config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
-                }
-
-                self.node
-                    .add_layer(EigenV2M0WiringLayer::new(config, secret));
-            }
             (DAClientConfig::EigenV1M0(mut config), DataAvailabilitySecrets::EigenV1M0(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
                     config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
@@ -380,6 +372,14 @@ impl ExternalNodeBuilder {
 
                 self.node
                     .add_layer(EigenV1M0WiringLayer::new(config, secret));
+            }
+            (DAClientConfig::EigenV2M0(mut config), DataAvailabilitySecrets::EigenV2M0(secret)) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
+                }
+
+                self.node
+                    .add_layer(EigenV2M0WiringLayer::new(config, secret));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }

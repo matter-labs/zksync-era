@@ -144,14 +144,14 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                         .as_str(),
                 ),
             }),
-            DaSecrets::Eigenv2m0(eigen) => DataAvailabilitySecrets::EigenV2M0(EigenSecretsV2M0 {
+            DaSecrets::Eigenv1m0(eigen) => DataAvailabilitySecrets::EigenV1M0(EigenSecretsV1M0 {
                 private_key: PrivateKey::from(
                     required(&eigen.private_key)
                         .context("private_key")?
                         .as_str(),
                 ),
             }),
-            DaSecrets::Eigenv1m0(eigen) => DataAvailabilitySecrets::EigenV1M0(EigenSecretsV1M0 {
+            DaSecrets::Eigenv2m0(eigen) => DataAvailabilitySecrets::EigenV2M0(EigenSecretsV2M0 {
                 private_key: PrivateKey::from(
                     required(&eigen.private_key)
                         .context("private_key")?
@@ -204,13 +204,13 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
-            DataAvailabilitySecrets::EigenV2M0(config) => {
-                Some(DaSecrets::Eigenv2m0(proto::EigenSecretV2m0 {
+            DataAvailabilitySecrets::EigenV1M0(config) => {
+                Some(DaSecrets::Eigenv1m0(proto::EigenSecretV1m0 {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
-            DataAvailabilitySecrets::EigenV1M0(config) => {
-                Some(DaSecrets::Eigenv1m0(proto::EigenSecretV1m0 {
+            DataAvailabilitySecrets::EigenV2M0(config) => {
+                Some(DaSecrets::Eigenv2m0(proto::EigenSecretV2m0 {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }

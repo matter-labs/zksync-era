@@ -43,27 +43,6 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
         CELESTIA_CLIENT_CONFIG_NAME => {
             DAClientConfig::Celestia(envy_load("da_celestia_config", prefix)?)
         }
-        EIGENV2M0_CLIENT_CONFIG_NAME => DAClientConfig::EigenV2M0(EigenConfigV2M0 {
-            disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
-            eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
-                // Use a specific L1 RPC URL for the EigenDA client.
-                Ok(url) => Some(SensitiveUrl::from_str(&url)?),
-                // Err means that the environment variable is not set.
-                // Use zkSync default L1 RPC for the EigenDA client.
-                Err(_) => None,
-            },
-            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
-            cert_verifier_addr: H160::from_str(&env::var(format!(
-                "{}CERT_VERIFIER_ADDR",
-                prefix
-            ))?)?,
-            blob_version: env::var(format!("{}BLOB_VERSION", prefix))?.parse()?,
-            polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
-                "Coeff" => zksync_config::configs::da_client::eigenv2m0::PolynomialForm::Coeff,
-                "Poly" => zksync_config::configs::da_client::eigenv2m0::PolynomialForm::Eval,
-                _ => anyhow::bail!("Unknown polynomial form"),
-            },
-        }),
         EIGENV1M0_CLIENT_CONFIG_NAME => DAClientConfig::EigenV1M0(EigenConfigV1M0 {
             disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
             settlement_layer_confirmation_depth: env::var(format!(
@@ -100,6 +79,27 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                     .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
                     .collect::<anyhow::Result<Vec<_>>>()?,
                 Err(_) => vec![],
+            },
+        }),
+        EIGENV2M0_CLIENT_CONFIG_NAME => DAClientConfig::EigenV2M0(EigenConfigV2M0 {
+            disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
+            eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
+                // Use a specific L1 RPC URL for the EigenDA client.
+                Ok(url) => Some(SensitiveUrl::from_str(&url)?),
+                // Err means that the environment variable is not set.
+                // Use zkSync default L1 RPC for the EigenDA client.
+                Err(_) => None,
+            },
+            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
+            cert_verifier_addr: H160::from_str(&env::var(format!(
+                "{}CERT_VERIFIER_ADDR",
+                prefix
+            ))?)?,
+            blob_version: env::var(format!("{}BLOB_VERSION", prefix))?.parse()?,
+            polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
+                "Coeff" => zksync_config::configs::da_client::eigenv2m0::PolynomialForm::Coeff,
+                "Poly" => zksync_config::configs::da_client::eigenv2m0::PolynomialForm::Eval,
+                _ => anyhow::bail!("Unknown polynomial form"),
             },
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
@@ -144,17 +144,17 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
                 .into();
             DataAvailabilitySecrets::Celestia(CelestiaSecrets { private_key })
         }
-        EIGENV2M0_CLIENT_CONFIG_NAME => {
-            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
-                .context("Eigen private key not found")?
-                .into();
-            DataAvailabilitySecrets::EigenV2M0(EigenSecretsV2M0 { private_key })
-        }
         EIGENV1M0_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
                 .context("Eigen private key not found")?
                 .into();
             DataAvailabilitySecrets::EigenV1M0(EigenSecretsV1M0 { private_key })
+        }
+        EIGENV2M0_CLIENT_CONFIG_NAME => {
+            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
+                .context("Eigen private key not found")?
+                .into();
+            DataAvailabilitySecrets::EigenV2M0(EigenSecretsV2M0 { private_key })
         }
 
         _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
