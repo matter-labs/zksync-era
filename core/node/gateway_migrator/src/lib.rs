@@ -96,11 +96,9 @@ impl GatewayMigrator {
     }
 }
 
-/// WorkingSettlementLayer is a wrapper around the settlement layer
-/// We have two state of the settlement layer:
-/// 1. unsafe_settlement_layer - the settlement layer that is currently used for all operations and calculations.
-/// 2. safe_settlement_layer - the settlement layer that could be unknown, which is particularly useful during the migration process.
-/// While the whole system is continuing to work with the old settlement layer, we can't really settle to it during the migration process.
+/// During the migration settlement layer could be unknown for the server.
+/// In this case, we should not use it for sending transactions.
+/// Meanwhile we should continue to work with the old settlement layer.
 #[derive(Debug, Clone)]
 pub struct WorkingSettlementLayer {
     unsafe_settlement_layer: SettlementLayer,
