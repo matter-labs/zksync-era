@@ -403,6 +403,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             is_verifier_pre_fflonk: self.sample(rng),
             gas_limit_mode: self.sample(rng),
             max_acceptable_base_fee_in_wei: self.sample(rng),
+            time_in_mempool_multiplier_cap: self.sample(rng),
         }
     }
 }

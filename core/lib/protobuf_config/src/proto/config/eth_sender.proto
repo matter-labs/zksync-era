@@ -59,6 +59,7 @@ message Sender {
   optional bool is_verifier_pre_fflonk = 24; // optional
   optional GasLimitMode gas_limit_mode = 25; // optional
   optional uint64 max_acceptable_base_fee_in_wei = 26; // optional; wei
+  optional uint32 time_in_mempool_multiplier_cap = 27; // optional
 }
 
 message GasAdjuster {

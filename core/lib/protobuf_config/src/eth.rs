@@ -141,6 +141,7 @@ impl ProtoRepr for proto::Sender {
             max_acceptable_base_fee_in_wei: self
                 .max_acceptable_base_fee_in_wei
                 .unwrap_or(Self::Type::default_max_acceptable_base_fee_in_wei()),
+            time_in_mempool_multiplier_cap: self.time_in_mempool_multiplier_cap,
         })
     }
 
@@ -172,6 +173,7 @@ impl ProtoRepr for proto::Sender {
             is_verifier_pre_fflonk: Some(this.is_verifier_pre_fflonk),
             gas_limit_mode: Some(proto::GasLimitMode::new(&this.gas_limit_mode).into()),
             max_acceptable_base_fee_in_wei: Some(this.max_acceptable_base_fee_in_wei),
+            time_in_mempool_multiplier_cap: this.time_in_mempool_multiplier_cap,
         }
     }
 }

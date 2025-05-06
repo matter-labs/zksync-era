@@ -38,6 +38,10 @@ pub trait TxParamsProvider: fmt::Debug + 'static + Send + Sync {
 
     /// Returns the recommended `max_price_per_pubdata` value for gateway transactions.
     fn get_gateway_price_per_pubdata(&self, time_in_mempool_in_l1_blocks: u32) -> u64;
+
     /// Returns the recommended `l2_pubdata_price` value for gateway transactions.
     fn get_gateway_l2_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64;
+
+    /// Returns `b` parameter of the pricing formula.
+    fn get_parameter_b(&self) -> f64;
 }

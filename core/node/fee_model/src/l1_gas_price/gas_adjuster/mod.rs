@@ -390,6 +390,10 @@ impl TxParamsProvider for GasAdjuster {
         METRICS.median_gas_per_pubdata_price.set(median);
         self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
+
+    fn get_parameter_b(&self) -> f64 {
+        self.config.pricing_formula_parameter_b
+    }
 }
 
 /// Helper structure responsible for collecting the data about recent transactions,
