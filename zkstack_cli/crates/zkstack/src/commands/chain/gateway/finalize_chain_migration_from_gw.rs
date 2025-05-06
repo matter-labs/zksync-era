@@ -69,7 +69,7 @@ pub async fn run(
                 .clone()
                 .context("L2 RPC URL must be provided for cross checking")?,
             params.gateway_rpc_url.clone(),
-            MigrationDirection::ToGateway,
+            MigrationDirection::FromGateway,
         )
         .await?;
 
