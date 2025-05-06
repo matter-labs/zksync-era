@@ -16,17 +16,16 @@ import {
     FundedWallet
 } from '../src';
 import {
-    setChunkSize,
-    setDataRetentionSec,
-    setRemovalDelaySec,
+    readContract,
     setSnapshotRecovery,
-    setTreeRecoveryParallelPersistenceBuffer
+    setTreeRecoveryParallelPersistenceBuffer,
+    setPruning,
+    ReverseConfigPatch
 } from './utils';
-import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { loadConfig } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 
 const pathToHome = path.join(__dirname, '../../../..');
-const fileConfig = shouldLoadConfigFromFile();
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
@@ -37,10 +36,20 @@ interface GetSnapshotResponse {
     readonly miniblockNumber: number;
     readonly l1BatchNumber: number;
     readonly storageLogsChunks: Array<StorageLogChunkMetadata>;
+    readonly factoryDepsFilepath: string;
 }
 
 interface StorageLogChunkMetadata {
     readonly filepath: string;
+}
+
+interface FactoryDependencies {
+    readonly factoryDeps: Array<FactoryDependency>;
+}
+
+interface FactoryDependency {
+    readonly bytecode: Buffer;
+    readonly hash?: Buffer;
 }
 
 interface StorageLogChunk {
@@ -60,8 +69,8 @@ interface TokenInfo {
     readonly l2_address: string;
 }
 
-async function logsPath(name: string): Promise<string> {
-    return await logsTestPath(fileConfig.chain, 'logs/recovery/snapshot/', name);
+async function logsPath(chain: string, name: string): Promise<string> {
+    return await logsTestPath(chain, 'logs/recovery/snapshot/', name);
 }
 
 /**
@@ -81,24 +90,11 @@ describe('snapshot recovery', () => {
     const PRUNED_BATCH_COUNT = 1;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
-
+    const autoKill: boolean = !process.env.NO_KILL;
+    const chainName = process.env.CHAIN_NAME!!;
+    console.log(`Testing chain: ${chainName}`);
     const disableTreeDuringPruning = process.env.DISABLE_TREE_DURING_PRUNING === 'true';
     console.log(`Tree is ${disableTreeDuringPruning ? 'disabled' : 'enabled'} during pruning`);
-
-    const externalNodeEnvProfile =
-        'ext-node' +
-        (process.env.DEPLOYMENT_MODE === 'Validium' ? '-validium' : '') +
-        (process.env.IN_DOCKER ? '-docker' : '');
-    console.log('Using external node env profile', externalNodeEnvProfile);
-    let externalNodeEnv: { [key: string]: string } = {
-        ...process.env,
-        ZKSYNC_ENV: externalNodeEnvProfile,
-        EN_SNAPSHOTS_RECOVERY_ENABLED: 'true',
-        // Test parallel persistence for tree recovery, which is (yet) not enabled by default
-        EN_EXPERIMENTAL_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER: '4'
-    };
-
-    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
 
     let snapshotMetadata: GetSnapshotResponse;
     let mainNode: zksync.Provider;
@@ -106,40 +102,37 @@ describe('snapshot recovery', () => {
     let externalNodeProcess: NodeProcess;
 
     let fundedWallet: FundedWallet;
+    let erc20Abi: ethers.InterfaceAbi;
+    let erc20Address: string | undefined = undefined;
 
     let apiWeb3JsonRpcHttpUrl: string;
     let ethRpcUrl: string;
     let externalNodeUrl: string;
     let extNodeHealthUrl: string;
+    let deploymentMode: string;
+    const reverseConfigPatches: ReverseConfigPatch[] = [];
 
     before('prepare environment', async () => {
-        expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
-            .to.be.undefined;
+        const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
+        const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
+        const genesisConfig = loadConfig({ pathToHome, chain: chainName, config: 'genesis.yaml' });
+        const externalNodeGeneralConfig = loadConfig({
+            pathToHome,
+            chain: chainName,
+            configsFolderSuffix: 'external_node',
+            config: 'general.yaml'
+        });
 
-        if (fileConfig.loadFromFile) {
-            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
-            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-            const externalNodeGeneralConfig = loadConfig({
-                pathToHome,
-                chain: fileConfig.chain,
-                configsFolderSuffix: 'external_node',
-                config: 'general.yaml'
-            });
+        ethRpcUrl = secretsConfig.l1.l1_rpc_url;
+        apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+        externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+        extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
+        deploymentMode = genesisConfig.l1_batch_commit_data_generator_mode;
 
-            ethRpcUrl = secretsConfig.l1.l1_rpc_url;
-            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-
-            externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
-            extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
-
-            setSnapshotRecovery(pathToHome, fileConfig, true);
-            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 4);
-        } else {
-            ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
-            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
-            externalNodeUrl = 'http://127.0.0.1:3060';
-            extNodeHealthUrl = 'http://127.0.0.1:3081/health';
-        }
+        reverseConfigPatches.push(
+            setSnapshotRecovery(pathToHome, chainName),
+            setTreeRecoveryParallelPersistenceBuffer(pathToHome, chainName, 4)
+        );
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
@@ -160,12 +153,8 @@ describe('snapshot recovery', () => {
             await externalNodeProcess.logs.close();
         }
 
-        if (fileConfig.loadFromFile) {
-            setSnapshotRecovery(pathToHome, fileConfig, false);
-            setChunkSize(pathToHome, fileConfig, 10);
-            setDataRetentionSec(pathToHome, fileConfig, 3600);
-            setRemovalDelaySec(pathToHome, fileConfig, 60);
-            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 1);
+        for (const patch of reverseConfigPatches.reverse()) {
+            patch.reverse();
         }
     });
 
@@ -184,8 +173,41 @@ describe('snapshot recovery', () => {
         return output as TokenInfo[];
     }
 
+    step('deploy EVM bytecode if allowed', async () => {
+        const systemContractsPath = '../../../contracts/system-contracts/zkout';
+        const contractDeployerAbi = readContract(systemContractsPath, 'ContractDeployer').abi;
+        const contractDeployer = new zksync.Contract(
+            '0x0000000000000000000000000000000000008006',
+            contractDeployerAbi,
+            mainNode
+        );
+        const allowedBytecodeTypes = await contractDeployer.allowedBytecodeTypesToDeploy();
+        console.log('Allowed bytecode types', allowedBytecodeTypes);
+
+        if (allowedBytecodeTypes === 1n) {
+            console.log('Deploying EVM contract...');
+            const l1ContractsPath = '../../../contracts/l1-contracts/out';
+            const erc20Contract = readContract(l1ContractsPath, 'ERC20');
+            erc20Abi = erc20Contract.abi;
+            const erc20Factory = new ethers.ContractFactory(erc20Abi, erc20Contract.bytecode, fundedWallet.wallet);
+            const erc20 = await (await erc20Factory.deploy('test', 'TEST')).waitForDeployment();
+            erc20Address = await erc20.getAddress();
+            console.log('Deployed EVM contract', erc20Address);
+
+            const symbol = await erc20.getFunction('symbol').staticCall();
+            expect(symbol).to.equal('TEST');
+
+            // Ensure that the contract is included into the snapshot. The first call may seal the batch with the deployment transaction,
+            // and we need one more batch.
+            await fundedWallet.generateL1Batch();
+            await fundedWallet.generateL1Batch();
+        } else {
+            console.log('EVM contracts are disabled');
+        }
+    });
+
     step('create snapshot', async () => {
-        await createSnapshot(fileConfig.loadFromFile);
+        await createSnapshot(chainName);
     });
 
     step('validate snapshot', async () => {
@@ -201,7 +223,26 @@ describe('snapshot recovery', () => {
 
         const protoPath = path.join(homeDir, 'core/lib/types/src/proto/mod.proto');
         const root = await protobuf.load(protoPath);
+        const SnapshotFactoryDependencies = root.lookupType('zksync.types.SnapshotFactoryDependencies');
         const SnapshotStorageLogsChunk = root.lookupType('zksync.types.SnapshotStorageLogsChunk');
+
+        const factoryDepsPath = path.join(homeDir, snapshotMetadata.factoryDepsFilepath);
+        console.log('Checking factory deps', factoryDepsPath);
+        const output = SnapshotFactoryDependencies.decode(
+            await decompressGzip(factoryDepsPath)
+        ) as any as FactoryDependencies;
+        expect(output.factoryDeps.length).to.be.greaterThan(0);
+        let solidityBytecodeCount = 0;
+        for (const dep of output.factoryDeps) {
+            expect(dep.hash).to.have.length(32);
+            if (dep.bytecode[0] === 0x60 && dep.bytecode[1] === 0x80) {
+                console.log('Discovered Solidity bytecode', dep.hash);
+                solidityBytecodeCount++;
+            }
+        }
+        if (erc20Address !== undefined) {
+            expect(solidityBytecodeCount).to.be.greaterThan(0);
+        }
 
         expect(snapshotMetadata.l1BatchNumber).to.equal(l1BatchNumber);
         for (const chunkMetadata of snapshotMetadata.storageLogsChunks) {
@@ -239,17 +280,16 @@ describe('snapshot recovery', () => {
     });
 
     step('drop external node data', async () => {
-        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
+        await dropNodeData(chainName);
     });
 
     step('initialize external node', async () => {
         externalNodeProcess = await NodeProcess.spawn(
-            externalNodeEnv,
-            await logsPath('external_node.log'),
+            await logsPath(chainName, 'external_node.log'),
             pathToHome,
             NodeComponents.STANDARD,
-            fileConfig.loadFromFile,
-            fileConfig.chain
+            chainName,
+            deploymentMode
         );
 
         let recoveryFinished = false;
@@ -345,6 +385,17 @@ describe('snapshot recovery', () => {
         expect(mainNodeTokens).to.deep.equal(externalNodeTokens);
     });
 
+    step('check EVM contract', async () => {
+        if (erc20Address === undefined) {
+            console.log('EVM contracts are disabled; skipping');
+            return;
+        }
+        console.log('Checking EVM contract', erc20Address);
+        const erc20 = new ethers.Contract(erc20Address, erc20Abi, externalNode);
+        const symbol = await erc20.getFunction('symbol').staticCall();
+        expect(symbol).to.equal('TEST');
+    });
+
     step('restart EN', async () => {
         console.log('Stopping external node');
         await externalNodeProcess.stopAndWait();
@@ -352,28 +403,21 @@ describe('snapshot recovery', () => {
         const components = disableTreeDuringPruning
             ? NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
             : NodeComponents.WITH_TREE_FETCHER;
-        const pruningParams = {
-            EN_PRUNING_ENABLED: 'true',
-            EN_PRUNING_REMOVAL_DELAY_SEC: '1',
-            EN_PRUNING_DATA_RETENTION_SEC: '0', // immediately prune executed batches
-            EN_PRUNING_CHUNK_SIZE: '1'
-        };
-        externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
 
-        if (fileConfig.loadFromFile) {
-            setChunkSize(pathToHome, fileConfig, 1);
-            setDataRetentionSec(pathToHome, fileConfig, 0);
-            setRemovalDelaySec(pathToHome, fileConfig, 1);
-        }
+        const pruningParams = {
+            chunkSize: 1,
+            dataRetentionSec: 0,
+            removalDelaySec: 1
+        };
+        reverseConfigPatches.push(setPruning(pathToHome, chainName, pruningParams));
 
         console.log('Starting EN with pruning params', pruningParams);
         externalNodeProcess = await NodeProcess.spawn(
-            externalNodeEnv,
             externalNodeProcess.logs,
             pathToHome,
             components,
-            fileConfig.loadFromFile,
-            fileConfig.chain
+            chainName,
+            deploymentMode
         );
 
         let isDbPrunerReady = false;
@@ -458,13 +502,7 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
     });
 }
 
-async function createSnapshot(useZkStack: boolean) {
-    let command = '';
-    if (useZkStack) {
-        command = `zkstack dev snapshot create`;
-        command += ` --chain ${fileConfig.chain}`;
-    } else {
-        command = `zk run snapshots-creator`;
-    }
+async function createSnapshot(chain: string) {
+    const command = `zkstack dev snapshot create --chain ${chain}`;
     await executeCommandWithLogs(command, 'snapshot-creator.log');
 }

@@ -5,12 +5,12 @@ use std::{
 
 use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal, DalError};
-use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
+use zksync_multivm::interface::tracer::ValidationTraces;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{l2::L2Tx, Address, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
-use crate::web3::metrics::API_METRICS;
+use crate::{execution_sandbox::SandboxExecutionOutput, web3::metrics::API_METRICS};
 
 /// Guard for `address_and_nonce` keyed tx insertion.
 struct Guard {
@@ -64,7 +64,7 @@ impl TxSink for MasterPoolSink {
     async fn submit_tx(
         &self,
         tx: &L2Tx,
-        execution_metrics: TransactionExecutionMetrics,
+        execution_output: &SandboxExecutionOutput,
         validation_traces: ValidationTraces,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let address_and_nonce = (tx.initiator_account(), tx.nonce());
@@ -96,7 +96,7 @@ impl TxSink for MasterPoolSink {
             .map_err(DalError::generalize)?;
         let result = connection
             .transactions_dal()
-            .insert_transaction_l2(tx, execution_metrics, validation_traces)
+            .insert_transaction_l2(tx, execution_output.metrics, validation_traces)
             .await
             .inspect(|submission_res_handle| {
                 APP_METRICS.processed_txs[&TxStage::Mempool(*submission_res_handle)].inc();

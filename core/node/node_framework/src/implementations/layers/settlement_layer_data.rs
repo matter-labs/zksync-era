@@ -9,7 +9,9 @@ use zksync_contracts::getters_facet_contract;
 use zksync_dal::{Core, CoreDal};
 use zksync_db_connection::connection::Connection;
 use zksync_eth_client::{
-    contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
+    contracts_loader::{
+        get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
+    },
     EthInterface,
 };
 use zksync_gateway_migrator::current_settlement_layer;
@@ -100,6 +102,24 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         // it's safe only for l1 contracts
         .unwrap_or(self.config.l1_sl_specific_contracts.unwrap());
 
+        let mut l1_specific_contracts = self.config.l1_specific_contracts.clone();
+        // In the future we will be able to load all contracts from the l1 chain. Now for not adding
+        // new config variable we are loading only the server notifier address
+        if l1_specific_contracts.server_notifier_addr.is_none() {
+            l1_specific_contracts.server_notifier_addr = if let Some(state_transition_proxy_addr) =
+                sl_l1_contracts
+                    .ecosystem_contracts
+                    .state_transition_proxy_addr
+            {
+                get_server_notifier_addr(&input.eth_client.0, state_transition_proxy_addr)
+                    .await
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            };
+        }
+
         let pool = input.pool.get().await?;
 
         let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
@@ -140,9 +160,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(final_settlement_mode),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
-            l1_ecosystem_contracts: L1EcosystemContractsResource(
-                self.config.l1_specific_contracts.clone(),
-            ),
+            l1_ecosystem_contracts: L1EcosystemContractsResource(l1_specific_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
             l1_contracts: L1ChainContractsResource(sl_l1_contracts),
             l2_eth_client,
@@ -276,7 +294,7 @@ fn adjust_eth_sender_config(
     settlement_layer: SettlementLayer,
 ) -> SenderConfig {
     if settlement_layer.is_gateway() {
-        config.max_aggregated_tx_gas = 4294967295;
+        config.max_aggregated_tx_gas = 30000000000;
         config.max_eth_tx_data_size = 550_000;
         tracing::warn!(
             "Settling to Gateway requires to adjust ETH sender configs: \

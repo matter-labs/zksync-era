@@ -10,6 +10,8 @@ impl FromEnv for FriProverGatewayConfig {
 
 #[cfg(test)]
 mod tests {
+    use zksync_config::configs::fri_prover_gateway::ApiMode;
+
     use super::*;
     use crate::test_utils::EnvMutex;
 
@@ -22,6 +24,8 @@ mod tests {
             prometheus_listener_port: 3316,
             prometheus_pushgateway_url: "http://127.0.0.1:9091".to_string(),
             prometheus_push_interval_ms: Some(100),
+            api_mode: ApiMode::Legacy,
+            port: None,
         }
     }
 

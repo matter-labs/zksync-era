@@ -88,7 +88,8 @@ pub enum Command {
     SetAttesterCommittee(SetAttesterCommitteeCommand),
     /// Fetches the attester committee from the consensus registry contract.
     GetAttesterCommittee,
-    /// Wait until the consensus registry contract is deployed to L2.
+    /// Wait until the consensus registry contract is deployed to L2 and its owner has non-zero balance
+    /// (i.e., can perform operations on the registry).
     WaitForRegistry(WaitArgs),
 }
 
@@ -200,7 +201,7 @@ impl Setup {
             .get_genesis_config()
             .await
             .context("get_genesis_config()")?
-            .get("l2_chain_id")?;
+            .l2_chain_id()?;
 
         let general = chain
             .get_general_config()
@@ -208,7 +209,7 @@ impl Setup {
             .context("get_general_config()")?;
         // We're getting a parent path here, since we need object input with the `attesters` array
         let genesis_attesters = general
-            .get_raw("consensus.genesis_spec")
+            .raw_consensus_genesis_spec()
             .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
             .clone();
         let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
@@ -217,7 +218,7 @@ impl Setup {
             chain,
             contracts,
             l2_chain_id,
-            l2_http_url: general.get("api.web3_json_rpc.http_url")?,
+            l2_http_url: general.l2_http_url()?,
             genesis_attesters,
         })
     }
@@ -302,7 +303,7 @@ impl Setup {
                 }
                 Err(err) => {
                     return Err(anyhow::Error::new(err)
-                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR))
+                        .context(messages::MSG_CONSENSUS_REGISTRY_POLL_ERROR));
                 }
             };
             if !code.is_empty() {
@@ -310,9 +311,38 @@ impl Setup {
                     addr,
                     code.len(),
                 ));
-                return Ok(());
+                break;
             }
         }
+
+        if verbose {
+            logger::debug(format!("Registry contract was deployed on {addr:?}"));
+        }
+
+        let provider = Arc::new(provider);
+        let registry = self
+            .consensus_registry(provider.clone())
+            .context("consensus_registry")?;
+        let registry_owner = registry.owner().call().await.context("registry.owner()")?;
+        if verbose {
+            logger::debug(format!(
+                "Registry contract has an owner: {registry_owner:?}"
+            ));
+        }
+        loop {
+            let balance = provider
+                .get_balance(registry_owner, None)
+                .await
+                .context("get_balance(registry_owner)")?;
+            if !balance.is_zero() {
+                logger::debug(format!(
+                    "Registry contract owner has non-zero balance: {balance}"
+                ));
+                break;
+            }
+            interval.tick().await;
+        }
+        Ok(())
     }
 
     async fn wait_for_registry_contract(

@@ -17,6 +17,7 @@ zksync_task_management.workspace = true
 zksync_types.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_db_connection.workspace = true
+zksync_prover_task.workspace = true
 
 vise.workspace = true
 
