@@ -84,24 +84,33 @@ pub async fn load_settlement_layer_contracts(
     }))
 }
 
-/// This function will return correct settlement mode only if it's called for L1.
-pub async fn get_settlement_layer_from_l1(
+pub async fn get_settlement_layer_from_bridgehub(
     eth_client: &dyn EthInterface,
-    diamond_proxy_addr: Address,
-    abi: &Contract,
-) -> Result<SettlementLayer, ContractCallError> {
-    let address = get_settlement_layer_address(eth_client, diamond_proxy_addr, abi).await?;
-    // Due to implementation details if the settlement layer set to zero,
-    // that means the current layer is settlement layer
-    let settlement_mode = if address.is_zero() {
-        let chain_id = eth_client.fetch_chain_id().await?;
-        SettlementLayer::L1(chain_id)
+    l1_chain_id: SLChainId,
+    bridgehub_address: Address,
+    chain_id: SLChainId,
+    bridgehub_abi: &Contract,
+) -> Result<Option<SettlementLayer>, ContractCallError> {
+    let settlement_layer_chain_id: U256 = CallFunctionArgs::new("settlementLayer", U256::from(chain_id.0))
+        .for_contract(bridgehub_address, bridgehub_abi)
+        .call(eth_client)
+        .await?;
+    if settlement_layer_chain_id == U256::zero() {
+        return Ok(None);
+        // This is only the case for chains that did not pass v26 upgrade, which 
+        // is not the case for any active chain.
+        // anyhow::bail!("Chain does not settlement layer registered on L1 bridgehub");
+    }
+
+    let settlement_layer_chain_id = SLChainId(settlement_layer_chain_id.as_u64());
+
+    let settlement_mode = if l1_chain_id == settlement_layer_chain_id {
+        SettlementLayer::L1(l1_chain_id)
     } else {
-        let chain_id = get_diamond_proxy_chain_id(eth_client, address).await?;
-        SettlementLayer::Gateway(chain_id)
+        SettlementLayer::Gateway(settlement_layer_chain_id)
     };
 
-    Ok(settlement_mode)
+    Ok(Some(settlement_mode))
 }
 
 pub async fn get_settlement_layer_address(
@@ -125,19 +134,6 @@ pub async fn get_settlement_layer_address(
         .await?;
 
     Ok(settlement_layer)
-}
-
-async fn get_diamond_proxy_chain_id(
-    eth_client: &dyn EthInterface,
-    diamond_proxy_addr: Address,
-) -> Result<SLChainId, ContractCallError> {
-    let abi = getters_facet_contract();
-    let chain_id: U256 = CallFunctionArgs::new("getChainId", ())
-        .for_contract(diamond_proxy_addr, &abi)
-        .call(eth_client)
-        .await?;
-
-    Ok(SLChainId(chain_id.as_u64()))
 }
 
 async fn get_protocol_version(

@@ -27,7 +27,6 @@ pub struct Input {
     gateway_client: Option<L2InterfaceResource>,
     contracts: L1ChainContractsResource,
     settlement_mode_resource: SettlementModeResource,
-    pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -54,7 +53,6 @@ impl WiringLayer for GatewayMigratorLayer {
                 .map(|a| Box::new(a.0) as Box<dyn EthInterface>),
             input.settlement_mode_resource.0,
             self.l2_chain_id,
-            input.pool.get().await?,
             input.contracts.0,
         );
 
