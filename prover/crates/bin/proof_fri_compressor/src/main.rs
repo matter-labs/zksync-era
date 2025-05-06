@@ -2,28 +2,27 @@
 #![feature(generic_const_exprs)]
 
 use std::time::Duration;
-
+use std::time::Instant;
 use anyhow::Context as _;
 use clap::Parser;
-use tokio::sync::{oneshot, watch};
 use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
+use zksync_proof_fri_compressor_service::job_runner::ProofFriCompressorRunnerBuilder;
+use tokio_util::sync::CancellationToken;
+use crate::metrics::PROOF_FRI_COMPRESSOR_INSTANCE_METRICS;
+use crate::initial_setup_keys::download_initial_setup_keys_if_not_present;
 
-use crate::{
-    compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
-};
-
-mod compressor;
 mod initial_setup_keys;
 mod metrics;
+
+const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -42,6 +41,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let start_time = Instant::now();
     let opt = Cli::parse();
 
     let is_fflonk = opt.fflonk.unwrap_or(false);
@@ -82,59 +82,51 @@ async fn main() -> anyhow::Result<()> {
     let keystore =
         Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
 
-    let l1_verifier_config = pool
-        .connection()
-        .await?
-        .fri_protocol_versions_dal()
-        .get_l1_verifier_config()
-        .await
-        .map_err(|_| anyhow::anyhow!("Failed to get L1 verifier config from database"))?;
-    if l1_verifier_config.fflonk_snark_wrapper_vk_hash.is_none() && is_fflonk {
-        anyhow::bail!("There was no FFLONK verification hash found in the database while trying to run compressor in FFLONK mode, aborting");
-    }
+    setup_crs_keys(&config);
 
-    let proof_compressor = ProofCompressor::new(
-        blob_store,
+    PROOF_FRI_COMPRESSOR_INSTANCE_METRICS.startup_time.set(start_time.elapsed());
+
+    let cancellation_token = CancellationToken::new();
+
+    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
+    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
+
+    let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
+
+    let proof_fri_compressor_runner = ProofFriCompressorRunnerBuilder::new(
         pool,
-        config.max_attempts,
+        blob_store,
         protocol_version,
         keystore,
         is_fflonk,
-    );
-
-    let (stop_sender, stop_receiver) = watch::channel(false);
-
-    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
-    let mut stop_signal_sender = Some(stop_signal_sender);
-    ctrlc::set_handler(move || {
-        if let Some(stop_signal_sender) = stop_signal_sender.take() {
-            stop_signal_sender.send(()).ok();
-        }
-    })
-    .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
-
-    setup_crs_keys(&config);
-
+        cancellation_token.clone(),
+    ).proof_fri_compressor_runner();
+    
     tracing::info!("Starting proof compressor");
 
-    let prometheus_config = PrometheusExporterConfig::push(
-        config.prometheus_pushgateway_url,
-        Duration::from_millis(config.prometheus_push_interval_ms.unwrap_or(100)),
-    );
-    let tasks = vec![
-        tokio::spawn(prometheus_config.run(stop_receiver.clone())),
-        tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
-    ];
+    tasks.extend(proof_fri_compressor_runner.run());
 
-    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {},
-        _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+        result = tokio::signal::ctrl_c() => {
+            match result {
+                Ok(_) => {
+                    tracing::info!("Stop signal received, shutting down...");
+                    cancellation_token.cancel();
+                },
+                Err(_err) => {
+                    tracing::error!("failed to set up ctrl c listener");
+                }
+            }
         }
-    };
-    stop_sender.send_replace(true);
-    tasks.complete(Duration::from_secs(5)).await;
+    }
+    let shutdown_time = Instant::now();
+    metrics_stop_sender
+        .send(true)
+        .context("failed to stop metrics")?;
+    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
     Ok(())
 }
 

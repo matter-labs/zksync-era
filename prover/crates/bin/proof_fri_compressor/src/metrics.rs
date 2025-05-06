@@ -1,17 +1,16 @@
 use std::time::Duration;
-
-use vise::{Buckets, Histogram, Metrics};
+use vise::{Metrics, Gauge};
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "prover_fri_proof_fri_compressor")]
+#[metrics(prefix = "proof_fri_compressor_instance")]
 pub(crate) struct ProofFriCompressorMetrics {
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub blob_fetch_time: Histogram<Duration>,
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub compression_time: Histogram<Duration>,
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub blob_save_time: Histogram<Duration>,
+    /// How long does it take for prover to load data before it can produce proofs?
+    pub startup_time: Gauge<Duration>,
+    /// How long did the prover binary run for?
+    pub run_time: Gauge<Duration>,
+    /// How long does it take prover to gracefully shutdown?
+    pub shutdown_time: Gauge<Duration>,
 }
 
 #[vise::register]
-pub(crate) static METRICS: vise::Global<ProofFriCompressorMetrics> = vise::Global::new();
+pub(crate) static PROOF_FRI_COMPRESSOR_INSTANCE_METRICS: vise::Global<ProofFriCompressorMetrics> = vise::Global::new();

@@ -113,6 +113,7 @@ zksync_vk_setup_data_generator_server_fri = { version = "=20.3.1", path = "crate
 zksync_prover_job_processor = { version = "=20.3.1", path = "crates/lib/prover_job_processor" }
 zksync_circuit_prover_service = { version = "=20.3.1", path = "crates/lib/circuit_prover_service" }
 zksync_prover_job_monitor = { version = "=20.3.1", path = "crates/bin/prover_job_monitor" }
+zksync_proof_fri_compressor_service = { version = "=20.3.1", path = "crates/lib/proof_fri_compressor_service" }
 
 # for `perf` profiling
 [profile.perf]

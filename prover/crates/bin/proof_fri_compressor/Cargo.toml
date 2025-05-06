@@ -23,12 +23,14 @@ zksync_prover_fri_types.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_prover_keystore = { workspace = true, features = ["gpu"] }
 zksync_vlog.workspace = true
+zksync_proof_fri_compressor_service.workspace = true
 
 proof-compression-gpu.workspace = true
 
 anyhow.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
+tokio-util.workspace = true
 ctrlc = { workspace = true, features = ["termination"] }
 clap = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
