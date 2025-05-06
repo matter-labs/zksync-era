@@ -534,7 +534,7 @@ jobs:
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
           
           # restarting the server so that config changes take effect  
-          kill $ERA_SERVER_PID
+          kill -9 $ERA_SERVER_PID
           ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ERA_SERVER_PID=$!
           ci_run sleep 60
@@ -544,7 +544,7 @@ jobs:
           
           # disable inclusion verification transition and restart the server
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
-          kill $ERA_SERVER_PID
+          kill -9 $ERA_SERVER_PID
           ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
           
