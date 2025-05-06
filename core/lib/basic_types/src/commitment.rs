@@ -23,7 +23,8 @@ impl From<PubdataType> for L1BatchCommitmentMode {
             PubdataType::NoDA
             | PubdataType::Avail
             | PubdataType::Celestia
-            | PubdataType::Eigen
+            | PubdataType::EigenV1M0
+            | PubdataType::EigenV2M0
             | PubdataType::ObjectStore => L1BatchCommitmentMode::Validium,
         }
     }
