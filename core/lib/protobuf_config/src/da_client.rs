@@ -6,8 +6,8 @@ use zksync_config::configs::{
     da_client::{
         avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
         celestia::CelestiaConfig,
-        eigen::EigenConfig,
-        DAClientConfig::{Avail, Celestia, Eigen, NoDA, ObjectStore},
+        eigenv2m0::EigenConfigV2M0,
+        DAClientConfig::{Avail, Celestia, EigenV2M0, NoDA, ObjectStore},
     },
 };
 use zksync_protobuf::{required, ProtoRepr};
@@ -62,33 +62,35 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
             }),
-            proto::data_availability_client::Config::Eigen(conf) => Eigen(EigenConfig {
-                disperser_rpc: required(&conf.disperser_rpc)
-                    .context("disperser_rpc")?
-                    .clone(),
-                eigenda_eth_rpc: conf
-                    .eigenda_eth_rpc
-                    .clone()
-                    .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
-                    .transpose()
-                    .context("eigenda_eth_rpc")?,
-                authenticated: *required(&conf.authenticated).context("authenticated")?,
-                cert_verifier_addr: required(&conf.cert_verifier_addr)
-                    .and_then(|x| parse_h160(x))
-                    .context("eigenda_cert_and_blob_verifier_addr")?,
-                blob_version: *required(&conf.blob_version).context("blob_version")? as u16,
-                polynomial_form: match required(&conf.polynomial_form)
-                    .and_then(|x| Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?))
-                    .context("polynomial_form")?
-                {
-                    crate::proto::da_client::PolynomialForm::Coeff => {
-                        configs::da_client::eigen::PolynomialForm::Coeff
-                    }
-                    crate::proto::da_client::PolynomialForm::Eval => {
-                        configs::da_client::eigen::PolynomialForm::Eval
-                    }
-                },
-            }),
+            proto::data_availability_client::Config::Eigenv2m0(conf) => {
+                EigenV2M0(EigenConfigV2M0 {
+                    disperser_rpc: required(&conf.disperser_rpc)
+                        .context("disperser_rpc")?
+                        .clone(),
+                    eigenda_eth_rpc: conf
+                        .eigenda_eth_rpc
+                        .clone()
+                        .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
+                        .transpose()
+                        .context("eigenda_eth_rpc")?,
+                    authenticated: *required(&conf.authenticated).context("authenticated")?,
+                    cert_verifier_addr: required(&conf.cert_verifier_addr)
+                        .and_then(|x| parse_h160(x))
+                        .context("eigenda_cert_and_blob_verifier_addr")?,
+                    blob_version: *required(&conf.blob_version).context("blob_version")? as u16,
+                    polynomial_form: match required(&conf.polynomial_form)
+                        .and_then(|x| Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?))
+                        .context("polynomial_form")?
+                    {
+                        crate::proto::da_client::PolynomialForm::Coeff => {
+                            configs::da_client::eigenv2m0::PolynomialForm::Coeff
+                        }
+                        crate::proto::da_client::PolynomialForm::Eval => {
+                            configs::da_client::eigenv2m0::PolynomialForm::Eval
+                        }
+                    },
+                })
+            }
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
@@ -128,24 +130,26 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     timeout_ms: Some(config.timeout_ms),
                 })
             }
-            Eigen(config) => proto::data_availability_client::Config::Eigen(proto::EigenConfig {
-                disperser_rpc: Some(config.disperser_rpc.clone()),
-                eigenda_eth_rpc: config
-                    .eigenda_eth_rpc
-                    .as_ref()
-                    .map(|a| a.expose_str().to_string()),
-                authenticated: Some(config.authenticated),
-                cert_verifier_addr: Some(format!("{:?}", config.cert_verifier_addr)),
-                blob_version: Some(config.blob_version as u32),
-                polynomial_form: Some(match config.polynomial_form {
-                    configs::da_client::eigen::PolynomialForm::Coeff => {
-                        crate::proto::da_client::PolynomialForm::Coeff.into()
-                    }
-                    configs::da_client::eigen::PolynomialForm::Eval => {
-                        crate::proto::da_client::PolynomialForm::Eval.into()
-                    }
-                }),
-            }),
+            EigenV2M0(config) => {
+                proto::data_availability_client::Config::Eigenv2m0(proto::EigenConfigV2m0 {
+                    disperser_rpc: Some(config.disperser_rpc.clone()),
+                    eigenda_eth_rpc: config
+                        .eigenda_eth_rpc
+                        .as_ref()
+                        .map(|a| a.expose_str().to_string()),
+                    authenticated: Some(config.authenticated),
+                    cert_verifier_addr: Some(format!("{:?}", config.cert_verifier_addr)),
+                    blob_version: Some(config.blob_version as u32),
+                    polynomial_form: Some(match config.polynomial_form {
+                        configs::da_client::eigenv2m0::PolynomialForm::Coeff => {
+                            crate::proto::da_client::PolynomialForm::Coeff.into()
+                        }
+                        configs::da_client::eigenv2m0::PolynomialForm::Eval => {
+                            crate::proto::da_client::PolynomialForm::Eval.into()
+                        }
+                    }),
+                })
+            }
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
                 object_store_proto::ObjectStore::build(config),
             ),

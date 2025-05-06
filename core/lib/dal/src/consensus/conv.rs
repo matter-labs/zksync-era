@@ -600,7 +600,7 @@ impl proto::PubdataType {
             Self::NoDa => PubdataType::NoDA,
             Self::Avail => PubdataType::Avail,
             Self::Celestia => PubdataType::Celestia,
-            Self::Eigen => PubdataType::Eigen,
+            Self::EigenV2m0 => PubdataType::EigenV2M0,
             Self::ObjectStore => PubdataType::ObjectStore,
         }
     }

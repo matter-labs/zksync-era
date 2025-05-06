@@ -24,8 +24,9 @@ use zksync_node_framework::{
         consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
         da_clients::{
-            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer,
+            eigenv2m0::EigenV2M0WiringLayer, no_da::NoDAClientWiringLayer,
+            object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
@@ -364,12 +365,13 @@ impl ExternalNodeBuilder {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
-            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
+            (DAClientConfig::EigenV2M0(mut config), DataAvailabilitySecrets::EigenV2M0(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
                     config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
                 }
 
-                self.node.add_layer(EigenWiringLayer::new(config, secret));
+                self.node
+                    .add_layer(EigenV2M0WiringLayer::new(config, secret));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }

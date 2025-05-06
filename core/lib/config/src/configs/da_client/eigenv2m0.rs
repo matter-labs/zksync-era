@@ -9,7 +9,7 @@ pub enum PolynomialForm {
 
 /// Configuration for the EigenDA remote disperser client.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
-pub struct EigenConfig {
+pub struct EigenConfigV2M0 {
     /// URL of the Disperser RPC server
     pub disperser_rpc: String,
     /// URL of the Ethereum RPC server
@@ -25,6 +25,6 @@ pub struct EigenConfig {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EigenSecrets {
+pub struct EigenSecretsV2M0 {
     pub private_key: PrivateKey,
 }

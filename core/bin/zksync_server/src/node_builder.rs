@@ -31,8 +31,9 @@ use zksync_node_framework::{
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
-            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer,
+            eigenv2m0::EigenV2M0WiringLayer, no_da::NoDAClientWiringLayer,
+            object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
@@ -147,7 +148,7 @@ impl MainNodeBuilder {
             Some(da_client_config) => Ok(match da_client_config {
                 DAClientConfig::Avail(_) => PubdataType::Avail,
                 DAClientConfig::Celestia(_) => PubdataType::Celestia,
-                DAClientConfig::Eigen(_) => PubdataType::Eigen,
+                DAClientConfig::EigenV2M0(_) => PubdataType::EigenV2M0,
                 DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
                 DAClientConfig::NoDA => PubdataType::NoDA,
             }),
@@ -631,13 +632,14 @@ impl MainNodeBuilder {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
-            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
+            (DAClientConfig::EigenV2M0(mut config), DataAvailabilitySecrets::EigenV2M0(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
                     let l1_secrets = try_load_config!(self.secrets.l1);
                     config.eigenda_eth_rpc = Some(l1_secrets.l1_rpc_url);
                 }
 
-                self.node.add_layer(EigenWiringLayer::new(config, secret));
+                self.node
+                    .add_layer(EigenV2M0WiringLayer::new(config, secret));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }

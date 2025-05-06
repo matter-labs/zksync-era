@@ -43,7 +43,7 @@ enum PolynomialForm {
   EVAL = 1;
 }
 
-message EigenConfig {
+message EigenConfigV2M0 {
   optional string disperser_rpc = 3;
   optional string eigenda_eth_rpc = 5;
   optional bool authenticated = 8;
@@ -62,7 +62,7 @@ message DataAvailabilityClient {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
     CelestiaConfig celestia = 3;
-    EigenConfig eigen = 4;
+    EigenConfigV2M0 eigenv2m0 = 4;
     NoDAConfig no_da = 5;
   }
 }

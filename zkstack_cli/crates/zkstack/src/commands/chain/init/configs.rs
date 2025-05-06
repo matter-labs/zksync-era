@@ -79,7 +79,7 @@ pub async fn init_configs(
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => {
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDAV2M0) => {
             general_config.remove_da_client();
         }
         Some(ValidiumType::Avail((avail_config, _))) => {
@@ -110,7 +110,7 @@ pub async fn init_configs(
     secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys)?;
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => { /* Do nothing */ }
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDAV2M0) => { /* Do nothing */ }
         Some(ValidiumType::Avail((_, avail_secrets))) => {
             secrets.set_avail_secrets(avail_secrets)?;
         }

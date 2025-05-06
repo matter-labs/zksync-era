@@ -1,4 +1,4 @@
-# EigenDA Client
+# EigenDA Client V2 M0
 
 EigenDA is as a high-throughput data availability layer for rollups. It is an EigenLayer AVS (Actively Validated
 Service), so it leverages Ethereum's economic security instead of bootstrapping a new network with its own validators.
@@ -18,41 +18,33 @@ The client can be set up by modifying the field `da_client` of the file `etc/env
 These are the fields that can be modified:
 
 - `disperser_rpc` (string): URL of the EigenDA Disperser RPC server.
-- `settlement_layer_confirmation_depth` (unsigned number): Block height needed to reach in order to consider the blob
-  finalized. A value less or equal to 0 means that the disperser will not wait for finalization.
 - `eigenda_eth_rpc` (optional string): URL of the Ethereum RPC server. If the value is not set, the client will use the
   same rpc as the rest of the zk server.
-- `eigenda_svc_manager_address` (string): Address of the service manager contract.
-- `wait_for_finalization` (boolean): Wait for the blob to be finalized before returning the response.
 - `authenticated` (boolean): Authenticated dispersal. If true, the client will use the authentication mechanism, using a
   whitelisted account. Using non authenticated dispersal is not recommended, as to many requests to the EigenDA
-  disperser leeds to timeouts. (the following two fields are mutually exclusive)
-- `points_source_path` (string): Path to the local points source files.
-- `points_source_url` (string): URLs of the points source files.
-- `custom_quorum_numbers` (optional list of numbers): quorums to be used beside the default ones.
+  disperser leeds to timeouts.
+- `cert_verifier_addr` Address of the eigenDA cert verifier contract
+- `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
+- `polynomial_form` Polynomial form used to encode data, either COEFF or EVAL
 
 So, for example, a client setup that uses the holesky EigenDA client would look like this:
 
 ```yaml
-eigen:
-  disperser_rpc: https://disperser-holesky.eigenda.xyz:443
-  settlement_layer_confirmation_depth: 0
+eigenv2m0:
+  disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
-  eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-  wait_for_finalization: false
-  authenticated: false
-  points_source_url:
-    g1_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point
-    g2_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2
-  # custom_quorum_numbers: 2,3 # uncomment to use other quorums besides defaults
+  authenticated: true
+  cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+  blob_version: 0
+  polynomial_form: COEFF
 ```
 
-If using `authenticated` dispersal, you also need to modify `etc/env/file_based/secrets.yaml` to include the private key
+You also need to modify `etc/env/file_based/secrets.yaml` to include the private key
 of the account that will be used. You need to add the following field:
 
 ```yaml
 da:
-  eigen:
+  eigenv2m0:
     private_key: <PRIVATE_KEY>
 ```
 
