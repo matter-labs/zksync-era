@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MIN(number) AS \"number\"\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number > $1\n                AND (\n                    SELECT pubdata_type\n                    FROM miniblocks\n                    WHERE l1_batch_number = l1_batches.number\n                    ORDER BY miniblocks.number\n                    LIMIT 1\n                ) != 'Rollup'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "de1a55a0f8210be95a89e4a42b8e77b541ac03bd1c18034ec5ed3d0e434ddacf"
+}

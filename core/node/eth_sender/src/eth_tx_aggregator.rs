@@ -712,7 +712,7 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(_, l1_batches, _) = aggregated_op {
+        if let AggregatedOperation::Commit(_, l1_batches, _, _) = aggregated_op {
             for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
@@ -742,12 +742,17 @@ impl EthTxAggregator {
         let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {
-            AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
+            AggregatedOperation::Commit(
+                last_committed_l1_batch,
+                l1_batches,
+                pubdata_da,
+                commitment_mode,
+            ) => {
                 let commit_batches = CommitBatches {
                     last_committed_l1_batch,
                     l1_batches,
                     pubdata_da: *pubdata_da,
-                    mode: self.aggregator.mode(),
+                    mode: *commitment_mode,
                 };
                 let commit_data_base = commit_batches.into_tokens();
 
@@ -759,12 +764,11 @@ impl EthTxAggregator {
                     &self.functions.post_gateway_commit
                 };
 
-                let l1_batch_for_sidecar =
-                    if PubdataSendingMode::Blobs == self.aggregator.pubdata_da() {
-                        Some(l1_batches[0].clone())
-                    } else {
-                        None
-                    };
+                let l1_batch_for_sidecar = if PubdataSendingMode::Blobs == *pubdata_da {
+                    Some(l1_batches[0].clone())
+                } else {
+                    None
+                };
 
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
