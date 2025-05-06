@@ -3,13 +3,13 @@ use std::convert::TryInto;
 use zksync_types::{
     address_to_h256,
     bytecode::BytecodeHash,
-    ethabi::{encode, Address, Token},
+    ethabi::{decode, encode, Address, Token},
     fee::{encoding_len, Fee},
     h256_to_u256,
     l1::is_l1_tx_type,
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
-    web3::Bytes,
+    web3::{contract::Tokenizable, AuthorizationList, Bytes},
     Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
 };
 
@@ -90,6 +90,18 @@ impl TransactionData {
                     common_data.fee.gas_per_pubdata_limit
                 };
 
+                // For EIP7702, we pass the authorization list as `reserved_dynamic` field.
+                let reserved_dynamic =
+                    if common_data.transaction_type == TransactionType::EIP7702Transaction {
+                        if let Some(authorization_list) = common_data.authorization_list {
+                            encode(&[authorization_list.into_token()])
+                        } else {
+                            vec![]
+                        }
+                    } else {
+                        vec![]
+                    };
+
                 TransactionData {
                     tx_type: (common_data.transaction_type as u32) as u8,
                     from: common_data.initiator_address,
@@ -111,7 +123,7 @@ impl TransactionData {
                     signature: common_data.signature,
                     factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: common_data.paymaster_params.paymaster_input,
-                    reserved_dynamic: vec![],
+                    reserved_dynamic,
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
                 }
             }
@@ -273,6 +285,7 @@ impl TransactionData {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TxHashCalculationError {
     CannotCalculateL2HashForL1Tx,
+    CannotDecodeAuthorizationList,
 }
 
 impl TryInto<L2Tx> for TransactionData {
@@ -282,6 +295,31 @@ impl TryInto<L2Tx> for TransactionData {
         if is_l1_tx_type(self.tx_type) {
             return Err(TxHashCalculationError::CannotCalculateL2HashForL1Tx);
         }
+
+        let authorization_list = if self.tx_type == TransactionType::EIP1559Transaction as u8
+            && !self.reserved_dynamic.is_empty()
+        {
+            let tokens = decode(
+                &[ethabi::ParamType::Array(Box::new(
+                    ethabi::ParamType::Tuple(vec![
+                        ethabi::ParamType::Uint(256),
+                        ethabi::ParamType::Address,
+                        ethabi::ParamType::Uint(256),
+                        ethabi::ParamType::Uint(256), // TODO: Should be 8?
+                        ethabi::ParamType::FixedBytes(32),
+                        ethabi::ParamType::FixedBytes(32),
+                    ]),
+                ))],
+                &self.reserved_dynamic,
+            )
+            .map_err(|_| TxHashCalculationError::CannotDecodeAuthorizationList)?;
+            Some(
+                AuthorizationList::from_token(tokens[0].clone())
+                    .map_err(|_| TxHashCalculationError::CannotDecodeAuthorizationList)?,
+            )
+        } else {
+            None
+        };
 
         let common_data = L2TxCommonData {
             transaction_type: (self.tx_type as u32).try_into().unwrap(),
@@ -295,6 +333,7 @@ impl TryInto<L2Tx> for TransactionData {
             signature: self.signature,
             input: None,
             initiator_address: self.from,
+            authorization_list,
             paymaster_params: PaymasterParams {
                 paymaster: self.paymaster,
                 paymaster_input: self.paymaster_input,

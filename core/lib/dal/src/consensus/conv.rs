@@ -434,6 +434,7 @@ impl ProtoRepr for proto::Transaction {
                                     .clone(),
                             }
                         },
+                        authorization_list: unimplemented!("TODO: authorization_list"),
                     })
                 }
                 proto::transaction::CommonData::ProtocolUpgrade(common_data) => {

@@ -12,6 +12,7 @@ pub enum Error {
     Other(String),
 }
 
+use super::AuthorizationListItem;
 use crate::{H160, H256, U256};
 
 pub trait Detokenize: Sized {
@@ -178,9 +179,61 @@ impl<T: TokenizableItem> Tokenizable for Vec<T> {
     }
 }
 
+impl Tokenizable for AuthorizationListItem {
+    fn from_token(token: ethabi::Token) -> Result<Self, Error> {
+        match token {
+            ethabi::Token::Tuple(tokens) => {
+                if tokens.len() != 6 {
+                    return Err(Error::InvalidOutputType(format!(
+                        "expected tuple with 6 elements, got {tokens:?}"
+                    )));
+                }
+                let chain_id = U256::from_token(tokens[0].clone())?;
+                let address = H160::from_token(tokens[1].clone())?;
+                let nonce = U256::from_token(tokens[2].clone())?;
+                if nonce > u64::MAX.into() {
+                    return Err(Error::Other(format!("nonce is too large: {nonce}")));
+                }
+
+                let y_parity = U256::from_token(tokens[3].clone())?;
+                if y_parity > u8::MAX.into() {
+                    return Err(Error::Other(format!("y_parity is too large: {y_parity}")));
+                }
+
+                let r = H256::from_token(tokens[4].clone())?;
+                let s = H256::from_token(tokens[5].clone())?;
+
+                Ok(AuthorizationListItem {
+                    chain_id,
+                    address,
+                    nonce,
+                    y_parity,
+                    r,
+                    s,
+                })
+            }
+            _ => Err(Error::InvalidOutputType(format!(
+                "expected Tuple, got {token:?}"
+            ))),
+        }
+    }
+
+    fn into_token(self) -> ethabi::Token {
+        ethabi::Token::Tuple(vec![
+            ethabi::Token::Uint(self.chain_id),
+            ethabi::Token::Address(self.address),
+            ethabi::Token::Uint(self.nonce),
+            ethabi::Token::Uint(self.y_parity),
+            ethabi::Token::FixedBytes(self.r.to_fixed_bytes().into()),
+            ethabi::Token::FixedBytes(self.s.to_fixed_bytes().into()),
+        ])
+    }
+}
+
 /// Marker trait for `Tokenizable` types that are can tokenized to and from a
 /// `Token::Array` and `Token:FixedArray`.
 pub trait TokenizableItem: Tokenizable {}
 
 impl TokenizableItem for ethabi::Token {}
 impl TokenizableItem for Vec<u8> {}
+impl TokenizableItem for AuthorizationListItem {}

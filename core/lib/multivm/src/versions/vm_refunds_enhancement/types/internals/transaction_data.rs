@@ -10,7 +10,8 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::{PaymasterParams, TransactionRequest},
     web3::Bytes,
-    Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256, U256,
+    Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction,
+    EIP_7702_TX_TYPE, H256, U256,
 };
 
 use crate::{
@@ -273,6 +274,7 @@ impl TransactionData {
 pub(crate) enum TxHashCalculationError {
     CannotCalculateL1HashForL2Tx,
     CannotCalculateL2HashForL1Tx,
+    Eip7702TxNotSupported,
 }
 
 impl TryInto<L2Tx> for TransactionData {
@@ -281,6 +283,9 @@ impl TryInto<L2Tx> for TransactionData {
     fn try_into(self) -> Result<L2Tx, Self::Error> {
         if is_l1_tx_type(self.tx_type) {
             return Err(TxHashCalculationError::CannotCalculateL2HashForL1Tx);
+        }
+        if self.tx_type == EIP_7702_TX_TYPE {
+            return Err(TxHashCalculationError::Eip7702TxNotSupported);
         }
 
         let common_data = L2TxCommonData {
@@ -295,6 +300,7 @@ impl TryInto<L2Tx> for TransactionData {
             signature: self.signature,
             input: None,
             initiator_address: self.from,
+            authorization_list: None,
             paymaster_params: PaymasterParams {
                 paymaster: self.paymaster,
                 paymaster_input: self.paymaster_input,
