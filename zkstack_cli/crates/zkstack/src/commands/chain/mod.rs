@@ -89,7 +89,6 @@ pub enum ChainCommands {
     SetPubdataPricingMode(SetPubdataPricingModeArgs),
     /// Update da validator pair (used for Rollup -> Validium migration)
     SetDAValidatorPair(ForgeScriptArgs),
-    #[cfg(feature = "gateway")]
     #[command(subcommand, alias = "gw")]
     Gateway(gateway::GatewayComamnds),
 }
@@ -135,8 +134,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             set_pubdata_pricing_mode::run(args, shell).await
         }
         ChainCommands::SetDAValidatorPair(args) => set_da_validator_pair::run(args, shell).await,
-
-        #[cfg(feature = "gateway")]
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }
