@@ -67,7 +67,9 @@ pub struct EtherscanVerificationRequest {
     #[serde(rename = "sourceCode")]
     pub source_code: String,
     #[serde(default, rename = "constructorArguements")]
-    pub constructor_arguments: Bytes,
+    // Bytes deserializer requires leading 0x, so String is used here and then converted to Bytes in the
+    // `to_verification_request` method.
+    pub constructor_arguments: String,
     #[serde(rename = "contractaddress")]
     pub contract_address: Address,
     #[serde(rename = "contractname")]
@@ -126,7 +128,10 @@ impl EtherscanVerificationRequest {
             },
             optimization_used: self.optimization_used.map(|x| x.to_bool()).unwrap_or(false),
             optimizer_mode: self.optimizer_mode,
-            constructor_arguments: self.constructor_arguments,
+            constructor_arguments: Bytes::from(
+                hex::decode(self.constructor_arguments)
+                    .map_err(|_| anyhow::anyhow!("Invalid constructor arguments"))?,
+            ),
             is_system: self.is_system.map(|x| x.to_bool()).unwrap_or(false),
             force_evmla: self.force_evmla.map(|x| x.to_bool()).unwrap_or(false),
             evm_specific: VerificationEvmSettings {
@@ -216,7 +221,7 @@ mod tests {
 
         assert_eq!(req.code_format, EtherscanCodeFormat::SingleFile);
         assert_eq!(req.source_code, "contract Test {}");
-        assert_eq!(req.constructor_arguments, Bytes::default());
+        assert_eq!(req.constructor_arguments, "0x");
         assert_eq!(
             req.contract_address,
             "0x1234567890123456789012345678901234567890"
@@ -242,7 +247,7 @@ mod tests {
 
         assert_eq!(req.code_format, EtherscanCodeFormat::StandardJsonInput);
         assert_eq!(req.source_code, "{language:\"Solidity\"}");
-        assert_eq!(req.constructor_arguments, Bytes::default());
+        assert_eq!(req.constructor_arguments, "0x");
         assert_eq!(
             req.contract_address,
             "0x1234567890123456789012345678901234567890"
@@ -266,7 +271,7 @@ mod tests {
         let etherscan_req = EtherscanVerificationRequest {
             code_format: EtherscanCodeFormat::SingleFile,
             source_code: "contract Test {}".to_string(),
-            constructor_arguments: Bytes(vec![1, 2, 3]),
+            constructor_arguments: "0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20776f726c64210000000000000000000000000000000000000000".to_string(),
             contract_address: "0x1111111111111111111111111111111111111111"
                 .parse()
                 .unwrap(),
@@ -282,6 +287,8 @@ mod tests {
             force_evmla: None,
         };
 
+        let args_bytes =
+            Bytes::from(hex::decode(etherscan_req.constructor_arguments.clone()).unwrap());
         let verification_req = etherscan_req.to_verification_request().unwrap();
 
         assert_eq!(
@@ -306,7 +313,7 @@ mod tests {
         );
         assert!(!verification_req.optimization_used);
         assert_eq!(verification_req.optimizer_mode, Some("z".to_string()));
-        assert_eq!(verification_req.constructor_arguments, Bytes(vec![1, 2, 3]));
+        assert_eq!(verification_req.constructor_arguments, args_bytes);
         assert!(!verification_req.is_system);
         assert!(!verification_req.force_evmla);
         assert_eq!(
@@ -340,7 +347,7 @@ mod tests {
         let etherscan_req = EtherscanVerificationRequest {
             code_format: EtherscanCodeFormat::StandardJsonInput,
             source_code: source_code_str.clone(),
-            constructor_arguments: Bytes::default(),
+            constructor_arguments: String::default(),
             contract_address: "0x2222222222222222222222222222222222222222"
                 .parse()
                 .unwrap(),
@@ -401,7 +408,7 @@ mod tests {
         let etherscan_req = EtherscanVerificationRequest {
             code_format: EtherscanCodeFormat::StandardJsonInput,
             source_code: "invalid json".to_string(),
-            constructor_arguments: Bytes::default(),
+            constructor_arguments: String::default(),
             contract_address: "0x3333333333333333333333333333333333333333"
                 .parse()
                 .unwrap(),

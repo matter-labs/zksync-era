@@ -13,7 +13,6 @@ use zksync_types::{
             EtherscanVerificationRequest,
         },
     },
-    web3::Bytes,
     Address,
 };
 
@@ -129,7 +128,7 @@ async fn submitting_etherscan_request(bytecode_kind: BytecodeMarker) {
         compiler_mode: None,
         is_system: Some(EtherscanBoolean::False),
         force_evmla: Some(EtherscanBoolean::False),
-        constructor_arguments: Bytes::default(),
+        constructor_arguments: String::default(),
     };
     let verification_json = serde_json::to_value(
         etherscan_verification_req
