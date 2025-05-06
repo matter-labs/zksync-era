@@ -1,10 +1,8 @@
-use zksync_block_reverter::{BlockReverter, NodeRole};
+use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{FromContext, IntoContext, WiringError, WiringLayer};
 
-use crate::implementations::resources::{
-    pools::{MasterPool, PoolResource},
-    reverter::BlockReverterResource,
-};
+use super::resources::BlockReverterResource;
+use crate::{BlockReverter, NodeRole};
 
 /// Layer for the block reverter resource.
 /// For documentation on the methods see the corresponding methods in [`BlockReverter`].

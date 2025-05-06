@@ -1,5 +1,6 @@
-use zksync_block_reverter::BlockReverter;
 use zksync_node_framework::resource::{Resource, Unique};
+
+use crate::BlockReverter;
 
 /// A resource that provides [`BlockReverter`] to the service.
 #[derive(Debug, Clone)]
