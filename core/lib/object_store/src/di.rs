@@ -1,8 +1,21 @@
-use zksync_config::ObjectStoreConfig;
-use zksync_node_framework::wiring_layer::{WiringError, WiringLayer};
-use zksync_object_store::ObjectStoreFactory;
+//! Dependency injection for object store.
 
-use crate::implementations::resources::object_store::ObjectStoreResource;
+use std::sync::Arc;
+
+use zksync_config::ObjectStoreConfig;
+use zksync_node_framework::{resource::Resource, WiringError, WiringLayer};
+
+use crate::{ObjectStore, ObjectStoreFactory};
+
+/// A resource that provides [`ObjectStore`] to the service.
+#[derive(Debug, Clone)]
+pub struct ObjectStoreResource(pub Arc<dyn ObjectStore>);
+
+impl Resource for ObjectStoreResource {
+    fn name() -> String {
+        "common/object_store".into()
+    }
+}
 
 /// Wiring layer for object store.
 #[derive(Debug)]
@@ -25,9 +38,8 @@ impl WiringLayer for ObjectStoreLayer {
         "object_store_layer"
     }
 
-    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
         let object_store = ObjectStoreFactory::new(self.config).create_store().await?;
-        let resource = ObjectStoreResource(object_store);
-        Ok(resource)
+        Ok(ObjectStoreResource(object_store))
     }
 }
