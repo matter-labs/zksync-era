@@ -7,7 +7,7 @@ use zksync_basic_types::{
     url::SensitiveUrl,
 };
 use zksync_config::configs::{
-    consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
+    consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
     da_client::{
         avail::AvailSecrets, celestia::CelestiaSecrets, eigenv1m0::EigenSecretsV1M0,
         eigenv2m0::EigenSecretsV2M0,
@@ -230,25 +230,16 @@ impl ProtoRepr for proto::ConsensusSecrets {
                 .validator_key
                 .as_ref()
                 .map(|x| ValidatorSecretKey(x.clone().into())),
-            attester_key: self
-                .attester_key
-                .as_ref()
-                .map(|x| AttesterSecretKey(x.clone().into())),
             node_key: self
                 .node_key
                 .as_ref()
                 .map(|x| NodeSecretKey(x.clone().into())),
         })
     }
-
     fn build(this: &Self::Type) -> Self {
         Self {
             validator_key: this
                 .validator_key
-                .as_ref()
-                .map(|x| x.0.expose_secret().to_string()),
-            attester_key: this
-                .attester_key
                 .as_ref()
                 .map(|x| x.0.expose_secret().to_string()),
             node_key: this

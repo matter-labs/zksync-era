@@ -15,7 +15,6 @@ use zksync_crypto_primitives::K256PrivateKey;
 use crate::{
     configs::{
         self,
-        api::DeploymentAllowlist,
         chain::TimestampAsserterConfig,
         da_client::{
             avail::{AvailClientConfig, AvailDefaultConfig},
@@ -92,7 +91,6 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             api_namespaces: self
                 .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
             extended_api_tracing: self.sample(rng),
-            deployment_allowlist: DeploymentAllowlist::new(None, Some(300)),
         }
     }
 }
@@ -168,6 +166,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             default_aa_hash: None,
             evm_emulator_hash: None,
             l1_batch_commit_data_generator_mode: Default::default(),
+            deployment_allowlist: None,
         }
     }
 }
@@ -643,16 +642,6 @@ impl Distribution<configs::consensus::WeightedValidator> for EncodeDist {
     }
 }
 
-impl Distribution<configs::consensus::WeightedAttester> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::WeightedAttester {
-        use configs::consensus::{AttesterPublicKey, WeightedAttester};
-        WeightedAttester {
-            key: AttesterPublicKey(self.sample(rng)),
-            weight: self.sample(rng),
-        }
-    }
-}
-
 impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
         use configs::consensus::{
@@ -662,7 +651,6 @@ impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
             chain_id: L2ChainId::default(),
             protocol_version: ProtocolVersion(self.sample(rng)),
             validators: self.sample_collect(rng),
-            attesters: self.sample_collect(rng),
             leader: ValidatorPublicKey(self.sample(rng)),
             registry_address: self.sample_opt(|| rng.gen()),
             seed_peers: self
@@ -709,12 +697,9 @@ impl Distribution<configs::consensus::RpcConfig> for EncodeDist {
 
 impl Distribution<configs::consensus::ConsensusSecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusSecrets {
-        use configs::consensus::{
-            AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey,
-        };
+        use configs::consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey};
         ConsensusSecrets {
             validator_key: self.sample_opt(|| ValidatorSecretKey(String::into(self.sample(rng)))),
-            attester_key: self.sample_opt(|| AttesterSecretKey(String::into(self.sample(rng)))),
             node_key: self.sample_opt(|| NodeSecretKey(String::into(self.sample(rng)))),
         }
     }
@@ -807,10 +792,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
-            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
-                0 => L1BatchCommitmentMode::Rollup,
-                _ => L1BatchCommitmentMode::Validium,
-            },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
             gateway_chain_id: self.sample_opt(|| SLChainId(rng.gen())),

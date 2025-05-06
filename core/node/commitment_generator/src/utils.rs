@@ -4,9 +4,9 @@ use std::fmt;
 
 use anyhow::Context;
 use itertools::Itertools;
-use zk_evm_1_5_0::{
-    aux_structures::Timestamp as Timestamp_1_5_0,
-    zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_0,
+use zk_evm_1_5_2::{
+    aux_structures::Timestamp as Timestamp_1_5_2,
+    zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_2,
 };
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
@@ -51,7 +51,7 @@ impl CommitmentComputer for RealCommitmentComputer {
         let commitment = circuit_encodings::commitments::events_queue_commitment_fixed(
             &events_queue
                 .iter()
-                .map(|x| to_log_query_1_5_0(*x))
+                .map(|x| to_log_query_1_5_2(*x))
                 .collect(),
         );
         Ok(H256(commitment))
@@ -87,9 +87,9 @@ fn expand_memory_contents(packed: &[(usize, U256)], memory_size_bytes: usize) ->
     result
 }
 
-fn to_log_query_1_5_0(log_query: LogQuery) -> LogQuery_1_5_0 {
-    LogQuery_1_5_0 {
-        timestamp: Timestamp_1_5_0(log_query.timestamp.0),
+fn to_log_query_1_5_2(log_query: LogQuery) -> LogQuery_1_5_2 {
+    LogQuery_1_5_2 {
+        timestamp: Timestamp_1_5_2(log_query.timestamp.0),
         tx_number_in_block: log_query.tx_number_in_block,
         aux_byte: log_query.aux_byte,
         shard_id: log_query.shard_id,

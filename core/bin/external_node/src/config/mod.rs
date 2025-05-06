@@ -459,9 +459,6 @@ pub(crate) struct OptionalENConfig {
     /// Number of requests per second allocated for the main node HTTP client. Default is 100 requests.
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
     pub main_node_rate_limit_rps: NonZeroUsize,
-
-    #[serde(default)]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
     /// or was synced from genesis.
@@ -682,7 +679,6 @@ impl OptionalENConfig {
                 l2_block_seal_queue_capacity,
                 default_l2_block_seal_queue_capacity
             ),
-            l1_batch_commit_data_generator_mode: enconfig.l1_batch_commit_data_generator_mode,
             snapshots_recovery_enabled: general_config
                 .snapshot_recovery
                 .as_ref()
@@ -1226,12 +1222,9 @@ impl ExperimentalENConfig {
 /// They should be copied over to the secrets.yaml/consensus_secrets.yaml file.
 pub fn generate_consensus_secrets() {
     let validator_key = roles::validator::SecretKey::generate();
-    let attester_key = roles::attester::SecretKey::generate();
     let node_key = roles::node::SecretKey::generate();
     println!("# {}", validator_key.public().encode());
     println!("validator_key: {}", validator_key.encode());
-    println!("# {}", attester_key.public().encode());
-    println!("attester_key: {}", attester_key.encode());
     println!("# {}", node_key.public().encode());
     println!("node_key: {}", node_key.encode());
 }

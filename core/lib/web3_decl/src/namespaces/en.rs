@@ -24,9 +24,6 @@ pub trait EnNamespace {
         include_transactions: bool,
     ) -> RpcResult<Option<en::SyncBlock>>;
 
-    #[method(name = "consensusGenesis")]
-    async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>>;
-
     #[method(name = "consensusGlobalConfig")]
     async fn consensus_global_config(&self) -> RpcResult<Option<en::ConsensusGlobalConfig>>;
 
@@ -45,13 +42,6 @@ pub trait EnNamespace {
     /// Get genesis configuration
     #[method(name = "genesisConfig")]
     async fn genesis_config(&self) -> RpcResult<GenesisConfigDto>;
-
-    /// MAIN NODE ONLY:
-    /// Gets the AttestationStatus of L1 batches.
-    /// This is a temporary RPC used for testing L1 batch signing
-    /// by consensus attesters.
-    #[method(name = "attestationStatus")]
-    async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>>;
 
     /// Get tokens that are white-listed and it can be used by paymasters.
     #[method(name = "whitelistedTokensForAA")]

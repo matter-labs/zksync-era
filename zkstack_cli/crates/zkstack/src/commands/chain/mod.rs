@@ -3,6 +3,7 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
@@ -10,9 +11,6 @@ use crate::commands::chain::{
     args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
     genesis::GenesisCommand, init::ChainInitCommand,
 };
-
-#[cfg(feature = "gateway")]
-mod gateway;
 
 mod accept_chain_ownership;
 pub(crate) mod admin_call_builder;
@@ -23,13 +21,15 @@ pub(crate) mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 mod enable_evm_emulator;
+mod gateway;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
+mod set_da_validator_pair_calldata;
 mod set_token_multiplier_setter;
 pub(crate) mod set_transaction_filterer;
 mod setup_legacy_bridge;
-mod utils;
+pub mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -74,9 +74,10 @@ pub enum ChainCommands {
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Provides calldata to set transaction filterer for a chain
     SetTransactionFiltererCalldata(SetTransactionFiltererArgs),
+    /// Provides calldata to set DA validator pair for a chain
+    SetDAValidatorPairCalldata(SetDAValidatorPairCalldataArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
-    #[cfg(feature = "gateway")]
     #[command(subcommand, alias = "gw")]
     Gateway(gateway::GatewayComamnds),
 }
@@ -111,8 +112,10 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::SetTransactionFiltererCalldata(args) => {
             set_transaction_filterer::run(shell, args).await
         }
+        ChainCommands::SetDAValidatorPairCalldata(args) => {
+            set_da_validator_pair_calldata::run(shell, args).await
+        }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
-        #[cfg(feature = "gateway")]
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }
