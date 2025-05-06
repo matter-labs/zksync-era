@@ -1,18 +1,19 @@
-use zksync_config::{configs::wallets, GasAdjusterConfig};
-use zksync_eth_client::{clients::PKSigningClient, EthInterface};
+use zksync_config::{
+    configs::{contracts::SettlementLayerSpecificContracts, wallets},
+    GasAdjusterConfig,
+};
 use zksync_node_framework::{
+    resource::ConfigResource,
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_types::{L1ChainId, SLChainId};
 
-use crate::implementations::resources::{
-    contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
-    eth_interface::{
-        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-        BoundEthInterfaceResource, EthInterfaceResource, SettlementLayerClient,
-        SettlementLayerClientResource,
-    },
+use super::resources::{
+    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
+    EthInterfaceResource, SettlementLayerClient,
 };
+use crate::clients::PKSigningClient;
 
 /// Wiring layer for [`PKSigningClient`].
 #[derive(Debug)]
@@ -24,9 +25,10 @@ pub struct PKSigningEthClientLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub eth_client: EthInterfaceResource,
-    pub contracts: SettlementLayerContractsResource,
-    pub l1_contracts: L1ChainContractsResource,
-    pub gateway_client: SettlementLayerClientResource,
+    pub gateway_client: SettlementLayerClient,
+    // FIXME: provide!
+    pub contracts: ConfigResource<(SettlementLayerSpecificContracts, SLChainId)>,
+    pub l1_contracts: ConfigResource<(SettlementLayerSpecificContracts, L1ChainId)>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -60,19 +62,12 @@ impl WiringLayer for PKSigningEthClientLayer {
         let gas_adjuster_config = &self.gas_adjuster_config;
         let EthInterfaceResource(query_client) = input.eth_client;
 
-        let l1_chain_id = query_client
-            .fetch_chain_id()
-            .await
-            .map_err(WiringError::internal)?;
+        let (l1_contracts, l1_chain_id) = input.l1_contracts.0;
         let signing_client = PKSigningClient::new_raw(
             private_key.clone(),
-            input
-                .l1_contracts
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            l1_contracts.chain_contracts_config.diamond_proxy_addr,
             gas_adjuster_config.default_priority_fee_per_gas,
-            l1_chain_id,
+            l1_chain_id.into(),
             query_client.clone(),
         );
         let signing_client = BoundEthInterfaceResource(Box::new(signing_client));
@@ -81,31 +76,24 @@ impl WiringLayer for PKSigningEthClientLayer {
             let private_key = blob_operator.private_key();
             let signing_client_for_blobs = PKSigningClient::new_raw(
                 private_key.clone(),
-                input
-                    .l1_contracts
-                    .0
-                    .chain_contracts_config
-                    .diamond_proxy_addr,
+                l1_contracts.chain_contracts_config.diamond_proxy_addr,
                 gas_adjuster_config.default_priority_fee_per_gas,
-                l1_chain_id,
+                l1_chain_id.into(),
                 query_client,
             );
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
 
-        let signing_client_for_l2_gateway = match input.gateway_client.0 {
+        let signing_client_for_gateway = match input.gateway_client {
             SettlementLayerClient::L2(gateway_client) => {
                 let private_key = self.wallets.operator.private_key();
-                let chain_id = gateway_client
-                    .fetch_chain_id()
-                    .await
-                    .map_err(WiringError::internal)?;
+                let (gateway_contracts, chain_id) = input.contracts.0;
                 let signing_client_for_blobs = PKSigningClient::new_raw(
                     private_key.clone(),
-                    input.contracts.0.chain_contracts_config.diamond_proxy_addr,
+                    gateway_contracts.chain_contracts_config.diamond_proxy_addr,
                     gas_adjuster_config.default_priority_fee_per_gas,
                     chain_id,
-                    gateway_client.clone(),
+                    gateway_client,
                 );
                 Some(BoundEthInterfaceForL2Resource(Box::new(
                     signing_client_for_blobs,
@@ -117,7 +105,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         Ok(Output {
             signing_client,
             signing_client_for_blobs,
-            signing_client_for_gateway: signing_client_for_l2_gateway,
+            signing_client_for_gateway,
         })
     }
 }

@@ -1,6 +1,7 @@
-use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_node_framework::resource::Resource;
 use zksync_web3_decl::client::{DynClient, L1, L2};
+
+use crate::{BoundEthInterface, EthInterface};
 
 /// A resource that provides L1 interface object to the service.
 #[derive(Debug, Clone)]
@@ -27,10 +28,7 @@ impl From<SettlementLayerClient> for Box<dyn EthInterface> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SettlementLayerClientResource(pub SettlementLayerClient);
-
-impl Resource for SettlementLayerClientResource {
+impl Resource for SettlementLayerClient {
     fn name() -> String {
         "common/settlement_layer_client".into()
     }
@@ -76,5 +74,21 @@ pub struct BoundEthInterfaceForL2Resource(pub Box<dyn BoundEthInterface>);
 impl Resource for BoundEthInterfaceForL2Resource {
     fn name() -> String {
         "common/bound_eth_interface_for_l2".into()
+    }
+}
+
+/// A resource that provides L2 interface object to the service.
+#[derive(Debug, Clone)]
+pub struct MainNodeClientResource(pub Box<DynClient<L2>>);
+
+impl Resource for MainNodeClientResource {
+    fn name() -> String {
+        "external_node/main_node_client".into()
+    }
+}
+
+impl<T: Into<Box<DynClient<L2>>>> From<T> for MainNodeClientResource {
+    fn from(client: T) -> Self {
+        Self(client.into())
     }
 }

@@ -1,15 +1,13 @@
 use anyhow::Context;
 use zksync_node_framework::{
+    resource::ConfigResource,
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 use zksync_types::{settlement::SettlementLayer, url::SensitiveUrl, L1ChainId, L2ChainId};
 use zksync_web3_decl::client::Client;
 
-use crate::implementations::resources::{
-    eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
-    settlement_layer::SettlementModeResource,
-};
+use super::resources::SettlementLayerClient;
 
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]
@@ -29,12 +27,12 @@ impl SettlementLayerClientLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    initial_settlement_mode: SettlementModeResource,
+    initial_settlement_mode: ConfigResource<SettlementLayer>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    settlement_layer_client: SettlementLayerClientResource,
+    settlement_layer_client: SettlementLayerClient,
 }
 
 #[async_trait::async_trait]
@@ -52,17 +50,13 @@ impl WiringLayer for SettlementLayerClientLayer {
                 SettlementLayer::L1(chain_id) => {
                     let mut builder = Client::http(self.l1_rpc_url).context("Client::new()")?;
                     builder = builder.for_network(L1ChainId(chain_id.0).into());
-                    SettlementLayerClientResource(SettlementLayerClient::L1(Box::new(
-                        builder.build(),
-                    )))
+                    SettlementLayerClient::L1(Box::new(builder.build()))
                 }
                 SettlementLayer::Gateway(chain_id) => {
                     let mut builder =
                         Client::http(self.gateway_rpc_url.unwrap()).context("Client::new()")?;
                     builder = builder.for_network(L2ChainId::new(chain_id.0).unwrap().into());
-                    SettlementLayerClientResource(SettlementLayerClient::L2(Box::new(
-                        builder.build(),
-                    )))
+                    SettlementLayerClient::L2(Box::new(builder.build()))
                 }
             },
         })

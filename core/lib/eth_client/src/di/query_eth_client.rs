@@ -6,7 +6,7 @@ use zksync_node_framework::{
 use zksync_types::{url::SensitiveUrl, L1ChainId};
 use zksync_web3_decl::client::Client;
 
-use crate::implementations::resources::eth_interface::EthInterfaceResource;
+use super::resources::EthInterfaceResource;
 
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]

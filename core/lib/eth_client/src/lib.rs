@@ -24,6 +24,8 @@ pub use crate::types::{
 
 pub mod clients;
 pub mod contracts_loader;
+#[cfg(feature = "di")]
+pub mod di;
 mod types;
 
 /// Contract Call/Query Options
