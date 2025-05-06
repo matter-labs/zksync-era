@@ -1,13 +1,13 @@
 use std::time::Instant;
+
+use proof_compression_gpu::{run_proof_chain, SnarkWrapper, SnarkWrapperProof};
 use zksync_prover_job_processor::Executor;
+
 use crate::{
     metrics::PROOF_FRI_COMPRESSOR_METRICS,
-    proof_fri_compressor_metadata::ProofFriCompressorMetadata, 
-    proof_fri_compressor_payload::ProofFriCompressorPayload
+    proof_fri_compressor_metadata::ProofFriCompressorMetadata,
+    proof_fri_compressor_payload::ProofFriCompressorPayload,
 };
-use proof_compression_gpu::run_proof_chain;
-use proof_compression_gpu::SnarkWrapper;
-use proof_compression_gpu::SnarkWrapperProof;
 
 /// ProofFriCompressor executor implementation.
 /// Generates circuit proof & verifies it.
@@ -47,7 +47,7 @@ impl Executor for ProofFriCompressorExecutor {
             &metadata.keystore,
             input.scheduler_proof.into_inner(),
         );
-        
+
         PROOF_FRI_COMPRESSOR_METRICS
             .compression_time
             .observe(start_time.elapsed());

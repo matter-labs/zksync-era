@@ -7,9 +7,7 @@ use zksync_prover_job_processor::{Backoff, BackoffAndCancellable, JobRunner};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
-use crate::{
-    ProofFriCompressorExecutor, ProofFriCompressorJobPicker, ProofFriCompressorJobSaver,
-};
+use crate::{ProofFriCompressorExecutor, ProofFriCompressorJobPicker, ProofFriCompressorJobSaver};
 
 #[derive(Debug)]
 pub struct ProofFriCompressorRunnerBuilder {
@@ -53,7 +51,11 @@ impl ProofFriCompressorRunnerBuilder {
     /// Proof Fri Compressor runner implementation.
     pub fn proof_fri_compressor_runner(
         &self,
-    ) -> JobRunner<ProofFriCompressorExecutor, ProofFriCompressorJobPicker, ProofFriCompressorJobSaver> {
+    ) -> JobRunner<
+        ProofFriCompressorExecutor,
+        ProofFriCompressorJobPicker,
+        ProofFriCompressorJobSaver,
+    > {
         let executor = ProofFriCompressorExecutor;
         let job_picker = ProofFriCompressorJobPicker::new(
             self.pool.clone(),
@@ -62,12 +64,11 @@ impl ProofFriCompressorRunnerBuilder {
             self.keystore.clone(),
             self.is_fflonk,
         );
-        let job_saver =
-            ProofFriCompressorJobSaver::new(
-                self.pool.clone(), 
-                self.blob_store.clone(),
-                self.protocol_version.clone(),
-            );
+        let job_saver = ProofFriCompressorJobSaver::new(
+            self.pool.clone(),
+            self.blob_store.clone(),
+            self.protocol_version.clone(),
+        );
         let backoff = Backoff::default();
 
         JobRunner::new(
@@ -86,5 +87,4 @@ impl ProofFriCompressorRunnerBuilder {
         // let job_saver = ProofFriCompressorJobSaver::new(connection_pool, object_store, protocol_version);
         // JobRunner::new(executor, job_picker, job_saver, 1, None)
     }
-
 }

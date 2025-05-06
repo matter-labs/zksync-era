@@ -1,5 +1,6 @@
 use std::time::Duration;
-use vise::{Metrics, Gauge};
+
+use vise::{Gauge, Metrics};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "proof_fri_compressor_instance")]
@@ -13,4 +14,5 @@ pub(crate) struct ProofFriCompressorMetrics {
 }
 
 #[vise::register]
-pub(crate) static PROOF_FRI_COMPRESSOR_INSTANCE_METRICS: vise::Global<ProofFriCompressorMetrics> = vise::Global::new();
+pub(crate) static PROOF_FRI_COMPRESSOR_INSTANCE_METRICS: vise::Global<ProofFriCompressorMetrics> =
+    vise::Global::new();

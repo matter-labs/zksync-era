@@ -5,20 +5,25 @@ use async_trait::async_trait;
 use proof_compression_gpu::SnarkWrapperProof;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_job_processor::JobSaver;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
-use crate::{ProofFriCompressorExecutor, metrics::PROOF_FRI_COMPRESSOR_METRICS};
-use crate::proof_fri_compressor_metadata::ProofFriCompressorMetadata;
-use zksync_prover_interface::{
-    outputs::{FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1, L1BatchProofForL1Key},
-    CBOR,
-};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     AuxOutputWitnessWrapper,
+};
+use zksync_prover_interface::{
+    outputs::{
+        FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchProofForL1Key, PlonkL1BatchProofForL1,
+    },
+    CBOR,
+};
+use zksync_prover_job_processor::JobSaver;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+
+use crate::{
+    metrics::PROOF_FRI_COMPRESSOR_METRICS,
+    proof_fri_compressor_metadata::ProofFriCompressorMetadata, ProofFriCompressorExecutor,
 };
 
 /// ProofFriCompressor job saver implementation.
@@ -69,7 +74,10 @@ impl JobSaver for ProofFriCompressorJobSaver {
     )]
     async fn save_job_result(
         &self,
-        data: (anyhow::Result<SnarkWrapperProof>, ProofFriCompressorMetadata),
+        data: (
+            anyhow::Result<SnarkWrapperProof>,
+            ProofFriCompressorMetadata,
+        ),
     ) -> anyhow::Result<()> {
         let start_time = Instant::now();
         let (result, metadata) = data;
@@ -108,8 +116,8 @@ impl JobSaver for ProofFriCompressorJobSaver {
                 let blob_url = self
                     .blob_store
                     .put(
-                        L1BatchProofForL1Key::Prover((metadata.l1_batch_id, self.protocol_version)), 
-                        &l1_batch_proof
+                        L1BatchProofForL1Key::Prover((metadata.l1_batch_id, self.protocol_version)),
+                        &l1_batch_proof,
                     )
                     .await
                     .context("Failed to save converted l1_batch_proof")?;
@@ -119,7 +127,11 @@ impl JobSaver for ProofFriCompressorJobSaver {
                     .await
                     .context("failed to get db connection")?
                     .fri_proof_compressor_dal()
-                    .mark_proof_compression_job_successful(metadata.l1_batch_id, start_time.elapsed(), &blob_url)
+                    .mark_proof_compression_job_successful(
+                        metadata.l1_batch_id,
+                        start_time.elapsed(),
+                        &blob_url,
+                    )
                     .await;
             }
             Err(error) => {
@@ -142,7 +154,7 @@ impl JobSaver for ProofFriCompressorJobSaver {
         PROOF_FRI_COMPRESSOR_METRICS
             .blob_save_time
             .observe(start_time.elapsed());
-        
+
         Ok(())
     }
 }

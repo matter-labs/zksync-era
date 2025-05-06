@@ -1,22 +1,19 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{
-    get_current_pod_name, FriProofWrapper,
-};
+use zksync_prover_fri_types::{get_current_pod_name, FriProofWrapper};
 use zksync_prover_job_processor::JobPicker;
+use zksync_prover_keystore::keystore::Keystore;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+
 use crate::{
     metrics::PROOF_FRI_COMPRESSOR_METRICS,
-    proof_fri_compressor_payload::ProofFriCompressorPayload,
     proof_fri_compressor_metadata::ProofFriCompressorMetadata,
-    ProofFriCompressorExecutor,
+    proof_fri_compressor_payload::ProofFriCompressorPayload, ProofFriCompressorExecutor,
 };
-use std::time::Instant;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
-use zksync_prover_keystore::keystore::Keystore;
 
 /// ProofFriCompressor job picker implementation.
 /// Picks job from database (via MetadataLoader) and gets data from object store.
@@ -52,14 +49,16 @@ impl JobPicker for ProofFriCompressorJobPicker {
     type ExecutorType = ProofFriCompressorExecutor;
 
     async fn pick_job(
-        &mut self
+        &mut self,
     ) -> anyhow::Result<Option<(ProofFriCompressorPayload, ProofFriCompressorMetadata)>> {
         let start_time = Instant::now();
-        tracing::info!(
-            "Started picking proof fri compressor job",
-        );
+        tracing::info!("Started picking proof fri compressor job",);
 
-        let mut conn = self.pool.connection().await.context("failed to get db connection")?;
+        let mut conn = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get db connection")?;
 
         let l1_verifier_config = conn
             .fri_protocol_versions_dal()
@@ -92,25 +91,24 @@ impl JobPicker for ProofFriCompressorJobPicker {
 
         let scheduler_proof = ProofFriCompressorPayload {
             scheduler_proof: match fri_proof {
-                FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
+                FriProofWrapper::Base(_) => {
+                    anyhow::bail!("Must be a scheduler proof not base layer")
+                }
                 FriProofWrapper::Recursive(proof) => proof,
-            }
+            },
         };
 
         let keystore = self.keystore.clone();
-        
-        let metadata = ProofFriCompressorMetadata::new(
-            l1_batch_id,
-            self.is_fflonk,
-            keystore,
-        );
+
+        let metadata = ProofFriCompressorMetadata::new(l1_batch_id, self.is_fflonk, keystore);
 
         tracing::info!(
             "Finished picking proof fri compressor job on batch {} in {:?}",
             metadata.l1_batch_id,
             start_time.elapsed()
         );
-        PROOF_FRI_COMPRESSOR_METRICS.blob_fetch_time
+        PROOF_FRI_COMPRESSOR_METRICS
+            .blob_fetch_time
             .observe(start_time.elapsed());
         Ok(Some((scheduler_proof, metadata)))
     }

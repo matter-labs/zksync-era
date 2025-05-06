@@ -1,23 +1,26 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
 use anyhow::Context as _;
 use clap::Parser;
+use tokio_util::sync::CancellationToken;
 use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_proof_fri_compressor_service::job_runner::ProofFriCompressorRunnerBuilder;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-use zksync_proof_fri_compressor_service::job_runner::ProofFriCompressorRunnerBuilder;
-use tokio_util::sync::CancellationToken;
-use crate::metrics::PROOF_FRI_COMPRESSOR_INSTANCE_METRICS;
-use crate::initial_setup_keys::download_initial_setup_keys_if_not_present;
+
+use crate::{
+    initial_setup_keys::download_initial_setup_keys_if_not_present,
+    metrics::PROOF_FRI_COMPRESSOR_INSTANCE_METRICS,
+};
 
 mod initial_setup_keys;
 mod metrics;
@@ -84,7 +87,9 @@ async fn main() -> anyhow::Result<()> {
 
     setup_crs_keys(&config);
 
-    PROOF_FRI_COMPRESSOR_INSTANCE_METRICS.startup_time.set(start_time.elapsed());
+    PROOF_FRI_COMPRESSOR_INSTANCE_METRICS
+        .startup_time
+        .set(start_time.elapsed());
 
     let cancellation_token = CancellationToken::new();
 
@@ -100,8 +105,9 @@ async fn main() -> anyhow::Result<()> {
         keystore,
         is_fflonk,
         cancellation_token.clone(),
-    ).proof_fri_compressor_runner();
-    
+    )
+    .proof_fri_compressor_runner();
+
     tracing::info!("Starting proof compressor");
 
     tasks.extend(proof_fri_compressor_runner.run());

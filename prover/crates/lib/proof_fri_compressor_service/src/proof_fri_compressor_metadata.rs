@@ -9,11 +9,7 @@ pub struct ProofFriCompressorMetadata {
 }
 
 impl ProofFriCompressorMetadata {
-    pub fn new(
-        l1_batch_id: L1BatchId,
-        is_fflonk: bool,
-        keystore: Keystore,
-    ) -> Self {
+    pub fn new(l1_batch_id: L1BatchId, is_fflonk: bool, keystore: Keystore) -> Self {
         Self {
             l1_batch_id,
             is_fflonk,
