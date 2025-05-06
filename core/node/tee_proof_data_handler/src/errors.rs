@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -16,6 +18,27 @@ pub enum TeeProcessorError {
     },
     #[error("Failed fetching/saving from db: {0}")]
     Dal(#[from] DalError),
+}
+
+pub trait TeeProcessorContext {
+    type Output;
+    fn context<F: Display>(self, s: F) -> Result<Self::Output, TeeProcessorError>;
+}
+
+impl<D: Display, T> TeeProcessorContext for Result<T, D> {
+    type Output = T;
+
+    fn context<F: Display>(self, s: F) -> Result<Self::Output, TeeProcessorError> {
+        self.map_err(|e| TeeProcessorError::GeneralError(format!("{}: {}", s, e)))
+    }
+}
+
+impl<T> TeeProcessorContext for Option<T> {
+    type Output = T;
+
+    fn context<F: Display>(self, s: F) -> Result<Self::Output, TeeProcessorError> {
+        self.ok_or(TeeProcessorError::GeneralError(s.to_string()))
+    }
 }
 
 impl TeeProcessorError {
