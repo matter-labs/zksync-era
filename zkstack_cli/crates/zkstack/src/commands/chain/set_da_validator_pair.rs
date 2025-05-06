@@ -8,8 +8,8 @@ use crate::{
     admin_functions::{set_da_validator_pair, AdminScriptMode},
     commands::chain::utils::get_default_foundry_path,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
+        MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
         MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
@@ -28,7 +28,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
         .address;
 
-    let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+    let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
 
     set_da_validator_pair(
         shell,
@@ -52,7 +52,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     spinner.finish();
 
     logger::note(
-        MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO,
+        MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
         hex::encode(token_multiplier_setter_address),
     );
 

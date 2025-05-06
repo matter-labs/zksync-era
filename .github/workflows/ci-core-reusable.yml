@@ -533,8 +533,7 @@ jobs:
           
           # restarting the server so that config changes take effect
           ci_run pkill -9 -f "zkstack server --ignore-prerequisites --chain era"
-          ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
-          ERA_SERVER_PID=$!
+          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run sleep 60
           
           # Update DA valdiator addresses on L1
@@ -543,7 +542,7 @@ jobs:
           # disable inclusion verification transition and restart the server
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           ci_run pkill -9 -f "zkstack server --ignore-prerequisites --chain era"
-          ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run sleep 60
           
           # run integration tests to make sure all went well
