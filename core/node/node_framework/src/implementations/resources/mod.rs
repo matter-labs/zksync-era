@@ -9,7 +9,6 @@ pub mod gas_adjuster;
 pub mod l1_tx_params;
 pub mod main_node_client;
 pub mod object_store;
-pub mod pools;
 pub mod price_api_client;
 pub mod reverter;
 pub mod settlement_layer;

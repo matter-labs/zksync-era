@@ -7,10 +7,11 @@ use std::{
 };
 
 use tokio::sync::Mutex;
-use zksync_dal::{ConnectionPool, Core};
 use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
 use zksync_node_framework::resource::Resource;
 use zksync_types::url::SensitiveUrl;
+
+use crate::{ConnectionPool, Core};
 
 /// Represents a connection pool to a certain kind of database.
 #[derive(Debug, Clone)]

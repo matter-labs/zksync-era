@@ -12398,6 +12398,7 @@ name = "zksync_dal"
 version = "28.0.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "chrono",
@@ -12415,6 +12416,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
@@ -12422,6 +12424,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_db_connection",
  "zksync_l1_contract_interface",
+ "zksync_node_framework",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",

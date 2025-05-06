@@ -26,10 +26,13 @@ zksync_consensus_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_db_connection.workspace = true
 zksync_l1_contract_interface.workspace = true
+zksync_node_framework = { workspace = true, optional = true }
+zksync_config = { workspace = true, optional = true }
 
 itertools.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
 prost.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -61,3 +64,7 @@ zksync_concurrency.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true
+
+[features]
+default = []
+di = ["zksync_node_framework", "zksync_config"]
