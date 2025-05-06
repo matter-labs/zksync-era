@@ -656,7 +656,7 @@ impl EthTxAggregator {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             // For the migration from gateway to L1, we need to wait for all blocks to be executed
-            if !self.is_gateway() {
+            if let None | Some(SettlementLayer::L1(_)) = self.settlement_layer {
                 op_restrictions.prove_restriction = reason;
                 op_restrictions.execute_restriction = reason;
             }
@@ -914,6 +914,8 @@ impl EthTxAggregator {
         Ok(eth_tx)
     }
 
+    // Just because we block all operations during gateway migration,
+    // this function will not properly be called when the settlement layer is unknown
     fn is_gateway(&self) -> bool {
         self.settlement_layer
             .as_ref()
