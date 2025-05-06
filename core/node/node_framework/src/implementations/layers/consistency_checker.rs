@@ -70,7 +70,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
             self.max_batches_to_recheck,
             singleton_pool,
             self.commitment_mode,
-            input.settlement_mode.0,
+            input.settlement_mode.settlement_layer(),
         )
         .await
         .map_err(WiringError::Internal)?

@@ -214,7 +214,9 @@ impl WiringLayer for Web3ServerLayer {
             &l1_contracts,
             &input.l1_ecosystem_contracts_resource.0,
             &input.l2_contracts_resource.0,
-            input.initial_settlement_mode.0,
+            input
+                .initial_settlement_mode
+                .probably_unknown_settlement_layer(),
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
