@@ -101,6 +101,9 @@ impl InitArgs {
                 Some(da_configs::ValidiumTypeInternal::EigenDAV2M0) => {
                     Some(ValidiumType::EigenDAV2M0)
                 }
+                Some(da_configs::ValidiumTypeInternal::EigenDAV1M0) => {
+                    Some(ValidiumType::EigenDAV1M0)
+                }
             },
             _ => None,
         };

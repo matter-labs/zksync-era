@@ -60,6 +60,7 @@ pub enum ClientType {
     Avail,
     Celestia,
     EigenV2M0,
+    EigenV1M0,
     ObjectStore,
 }
 
@@ -70,6 +71,7 @@ impl ClientType {
             ClientType::Avail => PubdataType::Avail,
             ClientType::Celestia => PubdataType::Celestia,
             ClientType::EigenV2M0 => PubdataType::EigenV2M0,
+            ClientType::EigenV1M0 => PubdataType::EigenV1M0,
             ClientType::ObjectStore => PubdataType::ObjectStore,
         }
     }

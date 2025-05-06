@@ -29,6 +29,7 @@ pub enum ValidiumTypeInternal {
     NoDA,
     Avail,
     EigenDAV2M0,
+    EigenDAV1M0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
@@ -42,6 +43,7 @@ pub enum ValidiumType {
     NoDA,
     Avail((AvailConfig, AvailSecrets)),
     EigenDAV2M0,
+    EigenDAV1M0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
@@ -54,6 +56,7 @@ impl ValidiumType {
     pub fn read() -> Self {
         match PromptSelect::new(MSG_VALIDIUM_TYPE_PROMPT, ValidiumTypeInternal::iter()).ask() {
             ValidiumTypeInternal::EigenDAV2M0 => ValidiumType::EigenDAV2M0, // EigenDA doesn't support configuration through CLI
+            ValidiumTypeInternal::EigenDAV1M0 => ValidiumType::EigenDAV1M0, // EigenDA doesn't support configuration through CLI
             ValidiumTypeInternal::NoDA => ValidiumType::NoDA,
             ValidiumTypeInternal::Avail => {
                 let avail_client_type = PromptSelect::new(

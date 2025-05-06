@@ -1,14 +1,17 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use zksync_config::configs::{
-    self,
-    da_client::{
-        avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
-        celestia::CelestiaConfig,
-        eigenv2m0::EigenConfigV2M0,
-        DAClientConfig::{Avail, Celestia, EigenV2M0, NoDA, ObjectStore},
+use zksync_config::{
+    configs::{
+        self,
+        da_client::{
+            avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
+            celestia::CelestiaConfig,
+            eigenv2m0::EigenConfigV2M0,
+            DAClientConfig::{Avail, Celestia, EigenV1M0, EigenV2M0, NoDA, ObjectStore},
+        },
     },
+    EigenConfigV1M0,
 };
 use zksync_protobuf::{required, ProtoRepr};
 use zksync_types::url::SensitiveUrl;
@@ -91,6 +94,52 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     },
                 })
             }
+            proto::data_availability_client::Config::Eigenv1m0(conf) => {
+                EigenV1M0(EigenConfigV1M0 {
+                    disperser_rpc: required(&conf.disperser_rpc)
+                        .context("disperser_rpc")?
+                        .clone(),
+                    settlement_layer_confirmation_depth: *required(
+                        &conf.settlement_layer_confirmation_depth,
+                    )
+                    .context("settlement_layer_confirmation_depth")?,
+                    eigenda_eth_rpc: conf
+                        .eigenda_eth_rpc
+                        .clone()
+                        .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
+                        .transpose()
+                        .context("eigenda_eth_rpc")?,
+                    eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
+                        .and_then(|x| parse_h160(x))
+                        .context("eigenda_svc_manager_address")?,
+                    wait_for_finalization: *required(&conf.wait_for_finalization)
+                        .context("wait_for_finalization")?,
+                    authenticated: *required(&conf.authenticated).context("authenticated")?,
+                    points_source: match conf.points_source.clone() {
+                        Some(proto::eigen_config_v1m0::PointsSource::PointsSourcePath(
+                            points_source_path,
+                        )) => zksync_config::configs::da_client::eigenv1m0::PointsSource::Path(
+                            points_source_path,
+                        ),
+                        Some(proto::eigen_config_v1m0::PointsSource::PointsSourceUrl(
+                            points_source_url,
+                        )) => {
+                            let g1_url = required(&points_source_url.g1_url).context("g1_url")?;
+                            let g2_url = required(&points_source_url.g2_url).context("g2_url")?;
+                            zksync_config::configs::da_client::eigenv1m0::PointsSource::Url((
+                                g1_url.to_owned(),
+                                g2_url.to_owned(),
+                            ))
+                        }
+                        None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
+                    },
+                    custom_quorum_numbers: conf
+                        .custom_quorum_numbers
+                        .iter()
+                        .map(|x| u8::try_from(*x).context("custom_quorum_numbers"))
+                        .collect::<anyhow::Result<Vec<u8>>>()?,
+                })
+            }
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
@@ -148,6 +197,42 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             crate::proto::da_client::PolynomialForm::Eval.into()
                         }
                     }),
+                })
+            }
+            EigenV1M0(config) => {
+                proto::data_availability_client::Config::Eigenv1m0(proto::EigenConfigV1m0 {
+                    disperser_rpc: Some(config.disperser_rpc.clone()),
+                    settlement_layer_confirmation_depth: Some(
+                        config.settlement_layer_confirmation_depth,
+                    ),
+                    eigenda_eth_rpc: config
+                        .eigenda_eth_rpc
+                        .as_ref()
+                        .map(|a| a.expose_str().to_string()),
+                    eigenda_svc_manager_address: Some(format!(
+                        "{:?}",
+                        config.eigenda_svc_manager_address
+                    )),
+                    wait_for_finalization: Some(config.wait_for_finalization),
+                    authenticated: Some(config.authenticated),
+                    points_source: Some(match &config.points_source {
+                        zksync_config::configs::da_client::eigenv1m0::PointsSource::Path(path) => {
+                            proto::eigen_config_v1m0::PointsSource::PointsSourcePath(path.clone())
+                        }
+                        zksync_config::configs::da_client::eigenv1m0::PointsSource::Url((
+                            g1_url,
+                            g2_url,
+                        )) => proto::eigen_config_v1m0::PointsSource::PointsSourceUrl(proto::Url {
+                            g1_url: Some(g1_url.clone()),
+                            g2_url: Some(g2_url.clone()),
+                        }),
+                    }),
+                    // We need to cast as u32 because proto doesn't support u8
+                    custom_quorum_numbers: config
+                        .custom_quorum_numbers
+                        .iter()
+                        .map(|x| *x as u32)
+                        .collect(),
                 })
             }
             ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(

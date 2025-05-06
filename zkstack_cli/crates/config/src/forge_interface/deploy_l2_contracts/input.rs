@@ -54,6 +54,7 @@ async fn get_da_validator_type(config: &ChainConfig) -> anyhow::Result<DAValidat
         (L1BatchCommitmentMode::Validium, None | Some("no_da")) => Ok(DAValidatorType::NoDA),
         (L1BatchCommitmentMode::Validium, Some("avail")) => Ok(DAValidatorType::Avail),
         (L1BatchCommitmentMode::Validium, Some("eigenv2m0")) => Ok(DAValidatorType::NoDA),
+        (L1BatchCommitmentMode::Validium, Some("eigenv1m0")) => Ok(DAValidatorType::NoDA),
         _ => anyhow::bail!("DAValidatorType is not supported"),
     }
 }
