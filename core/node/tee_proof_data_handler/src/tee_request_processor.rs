@@ -1,11 +1,15 @@
-use std::sync::Arc;
+use std::{ops::Sub, sync::Arc};
 
 use axum::{extract::Path, Json};
-use chrono::{Duration as ChronoDuration, Utc};
+use chrono::{Duration as ChronoDuration, NaiveDateTime, TimeDelta, Utc};
+use intel_dcap_api::{
+    ApiVersion, EnclaveIdentityJson, EnclaveIdentityResponse, TcbInfoJson, TcbInfoResponse,
+};
+use teepot::quote::TEEType;
 use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{
     tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
-    ConnectionPool, Core, CoreDal,
+    Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::{
@@ -22,7 +26,11 @@ use zksync_tee_prover_interface::{
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
-use crate::{errors::TeeProcessorError, metrics::METRICS};
+use crate::{
+    collateral::{get_next_update, update_collateral_for_quote},
+    errors::{TeeProcessorContext, TeeProcessorError},
+    metrics::METRICS,
+};
 
 #[derive(Clone)]
 pub(crate) struct TeeRequestProcessor {
@@ -55,12 +63,7 @@ impl TeeRequestProcessor {
 
         let batch_ignored_timeout =
             ChronoDuration::from_std(self.config.batch_permanently_ignored_timeout_in_hours)
-                .map_err(|err| {
-                    TeeProcessorError::GeneralError(format!(
-                        "Failed to convert batch_ignored_timeout: {}",
-                        err
-                    ))
-                })?;
+                .context("Failed to convert batch_ignored_timeout")?;
         let min_batch_number = self.config.first_processed_batch;
 
         loop {
@@ -263,8 +266,10 @@ impl TeeRequestProcessor {
         tracing::info!("Received attestation: {:?}", payload);
 
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
-        let mut dal = connection.tee_proof_generation_dal();
 
+        update_collateral_for_quote(&mut connection, &payload.attestation).await?;
+
+        let mut dal = connection.tee_proof_generation_dal();
         dal.save_attestation(&payload.pubkey, &payload.attestation)
             .await?;
 
