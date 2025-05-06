@@ -71,7 +71,9 @@ impl GatewayMigrator {
 
             match current_settlement_layer {
                 Ok(current_settlement_layer) => {
-                    if self.settlement_layer != current_settlement_layer.safe_settlement_layer {
+                    if self.settlement_layer
+                        != current_settlement_layer.probably_unknown_settlement_layer()
+                    {
                         bail!("Settlement layer changed")
                     }
                 }
@@ -101,8 +103,31 @@ impl GatewayMigrator {
 /// While the whole system is continuing to work with the old settlement layer, we can't really settle to it during the migration process.
 #[derive(Debug, Clone)]
 pub struct WorkingSettlementLayer {
-    pub unsafe_settlement_layer: SettlementLayer,
-    pub safe_settlement_layer: Option<SettlementLayer>,
+    unsafe_settlement_layer: SettlementLayer,
+    migration_in_progress: bool,
+}
+
+impl WorkingSettlementLayer {
+    pub fn new(unsafe_settlement_layer: SettlementLayer) -> Self {
+        Self {
+            unsafe_settlement_layer,
+            migration_in_progress: false,
+        }
+    }
+}
+
+impl WorkingSettlementLayer {
+    pub fn settlement_layer(&self) -> SettlementLayer {
+        self.unsafe_settlement_layer
+    }
+
+    pub fn probably_unknown_settlement_layer(&self) -> Option<SettlementLayer> {
+        if self.migration_in_progress {
+            None
+        } else {
+            Some(self.unsafe_settlement_layer)
+        }
+    }
 }
 
 // Return current settlement layer.
@@ -158,7 +183,7 @@ pub async fn current_settlement_layer(
     let final_settlement_mode = if use_settlement_mode_from_l1 {
         WorkingSettlementLayer {
             unsafe_settlement_layer: settlement_mode_from_l1,
-            safe_settlement_layer: Some(settlement_mode_from_l1),
+            migration_in_progress: false,
         }
     } else {
         // If it's impossible to use settlement_mode_from_l1 server have to use the opposite settlement_layer
@@ -181,7 +206,7 @@ pub async fn current_settlement_layer(
         };
         WorkingSettlementLayer {
             unsafe_settlement_layer,
-            safe_settlement_layer: None,
+            migration_in_progress: true,
         }
     };
 

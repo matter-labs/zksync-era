@@ -14,12 +14,12 @@ impl SettlementModeResource {
 
     /// For configuring the system please use this method. It returns the settlement layer that system should assume to use
     pub fn settlement_layer(&self) -> SettlementLayer {
-        self.0.unsafe_settlement_layer
+        self.0.settlement_layer()
     }
 
     /// Method returns the settlement layer, where we really should send the transactions, it could be None during the migration. Please use this method only if you know how to handle unknown settlement layer
     pub fn probably_unknown_settlement_layer(&self) -> Option<SettlementLayer> {
-        self.0.safe_settlement_layer
+        self.0.probably_unknown_settlement_layer()
     }
 }
 

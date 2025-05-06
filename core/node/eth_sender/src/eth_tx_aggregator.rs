@@ -915,7 +915,7 @@ impl EthTxAggregator {
     }
 
     // Just because we block all operations during gateway migration,
-    // this function will not properly be called when the settlement layer is unknown
+    // this function should not be called when the settlement layer is unknown
     fn is_gateway(&self) -> bool {
         self.settlement_layer
             .as_ref()

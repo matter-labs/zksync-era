@@ -132,7 +132,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         .await
         .context("Error occured while getting current SL mode")?;
 
-        let sl_chain_contracts = match final_settlement_mode.unsafe_settlement_layer {
+        let sl_chain_contracts = match final_settlement_mode.settlement_layer() {
             SettlementLayer::L1(_) => sl_l1_contracts.clone(),
             SettlementLayer::Gateway(_) => {
                 let client = l2_eth_client.clone().unwrap().0;
@@ -163,7 +163,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             l2_eth_client,
             eth_sender_config: Some(adjust_eth_sender_config(
                 self.config.eth_sender_config,
-                final_settlement_mode.unsafe_settlement_layer,
+                final_settlement_mode.settlement_layer(),
             )),
         })
     }
@@ -254,10 +254,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             },
         };
 
-        let sl = WorkingSettlementLayer {
-            unsafe_settlement_layer: initial_sl_mode.clone(),
-            safe_settlement_layer: Some(initial_sl_mode),
-        };
+        let sl = WorkingSettlementLayer::new(initial_sl_mode);
 
         Ok(Output {
             contracts: SettlementLayerContractsResource(contracts),
