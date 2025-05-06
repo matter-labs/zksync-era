@@ -11,6 +11,7 @@ on:
 env:
   RUST_BACKTRACE: 1
   PASSED_ENV_VARS: RUST_BACKTRACE
+  YQ_VERSION: "4.45.1"
 
 jobs:
   lint:
