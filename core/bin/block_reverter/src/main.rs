@@ -9,8 +9,9 @@ use tokio::{
 use zksync_block_reverter::{
     eth_client::{
         clients::{Client, PKSigningClient, L1},
-        contracts_loader::{get_settlement_layer_from_bridgehub, load_settlement_layer_contracts},
-        EthInterface,
+        contracts_loader::{
+            get_settlement_layer_from_l1_bridgehub, load_settlement_layer_contracts,
+        },
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
@@ -252,9 +253,8 @@ async fn main() -> anyhow::Result<()> {
     .await?
     // If None has been returned, in case of pre v27 upgrade, use the contracts from configs
     .unwrap_or_else(|| contracts.settlement_layer_specific_contracts());
-    let settlement_mode = get_settlement_layer_from_bridgehub(
+    let settlement_mode = get_settlement_layer_from_l1_bridgehub(
         &l1_client,
-        l1_client.fetch_chain_id().await?,
         sl_l1_contracts
             .ecosystem_contracts
             .bridgehub_proxy_addr
@@ -262,8 +262,7 @@ async fn main() -> anyhow::Result<()> {
         SLChainId(zksync_network_id.as_u64()),
         &bridgehub_contract(),
     )
-    .await?
-    .context("Missing settlement layer on L1")?;
+    .await?;
 
     let (client, contracts, chain_id) = match settlement_mode {
         SettlementLayer::L1(chain_id) => (l1_client, sl_l1_contracts, chain_id),

@@ -122,7 +122,7 @@ pub async fn current_settlement_layer(
     let final_settlement_mode = match settlement_mode_from_l1 {
         sl_layer @ SettlementLayer::L1(_) => {
             // Bridgehub on L1 is only toggled when chain is indeed ready to settle on L1.
-            return Ok(sl_layer);
+            sl_layer
         }
         SettlementLayer::Gateway(gw_chain_id) => {
             let gw_client = gateway_client.context("Missing gateway client")?;
@@ -146,7 +146,12 @@ pub async fn current_settlement_layer(
             )
             .await?;
 
-            let chain_finalized_migration_to_gw = match settlement_layer_from_gw {
+            match settlement_layer_from_gw {
+                None => {
+                    // This means that the chain has never settled on top of GW.
+                    // We should stick to using L1 until the migration finishes.
+                    SettlementLayer::L1(l1_chain_id)
+                }
                 Some(SettlementLayer::Gateway(chain_id_from_gw_bridgehub)) => {
                     // Inequality is only possible if there are more than 1 gateways, but the server is
                     // not ready for this case.
@@ -155,15 +160,14 @@ pub async fn current_settlement_layer(
                         "Unexpected GW chain id"
                     );
 
-                    true
+                    // The migration to Gateway has finished, we need to use GW.
+                    SettlementLayer::Gateway(gw_chain_id_from_provider)
                 }
-                _ => false,
-            };
-
-            if chain_finalized_migration_to_gw {
-                SettlementLayer::Gateway(gw_chain_id_from_provider)
-            } else {
-                SettlementLayer::L1(l1_chain_id)
+                Some(SettlementLayer::L1(_)) => {
+                    // Gateway has started migration to L1, but the L1 is not yet ready.
+                    // We have to use Gateway
+                    SettlementLayer::Gateway(gw_chain_id_from_provider)
+                }
             }
         }
     };

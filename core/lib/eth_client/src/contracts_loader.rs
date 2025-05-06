@@ -1,3 +1,4 @@
+use anyhow::Context;
 use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
@@ -97,9 +98,6 @@ pub async fn get_settlement_layer_from_bridgehub(
             .await?;
     if settlement_layer_chain_id == U256::zero() {
         return Ok(None);
-        // This is only the case for chains that did not pass v26 upgrade, which
-        // is not the case for any active chain.
-        // anyhow::bail!("Chain does not settlement layer registered on L1 bridgehub");
     }
 
     let settlement_layer_chain_id = SLChainId(settlement_layer_chain_id.as_u64());
@@ -113,27 +111,24 @@ pub async fn get_settlement_layer_from_bridgehub(
     Ok(Some(settlement_mode))
 }
 
-pub async fn get_settlement_layer_address(
+pub async fn get_settlement_layer_from_l1_bridgehub(
     eth_client: &dyn EthInterface,
-    diamond_proxy_addr: Address,
-    abi: &Contract,
-) -> Result<Address, ContractCallError> {
-    if !ProtocolSemanticVersion::try_from_packed(
-        get_protocol_version(diamond_proxy_addr, &hyperchain_contract(), eth_client).await?,
-    )
-    // It's safe to unwrap it, because we have the same mechanism on l1
-    .unwrap()
-    .minor
-    .is_post_fflonk()
-    {
-        return Ok(Address::zero());
-    }
-    let settlement_layer: Address = CallFunctionArgs::new("getSettlementLayer", ())
-        .for_contract(diamond_proxy_addr, abi)
-        .call(eth_client)
-        .await?;
+    bridgehub_address: Address,
+    chain_id: SLChainId,
+    bridgehub_abi: &Contract,
+) -> anyhow::Result<SettlementLayer> {
+    let l1_chain_id = eth_client.fetch_chain_id().await?;
 
-    Ok(settlement_layer)
+    let settlement_layer = get_settlement_layer_from_bridgehub(
+        eth_client,
+        l1_chain_id,
+        bridgehub_address,
+        chain_id,
+        bridgehub_abi,
+    )
+    .await?;
+
+    settlement_layer.context("Missing settlement layer on L1 bridgehub")
 }
 
 async fn get_protocol_version(
