@@ -9,7 +9,9 @@ use tokio::{
 use zksync_block_reverter::{
     eth_client::{
         clients::{Client, PKSigningClient, L1},
-        contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
+        contracts_loader::{
+            get_settlement_layer_from_l1_bridgehub, load_settlement_layer_contracts,
+        },
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
@@ -20,13 +22,15 @@ use zksync_config::{
     },
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
-use zksync_contracts::getters_facet_contract;
+use zksync_contracts::bridgehub_contract;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto;
-use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
+use zksync_types::{
+    settlement::SettlementLayer, Address, L1BatchNumber, SLChainId, L2_BRIDGEHUB_ADDRESS,
+};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -249,10 +253,14 @@ async fn main() -> anyhow::Result<()> {
     .await?
     // If None has been returned, in case of pre v27 upgrade, use the contracts from configs
     .unwrap_or_else(|| contracts.settlement_layer_specific_contracts());
-    let settlement_mode = get_settlement_layer_from_l1(
+    let settlement_mode = get_settlement_layer_from_l1_bridgehub(
         &l1_client,
-        sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
-        &getters_facet_contract(),
+        sl_l1_contracts
+            .ecosystem_contracts
+            .bridgehub_proxy_addr
+            .context("Missing bridgehub")?,
+        SLChainId(zksync_network_id.as_u64()),
+        &bridgehub_contract(),
     )
     .await?;
 

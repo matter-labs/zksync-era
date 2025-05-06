@@ -5,12 +5,13 @@ use zksync_config::configs::{
     },
     eth_sender::SenderConfig,
 };
-use zksync_contracts::getters_facet_contract;
+use zksync_contracts::bridgehub_contract;
 use zksync_dal::{Core, CoreDal};
 use zksync_db_connection::connection::Connection;
 use zksync_eth_client::{
     contracts_loader::{
-        get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
+        get_server_notifier_addr, get_settlement_layer_from_l1_bridgehub,
+        load_settlement_layer_contracts,
     },
     EthInterface,
 };
@@ -120,8 +121,6 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             };
         }
 
-        let pool = input.pool.get().await?;
-
         let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
 
         let final_settlement_mode = current_settlement_layer(
@@ -129,8 +128,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             l2_eth_client.as_ref().map(|a| &a.0 as &dyn EthInterface),
             &sl_l1_contracts,
             self.config.l2_chain_id,
-            &mut pool.connection().await.context("Can't connect")?,
-            &getters_facet_contract(),
+            &bridgehub_contract(),
         )
         .await
         .context("Error occured while getting current SL mode")?;
@@ -216,13 +214,15 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             // If it's the new chain it's safe to check the actual sl onchain,
             // in the worst case scenario chain
             // en will be restarted right after the first batch and fill the database with correct values
-            get_settlement_layer_from_l1(
+            get_settlement_layer_from_l1_bridgehub(
                 &input.eth_client.0.as_ref(),
                 self.config
                     .l1_chain_contracts
-                    .chain_contracts_config
-                    .diamond_proxy_addr,
-                &getters_facet_contract(),
+                    .ecosystem_contracts
+                    .bridgehub_proxy_addr
+                    .context("Missing L1 bridgehub")?,
+                SLChainId(self.config.chain_id.as_u64()),
+                &bridgehub_contract(),
             )
             .await
             .context("Error occured while getting current SL mode")?
