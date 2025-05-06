@@ -35,22 +35,22 @@ pub struct GatewayMigrator {
 }
 
 impl GatewayMigrator {
-    pub async fn new(
+    pub fn new(
         eth_client: Box<dyn EthInterface>,
         gateway_client: Option<Box<dyn EthInterface>>,
         l2_chain_id: L2ChainId,
         settlement_layer: Option<SettlementLayer>,
         l1_settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
-    ) -> anyhow::Result<Self> {
+    ) -> Self {
         let abi = getters_facet_contract();
-        Ok(Self {
+        Self {
             eth_client,
             gateway_client,
             l1_settlement_layer_specific_contracts,
             settlement_layer,
             l2_chain_id,
             getters_facet_abi: abi,
-        })
+        }
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {

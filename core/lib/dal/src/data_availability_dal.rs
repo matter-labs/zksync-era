@@ -31,7 +31,15 @@ impl DataAvailabilityDal<'_, '_> {
         da_inclusion_data: Option<&[u8]>,
         l2_validator_address: Option<Address>,
     ) -> DalResult<()> {
-        let update_result = sqlx::query!(
+        let instrumentation = Instrumented::new("insert_l1_batch_da")
+            .with_arg("number", &number)
+            .with_arg("blob_id", &blob_id)
+            .with_arg("sent_at", &sent_at)
+            .with_arg("pubdata_type", &pubdata_type)
+            .with_arg("da_inclusion_data", &da_inclusion_data)
+            .with_arg("l2_validator_address", &l2_validator_address);
+
+        let query = sqlx::query!(
             r#"
             INSERT INTO
             data_availability (
@@ -54,17 +62,22 @@ impl DataAvailabilityDal<'_, '_> {
             pubdata_type.to_string(),
             l2_validator_address.map(|addr| addr.as_bytes().to_vec()),
             sent_at,
-        )
-        .instrument("insert_l1_batch_da")
-        .with_arg("number", &number)
-        .with_arg("blob_id", &blob_id)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
+        );
+
+        let update_result = instrumentation
+            .clone()
+            .with(query)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
 
         if update_result.rows_affected() == 0 {
-            tracing::error!("L1 batch #{number}: batch DA was attempted to be inserted twice");
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "L1 batch #{number}: batch DA was attempted to be inserted twice"
+            ));
+            return Err(err);
         }
+
         Ok(())
     }
 
@@ -365,6 +378,7 @@ impl DataAvailabilityDal<'_, '_> {
 
     pub async fn get_latest_batch_with_inclusion_data(
         &mut self,
+        last_processed_batch: L1BatchNumber,
     ) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"
@@ -374,11 +388,13 @@ impl DataAvailabilityDal<'_, '_> {
                 data_availability
             WHERE
                 inclusion_data IS NOT NULL
+                AND l1_batch_number >= $1
             ORDER BY
                 l1_batch_number DESC
             LIMIT
                 1
             "#,
+            i64::from(last_processed_batch.0),
         )
         .instrument("get_latest_batch_with_inclusion_data")
         .report_latency()
@@ -452,6 +468,53 @@ impl DataAvailabilityDal<'_, '_> {
             current_l2_da_validator.as_bytes(),
         )
         .instrument("set_dummy_inclusion_data_for_old_batches")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn l1_batch_missing_data_availability(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<bool> {
+        let row = sqlx::query!(
+            r#"
+            SELECT (
+                COUNT(*) = 0 AND
+                (
+                    SELECT (miniblocks.pubdata_type != 'Rollup')
+                    FROM miniblocks
+                    WHERE miniblocks.l1_batch_number = $1
+                    ORDER BY miniblocks.number
+                    LIMIT 1
+                )
+            ) AS "da_is_missing"
+            FROM data_availability
+            WHERE l1_batch_number = $1
+            "#,
+            i64::from(l1_batch_number.0),
+        )
+        .instrument("l1_batch_missing_data_availability")
+        .fetch_optional(self.storage)
+        .await?;
+
+        let Some(row) = row else {
+            return Ok(false);
+        };
+
+        Ok(row.da_is_missing.unwrap_or(false))
+    }
+
+    pub async fn remove_batches_without_inclusion_data(&mut self) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM data_availability
+            WHERE inclusion_data IS NULL
+            "#,
+        )
+        .instrument("remove_batches_without_inclusion_data")
         .report_latency()
         .execute(self.storage)
         .await?;

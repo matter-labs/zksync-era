@@ -55,8 +55,7 @@ impl WiringLayer for GatewayMigratorLayer {
                 .settlement_mode_resource
                 .probably_unknown_settlement_layer(),
             input.contracts.0,
-        )
-        .await?;
+        );
 
         Ok(Output {
             gateway_migrator: migrator,
