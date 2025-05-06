@@ -465,8 +465,6 @@ jobs:
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
           
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
-          # remember Era server PID so that we can restart it durting DA migration test
-          ERA_SERVER_PID=$!
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run zkstack server --ignore-prerequisites --chain consensus \
@@ -533,8 +531,8 @@ jobs:
           sudo yq -i '.eth.sender.pubdata_sending_mode = "Custom"' ./chains/era/configs/general.yaml
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
           
-          # restarting the server so that config changes take effect  
-          kill -9 $ERA_SERVER_PID
+          # restarting the server so that config changes take effect
+          ci_run pkill -9 -f "zkstack server --ignore-prerequisites --chain era"
           ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ERA_SERVER_PID=$!
           ci_run sleep 60
@@ -544,7 +542,7 @@ jobs:
           
           # disable inclusion verification transition and restart the server
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
-          kill -9 $ERA_SERVER_PID
+          ci_run pkill -9 -f "zkstack server --ignore-prerequisites --chain era"
           ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
           
