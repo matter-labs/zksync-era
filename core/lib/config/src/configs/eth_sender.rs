@@ -54,6 +54,8 @@ impl EthConfig {
                 tx_aggregation_only_prove_and_execute: false,
                 time_in_mempool_in_l1_blocks_cap: 1800,
                 is_verifier_pre_fflonk: true,
+                gas_limit_mode: GasLimitMode::Maximum,
+                max_acceptable_base_fee_in_wei: 100000000000,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -96,6 +98,13 @@ pub enum ProofLoadingMode {
     FriProofFromGcs,
 }
 
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq)]
+pub enum GasLimitMode {
+    #[default]
+    Maximum,
+    Calculated,
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct SenderConfig {
     /// Amount of confirmations required to consider L1 transaction committed.
@@ -110,7 +119,7 @@ pub struct SenderConfig {
     /// The mode in which proofs are sent.
     pub proof_sending_mode: ProofSendingMode,
     /// Note, that it is used only for L1 transactions
-    pub max_aggregated_tx_gas: u32,
+    pub max_aggregated_tx_gas: u64,
     pub max_eth_tx_data_size: usize,
     pub max_aggregated_blocks_to_commit: u32,
     pub max_aggregated_blocks_to_execute: u32,
@@ -138,6 +147,11 @@ pub struct SenderConfig {
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
     pub is_verifier_pre_fflonk: bool,
+    #[serde(default = "SenderConfig::default_gas_limit_mode")]
+    pub gas_limit_mode: GasLimitMode,
+    /// Max acceptable base fee the sender is allowed to use to send L1 txs.
+    #[serde(default = "SenderConfig::default_max_acceptable_base_fee_in_wei")]
+    pub max_acceptable_base_fee_in_wei: u64,
 }
 
 impl SenderConfig {
@@ -173,6 +187,10 @@ impl SenderConfig {
             .map(|pk| pk.parse().unwrap())
     }
 
+    pub const fn default_gas_limit_mode() -> GasLimitMode {
+        GasLimitMode::Maximum
+    }
+
     const fn default_tx_aggregation_paused() -> bool {
         false
     }
@@ -185,6 +203,10 @@ impl SenderConfig {
         // we cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
         blocks_per_hour * 6
+    }
+
+    pub const fn default_max_acceptable_base_fee_in_wei() -> u64 {
+        u64::MAX
     }
 }
 

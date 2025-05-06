@@ -10,8 +10,7 @@ use async_trait::async_trait;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
-    AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbStorageBuilder,
-    RocksdbWithMemory,
+    AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbWithMemory,
 };
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, L2ChainId,
@@ -299,7 +298,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
         self.catchup_task.run(stop_receiver.clone()).await?;
-        let rocksdb = self.rocksdb_cell.wait().await?;
+        let mut rocksdb = self.rocksdb_cell.wait().await?;
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("`StorageSyncTask` was interrupted");
@@ -307,8 +306,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             }
             let mut conn = self.pool.connection_tagged(self.io.name()).await?;
             let latest_processed_batch = self.io.latest_processed_batch(&mut conn).await?;
-            let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb.clone());
-            if rocksdb_builder.l1_batch_number().await == Some(latest_processed_batch + 1) {
+            if rocksdb.next_l1_batch_number().await == latest_processed_batch + 1 {
                 // RocksDB is already caught up, we might not need to do anything.
                 // Just need to check that the memory diff is up-to-date in case this is a fresh start.
                 let last_ready_batch = self.io.last_ready_to_be_loaded_batch(&mut conn).await?;
@@ -327,16 +325,18 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             // number less than `latest_processed_batch`. If they do, RocksDB synchronization below
             // will cause them to have an inconsistent view on DB which we consider to be an
             // undefined behavior.
-            let rocksdb = rocksdb_builder
+            let Some(updated_rocksdb) = rocksdb
                 .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
                 .await
-                .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
-            let Some(rocksdb) = rocksdb else {
+                .context("Failed to catch up state keeper RocksDB storage to Postgres")?
+            else {
                 tracing::info!("`StorageSyncTask` was interrupted during RocksDB synchronization");
                 return Ok(());
             };
+            rocksdb = updated_rocksdb;
+
             let mut state = self.state.write().await;
-            state.rocksdb = Some(rocksdb);
+            state.rocksdb = Some(rocksdb.clone());
             state.l1_batch_number = latest_processed_batch;
             state
                 .storage

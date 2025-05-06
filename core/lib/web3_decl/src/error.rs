@@ -63,7 +63,7 @@ pub struct EnrichedClientError {
 }
 
 /// Whether the error should be considered retriable.
-pub fn is_retriable(err: &ClientError) -> bool {
+pub fn is_retryable(err: &ClientError) -> bool {
     match err {
         ClientError::Transport(_) | ClientError::RequestTimeout => true,
         ClientError::Call(err) => {
@@ -101,9 +101,9 @@ impl EnrichedClientError {
         self
     }
 
-    /// Whether the error should be considered retriable.
-    pub fn is_retriable(&self) -> bool {
-        is_retriable(&self.inner_error)
+    /// Whether the error should be considered retryable.
+    pub fn is_retryable(&self) -> bool {
+        is_retryable(&self.inner_error)
     }
 }
 

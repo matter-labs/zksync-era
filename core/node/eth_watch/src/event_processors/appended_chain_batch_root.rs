@@ -80,7 +80,7 @@ impl EventProcessor for BatchRootProcessor {
 
                 (sl_l1_batch_number, chain_l1_batch_number, logs_root_hash)
             })
-            .group_by(|(sl_l1_batch_number, _, _)| *sl_l1_batch_number)
+            .chunk_by(|(sl_l1_batch_number, _, _)| *sl_l1_batch_number)
             .into_iter()
             .map(|(sl_l1_batch_number, group)| {
                 let group: Vec<_> = group

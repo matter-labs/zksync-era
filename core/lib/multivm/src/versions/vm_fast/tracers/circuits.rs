@@ -23,6 +23,10 @@ pub(super) struct CircuitsTracer {
     sha256_cycles: u32,
     secp256r1_verify_cycles: u32,
     transient_storage_checker_cycles: u32,
+    modexp_cycles: u32,
+    ecadd_cycles: u32,
+    ecmul_cycles: u32,
+    ecpairing_cycles: u32,
 }
 
 impl Tracer for CircuitsTracer {
@@ -128,6 +132,10 @@ impl Tracer for CircuitsTracer {
             CycleStats::Decommit(cycles) => self.code_decommitter_cycles += cycles,
             CycleStats::StorageRead => self.storage_application_cycles += 1,
             CycleStats::StorageWrite => self.storage_application_cycles += 2,
+            CycleStats::EcAdd(cycles) => self.ecadd_cycles += cycles,
+            CycleStats::ModExp(cycles) => self.modexp_cycles += cycles,
+            CycleStats::EcMul(cycles) => self.ecmul_cycles += cycles,
+            CycleStats::EcPairing(cycles) => self.ecpairing_cycles += cycles,
         }
     }
 }
@@ -160,7 +168,11 @@ impl CircuitsTracer {
                 / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
             transient_storage_checker: self.transient_storage_checker_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
-            ..Default::default()
+            modexp: self.modexp_cycles as f32 / GEOMETRY_CONFIG.cycles_per_modexp_circuit as f32,
+            ecadd: self.ecadd_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecadd_circuit as f32,
+            ecmul: self.ecmul_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecmul_circuit as f32,
+            ecpairing: self.ecpairing_cycles as f32
+                / GEOMETRY_CONFIG.cycles_per_ecpairing_circuit as f32,
         }
     }
 }

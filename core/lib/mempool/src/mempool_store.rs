@@ -181,11 +181,15 @@ impl MempoolStore {
             .into_iter()
             .skip(1)
         {
-            removed += self
-                .l2_transactions_per_account
-                .remove(&stashed_pointer.account)
-                .expect("mempool: dangling pointer in priority queue")
-                .len();
+            removed += {
+                let account = self
+                    .l2_transactions_per_account
+                    .get_mut(&stashed_pointer.account)
+                    .expect("mempool: dangling pointer in priority queue");
+                let txs_len = account.len();
+                account.clear_txs();
+                txs_len
+            };
 
             self.stashed_accounts.push(stashed_pointer.account);
         }
@@ -311,5 +315,11 @@ impl MempoolStore {
             return drained;
         }
         vec![]
+    }
+
+    pub fn account_nonce(&self, address: Address) -> Option<Nonce> {
+        self.l2_transactions_per_account
+            .get(&address)
+            .map(|a| a.nonce())
     }
 }

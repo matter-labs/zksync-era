@@ -73,6 +73,8 @@ pub struct MultiVmBaseSystemContracts<C> {
     gateway: BaseSystemContracts,
     /// Contracts to be used after the evm emulator upgrade
     vm_evm_emulator: BaseSystemContracts,
+    /// Contracts to be used after the precompiles upgrade
+    vm_precompiles: BaseSystemContracts,
     /// Contracts to be used after the interop upgrade
     interop: BaseSystemContracts,
     // We use `fn() -> C` marker so that the `MultiVmBaseSystemContracts` unconditionally implements `Send + Sync`.
@@ -110,7 +112,7 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version26 => &self.gateway,
             ProtocolVersionId::Version27 => &self.vm_evm_emulator,
             // TODO: use v28 contracts
-            ProtocolVersionId::Version28 => &self.vm_evm_emulator,
+            ProtocolVersionId::Version28 => &self.vm_precompiles,
             ProtocolVersionId::Version29 => &self.interop,
             // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version30 => &self.interop,
@@ -137,6 +139,7 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
             vm_protocol_defense: BaseSystemContracts::estimate_gas_post_protocol_defense(),
             gateway: BaseSystemContracts::estimate_gas_gateway(),
             vm_evm_emulator: BaseSystemContracts::estimate_gas_evm_emulator(),
+            vm_precompiles: BaseSystemContracts::estimate_gas_precompiles(),
             interop: BaseSystemContracts::estimate_gas_interop(),
             _contracts_kind: PhantomData,
         }
@@ -161,6 +164,7 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             vm_protocol_defense: BaseSystemContracts::playground_post_protocol_defense(),
             gateway: BaseSystemContracts::playground_gateway(),
             vm_evm_emulator: BaseSystemContracts::playground_evm_emulator(),
+            vm_precompiles: BaseSystemContracts::playground_precompiles(),
             interop: BaseSystemContracts::playground_interop(),
             _contracts_kind: PhantomData,
         }

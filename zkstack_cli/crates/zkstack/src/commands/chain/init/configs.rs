@@ -2,10 +2,9 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use zksync_types::Address;
+use zksync_basic_types::Address;
 
 use crate::{
     commands::{
@@ -60,30 +59,38 @@ pub async fn init_configs(
         )?;
     }
 
-    let mut general_config = chain_config.get_general_config().await?.patched();
-    let prover_data_handler_port = general_config
-        .base()
-        .get_opt::<u16>("data_handler.http_port")?;
-    if let Some(port) = prover_data_handler_port {
-        general_config.insert("prover_gateway.api_url", format!("http://127.0.0.1:{port}"))?;
-    }
+    let general_config = chain_config.get_general_config().await?;
+    let prover_data_handler_url = general_config.proof_data_handler_url()?;
+    let tee_prover_data_handler_url = general_config.tee_proof_data_handler_url()?;
+    let prover_gateway_url = general_config.prover_gateway_url()?;
 
     let consensus_keys = generate_consensus_keys();
+    let mut general_config = general_config.patched();
+    if let Some(url) = prover_data_handler_url {
+        general_config.set_prover_gateway_url(url)?;
+    }
+    if let Some(url) = tee_prover_data_handler_url {
+        general_config.set_tee_prover_gateway_url(url)?;
+    }
+    if let Some(url) = prover_gateway_url {
+        general_config.set_proof_data_handler_url(url)?;
+    }
+
     set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
 
     match &init_args.validium_config {
         None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => {
-            general_config.remove("da_client");
+            general_config.remove_da_client();
         }
         Some(ValidiumType::Avail((avail_config, _))) => {
-            general_config.insert_yaml("da_client.avail", avail_config)?;
+            general_config.set_avail_client(avail_config)?;
         }
     }
     general_config.save().await?;
 
     // Initialize genesis config
     let mut genesis_config = chain_config.get_genesis_config().await?.patched();
-    update_from_chain_config(&mut genesis_config, chain_config)?;
+    genesis_config.update_from_chain_config(chain_config)?;
     genesis_config.save().await?;
 
     // Initialize contracts config
@@ -100,12 +107,12 @@ pub async fn init_configs(
 
     // Initialize secrets config
     let mut secrets = chain_config.get_secrets_config().await?.patched();
-    set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone())?;
     set_consensus_secrets(&mut secrets, &consensus_keys)?;
     match &init_args.validium_config {
         None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => { /* Do nothing */ }
         Some(ValidiumType::Avail((_, avail_secrets))) => {
-            secrets.insert_yaml("da.avail", avail_secrets)?;
+            secrets.set_avail_secrets(avail_secrets)?;
         }
     }
     secrets.save().await?;

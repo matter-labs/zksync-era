@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM data_availability\n            WHERE inclusion_data IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "ef8d100badeb2329ec0b523d3b418179e472dcb20bebd437dc8ec24039a1df16"
+}

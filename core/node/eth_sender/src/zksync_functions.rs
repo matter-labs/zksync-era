@@ -1,5 +1,5 @@
 use zksync_contracts::{
-    hyperchain_contract, multicall_contract, server_notifier_contract,
+    getters_facet_contract, hyperchain_contract, multicall_contract,
     state_transition_manager_contract, verifier_contract, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
     POST_SHARED_BRIDGE_EXECUTE_FUNCTION, POST_SHARED_BRIDGE_PROVE_FUNCTION,
 };
@@ -17,6 +17,7 @@ pub(super) struct ZkSyncFunctions {
 
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
+    pub(super) get_da_validator_pair: Function,
     pub(super) get_verifier: Function,
     pub(super) get_evm_emulator_bytecode_hash: Option<Function>,
     pub(super) get_verifier_params: Function,
@@ -29,7 +30,6 @@ pub(super) struct ZkSyncFunctions {
     pub(super) aggregate3: Function,
 
     pub(super) state_transition_manager_contract: Contract,
-    pub(super) server_notifier_contract: Contract,
 }
 
 fn get_function(contract: &Contract, name: &str) -> Function {
@@ -53,9 +53,9 @@ fn get_optional_function(contract: &Contract, name: &str) -> Option<Function> {
 impl Default for ZkSyncFunctions {
     fn default() -> Self {
         let zksync_contract = hyperchain_contract();
+        let getters_contract = getters_facet_contract();
         let verifier_contract = verifier_contract();
         let multicall_contract = multicall_contract();
-        let server_notifier_contract = server_notifier_contract();
         let state_transition_manager_contract = state_transition_manager_contract();
 
         let post_shared_bridge_commit = POST_SHARED_BRIDGE_COMMIT_FUNCTION.clone();
@@ -72,6 +72,7 @@ impl Default for ZkSyncFunctions {
             get_function(&zksync_contract, "getL2DefaultAccountBytecodeHash");
         let get_evm_emulator_bytecode_hash =
             get_optional_function(&zksync_contract, "getL2EvmSimulatorBytecodeHash");
+        let get_da_validator_pair = get_function(&getters_contract, "getDAValidatorPair");
         let get_verifier = get_function(&zksync_contract, "getVerifier");
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
@@ -88,6 +89,7 @@ impl Default for ZkSyncFunctions {
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,
             get_evm_emulator_bytecode_hash,
+            get_da_validator_pair,
             get_verifier,
             get_verifier_params,
             get_protocol_version,
@@ -96,7 +98,6 @@ impl Default for ZkSyncFunctions {
             multicall_contract,
             aggregate3,
             state_transition_manager_contract,
-            server_notifier_contract,
         }
     }
 }

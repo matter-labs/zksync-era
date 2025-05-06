@@ -11,9 +11,7 @@ message MaxResponseSizeOverride {
 
 message Web3JsonRpc {
   optional uint32 http_port = 1; // required; u16
-  optional string http_url = 2; // required
   optional uint32 ws_port = 3; // required; u16
-  optional string ws_url = 4; // required
   optional uint32 req_entities_limit = 5; // optional
   optional uint32 filters_limit = 6; // optional
   optional uint32 subscriptions_limit = 7; // optional
@@ -46,8 +44,10 @@ message Web3JsonRpc {
   reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
   reserved 11; reserved "request_timeout";
   reserved 12; reserved "account_pks";
+  reserved 2; reserved "http_url";
+  reserved 4; reserved "ws_url";
+  reserved 36; reserved "deployment_allowlist";
 }
-
 
 
 message HealthCheck {

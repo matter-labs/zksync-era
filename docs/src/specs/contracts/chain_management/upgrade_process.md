@@ -1,3 +1,5 @@
+<!--- WIP --->
+
 # Upgrade process document
 
 
@@ -21,25 +23,25 @@ unfreeze by updating.
 
 ## Upgrade structure
 
-Upgrade information is composed in the form of a [DiamondCutData](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/libraries/Diamond.sol#L75) struct. During the upgrade, the chain's DiamondProxy will delegateCall the `initAddress` with the provided `initCalldata`, while the facets that the `DiamondProxy` will be changed according to the `facetCuts`. This scheme is very powerful and it allows to change anything in the contract. However, we typically have a very specific set of changes that we need to do. To facilitate these, two contracts have been created:
+Upgrade information is composed in the form of a [DiamondCutData](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/state-transition/libraries/Diamond.sol#L75) struct. During the upgrade, the chain's DiamondProxy will delegateCall the `initAddress` with the provided `initCalldata`, while the facets that the `DiamondProxy` will be changed according to the `facetCuts`. This scheme is very powerful and it allows to change anything in the contract. However, we typically have a very specific set of changes that we need to do. To facilitate these, two contracts have been created:
 
-1. [BaseZkSyncUpgrade](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) - Generic template with function that can be useful for upgrades
-2. [DefaultUpgrade](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/upgrades/DefaultUpgrade.sol) - Default implementation of the `BaseZkSyncUpgrade`, contract that is most often planned to be used as diamond initialization when doing upgrades.
+1. [BaseZkSyncUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) - Generic template with function that can be useful for upgrades
+2. [DefaultUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/DefaultUpgrade.sol) - Default implementation of the `BaseZkSyncUpgrade`, contract that is most often planned to be used as diamond initialization when doing upgrades.
 
-> Note, that the Gateway upgrade will be more complex than the usual ones and so a similar, but separate [process](../../upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md) will be used for it. It will also use its own custom implementation of the `BaseZkSyncUpgrade`: [GatewayUpgrade](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/upgrades/GatewayUpgrade.sol).
+> Note, that the Gateway upgrade (v26) was more complex than the usual ones and so a similar, but separate [process][TODO] was used for it. It also used its own custom implementation of the `BaseZkSyncUpgrade`: [GatewayUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/GatewayUpgrade.sol).
 
 ### Protocol version
 
 For tracking upgrade versions on different networks (private testnet, public testnet, mainnet) we use protocol version, which is basically just a number denoting the deployed version. The protocol version is different from Diamond Cut `proposalId`, since `protocolId` only shows how much upgrade proposal was proposed/executed, but nothing about the content of upgrades, while the protocol version is needed to understand what version is deployed.
 
-In the [BaseZkSyncUpgrade](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) & [DefaultUpgrade](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/upgrades/DefaultUpgrade.sol) we allow to arbitrarily increase the proposal version while upgrading a system, but only increase it. We are doing that since we can skip some protocol versions if for example found a bug there (but it was deployed on another network already).
+In the [BaseZkSyncUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) & [DefaultUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/DefaultUpgrade.sol) we allow to arbitrarily increase the proposal version while upgrading a system, but only increase it. We are doing that since we can skip some protocol versions if for example found a bug there (but it was deployed on another network already).
 
 ## Protocol upgrade transaction
 
-During upgrade, we typically need not only update the L1 contracts, but also the L2 ones. This is achieved by creating an upgrade transactions. More details on how those are processed inside the system can be read [here](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
+During upgrade, we typically need not only update the L1 contracts, but also the L2 ones. This is achieved by creating an upgrade transactions. More details on how those are processed inside the system can be read [here][(../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md)].
 
 ## Whitelisting and executing upgrade
 
-Note, that due to how powerful the upgrades are, if we allowed any [chain admin](../chain_management/admin_role.md) to inact any upgrade it wants, it could allow malicious chains to potentially break some of the ecosystem invariants. Because of that, any upgrade should be firstly whitelisted by the decentralized governance through calling the `setNewVersionUpgrade` function of the [ChainTypeManager](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/ChainTypeManager.sol).
+Note, that due to how powerful the upgrades are, if we allowed any [chain admin](../chain_management/admin_role.md) to inact any upgrade it wants, it could allow malicious chains to potentially break some of the ecosystem invariants. Because of that, any upgrade should be firstly whitelisted by the decentralized governance through calling the `setNewVersionUpgrade` function of the [ChainTypeManager](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/state-transition/ChainTypeManager.sol).
 
-In order to execute the upgrade, the chain admin would call the `upgradeChainFromVersion` function from the [Admin](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol) facet.
+In order to execute the upgrade, the chain admin would call the `upgradeChainFromVersion` function from the [Admin](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol) facet.

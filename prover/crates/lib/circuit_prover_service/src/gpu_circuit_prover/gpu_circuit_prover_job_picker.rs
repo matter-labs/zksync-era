@@ -56,7 +56,7 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .await
             .context("no witness vector generators are available, stopping...")?;
         let WitnessVectorGeneratorExecutionOutput {
-            circuit,
+            circuit_wrapper,
             witness_vector,
         } = wvg_output;
 
@@ -72,14 +72,14 @@ impl JobPicker for GpuCircuitProverJobPicker {
             .clone();
 
         let payload = GpuCircuitProverPayload {
-            circuit,
+            circuit_wrapper,
             witness_vector,
             setup_data,
         };
         tracing::info!(
             "Finished picking gpu circuit prover job {}, on batch {}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()

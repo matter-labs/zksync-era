@@ -22,7 +22,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     settlement::SettlementLayer,
     web3::{self, contract::Error},
-    Address, K256PrivateKey, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
+    Address, K256PrivateKey, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 use zksync_web3_decl::client::MockClient;
 
@@ -88,6 +88,8 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .unwrap()
         .short_signature();
 
+    let get_da_validator_pair_selector = functions.get_da_validator_pair.short_signature();
+
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
         let call = call.unwrap();
@@ -127,6 +129,12 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
                 H256::from_low_u64_be(ProtocolVersionId::default() as u64)
                     .0
                     .to_vec()
+            }
+            selector if selector == get_da_validator_pair_selector => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
+                let non_zero_address = vec![6u8; 32];
+
+                [non_zero_address.clone(), non_zero_address].concat()
             }
             _ => panic!("unexpected call: {call:?}"),
         };
@@ -267,6 +275,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .eth_sender_dal()
             .get_inflight_txs(
                 tester.manager.operator_address(OperatorType::NonBlob),
+                false,
                 false
             )
             .await
@@ -323,6 +332,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .eth_sender_dal()
             .get_inflight_txs(
                 tester.manager.operator_address(OperatorType::NonBlob),
+                false,
                 false
             )
             .await
@@ -762,6 +772,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             ),
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
@@ -952,4 +963,71 @@ async fn test_signing_eip712_tx() {
     let (_tx_req, _tx_hash) =
         TransactionRequest::from_bytes(tx.raw_tx.as_ref(), L2ChainId::new(chain_id).unwrap())
             .unwrap();
+}
+
+#[test_log::test(tokio::test)]
+async fn manager_monitors_even_unsuccesfully_sent_txs() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+
+    let mut tester = EthSenderTester::new(
+        pool.clone(),
+        vec![100; 100],
+        false,
+        true,
+        L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
+    )
+    .await;
+
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+    let l1_batch = TestL1Batch::sealed(&mut tester).await;
+    l1_batch.save_commit_tx(&mut tester).await;
+    tester.gateway_blobs.set_return_error_on_tx_request(true);
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+
+    // check that we sent something and stored it in the db.
+    tester.assert_just_sent_tx_count_equals(1).await;
+    // tx should be considered in-flight.
+    tester.assert_inflight_txs_count_equals(1).await;
+
+    let mut conn = pool.connection().await.unwrap();
+    let tx = conn
+        .eth_sender_dal()
+        .get_last_sent_successfully_eth_tx_by_batch_and_op(
+            L1BatchNumber(1),
+            AggregatedActionType::Commit,
+        )
+        .await;
+    assert!(tx.is_none());
+
+    let all_attempts = conn
+        .eth_sender_dal()
+        .get_tx_history_to_check(1)
+        .await
+        .unwrap();
+    assert_eq!(all_attempts.len(), 1);
+
+    // Mark tx as successful on SL side and run eth tx manager iteration.
+    tester.confirm_tx(all_attempts[0].tx_hash, true).await;
+
+    // Check that `sent_successfully` was reset to true.
+    let tx = conn
+        .eth_sender_dal()
+        .get_last_sent_successfully_eth_tx_by_batch_and_op(
+            L1BatchNumber(1),
+            AggregatedActionType::Commit,
+        )
+        .await
+        .unwrap();
+    assert!(tx.sent_successfully);
+
+    // Check that tx is confirmed.
+    let is_confirmed = conn
+        .eth_sender_dal()
+        .get_confirmed_tx_hash_by_eth_tx_id(tx.eth_tx_id)
+        .await
+        .unwrap()
+        .is_some();
+    assert!(is_confirmed);
 }
