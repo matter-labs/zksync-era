@@ -168,6 +168,8 @@ impl EventProcessor for BatchRootProcessor {
 
             for ((batch_number, _), proof) in chain_batches.iter().zip(batch_proofs) {
                 tracing::info!(%batch_number, "Saving batch-chain merkle path");
+                println!("saving batch-chain merkle path {:?}", batch_number);
+                println!("proof {:?}", proof);
                 transaction
                     .blocks_dal()
                     .set_batch_chain_merkle_path(*batch_number, proof)
