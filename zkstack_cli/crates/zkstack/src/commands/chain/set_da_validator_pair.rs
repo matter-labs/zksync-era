@@ -5,7 +5,8 @@ use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
-    admin_functions::set_da_validator_pair,
+    admin_functions::{set_da_validator_pair, AdminScriptMode},
+    commands::chain::utils::get_default_foundry_path,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
@@ -33,10 +34,11 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     set_da_validator_pair(
         shell,
-        &ecosystem_config,
-        contracts_config.l1.chain_admin_addr,
-        governor,
-        contracts_config.l1.diamond_proxy_addr,
+        &args.clone(),
+        &get_default_foundry_path(&shell)?,
+        AdminScriptMode::OnlySave,
+        chain_config.chain_id.as_u64(),
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         contracts_config
             .l1
             .no_da_validium_l1_validator_addr
@@ -45,8 +47,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
             .l2
             .da_validator_addr
             .context("da_validator_addr")?,
-        &args,
-        l1_url.clone(),
+        l1_url,
     )
     .await?;
 
