@@ -25,8 +25,8 @@ use zksync_node_framework::{
         consistency_checker::ConsistencyCheckerLayer,
         da_clients::{
             avail::AvailWiringLayer, celestia::CelestiaWiringLayer,
-            eigenv2m0::EigenV2M0WiringLayer, no_da::NoDAClientWiringLayer,
-            object_store::ObjectStorageClientWiringLayer,
+            eigenv1m0::EigenV1M0WiringLayer, eigenv2m0::EigenV2M0WiringLayer,
+            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
@@ -45,8 +45,7 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
         settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data,
-        settlement_layer_data::SettlementLayerData,
+        settlement_layer_data::{self, SettlementLayerData},
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
