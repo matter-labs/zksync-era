@@ -1,7 +1,7 @@
 pub use self::{
     base_token_l1_behaviour::{BaseTokenL1Behaviour, UpdateOnL1Params},
     base_token_ratio_persister::BaseTokenRatioPersister,
-    base_token_ratio_provider::{DBBaseTokenRatioProvider, NoOpRatioProvider},
+    base_token_ratio_provider::DBBaseTokenRatioProvider,
 };
 
 mod base_token_l1_behaviour;

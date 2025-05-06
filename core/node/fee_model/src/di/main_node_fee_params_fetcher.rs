@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
+use zksync_eth_client::di::MainNodeClientResource;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -8,10 +8,8 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::{
-    fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
-    main_node_client::MainNodeClientResource,
-};
+use super::resources::{ApiFeeInputResource, SequencerFeeInputResource};
+use crate::l1_gas_price::MainNodeFeeParamsFetcher;
 
 /// Wiring layer for main node fee params fetcher -- a fee input resource used on
 /// the external node.

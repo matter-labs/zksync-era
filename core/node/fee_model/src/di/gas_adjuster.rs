@@ -2,18 +2,17 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_config::{configs::eth_sender::SenderConfig, GasAdjusterConfig, GenesisConfig};
-use zksync_node_fee_model::l1_gas_price::GasAdjuster;
+use zksync_eth_client::di::SettlementLayerClient;
 use zksync_node_framework::{
+    resource::ConfigResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::{
-    eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
-    gas_adjuster::GasAdjusterResource,
-};
+use super::resources::GasAdjusterResource;
+use crate::l1_gas_price::GasAdjuster;
 
 /// Wiring layer for sequencer L1 gas interfaces.
 /// Adds several resources that depend on L1 gas price.
@@ -25,8 +24,9 @@ pub struct GasAdjusterLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub client: SettlementLayerClientResource,
-    pub sender_config: SenderConfig,
+    pub client: SettlementLayerClient,
+    // FIXME: provide!
+    pub sender_config: ConfigResource<SenderConfig>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -56,7 +56,7 @@ impl WiringLayer for GasAdjusterLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let client = match input.client.0 {
+        let client = match input.client {
             SettlementLayerClient::L1(client) => client.into(),
             SettlementLayerClient::L2(client) => client.into(),
         };
@@ -64,7 +64,7 @@ impl WiringLayer for GasAdjusterLayer {
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
-            input.sender_config.pubdata_sending_mode,
+            input.sender_config.0.pubdata_sending_mode,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         )
         .await

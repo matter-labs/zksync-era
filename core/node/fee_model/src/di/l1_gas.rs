@@ -1,20 +1,18 @@
 use std::sync::Arc;
 
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
-use zksync_node_fee_model::{ApiFeeInputProvider, MainNodeFeeInputProvider};
+use zksync_dal::di::{PoolResource, ReplicaPool};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 use zksync_types::fee_model::{FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2};
 
-use crate::implementations::resources::{
-    base_token_ratio_provider::BaseTokenRatioProviderResource,
-    fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
-    gas_adjuster::GasAdjusterResource,
-    l1_tx_params::TxParamsResource,
-    pools::{PoolResource, ReplicaPool},
+use super::resources::{
+    ApiFeeInputResource, BaseTokenRatioProviderResource, GasAdjusterResource,
+    SequencerFeeInputResource, TxParamsResource,
 };
+use crate::{ApiFeeInputProvider, MainNodeFeeInputProvider};
 
 /// Wiring layer for L1 gas interfaces.
 /// Adds several resources that depend on L1 gas price.
