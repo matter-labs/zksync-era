@@ -35,3 +35,6 @@ pub(super) fn message_for_gateway_migration_progress_state(
         }
     }
 }
+
+pub(super) const USE_SET_DA_VALIDATOR_COMMAND_INFO: &str =
+    "To prepare the calldata to set the DA validator pair please use the corresponding command";

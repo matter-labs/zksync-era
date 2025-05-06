@@ -76,7 +76,6 @@ impl GatewayChainConfigPatch {
         &mut self,
         gateway_config: &GatewayConfig,
         diamond_proxy_addr: Address,
-        l2_chain_admin_addr: Address,
         gateway_chain_id: SLChainId,
     ) -> anyhow::Result<()> {
         self.0.insert_yaml(
@@ -91,9 +90,6 @@ impl GatewayChainConfigPatch {
             .insert_yaml("multicall3_addr", gateway_config.multicall3_addr)?;
         self.0
             .insert_yaml("diamond_proxy_addr", diamond_proxy_addr)?;
-        self.0
-            .insert_yaml("chain_admin_addr", l2_chain_admin_addr)?;
-        self.0.insert_yaml("governance_addr", l2_chain_admin_addr)?;
         self.0.insert_yaml("gateway_chain_id", gateway_chain_id)?;
         Ok(())
     }
