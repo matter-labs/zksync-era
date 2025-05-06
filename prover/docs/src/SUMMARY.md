@@ -7,5 +7,6 @@
 - [Running provers](./03_launch.md)
 - [Prover flow](./04_flow.md)
 - [Proving a batch](./05_proving_batch.md)
+- [Protocol compatibility matrix](./06_compatibility_matrix.md)
 
 [Further reading](./99_further_reading.md)
