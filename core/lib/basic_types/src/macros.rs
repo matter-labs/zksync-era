@@ -93,7 +93,8 @@ macro_rules! try_stoppable {
                 return Ok(());
             }
             ::core::result::Result::Err($crate::OrStopped::Internal(err)) => {
-                return Err(err);
+                #[allow(clippy::useless_conversion)]
+                return Err(err.into());
             }
         }
     };

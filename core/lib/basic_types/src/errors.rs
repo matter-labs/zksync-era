@@ -29,10 +29,20 @@ impl<E> From<E> for OrStopped<E> {
     }
 }
 
+impl<E> OrStopped<E> {
+    /// Maps an error to the `Internal` variant.
+    pub fn internal(err: impl Into<E>) -> Self {
+        Self::Internal(err.into())
+    }
+}
+
 /// Extension trait for `Result<_, OrStopped>` similar to [`anyhow::Context`].
 pub trait StopContext<T>: Sized {
     /// Adds context to the internal error, if any.
     fn stop_context(self, context: &'static str) -> Result<T, OrStopped>;
+
+    /// Unwraps the `Stopped` variant to the supplied `value`, and the `Internal` variant to the underlying `anyhow::Error`.
+    fn unwrap_stopped(self, value: T) -> anyhow::Result<T>;
 }
 
 impl<T> StopContext<T> for Result<T, OrStopped> {
@@ -40,6 +50,13 @@ impl<T> StopContext<T> for Result<T, OrStopped> {
         self.map_err(|err| match err {
             OrStopped::Internal(err) => OrStopped::Internal(err.context(context)),
             OrStopped::Stopped => OrStopped::Stopped,
+        })
+    }
+
+    fn unwrap_stopped(self, value: T) -> anyhow::Result<T> {
+        self.or_else(|err| match err {
+            OrStopped::Internal(err) => Err(err),
+            OrStopped::Stopped => Ok(value),
         })
     }
 }
