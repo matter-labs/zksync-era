@@ -12,8 +12,6 @@ categories.workspace = true
 
 [dependencies]
 zksync_node_framework_derive.workspace = true
-zksync_health_check.workspace = true # FIXME: remove
-zksync_vlog.workspace = true # FIXME: remove
 zksync_utils.workspace = true # FIXME: remove?
 
 pin-project-lite.workspace = true
@@ -24,7 +22,6 @@ futures.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["rt"] }
-ctrlc.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

@@ -9,6 +9,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub use crate::{logs::Logs, opentelemetry::OpenTelemetry, sentry::Sentry};
 
+#[cfg(feature = "di")]
+pub mod di;
 pub mod logs;
 pub mod opentelemetry;
 pub mod prometheus;

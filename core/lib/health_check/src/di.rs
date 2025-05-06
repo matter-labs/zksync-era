@@ -1,12 +1,10 @@
-// FIXME: move to vlog?
+//! Dependency injection for health checks.
 
 use std::sync::Arc;
 
-use zksync_health_check::AppHealthCheck;
-// Public re-exports from external crate to minimize the required dependencies.
-pub use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
+use zksync_node_framework::Resource;
 
-use super::Resource;
+use crate::AppHealthCheck;
 
 /// A resource that provides [`AppHealthCheck`] to the service.
 #[derive(Debug, Clone, Default)]

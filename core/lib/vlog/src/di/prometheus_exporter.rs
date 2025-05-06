@@ -1,15 +1,14 @@
-// FIXME: move to vlog?
-
-use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_vlog::prometheus::PrometheusExporterConfig;
-
-use crate::{
-    resource::healthcheck::AppHealthCheckResource,
+use zksync_health_check::{
+    di::AppHealthCheckResource, HealthStatus, HealthUpdater, ReactiveHealthCheck,
+};
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::prometheus::PrometheusExporterConfig;
 
 /// Wiring layer for Prometheus exporter server.
 #[derive(Debug)]
@@ -22,14 +21,12 @@ pub struct PrometheusExporterTask {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub task: PrometheusExporterTask,

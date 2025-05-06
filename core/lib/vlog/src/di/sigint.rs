@@ -1,6 +1,5 @@
 use tokio::sync::oneshot;
-
-use crate::{
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
@@ -13,7 +12,6 @@ use crate::{
 pub struct SigintHandlerLayer;
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub task: SigintHandlerTask,

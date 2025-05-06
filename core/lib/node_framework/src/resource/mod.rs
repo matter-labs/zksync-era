@@ -2,7 +2,6 @@ use std::{any::TypeId, fmt};
 
 pub use self::{resource_id::ResourceId, unique::Unique};
 
-pub mod healthcheck;
 mod resource_id;
 mod unique;
 

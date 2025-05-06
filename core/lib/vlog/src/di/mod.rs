@@ -1,4 +1,4 @@
-//! Generic framework layers.
+//! Dependency injection for observability.
 
 pub use self::{prometheus_exporter::PrometheusExporterLayer, sigint::SigintHandlerLayer};
 

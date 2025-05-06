@@ -12706,6 +12706,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_node_framework",
 ]
 
 [[package]]
@@ -13036,7 +13037,6 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
- "ctrlc",
  "futures 0.3.31",
  "pin-project-lite",
  "serde",
@@ -13044,10 +13044,8 @@ dependencies = [
  "tokio",
  "tracing",
  "trybuild",
- "zksync_health_check",
  "zksync_node_framework_derive",
  "zksync_utils",
- "zksync_vlog",
 ]
 
 [[package]]
@@ -13723,7 +13721,9 @@ name = "zksync_vlog"
 version = "28.0.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
+ "ctrlc",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
@@ -13741,6 +13741,8 @@ dependencies = [
  "url",
  "vise",
  "vise-exporter",
+ "zksync_health_check",
+ "zksync_node_framework",
 ]
 
 [[package]]

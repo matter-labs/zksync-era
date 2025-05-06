@@ -3,7 +3,6 @@ use std::{collections::HashMap, time::Duration};
 use futures::future::Fuse;
 use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
 use zksync_utils::panic_extractor::try_extract_panic_message;
-use zksync_vlog::ObservabilityGuard;
 
 pub use self::{
     context::ServiceContext,
@@ -144,10 +143,7 @@ impl ZkStackService {
     ///
     /// `observability_guard`, if provided, will be used to deinitialize the observability subsystem
     /// as the very last step before exiting the node.
-    pub fn run(
-        mut self,
-        observability_guard: impl Into<Option<ObservabilityGuard>>,
-    ) -> Result<(), ZkStackServiceError> {
+    pub fn run<G>(mut self, observability_guard: G) -> Result<(), ZkStackServiceError> {
         self.wire()?;
 
         let TaskReprs {
@@ -161,10 +157,10 @@ impl ZkStackService {
 
         tracing::info!("Exiting the service");
 
-        if let Some(observability_guard) = &mut observability_guard.into() {
+        {
             // Make sure that the shutdown happens in the `tokio` context.
-            let _guard = self.runtime.enter();
-            observability_guard.shutdown();
+            let _rt_guard = self.runtime.enter();
+            drop(observability_guard);
         }
 
         if self.errors.is_empty() {

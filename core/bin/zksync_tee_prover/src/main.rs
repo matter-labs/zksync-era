@@ -1,9 +1,9 @@
 use tee_prover::TeeProverLayer;
-use zksync_node_framework::{
-    layers::{PrometheusExporterLayer, SigintHandlerLayer},
-    service::ZkStackServiceBuilder,
+use zksync_node_framework::service::ZkStackServiceBuilder;
+use zksync_vlog::{
+    di::{PrometheusExporterLayer, SigintHandlerLayer},
+    prometheus::PrometheusExporterConfig,
 };
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::config::AppConfig;
 
