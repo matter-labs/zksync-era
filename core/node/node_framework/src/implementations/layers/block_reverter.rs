@@ -1,11 +1,9 @@
 use zksync_block_reverter::{BlockReverter, NodeRole};
+use zksync_node_framework::{FromContext, IntoContext, WiringError, WiringLayer};
 
-use crate::{
-    implementations::resources::{
-        pools::{MasterPool, PoolResource},
-        reverter::BlockReverterResource,
-    },
-    FromContext, IntoContext, WiringError, WiringLayer,
+use crate::implementations::resources::{
+    pools::{MasterPool, PoolResource},
+    reverter::BlockReverterResource,
 };
 
 /// Layer for the block reverter resource.
@@ -52,13 +50,11 @@ impl BlockReverterLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub block_reverter: BlockReverterResource,
 }

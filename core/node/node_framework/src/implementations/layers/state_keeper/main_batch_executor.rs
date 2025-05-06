@@ -1,10 +1,8 @@
+use zksync_node_framework::wiring_layer::{WiringError, WiringLayer};
 use zksync_types::vm::FastVmMode;
 use zksync_vm_executor::batch::{BatchTracer, MainBatchExecutorFactory, TraceCalls};
 
-use crate::{
-    implementations::resources::state_keeper::BatchExecutorResource,
-    wiring_layer::{WiringError, WiringLayer},
-};
+use crate::implementations::resources::state_keeper::BatchExecutorResource;
 
 /// Wiring layer for `MainBatchExecutor`, part of the state keeper responsible for running the VM.
 #[derive(Debug)]

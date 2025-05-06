@@ -1,12 +1,12 @@
 use zksync_config::{configs::da_client::avail::AvailSecrets, AvailConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_da_clients::avail::AvailClient;
-
-use crate::{
-    implementations::resources::da_client::DAClientResource,
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
+
+use crate::implementations::resources::da_client::DAClientResource;
 
 #[derive(Debug)]
 pub struct AvailWiringLayer {
@@ -21,7 +21,6 @@ impl AvailWiringLayer {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub client: DAClientResource,
 }

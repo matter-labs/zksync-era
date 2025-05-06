@@ -6,6 +6,13 @@ use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{SandboxExecutorOptions, TimestampAsserterParams, TxSenderBuilder, TxSenderConfig},
 };
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
+    service::StopReceiver,
+    task::{Task, TaskId},
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
 use zksync_web3_decl::{
@@ -14,21 +21,14 @@ use zksync_web3_decl::{
     namespaces::EnNamespaceClient as _,
 };
 
-use crate::{
-    implementations::resources::{
-        contracts::{L2ContractsResource, SettlementLayerContractsResource},
-        fee_input::ApiFeeInputResource,
-        healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
-        object_store::ObjectStoreResource,
-        pools::{PoolResource, ReplicaPool},
-        state_keeper::ConditionalSealerResource,
-        web3_api::{TxSenderResource, TxSinkResource},
-    },
-    service::StopReceiver,
-    task::{Task, TaskId},
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+use crate::implementations::resources::{
+    contracts::{L2ContractsResource, SettlementLayerContractsResource},
+    fee_input::ApiFeeInputResource,
+    main_node_client::MainNodeClientResource,
+    object_store::ObjectStoreResource,
+    pools::{PoolResource, ReplicaPool},
+    state_keeper::ConditionalSealerResource,
+    web3_api::{TxSenderResource, TxSinkResource},
 };
 
 #[derive(Debug)]
@@ -69,7 +69,6 @@ pub struct TxSenderLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub app_health: AppHealthCheckResource,
     pub tx_sink: TxSinkResource,
@@ -83,7 +82,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub tx_sender: TxSenderResource,
     #[context(task)]

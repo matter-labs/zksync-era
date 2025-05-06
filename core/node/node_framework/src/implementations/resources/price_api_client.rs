@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use zksync_external_price_api::{NoOpPriceAPIClient, PriceAPIClient};
-
-use crate::resource::Resource;
+use zksync_node_framework::resource::Resource;
 
 /// A resource that provides [`PriceAPIClient`] implementation to the service.
 #[derive(Debug, Clone)]

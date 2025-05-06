@@ -1,13 +1,13 @@
 use zksync_circuit_breaker::CircuitBreakerChecker;
 use zksync_config::configs::chain::CircuitBreakerConfig;
-
-use crate::{
-    implementations::resources::circuit_breakers::CircuitBreakersResource,
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::implementations::resources::circuit_breakers::CircuitBreakersResource;
 
 /// Wiring layer for circuit breaker checker
 ///
@@ -18,14 +18,12 @@ use crate::{
 pub struct CircuitBreakerCheckerLayer(pub CircuitBreakerConfig);
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub circuit_breaker_checker: CircuitBreakerChecker,

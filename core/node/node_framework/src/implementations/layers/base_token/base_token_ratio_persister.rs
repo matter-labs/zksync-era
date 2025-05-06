@@ -2,20 +2,20 @@ use zksync_base_token_adjuster::{BaseTokenL1Behaviour, BaseTokenRatioPersister, 
 use zksync_config::configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets};
 use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_eth_client::clients::PKSigningClient;
-use zksync_types::L1ChainId;
-
-use crate::{
-    implementations::resources::{
-        contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
-        eth_interface::EthInterfaceResource,
-        l1_tx_params::TxParamsResource,
-        pools::{MasterPool, PoolResource},
-        price_api_client::PriceAPIClientResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_types::L1ChainId;
+
+use crate::implementations::resources::{
+    contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
+    eth_interface::EthInterfaceResource,
+    l1_tx_params::TxParamsResource,
+    pools::{MasterPool, PoolResource},
+    price_api_client::PriceAPIClientResource,
 };
 
 /// Wiring layer for `BaseTokenRatioPersister`
@@ -30,7 +30,6 @@ pub struct BaseTokenRatioPersisterLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
@@ -42,7 +41,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub persister: BaseTokenRatioPersister,

@@ -1,7 +1,6 @@
 use zksync_eth_client::{BoundEthInterface, EthInterface};
+use zksync_node_framework::resource::Resource;
 use zksync_web3_decl::client::{DynClient, L1, L2};
-
-use crate::resource::Resource;
 
 /// A resource that provides L1 interface object to the service.
 #[derive(Debug, Clone)]

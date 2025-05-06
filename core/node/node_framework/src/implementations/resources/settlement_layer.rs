@@ -1,7 +1,6 @@
 use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_node_framework::Resource;
 use zksync_types::settlement::SettlementLayer;
-
-use crate::Resource;
 
 #[derive(Debug, Clone)]
 pub struct SettlementModeResource(pub SettlementLayer);

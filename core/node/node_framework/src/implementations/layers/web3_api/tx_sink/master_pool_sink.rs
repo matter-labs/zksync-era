@@ -1,25 +1,23 @@
 use zksync_node_api_server::tx_sender::master_pool_sink::MasterPoolSink;
-
-use crate::{
-    implementations::resources::{
-        pools::{MasterPool, PoolResource},
-        web3_api::TxSinkResource,
-    },
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    pools::{MasterPool, PoolResource},
+    web3_api::TxSinkResource,
 };
 
 /// Wiring layer for [`MasterPoolSink`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
 pub struct MasterPoolSinkLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub tx_sink: TxSinkResource,
 }

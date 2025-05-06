@@ -1,20 +1,20 @@
 use std::sync::Arc;
 
 use zksync_dal::{ConnectionPool, Core};
-use zksync_node_sync::SyncState;
-use zksync_web3_decl::client::{DynClient, L2};
-
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
-        sync_state::SyncStateResource,
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_node_sync::SyncState;
+use zksync_web3_decl::client::{DynClient, L2};
+
+use crate::implementations::resources::{
+    main_node_client::MainNodeClientResource,
+    pools::{MasterPool, PoolResource},
+    sync_state::SyncStateResource,
 };
 
 /// Wiring layer for [`SyncState`] maintenance.
@@ -23,7 +23,6 @@ use crate::{
 pub struct SyncStateUpdaterLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     /// Fetched to check whether the `SyncState` was already provided by another layer.
     pub sync_state: Option<SyncStateResource>,
@@ -33,7 +32,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub sync_state: Option<SyncStateResource>,
     #[context(task)]

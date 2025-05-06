@@ -13039,12 +13039,38 @@ dependencies = [
  "ctrlc",
  "futures 0.3.31",
  "pin-project-lite",
- "semver 1.0.26",
  "serde",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
  "trybuild",
+ "zksync_health_check",
+ "zksync_node_framework_derive",
+ "zksync_utils",
+ "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_node_framework_derive"
+version = "28.0.0-non-semver-compat"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.100",
+]
+
+[[package]]
+name = "zksync_node_framework_impls"
+version = "28.0.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures 0.3.31",
+ "semver 1.0.26",
+ "serde",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
  "zksync_base_token_adjuster",
  "zksync_block_reverter",
  "zksync_circuit_breaker",
@@ -13074,7 +13100,7 @@ dependencies = [
  "zksync_node_consensus",
  "zksync_node_db_pruner",
  "zksync_node_fee_model",
- "zksync_node_framework_derive",
+ "zksync_node_framework",
  "zksync_node_storage_init",
  "zksync_node_sync",
  "zksync_object_store",
@@ -13092,15 +13118,6 @@ dependencies = [
  "zksync_vm_executor",
  "zksync_vm_runner",
  "zksync_web3_decl",
-]
-
-[[package]]
-name = "zksync_node_framework_derive"
-version = "28.0.0-non-semver-compat"
-dependencies = [
- "proc-macro2 1.0.95",
- "quote 1.0.40",
- "syn 2.0.100",
 ]
 
 [[package]]

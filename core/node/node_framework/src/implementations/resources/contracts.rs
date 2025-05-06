@@ -1,8 +1,7 @@
 use zksync_config::configs::contracts::{
     chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
 };
-
-use crate::Resource;
+use zksync_node_framework::Resource;
 
 #[derive(Debug, Clone)]
 pub struct SettlementLayerContractsResource(pub SettlementLayerSpecificContracts);

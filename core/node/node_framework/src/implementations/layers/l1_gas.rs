@@ -2,18 +2,18 @@ use std::sync::Arc;
 
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_node_fee_model::{ApiFeeInputProvider, MainNodeFeeInputProvider};
-use zksync_types::fee_model::{FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2};
-
-use crate::{
-    implementations::resources::{
-        base_token_ratio_provider::BaseTokenRatioProviderResource,
-        fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
-        gas_adjuster::GasAdjusterResource,
-        l1_tx_params::TxParamsResource,
-        pools::{PoolResource, ReplicaPool},
-    },
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_types::fee_model::{FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2};
+
+use crate::implementations::resources::{
+    base_token_ratio_provider::BaseTokenRatioProviderResource,
+    fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
+    gas_adjuster::GasAdjusterResource,
+    l1_tx_params::TxParamsResource,
+    pools::{PoolResource, ReplicaPool},
 };
 
 /// Wiring layer for L1 gas interfaces.
@@ -24,7 +24,6 @@ pub struct L1GasLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub gas_adjuster: GasAdjusterResource,
     pub replica_pool: PoolResource<ReplicaPool>,
@@ -34,7 +33,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub sequencer_fee_input: SequencerFeeInputResource,
     pub api_fee_input: ApiFeeInputResource,

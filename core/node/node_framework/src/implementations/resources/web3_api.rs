@@ -5,8 +5,7 @@ use zksync_node_api_server::{
     tx_sender::{tx_sink::TxSink, TxSender},
     web3::mempool_cache::MempoolCache,
 };
-
-use crate::resource::Resource;
+use zksync_node_framework::resource::Resource;
 
 /// A resource that provides [`TxSender`] to the service.
 #[derive(Debug, Clone)]

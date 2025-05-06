@@ -10,31 +10,31 @@ use zksync_node_api_server::web3::{
     state::{BridgeAddressesHandle, InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
 };
-
-use crate::{
-    implementations::{
-        layers::web3_api::server::{
-            bridge_addresses::BridgeAddressesUpdaterTask, sealed_l2_block::SealedL2BlockUpdaterTask,
-        },
-        resources::{
-            circuit_breakers::CircuitBreakersResource,
-            contracts::{
-                L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-                SettlementLayerContractsResource,
-            },
-            eth_interface::EthInterfaceResource,
-            healthcheck::AppHealthCheckResource,
-            main_node_client::MainNodeClientResource,
-            pools::{PoolResource, ReplicaPool},
-            settlement_layer::SettlementModeResource,
-            sync_state::SyncStateResource,
-            web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
-        },
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::{
+    layers::web3_api::server::{
+        bridge_addresses::BridgeAddressesUpdaterTask, sealed_l2_block::SealedL2BlockUpdaterTask,
+    },
+    resources::{
+        circuit_breakers::CircuitBreakersResource,
+        contracts::{
+            L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+            SettlementLayerContractsResource,
+        },
+        eth_interface::EthInterfaceResource,
+        main_node_client::MainNodeClientResource,
+        pools::{PoolResource, ReplicaPool},
+        settlement_layer::SettlementModeResource,
+        sync_state::SyncStateResource,
+        web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
+    },
 };
 
 mod bridge_addresses;
@@ -125,7 +125,6 @@ pub struct Web3ServerLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub tx_sender: TxSenderResource,
@@ -146,7 +145,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub web3_api_task: Web3ApiTask,

@@ -1,6 +1,6 @@
 [package]
-name = "zksync_node_framework"
-description = "ZKsync node framework"
+name = "zksync_node_framework_impls"
+description = "ZKsync node framework implementaions"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_node_framework_derive.workspace = true
+zksync_node_framework.workspace = true
 zksync_vlog.workspace = true
 zksync_types.workspace = true
 zksync_health_check.workspace = true
@@ -59,18 +59,11 @@ zksync_logs_bloom_backfill.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_gateway_migrator.workspace = true
 
-pin-project-lite.workspace = true
-tracing.workspace = true
-thiserror.workspace = true
+anyhow.workspace = true
 async-trait.workspace = true
 futures.workspace = true
-anyhow.workspace = true
-serde.workspace = true
-tokio = { workspace = true, features = ["rt"] }
-ctrlc.workspace = true
 semver.workspace = true
-
-[dev-dependencies]
-assert_matches.workspace = true
-# For running UI tests for proc macro
-trybuild.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true

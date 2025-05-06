@@ -4,15 +4,14 @@ use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_da_clients::eigen::{BlobProvider, EigenDAClient};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_node_framework_derive::FromContext;
-
-use crate::{
-    implementations::resources::{
-        da_client::DAClientResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
+    FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    da_client::DAClientResource,
+    pools::{MasterPool, PoolResource},
 };
 
 #[derive(Debug)]
@@ -28,13 +27,11 @@ impl EigenWiringLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub client: DAClientResource,
 }

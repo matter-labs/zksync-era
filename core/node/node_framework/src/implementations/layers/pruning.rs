@@ -1,17 +1,15 @@
 use std::time::Duration;
 
 use zksync_node_db_pruner::{DbPruner, DbPrunerConfig};
-
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::implementations::resources::pools::{MasterPool, PoolResource};
 
 /// Wiring layer for node pruning layer.
 #[derive(Debug)]
@@ -22,7 +20,6 @@ pub struct PruningLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
@@ -30,7 +27,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub db_pruner: DbPruner,

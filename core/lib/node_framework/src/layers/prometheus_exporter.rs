@@ -1,8 +1,10 @@
+// FIXME: move to vlog?
+
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
-    implementations::resources::healthcheck::AppHealthCheckResource,
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},

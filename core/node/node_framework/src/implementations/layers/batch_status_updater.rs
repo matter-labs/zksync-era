@@ -1,19 +1,18 @@
-use zksync_node_sync::batch_status_updater::BatchStatusUpdater;
-
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_node_sync::batch_status_updater::BatchStatusUpdater;
+
+use crate::implementations::resources::{
+    main_node_client::MainNodeClientResource,
+    pools::{MasterPool, PoolResource},
+};
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub pool: PoolResource<MasterPool>,
     pub client: MainNodeClientResource,
@@ -22,7 +21,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub updater: BatchStatusUpdater,

@@ -1,5 +1,10 @@
 use std::{num::NonZeroUsize, sync::Arc};
 
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 // Re-export to initialize the layer without having to depend on the crate directly.
 pub use zksync_node_storage_init::SnapshotRecoveryConfig;
 use zksync_node_storage_init::{
@@ -9,15 +14,10 @@ use zksync_node_storage_init::{
 use zksync_types::L2ChainId;
 
 use super::NodeInitializationStrategyResource;
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
-        reverter::BlockReverterResource,
-    },
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+use crate::implementations::resources::{
+    main_node_client::MainNodeClientResource,
+    pools::{MasterPool, PoolResource},
+    reverter::BlockReverterResource,
 };
 
 /// Wiring layer for external node initialization strategy.
@@ -29,7 +29,6 @@ pub struct ExternalNodeInitStrategyLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
@@ -39,7 +38,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub strategy: NodeInitializationStrategyResource,
 }

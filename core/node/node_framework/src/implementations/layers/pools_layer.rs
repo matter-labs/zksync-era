@@ -1,11 +1,11 @@
 use zksync_config::configs::{DatabaseSecrets, PostgresConfig};
 use zksync_dal::{ConnectionPool, Core};
-
-use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource, ReplicaPool},
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
+
+use crate::implementations::resources::pools::{MasterPool, PoolResource, ReplicaPool};
 
 /// Builder for the [`PoolsLayer`].
 #[derive(Debug)]
@@ -67,7 +67,6 @@ pub struct PoolsLayer {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub master_pool: Option<PoolResource<MasterPool>>,
     pub replica_pool: Option<PoolResource<ReplicaPool>>,

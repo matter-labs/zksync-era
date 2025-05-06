@@ -2,13 +2,12 @@ use std::time::Duration;
 
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
 use zksync_node_api_server::web3::state::BridgeAddressesHandle;
+use zksync_node_framework::{StopReceiver, Task, TaskId};
 use zksync_types::{ethabi::Contract, Address, L2_ASSET_ROUTER_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
 };
-
-use crate::{StopReceiver, Task, TaskId};
 
 #[derive(Debug)]
 pub struct MainNodeUpdaterInner {

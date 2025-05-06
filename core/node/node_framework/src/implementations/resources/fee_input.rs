@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use zksync_node_fee_model::BatchFeeModelInputProvider;
-
-use crate::resource::Resource;
+use zksync_node_framework::resource::Resource;
 
 /// A resource that provides [`BatchFeeModelInputProvider`] implementation to the service and is used by sequencer.
 #[derive(Debug, Clone)]

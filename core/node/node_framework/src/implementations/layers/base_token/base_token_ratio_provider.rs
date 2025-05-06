@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use zksync_base_token_adjuster::DBBaseTokenRatioProvider;
 use zksync_config::BaseTokenAdjusterConfig;
-
-use crate::{
-    implementations::resources::{
-        base_token_ratio_provider::BaseTokenRatioProviderResource,
-        pools::{PoolResource, ReplicaPool},
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    base_token_ratio_provider::BaseTokenRatioProviderResource,
+    pools::{PoolResource, ReplicaPool},
 };
 
 /// Wiring layer for `BaseTokenRatioProvider`
@@ -34,13 +34,11 @@ impl BaseTokenRatioProviderLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub ratio_provider: BaseTokenRatioProviderResource,
     #[context(task)]

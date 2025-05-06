@@ -2,29 +2,27 @@ use async_trait::async_trait;
 use zksync_node_api_server::tx_sender::{
     master_pool_sink::MasterPoolSink, whitelist::WhitelistedDeployPoolSink,
 };
-use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
-
-use crate::{
-    implementations::resources::{
-        pools::{MasterPool, PoolResource},
-        web3_api::TxSinkResource,
-    },
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
+
+use crate::implementations::resources::{
+    pools::{MasterPool, PoolResource},
+    web3_api::TxSinkResource,
 };
 
 /// Wiring layer for [`WhitelistedDeployPoolSink`] that wraps a `MasterPoolSink` and enables allowlist filtering.
 pub struct WhitelistedMasterPoolSinkLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub shared_allow_list: SharedAllowList,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub tx_sink: TxSinkResource,
 }

@@ -1,17 +1,17 @@
-use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
-
-use crate::{
-    implementations::resources::{
-        contracts::SettlementLayerContractsResource,
-        eth_interface::SettlementLayerClientResource,
-        healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
+
+use crate::implementations::resources::{
+    contracts::SettlementLayerContractsResource,
+    eth_interface::SettlementLayerClientResource,
+    main_node_client::MainNodeClientResource,
+    pools::{MasterPool, PoolResource},
 };
 
 /// Wiring layer for [`TreeDataFetcher`].
@@ -19,7 +19,6 @@ use crate::{
 pub struct TreeDataFetcherLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
@@ -30,7 +29,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub task: TreeDataFetcher,

@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use zksync_node_fee_model::l1_gas_price::MainNodeFeeParamsFetcher;
-
-use crate::{
-    implementations::resources::{
-        fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
-        main_node_client::MainNodeClientResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
+    main_node_client::MainNodeClientResource,
 };
 
 /// Wiring layer for main node fee params fetcher -- a fee input resource used on
@@ -19,13 +19,11 @@ use crate::{
 pub struct MainNodeFeeParamsFetcherLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub main_node_client: MainNodeClientResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub sequencer_fee_input: SequencerFeeInputResource,
     pub api_fee_input: ApiFeeInputResource,

@@ -2,14 +2,14 @@ use zksync_config::configs::house_keeper::HouseKeeperConfig;
 use zksync_house_keeper::{
     blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob,
 };
-
-use crate::{
-    implementations::resources::pools::{PoolResource, ReplicaPool},
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::implementations::resources::pools::{PoolResource, ReplicaPool};
 
 /// Wiring layer for `HouseKeeper` - a component responsible for managing prover jobs
 /// and auxiliary server activities.
@@ -19,13 +19,11 @@ pub struct HouseKeeperLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub l1_batch_metrics_reporter: L1BatchMetricsReporter,

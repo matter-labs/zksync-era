@@ -3,25 +3,22 @@ use zksync_config::{
     EthWatchConfig,
 };
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
-use zksync_types::L2ChainId;
-use zksync_web3_decl::client::{DynClient, Network};
-
-use crate::{
-    implementations::resources::{
-        contracts::{
-            L1ChainContractsResource, L1EcosystemContractsResource,
-            SettlementLayerContractsResource,
-        },
-        eth_interface::{
-            EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource,
-        },
-        pools::{MasterPool, PoolResource},
-        settlement_layer::SettlementModeResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_types::L2ChainId;
+use zksync_web3_decl::client::{DynClient, Network};
+
+use crate::implementations::resources::{
+    contracts::{
+        L1ChainContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
+    },
+    eth_interface::{EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource},
+    pools::{MasterPool, PoolResource},
+    settlement_layer::SettlementModeResource,
 };
 
 /// Wiring layer for ethereum watcher
@@ -35,7 +32,6 @@ pub struct EthWatchLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub l1_contracts: L1ChainContractsResource,
     pub contracts_resource: SettlementLayerContractsResource,
@@ -47,7 +43,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub eth_watch: EthWatch,

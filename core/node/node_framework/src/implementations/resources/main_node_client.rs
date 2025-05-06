@@ -1,6 +1,5 @@
+use zksync_node_framework::resource::Resource;
 use zksync_web3_decl::client::{DynClient, L2};
-
-use crate::resource::Resource;
 
 /// A resource that provides L2 interface object to the service.
 #[derive(Debug, Clone)]

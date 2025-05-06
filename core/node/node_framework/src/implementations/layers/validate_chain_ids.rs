@@ -1,14 +1,14 @@
-use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
-use zksync_types::{L1ChainId, L2ChainId};
-
-use crate::{
-    implementations::resources::{
-        eth_interface::EthInterfaceResource, main_node_client::MainNodeClientResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
+use zksync_types::{L1ChainId, L2ChainId};
+
+use crate::implementations::resources::{
+    eth_interface::EthInterfaceResource, main_node_client::MainNodeClientResource,
 };
 
 /// Wiring layer for chain ID validation precondition for external node.
@@ -30,14 +30,12 @@ pub struct ValidateChainIdsLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub l1_client: EthInterfaceResource,
     pub main_node_client: MainNodeClientResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub task: ValidateChainIdsTask,

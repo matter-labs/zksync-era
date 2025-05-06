@@ -3,21 +3,20 @@ use zksync_concurrency::{ctx, scope, sync};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_consensus as consensus;
-use zksync_node_framework_derive::IntoContext;
-use zksync_node_sync::{ActionQueueSender, SyncState};
-use zksync_web3_decl::client::{DynClient, L2};
-
-use crate::{
-    implementations::resources::{
-        action_queue::ActionQueueSenderResource,
-        main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
-        sync_state::SyncStateResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
-    FromContext,
+    FromContext, IntoContext,
+};
+use zksync_node_sync::{ActionQueueSender, SyncState};
+use zksync_web3_decl::client::{DynClient, L2};
+
+use crate::implementations::resources::{
+    action_queue::ActionQueueSenderResource,
+    main_node_client::MainNodeClientResource,
+    pools::{MasterPool, PoolResource},
+    sync_state::SyncStateResource,
 };
 
 /// Wiring layer for external node consensus component.
@@ -29,7 +28,6 @@ pub struct ExternalNodeConsensusLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
@@ -38,7 +36,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub consensus_task: ExternalNodeTask,

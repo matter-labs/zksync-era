@@ -2,25 +2,25 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_health_check::ReactiveHealthCheck;
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
+    service::{ShutdownHook, StopReceiver},
+    task::{Task, TaskId, TaskKind},
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_state::AsyncCatchupTask;
 pub use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{AsyncRocksdbCache, ZkSyncStateKeeper};
 use zksync_storage::RocksDB;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource, ReplicaPool},
-        state_keeper::{
-            BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
-            StateKeeperIOResource,
-        },
+use crate::implementations::resources::{
+    pools::{MasterPool, PoolResource, ReplicaPool},
+    state_keeper::{
+        BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
+        StateKeeperIOResource,
     },
-    service::{ShutdownHook, StopReceiver},
-    task::{Task, TaskId, TaskKind},
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
 };
 
 pub mod external_io;
@@ -36,7 +36,6 @@ pub struct StateKeeperLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub state_keeper_io: StateKeeperIOResource,
     pub batch_executor: BatchExecutorResource,
@@ -50,7 +49,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub state_keeper: StateKeeperTask,

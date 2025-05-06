@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
+use zksync_node_framework::resource::Resource;
 use zksync_object_store::ObjectStore;
-
-use crate::resource::Resource;
 
 /// A resource that provides [`ObjectStore`] to the service.
 #[derive(Debug, Clone)]

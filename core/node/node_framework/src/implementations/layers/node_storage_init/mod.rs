@@ -1,13 +1,13 @@
-use zksync_node_storage_init::{NodeInitializationStrategy, NodeStorageInitializer};
-
-use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource},
+use zksync_node_framework::{
     resource::Resource,
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_node_storage_init::{NodeInitializationStrategy, NodeStorageInitializer};
+
+use crate::implementations::resources::pools::{MasterPool, PoolResource};
 
 pub mod external_node_strategy;
 pub mod main_node_strategy;
@@ -40,14 +40,12 @@ impl NodeStorageInitializerLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub strategy: NodeInitializationStrategyResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub initializer: Option<NodeStorageInitializer>,

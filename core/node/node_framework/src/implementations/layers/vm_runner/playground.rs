@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 use zksync_config::configs::ExperimentalVmPlaygroundConfig;
-use zksync_node_framework_derive::{FromContext, IntoContext};
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource, FromContext, IntoContext, StopReceiver, Task,
+    TaskId, WiringError, WiringLayer,
+};
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
     impls::{
@@ -10,13 +13,9 @@ use zksync_vm_runner::{
     ConcurrentOutputHandlerFactoryTask,
 };
 
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        object_store::ObjectStoreResource,
-        pools::{PoolResource, ReplicaPool},
-    },
-    StopReceiver, Task, TaskId, WiringError, WiringLayer,
+use crate::implementations::resources::{
+    object_store::ObjectStoreResource,
+    pools::{PoolResource, ReplicaPool},
 };
 
 #[derive(Debug)]
@@ -35,7 +34,6 @@ impl VmPlaygroundLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     // We use a replica pool because VM playground doesn't write anything to the DB by design.
     pub replica_pool: PoolResource<ReplicaPool>,
@@ -45,7 +43,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,

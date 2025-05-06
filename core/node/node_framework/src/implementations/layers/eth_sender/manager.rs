@@ -1,22 +1,22 @@
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_eth_sender::EthTxManager;
-
-use crate::{
-    implementations::resources::{
-        circuit_breakers::CircuitBreakersResource,
-        eth_interface::{
-            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource,
-        },
-        gas_adjuster::GasAdjusterResource,
-        healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource, ReplicaPool},
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    circuit_breakers::CircuitBreakersResource,
+    eth_interface::{
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+        BoundEthInterfaceResource,
+    },
+    gas_adjuster::GasAdjusterResource,
+    pools::{MasterPool, PoolResource, ReplicaPool},
 };
 
 /// Wiring layer for `eth_txs` managing
@@ -40,7 +40,6 @@ use crate::{
 pub struct EthTxManagerLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
@@ -56,7 +55,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub eth_tx_manager: EthTxManager,

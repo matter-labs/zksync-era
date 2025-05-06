@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
+use zksync_node_framework::resource::{Resource, Unique};
 use zksync_state::OwnedStorage;
 use zksync_state_keeper::{seal_criteria::ConditionalSealer, OutputHandler, StateKeeperIO};
 use zksync_vm_executor::interface::BatchExecutorFactory;
-
-use crate::resource::{Resource, Unique};
 
 /// A resource that provides [`StateKeeperIO`] implementation to the service.
 /// This resource is unique, e.g. it's expected to be consumed by a single service.

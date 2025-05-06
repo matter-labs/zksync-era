@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
-
-use crate::resource::Resource;
+use zksync_node_framework::resource::Resource;
 
 /// A resource that provides [`GasAdjuster`] to the service.
 #[derive(Debug, Clone)]

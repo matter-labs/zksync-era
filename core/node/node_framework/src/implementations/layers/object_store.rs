@@ -1,10 +1,8 @@
 use zksync_config::ObjectStoreConfig;
+use zksync_node_framework::wiring_layer::{WiringError, WiringLayer};
 use zksync_object_store::ObjectStoreFactory;
 
-use crate::{
-    implementations::resources::object_store::ObjectStoreResource,
-    wiring_layer::{WiringError, WiringLayer},
-};
+use crate::implementations::resources::object_store::ObjectStoreResource;
 
 /// Wiring layer for object store.
 #[derive(Debug)]

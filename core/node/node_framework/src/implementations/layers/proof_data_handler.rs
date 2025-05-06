@@ -2,19 +2,19 @@ use std::sync::Arc;
 
 use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
-use zksync_proof_data_handler::ProofDataHandlerClient;
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
-
-use crate::{
-    implementations::resources::{
-        object_store::ObjectStoreResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_object_store::ObjectStore;
+use zksync_proof_data_handler::ProofDataHandlerClient;
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+
+use crate::implementations::resources::{
+    object_store::ObjectStoreResource,
+    pools::{MasterPool, PoolResource},
 };
 
 /// Wiring layer for proof data handler server.
@@ -27,14 +27,12 @@ pub struct ProofDataHandlerLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub object_store: ObjectStoreResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub task: ProofDataHandlerTask,

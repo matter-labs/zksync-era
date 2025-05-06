@@ -1,14 +1,14 @@
 use zksync_commitment_generator::validation_task::L1BatchCommitmentModeValidationTask;
-use zksync_types::commitment::L1BatchCommitmentMode;
-
-use crate::{
-    implementations::resources::{
-        contracts::L1ChainContractsResource, eth_interface::EthInterfaceResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_types::commitment::L1BatchCommitmentMode;
+
+use crate::implementations::resources::{
+    contracts::L1ChainContractsResource, eth_interface::EthInterfaceResource,
 };
 
 /// Wiring layer for a prerequisite that checks if the L1 batch commitment mode is valid
@@ -19,14 +19,12 @@ pub struct L1BatchCommitmentModeValidationLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub contracts: L1ChainContractsResource,
     pub client: EthInterfaceResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub task: L1BatchCommitmentModeValidationTask,

@@ -60,6 +60,7 @@ members = [
   "lib/mempool",
   "lib/merkle_tree",
   "lib/mini_merkle_tree",
+  "lib/node_framework",
   "lib/node_framework_derive",
   "lib/object_store",
   "lib/prover_interface",
@@ -316,8 +317,9 @@ zksync_task_management = { version = "28.0.0-non-semver-compat", path = "lib/tas
 zk_os_merkle_tree = { version = "28.0.0-non-semver-compat", path = "lib/zk_os_merkle_tree" }
 
 # Framework and components
-zksync_node_framework = { version = "28.0.0-non-semver-compat", path = "node/node_framework" }
+zksync_node_framework = { version = "28.0.0-non-semver-compat", path = "lib/node_framework" }
 zksync_node_framework_derive = { version = "28.0.0-non-semver-compat", path = "lib/node_framework_derive" }
+zksync_node_framework_impls = { version = "28.0.0-non-semver-compat", path = "node/node_framework" }
 zksync_eth_watch = { version = "28.0.0-non-semver-compat", path = "node/eth_watch" }
 zksync_shared_metrics = { version = "28.0.0-non-semver-compat", path = "node/shared_metrics" }
 zksync_proof_data_handler = { version = "28.0.0-non-semver-compat", path = "node/proof_data_handler" }

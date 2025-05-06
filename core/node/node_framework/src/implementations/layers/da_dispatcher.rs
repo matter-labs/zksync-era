@@ -1,16 +1,16 @@
 use zksync_config::configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig};
 use zksync_da_dispatcher::DataAvailabilityDispatcher;
-
-use crate::{
-    implementations::resources::{
-        contracts::L2ContractsResource,
-        da_client::DAClientResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    contracts::L2ContractsResource,
+    da_client::DAClientResource,
+    pools::{MasterPool, PoolResource},
 };
 
 /// A layer that wires the data availability dispatcher task.
@@ -21,7 +21,6 @@ pub struct DataAvailabilityDispatcherLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub da_client: DAClientResource,
@@ -29,7 +28,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub da_dispatcher_task: DataAvailabilityDispatcher,

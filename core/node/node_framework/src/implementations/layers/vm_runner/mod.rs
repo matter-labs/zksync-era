@@ -1,9 +1,8 @@
-use zksync_vm_runner::{ConcurrentOutputHandlerFactoryTask, StorageSyncTask, VmRunnerIo};
-
-use crate::{
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
 };
+use zksync_vm_runner::{ConcurrentOutputHandlerFactoryTask, StorageSyncTask, VmRunnerIo};
 
 pub mod bwip;
 pub mod playground;

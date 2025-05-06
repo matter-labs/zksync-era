@@ -1,17 +1,15 @@
 use std::num::NonZero;
 
 use zksync_commitment_generator::CommitmentGenerator;
-
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::implementations::resources::pools::{MasterPool, PoolResource};
 
 /// Wiring layer for l1 batches commitment generation
 ///
@@ -22,7 +20,6 @@ pub struct CommitmentGeneratorLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
@@ -30,7 +27,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub commitment_generator: CommitmentGenerator,

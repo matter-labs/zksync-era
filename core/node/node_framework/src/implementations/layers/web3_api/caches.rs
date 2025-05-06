@@ -1,17 +1,16 @@
 use std::time::Duration;
 
 use zksync_node_api_server::web3::mempool_cache::{MempoolCache, MempoolCacheUpdateTask};
-use zksync_node_framework_derive::FromContext;
-
-use crate::{
-    implementations::resources::{
-        pools::{PoolResource, ReplicaPool},
-        web3_api::MempoolCacheResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
+    FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    pools::{PoolResource, ReplicaPool},
+    web3_api::MempoolCacheResource,
 };
 
 /// Wiring layer for API mempool cache.
@@ -22,13 +21,11 @@ pub struct MempoolCacheLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub mempool_cache: MempoolCacheResource,
     #[context(task)]

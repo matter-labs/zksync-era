@@ -1,17 +1,16 @@
 use std::{num::NonZeroUsize, sync::Arc};
 
 use anyhow::Context;
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_node_sync::MainNodeHealthCheck;
 use zksync_types::{url::SensitiveUrl, L2ChainId};
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource, main_node_client::MainNodeClientResource,
-    },
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
-};
+use crate::implementations::resources::main_node_client::MainNodeClientResource;
 
 /// Wiring layer for main node client.
 #[derive(Debug)]
@@ -22,14 +21,12 @@ pub struct MainNodeClientLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub main_node_client: MainNodeClientResource,
 }

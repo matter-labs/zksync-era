@@ -1,17 +1,17 @@
 use zksync_config::{configs::wallets, GasAdjusterConfig};
 use zksync_eth_client::{clients::PKSigningClient, EthInterface};
-
-use crate::{
-    implementations::resources::{
-        contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
-        eth_interface::{
-            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource, EthInterfaceResource, SettlementLayerClient,
-            SettlementLayerClientResource,
-        },
-    },
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    contracts::{L1ChainContractsResource, SettlementLayerContractsResource},
+    eth_interface::{
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+        BoundEthInterfaceResource, EthInterfaceResource, SettlementLayerClient,
+        SettlementLayerClientResource,
+    },
 };
 
 /// Wiring layer for [`PKSigningClient`].
@@ -22,7 +22,6 @@ pub struct PKSigningEthClientLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub contracts: SettlementLayerContractsResource,
@@ -31,7 +30,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub signing_client: BoundEthInterfaceResource,
     /// Only provided if the blob operator key is provided to the layer.

@@ -2,15 +2,14 @@ use zksync_concurrency::{ctx, scope, sync};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_consensus as consensus;
-use zksync_node_framework_derive::FromContext;
-
-use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource},
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
+    FromContext, IntoContext,
 };
+
+use crate::implementations::resources::pools::{MasterPool, PoolResource};
 
 /// Wiring layer for main node consensus component.
 #[derive(Debug)]
@@ -20,13 +19,11 @@ pub struct MainNodeConsensusLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub consensus_task: MainNodeConsensusTask,

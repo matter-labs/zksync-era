@@ -5,11 +5,9 @@ use zksync_external_price_api::{
     cmc_api::CmcPriceApiClient, coingecko_api::CoinGeckoPriceAPIClient,
     forced_price_client::ForcedPriceClient, NoOpPriceAPIClient,
 };
+use zksync_node_framework::{IntoContext, WiringError, WiringLayer};
 
-use crate::{
-    implementations::resources::price_api_client::PriceAPIClientResource, IntoContext, WiringError,
-    WiringLayer,
-};
+use crate::implementations::resources::price_api_client::PriceAPIClientResource;
 
 pub mod base_token_ratio_persister;
 pub mod base_token_ratio_provider;
@@ -70,7 +68,6 @@ impl TryFrom<ExternalPriceApiClientConfig> for ExternalPriceApiLayer {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub price_api_client: PriceAPIClientResource,
 }

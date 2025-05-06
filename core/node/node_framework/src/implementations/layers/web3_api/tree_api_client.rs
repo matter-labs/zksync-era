@@ -1,14 +1,13 @@
 use std::sync::Arc;
 
 use zksync_metadata_calculator::api_server::TreeApiHttpClient;
-
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource, web3_api::TreeApiClientResource,
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::implementations::resources::web3_api::TreeApiClientResource;
 
 /// Wiring layer that provides the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
 /// other client already inserted.
@@ -20,7 +19,6 @@ pub struct TreeApiClientLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     /// Fetched to check whether the `TreeApiClientResource` was already provided by another layer.
     pub tree_api_client: Option<TreeApiClientResource>,
@@ -29,7 +27,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub tree_api_client: Option<TreeApiClientResource>,
 }

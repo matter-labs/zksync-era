@@ -10,19 +10,19 @@ use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MerkleTreePruningTask, MerkleTreeReaderConfig, MetadataCalculator,
     MetadataCalculatorConfig, StaleKeysRepairTask, TreeReaderTask,
 };
-use zksync_storage::RocksDB;
-
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        object_store::ObjectStoreResource,
-        pools::{MasterPool, PoolResource, ReplicaPool},
-        web3_api::TreeApiClientResource,
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::{ShutdownHook, StopReceiver},
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_storage::RocksDB;
+
+use crate::implementations::resources::{
+    object_store::ObjectStoreResource,
+    pools::{MasterPool, PoolResource, ReplicaPool},
+    web3_api::TreeApiClientResource,
 };
 
 /// Wiring layer for Metadata calculator and Tree API.
@@ -35,7 +35,6 @@ pub struct MetadataCalculatorLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
@@ -46,7 +45,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub metadata_calculator: MetadataCalculator,
@@ -248,7 +246,6 @@ impl TreeApiServerLayer {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct TreeApiServerOutput {
     tree_api_client: TreeApiClientResource,
     #[context(task)]

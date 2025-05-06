@@ -1,15 +1,14 @@
 use anyhow::Context;
-use zksync_node_framework_derive::FromContext;
+use zksync_node_framework::{
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_types::{settlement::SettlementLayer, url::SensitiveUrl, L1ChainId, L2ChainId};
 use zksync_web3_decl::client::Client;
 
-use crate::{
-    implementations::resources::{
-        eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
-        settlement_layer::SettlementModeResource,
-    },
-    wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
+use crate::implementations::resources::{
+    eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
+    settlement_layer::SettlementModeResource,
 };
 
 /// Wiring layer for Ethereum client.
@@ -29,13 +28,11 @@ impl SettlementLayerClientLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     initial_settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     settlement_layer_client: SettlementLayerClientResource,
 }

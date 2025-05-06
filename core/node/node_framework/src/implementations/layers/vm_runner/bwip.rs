@@ -1,4 +1,10 @@
 use zksync_config::configs::vm_runner::BasicWitnessInputProducerConfig;
+use zksync_node_framework::{
+    service::StopReceiver,
+    task::{Task, TaskId},
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_types::L2ChainId;
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
 use zksync_vm_runner::{
@@ -6,15 +12,9 @@ use zksync_vm_runner::{
     ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
 };
 
-use crate::{
-    implementations::resources::{
-        object_store::ObjectStoreResource,
-        pools::{MasterPool, PoolResource},
-    },
-    service::StopReceiver,
-    task::{Task, TaskId},
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+use crate::implementations::resources::{
+    object_store::ObjectStoreResource,
+    pools::{MasterPool, PoolResource},
 };
 
 #[derive(Debug)]
@@ -33,14 +33,12 @@ impl BasicWitnessInputProducerLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub object_store: ObjectStoreResource,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub output_handler_factory_task:

@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use zksync_base_token_adjuster::NoOpRatioProvider;
 use zksync_node_fee_model::BaseTokenRatioProvider;
-
-use crate::resource::Resource;
+use zksync_node_framework::resource::Resource;
 
 /// A resource that provides [`BaseTokenRatioProvider`] implementation to the service.
 #[derive(Debug, Clone)]

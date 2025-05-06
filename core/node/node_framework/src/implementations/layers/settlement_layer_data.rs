@@ -15,6 +15,10 @@ use zksync_eth_client::{
     EthInterface,
 };
 use zksync_gateway_migrator::current_settlement_layer;
+use zksync_node_framework::{
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_types::{
     pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
     L2ChainId, SLChainId, L2_BRIDGEHUB_ADDRESS,
@@ -24,18 +28,14 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use crate::{
-    implementations::resources::{
-        contracts::{
-            L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-            SettlementLayerContractsResource,
-        },
-        eth_interface::{EthInterfaceResource, L2InterfaceResource},
-        pools::{MasterPool, PoolResource},
-        settlement_layer::SettlementModeResource,
+use crate::implementations::resources::{
+    contracts::{
+        L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+        SettlementLayerContractsResource,
     },
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+    eth_interface::{EthInterfaceResource, L2InterfaceResource},
+    pools::{MasterPool, PoolResource},
+    settlement_layer::SettlementModeResource,
 };
 
 pub struct MainNodeConfig {
@@ -62,14 +62,12 @@ impl<T> SettlementLayerData<T> {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
     contracts: SettlementLayerContractsResource,

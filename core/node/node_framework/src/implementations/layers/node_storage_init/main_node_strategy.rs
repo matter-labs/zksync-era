@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use zksync_config::GenesisConfig;
+use zksync_node_framework::{
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_node_storage_init::{main_node::MainNodeGenesis, NodeInitializationStrategy};
 
 use super::NodeInitializationStrategyResource;
-use crate::{
-    implementations::resources::{
-        contracts::SettlementLayerContractsResource,
-        eth_interface::EthInterfaceResource,
-        pools::{MasterPool, PoolResource},
-    },
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+use crate::implementations::resources::{
+    contracts::SettlementLayerContractsResource,
+    eth_interface::EthInterfaceResource,
+    pools::{MasterPool, PoolResource},
 };
 
 /// Wiring layer for main node initialization strategy.
@@ -21,7 +21,6 @@ pub struct MainNodeInitStrategyLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_interface: EthInterfaceResource,
@@ -29,7 +28,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub strategy: NodeInitializationStrategyResource,
 }

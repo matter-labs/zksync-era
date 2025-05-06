@@ -1,12 +1,12 @@
 use anyhow::Context;
-use zksync_types::{url::SensitiveUrl, L1ChainId};
-use zksync_web3_decl::client::Client;
-
-use crate::{
-    implementations::resources::eth_interface::EthInterfaceResource,
+use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
+use zksync_types::{url::SensitiveUrl, L1ChainId};
+use zksync_web3_decl::client::Client;
+
+use crate::implementations::resources::eth_interface::EthInterfaceResource;
 
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]
@@ -25,7 +25,6 @@ impl QueryEthClientLayer {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     query_client_l1: EthInterfaceResource,
 }

@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use zksync_circuit_breaker::CircuitBreakers;
-
-use crate::resource::Resource;
+use zksync_node_framework::resource::Resource;
 
 /// A resource that provides [`CircuitBreakers`] to the service.
 #[derive(Debug, Clone, Default)]

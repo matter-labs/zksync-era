@@ -10,17 +10,15 @@ use zksync_dal::{
     metrics::PostgresMetrics, system_dal::DatabaseMigration, ConnectionPool, Core, CoreDal,
 };
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
-
-use crate::{
-    implementations::resources::{
-        healthcheck::AppHealthCheckResource,
-        pools::{PoolResource, ReplicaPool},
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::implementations::resources::pools::{PoolResource, ReplicaPool};
 
 /// Execution interval for Postrgres metrics and healthcheck tasks
 const TASK_EXECUTION_INTERVAL: Duration = Duration::from_secs(60);
@@ -30,7 +28,6 @@ const TASK_EXECUTION_INTERVAL: Duration = Duration::from_secs(60);
 pub struct PostgresLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     #[context(default)]
@@ -38,7 +35,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub metrics_task: PostgresMetricsScrapingTask,

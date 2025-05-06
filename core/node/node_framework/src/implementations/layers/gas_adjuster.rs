@@ -3,16 +3,16 @@ use std::sync::Arc;
 use anyhow::Context;
 use zksync_config::{configs::eth_sender::SenderConfig, GasAdjusterConfig, GenesisConfig};
 use zksync_node_fee_model::l1_gas_price::GasAdjuster;
-
-use crate::{
-    implementations::resources::{
-        eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
-        gas_adjuster::GasAdjusterResource,
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    eth_interface::{SettlementLayerClient, SettlementLayerClientResource},
+    gas_adjuster::GasAdjusterResource,
 };
 
 /// Wiring layer for sequencer L1 gas interfaces.
@@ -24,14 +24,12 @@ pub struct GasAdjusterLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub client: SettlementLayerClientResource,
     pub sender_config: SenderConfig,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub gas_adjuster: GasAdjusterResource,
     /// Only runs if someone uses the resources listed above.

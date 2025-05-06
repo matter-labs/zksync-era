@@ -1,23 +1,22 @@
 use anyhow::Context as _;
-use zksync_node_framework_derive::FromContext;
+use zksync_node_framework::{
+    resource::Unique,
+    service::StopReceiver,
+    task::{Task, TaskId},
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_state_keeper::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
     StateKeeperPersistence, TreeWritesPersistence,
 };
 use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
-use crate::{
-    implementations::resources::{
-        contracts::{L2ContractsResource, SettlementLayerContractsResource},
-        pools::{MasterPool, PoolResource},
-        state_keeper::OutputHandlerResource,
-        sync_state::SyncStateResource,
-    },
-    resource::Unique,
-    service::StopReceiver,
-    task::{Task, TaskId},
-    wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
+use crate::implementations::resources::{
+    contracts::{L2ContractsResource, SettlementLayerContractsResource},
+    pools::{MasterPool, PoolResource},
+    state_keeper::OutputHandlerResource,
+    sync_state::SyncStateResource,
 };
 
 /// Wiring layer for the state keeper output handler.
@@ -48,7 +47,6 @@ pub struct OutputHandlerLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub sync_state: Option<SyncStateResource>,
@@ -57,7 +55,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub output_handler: OutputHandlerResource,
     #[context(task)]

@@ -2,25 +2,25 @@ use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
-
-use crate::{
-    implementations::resources::{
-        circuit_breakers::CircuitBreakersResource,
-        contracts::SettlementLayerContractsResource,
-        eth_interface::{
-            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource,
-        },
-        healthcheck::AppHealthCheckResource,
-        object_store::ObjectStoreResource,
-        pools::{MasterPool, PoolResource, ReplicaPool},
-        settlement_layer::SettlementModeResource,
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+
+use crate::implementations::resources::{
+    circuit_breakers::CircuitBreakersResource,
+    contracts::SettlementLayerContractsResource,
+    eth_interface::{
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+        BoundEthInterfaceResource,
+    },
+    object_store::ObjectStoreResource,
+    pools::{MasterPool, PoolResource, ReplicaPool},
+    settlement_layer::SettlementModeResource,
 };
 
 /// Wiring layer for aggregating l1 batches into `eth_txs`
@@ -48,7 +48,6 @@ pub struct EthTxAggregatorLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
@@ -66,7 +65,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub eth_tx_aggregator: EthTxAggregator,

@@ -3,20 +3,20 @@ use zksync_config::configs::{
     chain::{MempoolConfig, StateKeeperConfig},
     wallets,
 };
-use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
-use zksync_types::{commitment::PubdataType, L2ChainId};
-
-use crate::{
-    implementations::resources::{
-        contracts::{L2ContractsResource, SettlementLayerContractsResource},
-        fee_input::SequencerFeeInputResource,
-        pools::{MasterPool, PoolResource},
-        state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
-    },
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
+use zksync_types::{commitment::PubdataType, L2ChainId};
+
+use crate::implementations::resources::{
+    contracts::{L2ContractsResource, SettlementLayerContractsResource},
+    fee_input::SequencerFeeInputResource,
+    pools::{MasterPool, PoolResource},
+    state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
 };
 
 /// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
@@ -44,7 +44,6 @@ pub struct MempoolIOLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
@@ -53,7 +52,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub state_keeper_io: StateKeeperIOResource,
     pub conditional_sealer: ConditionalSealerResource,

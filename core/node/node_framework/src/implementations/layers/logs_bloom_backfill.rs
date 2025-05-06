@@ -1,12 +1,12 @@
 use zksync_logs_bloom_backfill::LogsBloomBackfill;
-
-use crate::{
-    implementations::resources::pools::{MasterPool, PoolResource},
+use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+use crate::implementations::resources::pools::{MasterPool, PoolResource};
 
 /// Wiring layer for ethereum watcher
 ///
@@ -15,13 +15,11 @@ use crate::{
 pub struct LogsBloomBackfillLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub logs_bloom_backfill: LogsBloomBackfill,

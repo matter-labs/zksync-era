@@ -1,21 +1,21 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
+    wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
+};
 use zksync_node_sync::{ActionQueue, ExternalIO, SyncState};
 use zksync_state_keeper::seal_criteria::NoopSealer;
 use zksync_types::L2ChainId;
 
-use crate::{
-    implementations::resources::{
-        action_queue::ActionQueueSenderResource,
-        healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
-        state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
-        sync_state::SyncStateResource,
-    },
-    wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+use crate::implementations::resources::{
+    action_queue::ActionQueueSenderResource,
+    main_node_client::MainNodeClientResource,
+    pools::{MasterPool, PoolResource},
+    state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
+    sync_state::SyncStateResource,
 };
 
 /// Wiring layer for `ExternalIO`, an IO part of state keeper used by the external node.
@@ -25,7 +25,6 @@ pub struct ExternalIOLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub app_health: AppHealthCheckResource,
     pub pool: PoolResource<MasterPool>,
@@ -33,7 +32,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     pub sync_state: SyncStateResource,
     pub action_queue_sender: ActionQueueSenderResource,

@@ -1,16 +1,16 @@
-use zksync_node_sync::data_availability_fetcher::DataAvailabilityFetcher;
-
-use crate::{
-    implementations::resources::{
-        da_client::DAClientResource,
-        healthcheck::AppHealthCheckResource,
-        main_node_client::MainNodeClientResource,
-        pools::{MasterPool, PoolResource},
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_node_sync::data_availability_fetcher::DataAvailabilityFetcher;
+
+use crate::implementations::resources::{
+    da_client::DAClientResource,
+    main_node_client::MainNodeClientResource,
+    pools::{MasterPool, PoolResource},
 };
 
 /// Wiring layer for [`DataAvailabilityFetcher`].
@@ -18,7 +18,6 @@ use crate::{
 pub struct DataAvailabilityFetcherLayer;
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
@@ -28,7 +27,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub task: DataAvailabilityFetcher,

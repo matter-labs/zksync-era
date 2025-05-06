@@ -1,17 +1,17 @@
 use zksync_consistency_checker::ConsistencyChecker;
-
-use crate::{
-    implementations::resources::{
-        contracts::SettlementLayerContractsResource,
-        eth_interface::SettlementLayerClientResource,
-        healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource},
-        settlement_layer::SettlementModeResource,
-    },
+use zksync_node_framework::{
+    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+
+use crate::implementations::resources::{
+    contracts::SettlementLayerContractsResource,
+    eth_interface::SettlementLayerClientResource,
+    pools::{MasterPool, PoolResource},
+    settlement_layer::SettlementModeResource,
 };
 
 /// Wiring layer for the `ConsistencyChecker` (used by the external node).
@@ -21,7 +21,6 @@ pub struct ConsistencyCheckerLayer {
 }
 
 #[derive(Debug, FromContext)]
-#[context(crate = crate)]
 pub struct Input {
     pub settlement_layer_client: SettlementLayerClientResource,
     pub settlement_mode: SettlementModeResource,
@@ -32,7 +31,6 @@ pub struct Input {
 }
 
 #[derive(Debug, IntoContext)]
-#[context(crate = crate)]
 pub struct Output {
     #[context(task)]
     pub consistency_checker: ConsistencyChecker,
