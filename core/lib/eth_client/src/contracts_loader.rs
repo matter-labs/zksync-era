@@ -2,8 +2,7 @@ use zksync_config::configs::contracts::{
     chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{
-    bridgehub_contract, hyperchain_contract,
-    state_transition_manager_contract,
+    bridgehub_contract, hyperchain_contract, state_transition_manager_contract,
 };
 use zksync_types::{
     ethabi::{Contract, Token},
@@ -91,13 +90,14 @@ pub async fn get_settlement_layer_from_bridgehub(
     chain_id: SLChainId,
     bridgehub_abi: &Contract,
 ) -> Result<Option<SettlementLayer>, ContractCallError> {
-    let settlement_layer_chain_id: U256 = CallFunctionArgs::new("settlementLayer", U256::from(chain_id.0))
-        .for_contract(bridgehub_address, bridgehub_abi)
-        .call(eth_client)
-        .await?;
+    let settlement_layer_chain_id: U256 =
+        CallFunctionArgs::new("settlementLayer", U256::from(chain_id.0))
+            .for_contract(bridgehub_address, bridgehub_abi)
+            .call(eth_client)
+            .await?;
     if settlement_layer_chain_id == U256::zero() {
         return Ok(None);
-        // This is only the case for chains that did not pass v26 upgrade, which 
+        // This is only the case for chains that did not pass v26 upgrade, which
         // is not the case for any active chain.
         // anyhow::bail!("Chain does not settlement layer registered on L1 bridgehub");
     }

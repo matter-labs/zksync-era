@@ -6,8 +6,7 @@ use zksync_basic_types::{ethabi::Contract, settlement::SettlementLayer, L2ChainI
 use zksync_config::configs::contracts::SettlementLayerSpecificContracts;
 use zksync_contracts::bridgehub_contract;
 use zksync_eth_client::{
-    contracts_loader::get_settlement_layer_from_bridgehub,
-    ContractCallError, EthInterface,
+    contracts_loader::get_settlement_layer_from_bridgehub, ContractCallError, EthInterface,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
@@ -100,7 +99,10 @@ pub async fn current_settlement_layer(
     l2_chain_id: L2ChainId,
     bridgehub_abi: &Contract,
 ) -> Result<SettlementLayer, GatewayMigratorError> {
-    let l1_chain_id = l1_client.fetch_chain_id().await.map_err(|e| GatewayMigratorError::Internal(e.into()))?;
+    let l1_chain_id = l1_client
+        .fetch_chain_id()
+        .await
+        .map_err(|e| GatewayMigratorError::Internal(e.into()))?;
 
     let l1_bridgehub = sl_l1_contracts
         .ecosystem_contracts
@@ -120,34 +122,42 @@ pub async fn current_settlement_layer(
     let final_settlement_mode = match settlement_mode_from_l1 {
         sl_layer @ SettlementLayer::L1(_) => {
             // Bridgehub on L1 is only toggled when chain is indeed ready to settle on L1.
-            return Ok(sl_layer)
+            return Ok(sl_layer);
         }
         SettlementLayer::Gateway(gw_chain_id) => {
             let gw_client = gateway_client.context("Missing gateway client")?;
-            let gw_chain_id_from_provider = gw_client.fetch_chain_id().await.map_err(|e| GatewayMigratorError::Internal(e.into()))?;
-            assert_eq!(gw_chain_id, gw_chain_id_from_provider, "GW chain id is not the same as in the GW provider");
+            let gw_chain_id_from_provider = gw_client
+                .fetch_chain_id()
+                .await
+                .map_err(|e| GatewayMigratorError::Internal(e.into()))?;
+            assert_eq!(
+                gw_chain_id, gw_chain_id_from_provider,
+                "GW chain id is not the same as in the GW provider"
+            );
 
             // We only need to check whether GW is ready
 
             let settlement_layer_from_gw = get_settlement_layer_from_bridgehub(
-                gw_client, 
-                l1_chain_id, 
-                L2_BRIDGEHUB_ADDRESS, 
-                SLChainId(l2_chain_id.as_u64()), 
-                bridgehub_abi
-            ).await?;
+                gw_client,
+                l1_chain_id,
+                L2_BRIDGEHUB_ADDRESS,
+                SLChainId(l2_chain_id.as_u64()),
+                bridgehub_abi,
+            )
+            .await?;
 
             let chain_finalized_migration_to_gw = match settlement_layer_from_gw {
                 Some(SettlementLayer::Gateway(chain_id_from_gw_bridgehub)) => {
                     // Inequality is only possible if there are more than 1 gateways, but the server is
                     // not ready for this case.
-                    assert_eq!(gw_chain_id_from_provider, chain_id_from_gw_bridgehub, "Unexpected GW chain id");
+                    assert_eq!(
+                        gw_chain_id_from_provider, chain_id_from_gw_bridgehub,
+                        "Unexpected GW chain id"
+                    );
 
                     true
-                },
-                _ => {
-                    false
                 }
+                _ => false,
             };
 
             if chain_finalized_migration_to_gw {

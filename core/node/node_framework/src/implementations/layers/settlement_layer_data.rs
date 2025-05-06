@@ -10,7 +10,8 @@ use zksync_dal::{Core, CoreDal};
 use zksync_db_connection::connection::Connection;
 use zksync_eth_client::{
     contracts_loader::{
-        get_server_notifier_addr, get_settlement_layer_from_bridgehub, load_settlement_layer_contracts
+        get_server_notifier_addr, get_settlement_layer_from_bridgehub,
+        load_settlement_layer_contracts,
     },
     EthInterface,
 };
@@ -214,11 +215,20 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             // in the worst case scenario chain
             // en will be restarted right after the first batch and fill the database with correct values
             get_settlement_layer_from_bridgehub(
-                &input.eth_client.0.as_ref(), 
-                input.eth_client.0.fetch_chain_id().await.context("Failed to fetch ETH client chain id")?, 
-                self.config.l1_chain_contracts.ecosystem_contracts.bridgehub_proxy_addr.context("Missing L1 bridgehub")?,
+                &input.eth_client.0.as_ref(),
+                input
+                    .eth_client
+                    .0
+                    .fetch_chain_id()
+                    .await
+                    .context("Failed to fetch ETH client chain id")?,
+                self.config
+                    .l1_chain_contracts
+                    .ecosystem_contracts
+                    .bridgehub_proxy_addr
+                    .context("Missing L1 bridgehub")?,
                 SLChainId(self.config.chain_id.as_u64()),
-                &bridgehub_contract()
+                &bridgehub_contract(),
             )
             .await
             .context("Error occured while getting current SL mode")?

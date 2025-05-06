@@ -9,7 +9,8 @@ use tokio::{
 use zksync_block_reverter::{
     eth_client::{
         clients::{Client, PKSigningClient, L1},
-        contracts_loader::{get_settlement_layer_from_bridgehub, load_settlement_layer_contracts}, EthInterface,
+        contracts_loader::{get_settlement_layer_from_bridgehub, load_settlement_layer_contracts},
+        EthInterface,
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
@@ -26,7 +27,9 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto;
-use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, SLChainId, L2_BRIDGEHUB_ADDRESS};
+use zksync_types::{
+    settlement::SettlementLayer, Address, L1BatchNumber, SLChainId, L2_BRIDGEHUB_ADDRESS,
+};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -252,9 +255,12 @@ async fn main() -> anyhow::Result<()> {
     let settlement_mode = get_settlement_layer_from_bridgehub(
         &l1_client,
         l1_client.fetch_chain_id().await?,
-        sl_l1_contracts.ecosystem_contracts.bridgehub_proxy_addr.context("Missing bridgehub")?,
+        sl_l1_contracts
+            .ecosystem_contracts
+            .bridgehub_proxy_addr
+            .context("Missing bridgehub")?,
         SLChainId(zksync_network_id.as_u64()),
-        &bridgehub_contract()
+        &bridgehub_contract(),
     )
     .await?
     .context("Missing settlement layer on L1")?;
