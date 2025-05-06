@@ -55,10 +55,5 @@ ethers.workspace = true
 xshell.workspace = true
 
 [features]
-# Features that allows gateway-chain related actions.
-# These should be available for outside users until stabilized.
-gateway = []
-v27_evm_interpreter = ["gateway"]
-v28_precompiles = ["gateway"]
-
-default = ["v28_precompiles"]
+v27_evm_interpreter = []
+v28_precompiles = []
