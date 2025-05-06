@@ -1,6 +1,11 @@
-use zksync_test_contracts::Account;
+use zksync_test_contracts::{Account, TestContract};
+use zksync_types::{Execute, ExecuteTransactionCommon, Nonce};
 
-use super::TestedVm;
+use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm};
+use crate::interface::{
+    ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, TxRevertReason, VmInterfaceExt,
+    VmRevertReason,
+};
 
 pub enum NonceHolderTestMode {
     IncreaseMinNonceBy5,
@@ -22,61 +27,61 @@ impl From<NonceHolderTestMode> for u8 {
 
 #[allow(dead_code)]
 fn run_nonce_test(
-    _vm: &mut impl TestedVm,
-    _account: &mut Account,
-    _nonce: u32,
-    _test_mode: NonceHolderTestMode,
-    _error_message: Option<String>,
-    _comment: &'static str,
+    vm: &mut impl TestedVm,
+    account: &mut Account,
+    nonce: u32,
+    test_mode: NonceHolderTestMode,
+    error_message: Option<String>,
+    comment: &'static str,
 ) {
-    // vm.make_snapshot();
-    // let mut transaction = account.get_l2_tx_for_execute_with_nonce(
-    //     Execute {
-    //         contract_address: Some(account.address),
-    //         calldata: vec![12],
-    //         value: Default::default(),
-    //         factory_deps: vec![],
-    //     },
-    //     None,
-    //     Nonce(nonce),
-    // );
-    // let ExecuteTransactionCommon::L2(tx_data) = &mut transaction.common_data else {
-    //     unreachable!();
-    // };
-    // tx_data.signature = vec![test_mode.into()];
-    // vm.push_transaction(transaction);
-    // let result = vm.execute(InspectExecutionMode::OneTx);
+    vm.make_snapshot();
+    let mut transaction = account.get_l2_tx_for_execute_with_nonce(
+        Execute {
+            contract_address: Some(account.address),
+            calldata: vec![12],
+            value: Default::default(),
+            factory_deps: vec![],
+        },
+        None,
+        Nonce(nonce),
+    );
+    let ExecuteTransactionCommon::L2(tx_data) = &mut transaction.common_data else {
+        unreachable!();
+    };
+    tx_data.signature = vec![test_mode.into()];
+    vm.push_transaction(transaction);
+    let result = vm.execute(InspectExecutionMode::OneTx);
 
-    // if let Some(msg) = error_message {
-    //     let expected_error =
-    //         TxRevertReason::Halt(Halt::ValidationFailed(VmRevertReason::General {
-    //             msg,
-    //             data: vec![],
-    //         }));
-    //     let ExecutionResult::Halt { reason } = &result.result else {
-    //         panic!("Expected revert, got {:?}", result.result);
-    //     };
-    //     assert_eq!(reason.to_string(), expected_error.to_string(), "{comment}");
-    //     vm.rollback_to_the_latest_snapshot();
-    // } else {
-    //     assert!(!result.result.is_failed(), "{}", comment);
-    //     vm.pop_snapshot_no_rollback();
-    // }
+    if let Some(msg) = error_message {
+        let expected_error =
+            TxRevertReason::Halt(Halt::ValidationFailed(VmRevertReason::General {
+                msg,
+                data: vec![],
+            }));
+        let ExecutionResult::Halt { reason } = &result.result else {
+            panic!("Expected revert, got {:?}", result.result);
+        };
+        assert_eq!(reason.to_string(), expected_error.to_string(), "{comment}");
+        vm.rollback_to_the_latest_snapshot();
+    } else {
+        assert!(!result.result.is_failed(), "{}", comment);
+        vm.pop_snapshot_no_rollback();
+    }
 }
 
 pub(crate) fn test_nonce_holder<VM: TestedVm>() {
-    // let builder = VmTesterBuilder::new()
-    //     .with_execution_mode(TxExecutionMode::VerifyExecute)
-    //     .with_rich_accounts(1);
-    // let account_address = builder.rich_account(0).address;
-    // let mut vm = builder
-    //     .with_custom_contracts(vec![ContractToDeploy::account(
-    //         TestContract::nonce_holder().bytecode.to_vec(),
-    //         account_address,
-    //     )])
-    //     .build::<VM>();
-    // let account = &mut vm.rich_accounts[0];
-    // let hex_addr = hex::encode(account.address.to_fixed_bytes());
+    let builder = VmTesterBuilder::new()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1);
+    let account_address = builder.rich_account(0).address;
+    let mut vm = builder
+        .with_custom_contracts(vec![ContractToDeploy::account(
+            TestContract::nonce_holder().bytecode.to_vec(),
+            account_address,
+        )])
+        .build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let hex_addr = hex::encode(account.address.to_fixed_bytes());
 
     // Test 1: increase min nonce by 1 with sequential nonce ordering:
     run_nonce_test(
