@@ -72,7 +72,7 @@ pub enum Error {
 impl HashMatchError {
     pub fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_retriable(),
+            Self::Rpc(err) => err.is_retryable(),
             Self::MissingData(_) => true,
             Self::Internal(_) => false,
         }
@@ -226,6 +226,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 }
 
 /// This is a component that is responsible for detecting the batch re-orgs.
+///
 /// Batch re-org is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
 /// (e.g. inability to generate a proof), and then potentially

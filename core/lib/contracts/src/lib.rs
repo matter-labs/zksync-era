@@ -57,9 +57,13 @@ const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = (
     "governance",
     "IChainAdminOwnable.sol/IChainAdminOwnable.json",
 );
+
+const SERVER_NOTIFIER_CONTRACT_FILE: (&str, &str) =
+    ("governance", "ServerNotifier.sol/ServerNotifier.json");
+
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/chain-interfaces",
-    "IGetters.sol/IGetters.json",
+    "state-transition/chain-deps/facets",
+    "Getters.sol/GettersFacet.json",
 );
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
@@ -165,6 +169,10 @@ pub fn governance_contract() -> Contract {
 
 pub fn chain_admin_contract() -> Contract {
     load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
+}
+
+pub fn server_notifier_contract() -> Contract {
+    load_contract_for_both_compilers(SERVER_NOTIFIER_CONTRACT_FILE)
 }
 
 pub fn getters_facet_contract() -> Contract {
@@ -303,8 +311,9 @@ pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLan
 static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
     Lazy::new(SystemContractsRepo::default);
 
-/// Structure representing a system contract repository - that allows
-/// fetching contracts that are located there.
+/// Structure representing a system contract repository.
+///
+/// It allows to fetch contracts that are located there.
 /// As most of the static methods in this file, is loading data based on the Cargo workspace location.
 pub struct SystemContractsRepo {
     // Path to the root of the system contracts repository.
@@ -579,7 +588,17 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_evm_emulator() -> Self {
-        let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
+        let bootloader_bytecode = read_zbin_bytecode(
+        "etc/multivm_bootloaders/vm_evm_emulator/playground_batch.yul/playground_batch.yul.zbin",
+        );
+
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn playground_precompiles() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_precompiles/playground_batch.yul/Bootloader.zbin",
+        );
 
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
@@ -662,7 +681,16 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_evm_emulator() -> Self {
-        let bootloader_bytecode = read_bootloader_code("fee_estimate");
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_evm_emulator/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_precompiles() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_precompiles/fee_estimate.yul/Bootloader.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 

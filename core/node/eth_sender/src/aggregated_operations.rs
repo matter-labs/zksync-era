@@ -2,8 +2,10 @@ use std::ops;
 
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    pubdata_da::PubdataSendingMode, L1BatchNumber, ProtocolVersionId,
+    aggregated_operations::AggregatedActionType,
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
+    pubdata_da::PubdataSendingMode,
+    L1BatchNumber, ProtocolVersionId,
 };
 
 #[allow(clippy::large_enum_variant)]
@@ -13,6 +15,7 @@ pub enum AggregatedOperation {
         L1BatchWithMetadata,
         Vec<L1BatchWithMetadata>,
         PubdataSendingMode,
+        L1BatchCommitmentMode,
     ),
     PublishProofOnchain(ProveBatches),
     Execute(ExecuteBatches),
@@ -29,7 +32,7 @@ impl AggregatedOperation {
 
     pub fn l1_batch_range(&self) -> ops::RangeInclusive<L1BatchNumber> {
         let batches = match self {
-            Self::Commit(_, l1_batches, _) => l1_batches,
+            Self::Commit(_, l1_batches, _, _) => l1_batches,
             Self::PublishProofOnchain(op) => &op.l1_batches,
             Self::Execute(op) => &op.l1_batches,
         };
@@ -52,18 +55,9 @@ impl AggregatedOperation {
 
     pub fn protocol_version(&self) -> ProtocolVersionId {
         match self {
-            Self::Commit(_, l1_batches, _) => l1_batches[0].header.protocol_version.unwrap(),
+            Self::Commit(_, l1_batches, _, _) => l1_batches[0].header.protocol_version.unwrap(),
             Self::PublishProofOnchain(op) => op.l1_batches[0].header.protocol_version.unwrap(),
             Self::Execute(op) => op.l1_batches[0].header.protocol_version.unwrap(),
         }
-    }
-
-    pub fn is_prove_or_execute(&self) -> bool {
-        self.get_action_type() == AggregatedActionType::PublishProofOnchain
-            || self.get_action_type() == AggregatedActionType::Execute
-    }
-
-    pub fn is_execute(&self) -> bool {
-        self.get_action_type() == AggregatedActionType::Execute
     }
 }

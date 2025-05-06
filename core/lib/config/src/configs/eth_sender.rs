@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -11,13 +11,24 @@ use crate::EthWatchConfig;
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct EthConfig {
     /// Options related to the Ethereum sender directly.
-    pub sender: Option<SenderConfig>,
+    sender: Option<SenderConfig>,
     /// Options related to the `GasAdjuster` submodule.
     pub gas_adjuster: Option<GasAdjusterConfig>,
     pub watcher: Option<EthWatchConfig>,
 }
 
 impl EthConfig {
+    pub fn new(
+        sender: Option<SenderConfig>,
+        gas_adjuster: Option<GasAdjusterConfig>,
+        watcher: Option<EthWatchConfig>,
+    ) -> Self {
+        Self {
+            sender,
+            gas_adjuster,
+            watcher,
+        }
+    }
     /// Creates a mock configuration object suitable for unit tests.
     /// Values inside match the config used for localhost development.
     pub fn for_tests() -> Self {
@@ -43,6 +54,8 @@ impl EthConfig {
                 tx_aggregation_only_prove_and_execute: false,
                 time_in_mempool_in_l1_blocks_cap: 1800,
                 is_verifier_pre_fflonk: true,
+                gas_limit_mode: GasLimitMode::Maximum,
+                max_acceptable_base_fee_in_wei: 100000000000,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -57,7 +70,6 @@ impl EthConfig {
                 num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
-                settlement_mode: Default::default(),
             }),
             watcher: Some(EthWatchConfig {
                 confirmations_for_eth_event: None,
@@ -65,6 +77,12 @@ impl EthConfig {
                 priority_tx_expiration_blocks: 50000,
             }),
         }
+    }
+
+    // We need to modify the values inside this config. Please use this method with ultra caution,
+    // that this could be non consistent with other codebase
+    pub fn get_eth_sender_config_for_sender_layer_data_layer(&self) -> Option<&SenderConfig> {
+        self.sender.as_ref()
     }
 }
 
@@ -81,6 +99,13 @@ pub enum ProofLoadingMode {
     FriProofFromGcs,
 }
 
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq)]
+pub enum GasLimitMode {
+    #[default]
+    Maximum,
+    Calculated,
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct SenderConfig {
     /// Amount of confirmations required to consider L1 transaction committed.
@@ -95,7 +120,7 @@ pub struct SenderConfig {
     /// The mode in which proofs are sent.
     pub proof_sending_mode: ProofSendingMode,
     /// Note, that it is used only for L1 transactions
-    pub max_aggregated_tx_gas: u32,
+    pub max_aggregated_tx_gas: u64,
     pub max_eth_tx_data_size: usize,
     pub max_aggregated_blocks_to_commit: u32,
     pub max_aggregated_blocks_to_execute: u32,
@@ -123,6 +148,11 @@ pub struct SenderConfig {
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
     pub is_verifier_pre_fflonk: bool,
+    #[serde(default = "SenderConfig::default_gas_limit_mode")]
+    pub gas_limit_mode: GasLimitMode,
+    /// Max acceptable base fee the sender is allowed to use to send L1 txs.
+    #[serde(default = "SenderConfig::default_max_acceptable_base_fee_in_wei")]
+    pub max_acceptable_base_fee_in_wei: u64,
 }
 
 impl SenderConfig {
@@ -158,6 +188,10 @@ impl SenderConfig {
             .map(|pk| pk.parse().unwrap())
     }
 
+    pub const fn default_gas_limit_mode() -> GasLimitMode {
+        GasLimitMode::Maximum
+    }
+
     const fn default_tx_aggregation_paused() -> bool {
         false
     }
@@ -170,6 +204,10 @@ impl SenderConfig {
         // we cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
         blocks_per_hour * 6
+    }
+
+    pub const fn default_max_acceptable_base_fee_in_wei() -> u64 {
+        u64::MAX
     }
 }
 
@@ -207,10 +245,6 @@ pub struct GasAdjusterConfig {
     pub internal_pubdata_pricing_multiplier: f64,
     /// Max blob base fee that is allowed to be used.
     pub max_blob_base_fee: Option<u64>,
-    /// Whether the gas adjuster should require that the L2 node is used as a settlement layer.
-    /// It offers a runtime check for correctly provided values.
-    #[serde(default)]
-    pub settlement_mode: SettlementMode,
 }
 
 impl GasAdjusterConfig {

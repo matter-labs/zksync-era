@@ -16,7 +16,7 @@ use zksync_storage::RocksDB;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     ethabi::Token,
-    settlement::SettlementMode,
+    settlement::SettlementLayer,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
         SnapshotStorageLogsStorageKey,
@@ -41,7 +41,7 @@ pub struct BlockReverterEthConfig {
     sl_validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
     hyperchain_id: L2ChainId,
-    settlement_mode: SettlementMode,
+    settlement_layer: SettlementLayer,
 }
 
 impl BlockReverterEthConfig {
@@ -50,7 +50,7 @@ impl BlockReverterEthConfig {
         sl_diamond_proxy_addr: Address,
         sl_validator_timelock_addr: Address,
         hyperchain_id: L2ChainId,
-        settlement_mode: SettlementMode,
+        settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             sl_diamond_proxy_addr,
@@ -61,7 +61,7 @@ impl BlockReverterEthConfig {
                 .context("gas adjuster")?
                 .default_priority_fee_per_gas,
             hyperchain_id,
-            settlement_mode,
+            settlement_layer,
         })
     }
 }
@@ -281,8 +281,14 @@ impl BlockReverter {
         let sk_cache = RocksdbStorage::builder(storage_cache_path.as_ref())
             .await
             .context("failed initializing storage cache")?;
+        let Some(mut sk_cache) = sk_cache.get().await else {
+            tracing::info!(
+                "Storage cache at `{storage_cache_path}` is not initialized; nothing to do"
+            );
+            return Ok(());
+        };
 
-        if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
+        if sk_cache.next_l1_batch_number().await > last_l1_batch_to_keep + 1 {
             let mut storage = self.connection_pool.connection().await?;
             tracing::info!("Rolling back storage cache");
             sk_cache
@@ -507,7 +513,7 @@ impl BlockReverter {
             ])
             .context("failed encoding `revertBatchesSharedBridge` input")?;
 
-        let gas = if eth_config.settlement_mode.is_gateway() {
+        let gas = if eth_config.settlement_layer.is_gateway() {
             GATEWAY_DEFAULT_GAS
         } else {
             L1_DEFAULT_GAS

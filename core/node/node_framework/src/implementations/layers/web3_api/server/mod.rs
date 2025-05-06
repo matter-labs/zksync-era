@@ -7,7 +7,7 @@ use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_node_api_server::web3::{
-    state::{BridgeAddressesHandle, InternalApiConfig, SealedL2BlockNumber},
+    state::{BridgeAddressesHandle, InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
 };
 
@@ -18,10 +18,15 @@ use crate::{
         },
         resources::{
             circuit_breakers::CircuitBreakersResource,
+            contracts::{
+                L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+                SettlementLayerContractsResource,
+            },
             eth_interface::EthInterfaceResource,
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
             pools::{PoolResource, ReplicaPool},
+            settlement_layer::SettlementModeResource,
             sync_state::SyncStateResource,
             web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
         },
@@ -115,8 +120,8 @@ enum Transport {
 pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
-    internal_api_config: InternalApiConfig,
     optional_config: Web3ServerOptionalConfig,
+    internal_api_config_base: InternalApiConfigBase,
 }
 
 #[derive(Debug, FromContext)]
@@ -132,7 +137,12 @@ pub struct Input {
     #[context(default)]
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
-    pub l1_eth_client: EthInterfaceResource,
+    pub l1_client: EthInterfaceResource,
+    pub sl_contracts_resource: SettlementLayerContractsResource,
+    pub l1_contracts_resource: L1ChainContractsResource,
+    pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
+    pub l2_contracts_resource: L2ContractsResource,
+    pub initial_settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -151,27 +161,27 @@ pub struct Output {
 impl Web3ServerLayer {
     pub fn http(
         port: u16,
-        internal_api_config: InternalApiConfig,
+        internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
     ) -> Self {
         Self {
             transport: Transport::Http,
             port,
-            internal_api_config,
             optional_config,
+            internal_api_config_base,
         }
     }
 
     pub fn ws(
         port: u16,
-        internal_api_config: InternalApiConfig,
+        internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
     ) -> Self {
         Self {
             transport: Transport::Ws,
             port,
-            internal_api_config,
             optional_config,
+            internal_api_config_base,
         }
     }
 }
@@ -198,9 +208,17 @@ impl WiringLayer for Web3ServerLayer {
         let sync_state = input.sync_state.map(|state| state.0);
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
+        let l1_contracts = input.l1_contracts_resource.0;
+        let internal_api_config = InternalApiConfig::from_base_and_contracts(
+            self.internal_api_config_base,
+            &l1_contracts,
+            &input.l1_ecosystem_contracts_resource.0,
+            &input.l2_contracts_resource.0,
+            input.initial_settlement_mode.0,
+        );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
-            BridgeAddressesHandle::new(self.internal_api_config.bridge_addresses.clone());
+            BridgeAddressesHandle::new(internal_api_config.bridge_addresses.clone());
 
         let sealed_l2_block_updater_task = SealedL2BlockUpdaterTask {
             number_updater: sealed_l2_block_handle.clone(),
@@ -219,10 +237,10 @@ impl WiringLayer for Web3ServerLayer {
             } else {
                 BridgeAddressesUpdaterTask::L1Updater(L1UpdaterInner {
                     bridge_address_updater: bridge_addresses_handle.clone(),
-                    l1_eth_client: input.l1_eth_client.0,
-                    bridgehub_addr: self
-                        .internal_api_config
-                        .l1_bridgehub_proxy_addr
+                    l1_eth_client: Box::new(input.l1_client.0),
+                    bridgehub_addr: internal_api_config
+                        .l1_ecosystem_contracts
+                        .bridgehub_proxy_addr
                         .context("Lacking l1 bridgehub proxy address")?,
                     update_interval: self.optional_config.bridge_addresses_refresh_interval,
                     bridgehub_abi: bridgehub_contract(),
@@ -232,7 +250,7 @@ impl WiringLayer for Web3ServerLayer {
 
         // Build server.
         let mut api_builder =
-            ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
+            ApiBuilder::jsonrpsee_backend(internal_api_config, replica_pool.clone())
                 .with_tx_sender(tx_sender)
                 .with_mempool_cache(mempool_cache)
                 .with_extended_tracing(self.optional_config.with_extended_tracing)
@@ -296,6 +314,7 @@ impl WiringLayer for Web3ServerLayer {
 }
 
 /// Wrapper for the Web3 API.
+///
 /// Internal design note: API infrastructure was already established and consists of a dynamic set of tasks,
 /// and it proven to work well enough. It doesn't seem to be reasonable to refactor it to expose raw futures instead
 /// of tokio tasks, since it'll require a lot of effort. So instead, we spawn all the tasks in this wrapper,

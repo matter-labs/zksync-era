@@ -1,27 +1,39 @@
 use std::time::Duration;
 
-use zksync_prover_dal::{Connection, Prover, ProverDal};
+use anyhow::Context;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_task::Task;
 
-use crate::{metrics::PROVER_JOB_MONITOR_METRICS, task_wiring::Task};
+use crate::metrics::PROVER_JOB_MONITOR_METRICS;
 
 /// `ProverJobsArchiver` is a task that archives old finalized prover job.
+///
 /// The task will archive the `successful` prover jobs that have been done for a certain amount of time.
 /// Note: This component speeds up provers, in their absence, queries would slow down due to state growth.
 #[derive(Debug)]
 pub struct ProverJobsArchiver {
+    pool: ConnectionPool<Prover>,
     /// duration after which a prover job can be archived
     archive_jobs_after: Duration,
 }
 
 impl ProverJobsArchiver {
-    pub fn new(archive_jobs_after: Duration) -> Self {
-        Self { archive_jobs_after }
+    pub fn new(pool: ConnectionPool<Prover>, archive_jobs_after: Duration) -> Self {
+        Self {
+            pool,
+            archive_jobs_after,
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl Task for ProverJobsArchiver {
-    async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()> {
+    async fn invoke(&self) -> anyhow::Result<()> {
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .context("failed to get database connection")?;
         let archived_jobs = connection
             .fri_prover_jobs_dal()
             .archive_old_jobs(self.archive_jobs_after)

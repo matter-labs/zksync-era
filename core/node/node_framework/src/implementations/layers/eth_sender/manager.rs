@@ -1,6 +1,5 @@
-use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::eth_sender::EthConfig;
+use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_eth_sender::EthTxManager;
 
 use crate::{
@@ -38,9 +37,7 @@ use crate::{
 ///
 /// - `EthTxManager`
 #[derive(Debug)]
-pub struct EthTxManagerLayer {
-    eth_sender_config: EthConfig,
-}
+pub struct EthTxManagerLayer;
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -51,6 +48,7 @@ pub struct Input {
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub gas_adjuster: GasAdjusterResource,
+    pub sender_config: SenderConfig,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
@@ -62,12 +60,6 @@ pub struct Input {
 pub struct Output {
     #[context(task)]
     pub eth_tx_manager: EthTxManager,
-}
-
-impl EthTxManagerLayer {
-    pub fn new(eth_sender_config: EthConfig) -> Self {
-        Self { eth_sender_config }
-    }
 }
 
 #[async_trait::async_trait]
@@ -88,13 +80,11 @@ impl WiringLayer for EthTxManagerLayer {
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let l2_client = input.eth_client_gateway.map(|c| c.0);
 
-        let config = self.eth_sender_config.sender.context("sender")?;
-
         let gas_adjuster = input.gas_adjuster.0;
 
         let eth_tx_manager = EthTxManager::new(
             master_pool,
-            config,
+            input.sender_config,
             gas_adjuster,
             Some(eth_client),
             eth_client_blobs,

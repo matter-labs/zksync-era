@@ -9,18 +9,19 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
-pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
+pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient};
 use self::{
-    client::{L2EthClientW, RETRY_LIMIT},
+    client::RETRY_LIMIT,
     event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
     metrics::METRICS,
 };
 use crate::event_processors::{
     BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
+    GatewayMigrationProcessor,
 };
 
 mod client;
@@ -51,9 +52,9 @@ pub struct EthWatch {
 impl EthWatch {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
-        sl_l2_client: Option<Box<dyn L2EthClient>>,
+        sl_client: Box<dyn ZkSyncExtentionEthClient>,
+        sl_layer: SettlementLayer,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
@@ -61,41 +62,42 @@ impl EthWatch {
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
-        let sl_l2_client: Option<Arc<dyn L2EthClient>> = sl_l2_client.map(Into::into);
-        let sl_client: Arc<dyn EthClient> = if let Some(sl_l2_client) = sl_l2_client.clone() {
-            Arc::new(L2EthClientW(sl_l2_client))
-        } else {
-            l1_client.clone()
-        };
+        let sl_client: Arc<dyn ZkSyncExtentionEthClient> = sl_client.into();
+        let sl_eth_client = sl_client.clone().into_base();
 
-        let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
+        let state = Self::initialize_state(&mut storage, sl_eth_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
+
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_client.clone())?;
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_eth_client.clone())?;
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
-            chain_admin_contract,
-            sl_client.clone(),
+            sl_eth_client.clone(),
             l1_client.clone(),
         );
+
+        let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
+
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
+            Box::new(gateway_migration_processor),
         ];
-        if let Some(sl_l2_client) = sl_l2_client {
+
+        if sl_layer.is_gateway() {
             let batch_root_processor = BatchRootProcessor::new(
                 state.chain_batch_root_number_lower_bound,
                 state.batch_merkle_tree,
                 chain_id,
-                sl_l2_client,
+                sl_client.clone(),
             );
             event_processors.push(Box::new(batch_root_processor));
         }
         Ok(Self {
             l1_client,
-            sl_client,
+            sl_client: sl_eth_client,
             poll_interval,
             priority_tx_expiration_blocks,
             event_processors,
@@ -186,6 +188,7 @@ impl EthWatch {
                 EventsSource::SL => self.sl_client.as_ref(),
             };
             let chain_id = client.chain_id().await?;
+
             let to_block = if processor.only_finalized_block() {
                 client.finalized_block_number().await?
             } else {
@@ -243,6 +246,7 @@ impl EthWatch {
                 .await
                 .map_err(DalError::generalize)?;
         }
+
         Ok(())
     }
 }

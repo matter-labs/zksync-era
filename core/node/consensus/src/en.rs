@@ -10,7 +10,7 @@ use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, Sy
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
-    error::is_retriable,
+    error::is_retryable,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
@@ -82,7 +82,7 @@ impl EN {
                     loop {
                         if let Ok(new) = self.fetch_global_config(ctx).await {
                             // We verify the transition here to work around the situation
-                            // where `consenus_global_config()` RPC fails randomly and fallback
+                            // where `consensus_global_config()` RPC fails randomly and fallback
                             // to `consensus_genesis()` RPC activates.
                             if new != old
                                 && consensus_dal::verify_config_transition(&old, &new).is_ok()
@@ -373,7 +373,7 @@ impl EN {
             match ctx.wait(self.client.sync_l2_block(n, true)).await? {
                 Ok(Some(block)) => return Ok(block.try_into()?),
                 Ok(None) => {}
-                Err(err) if is_retriable(&err) => {}
+                Err(err) if is_retryable(&err) => {}
                 Err(err) => Err(err).with_context(|| format!("client.sync_l2_block({n})"))?,
             }
             ctx.sleep(RETRY_INTERVAL).await?;

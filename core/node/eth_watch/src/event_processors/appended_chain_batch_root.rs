@@ -14,7 +14,7 @@ use zksync_types::{
 };
 
 use crate::{
-    client::L2EthClient,
+    client::ZkSyncExtentionEthClient,
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
 };
 
@@ -27,7 +27,7 @@ pub struct BatchRootProcessor {
     appended_chain_batch_root_signature: H256,
     merkle_tree: MiniMerkleTree<[u8; 96]>,
     l2_chain_id: L2ChainId,
-    sl_l2_client: Arc<dyn L2EthClient>,
+    sl_l2_client: Arc<dyn ZkSyncExtentionEthClient>,
 }
 
 impl BatchRootProcessor {
@@ -35,7 +35,7 @@ impl BatchRootProcessor {
         next_batch_number_lower_bound: L1BatchNumber,
         merkle_tree: MiniMerkleTree<[u8; 96]>,
         l2_chain_id: L2ChainId,
-        sl_l2_client: Arc<dyn L2EthClient>,
+        sl_l2_client: Arc<dyn ZkSyncExtentionEthClient>,
     ) -> Self {
         Self {
             next_batch_number_lower_bound,
@@ -80,7 +80,7 @@ impl EventProcessor for BatchRootProcessor {
 
                 (sl_l1_batch_number, chain_l1_batch_number, logs_root_hash)
             })
-            .group_by(|(sl_l1_batch_number, _, _)| *sl_l1_batch_number)
+            .chunk_by(|(sl_l1_batch_number, _, _)| *sl_l1_batch_number)
             .into_iter()
             .map(|(sl_l1_batch_number, group)| {
                 let group: Vec<_> = group
@@ -181,8 +181,8 @@ impl EventProcessor for BatchRootProcessor {
         Ok(events_count)
     }
 
-    fn topic1(&self) -> H256 {
-        self.appended_chain_batch_root_signature
+    fn topic1(&self) -> Option<H256> {
+        Some(self.appended_chain_batch_root_signature)
     }
 
     fn topic2(&self) -> Option<H256> {

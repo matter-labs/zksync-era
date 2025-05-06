@@ -1,13 +1,22 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
+use serde::Serialize;
 use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_multivm::{
     interface::{
         tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
@@ -18,6 +27,7 @@ use zksync_multivm::{
     },
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
+use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
 use zksync_state_keeper::{
     seal_criteria::{ConditionalSealer, NoopSealer, SealData},
@@ -51,6 +61,7 @@ mod result;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod tx_sink;
+pub mod whitelist;
 
 pub async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
@@ -94,6 +105,7 @@ pub async fn build_tx_sender(
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
+    pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -120,6 +132,7 @@ impl SandboxExecutorOptions {
 
         Ok(Self {
             fast_vm_mode: FastVmMode::Old,
+            vm_dump_store: None,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -138,6 +151,10 @@ impl SandboxExecutorOptions {
     /// Sets the fast VM mode used by this executor.
     pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
         self.fast_vm_mode = fast_vm_mode;
+    }
+
+    pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
+        self.vm_dump_store = Some(store);
     }
 
     pub(crate) async fn mock() -> Self {
@@ -230,6 +247,7 @@ impl TxSenderBuilder {
 }
 
 /// Internal static `TxSender` configuration.
+///
 /// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc)
 /// may require different configuration layouts.
 /// The intention is to only keep the actually used information here.
@@ -258,7 +276,6 @@ impl TxSenderConfig {
         web3_json_config: &Web3JsonRpcConfig,
         fee_account_addr: Address,
         chain_id: L2ChainId,
-        timestamp_asserter_params: Option<TimestampAsserterParams>,
     ) -> Self {
         Self {
             fee_account_addr,
@@ -270,8 +287,16 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
-            timestamp_asserter_params,
+            timestamp_asserter_params: None,
         }
+    }
+
+    pub fn with_timestamp_asserter_params(
+        mut self,
+        timestamp_asserter_params: TimestampAsserterParams,
+    ) -> Self {
+        self.timestamp_asserter_params = Some(timestamp_asserter_params);
+        self
     }
 }
 
@@ -291,6 +316,53 @@ pub struct TxSenderInner {
     pub(super) executor: SandboxExecutor,
 }
 
+/// Health check details for [`TxSender`].
+#[derive(Debug, Serialize)]
+struct TxSenderHealthDetails {
+    vm_mode: FastVmMode,
+    #[serde(skip_serializing_if = "TxSenderHealthDetails::is_zero")]
+    vm_divergences: usize,
+}
+
+impl TxSenderHealthDetails {
+    fn is_zero(value: &usize) -> bool {
+        *value == 0
+    }
+}
+
+impl From<TxSenderHealthDetails> for Health {
+    fn from(details: TxSenderHealthDetails) -> Self {
+        let status = if details.vm_divergences > 0 {
+            HealthStatus::Affected
+        } else {
+            HealthStatus::Ready
+        };
+        Health::from(status).with_details(details)
+    }
+}
+
+/// Health check for [`TxSender`].
+#[derive(Debug)]
+struct TxSenderHealthCheck {
+    vm_mode: FastVmMode,
+    vm_divergence_counter: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl CheckHealth for TxSenderHealthCheck {
+    fn name(&self) -> &'static str {
+        "tx_sender"
+    }
+
+    async fn check_health(&self) -> Health {
+        let details = TxSenderHealthDetails {
+            vm_mode: self.vm_mode,
+            vm_divergences: self.vm_divergence_counter.load(Ordering::Relaxed),
+        };
+        details.into()
+    }
+}
+
 #[derive(Clone)]
 pub struct TxSender(pub(super) Arc<TxSenderInner>);
 
@@ -301,6 +373,13 @@ impl std::fmt::Debug for TxSender {
 }
 
 impl TxSender {
+    pub fn health_check(&self) -> impl CheckHealth {
+        TxSenderHealthCheck {
+            vm_mode: self.0.executor.vm_mode(),
+            vm_divergence_counter: self.0.executor.vm_divergence_counter(),
+        }
+    }
+
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
@@ -387,7 +466,7 @@ impl TxSender {
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics, validation_traces)
+            .submit_tx(&tx, &execution_output, validation_traces)
             .await?;
 
         match submission_res_handle {

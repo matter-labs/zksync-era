@@ -6,6 +6,7 @@ use zksync_block_reverter::NodeRole;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
+        chain::TimestampAsserterConfig,
         database::MerkleTreeMode,
         DataAvailabilitySecrets, DatabaseSecrets,
     },
@@ -14,7 +15,7 @@ use zksync_config::{
 use zksync_metadata_calculator::{
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
-use zksync_node_api_server::web3::Namespace;
+use zksync_node_api_server::web3::{state::InternalApiConfigBase, Namespace};
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -28,7 +29,6 @@ use zksync_node_framework::{
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
-        l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
@@ -43,6 +43,9 @@ use zksync_node_framework::{
         pruning::PruningLayer,
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
+        settlement_layer_client::SettlementLayerClientLayer,
+        settlement_layer_data,
+        settlement_layer_data::SettlementLayerData,
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -62,7 +65,6 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
-use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -114,8 +116,6 @@ impl ExternalNodeBuilder {
                 .optional
                 .slow_query_threshold()
                 .map(|d| d.as_millis() as u64),
-            test_server_url: None,
-            test_prover_url: None,
         };
         let secrets = DatabaseSecrets {
             server_url: Some(self.config.postgres.database_url()),
@@ -146,6 +146,27 @@ impl ExternalNodeBuilder {
             l2_chain_id: self.config.required.l2_chain_id,
             postgres_pool_size: self.config.postgres.max_connections,
         });
+        Ok(self)
+    }
+
+    fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(SettlementLayerData::new(settlement_layer_data::ENConfig {
+                l1_specific_contracts: self.config.l1_specific_contracts(),
+                l1_chain_contracts: self.config.l1_settelment_contracts(),
+                l2_contracts: self.config.l2_contracts(),
+                chain_id: self.config.required.l2_chain_id,
+                gateway_rpc_url: self.config.optional.gateway_url.clone(),
+            }));
+        Ok(self)
+    }
+
+    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
+        let query_eth_client_layer = SettlementLayerClientLayer::new(
+            self.config.required.eth_client_url.clone(),
+            self.config.optional.gateway_url.clone(),
+        );
+        self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
 
@@ -190,8 +211,6 @@ impl ExternalNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             self.config.required.l1_chain_id,
             self.config.required.eth_client_url.clone(),
-            self.config.required.gateway_chain_id,
-            self.config.optional.gateway_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -204,27 +223,12 @@ impl ExternalNodeBuilder {
         // compression.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
 
-        let l2_shared_bridge_addr = self
-            .config
-            .remote
-            .l2_shared_bridge_addr
-            .context("Missing `l2_shared_bridge_addr`")?;
-        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
-            // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
-            self.config.remote.l2_legacy_shared_bridge_addr
-        } else {
-            // System hasn't migrated on `L2_ASSET_ROUTER_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
-            Some(l2_shared_bridge_addr)
-        };
-
-        let persistence_layer = OutputHandlerLayer::new(
-            l2_legacy_shared_bridge_addr,
-            self.config.optional.l2_block_seal_queue_capacity,
-        )
-        .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
-        .with_protective_reads_persistence_enabled(
-            self.config.optional.protective_reads_persistence_enabled,
-        );
+        let persistence_layer =
+            OutputHandlerLayer::new(self.config.optional.l2_block_seal_queue_capacity)
+                .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
+                .with_protective_reads_persistence_enabled(
+                    self.config.optional.protective_reads_persistence_enabled,
+                );
 
         let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
 
@@ -284,20 +288,10 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
-        let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.l1_diamond_proxy_address(),
-            self.config.optional.l1_batch_commit_data_generator_mode,
-        );
-        self.node.add_layer(layer);
-        Ok(self)
-    }
-
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.l1_chain_id,
             self.config.required.l2_chain_id,
-            self.config.required.gateway_chain_id,
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -305,24 +299,17 @@ impl ExternalNodeBuilder {
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
-        let layer = ConsistencyCheckerLayer::new(
-            self.config.l1_diamond_proxy_address(),
-            max_batches_to_recheck,
-            self.config.optional.l1_batch_commit_data_generator_mode,
-            self.config.required.l2_chain_id,
-        );
+        let layer = ConsistencyCheckerLayer::new(max_batches_to_recheck);
         self.node.add_layer(layer);
         Ok(self)
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        let layer =
-            CommitmentGeneratorLayer::new(self.config.optional.l1_batch_commit_data_generator_mode)
-                .with_max_parallelism(
-                    self.config
-                        .experimental
-                        .commitment_generator_max_parallelism,
-                );
+        let layer = CommitmentGeneratorLayer::default().with_max_parallelism(
+            self.config
+                .experimental
+                .commitment_generator_max_parallelism,
+        );
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -334,11 +321,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(
-            self.config.l1_diamond_proxy_address(),
-            self.config.required.l2_chain_id,
-        );
-        self.node.add_layer(layer);
+        self.node.add_layer(TreeDataFetcherLayer);
         Ok(self)
     }
 
@@ -481,9 +464,15 @@ impl ExternalNodeBuilder {
         };
         let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
         let tx_sender_layer = TxSenderLayer::new(
-            (&self.config).into(),
             postgres_storage_config,
             max_vm_concurrency,
+            (&self.config).into(),
+            Some(TimestampAsserterConfig {
+                min_time_till_end_sec: self
+                    .config
+                    .optional
+                    .timestamp_asserter_min_time_till_end_sec,
+            }),
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
@@ -542,9 +531,11 @@ impl ExternalNodeBuilder {
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let optional_config = self.web3_api_optional_config();
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+
         self.node.add_layer(Web3ServerLayer::http(
             self.config.required.http_port,
-            (&self.config).into(),
+            internal_api_config_base,
             optional_config,
         ));
 
@@ -554,9 +545,11 @@ impl ExternalNodeBuilder {
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
         // TODO: Support websocket requests per minute limit
         let optional_config = self.web3_api_optional_config();
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+
         self.node.add_layer(Web3ServerLayer::ws(
             self.config.required.ws_port,
-            (&self.config).into(),
+            internal_api_config_base,
             optional_config,
         ));
 
@@ -631,6 +624,8 @@ impl ExternalNodeBuilder {
             .add_pools_layer()?
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
+            .add_settlement_layer_data()?
+            .add_settlement_layer_client_layer()?
             .add_reorg_detector_layer()?;
 
         // Add layers that must run only on a single component.
@@ -650,7 +645,6 @@ impl ExternalNodeBuilder {
 
         // Add preconditions for all the components.
         self = self
-            .add_l1_batch_commitment_mode_validation_layer()?
             .add_validate_chain_ids_layer()?
             .add_storage_initialization_layer(LayerKind::Precondition)?;
 

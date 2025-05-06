@@ -5,6 +5,7 @@ use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
 use zksync_basic_types::{
     commitment::PubdataType,
+    settlement::SettlementLayer,
     web3::{AccessList, Bytes, Index},
     Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
@@ -16,6 +17,7 @@ pub use crate::transaction_request::{
 use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
     protocol_version::L1VerifierConfig,
+    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
     tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
@@ -833,6 +835,7 @@ impl CallTracerBlockResult {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum CallTracerResult {
@@ -985,6 +988,27 @@ pub struct DataAvailabilityDetails {
 pub struct L1ToL2TxsStatus {
     pub l1_to_l2_txs_in_mempool: usize,
     pub l1_to_l2_txs_paused: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayMigrationStatus {
+    pub latest_notification: Option<GatewayMigrationNotification>,
+    pub state: GatewayMigrationState,
+    pub settlement_layer: SettlementLayer,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct EcosystemContracts {
+    pub bridgehub_proxy_addr: Address,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    // Note that on the contract side of things this contract is called `L2WrappedBaseTokenStore`,
+    // while on the server side for consistency with the conventions, where the prefix denotes
+    // the location of the contracts we call it `l1_wrapped_base_token_store`
+    pub l1_wrapped_base_token_store: Option<Address>,
+    pub server_notifier_addr: Option<Address>,
 }
 
 #[cfg(test)]

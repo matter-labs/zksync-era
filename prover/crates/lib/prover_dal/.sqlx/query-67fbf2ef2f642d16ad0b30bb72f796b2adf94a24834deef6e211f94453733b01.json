@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE proof_compression_jobs_fri\n            SET\n                status = $1,\n                updated_at = NOW(),\n                time_taken = $2,\n                l1_proof_blob_url = $3\n            WHERE\n                l1_batch_number = $4\n                AND chain_id = $5\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Time",
+        "Text",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "67fbf2ef2f642d16ad0b30bb72f796b2adf94a24834deef6e211f94453733b01"
+}

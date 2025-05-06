@@ -2,9 +2,7 @@ use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
-    network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     pubdata_da::PubdataSendingMode,
     secrets::{APIKey, SeedPhrase},
@@ -26,26 +24,6 @@ use crate::{
     },
     AvailConfig,
 };
-
-trait Sample {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> Self;
-}
-
-impl Sample for Network {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> Network {
-        type T = Network;
-        match rng.gen_range(0..8) {
-            0 => T::Mainnet,
-            1 => T::Rinkeby,
-            2 => T::Ropsten,
-            3 => T::Goerli,
-            4 => T::Sepolia,
-            5 => T::Localhost,
-            6 => T::Unknown,
-            _ => T::Test,
-        }
-    }
-}
 
 impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::FeeModelVersion {
@@ -72,9 +50,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::api::Web3JsonRpcConfig {
         configs::api::Web3JsonRpcConfig {
             http_port: self.sample(rng),
-            http_url: self.sample(rng),
             ws_port: self.sample(rng),
-            ws_url: self.sample(rng),
             req_entities_limit: self.sample(rng),
             filters_disabled: self.sample(rng),
             filters_limit: self.sample(rng),
@@ -156,16 +132,6 @@ impl Distribution<configs::PrometheusConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::chain::NetworkConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::NetworkConfig {
-        configs::chain::NetworkConfig {
-            network: Sample::sample(rng),
-            zksync_network: self.sample(rng),
-            zksync_network_id: L2ChainId::max(),
-        }
-    }
-}
-
 impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
     #[allow(deprecated)]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::StateKeeperConfig {
@@ -200,6 +166,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             default_aa_hash: None,
             evm_emulator_hash: None,
             l1_batch_commit_data_generator_mode: Default::default(),
+            deployment_allowlist: None,
         }
     }
 }
@@ -249,30 +216,36 @@ impl Distribution<configs::ContractVerifierConfig> for EncodeDist {
     }
 }
 
-impl Distribution<configs::ContractsConfig> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ContractsConfig {
-        configs::ContractsConfig {
+impl Distribution<configs::AllContractsConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::AllContractsConfig {
+        configs::AllContractsConfig {
             governance_addr: rng.gen(),
             verifier_addr: rng.gen(),
             default_upgrade_addr: rng.gen(),
             diamond_proxy_addr: rng.gen(),
             validator_timelock_addr: rng.gen(),
             l1_erc20_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
-            l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_erc20_bridge_addr: rng.gen(),
             l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
-            l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_shared_bridge_addr: rng.gen(),
             l2_legacy_shared_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
             l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
-            ecosystem_contracts: self.sample(rng),
-            base_token_addr: self.sample_opt(|| rng.gen()),
+            bridgehub_proxy_addr: rng.gen(),
+            state_transition_proxy_addr: self.sample_opt(|| rng.gen()),
+            transparent_proxy_admin_addr: self.sample_opt(|| rng.gen()),
+            l1_bytecode_supplier_addr: self.sample_opt(|| rng.gen()),
+            l1_wrapped_base_token_store_addr: self.sample_opt(|| rng.gen()),
+            base_token_addr: rng.gen(),
             l1_base_token_asset_id: self.sample_opt(|| rng.gen()),
-            chain_admin_addr: self.sample_opt(|| rng.gen()),
+            chain_admin_addr: rng.gen(),
             l2_da_validator_addr: self.sample_opt(|| rng.gen()),
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
+            l2_multicall3_addr: self.sample_opt(|| rng.gen()),
+            server_notifier_addr: None,
         }
     }
 }
@@ -363,19 +336,13 @@ impl Distribution<configs::database::PostgresConfig> for EncodeDist {
             statement_timeout_sec: self.sample(rng),
             long_connection_threshold_ms: self.sample(rng),
             slow_query_threshold_ms: self.sample(rng),
-            test_server_url: self.sample(rng),
-            test_prover_url: self.sample(rng),
         }
     }
 }
 
 impl Distribution<configs::EthConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EthConfig {
-        configs::EthConfig {
-            sender: self.sample(rng),
-            gas_adjuster: self.sample(rng),
-            watcher: self.sample(rng),
-        }
+        configs::EthConfig::new(self.sample(rng), self.sample(rng), self.sample(rng))
     }
 }
 
@@ -396,6 +363,16 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
         match rng.gen_range(0..2) {
             0 => T::OldProofFromDb,
             _ => T::FriProofFromGcs,
+        }
+    }
+}
+
+impl Distribution<configs::eth_sender::GasLimitMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::GasLimitMode {
+        type T = configs::eth_sender::GasLimitMode;
+        match rng.gen_range(0..2) {
+            0 => T::Maximum,
+            _ => T::Calculated,
         }
     }
 }
@@ -423,6 +400,8 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             tx_aggregation_only_prove_and_execute: false,
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
             is_verifier_pre_fflonk: self.sample(rng),
+            gas_limit_mode: self.sample(rng),
+            max_acceptable_base_fee_in_wei: self.sample(rng),
         }
     }
 }
@@ -442,8 +421,6 @@ impl Distribution<configs::eth_sender::GasAdjusterConfig> for EncodeDist {
             num_samples_for_blob_base_fee_estimate: self.sample(rng),
             internal_pubdata_pricing_multiplier: self.sample(rng),
             max_blob_base_fee: self.sample(rng),
-            // TODO(EVM-676): generate it randomly once this value is used
-            settlement_mode: Default::default(),
         }
     }
 }
@@ -491,19 +468,22 @@ impl Distribution<configs::FriProverGatewayConfig> for EncodeDist {
         configs::FriProverGatewayConfig {
             api_url: self.sample(rng),
             api_poll_duration_secs: self.sample(rng),
-            ws_port: self.sample(rng),
             prometheus_listener_port: self.sample(rng),
             prometheus_pushgateway_url: self.sample(rng),
             prometheus_push_interval_ms: self.sample(rng),
+            api_mode: self.sample(rng),
+            port: self.sample(rng),
         }
     }
 }
 
-impl Sample for CircuitIdRoundTuple {
-    fn sample(rng: &mut (impl Rng + ?Sized)) -> CircuitIdRoundTuple {
-        CircuitIdRoundTuple {
-            circuit_id: rng.gen(),
-            aggregation_round: rng.gen(),
+impl Distribution<configs::fri_prover_gateway::ApiMode> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::fri_prover_gateway::ApiMode {
+        type T = configs::fri_prover_gateway::ApiMode;
+
+        match rng.gen_range(0..2) {
+            0 => T::Legacy,
+            _ => T::ProverCluster,
         }
     }
 }
@@ -568,16 +548,22 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::ProofDataHandlerConfig {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
-            api_url: self.sample(rng),
-            batch_readiness_check_interval_in_secs: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
-            retry_connection_interval_in_secs: self.sample(rng),
-            tee_config: configs::TeeConfig {
-                tee_support: self.sample(rng),
-                first_tee_processed_batch: L1BatchNumber(rng.gen()),
-                tee_proof_generation_timeout_in_secs: self.sample(rng),
-                tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
-            },
+            gateway_api_url: self.sample(rng),
+            proof_fetch_interval_in_secs: self.sample(rng),
+            proof_gen_data_submit_interval_in_secs: self.sample(rng),
+            fetch_zero_chain_id_proofs: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::TeeProofDataHandlerConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TeeProofDataHandlerConfig {
+        configs::TeeProofDataHandlerConfig {
+            http_port: self.sample(rng),
+            first_processed_batch: L1BatchNumber(rng.gen()),
+            proof_generation_timeout_in_secs: self.sample(rng),
+            batch_permanently_ignored_timeout_in_hours: self.sample(rng),
         }
     }
 }
@@ -643,18 +629,6 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
                 _ => L1BatchCommitmentMode::Validium,
             },
             custom_genesis_state_path: None,
-        }
-    }
-}
-
-impl Distribution<configs::EcosystemContracts> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::EcosystemContracts {
-        configs::EcosystemContracts {
-            bridgehub_proxy_addr: rng.gen(),
-            state_transition_proxy_addr: rng.gen(),
-            transparent_proxy_admin_addr: rng.gen(),
-            l1_bytecodes_supplier_addr: rng.gen(),
-            l1_wrapped_base_token_store: rng.gen(),
         }
     }
 }
@@ -833,10 +807,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
-            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
-                0 => L1BatchCommitmentMode::Rollup,
-                _ => L1BatchCommitmentMode::Validium,
-            },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
             gateway_chain_id: self.sample_opt(|| SLChainId(rng.gen())),
@@ -853,6 +823,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
                 finality_state: None,
+                dispatch_timeout_ms: self.sample(rng),
             }),
         })
     }
@@ -1063,6 +1034,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             witness_generator_config: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),
+            tee_proof_data_handler_config: self.sample(rng),
             db_config: self.sample(rng),
             eth: self.sample(rng),
             snapshot_creator: self.sample(rng),

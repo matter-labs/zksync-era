@@ -295,8 +295,8 @@ pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
 pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
 pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
 
-pub(super) fn msg_waiting_for_server_success(health_check_port: u16) -> String {
-    format!("Server is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_server_success(health_check_url: &str) -> String {
+    format!("Server is alive with health check server on {health_check_url}")
 }
 
 /// Portal related messages
@@ -375,8 +375,8 @@ pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external no
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 pub(super) const MSG_WAITING_FOR_EN: &str = "Waiting for external node to start";
 
-pub(super) fn msg_waiting_for_en_success(health_check_port: u16) -> String {
-    format!("External node is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_en_success(health_check_url: &str) -> String {
+    format!("External node is alive with health check server on {health_check_url}")
 }
 
 /// Prover related messages
@@ -508,10 +508,6 @@ pub(super) fn msg_wait_starting_polling(
 
 pub(super) fn msg_wait_timeout(component: &impl fmt::Display) -> String {
     format!("timed out polling {component}")
-}
-
-pub(super) fn msg_wait_connect_err(component: &impl fmt::Display, url: &str) -> String {
-    format!("failed to connect to {component} at `{url}`")
 }
 
 pub(super) fn msg_wait_non_successful_response(component: &impl fmt::Display) -> String {

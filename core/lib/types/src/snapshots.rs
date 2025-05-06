@@ -114,6 +114,7 @@ pub struct SnapshotFactoryDependencies {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SnapshotFactoryDependency {
     pub bytecode: Bytes,
+    pub hash: Option<H256>,
 }
 
 #[cfg(feature = "protobuf")]
@@ -130,11 +131,19 @@ mod proto_impl {
         fn read(r: &Self::Proto) -> anyhow::Result<Self> {
             Ok(Self {
                 bytecode: Bytes(required(&r.bytecode).context("bytecode")?.clone()),
+                hash: if let Some(raw) = &r.hash {
+                    anyhow::ensure!(raw.len() == 32, "hash.len");
+                    Some(H256::from_slice(raw))
+                } else {
+                    None
+                },
             })
         }
+
         fn build(&self) -> Self::Proto {
             Self::Proto {
                 bytecode: Some(self.bytecode.0.as_slice().into()),
+                hash: self.hash.map(|hash| hash.0.to_vec()),
             }
         }
     }
@@ -301,9 +310,11 @@ impl SnapshotRecoveryStatus {
     }
 }
 
-/// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`. Chunks do not intersect and jointly cover
-/// the entire `hashed_key` space. If `hashed_key`s are uniformly distributed (which is the case), the returned ranges
-/// are expected to contain the same number of entries.
+/// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`.
+///
+/// Chunks do not intersect and jointly cover the entire `hashed_key` space. If `hashed_key`s
+/// are uniformly distributed (which is the case), the returned ranges are expected to contain
+/// the same number of entries.
 ///
 /// Used by multiple components during snapshot creation and recovery.
 ///

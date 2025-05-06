@@ -1,0 +1,107 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                *\n            FROM\n                recursion_tip_witness_jobs_fri\n            WHERE\n                l1_batch_number = $1\n                AND chain_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "attempts",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "processing_started_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 4,
+        "name": "time_taken",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 5,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 8,
+        "name": "number_of_final_node_jobs",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "picked_by",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "priority",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "batch_sealed_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 14,
+        "name": "chain_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3ee4f6b6fbf2d488298b065a92cc19f63c54585e7b753f9775ba3b3a11a02f4f"
+}

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
@@ -9,24 +9,24 @@ use tokio::{
 use zksync_block_reverter::{
     eth_client::{
         clients::{Client, PKSigningClient, L1},
-        EthInterface,
+        contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
 use zksync_config::{
     configs::{
-        chain::NetworkConfig, wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets,
-        GatewayChainConfig, GeneralConfig, L1Secrets, ObservabilityConfig,
-        ProtectiveReadsWriterConfig,
+        wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, GeneralConfig,
+        L1Secrets, ObservabilityConfig, ProtectiveReadsWriterConfig,
     },
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
+use zksync_contracts::getters_facet_contract;
 use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_protobuf_config::proto;
-use zksync_types::{Address, L1BatchNumber};
+use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -203,7 +203,6 @@ async fn main() -> anyhow::Result<()> {
 
     let gas_adjuster = eth_sender.gas_adjuster.context("gas_adjuster")?;
     let default_priority_fee_per_gas = gas_adjuster.default_priority_fee_per_gas;
-    let settlement_mode = gas_adjuster.settlement_mode;
 
     let database_secrets = match &secrets_config {
         Some(secrets_config) => secrets_config
@@ -229,38 +228,62 @@ async fn main() -> anyhow::Result<()> {
     let zksync_network_id = match &genesis_config {
         Some(genesis_config) => genesis_config.l2_chain_id,
         None => {
-            NetworkConfig::from_env()
-                .context("NetworkConfig::from_env()")?
-                .zksync_network_id
+            let raw_var = env::var("CHAIN_ETH_ZKSYNC_NETWORK_ID")
+                .context("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var is missing or is not UTF-8")?;
+            raw_var.parse().map_err(|err| {
+                anyhow::anyhow!("`CHAIN_ETH_ZKSYNC_NETWORK_ID` env var has incorrect value: {err}")
+            })?
         }
     };
 
-    let (sl_rpc_url, sl_diamond_proxy, sl_validator_timelock) = if settlement_mode.is_gateway() {
-        // Gateway config is required to be provided by file for now.
-        let gateway_chain_config: GatewayChainConfig =
-            read_yaml_repr::<proto::gateway::GatewayChainConfig>(
-                &opts
-                    .gateway_chain_path
-                    .context("Genesis config path not provided")?,
+    let l1_client: Client<L1> = Client::http(l1_secrets.l1_rpc_url)
+        .context("Ethereum client")?
+        .build();
+
+    let sl_l1_contracts = load_settlement_layer_contracts(
+        &l1_client,
+        contracts.bridgehub_proxy_addr,
+        zksync_network_id,
+        None,
+    )
+    .await?
+    // If None has been returned, in case of pre v27 upgrade, use the contracts from configs
+    .unwrap_or_else(|| contracts.settlement_layer_specific_contracts());
+    let settlement_mode = get_settlement_layer_from_l1(
+        &l1_client,
+        sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
+        &getters_facet_contract(),
+    )
+    .await?;
+
+    let (client, contracts, chain_id) = match settlement_mode {
+        SettlementLayer::L1(chain_id) => (l1_client, sl_l1_contracts, chain_id),
+        SettlementLayer::Gateway(chain_id) => {
+            let gateway_client: Client<L1> = Client::http(
+                l1_secrets
+                    .gateway_rpc_url
+                    .context("Gateway url is not presented in config")?,
             )
-            .context("failed decoding genesis YAML config")?;
+            .context("Gateway client")?
+            .build();
 
-        let gateway_url = l1_secrets
-            .gateway_rpc_url
-            .context("Gateway URL not found")?;
-
-        (
-            gateway_url,
-            gateway_chain_config.diamond_proxy_addr,
-            gateway_chain_config.validator_timelock_addr,
-        )
-    } else {
-        (
-            l1_secrets.l1_rpc_url,
-            contracts.diamond_proxy_addr,
-            contracts.validator_timelock_addr,
-        )
+            let sl_contracts = load_settlement_layer_contracts(
+                &gateway_client,
+                L2_BRIDGEHUB_ADDRESS,
+                zksync_network_id,
+                None,
+            )
+            .await?
+            .context("No chain has been deployed")?;
+            (gateway_client, sl_contracts, chain_id)
+        }
     };
+
+    let sl_diamond_proxy = contracts.chain_contracts_config.diamond_proxy_addr;
+    let sl_validator_timelock = contracts
+        .ecosystem_contracts
+        .validator_timelock_addr
+        .expect("Should be presented");
 
     let config = BlockReverterEthConfig::new(
         &eth_sender,
@@ -284,12 +307,8 @@ async fn main() -> anyhow::Result<()> {
             json,
             operator_address,
         } => {
-            let sl_client = Client::<L1>::http(sl_rpc_url)
-                .context("Ethereum client")?
-                .build();
-
             let suggested_values = block_reverter
-                .suggested_values(&sl_client, &config, operator_address)
+                .suggested_values(&client, &config, operator_address)
                 .await?;
             if json {
                 println!("{}", serde_json::to_string(&suggested_values)?);
@@ -302,7 +321,6 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let sl_client = Client::http(sl_rpc_url).context("Ethereum client")?.build();
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
                 wallets_config
                     .eth_sender
@@ -313,7 +331,7 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 #[allow(deprecated)]
                 eth_sender
-                    .sender
+                    .get_eth_sender_config_for_sender_layer_data_layer()
                     .context("eth_sender_config")?
                     .private_key()
                     .context("eth_sender_config.private_key")?
@@ -321,16 +339,12 @@ async fn main() -> anyhow::Result<()> {
             };
 
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
-            let l1_chain_id = sl_client
-                .fetch_chain_id()
-                .await
-                .context("cannot fetch Ethereum chain ID")?;
             let sl_client = PKSigningClient::new_raw(
                 reverter_private_key,
                 sl_diamond_proxy,
                 priority_fee_per_gas,
-                l1_chain_id,
-                Box::new(sl_client),
+                chain_id,
+                Box::new(client),
             );
 
             block_reverter

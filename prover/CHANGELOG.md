@@ -1,5 +1,84 @@
 # Changelog
 
+## [20.3.1](https://github.com/matter-labs/zksync-era/compare/prover-v20.3.0...prover-v20.3.1) (2025-05-02)
+
+
+### Bug Fixes
+
+* Fix issue with EVM bytecodes not being stored in DB ([#3928](https://github.com/matter-labs/zksync-era/issues/3928)) ([0e8f1da](https://github.com/matter-labs/zksync-era/commit/0e8f1dacb27be3b33aaabf842ea4350e20a3cada))
+* **prover:** Scale down replicas using correct speed for queue calculation ([#3926](https://github.com/matter-labs/zksync-era/issues/3926)) ([868d6dc](https://github.com/matter-labs/zksync-era/commit/868d6dc96806276ce1d9b97f434febac46838dcc))
+
+## [20.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.2.0...prover-v20.3.0) (2025-04-30)
+
+
+### Features
+
+* Proof data handler client ([#3874](https://github.com/matter-labs/zksync-era/issues/3874)) ([daf6f7b](https://github.com/matter-labs/zksync-era/commit/daf6f7b80a018204693f8ad7296574b8b55dc6d9))
+* **prover:** Add support of H100 into provers and gpu-checker ([#3887](https://github.com/matter-labs/zksync-era/issues/3887)) ([ec9e4a9](https://github.com/matter-labs/zksync-era/commit/ec9e4a9da99502e8e853574ea3a27cd0bb16e8fe))
+* Reversed prover gateway server ([#3855](https://github.com/matter-labs/zksync-era/issues/3855)) ([a78c3ae](https://github.com/matter-labs/zksync-era/commit/a78c3ae1f74c0f4adfc9b94681c7b80b44dd16f1))
+* rework prover job identifiers ([#3888](https://github.com/matter-labs/zksync-era/issues/3888)) ([073326f](https://github.com/matter-labs/zksync-era/commit/073326f124eae808ef0e25694e99f0dab5ee7af4))
+
+
+### Bug Fixes
+
+* Aux output witness object store key ([#3918](https://github.com/matter-labs/zksync-era/issues/3918)) ([4609d0f](https://github.com/matter-labs/zksync-era/commit/4609d0fc28a4cb201242017bf6433126dee39343))
+
+## [20.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.1.0...prover-v20.2.0) (2025-04-11)
+
+
+### Features
+
+* Rework serialization of prover API-related types ([#3805](https://github.com/matter-labs/zksync-era/issues/3805)) ([afafc29](https://github.com/matter-labs/zksync-era/commit/afafc292ea003e19d280c0178ca6b49b5b14917f))
+* Update prover job ordering ([#3769](https://github.com/matter-labs/zksync-era/issues/3769)) ([5b74022](https://github.com/matter-labs/zksync-era/commit/5b740224fd27b0792d2d1602577c032fd3a31074))
+
+
+### Bug Fixes
+
+* Address parameter escaping in WG DAL ([#3812](https://github.com/matter-labs/zksync-era/issues/3812)) ([afc659f](https://github.com/matter-labs/zksync-era/commit/afc659fc0e6d5f3932d7be3e6706dd594bd4af59))
+* Fix security issues (bump dependencies) ([#3813](https://github.com/matter-labs/zksync-era/issues/3813)) ([c6def9c](https://github.com/matter-labs/zksync-era/commit/c6def9c0e480bd73fc0ea29a7d3393c297c8afb7))
+* **prover:** Replace Histogram with Gauge for startup_time/run_time/shutdown_time metrics ([#3793](https://github.com/matter-labs/zksync-era/issues/3793)) ([0bd6dc9](https://github.com/matter-labs/zksync-era/commit/0bd6dc9433bd5121c7dd583efde43f296c73fc63))
+* Remove Circuit & CircuitWrapper duplication ([#3816](https://github.com/matter-labs/zksync-era/issues/3816)) ([6de1014](https://github.com/matter-labs/zksync-era/commit/6de1014c659247d3c29d349d5771778424241ecd))
+
+## [20.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.0.0...prover-v20.1.0) (2025-04-02)
+
+
+### Features
+
+* Update zksync-protocol deps to 0.151.5 ([#3790](https://github.com/matter-labs/zksync-era/issues/3790)) ([92beffe](https://github.com/matter-labs/zksync-era/commit/92beffe52ed2d40b11d800afbe97e9099d6f90a8))
+
+
+### Bug Fixes
+
+* **prover:** Correctly calculate NeedToMove and recent scale errors ([#3783](https://github.com/matter-labs/zksync-era/issues/3783)) ([aa46f89](https://github.com/matter-labs/zksync-era/commit/aa46f897596180b49b760dec2d2e418c760ab70e))
+* **prover:** Force set all the `prover_job` labels to 0 ([#3787](https://github.com/matter-labs/zksync-era/issues/3787)) ([3ecc8db](https://github.com/matter-labs/zksync-era/commit/3ecc8db0862f6b893a9ab09f76532d937dc8cf62))
+
+## [20.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v19.0.0...prover-v20.0.0) (2025-04-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* Remove old prover stack ([#3729](https://github.com/matter-labs/zksync-era/issues/3729))
+* V27 update ([#3580](https://github.com/matter-labs/zksync-era/issues/3580))
+
+### Features
+
+* Add S3 implementation for object_store ([#3664](https://github.com/matter-labs/zksync-era/issues/3664)) ([a848927](https://github.com/matter-labs/zksync-era/commit/a848927082bfb1b5edcc7d5e4dc33d6f39271953))
+* **consensus:** Add consensus protocol versioning ([#3720](https://github.com/matter-labs/zksync-era/issues/3720)) ([d1b4308](https://github.com/matter-labs/zksync-era/commit/d1b4308ff82da11515d8080c8e83f67c0f1812eb))
+* **gateway:** Migration to Gateway  ([#3654](https://github.com/matter-labs/zksync-era/issues/3654)) ([2858ba0](https://github.com/matter-labs/zksync-era/commit/2858ba028a4e59eb518515e8dd56de9f609c3469))
+* Remove old prover stack ([#3729](https://github.com/matter-labs/zksync-era/issues/3729)) ([fbbdc76](https://github.com/matter-labs/zksync-era/commit/fbbdc76b86bf4f474c4c045778b69f80a30e9c60))
+* Use JSON-RPC for core &lt;&gt; prover interaction ([#3626](https://github.com/matter-labs/zksync-era/issues/3626)) ([4e74730](https://github.com/matter-labs/zksync-era/commit/4e7473011e6551bbeb3e7862872e99721aeba232))
+* V27 update ([#3580](https://github.com/matter-labs/zksync-era/issues/3580)) ([9e18550](https://github.com/matter-labs/zksync-era/commit/9e1855050e3457ecef2b45a75e993dcdc2de370a))
+
+
+### Bug Fixes
+
+* API URL for prover gateway ([#3716](https://github.com/matter-labs/zksync-era/issues/3716)) ([ca2c4a4](https://github.com/matter-labs/zksync-era/commit/ca2c4a4eb2bfe3330ea48cac6efb26fc8dfeaf48))
+* make proof data handler backwards compatible ([#3767](https://github.com/matter-labs/zksync-era/issues/3767)) ([bdbbaaa](https://github.com/matter-labs/zksync-era/commit/bdbbaaa4974399afec2394e0ffea9f9f6876e1e2))
+* Prover job ordering ([#3738](https://github.com/matter-labs/zksync-era/issues/3738)) ([8f7f831](https://github.com/matter-labs/zksync-era/commit/8f7f83124046d3337a2752a92fe9b8eef44df6c0))
+* **prover:** Fixing shutdown time for circuit-prover ([#3768](https://github.com/matter-labs/zksync-era/issues/3768)) ([6c9de26](https://github.com/matter-labs/zksync-era/commit/6c9de268a1583483fbddd0eacf60a9d265f01d73))
+* **prover:** Reevaluation of 'heavy' jobs for WVG ([#3754](https://github.com/matter-labs/zksync-era/issues/3754)) ([2a8d33b](https://github.com/matter-labs/zksync-era/commit/2a8d33b92bb72540d37d35ce4677454d073ba002))
+* **prover:** Remove deleted pods from autoscaler-agent cluster cache ([#3739](https://github.com/matter-labs/zksync-era/issues/3739)) ([e94985f](https://github.com/matter-labs/zksync-era/commit/e94985f38ec4c3d3ba5dca87a064ab2edf890549))
+
 ## [19.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v18.0.0...prover-v19.0.0) (2025-03-04)
 
 

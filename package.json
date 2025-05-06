@@ -17,12 +17,13 @@
       "core/tests/revert-test",
       "core/tests/recovery-test",
       "core/tests/upgrade-test",
+      "core/tests/gateway-migration-test/",
       "core/tests/ts-integration",
       "infrastructure/protocol-upgrade"
     ],
     "nohoist": [
       "**/@types/jest",
-      "**/@types/jasmine"
+      "**/@types/mocha"
     ]
   },
   "scripts": {
@@ -32,6 +33,7 @@
     "da-contracts": "yarn workspace da-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
+    "gateway-migration-test": "yarn workspace gateway-migration-test",
     "recovery-test": "yarn workspace recovery-test",
     "ts-integration": "yarn workspace ts-integration",
     "utils": "yarn workspace utils",

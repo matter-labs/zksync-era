@@ -8,9 +8,8 @@ use tokio::time::MissedTickBehavior;
 use zkstack_cli_common::logger;
 
 use crate::messages::{
-    msg_wait_connect_err, msg_wait_non_successful_response, msg_wait_not_healthy,
-    msg_wait_starting_polling, msg_wait_timeout, MSG_WAIT_POLL_INTERVAL_HELP,
-    MSG_WAIT_TIMEOUT_HELP,
+    msg_wait_non_successful_response, msg_wait_not_healthy, msg_wait_starting_polling,
+    msg_wait_timeout, MSG_WAIT_POLL_INTERVAL_HELP, MSG_WAIT_TIMEOUT_HELP,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -48,10 +47,9 @@ impl WaitArgs {
             .await
     }
 
-    pub async fn poll_health_check(&self, port: u16, verbose: bool) -> anyhow::Result<()> {
+    pub async fn poll_health_check(&self, url: &str, verbose: bool) -> anyhow::Result<()> {
         let component = PolledComponent::HealthCheck;
-        let url = format!("http://127.0.0.1:{port}/health");
-        self.poll_with_timeout(component, self.poll_inner(component, &url, verbose))
+        self.poll_with_timeout(component, self.poll_inner(component, url, verbose))
             .await
     }
 
@@ -92,13 +90,8 @@ impl WaitArgs {
 
             let response = match client.get(url).send().await {
                 Ok(response) => response,
-                Err(err) if err.is_connect() || err.is_timeout() => {
+                Err(_) => {
                     continue;
-                }
-                Err(err) => {
-                    return Err(
-                        anyhow::Error::new(err).context(msg_wait_connect_err(&component, url))
-                    )
                 }
             };
 

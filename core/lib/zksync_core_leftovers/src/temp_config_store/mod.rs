@@ -5,8 +5,8 @@ use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
-            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-            StateKeeperConfig, TimestampAsserterConfig,
+            CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
+            TimestampAsserterConfig,
         },
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,
@@ -15,7 +15,7 @@ use zksync_config::{
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, GeneralConfig, ObservabilityConfig,
         PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
-        ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
+        ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig, TeeProofDataHandlerConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
     DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
@@ -38,6 +38,7 @@ pub fn read_yaml_repr<T: ProtoRepr>(path: &PathBuf) -> anyhow::Result<T::Type> {
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
+///
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
 #[derive(Debug, PartialEq, Default)]
 pub struct TempConfigStore {
@@ -47,7 +48,6 @@ pub struct TempConfigStore {
     pub web3_json_rpc_config: Option<Web3JsonRpcConfig>,
     pub circuit_breaker_config: Option<CircuitBreakerConfig>,
     pub mempool_config: Option<MempoolConfig>,
-    pub network_config: Option<NetworkConfig>,
     pub contract_verifier: Option<ContractVerifierConfig>,
     pub operations_manager_config: Option<OperationsManagerConfig>,
     pub state_keeper_config: Option<StateKeeperConfig>,
@@ -58,6 +58,7 @@ pub struct TempConfigStore {
     pub fri_witness_generator_config: Option<FriWitnessGeneratorConfig>,
     pub prometheus_config: Option<PrometheusConfig>,
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
+    pub tee_proof_data_handler_config: Option<TeeProofDataHandlerConfig>,
     pub api_config: Option<ApiConfig>,
     pub db_config: Option<DBConfig>,
     pub eth_sender_config: Option<EthConfig>,
@@ -98,6 +99,7 @@ impl TempConfigStore {
             witness_generator_config: self.fri_witness_generator_config.clone(),
             prometheus_config: self.prometheus_config.clone(),
             proof_data_handler_config: self.proof_data_handler_config.clone(),
+            tee_proof_data_handler_config: self.tee_proof_data_handler_config.clone(),
             db_config: self.db_config.clone(),
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
@@ -125,7 +127,7 @@ impl TempConfigStore {
     #[allow(deprecated)]
     pub fn wallets(&self) -> Wallets {
         let eth_sender = self.eth_sender_config.as_ref().and_then(|config| {
-            let sender = config.sender.as_ref()?;
+            let sender = config.get_eth_sender_config_for_sender_layer_data_layer()?;
             let operator_private_key = sender.private_key().ok()??;
             let operator = Wallet::new(operator_private_key);
             let blob_operator = sender
@@ -167,7 +169,6 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
         circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
         mempool_config: MempoolConfig::from_env().ok(),
-        network_config: NetworkConfig::from_env().ok(),
         contract_verifier: ContractVerifierConfig::from_env().ok(),
         operations_manager_config: OperationsManagerConfig::from_env().ok(),
         state_keeper_config: StateKeeperConfig::from_env().ok(),
@@ -178,6 +179,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
+        tee_proof_data_handler_config: TeeProofDataHandlerConfig::from_env().ok(),
         api_config: ApiConfig::from_env().ok(),
         db_config: DBConfig::from_env().ok(),
         eth_sender_config: EthConfig::from_env().ok(),

@@ -38,6 +38,7 @@ use zksync_test_contracts::Account;
 use zksync_types::{
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
+    settlement::SettlementLayer,
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
     Transaction,
 };
@@ -387,7 +388,7 @@ impl StateKeeper {
             let res = ctx.wait(client.fetch_l2_block_number()).await?;
             match res {
                 Ok(_) => return Ok(client),
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     ctx.sleep(time::Duration::seconds(5)).await?;
                 }
                 Err(err) => {
@@ -591,6 +592,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                         Arc::new(async_cache),
+                        None,
                     )
                     .run(stop_recv)
                     .await
@@ -602,9 +604,12 @@ impl StateKeeperRunner {
                 // Spawn HTTP server.
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::AllContractsConfig::for_tests().settlement_layer_specific_contracts(),
+                    &configs::AllContractsConfig::for_tests().l1_specific_contracts(),
+                    &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                     false,
+                    SettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
@@ -673,6 +678,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                         Arc::new(MockReadStorageFactory),
+                        None,
                     )
                     .run(stop_recv)
                     .await
@@ -682,11 +688,15 @@ impl StateKeeperRunner {
             });
             s.spawn_bg(async {
                 // Spawn HTTP server.
+                let l1_specific = &configs::AllContractsConfig::for_tests().l1_specific_contracts();
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::contracts::ContractsConfig::for_tests(),
+                    &configs::AllContractsConfig::for_tests().settlement_layer_specific_contracts(),
+                    l1_specific,
+                    &configs::AllContractsConfig::for_tests().l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                     false,
+                    SettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)

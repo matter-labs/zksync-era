@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use chrono::{DateTime, Utc};
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use prover_cli::commands::status::utils::Status;
 use zksync_prover_dal::{
@@ -12,7 +13,7 @@ use zksync_types::{
         ProverJobStatusInProgress, ProverJobStatusSuccessful, WitnessJobStatus,
         WitnessJobStatusSuccessful,
     },
-    L1BatchNumber,
+    L1BatchId, L1BatchNumber, L2ChainId,
 };
 
 const NON_EXISTING_BATCH_STATUS_STDOUT: &str = "== Batch 10000 Status ==
@@ -160,7 +161,7 @@ async fn insert_prover_job(
     connection
         .fri_prover_jobs_dal()
         .insert_prover_job(
-            batch_number,
+            L1BatchId::new(L2ChainId::zero(), batch_number),
             circuit_id as u8,
             0,
             sequence_number,
@@ -168,6 +169,7 @@ async fn insert_prover_job(
             "",
             false,
             ProtocolSemanticVersion::default(),
+            DateTime::<Utc>::default(),
         )
         .await;
     connection
@@ -224,12 +226,17 @@ async fn insert_bwg_job(
 ) {
     connection
         .fri_basic_witness_generator_dal()
-        .save_witness_inputs(batch_number, "", ProtocolSemanticVersion::default())
+        .save_witness_inputs(
+            L1BatchId::new(L2ChainId::zero(), batch_number),
+            "",
+            ProtocolSemanticVersion::default(),
+            DateTime::<Utc>::default(),
+        )
         .await
         .unwrap();
     connection
         .fri_basic_witness_generator_dal()
-        .set_status_for_basic_witness_job(status, batch_number)
+        .set_status_for_basic_witness_job(status, L1BatchId::new(L2ChainId::zero(), batch_number))
         .await;
 }
 

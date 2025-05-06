@@ -1,6 +1,9 @@
-use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
-use zksync_external_proof_integration_api::{Api, Processor};
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_config::configs::{
+    external_proof_integration_api::ExternalProofIntegrationApiConfig, ProofDataHandlerConfig,
+};
+use zksync_external_proof_integration_api::Api;
+use zksync_proof_data_handler::{Processor, Readonly};
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -17,7 +20,9 @@ use crate::{
 #[derive(Debug)]
 pub struct ExternalProofIntegrationApiLayer {
     external_proof_integration_api_config: ExternalProofIntegrationApiConfig,
+    proof_data_handler_config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -37,11 +42,15 @@ pub struct Output {
 impl ExternalProofIntegrationApiLayer {
     pub fn new(
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig,
+        proof_data_handler_config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             external_proof_integration_api_config,
+            proof_data_handler_config,
             commitment_mode,
+            l2_chain_id,
         }
     }
 }
@@ -59,7 +68,13 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
         let replica_pool = input.replica_pool.get().await.unwrap();
         let blob_store = input.object_store.0;
 
-        let processor = Processor::new(blob_store, replica_pool, self.commitment_mode);
+        let processor = Processor::<Readonly>::new(
+            blob_store,
+            replica_pool,
+            self.proof_data_handler_config,
+            self.commitment_mode,
+            self.l2_chain_id,
+        );
         let task = Api::new(
             processor,
             self.external_proof_integration_api_config.http_port,

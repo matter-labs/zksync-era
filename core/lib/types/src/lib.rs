@@ -55,6 +55,7 @@ pub mod eth_sender;
 pub mod helpers;
 #[cfg(feature = "protobuf")]
 pub mod proto;
+pub mod server_notification;
 pub mod transaction_request;
 pub mod utils;
 
@@ -224,6 +225,7 @@ impl Transaction {
 }
 
 /// Optional input `Ethereum`-like encoded transaction if submitted via Web3 API.
+///
 /// If exists, its hash will be used to identify transaction.
 /// Note, that for EIP712-type transactions, `hash` is not equal to the hash
 /// of the `data`, but rather calculated by special formula.

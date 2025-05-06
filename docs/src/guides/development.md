@@ -34,15 +34,15 @@ You can proceed to verify the installation and start familiarizing with the CLI 
 zkstack --help
 ```
 
-> NOTE: Whenever you want to update you local installation with your changes, just rerun:
->
-> ```bash
-> zkstackup --local
-> ```
->
-> You might find convenient to add this alias to your shell profile:
->
-> `alias zkstackup='zkstackup --path /path/to/zksync-era'`
+```admonish note
+NOTE: Whenever you want to update you local installation with your changes, just rerun:
+
+`zkstackup --local`
+
+You might find convenient to add this alias to your shell profile:
+
+`alias zkstackup='zkstackup --path /path/to/zksync-era'`
+```
 
 ## Configure Ecosystem
 
@@ -61,7 +61,9 @@ zkstack ecosystem init
 
 These commands will guide you through the configuration options for setting up the ecosystem.
 
-> NOTE: For local development only. You can also use the development defaults by supplying the `--dev` flag.
+```admonish note
+For local development only. You can also use the development defaults by supplying the `--dev` flag.
+```
 
 Initialization may take some time, but key steps (such as downloading and unpacking keys or setting up containers) only
 need to be completed once.
@@ -134,6 +136,53 @@ specific state. Please refer to our CI scripts
 [ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to
 have a better understanding of the process.
 
+In simple terms, the integration-test workflow consists of three phases:
+
+1. **Initializing the ecosystem**
+
+   ```bash
+   zkstack dev clean all         # remove any previous state
+   zkstack containers            # start required Docker containers
+   zkstack ecosystem init        # set up blockchain and contracts
+   ```
+
+2. **Starting the server**
+
+   ```bash
+   zkstack server                # spin up the server
+   ```
+
+   This command starts the server and occupies the current terminal window. Open a new terminal window for any
+   subsequent commands.
+
+3. **Running integration tests**
+
+   ```bash
+   zkstack dev test integration  # run the integration tests
+   ```
+
+> _Note: This is a high-level summary and does not reflect every nuance in `ci-core-reusable.yml`._
+
+### Running upgrade tests
+
+Similar to integration tests, the whole setup is complicated and it is recommended to refer to our CI scripts
+[ci-core-reusable.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/ci-core-reusable.yml) to
+have a better understanding of the process.
+
+In simple terms, the upgrade-test workflow consists of three phases:
+
+1. **Initializing the ecosystem**  
+   Same as for integration tests workflow.
+2. **Starting the server**  
+   Same as for integration tests workflow.
+3. **Running integration tests**
+
+   ```bash
+   ZKSYNC_HOME=<path_to_zksync_era> zkstack dev test upgrade # run the upgrade tests
+   ```
+
+> _Note: This is a high-level summary and does not reflect every nuance in `ci-core-reusable.yml`._
+
 ### Running load tests
 
 The current load test implementation only supports the legacy bridge. To use it, you need to create a new chain with
@@ -150,7 +199,9 @@ After initializing the chain with a legacy bridge, you can run the load test aga
 zkstack dev test loadtest
 ```
 
-> WARNING: Never use legacy bridges in non-testing environments.
+```admonish warning
+Never use legacy bridges in non-testing environments.
+```
 
 ## Contracts
 
@@ -195,3 +246,16 @@ You must provide:
   - Your Etherscan API key, either by passing it as an argument or setting `ETHERSCAN_API_KEY`
 
 For more information check [Foundry's documentation](https://book.getfoundry.sh/reference/forge/forge-verify-contract).
+
+## How to generate the `genesis.yaml` file
+
+To generate the [`genesis.yaml`](https://github.com/matter-labs/zksync-era/blob/main//etc/env/file_based/genesis.yaml)
+file checkout to the desired `zksync-era` branch, [build `zkstack`](#installing-the-local-zk-stack-cli) from it,
+[configure ecosystem](#configure-ecosystem) and run the following command:
+
+```shell
+zkstack dev generate-genesis
+```
+
+Which runs the [`genesis_generator`](https://github.com/matter-labs/zksync-era/tree/main/core/bin/genesis_generator)
+package under the hood and generates the genesis file.

@@ -20,8 +20,9 @@ use super::{
 pub mod l1_batch_updates;
 pub mod l2_block_updates;
 
-/// Most of the information needed to seal the l1 batch / L2 block is contained within the VM,
-/// things that are not captured there are accumulated externally.
+/// Most of the information needed to seal the l1 batch / L2 block is contained within the VM.
+///
+/// Things that are not captured there are accumulated externally.
 /// `L2BlockUpdates` keeps updates for the pending L2 block.
 /// `L1BatchUpdates` keeps updates for the already sealed L2 blocks of the pending L1 batch.
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent
@@ -40,6 +41,7 @@ pub struct UpdatesManager {
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
     pubdata_params: PubdataParams,
     next_l2_block_params: Option<L2BlockParams>,
+    previous_batch_protocol_version: ProtocolVersionId,
 }
 
 impl UpdatesManager {
@@ -47,6 +49,7 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         system_env: &SystemEnv,
         pubdata_params: PubdataParams,
+        previous_batch_protocol_version: ProtocolVersionId,
     ) -> Self {
         let protocol_version = system_env.version;
         Self {
@@ -68,6 +71,7 @@ impl UpdatesManager {
             storage_view_cache: None,
             pubdata_params,
             next_l2_block_params: None,
+            previous_batch_protocol_version,
         }
     }
 
@@ -130,6 +134,10 @@ impl UpdatesManager {
 
     pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
+    }
+
+    pub fn previous_batch_protocol_version(&self) -> ProtocolVersionId {
+        self.previous_batch_protocol_version
     }
 
     #[allow(clippy::too_many_arguments)]

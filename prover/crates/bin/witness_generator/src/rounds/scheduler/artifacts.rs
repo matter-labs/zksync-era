@@ -2,19 +2,20 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
+use zksync_circuit_prover_service::types::circuit_wrapper::CircuitWrapper;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_prover_fri_types::{keys::FriCircuitKey, FriProofWrapper};
+use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::{
-    artifacts::ArtifactsManager,
+    artifacts::{ArtifactsManager, JobId},
     rounds::scheduler::{Scheduler, SchedulerArtifacts},
 };
 
 #[async_trait]
 impl ArtifactsManager for Scheduler {
-    type InputMetadata = u32;
+    type InputMetadata = JobId;
     type InputArtifacts = FriProofWrapper;
     type OutputArtifacts = SchedulerArtifacts;
     type BlobUrls = String;
@@ -23,18 +24,19 @@ impl ArtifactsManager for Scheduler {
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
-        let artifacts = object_store.get(*metadata).await?;
+        let key = *metadata;
+        let artifacts = object_store.get((key.id(), key.chain_id())).await?;
 
         Ok(artifacts)
     }
 
     async fn save_to_bucket(
-        job_id: u32,
+        job_id: JobId,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> String {
         let key = FriCircuitKey {
-            block_number: L1BatchNumber(job_id),
+            batch_id: job_id.into(),
             circuit_id: 1,
             sequence_number: 0,
             depth: 0,
@@ -52,7 +54,7 @@ impl ArtifactsManager for Scheduler {
 
     async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
-        job_id: u32,
+        job_id: JobId,
         started_at: Instant,
         blob_urls: String,
         _artifacts: Self::OutputArtifacts,
@@ -61,12 +63,18 @@ impl ArtifactsManager for Scheduler {
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch(L1BatchNumber(job_id))
+            .protocol_version_for_l1_batch(job_id.into())
+            .await
+            .unwrap();
+        let batch_sealed_at = transaction
+            .fri_basic_witness_generator_dal()
+            .get_batch_sealed_at_timestamp(job_id.into())
             .await;
+
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
-                L1BatchNumber(job_id),
+                job_id.into(),
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
                 0,
                 0,
@@ -74,12 +82,13 @@ impl ArtifactsManager for Scheduler {
                 &blob_urls,
                 false,
                 protocol_version_id,
+                batch_sealed_at,
             )
             .await;
 
         transaction
             .fri_scheduler_witness_generator_dal()
-            .mark_scheduler_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
+            .mark_scheduler_job_as_successful(job_id.into(), started_at.elapsed())
             .await;
 
         transaction.commit().await?;

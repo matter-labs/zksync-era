@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use chrono::{DateTime, Utc};
 use clap::Args as ClapArgs;
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
@@ -6,6 +7,7 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_prover_dal::{Prover, ProverDal};
+use zksync_types::{L1BatchId, L2ChainId};
 
 use crate::cli::ProverCLIConfig;
 
@@ -33,11 +35,13 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 
     conn.fri_basic_witness_generator_dal()
         .save_witness_inputs(
-            args.number,
+            L1BatchId::new(L2ChainId::zero(), args.number),
             &format!("witness_inputs_{}", args.number.0),
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
+            DateTime::<Utc>::default(),
         )
-        .await?;
+        .await
+        .unwrap();
 
     Ok(())
 }
