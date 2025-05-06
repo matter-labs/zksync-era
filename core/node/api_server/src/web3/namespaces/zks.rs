@@ -512,15 +512,8 @@ impl ZksNamespace {
         log_proof_target: Option<LogProofTarget>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
-            if log_proof_target.is_some() {
-                return handler
-                    .get_l2_to_l1_log_proof_until_target(tx_hash, index, log_proof_target)
-                    .rpc_context("get_l2_to_l1_log_proof_until_target")
-                    .await
-                    .map_err(Into::into);
-            }
             return handler
-                .get_l2_to_l1_log_proof(tx_hash, index)
+                .get_l2_to_l1_log_proof(tx_hash, index, log_proof_target)
                 .rpc_context("get_l2_to_l1_log_proof")
                 .await
                 .map_err(Into::into);
