@@ -58,6 +58,9 @@ jobs:
         run: |
           ci_localnet_up
 
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
       - name: Init
         run: |
           ci_run run_retried rustup show
