@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use zksync_base_token_adjuster::DBBaseTokenRatioProvider;
 use zksync_config::BaseTokenAdjusterConfig;
+use zksync_dal::di::{PoolResource, ReplicaPool};
+use zksync_node_fee_model::di::BaseTokenRatioProviderResource;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -9,10 +10,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::{
-    base_token_ratio_provider::BaseTokenRatioProviderResource,
-    pools::{PoolResource, ReplicaPool},
-};
+use crate::DBBaseTokenRatioProvider;
 
 /// Wiring layer for `BaseTokenRatioProvider`
 ///

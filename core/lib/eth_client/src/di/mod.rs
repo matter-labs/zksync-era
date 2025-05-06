@@ -6,8 +6,8 @@ pub use self::{
     query_eth_client::QueryEthClientLayer,
     resources::{
         BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-        BoundEthInterfaceResource, L2InterfaceResource, MainNodeClientResource,
-        SettlementLayerClient,
+        BoundEthInterfaceResource, EthInterfaceResource, L2InterfaceResource,
+        MainNodeClientResource, SettlementLayerClient,
     },
     settlement_layer_client::SettlementLayerClientLayer,
 };
