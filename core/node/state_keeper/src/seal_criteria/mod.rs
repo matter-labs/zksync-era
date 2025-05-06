@@ -67,6 +67,7 @@ pub enum UnexecutableReason {
     BootloaderOutOfGas,
     NotEnoughGasProvided,
     TooMuchUserL2L1Logs,
+    DeploymentNotAllowed,
 }
 
 impl UnexecutableReason {
@@ -82,6 +83,7 @@ impl UnexecutableReason {
             UnexecutableReason::BootloaderOutOfGas => "BootloaderOutOfGas",
             UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
             UnexecutableReason::TooMuchUserL2L1Logs => "TooMuchUserL2L1Logs",
+            UnexecutableReason::DeploymentNotAllowed => "DeploymentNotAllowed",
         }
     }
 }
@@ -107,6 +109,7 @@ impl fmt::Display for UnexecutableReason {
             UnexecutableReason::BootloaderOutOfGas => write!(f, "Bootloader out of gas"),
             UnexecutableReason::NotEnoughGasProvided => write!(f, "Not enough gas provided"),
             UnexecutableReason::TooMuchUserL2L1Logs => write!(f, "Too much user l2 l1 logs"),
+            UnexecutableReason::DeploymentNotAllowed => write!(f, "Deployment not allowed"),
         }
     }
 }
@@ -186,13 +189,25 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
-        block_open_timestamp_ms: u128,
         tx_count: usize,
         l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution;
+
+    /// Returns fraction of the criterion's capacity filled in the batch.
+    /// If it can't be calculated for the criterion, then it should return `None`.
+    fn capacity_filled(
+        &self,
+        _config: &StateKeeperConfig,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        _block_data: &SealData,
+        _protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        None
+    }
 
     // We need self here only for rust restrictions for creating an object from trait
     // https://doc.rust-lang.org/reference/items/traits.html#object-safety

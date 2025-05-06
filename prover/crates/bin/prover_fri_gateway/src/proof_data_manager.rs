@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
-use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, prover_dal::ProofCompressionJobStatus, L1BatchNumber,
+use zksync_prover_interface::{
+    api::ProofGenerationData,
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
+    Bincode,
 };
+use zksync_types::{prover_dal::ProofCompressionJobStatus, L1BatchId};
 
 use super::error::ProcessorError;
 
@@ -22,8 +24,8 @@ impl ProofDataManager {
 
     pub(crate) async fn get_next_proof(
         &self,
-    ) -> Result<Option<(L1BatchNumber, L1BatchProofForL1)>, ProcessorError> {
-        let Some((l1_batch_number, protocol_version, status)) = self
+    ) -> Result<Option<(L1BatchId, L1BatchProofForL1)>, ProcessorError> {
+        let Some((l1_batch_id, protocol_version, status)) = self
             .pool
             .connection()
             .await
@@ -36,10 +38,27 @@ impl ProofDataManager {
         };
 
         let proof = if status == ProofCompressionJobStatus::Successful {
-            let proof: L1BatchProofForL1 = self
+            let proof: L1BatchProofForL1 = match self
                 .blob_store
-                .get((l1_batch_number, protocol_version))
-                .await?;
+                .get(L1BatchProofForL1Key::Prover((
+                    l1_batch_id,
+                    protocol_version,
+                )))
+                .await
+            {
+                Ok(proof) => proof,
+                Err(ObjectStoreError::KeyNotFound(_)) => self
+                    .blob_store
+                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Prover((
+                        l1_batch_id,
+                        protocol_version,
+                    )))
+                    .await
+                    .map(|proof| proof.into())?,
+                Err(e) => {
+                    return Err(ProcessorError::ObjectStoreErr(e));
+                }
+            };
             proof
         } else {
             unreachable!(
@@ -48,43 +67,53 @@ impl ProofDataManager {
             );
         };
 
-        Ok(Some((l1_batch_number, proof)))
+        Ok(Some((l1_batch_id, proof)))
     }
 
     pub(crate) async fn get_proof_for_batch(
         &self,
-        batch_number: L1BatchNumber,
-        protocol_version: ProtocolSemanticVersion,
+        batch_id: L1BatchId,
     ) -> Result<Option<L1BatchProofForL1>, ProcessorError> {
-        let proof = match self
+        let protocol_version = self
+            .pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_basic_witness_generator_dal()
+            .protocol_version_for_l1_batch(batch_id)
+            .await;
+
+        let Some(protocol_version) = protocol_version else {
+            return Ok(None);
+        };
+
+        let proof: L1BatchProofForL1 = match self
             .blob_store
-            .get::<L1BatchProofForL1>((batch_number, protocol_version))
+            .get(L1BatchProofForL1Key::Prover((batch_id, protocol_version)))
             .await
         {
-            Ok(proof) => {
-                self.save_successful_sent_proof(batch_number).await?;
-                Some(proof)
+            Ok(proof) => proof,
+            Err(ObjectStoreError::KeyNotFound(_)) => {
+                return Ok(None); // proof was not generated yet
             }
-            Err(ObjectStoreError::KeyNotFound(_)) => None, // proof was not generated yet, nothing to send
             Err(e) => {
-                tracing::error!("Failed to get proof for batch {batch_number}: {e}");
                 return Err(ProcessorError::ObjectStoreErr(e));
             }
         };
 
-        Ok(proof)
+        Ok(Some(proof))
     }
 
     pub(crate) async fn save_successful_sent_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Result<(), ProcessorError> {
         self.pool
             .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
-            .mark_proof_sent_to_server(l1_batch_number)
+            .mark_proof_sent_to_server(batch_id)
             .await?;
         Ok(())
     }
@@ -93,9 +122,11 @@ impl ProofDataManager {
         &self,
         data: ProofGenerationData,
     ) -> Result<(), ProcessorError> {
+        let batch_id = L1BatchId::new(data.chain_id, data.l1_batch_number);
+
         let witness_inputs = self
             .blob_store
-            .put(data.l1_batch_number, &data.witness_input_data)
+            .put(batch_id, &data.witness_input_data)
             .await?;
 
         let mut connection = self.pool.connection().await.unwrap();
@@ -108,7 +139,7 @@ impl ProofDataManager {
         connection
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(
-                data.l1_batch_number,
+                batch_id,
                 &witness_inputs,
                 data.protocol_version,
                 data.batch_sealed_at,

@@ -18,6 +18,10 @@ pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
 pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
     "EVM Interpreter (v27) upgrade checker and calldata generator";
 
+#[cfg(feature = "v28_precompiles")]
+pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
+    "Precompiles (v28) upgrade checker and calldata generator";
+
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";
@@ -142,15 +146,6 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test
 // Revert tests related messages
 pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
-
-pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
-    let base = "Running integration tests";
-    if external_node {
-        format!("{} for external node", base)
-    } else {
-        format!("{} for main server", base)
-    }
-}
 
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
 

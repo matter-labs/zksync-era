@@ -22,7 +22,7 @@ export class TestMaster {
     private readonly l1Provider: EthersRetryProvider;
     private readonly l2Provider: RetryProvider;
 
-    private readonly mainWallet: zksync.Wallet;
+    private readonly mainWallet: RetryableWallet;
     private readonly subAccounts: zksync.Wallet[] = [];
 
     private constructor(file: string) {
@@ -101,7 +101,7 @@ export class TestMaster {
     /**
      * Getter for the main (funded) account exclusive to the suite.
      */
-    mainAccount(): zksync.Wallet {
+    mainAccount(): RetryableWallet {
         return this.mainWallet;
     }
 

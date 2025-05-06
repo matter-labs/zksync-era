@@ -15,7 +15,6 @@ use zksync_crypto_primitives::K256PrivateKey;
 use crate::{
     configs::{
         self,
-        api::DeploymentAllowlist,
         chain::TimestampAsserterConfig,
         da_client::{
             avail::{AvailClientConfig, AvailDefaultConfig},
@@ -92,7 +91,6 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             api_namespaces: self
                 .sample_opt(|| self.sample_range(rng).map(|_| self.sample(rng)).collect()),
             extended_api_tracing: self.sample(rng),
-            deployment_allowlist: DeploymentAllowlist::new(None, Some(300)),
         }
     }
 }
@@ -168,6 +166,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             default_aa_hash: None,
             evm_emulator_hash: None,
             l1_batch_commit_data_generator_mode: Default::default(),
+            deployment_allowlist: None,
         }
     }
 }
@@ -402,6 +401,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             time_in_mempool_in_l1_blocks_cap: self.sample(rng),
             is_verifier_pre_fflonk: self.sample(rng),
             gas_limit_mode: self.sample(rng),
+            max_acceptable_base_fee_in_wei: self.sample(rng),
         }
     }
 }
@@ -548,12 +548,21 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
-            tee_config: configs::TeeConfig {
-                tee_support: self.sample(rng),
-                first_tee_processed_batch: L1BatchNumber(rng.gen()),
-                tee_proof_generation_timeout_in_secs: self.sample(rng),
-                tee_batch_permanently_ignored_timeout_in_hours: self.sample(rng),
-            },
+            gateway_api_url: self.sample(rng),
+            proof_fetch_interval_in_secs: self.sample(rng),
+            proof_gen_data_submit_interval_in_secs: self.sample(rng),
+            fetch_zero_chain_id_proofs: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::TeeProofDataHandlerConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::TeeProofDataHandlerConfig {
+        configs::TeeProofDataHandlerConfig {
+            http_port: self.sample(rng),
+            first_processed_batch: L1BatchNumber(rng.gen()),
+            proof_generation_timeout_in_secs: self.sample(rng),
+            batch_permanently_ignored_timeout_in_hours: self.sample(rng),
         }
     }
 }
@@ -797,10 +806,6 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             l2_chain_id: L2ChainId::default(),
             l1_chain_id: L1ChainId(rng.gen()),
             main_node_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
-            l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
-                0 => L1BatchCommitmentMode::Rollup,
-                _ => L1BatchCommitmentMode::Validium,
-            },
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
             gateway_chain_id: self.sample_opt(|| SLChainId(rng.gen())),
@@ -1028,6 +1033,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             witness_generator_config: self.sample(rng),
             prometheus_config: self.sample(rng),
             proof_data_handler_config: self.sample(rng),
+            tee_proof_data_handler_config: self.sample(rng),
             db_config: self.sample(rng),
             eth: self.sample(rng),
             snapshot_creator: self.sample(rng),

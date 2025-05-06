@@ -19,7 +19,7 @@ jobs:
 
   # Prepare the release PR with changelog updates and create github releases
   release-please:
-    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@31087ab63ba6f33fb27371e4e6de0d5fa09ba7b6 # v1
+    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@38ec28e7851f7ac0498f04ccb0f68ce81586541d # v1
     secrets:
       slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}  # Slack webhook for notifications
       gh_token: ${{ secrets.RELEASE_TOKEN }}                # GitHub token for release-please
