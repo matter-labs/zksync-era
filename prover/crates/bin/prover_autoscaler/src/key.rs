@@ -37,6 +37,8 @@ pub enum Gpu {
     P100,
     #[strum(ascii_case_insensitive)]
     A100,
+    #[strum(ascii_case_insensitive)]
+    T100,
 }
 
 impl Gpu {
