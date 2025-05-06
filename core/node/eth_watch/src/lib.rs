@@ -44,7 +44,7 @@ pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
     poll_interval: Duration,
-    priority_tx_expiration_blocks: u64,
+    event_expiration_blocks: u64,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
 }
@@ -58,7 +58,7 @@ impl EthWatch {
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
-        priority_tx_expiration_blocks: u64,
+        event_expiration_blocks: u64,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
@@ -99,7 +99,7 @@ impl EthWatch {
             l1_client,
             sl_client: sl_eth_client,
             poll_interval,
-            priority_tx_expiration_blocks,
+            event_expiration_blocks,
             event_processors,
             pool,
         })
@@ -200,7 +200,7 @@ impl EthWatch {
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
-                    to_block.saturating_sub(self.priority_tx_expiration_blocks),
+                    to_block.saturating_sub(self.event_expiration_blocks),
                 )
                 .await
                 .map_err(DalError::generalize)?;
