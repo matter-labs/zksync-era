@@ -548,7 +548,7 @@ jobs:
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
           ci_run pkill -9 -f "zkstack server --ignore-prerequisites --chain era"
-          ci_run zkstack server --ignore-prerequisites --chain era &
+          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           echo "Server restart wait completed"
