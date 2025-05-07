@@ -2,16 +2,18 @@ use std::str::FromStr;
 
 use ethabi::{encode, ParamType, Token};
 use rust_eigenda_v2_client::{
-    core::{BlobKey, Payload, PayloadForm},
+    core::BlobKey,
     payload_disperser::{PayloadDisperser, PayloadDisperserConfig},
-    utils::{PrivateKey, SecretUrl},
+    rust_eigenda_signers::signers::private_key::Signer,
+    utils::SecretUrl,
 };
+use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_basic_types::web3::CallRequest;
 use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PolynomialForm},
-    EigenConfig,
+    configs::da_client::eigenv2m1::{EigenSecretsV2M1, PolynomialForm},
+    EigenConfigV2M1,
 };
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
@@ -25,14 +27,14 @@ use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
-pub struct EigenDAClient {
+pub struct EigenDAClientV2M1 {
     client: PayloadDisperser,
     eth_call_client: Box<DynClient<L1>>,
     eigenda_cert_and_blob_verifier_addr: Address,
 }
 
-impl EigenDAClient {
-    pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
+impl EigenDAClientV2M1 {
+    pub async fn new(config: EigenConfigV2M1, secrets: EigenSecretsV2M1) -> anyhow::Result<Self> {
         let url = Url::from_str(
             config
                 .eigenda_eth_rpc
@@ -56,9 +58,14 @@ impl EigenDAClient {
             use_secure_grpc_flag: config.authenticated,
         };
 
-        let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
+        let private_key = secrets
+            .private_key
+            .0
+            .expose_secret()
+            .parse()
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        let client = PayloadDisperser::new(payload_disperser_config, private_key)
+        let signer = Signer::new(private_key);
+        let client = PayloadDisperser::new(payload_disperser_config, signer)
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
 
@@ -78,7 +85,7 @@ impl EigenDAClient {
     }
 }
 
-impl EigenDAClient {
+impl EigenDAClientV2M1 {
     /// This function checks a mapping with form
     /// `mapping(bytes) -> bool` in the EigenDA registry contract.
     /// The name of the mapping is passed as a parameter.
@@ -128,18 +135,17 @@ impl EigenDAClient {
         &self,
         inclusion_data: &[u8],
     ) -> Result<Option<bool>, DAError> {
-        /*let finished = self.check_finished_batches(inclusion_data).await?;
+        let finished = self.check_finished_batches(inclusion_data).await?;
         if !finished {
             return Ok(None);
         }
         let verified = self.check_verified_batches(inclusion_data).await?;
-        Ok(Some(verified))*/
-        Ok(Some(true)) //todo
+        Ok(Some(verified))
     }
 }
 
 #[async_trait::async_trait]
-impl DataAvailabilityClient for EigenDAClient {
+impl DataAvailabilityClient for EigenDAClientV2M1 {
     async fn dispatch_blob(
         &self,
         _: u32, // batch number
@@ -205,11 +211,11 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     fn blob_size_limit(&self) -> Option<usize> {
-        PayloadDisperser::blob_size_limit()
+        PayloadDisperser::<Signer>::blob_size_limit()
     }
 
     fn client_type(&self) -> ClientType {
-        ClientType::Eigen
+        ClientType::EigenV2M1
     }
 
     async fn balance(&self) -> Result<u64, DAError> {

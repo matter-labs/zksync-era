@@ -1,4 +1,4 @@
-use std::{env, str::FromStr};
+use std::{env, num::ParseIntError, str::FromStr};
 
 use anyhow::Context;
 use zksync_basic_types::{url::SensitiveUrl, H160};
@@ -10,14 +10,16 @@ use zksync_config::{
                 AVAIL_GAS_RELAY_CLIENT_NAME,
             },
             celestia::CelestiaSecrets,
-            eigen::EigenSecrets,
+            eigenv1m0::EigenSecretsV1M0,
+            eigenv2m1::EigenSecretsV2M1,
             DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-            EIGEN_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
+            EIGENV1M0_CLIENT_CONFIG_NAME, EIGENV2M1_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME,
+            OBJECT_STORE_CLIENT_CONFIG_NAME,
         },
         secrets::DataAvailabilitySecrets,
         AvailConfig,
     },
-    EigenConfig,
+    EigenConfigV1M0, EigenConfigV2M1,
 };
 
 use crate::{envy_load, FromEnv};
@@ -41,7 +43,45 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
         CELESTIA_CLIENT_CONFIG_NAME => {
             DAClientConfig::Celestia(envy_load("da_celestia_config", prefix)?)
         }
-        EIGEN_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(EigenConfig {
+        EIGENV1M0_CLIENT_CONFIG_NAME => DAClientConfig::EigenV1M0(EigenConfigV1M0 {
+            disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
+            settlement_layer_confirmation_depth: env::var(format!(
+                "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
+                prefix
+            ))?
+            .parse()?,
+            eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
+                // Use a specific L1 RPC URL for the EigenDA client.
+                Ok(url) => Some(SensitiveUrl::from_str(&url)?),
+                // Err means that the environment variable is not set.
+                // Use zkSync default L1 RPC for the EigenDA client.
+                Err(_) => None,
+            },
+            eigenda_svc_manager_address: H160::from_str(&env::var(format!(
+                "{}EIGENDA_SVC_MANAGER_ADDRESS",
+                prefix
+            ))?)?,
+            wait_for_finalization: env::var(format!("{}WAIT_FOR_FINALIZATION", prefix))?.parse()?,
+            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
+            points_source: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
+                "Path" => zksync_config::configs::da_client::eigenv1m0::PointsSource::Path(
+                    env::var(format!("{}POINTS_PATH", prefix))?,
+                ),
+                "Url" => zksync_config::configs::da_client::eigenv1m0::PointsSource::Url((
+                    env::var(format!("{}POINTS_LINK_G1", prefix))?,
+                    env::var(format!("{}POINTS_LINK_G2", prefix))?,
+                )),
+                _ => anyhow::bail!("Unknown Eigen points type"),
+            },
+            custom_quorum_numbers: match env::var(format!("{}CUSTOM_QUORUM_NUMBERS", prefix)) {
+                Ok(numbers) => numbers
+                    .split(',')
+                    .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
+                    .collect::<anyhow::Result<Vec<_>>>()?,
+                Err(_) => vec![],
+            },
+        }),
+        EIGENV2M1_CLIENT_CONFIG_NAME => DAClientConfig::EigenV2M1(EigenConfigV2M1 {
             disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
             eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
                 // Use a specific L1 RPC URL for the EigenDA client.
@@ -61,8 +101,8 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
             ))?)?,
             blob_version: env::var(format!("{}BLOB_VERSION", prefix))?.parse()?,
             polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
-                "Coeff" => zksync_config::configs::da_client::eigen::PolynomialForm::Coeff,
-                "Poly" => zksync_config::configs::da_client::eigen::PolynomialForm::Eval,
+                "Coeff" => zksync_config::configs::da_client::eigenv2m1::PolynomialForm::Coeff,
+                "Poly" => zksync_config::configs::da_client::eigenv2m1::PolynomialForm::Eval,
                 _ => anyhow::bail!("Unknown polynomial form"),
             },
         }),
@@ -108,11 +148,17 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
                 .into();
             DataAvailabilitySecrets::Celestia(CelestiaSecrets { private_key })
         }
-        EIGEN_CLIENT_CONFIG_NAME => {
+        EIGENV1M0_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
                 .context("Eigen private key not found")?
                 .into();
-            DataAvailabilitySecrets::Eigen(EigenSecrets { private_key })
+            DataAvailabilitySecrets::EigenV1M0(EigenSecretsV1M0 { private_key })
+        }
+        EIGENV2M1_CLIENT_CONFIG_NAME => {
+            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
+                .context("Eigen private key not found")?
+                .into();
+            DataAvailabilitySecrets::EigenV2M1(EigenSecretsV2M1 { private_key })
         }
 
         _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
@@ -136,11 +182,12 @@ mod tests {
         configs::{
             da_client::{
                 avail::{AvailClientConfig, AvailDefaultConfig},
+                eigenv1m0::PointsSource,
                 DAClientConfig::{self, ObjectStore},
             },
             object_store::ObjectStoreMode::GCS,
         },
-        AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig,
+        AvailConfig, CelestiaConfig, EigenConfigV1M0, EigenConfigV2M1, ObjectStoreConfig,
     };
 
     use super::*;
@@ -286,7 +333,41 @@ mod tests {
     }
 
     #[test]
-    fn from_env_eigen_client() {
+    fn from_env_eigenv1m0_client() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="EigenV1M0"
+            DA_DISPERSER_RPC="http://localhost:8080"
+            DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+            DA_EIGENDA_ETH_RPC="http://localhost:8545"
+            DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
+            DA_WAIT_FOR_FINALIZATION=true
+            DA_AUTHENTICATED=false
+            DA_POINTS_SOURCE="Path"
+            DA_POINTS_PATH="resources"
+            DA_CUSTOM_QUORUM_NUMBERS="2"
+        "#;
+        lock.set_env(config);
+        let actual = DAClientConfig::from_env().unwrap();
+        assert_eq!(
+            actual,
+            DAClientConfig::EigenV1M0(EigenConfigV1M0 {
+                disperser_rpc: "http://localhost:8080".to_string(),
+                settlement_layer_confirmation_depth: 0,
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
+                eigenda_svc_manager_address: "0x0000000000000000000000000000000000000123"
+                    .parse()
+                    .unwrap(),
+                wait_for_finalization: true,
+                authenticated: false,
+                points_source: PointsSource::Path("resources".to_string()),
+                custom_quorum_numbers: vec![2],
+            })
+        );
+    }
+
+    #[test]
+    fn from_env_eigenv2m1_client() {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Eigen"
@@ -303,7 +384,7 @@ mod tests {
         let actual = DAClientConfig::from_env().unwrap();
         assert_eq!(
             actual,
-            DAClientConfig::Eigen(EigenConfig {
+            DAClientConfig::EigenV2M1(EigenConfigV2M1 {
                 disperser_rpc: "http://localhost:8080".to_string(),
                 eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
                 authenticated: false,
@@ -314,7 +395,8 @@ mod tests {
                     .parse()
                     .unwrap(),
                 blob_version: 0,
-                polynomial_form: zksync_config::configs::da_client::eigen::PolynomialForm::Coeff,
+                polynomial_form:
+                    zksync_config::configs::da_client::eigenv2m1::PolynomialForm::Coeff,
             })
         );
     }

@@ -1,4 +1,4 @@
-# EigenDA Client
+# EigenDA Client V1M0
 
 EigenDA is as a high-throughput data availability layer for rollups. It is an EigenLayer AVS (Actively Validated
 Service), so it leverages Ethereum's economic security instead of bootstrapping a new network with its own validators.

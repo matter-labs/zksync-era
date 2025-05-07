@@ -65,7 +65,8 @@ pub enum PubdataType {
     NoDA,
     Avail,
     Celestia,
-    Eigen,
+    EigenV1M0,
+    EigenV2M1,
     ObjectStore,
 }
 
@@ -78,9 +79,10 @@ impl FromStr for PubdataType {
             "NoDA" => Ok(Self::NoDA),
             "Avail" => Ok(Self::Avail),
             "Celestia" => Ok(Self::Celestia),
-            "Eigen" => Ok(Self::Eigen),
+            "EigenV1M0" => Ok(Self::EigenV1M0),
+            "EigenV2M1" => Ok(Self::EigenV2M1),
             "ObjectStore" => Ok(Self::ObjectStore),
-            _ => Err("Incorrect DA client type; expected one of `Rollup`, `NoDA`, `Avail`, `Celestia`, `Eigen`, `ObjectStore`"),
+            _ => Err("Incorrect DA client type; expected one of `Rollup`, `NoDA`, `Avail`, `Celestia`, `EigenV1M0`, `ObjectStore`, `EigenV2M1`"),
         }
     }
 }

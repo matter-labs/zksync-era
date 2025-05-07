@@ -62,9 +62,7 @@ impl L1Network {
 
     pub fn eigenda_cert_and_blob_verifier_addr(&self) -> Option<Address> {
         match self {
-            L1Network::Localhost => {
-                Some(Address::from_str("0xEaF1790229C16Af929f515d2B74Dc0E39820160C").unwrap())
-            }
+            L1Network::Localhost => None,
             L1Network::Sepolia | L1Network::Holesky => {
                 None
                 //TODO: add real address

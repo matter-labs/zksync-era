@@ -8,7 +8,10 @@ use zksync_basic_types::{
 };
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
+    da_client::{
+        avail::AvailSecrets, celestia::CelestiaSecrets, eigenv1m0::EigenSecretsV1M0,
+        eigenv2m1::EigenSecretsV2M1,
+    },
     secrets::{DataAvailabilitySecrets, Secrets},
     ContractVerifierSecrets, DatabaseSecrets, L1Secrets,
 };
@@ -141,7 +144,14 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                         .as_str(),
                 ),
             }),
-            DaSecrets::Eigen(eigen) => DataAvailabilitySecrets::Eigen(EigenSecrets {
+            DaSecrets::Eigenv1m0(eigen) => DataAvailabilitySecrets::EigenV1M0(EigenSecretsV1M0 {
+                private_key: PrivateKey::from(
+                    required(&eigen.private_key)
+                        .context("private_key")?
+                        .as_str(),
+                ),
+            }),
+            DaSecrets::Eigenv2m1(eigen) => DataAvailabilitySecrets::EigenV2M1(EigenSecretsV2M1 {
                 private_key: PrivateKey::from(
                     required(&eigen.private_key)
                         .context("private_key")?
@@ -194,9 +204,16 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
-            DataAvailabilitySecrets::Eigen(config) => Some(DaSecrets::Eigen(proto::EigenSecret {
-                private_key: Some(config.private_key.0.expose_secret().to_string()),
-            })),
+            DataAvailabilitySecrets::EigenV1M0(config) => {
+                Some(DaSecrets::Eigenv1m0(proto::EigenSecretV1m0 {
+                    private_key: Some(config.private_key.0.expose_secret().to_string()),
+                }))
+            }
+            DataAvailabilitySecrets::EigenV2M1(config) => {
+                Some(DaSecrets::Eigenv2m1(proto::EigenSecretV2m1 {
+                    private_key: Some(config.private_key.0.expose_secret().to_string()),
+                }))
+            }
         };
 
         Self {
