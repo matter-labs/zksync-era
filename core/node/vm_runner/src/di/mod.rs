@@ -1,12 +1,19 @@
+//! Dependency injection for VM runner components.
+
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
 };
-use zksync_vm_runner::{ConcurrentOutputHandlerFactoryTask, StorageSyncTask, VmRunnerIo};
 
-pub mod bwip;
-pub mod playground;
-pub mod protective_reads;
+pub use self::{
+    bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
+    protective_reads::ProtectiveReadsWriterLayer,
+};
+use crate::{ConcurrentOutputHandlerFactoryTask, StorageSyncTask, VmRunnerIo};
+
+mod bwip;
+mod playground;
+mod protective_reads;
 
 #[async_trait::async_trait]
 impl<Io: VmRunnerIo> Task for StorageSyncTask<Io> {

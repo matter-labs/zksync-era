@@ -3,13 +3,13 @@
 
 #![warn(missing_debug_implementations, missing_docs)]
 
+pub mod di;
 pub mod impls;
 mod io;
+mod metrics;
 mod output_handler;
 mod process;
 mod storage;
-
-mod metrics;
 #[cfg(test)]
 mod tests;
 

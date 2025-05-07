@@ -1,22 +1,21 @@
 use zksync_config::configs::vm_runner::BasicWitnessInputProducerConfig;
+use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_object_store::di::ObjectStoreResource;
 use zksync_types::L2ChainId;
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
-use zksync_vm_runner::{
+
+use crate::{
     impls::{BasicWitnessInputProducer, BasicWitnessInputProducerIo},
     ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
 };
 
-use crate::implementations::resources::{
-    object_store::ObjectStoreResource,
-    pools::{MasterPool, PoolResource},
-};
-
+/// Wiring layer for the BWIP component.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerLayer {
     config: BasicWitnessInputProducerConfig,
@@ -24,6 +23,7 @@ pub struct BasicWitnessInputProducerLayer {
 }
 
 impl BasicWitnessInputProducerLayer {
+    /// Creates a layer with the provided config.
     pub fn new(config: BasicWitnessInputProducerConfig, zksync_network_id: L2ChainId) -> Self {
         Self {
             config,

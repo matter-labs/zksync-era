@@ -1,4 +1,5 @@
 use zksync_config::configs::vm_runner::ProtectiveReadsWriterConfig;
+use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -6,12 +7,11 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::L2ChainId;
-use zksync_vm_runner::{
+
+use crate::{
     impls::{ProtectiveReadsIo, ProtectiveReadsWriter},
     ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
 };
-
-use crate::implementations::resources::pools::{MasterPool, PoolResource};
 
 /// Wiring layer for protective reads writer.
 #[derive(Debug)]
@@ -36,6 +36,7 @@ pub struct Output {
 }
 
 impl ProtectiveReadsWriterLayer {
+    /// Creates a layer with the provided config.
     pub fn new(
         protective_reads_writer_config: ProtectiveReadsWriterConfig,
         zksync_network_id: L2ChainId,

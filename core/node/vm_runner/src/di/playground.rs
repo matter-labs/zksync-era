@@ -1,11 +1,14 @@
 use async_trait::async_trait;
 use zksync_config::configs::ExperimentalVmPlaygroundConfig;
+use zksync_dal::di::{PoolResource, ReplicaPool};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource, FromContext, IntoContext, StopReceiver, Task,
-    TaskId, WiringError, WiringLayer,
+    FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
+use zksync_object_store::di::ObjectStoreResource;
 use zksync_types::L2ChainId;
-use zksync_vm_runner::{
+
+use crate::{
     impls::{
         VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundIo, VmPlaygroundLoaderTask,
         VmPlaygroundStorageOptions,
@@ -13,11 +16,7 @@ use zksync_vm_runner::{
     ConcurrentOutputHandlerFactoryTask,
 };
 
-use crate::implementations::resources::{
-    object_store::ObjectStoreResource,
-    pools::{PoolResource, ReplicaPool},
-};
-
+/// Wiring layer for the VM playground.
 #[derive(Debug)]
 pub struct VmPlaygroundLayer {
     config: ExperimentalVmPlaygroundConfig,
@@ -25,6 +24,7 @@ pub struct VmPlaygroundLayer {
 }
 
 impl VmPlaygroundLayer {
+    /// Creates a layer with the provided config.
     pub fn new(config: ExperimentalVmPlaygroundConfig, zksync_network_id: L2ChainId) -> Self {
         Self {
             config,
