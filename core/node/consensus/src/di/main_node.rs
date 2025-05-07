@@ -1,15 +1,15 @@
 use zksync_concurrency::{ctx, scope, sync};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_dal::{ConnectionPool, Core};
-use zksync_node_consensus as consensus;
+use zksync_dal::{
+    di::{MasterPool, PoolResource},
+    ConnectionPool, Core,
+};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-
-use crate::implementations::resources::pools::{MasterPool, PoolResource};
 
 /// Wiring layer for main node consensus component.
 #[derive(Debug)]
@@ -72,7 +72,7 @@ impl Task for MainNodeConsensusTask {
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         scope::run!(&ctx::root(), |ctx, s| async move {
-            s.spawn_bg(consensus::era::run_main_node(
+            s.spawn_bg(crate::era::run_main_node(
                 ctx,
                 self.config,
                 self.secrets,

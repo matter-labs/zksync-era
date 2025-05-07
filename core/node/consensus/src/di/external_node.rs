@@ -1,22 +1,23 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, scope, sync};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_dal::{ConnectionPool, Core};
-use zksync_node_consensus as consensus;
+use zksync_dal::{
+    di::{MasterPool, PoolResource},
+    ConnectionPool, Core,
+};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::{ActionQueueSender, SyncState};
-use zksync_web3_decl::client::{DynClient, L2};
-
-use crate::implementations::resources::{
-    action_queue::ActionQueueSenderResource,
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-    sync_state::SyncStateResource,
+use zksync_node_sync::{
+    di::{ActionQueueSenderResource, SyncStateResource},
+    ActionQueueSender, SyncState,
+};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    di::MainNodeClientResource,
 };
 
 /// Wiring layer for external node consensus component.
@@ -111,7 +112,7 @@ impl Task for ExternalNodeTask {
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
         scope::run!(&ctx::root(), |ctx, s| async {
-            s.spawn_bg(consensus::era::run_external_node(
+            s.spawn_bg(crate::era::run_external_node(
                 ctx,
                 self.config,
                 self.pool,
