@@ -16,9 +16,6 @@ pub struct ProofFriCompressorRunnerBuilder {
     protocol_version: ProtocolSemanticVersion,
     keystore: Keystore,
     is_fflonk: bool,
-    // finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-    // sender:
-    //     tokio::sync::mpsc::Sender<(ProofFriCompressorExecutionOutput, FriProverJobMetadata)>,
     cancellation_token: CancellationToken,
 }
 
@@ -29,11 +26,6 @@ impl ProofFriCompressorRunnerBuilder {
         protocol_version: ProtocolSemanticVersion,
         keystore: Keystore,
         is_fflonk: bool,
-        // finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-        // sender: tokio::sync::mpsc::Sender<(
-        //     ProofFriCompressorExecutionOutput,
-        //     FriProverJobMetadata,
-        // )>,
         cancellation_token: CancellationToken,
     ) -> Self {
         Self {
@@ -42,8 +34,6 @@ impl ProofFriCompressorRunnerBuilder {
             protocol_version,
             keystore,
             is_fflonk,
-            // finalization_hints_cache,
-            // sender,
             cancellation_token,
         }
     }
@@ -81,10 +71,5 @@ impl ProofFriCompressorRunnerBuilder {
                 self.cancellation_token.clone(),
             )),
         )
-
-        // let executor = ProofFriCompressorExecutor::new(prover_context);
-        // let job_picker = ProofFriCompressorJobPicker::new(receiver, setup_data_cache);
-        // let job_saver = ProofFriCompressorJobSaver::new(connection_pool, object_store, protocol_version);
-        // JobRunner::new(executor, job_picker, job_saver, 1, None)
     }
 }
