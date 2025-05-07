@@ -1,23 +1,19 @@
-use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_eth_sender::EthTxManager;
+use zksync_circuit_breaker::{di::CircuitBreakersResource, l1_txs::FailedL1TransactionChecker};
+use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
+use zksync_eth_client::di::{
+    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
+};
+use zksync_health_check::di::AppHealthCheckResource;
+use zksync_node_fee_model::di::GasAdjusterResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::{
-    circuit_breakers::CircuitBreakersResource,
-    eth_interface::{
-        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-        BoundEthInterfaceResource,
-    },
-    gas_adjuster::GasAdjusterResource,
-    pools::{MasterPool, PoolResource, ReplicaPool},
-};
+use super::SenderConfigResource;
+use crate::EthTxManager;
 
 /// Wiring layer for `eth_txs` managing
 ///
@@ -47,7 +43,7 @@ pub struct Input {
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub gas_adjuster: GasAdjusterResource,
-    pub sender_config: SenderConfig,
+    pub sender_config: SenderConfigResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
@@ -82,7 +78,7 @@ impl WiringLayer for EthTxManagerLayer {
 
         let eth_tx_manager = EthTxManager::new(
             master_pool,
-            input.sender_config,
+            input.sender_config.0,
             gas_adjuster,
             Some(eth_client),
             eth_client_blobs,

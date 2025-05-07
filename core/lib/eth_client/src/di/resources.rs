@@ -1,4 +1,4 @@
-use zksync_config::configs::contracts::ecosystem::L1SpecificContracts;
+use zksync_config::configs::contracts::ecosystem::{EcosystemCommonContracts, L1SpecificContracts};
 use zksync_node_framework::resource::Resource;
 use zksync_types::{settlement::SettlementLayer, Address, L1ChainId, SLChainId};
 use zksync_web3_decl::client::{DynClient, L1, L2};
@@ -42,6 +42,7 @@ impl Resource for BaseGatewayContractsResource {
 #[derive(Debug, Clone)]
 pub struct BaseSettlementLayerContractsResource {
     pub diamond_proxy_addr: Address,
+    pub common: EcosystemCommonContracts,
     pub chain_id: SLChainId,
 }
 

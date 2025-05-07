@@ -1,27 +1,22 @@
 use anyhow::Context;
-use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_eth_sender::{Aggregator, EthTxAggregator};
+use zksync_circuit_breaker::{di::CircuitBreakersResource, l1_txs::FailedL1TransactionChecker};
+use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
+use zksync_eth_client::di::{
+    BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
+    BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SettlementModeResource,
+};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_object_store::di::ObjectStoreResource;
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
-use crate::implementations::resources::{
-    circuit_breakers::CircuitBreakersResource,
-    contracts::SettlementLayerContractsResource,
-    eth_interface::{
-        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-        BoundEthInterfaceResource,
-    },
-    object_store::ObjectStoreResource,
-    pools::{MasterPool, PoolResource, ReplicaPool},
-    settlement_layer::SettlementModeResource,
-};
+use super::SenderConfigResource;
+use crate::{Aggregator, EthTxAggregator};
 
 /// Wiring layer for aggregating l1 batches into `eth_txs`
 ///
@@ -56,12 +51,12 @@ pub struct Input {
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
     pub settlement_mode: SettlementModeResource,
-    pub sender_config: SenderConfig,
+    pub sender_config: SenderConfigResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
-    pub contracts_resource: SettlementLayerContractsResource,
+    pub sl_contracts: BaseSettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -97,32 +92,25 @@ impl WiringLayer for EthTxAggregatorLayer {
             input.settlement_mode.0,
             input.settlement_mode.0.is_gateway()
         );
-        tracing::info!("Contracts: {:?}", &input.contracts_resource.0);
+        tracing::info!("Contracts: {:?}", input.sl_contracts);
         // Get resources.
 
         let validator_timelock_addr = input
-            .contracts_resource
-            .0
-            .ecosystem_contracts
+            .sl_contracts
+            .common
             .validator_timelock_addr
-            .expect("Should be presented");
+            .context("validator_timelock_addr not present in SL contracts")?;
         let multicall3_addr = input
-            .contracts_resource
-            .0
-            .ecosystem_contracts
+            .sl_contracts
+            .common
             .multicall3
-            .expect("Should be presented");
-        let diamond_proxy_addr = input
-            .contracts_resource
-            .0
-            .chain_contracts_config
-            .diamond_proxy_addr;
+            .context("multicall3 not present in SL contracts")?;
+        let diamond_proxy_addr = input.sl_contracts.diamond_proxy_addr;
         let state_transition_manager_address = input
-            .contracts_resource
-            .0
-            .ecosystem_contracts
+            .sl_contracts
+            .common
             .state_transition_proxy_addr
-            .expect("Should be presented");
+            .context("state_transition_proxy_addr not present in SL contracts")?;
 
         let eth_client = if input.settlement_mode.0.is_gateway() {
             input
@@ -133,15 +121,15 @@ impl WiringLayer for EthTxAggregatorLayer {
             input.eth_client.context("eth_client missing")?.0
         };
 
-        let master_pool = input.master_pool.get().await.unwrap();
-        let replica_pool = input.replica_pool.get().await.unwrap();
+        let master_pool = input.master_pool.get().await?;
+        let replica_pool = input.replica_pool.get().await?;
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
 
         // Create and add tasks.
 
-        let config = input.sender_config;
+        let config = input.sender_config.0;
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
@@ -154,7 +142,7 @@ impl WiringLayer for EthTxAggregatorLayer {
 
         let eth_tx_aggregator = EthTxAggregator::new(
             master_pool.clone(),
-            config.clone(),
+            config,
             aggregator,
             eth_client,
             eth_client_blobs,
