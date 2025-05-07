@@ -518,17 +518,8 @@ jobs:
 
       - name: DA migration tests
         run: |
-          # deploy L2 DA validator
-          ci_run zkstack chain deploy-l2da-validator
-          # set pubdata pricing mode to validium
-          ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
-          
-          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/genesis.yaml
-          sudo yq -i '.da_client.no_da = {}' ./chains/era/configs/general.yaml
-          sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/era/configs/general.yaml
-          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
-          
-          # restarting the server so that config changes take effect
+          echo "Updating l1 batch seal timeout to 30 seconds so that we have at least one committed batch before migration"
+          sudo yq -i '.state_keeper.block_commit_deadline_ms = "30000"' ./chains/era/configs/genesis.yaml
           echo "Restarting server to apply configuration changes"
           ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
@@ -536,10 +527,26 @@ jobs:
           ci_run sleep 60
           echo "Server restart wait completed"
           
-          # Update DA valdiator addresses on L1
+          echo "Deploying L2 DA validator"
+          ci_run zkstack chain deploy-l2da-validator
+          echo "Setting pubdata pricing mode to validium"
+          ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
+          
+          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/genesis.yaml
+          sudo yq -i '.da_client.no_da = {}' ./chains/era/configs/general.yaml
+          sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/era/configs/general.yaml
+          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
+          
+          echo "Restarting server to apply configuration changes"
+          ci_run pkill -f "zksync_server.*chains/era/configs"
+          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          echo "Server restart initiated, waiting 60 seconds for startup"
+          ci_run sleep 60
+          echo "Server restart wait completed"
+          
+          echo "Updating DA valdiator addresses on L1"
           ci_run zkstack chain set-da-validator-pair
           
-          # disable inclusion verification transition and restart the server
           echo "Disabling inclusion verification transition"
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
@@ -549,6 +556,7 @@ jobs:
           ci_run sleep 60
           echo "Server restart wait completed"
           
+          echo "Running integration tests"
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             "era" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
