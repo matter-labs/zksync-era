@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::commands::dev::messages::{
     MSG_EVM_TESTS_HELP, MSG_NO_DEPS_HELP, MSG_TESTS_EXTERNAL_NODE_HELP, MSG_TEST_PATTERN_HELP,
-    MSG_TEST_TIMEOUT_HELP,
-    MSG_TEST_SUITES_HELP,
+    MSG_TEST_SUITES_HELP, MSG_TEST_TIMEOUT_HELP,
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
