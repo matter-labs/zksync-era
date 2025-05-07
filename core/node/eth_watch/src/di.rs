@@ -1,25 +1,19 @@
-use zksync_config::{
-    configs::contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
-    EthWatchConfig,
+use zksync_config::{configs::contracts::ecosystem::L1SpecificContracts, EthWatchConfig};
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_eth_client::di::{
+    BaseL1ContractsResource, BaseSettlementLayerContractsResource, EthInterfaceResource,
+    L1EcosystemContractsResource, SettlementLayerClient, SettlementModeResource,
 };
-use zksync_eth_watch::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::L2ChainId;
+use zksync_types::{Address, L2ChainId};
 use zksync_web3_decl::client::{DynClient, Network};
 
-use crate::implementations::resources::{
-    contracts::{
-        L1ChainContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
-    },
-    eth_interface::{EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource},
-    pools::{MasterPool, PoolResource},
-    settlement_layer::SettlementModeResource,
-};
+use crate::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
 
 /// Wiring layer for ethereum watcher
 ///
@@ -33,12 +27,12 @@ pub struct EthWatchLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub l1_contracts: L1ChainContractsResource,
-    pub contracts_resource: SettlementLayerContractsResource,
-    pub l1ecosystem_contracts_resource: L1EcosystemContractsResource,
+    pub l1_contracts: BaseL1ContractsResource,
+    pub sl_contracts: BaseSettlementLayerContractsResource,
+    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     pub eth_client: EthInterfaceResource,
-    pub client: SettlementLayerClientResource,
+    pub client: SettlementLayerClient,
     pub settlement_mode: SettlementModeResource,
 }
 
@@ -59,23 +53,22 @@ impl EthWatchLayer {
     fn create_client<Net: Network>(
         &self,
         client: Box<DynClient<Net>>,
-        contracts_resource: &SettlementLayerSpecificContracts,
-        l1_ecosystem_contracts_resource: &L1SpecificContracts,
+        diamond_proxy_addr: Address,
+        state_transition_proxy_addr: Option<Address>,
+        l1_ecosystem_contracts: &L1SpecificContracts,
     ) -> EthHttpQueryClient<Net>
     where
         Box<DynClient<Net>>: GetLogsClient,
     {
         EthHttpQueryClient::new(
             client,
-            contracts_resource.chain_contracts_config.diamond_proxy_addr,
-            l1_ecosystem_contracts_resource.bytecodes_supplier_addr,
-            l1_ecosystem_contracts_resource.wrapped_base_token_store,
-            l1_ecosystem_contracts_resource.shared_bridge,
-            contracts_resource
-                .ecosystem_contracts
-                .state_transition_proxy_addr,
-            l1_ecosystem_contracts_resource.chain_admin,
-            l1_ecosystem_contracts_resource.server_notifier_addr,
+            diamond_proxy_addr,
+            l1_ecosystem_contracts.bytecodes_supplier_addr,
+            l1_ecosystem_contracts.wrapped_base_token_store,
+            l1_ecosystem_contracts.shared_bridge,
+            state_transition_proxy_addr,
+            l1_ecosystem_contracts.chain_admin,
+            l1_ecosystem_contracts.server_notifier_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
         )
@@ -97,29 +90,28 @@ impl WiringLayer for EthWatchLayer {
 
         tracing::info!(
             "Diamond proxy address settlement_layer: {:#?}",
-            input
-                .contracts_resource
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr
+            input.sl_contracts.diamond_proxy_addr
         );
 
         let l1_client = self.create_client(
             client,
-            &input.l1_contracts.0,
-            &input.l1ecosystem_contracts_resource.0,
+            input.l1_contracts.diamond_proxy_addr,
+            input.l1_contracts.state_transition_proxy_addr,
+            &input.l1_ecosystem_contracts.0,
         );
 
-        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client.0 {
+        let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client {
             SettlementLayerClient::L1(client) => Box::new(self.create_client(
                 client,
-                &input.contracts_resource.0,
-                &input.l1ecosystem_contracts_resource.0,
+                input.l1_contracts.diamond_proxy_addr,
+                input.l1_contracts.state_transition_proxy_addr,
+                &input.l1_ecosystem_contracts.0,
             )),
             SettlementLayerClient::L2(client) => Box::new(self.create_client(
                 client,
-                &input.contracts_resource.0,
-                &input.l1ecosystem_contracts_resource.0,
+                input.l1_contracts.diamond_proxy_addr,
+                input.l1_contracts.state_transition_proxy_addr,
+                &input.l1_ecosystem_contracts.0,
             )),
         };
 

@@ -1,3 +1,4 @@
+use zksync_config::configs::contracts::ecosystem::L1SpecificContracts;
 use zksync_node_framework::resource::Resource;
 use zksync_types::{settlement::SettlementLayer, Address, L1ChainId, SLChainId};
 use zksync_web3_decl::client::{DynClient, L1, L2};
@@ -16,6 +17,7 @@ impl Resource for SettlementModeResource {
 #[derive(Debug, Clone)]
 pub struct BaseL1ContractsResource {
     pub diamond_proxy_addr: Address,
+    pub state_transition_proxy_addr: Option<Address>,
     pub chain_id: L1ChainId,
 }
 
@@ -46,6 +48,15 @@ pub struct BaseSettlementLayerContractsResource {
 impl Resource for BaseSettlementLayerContractsResource {
     fn name() -> String {
         "common/base_sl_layer_contracts".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct L1EcosystemContractsResource(pub L1SpecificContracts);
+
+impl Resource for L1EcosystemContractsResource {
+    fn name() -> String {
+        "common/l1_ecosystem_contracts".into()
     }
 }
 

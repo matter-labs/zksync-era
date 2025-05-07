@@ -3,7 +3,7 @@ use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_eth_client::{
     clients::PKSigningClient,
-    di::{BaseL1ContractsResource, EthInterfaceResource},
+    di::{BaseL1ContractsResource, EthInterfaceResource, L1EcosystemContractsResource},
 };
 use zksync_node_fee_model::di::TxParamsResource;
 use zksync_node_framework::{
@@ -13,7 +13,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use super::resources::{L1EcosystemContractsResource, PriceAPIClientResource};
+use super::resources::PriceAPIClientResource;
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 
 /// Wiring layer for `BaseTokenRatioPersister`
