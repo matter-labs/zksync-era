@@ -1,5 +1,6 @@
-use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::resource::Resource;
+
+use crate::DataAvailabilityClient;
 
 /// Represents a client of a certain DA solution.
 #[derive(Debug, Clone)]

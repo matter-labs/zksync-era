@@ -1,12 +1,11 @@
 use std::fmt::Debug;
 
-use zksync_da_client::DataAvailabilityClient;
+use zksync_da_client::{di::DAClientResource, DataAvailabilityClient};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
 
-use super::resources::DAClientResource;
 use crate::no_da::NoDAClient;
 
 #[derive(Debug, Default)]

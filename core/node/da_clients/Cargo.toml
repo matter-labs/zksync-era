@@ -21,7 +21,7 @@ tokio.workspace = true
 zksync_config.workspace = true
 zksync_types.workspace = true
 zksync_object_store = { workspace = true, features = ["di"] }
-zksync_da_client.workspace = true
+zksync_da_client = { workspace = true, features = ["di"] }
 zksync_env_config.workspace = true
 zksync_basic_types.workspace = true
 zksync_node_framework.workspace = true

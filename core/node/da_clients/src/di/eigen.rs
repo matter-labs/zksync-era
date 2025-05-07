@@ -1,7 +1,7 @@
 use std::{error::Error, sync::Arc};
 
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
-use zksync_da_client::DataAvailabilityClient;
+use zksync_da_client::{di::DAClientResource, DataAvailabilityClient};
 use zksync_dal::{
     di::{MasterPool, PoolResource},
     ConnectionPool, Core, CoreDal,
@@ -11,7 +11,6 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use super::resources::DAClientResource;
 use crate::eigen::{BlobProvider, EigenDAClient};
 
 #[derive(Debug)]
