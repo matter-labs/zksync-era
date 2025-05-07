@@ -3,8 +3,8 @@ pub use self::{
     caches::MempoolCacheLayer,
     healtcheck_server::HealthCheckLayer,
     resources::{MempoolCacheResource, TxSenderResource, TxSinkResource},
-    server::Web3ServerLayer,
-    tx_sender::TxSenderLayer,
+    server::{Web3ServerLayer, Web3ServerOptionalConfig},
+    tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
     tx_sink::{MasterPoolSinkLayer, ProxySinkLayer, WhitelistedMasterPoolSinkLayer},
 };
 

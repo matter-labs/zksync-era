@@ -4,7 +4,7 @@ use anyhow::Context;
 use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::{di::CircuitBreakersResource, replication_lag::ReplicationLagChecker};
-use zksync_config::configs::{api::MaxResponseSize, contracts::chain::L2Contracts};
+use zksync_config::configs::api::MaxResponseSize;
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_dal::di::{PoolResource, ReplicaPool};
 use zksync_health_check::di::AppHealthCheckResource;
@@ -17,7 +17,8 @@ use zksync_node_framework::{
 };
 use zksync_node_sync::di::SyncStateResource;
 use zksync_shared_di::contracts::{
-    L1ChainContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
+    L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+    SettlementLayerContractsResource,
 };
 use zksync_web3_decl::di::{EthInterfaceResource, MainNodeClientResource, SettlementModeResource};
 
@@ -115,7 +116,6 @@ pub struct Web3ServerLayer {
     port: u16,
     optional_config: Web3ServerOptionalConfig,
     internal_api_config_base: InternalApiConfigBase,
-    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
@@ -134,6 +134,7 @@ pub struct Input {
     pub sl_contracts: SettlementLayerContractsResource,
     pub l1_contracts: L1ChainContractsResource,
     pub l1_ecosystem_contracts: L1EcosystemContractsResource,
+    pub l2_contracts: L2ContractsResource,
     pub initial_settlement_mode: SettlementModeResource,
 }
 
@@ -154,14 +155,12 @@ impl Web3ServerLayer {
         port: u16,
         internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
-        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             transport: Transport::Http,
             port,
             optional_config,
             internal_api_config_base,
-            l2_contracts,
         }
     }
 
@@ -169,14 +168,12 @@ impl Web3ServerLayer {
         port: u16,
         internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
-        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             transport: Transport::Ws,
             port,
             optional_config,
             internal_api_config_base,
-            l2_contracts,
         }
     }
 }
@@ -208,7 +205,7 @@ impl WiringLayer for Web3ServerLayer {
             self.internal_api_config_base,
             &l1_contracts,
             &input.l1_ecosystem_contracts.0,
-            &self.l2_contracts,
+            &input.l2_contracts.0,
             input.initial_settlement_mode.0,
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();

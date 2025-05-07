@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{
     resource::Unique,
@@ -8,7 +7,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::contracts::SettlementLayerContractsResource;
+use zksync_shared_di::contracts::{L2ContractsResource, SettlementLayerContractsResource};
 use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use super::resources::OutputHandlerResource;
@@ -42,7 +41,6 @@ pub struct OutputHandlerLayer {
     /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes)
     /// or run `vm_runner_protective_reads` component.
     protective_reads_persistence_enabled: bool,
-    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
@@ -50,6 +48,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     // FIXME: inject sync_state as additional output handler
     pub contracts: SettlementLayerContractsResource,
+    pub l2_contracts: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -60,10 +59,9 @@ pub struct Output {
 }
 
 impl OutputHandlerLayer {
-    pub fn new(l2_block_seal_queue_capacity: usize, l2_contracts: L2Contracts) -> Self {
+    pub fn new(l2_block_seal_queue_capacity: usize) -> Self {
         Self {
             l2_block_seal_queue_capacity,
-            l2_contracts,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
         }
@@ -101,10 +99,11 @@ impl WiringLayer for OutputHandlerLayer {
             .await
             .context("Get master pool")?;
 
-        let l2_shared_bridge_addr = self.l2_contracts.shared_bridge_addr;
+        let l2_contracts = &input.l2_contracts.0;
+        let l2_shared_bridge_addr = l2_contracts.shared_bridge_addr;
         let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
             // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
-            self.l2_contracts.legacy_shared_bridge_addr
+            l2_contracts.legacy_shared_bridge_addr
         } else {
             // System hasn't migrated on `L2_ASSET_ROUTER_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
             Some(l2_shared_bridge_addr)

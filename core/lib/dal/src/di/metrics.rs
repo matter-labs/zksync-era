@@ -24,7 +24,7 @@ const TASK_EXECUTION_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Wiring layer for the Postgres metrics exporter and healthcheck.
 #[derive(Debug)]
-pub struct PostgresLayer;
+pub struct PostgresMetricsLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
@@ -40,7 +40,7 @@ pub struct Output {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for PostgresLayer {
+impl WiringLayer for PostgresMetricsLayer {
     type Input = Input;
     type Output = Output;
 

@@ -3,8 +3,8 @@ use zksync_config::{
     EthWatchConfig,
 };
 use zksync_dal::di::{MasterPool, PoolResource};
-use zksync_eth_client::di::{
-    BaseL1ContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
+use zksync_eth_client::di::contracts::{
+    L1ChainContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
 };
 use zksync_node_framework::{
     service::StopReceiver,
@@ -32,7 +32,7 @@ pub struct EthWatchLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub l1_contracts: BaseL1ContractsResource,
+    pub l1_contracts: L1ChainContractsResource,
     pub sl_contracts: SettlementLayerContractsResource,
     pub l1_ecosystem_contracts: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,

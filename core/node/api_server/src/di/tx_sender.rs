@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock;
-use zksync_config::configs::{chain::TimestampAsserterConfig, contracts::chain::L2Contracts};
+use zksync_config::configs::chain::TimestampAsserterConfig;
 use zksync_dal::di::{PoolResource, ReplicaPool};
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_fee_model::di::ApiFeeInputResource;
@@ -12,7 +12,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::di::ObjectStoreResource;
-use zksync_shared_di::contracts::SettlementLayerContractsResource;
+use zksync_shared_di::contracts::{L2ContractsResource, SettlementLayerContractsResource};
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
 use zksync_state_keeper::di::ConditionalSealerResource;
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
@@ -64,7 +64,6 @@ pub struct TxSenderLayer {
     vm_mode: FastVmMode,
     timestamp_asserter_config: Option<TimestampAsserterConfig>,
     tx_sender_config: TxSenderConfig,
-    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
@@ -75,7 +74,8 @@ pub struct Input {
     pub fee_input: ApiFeeInputResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub sealer: Option<ConditionalSealerResource>,
-    pub contracts_resource: SettlementLayerContractsResource,
+    pub sl_contracts: SettlementLayerContractsResource,
+    pub l2_contracts: L2ContractsResource,
     pub core_object_store: Option<ObjectStoreResource>,
 }
 
@@ -96,7 +96,6 @@ impl TxSenderLayer {
         max_vm_concurrency: usize,
         tx_sender_config: TxSenderConfig,
         timestamp_asserter_config: Option<TimestampAsserterConfig>,
-        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             postgres_storage_caches_config,
@@ -105,7 +104,6 @@ impl TxSenderLayer {
             vm_mode: FastVmMode::Old,
             timestamp_asserter_config,
             tx_sender_config,
-            l2_contracts,
         }
     }
 
@@ -141,7 +139,7 @@ impl WiringLayer for TxSenderLayer {
         let sealer = input.sealer.map(|s| s.0);
         let fee_input = input.fee_input.0;
 
-        let config = match self.l2_contracts.timestamp_asserter_addr {
+        let config = match input.l2_contracts.0.timestamp_asserter_addr {
             Some(address) => {
                 let timestamp_asserter_config =
                     self.timestamp_asserter_config.expect("Should be presented");

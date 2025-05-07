@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::configs::{
     chain::{MempoolConfig, StateKeeperConfig},
-    contracts::chain::L2Contracts,
     wallets,
 };
 use zksync_dal::di::{MasterPool, PoolResource};
@@ -12,7 +11,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::contracts::SettlementLayerContractsResource;
+use zksync_shared_di::contracts::{L2ContractsResource, SettlementLayerContractsResource};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
 use super::resources::{ConditionalSealerResource, StateKeeperIOResource};
@@ -40,14 +39,14 @@ pub struct MempoolIOLayer {
     mempool_config: MempoolConfig,
     wallets: wallets::StateKeeper,
     pubdata_type: PubdataType,
-    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
-    pub contracts_resource: SettlementLayerContractsResource,
+    pub sl_contracts: SettlementLayerContractsResource,
+    pub l2_contracts: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -65,7 +64,6 @@ impl MempoolIOLayer {
         mempool_config: MempoolConfig,
         wallets: wallets::StateKeeper,
         pubdata_type: PubdataType,
-        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             zksync_network_id,
@@ -73,7 +71,6 @@ impl MempoolIOLayer {
             mempool_config,
             wallets,
             pubdata_type,
-            l2_contracts,
         }
     }
 
@@ -134,7 +131,7 @@ impl WiringLayer for MempoolIOLayer {
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
-            self.l2_contracts.da_validator_addr,
+            input.l2_contracts.0.da_validator_addr,
             self.pubdata_type,
         )?;
 

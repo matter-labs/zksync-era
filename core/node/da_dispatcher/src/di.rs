@@ -1,6 +1,4 @@
-use zksync_config::configs::{
-    chain::StateKeeperConfig, contracts::chain::L2Contracts, da_dispatcher::DADispatcherConfig,
-};
+use zksync_config::configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig};
 use zksync_da_client::di::DAClientResource;
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{
@@ -9,6 +7,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_di::contracts::L2ContractsResource;
 
 use crate::DataAvailabilityDispatcher;
 
@@ -17,13 +16,13 @@ use crate::DataAvailabilityDispatcher;
 pub struct DataAvailabilityDispatcherLayer {
     state_keeper_config: StateKeeperConfig,
     da_config: DADispatcherConfig,
-    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub da_client: DAClientResource,
+    pub l2_contracts: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -33,15 +32,10 @@ pub struct Output {
 }
 
 impl DataAvailabilityDispatcherLayer {
-    pub fn new(
-        state_keeper_config: StateKeeperConfig,
-        da_config: DADispatcherConfig,
-        l2_contracts: L2Contracts,
-    ) -> Self {
+    pub fn new(state_keeper_config: StateKeeperConfig, da_config: DADispatcherConfig) -> Self {
         Self {
             state_keeper_config,
             da_config,
-            l2_contracts,
         }
     }
 }
@@ -73,7 +67,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
             master_pool,
             self.da_config,
             da_client,
-            self.l2_contracts,
+            input.l2_contracts.0,
         );
 
         Ok(Output { da_dispatcher_task })
