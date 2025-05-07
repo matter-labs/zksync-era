@@ -549,12 +549,10 @@ jobs:
           ci_run sleep 60
           echo "Server restart wait completed"
           
-          
-          # run integration tests to make sure all went well
-          echo "Running integration tests to verify setup"
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
-            "era" ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+            "era" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
+          
           echo "Integration tests completed"
 
 
