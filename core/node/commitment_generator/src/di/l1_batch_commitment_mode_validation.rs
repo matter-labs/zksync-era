@@ -1,5 +1,5 @@
 use zksync_eth_client::{
-    di::contracts::GatewayChainContractsResource, web3_decl::di::EthInterfaceResource,
+    di::contracts::L1ChainContractsResource, web3_decl::di::EthInterfaceResource,
 };
 use zksync_node_framework::{
     service::StopReceiver,
@@ -20,7 +20,7 @@ pub struct L1BatchCommitmentModeValidationLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub gateway_contracts: GatewayChainContractsResource,
+    pub contracts: L1ChainContractsResource,
     pub client: EthInterfaceResource,
 }
 
@@ -49,11 +49,7 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let task = L1BatchCommitmentModeValidationTask::new(
-            input
-                .gateway_contracts
-                .0
-                .chain_contracts_config
-                .diamond_proxy_addr,
+            input.contracts.0.chain_contracts_config.diamond_proxy_addr,
             self.l1_batch_commit_data_generator_mode,
             Box::new(input.client.0),
         );

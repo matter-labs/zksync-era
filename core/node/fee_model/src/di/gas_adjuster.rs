@@ -8,9 +8,10 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_di::PubdataSendingModeResource;
 use zksync_web3_decl::di::SettlementLayerClient;
 
-use super::resources::{GasAdjusterResource, PubdataSendingModeResource};
+use super::resources::GasAdjusterResource;
 use crate::l1_gas_price::GasAdjuster;
 
 /// Wiring layer for sequencer L1 gas interfaces.
@@ -24,7 +25,6 @@ pub struct GasAdjusterLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub client: SettlementLayerClient,
-    // FIXME: provide!
     pub pubdata_sending_mode: PubdataSendingModeResource,
 }
 

@@ -1,21 +1,11 @@
 use std::sync::Arc;
 
 use zksync_node_framework::resource::Resource;
-use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{
     l1_gas_price::{GasAdjuster, TxParamsProvider},
     BaseTokenRatioProvider, BatchFeeModelInputProvider, NoOpRatioProvider,
 };
-
-#[derive(Debug, Clone, Copy)]
-pub struct PubdataSendingModeResource(pub PubdataSendingMode);
-
-impl Resource for PubdataSendingModeResource {
-    fn name() -> String {
-        "common/pubdata_sending_mode".into()
-    }
-}
 
 /// A resource that provides [`BaseTokenRatioProvider`] implementation to the service.
 #[derive(Debug, Clone)]

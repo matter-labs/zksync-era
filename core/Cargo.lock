@@ -12720,6 +12720,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_node_framework",
+ "zksync_shared_di",
  "zksync_system_constants",
  "zksync_web3_decl",
 ]
@@ -13068,6 +13069,7 @@ dependencies = [
  "zksync_node_framework",
  "zksync_node_genesis",
  "zksync_node_test_utils",
+ "zksync_shared_di",
  "zksync_types",
  "zksync_web3_decl",
 ]
@@ -13434,6 +13436,7 @@ dependencies = [
 name = "zksync_shared_di"
 version = "28.0.0-non-semver-compat"
 dependencies = [
+ "zksync_basic_types",
  "zksync_config",
  "zksync_node_framework",
 ]

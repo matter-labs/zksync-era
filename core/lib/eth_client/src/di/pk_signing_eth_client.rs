@@ -3,7 +3,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::contracts::{GatewayChainContractsResource, L1ChainContractsResource};
+use zksync_shared_di::contracts::{L1ChainContractsResource, SettlementLayerContractsResource};
 use zksync_web3_decl::di::{EthInterfaceResource, SettlementLayerClient};
 
 use super::resources::{
@@ -22,7 +22,7 @@ pub struct PKSigningEthClientLayer {
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub gateway_client: SettlementLayerClient,
-    pub contracts: GatewayChainContractsResource,
+    pub contracts: SettlementLayerContractsResource,
     pub l1_contracts: L1ChainContractsResource,
 }
 

@@ -40,12 +40,3 @@ impl Resource for L1ChainContractsResource {
         "common/l1_contracts".into()
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct GatewayChainContractsResource(pub SettlementLayerSpecificContracts);
-
-impl Resource for GatewayChainContractsResource {
-    fn name() -> String {
-        "common/gateway_chain_contracts".into()
-    }
-}

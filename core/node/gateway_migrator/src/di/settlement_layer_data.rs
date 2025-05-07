@@ -18,18 +18,19 @@ use zksync_eth_client::{
     contracts_loader::{
         get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
     },
-    di::{
-        contracts::{
-            L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-            SettlementLayerContractsResource,
-        },
-        SenderConfigResource,
-    },
+    di::SenderConfigResource,
     EthInterface,
 };
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
+};
+use zksync_shared_di::{
+    contracts::{
+        L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+        SettlementLayerContractsResource,
+    },
+    PubdataSendingModeResource,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
@@ -78,6 +79,7 @@ pub struct Output {
     l2_contracts: L2ContractsResource,
     l2_eth_client: Option<L2InterfaceResource>,
     eth_sender_config: Option<SenderConfigResource>,
+    pubdata_sending_mode: Option<PubdataSendingModeResource>,
 }
 
 #[async_trait::async_trait]
@@ -157,6 +159,8 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             }
         };
 
+        let eth_sender_config =
+            adjust_eth_sender_config(self.config.eth_sender_config, final_settlement_mode);
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(final_settlement_mode),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
@@ -164,10 +168,10 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             l1_contracts: L1ChainContractsResource(sl_l1_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
             l2_eth_client,
-            eth_sender_config: Some(SenderConfigResource(adjust_eth_sender_config(
-                self.config.eth_sender_config,
-                final_settlement_mode,
-            ))),
+            pubdata_sending_mode: Some(PubdataSendingModeResource(
+                eth_sender_config.pubdata_sending_mode,
+            )),
+            eth_sender_config: Some(SenderConfigResource(eth_sender_config)),
         })
     }
 }
@@ -265,6 +269,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
             l2_eth_client,
             eth_sender_config: None,
+            pubdata_sending_mode: None,
         })
     }
 }
