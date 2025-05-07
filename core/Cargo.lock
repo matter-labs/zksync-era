@@ -13085,6 +13085,7 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
+ "zksync_system_constants",
  "zksync_tee_proof_data_handler",
  "zksync_types",
  "zksync_utils",
