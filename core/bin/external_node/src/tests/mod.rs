@@ -17,7 +17,7 @@ mod utils;
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
-#[test_casing(4, ["all", "core", "api", "core,tree_api"])]
+#[test_casing(5, ["all", "core", "api", "core,tree_api", "contract_verification_api"])]
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
