@@ -52,7 +52,7 @@ async fn external_node_basics(components_str: &'static str) {
             );
 
             let node = node.build(env.components.0.into_iter().collect())?;
-            node.run(None)?;
+            node.run(())?;
             anyhow::Ok(())
         })
         .join()
@@ -124,7 +124,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
             );
 
             let node = node.build(env.components.0.into_iter().collect())?;
-            node.run(None)?;
+            node.run(())?;
             anyhow::Ok(())
         })
         .join()
