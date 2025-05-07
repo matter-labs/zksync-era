@@ -54,7 +54,7 @@ impl EthWatch {
     pub async fn new(
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn ZkSyncExtentionEthClient>,
-        sl_layer: SettlementLayer,
+        sl_layer: Option<SettlementLayer>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
@@ -85,7 +85,7 @@ impl EthWatch {
             Box::new(gateway_migration_processor),
         ];
 
-        if sl_layer.is_gateway() {
+        if let Some(SettlementLayer::Gateway(_)) = sl_layer {
             let batch_root_processor = BatchRootProcessor::new(
                 state.chain_batch_root_number_lower_bound,
                 state.batch_merkle_tree,

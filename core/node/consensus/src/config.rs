@@ -11,7 +11,7 @@ use zksync_config::{
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::{attester, node, validator};
+use zksync_consensus_roles::{node, validator};
 use zksync_dal::consensus_dal;
 use zksync_types::ethabi;
 
@@ -25,12 +25,6 @@ pub(super) fn validator_key(
     secrets: &ConsensusSecrets,
 ) -> anyhow::Result<Option<validator::SecretKey>> {
     read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
-}
-
-pub(super) fn attester_key(
-    secrets: &ConsensusSecrets,
-) -> anyhow::Result<Option<attester::SecretKey>> {
-    read_secret_text(secrets.attester_key.as_ref().map(|x| &x.0))
 }
 
 /// Consensus genesis specification.

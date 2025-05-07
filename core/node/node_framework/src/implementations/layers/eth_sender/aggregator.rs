@@ -95,9 +95,8 @@ impl WiringLayer for EthTxAggregatorLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         tracing::info!(
-            "Wiring tx_aggregator in {:?} mode which is {}",
-            input.settlement_mode.0,
-            input.settlement_mode.0.is_gateway()
+            "Wiring tx_aggregator in {:?} mode",
+            input.settlement_mode.settlement_layer_for_sending_txs(),
         );
         tracing::info!("Contracts: {:?}", &input.contracts_resource.0);
         // Get resources.
@@ -126,7 +125,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             .state_transition_proxy_addr
             .expect("Should be presented");
 
-        let eth_client = if input.settlement_mode.0.is_gateway() {
+        let eth_client = if input.settlement_mode.settlement_layer().is_gateway() {
             input
                 .eth_client_gateway
                 .context("eth_client_gateway missing")?
@@ -150,7 +149,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             eth_client_blobs.is_some(),
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
-            input.settlement_mode.0,
+            input.settlement_mode.settlement_layer(),
         )
         .await?;
 
@@ -165,7 +164,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             multicall3_addr,
             diamond_proxy_addr,
             self.zksync_network_id,
-            input.settlement_mode.0,
+            input.settlement_mode.settlement_layer_for_sending_txs(),
         )
         .await;
 
