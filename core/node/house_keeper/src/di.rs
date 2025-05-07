@@ -1,7 +1,5 @@
 use zksync_config::configs::house_keeper::HouseKeeperConfig;
-use zksync_house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob,
-};
+use zksync_dal::di::{PoolResource, ReplicaPool};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -9,7 +7,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::pools::{PoolResource, ReplicaPool};
+use crate::{blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob};
 
 /// Wiring layer for `HouseKeeper` - a component responsible for managing prover jobs
 /// and auxiliary server activities.
