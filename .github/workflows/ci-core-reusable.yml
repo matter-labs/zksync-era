@@ -476,6 +476,8 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
+          ci_run ps aux | grep zksync_server
+
       - name: Run integration tests
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
@@ -528,7 +530,7 @@ jobs:
           
           # restarting the server so that config changes take effect
           echo "Restarting server to apply configuration changes"
-          ci_run pkill -9 -f "zkstack server --ignore-prerequisites --chain era"
+          ci_run pkill -9 -f "zksync_server.*--chain era"
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
@@ -542,7 +544,7 @@ jobs:
           echo "Disabling inclusion verification transition"
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
-          ci_run pkill -9 -f "zkstack server --ignore-prerequisites --chain era"
+          ci_run pkill -9 -f "zksync_server.*--chain era"
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
