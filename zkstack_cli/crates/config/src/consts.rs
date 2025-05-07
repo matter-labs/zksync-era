@@ -67,10 +67,10 @@ pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
 /// Default port for the explorer data fetcher service
 pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
 
-pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.62.0";
+pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.67.1";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str =
-    "matterlabs/block-explorer-data-fetcher:v2.62.0";
-pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.62.0";
+    "matterlabs/block-explorer-data-fetcher:v2.67.1";
+pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.67.1";
 
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;

@@ -6,9 +6,6 @@ use serde::Serialize;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
 
-#[cfg(feature = "gateway")]
-use crate::admin_functions::prepare_upgrade_zk_chain_on_gateway;
-
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
     pub description: String,
@@ -93,6 +90,7 @@ impl AdminCallBuilder {
     }
 
     #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
         shell: &Shell,
