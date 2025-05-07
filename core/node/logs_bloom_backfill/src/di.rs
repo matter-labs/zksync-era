@@ -1,4 +1,4 @@
-use zksync_logs_bloom_backfill::LogsBloomBackfill;
+use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
@@ -6,7 +6,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::pools::{MasterPool, PoolResource};
+use crate::LogsBloomBackfill;
 
 /// Wiring layer for ethereum watcher
 ///
