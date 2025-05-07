@@ -577,4 +577,87 @@ jobs:
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain consensus
+          ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
+
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain era
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain validium
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain consensus
+
+      - name: Run integration tests en
+        run: |
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
+
+      - name: Repeat integration tests en on push to main to check for flakiness
+        if: ${{ (github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i \
+              'era:--evm' 'validium:--evm'
+          done
+
+      - name: Fee projection tests
+        run: |
+          ci_run ./bin/stop_nodes.sh
+
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific fee tests
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
+
+      - name: Repeat fee projection tests on push to main to check for flakiness
+        if: ${{ (github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.FEES_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}/$i
+          done
+
+      - name: Run revert tests
+        run: |
+          ci_run ./bin/stop_nodes.sh
+          ci_run ./bin/stop_nodes.sh --en
+
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the chain-specific revert tests
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test revert --no-deps --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.REVERT_LOGS_DIR }}
+
+      # Upgrade tests should run last, because as soon as they
+      # finish the bootloader will be different
+      # TODO make upgrade tests safe to run multiple times
+      - name: Run upgrade test
+        run: |
+          ci_run ./bin/stop_nodes.sh
+
+          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
+          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
+            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
+            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
+          fi
+
+          # Always run the upgrade test against era
+          ci_run zkstack dev test upgrade --no-deps --chain era
+
+      - name: Upload logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: logs_${{matrix.use_gateway_chain}}
+          path: |
+            logs/
+            chains/*/artifacts/vm_dumps/
