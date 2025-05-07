@@ -3,11 +3,11 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_di::contracts::{GatewayChainContractsResource, L1ChainContractsResource};
 use zksync_web3_decl::di::{EthInterfaceResource, SettlementLayerClient};
 
 use super::resources::{
-    BaseGatewayContractsResource, BaseL1ContractsResource, BoundEthInterfaceForBlobsResource,
-    BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
+    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
 };
 use crate::{clients::PKSigningClient, EthInterface};
 
@@ -22,8 +22,8 @@ pub struct PKSigningEthClientLayer {
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub gateway_client: SettlementLayerClient,
-    pub contracts: BaseGatewayContractsResource,
-    pub l1_contracts: BaseL1ContractsResource,
+    pub contracts: GatewayChainContractsResource,
+    pub l1_contracts: L1ChainContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -91,11 +91,15 @@ impl WiringLayer for PKSigningEthClientLayer {
         let signing_client_for_gateway = match input.gateway_client {
             SettlementLayerClient::L2(gateway_client) => {
                 let private_key = self.wallets.operator.private_key();
+                let l2_chain_id = gateway_client
+                    .fetch_chain_id()
+                    .await
+                    .map_err(WiringError::internal)?;
                 let signing_client_for_blobs = PKSigningClient::new_raw(
                     private_key.clone(),
-                    input.contracts.diamond_proxy_addr,
+                    input.contracts.0.chain_contracts_config.diamond_proxy_addr,
                     gas_adjuster_config.default_priority_fee_per_gas,
-                    input.contracts.chain_id,
+                    l2_chain_id,
                     gateway_client,
                 );
                 Some(BoundEthInterfaceForL2Resource(Box::new(

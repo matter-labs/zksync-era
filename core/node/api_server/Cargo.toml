@@ -28,12 +28,13 @@ zksync_state.workspace = true
 zksync_system_constants.workspace = true
 zksync_metadata_calculator.workspace = true
 zksync_web3_decl = { workspace = true, features = ["server", "di"] }
-zksync_eth_client = { workspace = true, features = ["di"] } # FIXME: only needed for contracts
+zksync_eth_client = { workspace = true, features = ["di"] } # FIXME: only needed for DI (bridge_addresses task)
 zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
 zksync_vm_executor = { workspace = true, features = ["di"] }
 zksync_node_framework.workspace = true
+zksync_shared_di.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true

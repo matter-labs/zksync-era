@@ -1,3 +1,5 @@
+//! Contract info injected into various ZKsync components.
+
 use zksync_config::configs::contracts::{
     chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
 };

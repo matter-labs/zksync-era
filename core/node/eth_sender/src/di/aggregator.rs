@@ -3,8 +3,8 @@ use zksync_circuit_breaker::{di::CircuitBreakersResource, l1_txs::FailedL1Transa
 use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::{
     di::{
-        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-        BoundEthInterfaceResource, SenderConfigResource, SettlementLayerContractsResource,
+        contracts::SettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
+        BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
     },
     web3_decl::di::SettlementModeResource,
 };

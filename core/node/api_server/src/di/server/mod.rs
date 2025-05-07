@@ -7,9 +7,6 @@ use zksync_circuit_breaker::{di::CircuitBreakersResource, replication_lag::Repli
 use zksync_config::configs::{api::MaxResponseSize, contracts::chain::L2Contracts};
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_dal::di::{PoolResource, ReplicaPool};
-use zksync_eth_client::di::{
-    BaseL1ContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
-};
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_metadata_calculator::di::TreeApiClientResource;
 use zksync_node_framework::{
@@ -19,6 +16,9 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_node_sync::di::SyncStateResource;
+use zksync_shared_di::contracts::{
+    L1ChainContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
+};
 use zksync_web3_decl::di::{EthInterfaceResource, MainNodeClientResource, SettlementModeResource};
 
 use self::{
@@ -132,7 +132,7 @@ pub struct Input {
     pub main_node_client: Option<MainNodeClientResource>,
     pub l1_client: EthInterfaceResource,
     pub sl_contracts: SettlementLayerContractsResource,
-    pub l1_contracts: BaseL1ContractsResource,
+    pub l1_contracts: L1ChainContractsResource,
     pub l1_ecosystem_contracts: L1EcosystemContractsResource,
     pub initial_settlement_mode: SettlementModeResource,
 }

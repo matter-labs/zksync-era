@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::configs::contracts::chain::L2Contracts;
 use zksync_dal::di::{MasterPool, PoolResource};
-use zksync_eth_client::di::SettlementLayerContractsResource;
 use zksync_node_framework::{
     resource::Unique,
     service::StopReceiver,
@@ -9,6 +8,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_di::contracts::SettlementLayerContractsResource;
 use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use super::resources::OutputHandlerResource;

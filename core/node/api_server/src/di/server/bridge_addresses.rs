@@ -1,3 +1,5 @@
+// FIXME: move to node_sync?
+
 use std::time::Duration;
 
 use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};

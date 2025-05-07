@@ -2,7 +2,7 @@
 
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_eth_client::{
-    di::SettlementLayerContractsResource,
+    di::contracts::SettlementLayerContractsResource,
     web3_decl::di::{SettlementLayerClient, SettlementModeResource},
     EthInterface,
 };

@@ -1,5 +1,5 @@
 use zksync_dal::di::{MasterPool, PoolResource};
-use zksync_eth_client::{di::SettlementLayerContractsResource, EthInterface};
+use zksync_eth_client::{di::contracts::SettlementLayerContractsResource, EthInterface};
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
     service::StopReceiver,

@@ -3,7 +3,7 @@ use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_eth_client::{
     clients::PKSigningClient,
-    di::{BaseL1ContractsResource, L1EcosystemContractsResource},
+    di::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
     web3_decl::di::EthInterfaceResource,
 };
 use zksync_node_fee_model::di::TxParamsResource;
@@ -36,8 +36,8 @@ pub struct Input {
     pub price_api_client: PriceAPIClientResource,
     pub eth_client: EthInterfaceResource,
     pub tx_params: TxParamsResource,
-    pub l1_contracts: BaseL1ContractsResource,
-    pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
+    pub l1_contracts: L1ChainContractsResource,
+    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -73,7 +73,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let master_pool = input.master_pool.get().await?;
 
         let price_api_client = input.price_api_client;
-        let base_token_addr = input.l1_ecosystem_contracts_resource.0.base_token_address;
+        let base_token_addr = input.l1_ecosystem_contracts.0.base_token_address;
 
         let l1_behaviour = self
             .wallets_config
@@ -103,10 +103,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
                         diamond_proxy_contract_address: l1_diamond_proxy_addr,
-                        chain_admin_contract_address: input
-                            .l1_ecosystem_contracts_resource
-                            .0
-                            .chain_admin,
+                        chain_admin_contract_address: input.l1_ecosystem_contracts.0.chain_admin,
                         config: self.config.clone(),
                     },
                     last_persisted_l1_ratio: None,

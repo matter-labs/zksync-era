@@ -1,50 +1,7 @@
-use zksync_config::configs::{
-    contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
-    eth_sender::SenderConfig,
-};
+use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_node_framework::resource::Resource;
-use zksync_types::{Address, SLChainId};
 
 use crate::BoundEthInterface;
-
-#[derive(Debug, Clone)]
-pub struct BaseL1ContractsResource(pub SettlementLayerSpecificContracts);
-
-impl Resource for BaseL1ContractsResource {
-    fn name() -> String {
-        "common/base_l1_contracts".into()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BaseGatewayContractsResource {
-    pub diamond_proxy_addr: Address,
-    pub chain_id: SLChainId,
-}
-
-impl Resource for BaseGatewayContractsResource {
-    fn name() -> String {
-        "common/base_gateway_contracts".into()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SettlementLayerContractsResource(pub SettlementLayerSpecificContracts);
-
-impl Resource for SettlementLayerContractsResource {
-    fn name() -> String {
-        "common/base_sl_layer_contracts".into()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct L1EcosystemContractsResource(pub L1SpecificContracts);
-
-impl Resource for L1EcosystemContractsResource {
-    fn name() -> String {
-        "common/l1_ecosystem_contracts".into()
-    }
-}
 
 // FIXME: clearly out of place here. Probably remove, replacing by `SettlementModeResource` + patching config
 #[derive(Debug, Clone)]

@@ -19,6 +19,7 @@ zksync_config.workspace = true
 zksync_health_check = { workspace = true, optional = true }
 zksync_web3_decl.workspace = true
 zksync_node_framework = { workspace = true, optional = true }
+zksync_shared_di = { workspace = true, optional = true }
 
 thiserror.workspace = true
 async-trait.workspace = true
@@ -40,4 +41,4 @@ serde_json.workspace = true
 
 [features]
 default = []
-di = ["zksync_node_framework", "zksync_health_check/di", "zksync_web3_decl/di"]
+di = ["zksync_node_framework", "zksync_shared_di", "zksync_health_check/di", "zksync_web3_decl/di"]

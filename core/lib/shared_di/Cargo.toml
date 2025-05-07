@@ -1,0 +1,15 @@
+[package]
+name = "zksync_shared_di"
+description = "Shared dependency injection code for ZKsync node"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_config.workspace = true
+zksync_node_framework.workspace = true

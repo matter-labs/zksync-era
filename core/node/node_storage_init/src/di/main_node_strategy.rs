@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use zksync_config::GenesisConfig;
 use zksync_dal::di::{MasterPool, PoolResource};
-use zksync_eth_client::di::SettlementLayerContractsResource;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_di::contracts::SettlementLayerContractsResource;
 use zksync_web3_decl::di::EthInterfaceResource;
 
 use super::NodeInitializationStrategyResource;

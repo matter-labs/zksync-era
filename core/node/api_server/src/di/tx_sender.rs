@@ -3,7 +3,6 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use zksync_config::configs::{chain::TimestampAsserterConfig, contracts::chain::L2Contracts};
 use zksync_dal::di::{PoolResource, ReplicaPool};
-use zksync_eth_client::di::SettlementLayerContractsResource;
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_fee_model::di::ApiFeeInputResource;
 use zksync_node_framework::{
@@ -13,6 +12,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::di::ObjectStoreResource;
+use zksync_shared_di::contracts::SettlementLayerContractsResource;
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
 use zksync_state_keeper::di::ConditionalSealerResource;
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};

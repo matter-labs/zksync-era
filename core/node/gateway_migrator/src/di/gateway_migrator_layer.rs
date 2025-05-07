@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use zksync_basic_types::L2ChainId;
 use zksync_dal::di::{MasterPool, PoolResource};
-use zksync_eth_client::{di::BaseL1ContractsResource, EthInterface};
+use zksync_eth_client::{di::contracts::L1ChainContractsResource, EthInterface};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext, StopReceiver, Task, TaskId,
@@ -20,7 +20,7 @@ pub struct GatewayMigratorLayer {
 pub struct Input {
     eth_client: EthInterfaceResource,
     gateway_client: Option<L2InterfaceResource>,
-    contracts: BaseL1ContractsResource,
+    contracts: L1ChainContractsResource,
     settlement_mode_resource: SettlementModeResource,
     pool: PoolResource<MasterPool>,
 }

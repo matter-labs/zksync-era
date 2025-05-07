@@ -1,11 +1,13 @@
 //! Dependency injection for Ethereum client.
 
+// Re-export to allow all `zksync_eth_client` users to not import the `zksync_shared_di` crate directly.
+pub use zksync_shared_di::contracts;
+
 pub use self::{
     pk_signing_eth_client::PKSigningEthClientLayer,
     resources::{
-        BaseGatewayContractsResource, BaseL1ContractsResource, BoundEthInterfaceForBlobsResource,
-        BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, L1EcosystemContractsResource,
-        SenderConfigResource, SettlementLayerContractsResource,
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+        BoundEthInterfaceResource, SenderConfigResource,
     },
 };
 
