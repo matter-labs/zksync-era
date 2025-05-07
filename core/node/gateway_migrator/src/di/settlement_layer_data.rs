@@ -17,8 +17,8 @@ use zksync_eth_client::{
         get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
     },
     di::{
-        BaseL1ContractsResource, BaseSettlementLayerContractsResource,
-        L1EcosystemContractsResource, SenderConfigResource,
+        BaseL1ContractsResource, L1EcosystemContractsResource, SenderConfigResource,
+        SettlementLayerContractsResource,
     },
     EthInterface,
 };
@@ -66,7 +66,7 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
-    contracts: BaseSettlementLayerContractsResource,
+    contracts: SettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: BaseL1ContractsResource,
     l2_eth_client: Option<L2InterfaceResource>,
@@ -152,7 +152,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(final_settlement_mode),
-            contracts: BaseSettlementLayerContractsResource(sl_chain_contracts),
+            contracts: SettlementLayerContractsResource(sl_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(l1_specific_contracts),
             l1_contracts: BaseL1ContractsResource(sl_l1_contracts),
             l2_eth_client,
@@ -250,7 +250,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
-            contracts: BaseSettlementLayerContractsResource(contracts),
+            contracts: SettlementLayerContractsResource(contracts),
             l1_contracts: BaseL1ContractsResource(self.config.l1_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
             l2_eth_client,

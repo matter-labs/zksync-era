@@ -1,18 +1,16 @@
 use std::sync::Arc;
 
 use zksync_config::GenesisConfig;
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_eth_client::di::SettlementLayerContractsResource;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_storage_init::{main_node::MainNodeGenesis, NodeInitializationStrategy};
+use zksync_web3_decl::di::EthInterfaceResource;
 
 use super::NodeInitializationStrategyResource;
-use crate::implementations::resources::{
-    contracts::SettlementLayerContractsResource,
-    eth_interface::EthInterfaceResource,
-    pools::{MasterPool, PoolResource},
-};
+use crate::{main_node::MainNodeGenesis, NodeInitializationStrategy};
 
 /// Wiring layer for main node initialization strategy.
 #[derive(Debug)]
@@ -24,7 +22,7 @@ pub struct MainNodeInitStrategyLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub eth_interface: EthInterfaceResource,
-    pub contracts_resource: SettlementLayerContractsResource,
+    pub contracts: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -45,7 +43,7 @@ impl WiringLayer for MainNodeInitStrategyLayer {
         let pool = input.master_pool.get().await?;
         let EthInterfaceResource(l1_client) = input.eth_interface;
         let genesis = Arc::new(MainNodeGenesis {
-            contracts: input.contracts_resource.0,
+            contracts: input.contracts.0,
             genesis: self.genesis,
             l1_client,
             pool,

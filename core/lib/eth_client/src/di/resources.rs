@@ -29,9 +29,9 @@ impl Resource for BaseGatewayContractsResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct BaseSettlementLayerContractsResource(pub SettlementLayerSpecificContracts);
+pub struct SettlementLayerContractsResource(pub SettlementLayerSpecificContracts);
 
-impl Resource for BaseSettlementLayerContractsResource {
+impl Resource for SettlementLayerContractsResource {
     fn name() -> String {
         "common/base_sl_layer_contracts".into()
     }

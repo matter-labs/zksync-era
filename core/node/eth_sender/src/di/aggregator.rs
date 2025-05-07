@@ -3,8 +3,8 @@ use zksync_circuit_breaker::{di::CircuitBreakersResource, l1_txs::FailedL1Transa
 use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::{
     di::{
-        BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
-        BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+        BoundEthInterfaceResource, SenderConfigResource, SettlementLayerContractsResource,
     },
     web3_decl::di::SettlementModeResource,
 };
@@ -58,7 +58,7 @@ pub struct Input {
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
-    pub sl_contracts: BaseSettlementLayerContractsResource,
+    pub sl_contracts: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

@@ -3,10 +3,9 @@
 pub use self::{
     pk_signing_eth_client::PKSigningEthClientLayer,
     resources::{
-        BaseGatewayContractsResource, BaseL1ContractsResource,
-        BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
+        BaseGatewayContractsResource, BaseL1ContractsResource, BoundEthInterfaceForBlobsResource,
         BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, L1EcosystemContractsResource,
-        SenderConfigResource,
+        SenderConfigResource, SettlementLayerContractsResource,
     },
 };
 

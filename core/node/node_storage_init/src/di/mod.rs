@@ -1,3 +1,4 @@
+use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{
     resource::Resource,
     service::StopReceiver,
@@ -5,9 +6,8 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_storage_init::{NodeInitializationStrategy, NodeStorageInitializer};
 
-use crate::implementations::resources::pools::{MasterPool, PoolResource};
+use crate::{NodeInitializationStrategy, NodeStorageInitializer};
 
 pub mod external_node_strategy;
 pub mod main_node_strategy;

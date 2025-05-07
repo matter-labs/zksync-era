@@ -1,23 +1,19 @@
 use std::{num::NonZeroUsize, sync::Arc};
 
+use zksync_block_reverter::di::BlockReverterResource;
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-// Re-export to initialize the layer without having to depend on the crate directly.
-pub use zksync_node_storage_init::SnapshotRecoveryConfig;
-use zksync_node_storage_init::{
-    external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
-    InitializeStorage, NodeInitializationStrategy, RevertStorage,
-};
 use zksync_types::L2ChainId;
+use zksync_web3_decl::di::MainNodeClientResource;
 
 use super::NodeInitializationStrategyResource;
-use crate::implementations::resources::{
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-    reverter::BlockReverterResource,
+use crate::{
+    external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
+    InitializeStorage, NodeInitializationStrategy, RevertStorage, SnapshotRecoveryConfig,
 };
 
 /// Wiring layer for external node initialization strategy.

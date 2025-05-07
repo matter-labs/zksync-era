@@ -2,7 +2,7 @@
 
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_eth_client::{
-    di::BaseSettlementLayerContractsResource,
+    di::SettlementLayerContractsResource,
     web3_decl::di::{SettlementLayerClient, SettlementModeResource},
     EthInterface,
 };
@@ -26,7 +26,7 @@ pub struct ConsistencyCheckerLayer {
 pub struct Input {
     pub settlement_layer_client: SettlementLayerClient,
     pub settlement_mode: SettlementModeResource,
-    pub sl_chain_contracts: BaseSettlementLayerContractsResource,
+    pub sl_chain_contracts: SettlementLayerContractsResource,
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
