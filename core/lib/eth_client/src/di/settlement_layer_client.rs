@@ -1,13 +1,12 @@
 use anyhow::Context;
 use zksync_node_framework::{
-    resource::ConfigResource,
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 use zksync_types::{settlement::SettlementLayer, url::SensitiveUrl, L1ChainId, L2ChainId};
 use zksync_web3_decl::client::Client;
 
-use super::resources::SettlementLayerClient;
+use super::resources::{SettlementLayerClient, SettlementModeResource};
 
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]
@@ -27,7 +26,7 @@ impl SettlementLayerClientLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    initial_settlement_mode: ConfigResource<SettlementLayer>,
+    initial_settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]

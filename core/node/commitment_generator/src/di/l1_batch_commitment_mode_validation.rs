@@ -1,13 +1,11 @@
-use zksync_config::configs::contracts::SettlementLayerSpecificContracts;
-use zksync_eth_client::di::EthInterfaceResource;
+use zksync_eth_client::di::{BaseGatewayContractsResource, EthInterfaceResource};
 use zksync_node_framework::{
-    resource::ConfigResource,
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L1ChainId};
+use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::validation_task::L1BatchCommitmentModeValidationTask;
 
@@ -20,8 +18,7 @@ pub struct L1BatchCommitmentModeValidationLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    // FIXME: reduce to not depend on zksync_config?
-    pub contracts: ConfigResource<(SettlementLayerSpecificContracts, L1ChainId)>,
+    pub gateway_contracts: BaseGatewayContractsResource,
     pub client: EthInterfaceResource,
 }
 
@@ -49,9 +46,8 @@ impl WiringLayer for L1BatchCommitmentModeValidationLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let (contracts, _) = input.contracts.0;
         let task = L1BatchCommitmentModeValidationTask::new(
-            contracts.chain_contracts_config.diamond_proxy_addr,
+            input.gateway_contracts.diamond_proxy_addr,
             self.l1_batch_commit_data_generator_mode,
             Box::new(input.client.0),
         );

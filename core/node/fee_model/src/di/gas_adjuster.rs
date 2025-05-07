@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_config::{configs::eth_sender::SenderConfig, GasAdjusterConfig, GenesisConfig};
+use zksync_config::{GasAdjusterConfig, GenesisConfig};
 use zksync_eth_client::di::SettlementLayerClient;
 use zksync_node_framework::{
-    resource::ConfigResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 
-use super::resources::GasAdjusterResource;
+use super::resources::{GasAdjusterResource, PubdataSendingModeResource};
 use crate::l1_gas_price::GasAdjuster;
 
 /// Wiring layer for sequencer L1 gas interfaces.
@@ -26,7 +25,7 @@ pub struct GasAdjusterLayer {
 pub struct Input {
     pub client: SettlementLayerClient,
     // FIXME: provide!
-    pub sender_config: ConfigResource<SenderConfig>,
+    pub pubdata_sending_mode: PubdataSendingModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -64,7 +63,7 @@ impl WiringLayer for GasAdjusterLayer {
         let adjuster = GasAdjuster::new(
             client,
             self.gas_adjuster_config,
-            input.sender_config.0.pubdata_sending_mode,
+            input.pubdata_sending_mode.0,
             self.genesis_config.l1_batch_commit_data_generator_mode,
         )
         .await

@@ -1,4 +1,4 @@
-use std::{any, any::TypeId, fmt};
+use std::{any::TypeId, fmt};
 
 pub use self::{resource_id::ResourceId, unique::Unique};
 
@@ -89,15 +89,5 @@ impl dyn StoredResource {
         } else {
             None
         }
-    }
-}
-
-/// FIXME: document
-#[derive(Debug, Clone)]
-pub struct ConfigResource<C>(pub C);
-
-impl<C: Clone + Send + Sync + 'static> Resource for ConfigResource<C> {
-    fn name() -> String {
-        format!("config/{}", any::type_name::<C>())
     }
 }

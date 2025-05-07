@@ -1,7 +1,41 @@
 use zksync_node_framework::resource::Resource;
+use zksync_types::{settlement::SettlementLayer, Address, L1ChainId, SLChainId};
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::{BoundEthInterface, EthInterface};
+
+#[derive(Debug, Clone, Copy)]
+pub struct SettlementModeResource(pub SettlementLayer);
+
+impl Resource for SettlementModeResource {
+    fn name() -> String {
+        "common/settlement_mode".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BaseL1ContractsResource {
+    pub diamond_proxy_addr: Address,
+    pub chain_id: L1ChainId,
+}
+
+impl Resource for BaseL1ContractsResource {
+    fn name() -> String {
+        "common/base_l1_contracts".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BaseGatewayContractsResource {
+    pub diamond_proxy_addr: Address,
+    pub chain_id: SLChainId,
+}
+
+impl Resource for BaseGatewayContractsResource {
+    fn name() -> String {
+        "common/base_gateway_contracts".into()
+    }
+}
 
 /// A resource that provides L1 interface object to the service.
 #[derive(Debug, Clone)]
