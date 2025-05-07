@@ -1,13 +1,14 @@
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{
+    di::{MasterPool, PoolResource, ReplicaPool},
+    ConnectionPool, Core,
+};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-
-use crate::implementations::resources::pools::{MasterPool, PoolResource, ReplicaPool};
 
 /// Wiring layer for contract verification
 ///
@@ -64,7 +65,7 @@ impl Task for ContractVerificationApiTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_contract_verification_server::start_server(
+        crate::start_server(
             self.master_pool,
             self.replica_pool,
             self.config.bind_addr(),
