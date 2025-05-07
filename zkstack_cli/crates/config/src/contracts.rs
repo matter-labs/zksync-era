@@ -80,8 +80,6 @@ impl ContractsConfig {
                 .force_deployments_data
                 .clone(),
         );
-        self.ecosystem_contracts.expected_rollup_l2_da_validator =
-            Some(deploy_l1_output.expected_rollup_l2_da_validator_addr);
         self.l1.default_upgrade_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
