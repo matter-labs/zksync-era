@@ -26,8 +26,11 @@ zksync_consensus_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_db_connection.workspace = true
 zksync_l1_contract_interface.workspace = true
+
+# DI-specific dependencies
 zksync_node_framework = { workspace = true, optional = true }
 zksync_config = { workspace = true, optional = true }
+zksync_health_check = { workspace = true, optional = true }
 
 itertools.workspace = true
 thiserror.workspace = true
@@ -67,4 +70,4 @@ zksync_protobuf_build.workspace = true
 
 [features]
 default = []
-di = ["zksync_node_framework", "zksync_config"]
+di = ["zksync_node_framework", "zksync_config", "zksync_health_check/di"]

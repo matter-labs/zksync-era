@@ -1,9 +1,11 @@
 //! Dependency injection for DAL.
 
 pub use self::{
-    pools::{MasterPool, PoolResource, ReplicaPool},
+    metrics::PostgresMetricsScrapingTask,
     pools_layer::{PoolsLayer, PoolsLayerBuilder},
+    resources::{MasterPool, PoolResource, ReplicaPool},
 };
 
-mod pools;
+mod metrics;
 mod pools_layer;
+mod resources;

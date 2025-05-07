@@ -6,19 +6,18 @@ use std::{
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::RwLock;
-use zksync_dal::{
-    metrics::PostgresMetrics, system_dal::DatabaseMigration, ConnectionPool, Core, CoreDal,
-};
-use zksync_health_check::{CheckHealth, Health, HealthStatus};
+use zksync_health_check::{di::AppHealthCheckResource, CheckHealth, Health, HealthStatus};
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::pools::{PoolResource, ReplicaPool};
+use super::resources::{PoolResource, ReplicaPool};
+use crate::{
+    metrics::PostgresMetrics, system_dal::DatabaseMigration, ConnectionPool, Core, CoreDal,
+};
 
 /// Execution interval for Postrgres metrics and healthcheck tasks
 const TASK_EXECUTION_INTERVAL: Duration = Duration::from_secs(60);

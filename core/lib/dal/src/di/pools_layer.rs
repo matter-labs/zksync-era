@@ -4,7 +4,7 @@ use zksync_node_framework::{
     IntoContext,
 };
 
-use super::pools::{MasterPool, PoolResource, ReplicaPool};
+use super::resources::{MasterPool, PoolResource, ReplicaPool};
 use crate::{ConnectionPool, Core};
 
 /// Builder for the [`PoolsLayer`].
