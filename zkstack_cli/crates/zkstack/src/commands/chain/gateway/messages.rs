@@ -12,7 +12,7 @@ pub(super) fn message_for_gateway_migration_progress_state(
             "Notification has been sent, but the server has not yet picked it up. Please wait".to_string()
         }
         GatewayMigrationProgressState::NotificationReceived(substate) => {
-            format!("The server has received the notification about the migration, but it needs to finish all outstanding transactions: {}. Please wait", substate.to_string())
+            format!("The server has received the notification about the migration, but it needs to finish all outstanding transactions: {}. Please wait", substate)
         }
         GatewayMigrationProgressState::ServerReady => {
             "The server is ready to start the migration. Please use the command to prepare the calldata and execute it inside your ChainAdmin".to_string()

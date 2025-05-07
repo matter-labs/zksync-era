@@ -60,17 +60,20 @@ pub enum NotificationReceivedState {
     UnconfirmedTxs(usize),
 }
 
-impl NotificationReceivedState {
-    pub fn to_string(self) -> String {
+impl std::fmt::Display for NotificationReceivedState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             NotificationReceivedState::NotAllBatchesExecuted(
                 total_batches_committed,
                 total_batches_executed,
             ) => {
-                format!("For migration from Gateway we need all batches to be executed. Executed/committed: {total_batches_executed}/{total_batches_committed}")
+                write!(f, "For migration from Gateway we need all batches to be executed. Executed/committed: {total_batches_executed}/{total_batches_committed}")
             }
             NotificationReceivedState::UnconfirmedTxs(unconfirmed_txs) => {
-                format!("There are some unconfirmed transactions: {unconfirmed_txs}")
+                write!(
+                    f,
+                    "There are some unconfirmed transactions: {unconfirmed_txs}"
+                )
             }
         }
     }

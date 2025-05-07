@@ -80,8 +80,6 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
         )
         .await?;
 
-        println!("{:#?}", state);
-
         match state {
             GatewayMigrationProgressState::ServerReady => {
                 logger::info(
