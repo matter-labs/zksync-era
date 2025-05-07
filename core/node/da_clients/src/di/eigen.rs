@@ -2,17 +2,17 @@ use std::{error::Error, sync::Arc};
 
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::eigen::{BlobProvider, EigenDAClient};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{
+    di::{MasterPool, PoolResource},
+    ConnectionPool, Core, CoreDal,
+};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::{
-    da_client::DAClientResource,
-    pools::{MasterPool, PoolResource},
-};
+use super::resources::DAClientResource;
+use crate::eigen::{BlobProvider, EigenDAClient};
 
 #[derive(Debug)]
 pub struct EigenWiringLayer {

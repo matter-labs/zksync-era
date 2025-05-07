@@ -20,10 +20,12 @@ tokio.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
-zksync_object_store.workspace = true
+zksync_object_store = { workspace = true, features = ["di"] }
 zksync_da_client.workspace = true
 zksync_env_config.workspace = true
 zksync_basic_types.workspace = true
+zksync_node_framework.workspace = true
+zksync_dal = { workspace = true, features = ["di"] } # FIXME: Possible to avoid, but then who is the provider?
 futures.workspace = true
 
 # Avail dependencies

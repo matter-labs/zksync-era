@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 
 use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::no_da::NoDAClient;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
 
-use crate::implementations::resources::da_client::DAClientResource;
+use super::resources::DAClientResource;
+use crate::no_da::NoDAClient;
 
 #[derive(Debug, Default)]
 pub struct NoDAClientWiringLayer;
