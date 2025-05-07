@@ -33,7 +33,7 @@ impl Executor for GpuCircuitProverExecutor {
     #[tracing::instrument(
         name = "gpu_circuit_prover_executor",
         skip_all,
-        fields(l1_batch = % metadata.block_number)
+        fields(l1_batch = % metadata.batch_id)
     )]
     fn execute(
         &self,
@@ -44,23 +44,23 @@ impl Executor for GpuCircuitProverExecutor {
         tracing::info!(
             "Started executing gpu circuit prover job {}, on batch {}, for circuit {}, at round {}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round
         );
         let GpuCircuitProverPayload {
-            circuit,
+            circuit_wrapper,
             witness_vector,
             setup_data,
         } = input;
 
-        let proof_wrapper = circuit
+        let proof_wrapper = circuit_wrapper
             .prove(witness_vector, setup_data)
             .context("failed to gpu prove circuit")?;
         tracing::info!(
             "Finished executing gpu circuit prover job {}, on batch {}, for circuit {}, at round {} after {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()

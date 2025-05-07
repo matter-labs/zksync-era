@@ -66,7 +66,12 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
     let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
-    UpdatesManager::new(&l1_batch_env, &default_system_env(), Default::default())
+    UpdatesManager::new(
+        &l1_batch_env,
+        &default_system_env(),
+        Default::default(),
+        Default::default(),
+    )
 }
 
 pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Transaction {
@@ -308,6 +313,7 @@ async fn load_upgrade_tx() {
         output_handler,
         Arc::new(sealer),
         Arc::new(MockReadStorageFactory),
+        None,
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

@@ -47,16 +47,16 @@ As can be seen, this is done in `O(n)` compute, where `n` is the number of prior
 
 ## Motivation for migration to Merkle Tree
 
-Since we will be introducing Sync Layer, we will need to support one more operation:
+Since we will be introducing Gateway, we will need to support one more operation:
 
-- migrating priority queue from L1 to SL (and back)
+- migrating priority queue from L1 to Gateway (and back)
 
 Current implementation takes `O(n)` space and is vulnerable to spam attacks during migration
 (e.g. an attacker can insert a lot of priority operations and we won't be able to migrate all of them due to gas limits).
 
-Hence, we need an implementation with a small (constant- or log-size) space imprint that we can migrate to SL and back that would still allow us to perform the other 2 operations.
+Hence, we need an implementation with a small (constant- or log-size) space imprint that we can migrate to Gateway and back that would still allow us to perform the other 2 operations.
 
-Merkle tree of priority operations is perfect for this since we can simply migrate the latest root hash to SL and back.
+Merkle tree of priority operations is perfect for this since we can simply migrate the latest root hash to Gateway and back.
 
 - It can still efficiently (in `O(height)`) insert new operations.
 - It can also still efficiently (in `O(n)` compute and `O(n + height)` calldata) check that the batch’s `priorityOperationsHash` corresponds to the operations from the queue.
@@ -132,4 +132,4 @@ This can be done simply by constructing the part of the tree above this interval
 
 We will also need to prove that the rolling hash of provided hashes matches with `priorityOperationsHash` which is also `O(n)`
 
-It is important to note that we should store some number of historical root hashes, since the Merkle tree on the server might lag behind the contracts a bit, and hence merkle paths generated on the server-side might become invalid if we compare them to the latest root hash on the contracts. These historical root hashes are not necessary to migrate to and from SL though.
+It is important to note that we should store some number of historical root hashes, since the Merkle tree on the server might lag behind the contracts a bit, and hence merkle paths generated on the server-side might become invalid if we compare them to the latest root hash on the contracts. These historical root hashes are not necessary to migrate to and from Gateway though.

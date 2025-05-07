@@ -32,7 +32,8 @@ use crate::{
     mempool_actor::l2_tx_filter,
     metrics::{L2BlockSealReason, AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{
-        IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
+        io_criteria::{L2BlockMaxPayloadSizeSealer, ProtocolUpgradeSealer, TimeoutSealer},
+        IoSealCriteria, UnexecutableReason,
     },
     updates::UpdatesManager,
     utils::millis_since_epoch,
@@ -50,6 +51,7 @@ pub struct MempoolIO {
     pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
     l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer,
+    protocol_upgrade_sealer: ProtocolUpgradeSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
@@ -63,10 +65,29 @@ pub struct MempoolIO {
     pubdata_type: PubdataType,
 }
 
+#[async_trait]
 impl IoSealCriteria for MempoolIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        self.timeout_sealer
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
+        if self
+            .timeout_sealer
             .should_seal_l1_batch_unconditionally(manager)
+            .await?
+        {
+            return Ok(true);
+        }
+
+        if self
+            .protocol_upgrade_sealer
+            .should_seal_l1_batch_unconditionally(manager)
+            .await?
+        {
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
@@ -532,9 +553,10 @@ impl MempoolIO {
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
-            pool,
+            pool: pool.clone(),
             timeout_sealer: TimeoutSealer::new(config),
             l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
+            protocol_upgrade_sealer: ProtocolUpgradeSealer::new(pool),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider: L1BatchParamsProvider::uninitialized(),

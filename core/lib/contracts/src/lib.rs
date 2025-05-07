@@ -62,8 +62,8 @@ const SERVER_NOTIFIER_CONTRACT_FILE: (&str, &str) =
     ("governance", "ServerNotifier.sol/ServerNotifier.json");
 
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/chain-interfaces",
-    "IGetters.sol/IGetters.json",
+    "state-transition/chain-deps/facets",
+    "Getters.sol/GettersFacet.json",
 );
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
@@ -588,7 +588,17 @@ impl BaseSystemContracts {
     }
 
     pub fn playground_evm_emulator() -> Self {
-        let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
+        let bootloader_bytecode = read_zbin_bytecode(
+        "etc/multivm_bootloaders/vm_evm_emulator/playground_batch.yul/playground_batch.yul.zbin",
+        );
+
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn playground_precompiles() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_precompiles/playground_batch.yul/Bootloader.zbin",
+        );
 
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
@@ -677,7 +687,16 @@ impl BaseSystemContracts {
     }
 
     pub fn estimate_gas_evm_emulator() -> Self {
-        let bootloader_bytecode = read_bootloader_code("fee_estimate");
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_evm_emulator/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_precompiles() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_precompiles/fee_estimate.yul/Bootloader.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 

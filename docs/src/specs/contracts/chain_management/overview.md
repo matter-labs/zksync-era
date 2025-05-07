@@ -34,7 +34,7 @@ counterparts will be asset contracts extended with bridging functionality.
 
 To enable the bridging functionality:
 
-- On the L1 we will add a Bridgehub and InteropCenter contracts which connects asset bridges to all the ZK Chains.
+- On the L1 we will add a Bridgehub contract which connects asset bridges to all the ZK Chains.
 - On the ZK Chain side we will add special system contracts that enable these features.
 
 We want to make the ecosystem as modular as possible, giving developers the ability to modify the architecture as
@@ -69,7 +69,6 @@ be able to leverage them when available).
 
   function newChainTypeManager(address _chainTypeManager) external;
   ```
-  - In previous versions, it also had features that were migrated to the InteropCenter contract, but it still supports some legacy functions. This means it acts as a hub for bridges, so that they have a single point of communication with all ZK Chain contracts. This allows L1 assets to be locked in the same contract for all ZK Chains.
 
 #### Chain Type Manager
 
@@ -110,9 +109,9 @@ A chain registers in the Bridgehub, this is where the chain ID is determined. Re
 Transition that they plan to use. In the first version only a single State Transition contract will be available for
 use, our with Boojum proof verification.
 
-At initialization we prepare the `ZkSyncHyperchain` contract. We store the genesis batch hash in the ST contract, all
+At initialization we prepare the `DiamondInit` contract. We store the genesis batch hash in the chain contract, all
 chains start out with the same state. A diamond proxy is deployed and initialised with this initial value, along with
-predefined facets which are made available by the ST contract. These facets contain the proof verification and other
+predefined facets which are made available by the chain contract. These facets contain the proof verification and other
 features required to process proofs. The chain ID is set in the VM in a special system transaction sent from L1.
 
 ---

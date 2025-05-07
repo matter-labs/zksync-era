@@ -20,6 +20,11 @@ enum ProofLoadingMode {
   FRI_PROOF_FROM_GCS = 1;
 }
 
+enum GasLimitMode {
+  MAXIMUM = 0;
+  CALCULATED = 1;
+}
+
 enum PubdataSendingMode {
   CALLDATA = 0;
   BLOBS = 1;
@@ -35,7 +40,7 @@ message Sender {
   optional uint64 aggregate_tx_poll_period = 4; // required; s
   optional uint64 max_txs_in_flight = 5; // required
   optional ProofSendingMode proof_sending_mode = 6; // required
-  optional uint32 max_aggregated_tx_gas = 7; // required; wei?
+  optional uint64 max_aggregated_tx_gas = 7; // required; wei?
   optional uint64 max_eth_tx_data_size = 8; // required; ?
   optional uint32 max_aggregated_blocks_to_commit = 9; // required
   optional uint32 max_aggregated_blocks_to_execute = 10; // required
@@ -52,6 +57,8 @@ message Sender {
   optional uint32 time_in_mempool_in_l1_blocks_cap = 22; // optional
   reserved 23; reserved "priority_op_start_index";
   optional bool is_verifier_pre_fflonk = 24; // optional
+  optional GasLimitMode gas_limit_mode = 25; // optional
+  optional uint64 max_acceptable_base_fee_in_wei = 26; // optional; wei
 }
 
 message GasAdjuster {

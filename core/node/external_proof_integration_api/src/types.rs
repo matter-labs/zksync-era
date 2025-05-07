@@ -4,9 +4,13 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use zksync_basic_types::protocol_version::ProtocolSemanticVersion;
-use zksync_prover_interface::{api::ProofGenerationData, outputs::L1BatchProofForL1};
+use zksync_object_store::StoredObject;
+use zksync_proof_data_handler::ProcessorError;
+use zksync_prover_interface::{
+    api::ProofGenerationData, inputs::WitnessInputData, outputs::L1BatchProofForL1,
+};
 
-use crate::error::{FileError, ProcessorError};
+use crate::error::{ApiError, FileError};
 
 #[derive(Debug)]
 pub(crate) struct ProofGenerationDataResponse(pub ProofGenerationData);
@@ -14,10 +18,10 @@ pub(crate) struct ProofGenerationDataResponse(pub ProofGenerationData);
 impl IntoResponse for ProofGenerationDataResponse {
     fn into_response(self) -> Response {
         let l1_batch_number = self.0.l1_batch_number;
-        let data = match bincode::serialize(&self.0.witness_input_data) {
+        let data = match <WitnessInputData as StoredObject>::serialize(&self.0.witness_input_data) {
             Ok(data) => data,
             Err(err) => {
-                return ProcessorError::Serialization(err).into_response();
+                return ApiError::Processor(ProcessorError::Serialization(err)).into_response();
             }
         };
 
@@ -26,7 +30,7 @@ impl IntoResponse for ProofGenerationDataResponse {
             (
                 header::CONTENT_DISPOSITION,
                 &format!(
-                    "attachment; filename=\"witness_inputs_{}.bin\"",
+                    "attachment; filename=\"witness_inputs_{}.cbor\"",
                     l1_batch_number.0
                 ),
             ),
@@ -49,21 +53,8 @@ impl ExternalProof {
         self.protocol_version
     }
 
-    pub fn verify(&self, correct: L1BatchProofForL1) -> Result<(), ProcessorError> {
-        let protocol_version = match correct.clone() {
-            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
-            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
-        };
-
-        if protocol_version != self.protocol_version {
-            return Err(ProcessorError::InvalidProof);
-        }
-
-        if bincode::serialize(&correct)? != self.raw {
-            return Err(ProcessorError::InvalidProof);
-        }
-
-        Ok(())
+    pub fn raw(&self) -> Vec<u8> {
+        self.raw.clone()
     }
 
     async fn extract_from_multipart<S: Send + Sync>(
@@ -96,20 +87,16 @@ impl ExternalProof {
 
 #[async_trait::async_trait]
 impl<S: Send + Sync> FromRequest<S> for ExternalProof {
-    type Rejection = ProcessorError;
+    type Rejection = ApiError;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
         let serialized_proof = Self::extract_from_multipart(req, state).await?;
-        let proof: L1BatchProofForL1 = bincode::deserialize(&serialized_proof)?;
-
-        let protocol_version = match proof {
-            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
-            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
-        };
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(serialized_proof.clone())
+            .map_err(|err| ApiError::Processor(ProcessorError::Serialization(err)))?;
 
         Ok(Self {
             raw: serialized_proof,
-            protocol_version,
+            protocol_version: proof.protocol_version(),
         })
     }
 }

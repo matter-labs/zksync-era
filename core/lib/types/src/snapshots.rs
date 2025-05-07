@@ -114,6 +114,7 @@ pub struct SnapshotFactoryDependencies {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SnapshotFactoryDependency {
     pub bytecode: Bytes,
+    pub hash: Option<H256>,
 }
 
 #[cfg(feature = "protobuf")]
@@ -130,11 +131,19 @@ mod proto_impl {
         fn read(r: &Self::Proto) -> anyhow::Result<Self> {
             Ok(Self {
                 bytecode: Bytes(required(&r.bytecode).context("bytecode")?.clone()),
+                hash: if let Some(raw) = &r.hash {
+                    anyhow::ensure!(raw.len() == 32, "hash.len");
+                    Some(H256::from_slice(raw))
+                } else {
+                    None
+                },
             })
         }
+
         fn build(&self) -> Self::Proto {
             Self::Proto {
                 bytecode: Some(self.bytecode.0.as_slice().into()),
+                hash: self.hash.map(|hash| hash.0.to_vec()),
             }
         }
     }

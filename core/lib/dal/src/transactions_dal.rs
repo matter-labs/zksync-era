@@ -2152,7 +2152,7 @@ impl TransactionsDal<'_, '_> {
     ) -> DalResult<Vec<L2BlockExecutionData>> {
         let mut transactions_by_l2_block: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
             .into_iter()
-            .group_by(|tx| tx.miniblock_number.unwrap())
+            .chunk_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
             .map(|(l2_block_number, txs)| {
                 (

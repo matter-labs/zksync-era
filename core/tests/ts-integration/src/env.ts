@@ -92,9 +92,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
-
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
-
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
 
     const pathToMainLogs = await logsPath(fileConfig.chain!, 'server.log');
@@ -124,9 +122,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
-
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
-
     const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
     const tokens = getTokensNew(pathToHome);
@@ -266,7 +262,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const l2ChainId = BigInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
     // If the `CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE` is not set, the default value is `Rollup`.
     const l1BatchCommitDataGeneratorMode = (process.env.CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
-        process.env.EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE ||
         'Rollup') as DataAvailabityMode;
     let minimalL2GasPrice;
     if (process.env.CHAIN_STATE_KEEPER_MINIMAL_L2_GAS_PRICE !== undefined) {

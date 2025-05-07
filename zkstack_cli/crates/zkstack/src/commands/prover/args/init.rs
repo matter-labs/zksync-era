@@ -138,7 +138,7 @@ pub struct ProverDatabaseConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProverInitArgsFinal {
+pub(crate) struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
     pub compressor_key_args: Option<CompressorKeysArgs>,
     pub setup_keys: Option<SetupKeysArgs>,
