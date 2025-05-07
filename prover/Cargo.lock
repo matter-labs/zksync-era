@@ -9049,6 +9049,7 @@ name = "zksync_dal"
 version = "28.0.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "chrono",
@@ -9115,6 +9116,7 @@ dependencies = [
  "async-trait",
  "jsonrpsee",
  "rlp",
+ "serde_json",
  "thiserror 2.0.12",
  "tracing",
  "vise",
