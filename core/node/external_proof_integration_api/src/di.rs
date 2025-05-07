@@ -1,20 +1,18 @@
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 use zksync_config::configs::{
     external_proof_integration_api::ExternalProofIntegrationApiConfig, ProofDataHandlerConfig,
 };
-use zksync_external_proof_integration_api::Api;
+use zksync_dal::di::{PoolResource, ReplicaPool};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_object_store::di::ObjectStoreResource;
 use zksync_proof_data_handler::{Processor, Readonly};
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
-use crate::implementations::resources::{
-    object_store::ObjectStoreResource,
-    pools::{PoolResource, ReplicaPool},
-};
+use crate::Api;
 
 /// Wiring layer for proof data handler server.
 #[derive(Debug)]
