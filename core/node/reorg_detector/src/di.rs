@@ -1,16 +1,14 @@
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_reorg_detector::{self, ReorgDetector};
+use zksync_web3_decl::di::MainNodeClientResource;
 
-use crate::implementations::resources::{
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-};
+use crate::ReorgDetector;
 
 /// Wiring layer for [`ReorgDetector`] checker.
 /// This layer is responsible for detecting reorgs and shutting down the node if one is detected.
