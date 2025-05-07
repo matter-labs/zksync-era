@@ -1,18 +1,15 @@
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_eth_client::{di::SettlementLayerContractsResource, EthInterface};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
+use zksync_web3_decl::di::{MainNodeClientResource, SettlementLayerClient};
 
-use crate::implementations::resources::{
-    contracts::SettlementLayerContractsResource,
-    eth_interface::SettlementLayerClientResource,
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-};
+use crate::tree_data_fetcher::TreeDataFetcher;
 
 /// Wiring layer for [`TreeDataFetcher`].
 #[derive(Debug)]
@@ -22,7 +19,7 @@ pub struct TreeDataFetcherLayer;
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
-    pub gateway_client: SettlementLayerClientResource,
+    pub gateway_client: SettlementLayerClient,
     pub settlement_layer_contracts_resource: SettlementLayerContractsResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
@@ -46,7 +43,10 @@ impl WiringLayer for TreeDataFetcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        let sl_client = input.gateway_client.0;
+        let sl_client: Box<dyn EthInterface> = match input.gateway_client {
+            SettlementLayerClient::L1(client) => Box::new(client),
+            SettlementLayerClient::L2(client) => Box::new(client),
+        };
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
@@ -54,7 +54,7 @@ impl WiringLayer for TreeDataFetcherLayer {
         );
         let task = TreeDataFetcher::new(client, pool)
             .with_sl_data(
-                sl_client.into(),
+                sl_client,
                 input
                     .settlement_layer_contracts_resource
                     .0

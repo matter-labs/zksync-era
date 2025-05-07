@@ -1,17 +1,15 @@
+use zksync_da_client::di::DAClientResource;
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::data_availability_fetcher::DataAvailabilityFetcher;
+use zksync_web3_decl::di::MainNodeClientResource;
 
-use crate::implementations::resources::{
-    da_client::DAClientResource,
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-};
+use crate::data_availability_fetcher::DataAvailabilityFetcher;
 
 /// Wiring layer for [`DataAvailabilityFetcher`].
 #[derive(Debug)]

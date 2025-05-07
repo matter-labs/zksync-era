@@ -1,21 +1,23 @@
 use std::sync::Arc;
 
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{
+    di::{MasterPool, PoolResource},
+    ConnectionPool, Core,
+};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::SyncState;
-use zksync_web3_decl::client::{DynClient, L2};
-
-use crate::implementations::resources::{
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-    sync_state::SyncStateResource,
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    di::MainNodeClientResource,
 };
+
+use super::resources::SyncStateResource;
+use crate::SyncState;
 
 /// Wiring layer for [`SyncState`] maintenance.
 /// If [`SyncStateResource`] is already provided by another layer, this layer does nothing.

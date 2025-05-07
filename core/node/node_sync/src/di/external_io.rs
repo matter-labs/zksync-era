@@ -1,22 +1,21 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::{ActionQueue, ExternalIO, SyncState};
-use zksync_state_keeper::seal_criteria::NoopSealer;
-use zksync_types::L2ChainId;
-
-use crate::implementations::resources::{
-    action_queue::ActionQueueSenderResource,
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-    state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
-    sync_state::SyncStateResource,
+use zksync_state_keeper::{
+    di::{ConditionalSealerResource, StateKeeperIOResource},
+    seal_criteria::NoopSealer,
 };
+use zksync_types::L2ChainId;
+use zksync_web3_decl::di::MainNodeClientResource;
+
+use super::resources::{ActionQueueSenderResource, SyncStateResource};
+use crate::{ActionQueue, ExternalIO, SyncState};
 
 /// Wiring layer for `ExternalIO`, an IO part of state keeper used by the external node.
 #[derive(Debug)]

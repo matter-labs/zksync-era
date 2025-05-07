@@ -1,16 +1,14 @@
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::batch_status_updater::BatchStatusUpdater;
+use zksync_web3_decl::di::MainNodeClientResource;
 
-use crate::implementations::resources::{
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-};
+use crate::batch_status_updater::BatchStatusUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {

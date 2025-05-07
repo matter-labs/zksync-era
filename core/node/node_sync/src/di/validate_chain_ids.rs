@@ -4,12 +4,10 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
 use zksync_types::{L1ChainId, L2ChainId};
+use zksync_web3_decl::di::{EthInterfaceResource, MainNodeClientResource};
 
-use crate::implementations::resources::{
-    eth_interface::EthInterfaceResource, main_node_client::MainNodeClientResource,
-};
+use crate::validate_chain_ids_task::ValidateChainIdsTask;
 
 /// Wiring layer for chain ID validation precondition for external node.
 /// Ensures that chain IDs are consistent locally, on main node, and on the settlement layer.
