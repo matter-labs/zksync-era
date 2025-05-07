@@ -1,7 +1,8 @@
 use serde::{de::Error as DeError, Deserialize};
+use serde_json::Value;
 use smart_config::{
-    de::{Custom, DeserializeContext},
-    metadata::ParamMetadata,
+    de::{DeserializeContext, DeserializeParam},
+    metadata::{BasicTypes, ParamMetadata},
     DescribeConfig, DeserializeConfig, ErrorWithOrigin,
 };
 use zksync_basic_types::{Address, H160, H256};
@@ -23,21 +24,34 @@ impl AddressWallet {
     }
 }
 
-fn deserialize_key(
-    ctx: DeserializeContext<'_>,
-    param: &'static ParamMetadata,
-) -> Result<K256PrivateKey, ErrorWithOrigin> {
-    let de = ctx.current_value_deserializer(param.name)?;
-    let key = H256::deserialize(de)?;
-    K256PrivateKey::from_bytes(key).map_err(DeError::custom)
+#[derive(Debug)]
+struct K256PrivateKeyDeserializer;
+
+impl DeserializeParam<K256PrivateKey> for K256PrivateKeyDeserializer {
+    const EXPECTING: BasicTypes = BasicTypes::STRING;
+
+    fn deserialize_param(
+        &self,
+        ctx: DeserializeContext<'_>,
+        param: &'static ParamMetadata,
+    ) -> Result<K256PrivateKey, ErrorWithOrigin> {
+        let de = ctx.current_value_deserializer(param.name)?;
+        let key = H256::deserialize(de)?;
+        K256PrivateKey::from_bytes(key).map_err(DeError::custom)
+    }
+
+    fn serialize_param(&self, param: &K256PrivateKey) -> Value {
+        let key_bytes = *param.expose_secret().as_ref();
+        serde_json::to_value(H256(key_bytes)).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
-#[config(validate("`address` should correspond to `private_key`", Self::validate_address))]
+#[config(validate(Self::validate_address, "`address` should correspond to `private_key`"))]
 pub struct Wallet {
     /// Address of the account. Used to validate private key integrity.
     address: Option<Address>,
-    #[config(secret, with = Custom![_;  str](deserialize_key))]
+    #[config(secret, with = K256PrivateKeyDeserializer)]
     private_key: K256PrivateKey,
 }
 

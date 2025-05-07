@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Serde, WellKnown},
     metadata::TimeUnit,
@@ -72,7 +72,7 @@ mod tests {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub enum ApiMode {
     /// The legacy API mode, which is compatible with the old prover API.
     #[default]

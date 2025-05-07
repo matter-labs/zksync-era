@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de,
     de::{DeserializeContext, Entries, Qualified, Serde, WellKnown},
@@ -16,7 +16,7 @@ use zksync_basic_types::{ethabi, L2ChainId};
 use zksync_concurrency::{limiter, time};
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ValidatorPublicKey(pub String);
 
@@ -27,7 +27,7 @@ impl WellKnown for ValidatorPublicKey {
 }
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct NodePublicKey(pub String);
 
@@ -37,7 +37,7 @@ impl WellKnown for NodePublicKey {
 }
 
 /// Copy-paste of `zksync_concurrency::net::Host`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Host(pub String);
 
@@ -47,7 +47,7 @@ impl WellKnown for Host {
 }
 
 /// Copy-paste of `zksync_consensus_roles::validator::ProtocolVersion`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProtocolVersion(pub u32);
 
@@ -99,6 +99,13 @@ impl RpcConfig {
     }
 }
 
+// We cannot deserialize `Duration` directly because it expects an object with the `secs` (not `seconds`!) and `nanos` fields.
+#[derive(Debug, Serialize, Deserialize)]
+struct SerdeDuration {
+    seconds: u64,
+    nanos: u32,
+}
+
 #[derive(Debug)]
 struct CustomDurationFormat;
 
@@ -114,15 +121,16 @@ impl de::DeserializeParam<Duration> for CustomDurationFormat {
         ctx: DeserializeContext<'_>,
         param: &'static ParamMetadata,
     ) -> Result<Duration, ErrorWithOrigin> {
-        // We cannot deserialize `Duration` directly because it expects an object with the `secs` (not `seconds`!) and `nanos` fields.
-        #[derive(Deserialize)]
-        struct SerdeDuration {
-            seconds: u64,
-            nanos: u32,
-        }
-
         let duration = SerdeDuration::deserialize(ctx.current_value_deserializer(param.name)?)?;
         Ok(Duration::new(duration.seconds, duration.nanos))
+    }
+
+    fn serialize_param(&self, param: &Duration) -> serde_json::Value {
+        let duration = SerdeDuration {
+            seconds: param.as_secs(),
+            nanos: param.subsec_nanos(),
+        };
+        serde_json::to_value(duration).unwrap()
     }
 }
 

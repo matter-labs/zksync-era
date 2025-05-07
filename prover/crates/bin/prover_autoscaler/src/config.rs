@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash, time::Duration};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Serde, WellKnown},
     DescribeConfig, DeserializeConfig,
@@ -86,7 +86,9 @@ pub struct ProverAutoscalerScalerConfig {
 
 // TODO: generate this enum by QueueReport from https://github.com/matter-labs/zksync-era/blob/main/prover/crates/bin/prover_job_monitor/src/autoscaler_queue_reporter.rs#L23
 // and remove allowing of non_camel_case_types by generating field name parser.
-#[derive(Debug, Display, PartialEq, Eq, Hash, Clone, Copy, Deserialize, EnumString, Default)]
+#[derive(
+    Debug, Display, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize, EnumString, Default,
+)]
 #[allow(non_camel_case_types)]
 pub enum QueueReportFields {
     #[strum(ascii_case_insensitive)]
@@ -106,7 +108,7 @@ pub enum QueueReportFields {
     prover_jobs,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ScalarOrMap {
     Scalar(usize),
@@ -128,7 +130,7 @@ impl ScalarOrMap {
     }
 }
 
-#[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Deserialize)]
+#[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Serialize, Deserialize)]
 pub enum ScalerTargetType {
     #[default]
     #[serde(alias = "simple")]
@@ -139,7 +141,7 @@ pub enum ScalerTargetType {
 
 /// ScalerTarget can be configured to autoscale any of services for which queue is reported by
 /// prover-job-monitor.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScalerTarget {
     #[serde(default)]
     pub scaler_target_type: ScalerTargetType,

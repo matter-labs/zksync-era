@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Serde, WellKnown},
     ConfigSchema, DescribeConfig, DeserializeConfig,
@@ -101,7 +101,7 @@ impl L2ContractsConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Bridge {
     #[serde(alias = "proxy_addr")]
     pub l1_address: Option<Address>,

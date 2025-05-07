@@ -60,6 +60,7 @@ members = [
   "lib/merkle_tree",
   "lib/mini_merkle_tree",
   "lib/node_framework_derive",
+  "lib/node_framework_derive",
   "lib/object_store",
   "lib/prover_interface",
   "lib/queued_job_processor",
@@ -214,8 +215,8 @@ trybuild = "1.0"
 # "Internal" dependencies
 vise = "0.3.0"
 vise-exporter = "0.3.0"
-smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "15cee36ecb5b8df88d5a5f6e9f383972752c7cbd" }
-smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "15cee36ecb5b8df88d5a5f6e9f383972752c7cbd" }
+smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "444623149bc7ae69300b1b7dfd2639b33138db47" }
+smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "444623149bc7ae69300b1b7dfd2639b33138db47" }
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies

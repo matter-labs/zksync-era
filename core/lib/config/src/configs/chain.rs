@@ -1,6 +1,6 @@
 use std::{collections::HashSet, time::Duration};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Optional, Serde},
     metadata::{SizeUnit, TimeUnit},
@@ -15,7 +15,7 @@ use zksync_basic_types::Address;
 ///  - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
 ///    The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 ///    processing the batch on L1.
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum FeeModelVersion {
     V1,
     V2,

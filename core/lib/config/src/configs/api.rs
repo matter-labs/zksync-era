@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Delimited, Optional, OrString, Serde, WellKnown},
     metadata::{SizeUnit, TimeUnit},
@@ -33,7 +33,7 @@ pub struct ApiConfig {
 ///
 /// The unit of measurement for contained limits depends on the context. In [`MaxResponseSize`],
 /// limits are measured in bytes, but in configs, limits are specified in MiBs.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MaxResponseSizeOverrides(HashMap<String, Option<NonZeroUsize>>);
 

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context as _;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Optional, Serde, WellKnown},
     metadata::TimeUnit,
@@ -82,7 +82,7 @@ impl EthConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ProofSendingMode {
     OnlyRealProofs,
     OnlySampledProofs,
@@ -100,7 +100,7 @@ pub enum ProofLoadingMode {
     FriProofFromGcs,
 }
 
-#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum GasLimitMode {
     #[default]
     Maximum,

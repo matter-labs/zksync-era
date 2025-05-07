@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{FromSecretString, Optional, WellKnown},
     DescribeConfig, DeserializeConfig, Serde,
@@ -25,7 +25,7 @@ pub struct AvailConfig {
     pub config: AvailClientConfig,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub enum AvailFinalityState {
     #[default]
     #[serde(rename = "inBlock")]

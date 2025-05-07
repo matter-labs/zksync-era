@@ -153,7 +153,7 @@ fn main() -> anyhow::Result<()> {
                         filter.as_ref().map_or(true, |needle| {
                             param.all_paths().any(|path| path.contains(needle))
                         })
-                    })?;
+                    })??;
                 } else {
                     printer.print_help(&schema, |param| {
                         filter.as_ref().map_or(true, |needle| {

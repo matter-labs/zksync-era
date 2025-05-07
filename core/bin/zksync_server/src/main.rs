@@ -138,7 +138,7 @@ fn main() -> anyhow::Result<()> {
             filter.as_ref().map_or(true, |needle| {
                 param.all_paths().any(|path| path.contains(needle))
             })
-        })?;
+        })??;
         return Ok(());
     }
 

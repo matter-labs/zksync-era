@@ -6474,7 +6474,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=15cee36ecb5b8df88d5a5f6e9f383972752c7cbd#15cee36ecb5b8df88d5a5f6e9f383972752c7cbd"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=444623149bc7ae69300b1b7dfd2639b33138db47#444623149bc7ae69300b1b7dfd2639b33138db47"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -6490,7 +6490,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=15cee36ecb5b8df88d5a5f6e9f383972752c7cbd#15cee36ecb5b8df88d5a5f6e9f383972752c7cbd"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=444623149bc7ae69300b1b7dfd2639b33138db47#444623149bc7ae69300b1b7dfd2639b33138db47"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -8921,6 +8921,7 @@ dependencies = [
  "rand 0.8.5",
  "secrecy",
  "serde",
+ "serde_json",
  "serde_yaml",
  "smart-config",
  "tracing",

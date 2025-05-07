@@ -10,7 +10,8 @@ use serde::{
     Deserialize, Serialize,
 };
 use smart_config::{
-    de::{Custom, WellKnown},
+    de::{DeserializeContext, DeserializeParam, WellKnown},
+    metadata::{BasicTypes, ParamMetadata},
     DescribeConfig, DeserializeConfig, ErrorWithOrigin,
 };
 use zksync_basic_types::{
@@ -192,13 +193,31 @@ impl GenesisConfig {
     }
 }
 
-impl WellKnown for GenesisConfig {
-    type Deserializer = Custom![Self; object];
+#[derive(Debug)]
+pub struct GenesisConfigDeserializer;
 
-    const DE: Self::Deserializer = Custom![_; object](|ctx, param| {
+impl DeserializeParam<GenesisConfig> for GenesisConfigDeserializer {
+    const EXPECTING: BasicTypes = BasicTypes::OBJECT;
+
+    fn deserialize_param(
+        &self,
+        ctx: DeserializeContext<'_>,
+        param: &'static ParamMetadata,
+    ) -> Result<GenesisConfig, ErrorWithOrigin> {
         let de = ctx.current_value_deserializer(param.name)?;
         PersistedGenesisConfig::deserialize(de)?.try_into()
-    });
+    }
+
+    fn serialize_param(&self, param: &GenesisConfig) -> serde_json::Value {
+        let persisted =
+            PersistedGenesisConfig::try_from(param.clone()).expect("invalid genesis config");
+        serde_json::to_value(persisted).unwrap()
+    }
+}
+
+impl WellKnown for GenesisConfig {
+    type Deserializer = GenesisConfigDeserializer;
+    const DE: Self::Deserializer = GenesisConfigDeserializer;
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
