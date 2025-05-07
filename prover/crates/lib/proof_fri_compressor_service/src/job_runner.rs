@@ -50,14 +50,14 @@ impl ProofFriCompressorRunnerBuilder {
         let job_picker = ProofFriCompressorJobPicker::new(
             self.pool.clone(),
             self.blob_store.clone(),
-            self.protocol_version.clone(),
+            self.protocol_version,
             self.keystore.clone(),
             self.is_fflonk,
         );
         let job_saver = ProofFriCompressorJobSaver::new(
             self.pool.clone(),
             self.blob_store.clone(),
-            self.protocol_version.clone(),
+            self.protocol_version,
         );
         let backoff = Backoff::default();
 
