@@ -231,11 +231,8 @@ pub(crate) async fn get_gateway_migration_state(
         }
 
         let Some(current_sl_from_server) = gateway_migration_status.settlement_layer else {
-            todo!(
-                "
-                The migration has started, but the settlement layer is not defined. \
-                Waiting manual finalization or L2 L1 transaction"
-            );
+            // It means that the server is in the middle of some migration.
+            anyhow::bail!("Very old migration in progress");
         };
 
         // No migration event present, but the server uses inconsistent settlement layer
