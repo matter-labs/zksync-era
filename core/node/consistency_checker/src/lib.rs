@@ -26,6 +26,7 @@ use zksync_types::{
     Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
+pub mod di;
 #[cfg(test)]
 mod tests;
 

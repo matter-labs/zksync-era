@@ -37,6 +37,18 @@ impl Resource for BaseGatewayContractsResource {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct BaseSettlementLayerContractsResource {
+    pub diamond_proxy_addr: Address,
+    pub chain_id: SLChainId,
+}
+
+impl Resource for BaseSettlementLayerContractsResource {
+    fn name() -> String {
+        "common/base_sl_layer_contracts".into()
+    }
+}
+
 /// A resource that provides L1 interface object to the service.
 #[derive(Debug, Clone)]
 pub struct EthInterfaceResource(pub Box<DynClient<L1>>);

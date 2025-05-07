@@ -5,9 +5,10 @@ pub use self::{
     pk_signing_eth_client::PKSigningEthClientLayer,
     query_eth_client::QueryEthClientLayer,
     resources::{
-        BaseGatewayContractsResource, BaseL1ContractsResource, BoundEthInterfaceForBlobsResource,
+        BaseGatewayContractsResource, BaseL1ContractsResource,
+        BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
         BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, EthInterfaceResource,
-        L2InterfaceResource, MainNodeClientResource, SettlementLayerClient,
+        L2InterfaceResource, MainNodeClientResource, SettlementLayerClient, SettlementModeResource,
     },
     settlement_layer_client::SettlementLayerClientLayer,
 };
