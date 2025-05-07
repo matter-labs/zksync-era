@@ -2,6 +2,7 @@
 
 #[macro_use]
 mod utils;
+pub mod di;
 pub mod execution_sandbox;
 pub mod healthcheck;
 #[cfg(test)]

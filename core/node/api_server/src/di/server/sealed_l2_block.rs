@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use zksync_dal::{Core, CoreDal};
-use zksync_db_connection::connection_pool::ConnectionPool;
-use zksync_node_api_server::web3::state::SealedL2BlockNumber;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_framework::{StopReceiver, Task, TaskId};
+
+use crate::web3::state::SealedL2BlockNumber;
 
 #[derive(Debug)]
 pub struct SealedL2BlockUpdaterTask {

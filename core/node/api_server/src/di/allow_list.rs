@@ -2,14 +2,15 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 use zksync_config::configs::chain::DeploymentAllowlist;
-use zksync_node_api_server::tx_sender::whitelist::AllowListTask;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
-    IntoContext, Resource,
+    IntoContext,
 };
 use zksync_vm_executor::whitelist::SharedAllowList;
+
+use crate::tx_sender::whitelist::AllowListTask;
 
 /// Wiring layer for [`AllowListTask`] that controls deployment allow list .
 pub struct DeploymentAllowListLayer {
@@ -49,12 +50,6 @@ impl WiringLayer for DeploymentAllowListLayer {
             shared_allow_list: shared_list,
             allow_list_task: task,
         })
-    }
-}
-
-impl Resource for SharedAllowList {
-    fn name() -> String {
-        "shared_allow_list".to_string()
     }
 }
 

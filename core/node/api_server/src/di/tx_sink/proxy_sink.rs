@@ -1,15 +1,15 @@
-use zksync_node_api_server::tx_sender::proxy::{AccountNonceSweeperTask, TxProxy};
+use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_web3_decl::di::MainNodeClientResource;
 
-use crate::implementations::resources::{
-    main_node_client::MainNodeClientResource,
-    pools::{MasterPool, PoolResource},
-    web3_api::TxSinkResource,
+use crate::{
+    di::TxSinkResource,
+    tx_sender::proxy::{AccountNonceSweeperTask, TxProxy},
 };
 
 /// Wiring layer for [`TxProxy`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use zksync_node_api_server::web3::mempool_cache::{MempoolCache, MempoolCacheUpdateTask};
+use zksync_dal::di::{PoolResource, ReplicaPool};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -8,10 +8,8 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use crate::implementations::resources::{
-    pools::{PoolResource, ReplicaPool},
-    web3_api::MempoolCacheResource,
-};
+use super::resources::MempoolCacheResource;
+use crate::web3::mempool_cache::{MempoolCache, MempoolCacheUpdateTask};
 
 /// Wiring layer for API mempool cache.
 #[derive(Debug)]

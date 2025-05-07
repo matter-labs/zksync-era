@@ -1,34 +1,32 @@
 use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock;
-use zksync_config::configs::chain::TimestampAsserterConfig;
-use zksync_node_api_server::{
-    execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
-    tx_sender::{SandboxExecutorOptions, TimestampAsserterParams, TxSenderBuilder, TxSenderConfig},
-};
+use zksync_config::configs::{chain::TimestampAsserterConfig, contracts::chain::L2Contracts};
+use zksync_dal::di::{PoolResource, ReplicaPool};
+use zksync_eth_client::di::SettlementLayerContractsResource;
+use zksync_health_check::di::AppHealthCheckResource;
+use zksync_node_fee_model::di::ApiFeeInputResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_object_store::di::ObjectStoreResource;
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
+use zksync_state_keeper::di::ConditionalSealerResource;
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
 use zksync_web3_decl::{
     client::{DynClient, L2},
+    di::MainNodeClientResource,
     jsonrpsee,
     namespaces::EnNamespaceClient as _,
 };
 
-use crate::implementations::resources::{
-    contracts::{L2ContractsResource, SettlementLayerContractsResource},
-    fee_input::ApiFeeInputResource,
-    main_node_client::MainNodeClientResource,
-    object_store::ObjectStoreResource,
-    pools::{PoolResource, ReplicaPool},
-    state_keeper::ConditionalSealerResource,
-    web3_api::{TxSenderResource, TxSinkResource},
+use super::resources::{TxSenderResource, TxSinkResource};
+use crate::{
+    execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
+    tx_sender::{SandboxExecutorOptions, TimestampAsserterParams, TxSenderBuilder, TxSenderConfig},
 };
 
 #[derive(Debug)]
@@ -66,6 +64,7 @@ pub struct TxSenderLayer {
     vm_mode: FastVmMode,
     timestamp_asserter_config: Option<TimestampAsserterConfig>,
     tx_sender_config: TxSenderConfig,
+    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
@@ -77,19 +76,18 @@ pub struct Input {
     pub main_node_client: Option<MainNodeClientResource>,
     pub sealer: Option<ConditionalSealerResource>,
     pub contracts_resource: SettlementLayerContractsResource,
-    pub l2_contracts_resource: L2ContractsResource,
     pub core_object_store: Option<ObjectStoreResource>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub tx_sender: TxSenderResource,
+    tx_sender: TxSenderResource,
     #[context(task)]
-    pub vm_concurrency_barrier: VmConcurrencyBarrier,
+    vm_concurrency_barrier: VmConcurrencyBarrier,
     #[context(task)]
-    pub postgres_storage_caches_task: Option<PostgresStorageCachesTask>,
+    postgres_storage_caches_task: Option<PostgresStorageCachesTaskWrapper>,
     #[context(task)]
-    pub whitelisted_tokens_for_aa_update_task: Option<WhitelistedTokensForAaUpdateTask>,
+    whitelisted_tokens_for_aa_update_task: Option<WhitelistedTokensForAaUpdateTask>,
 }
 
 impl TxSenderLayer {
@@ -98,6 +96,7 @@ impl TxSenderLayer {
         max_vm_concurrency: usize,
         tx_sender_config: TxSenderConfig,
         timestamp_asserter_config: Option<TimestampAsserterConfig>,
+        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             postgres_storage_caches_config,
@@ -106,6 +105,7 @@ impl TxSenderLayer {
             vm_mode: FastVmMode::Old,
             timestamp_asserter_config,
             tx_sender_config,
+            l2_contracts,
         }
     }
 
@@ -141,7 +141,7 @@ impl WiringLayer for TxSenderLayer {
         let sealer = input.sealer.map(|s| s.0);
         let fee_input = input.fee_input.0;
 
-        let config = match input.l2_contracts_resource.0.timestamp_asserter_addr {
+        let config = match self.l2_contracts.timestamp_asserter_addr {
             Some(address) => {
                 let timestamp_asserter_config =
                     self.timestamp_asserter_config.expect("Should be presented");
@@ -173,7 +173,7 @@ impl WiringLayer for TxSenderLayer {
                     .latest_values_max_block_lag,
                 replica_pool.clone(),
             );
-            Some(update_task)
+            Some(PostgresStorageCachesTaskWrapper(update_task))
         } else {
             None
         };
@@ -242,14 +242,17 @@ impl WiringLayer for TxSenderLayer {
     }
 }
 
+#[derive(Debug)]
+struct PostgresStorageCachesTaskWrapper(PostgresStorageCachesTask);
+
 #[async_trait::async_trait]
-impl Task for PostgresStorageCachesTask {
+impl Task for PostgresStorageCachesTaskWrapper {
     fn id(&self) -> TaskId {
         "postgres_storage_caches".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await
+        self.0.run(stop_receiver.0).await
     }
 }
 

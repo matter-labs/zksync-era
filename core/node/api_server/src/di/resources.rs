@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_node_api_server::{
+use zksync_node_framework::resource::Resource;
+
+use crate::{
     tx_sender::{tx_sink::TxSink, TxSender},
     web3::mempool_cache::MempoolCache,
 };
-use zksync_node_framework::resource::Resource;
 
 /// A resource that provides [`TxSender`] to the service.
 #[derive(Debug, Clone)]
@@ -36,22 +36,6 @@ impl Resource for TxSinkResource {
 impl<T: TxSink> From<T> for TxSinkResource {
     fn from(sink: T) -> Self {
         Self(Arc::new(sink))
-    }
-}
-
-/// A resource that provides [`TreeApiClient`] implementation to the service.
-#[derive(Debug, Clone)]
-pub struct TreeApiClientResource(pub Arc<dyn TreeApiClient>);
-
-impl Resource for TreeApiClientResource {
-    fn name() -> String {
-        "api/tree_api_client".into()
-    }
-}
-
-impl<T: TreeApiClient> From<Arc<T>> for TreeApiClientResource {
-    fn from(client: Arc<T>) -> Self {
-        Self(client)
     }
 }
 

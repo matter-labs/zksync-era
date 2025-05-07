@@ -3,38 +3,31 @@ use std::{num::NonZeroU32, time::Duration};
 use anyhow::Context;
 use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
-use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
-use zksync_config::configs::api::MaxResponseSize;
+use zksync_circuit_breaker::{di::CircuitBreakersResource, replication_lag::ReplicationLagChecker};
+use zksync_config::configs::{api::MaxResponseSize, contracts::chain::L2Contracts};
 use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
-use zksync_node_api_server::web3::{
-    state::{BridgeAddressesHandle, InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
-    ApiBuilder, ApiServer, Namespace,
+use zksync_dal::di::{PoolResource, ReplicaPool};
+use zksync_eth_client::di::{
+    BaseL1ContractsResource, L1EcosystemContractsResource, SettlementLayerContractsResource,
 };
+use zksync_health_check::di::AppHealthCheckResource;
+use zksync_metadata_calculator::di::TreeApiClientResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_node_sync::di::SyncStateResource;
+use zksync_web3_decl::di::{EthInterfaceResource, MainNodeClientResource, SettlementModeResource};
 
-use crate::implementations::{
-    layers::web3_api::server::{
-        bridge_addresses::BridgeAddressesUpdaterTask, sealed_l2_block::SealedL2BlockUpdaterTask,
-    },
-    resources::{
-        circuit_breakers::CircuitBreakersResource,
-        contracts::{
-            L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-            SettlementLayerContractsResource,
-        },
-        eth_interface::EthInterfaceResource,
-        main_node_client::MainNodeClientResource,
-        pools::{PoolResource, ReplicaPool},
-        settlement_layer::SettlementModeResource,
-        sync_state::SyncStateResource,
-        web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
-    },
+use self::{
+    bridge_addresses::BridgeAddressesUpdaterTask, sealed_l2_block::SealedL2BlockUpdaterTask,
+};
+use super::resources::{MempoolCacheResource, TxSenderResource};
+use crate::web3::{
+    state::{BridgeAddressesHandle, InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
+    ApiBuilder, ApiServer, Namespace,
 };
 
 mod bridge_addresses;
@@ -122,6 +115,7 @@ pub struct Web3ServerLayer {
     port: u16,
     optional_config: Web3ServerOptionalConfig,
     internal_api_config_base: InternalApiConfigBase,
+    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
@@ -137,10 +131,9 @@ pub struct Input {
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
     pub l1_client: EthInterfaceResource,
-    pub sl_contracts_resource: SettlementLayerContractsResource,
-    pub l1_contracts_resource: L1ChainContractsResource,
-    pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
-    pub l2_contracts_resource: L2ContractsResource,
+    pub sl_contracts: SettlementLayerContractsResource,
+    pub l1_contracts: BaseL1ContractsResource,
+    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
     pub initial_settlement_mode: SettlementModeResource,
 }
 
@@ -161,12 +154,14 @@ impl Web3ServerLayer {
         port: u16,
         internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
+        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             transport: Transport::Http,
             port,
             optional_config,
             internal_api_config_base,
+            l2_contracts,
         }
     }
 
@@ -174,12 +169,14 @@ impl Web3ServerLayer {
         port: u16,
         internal_api_config_base: InternalApiConfigBase,
         optional_config: Web3ServerOptionalConfig,
+        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             transport: Transport::Ws,
             port,
             optional_config,
             internal_api_config_base,
+            l2_contracts,
         }
     }
 }
@@ -206,12 +203,12 @@ impl WiringLayer for Web3ServerLayer {
         let sync_state = input.sync_state.map(|state| state.0);
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
-        let l1_contracts = input.l1_contracts_resource.0;
+        let l1_contracts = input.l1_contracts.0;
         let internal_api_config = InternalApiConfig::from_base_and_contracts(
             self.internal_api_config_base,
             &l1_contracts,
-            &input.l1_ecosystem_contracts_resource.0,
-            &input.l2_contracts_resource.0,
+            &input.l1_ecosystem_contracts.0,
+            &self.l2_contracts,
             input.initial_settlement_mode.0,
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();

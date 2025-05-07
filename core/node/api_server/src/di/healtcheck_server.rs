@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
+use serde::Serialize;
 use zksync_config::configs::api::HealthCheckConfig;
-use zksync_health_check::AppHealthCheck;
-use zksync_node_api_server::healthcheck::HealthCheckHandle;
+use zksync_health_check::{di::AppHealthCheckResource, AppHealthCheck};
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 use zksync_shared_metrics::metadata::{GitMetadata, RustMetadata, GIT_METRICS, RUST_METRICS};
-use zksync_web3_decl::jsonrpsee::core::Serialize;
+
+use crate::healthcheck::HealthCheckHandle;
 
 /// Full metadata of the compiled binary.
 #[derive(Debug, Serialize)]
