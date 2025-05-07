@@ -543,6 +543,8 @@ jobs:
           # disable inclusion verification transition and restart the server
           echo "Disabling inclusion verification transition"
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
+          echo "Updating commitment mode in genesis.yaml"
+          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/genesis.yaml
           echo "Restarting server again to apply new configuration"
           ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
