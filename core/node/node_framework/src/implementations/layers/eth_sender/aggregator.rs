@@ -96,7 +96,7 @@ impl WiringLayer for EthTxAggregatorLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         tracing::info!(
             "Wiring tx_aggregator in {:?} mode",
-            input.settlement_mode.probably_unknown_settlement_layer(),
+            input.settlement_mode.settlement_layer_for_sending_txs(),
         );
         tracing::info!("Contracts: {:?}", &input.contracts_resource.0);
         // Get resources.
@@ -164,7 +164,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             multicall3_addr,
             diamond_proxy_addr,
             self.zksync_network_id,
-            input.settlement_mode.probably_unknown_settlement_layer(),
+            input.settlement_mode.settlement_layer_for_sending_txs(),
         )
         .await;
 

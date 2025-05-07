@@ -216,7 +216,7 @@ impl WiringLayer for Web3ServerLayer {
             &input.l2_contracts_resource.0,
             input
                 .initial_settlement_mode
-                .probably_unknown_settlement_layer(),
+                .settlement_layer_for_sending_txs(),
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =

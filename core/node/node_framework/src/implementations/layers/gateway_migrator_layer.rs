@@ -53,7 +53,7 @@ impl WiringLayer for GatewayMigratorLayer {
             self.l2_chain_id,
             input
                 .settlement_mode_resource
-                .probably_unknown_settlement_layer(),
+                .settlement_layer_for_sending_txs(),
             input.contracts.0,
         );
 
