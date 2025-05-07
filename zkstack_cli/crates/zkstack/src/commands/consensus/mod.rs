@@ -141,17 +141,20 @@ impl Setup {
             .get_genesis_config()
             .await
             .context("get_genesis_config()")?
-            .get("l2_chain_id")?;
-        let general = chain
+            .l2_chain_id()
+            .context("l2_chain_id()")?;
+        let l2_http_url = chain
             .get_general_config()
             .await
-            .context("get_general_config()")?;
+            .context("get_general_config()")?
+            .l2_http_url()
+            .context("l2_http_url()")?;
 
         Ok(Self {
             chain,
             contracts,
             l2_chain_id,
-            l2_http_url: general.get("api.web3_json_rpc.http_url")?,
+            l2_http_url,
         })
     }
 

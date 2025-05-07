@@ -20,7 +20,6 @@ impl Weighted {
 pub struct ConsensusGenesisSpecs {
     pub chain_id: L2ChainId,
     pub validators: Vec<Weighted>,
-    pub attesters: Vec<Weighted>,
     pub leader: String,
 }
 

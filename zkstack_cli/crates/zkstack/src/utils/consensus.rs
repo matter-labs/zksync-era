@@ -1,9 +1,5 @@
 use anyhow::Context as _;
-use serde::Deserialize;
-use zkstack_cli_config::{
-    ChainConfig, ConsensusGenesisSpecs, GeneralConfigPatch, RawConsensusKeys, SecretsConfigPatch,
-    Weighted,
-};
+use serde::{Deserialize, Serialize};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{node, validator};
 
@@ -63,72 +59,9 @@ pub(crate) struct Validator {
     pub(crate) weight: u64,
 }
 
-pub fn set_genesis_specs(
-    general: &mut GeneralConfigPatch,
-    chain_config: &ChainConfig,
-    consensus_keys: &ConsensusSecretKeys,
-) -> anyhow::Result<()> {
-    let validator_key = consensus_keys.validator_key.public().encode();
-    let leader = validator_key.clone();
-
-    general.insert(
-        "consensus.genesis_spec.chain_id",
-        chain_config.chain_id.as_u64(),
-    )?;
-    general.insert("consensus.genesis_spec.protocol_version", 1_u64)?;
-    general.insert_yaml(
-        "consensus.genesis_spec.validators",
-        [WeightedValidatorYaml {
-            key: validator_key,
-            weight: 1,
-        }],
-    )?;
-    general.insert("consensus.genesis_spec.leader", leader)?;
-    Ok(())
-}
-
-pub(crate) fn set_consensus_secrets(
-    secrets: &mut SecretsConfigPatch,
-    consensus_keys: &ConsensusSecretKeys,
-) -> anyhow::Result<()> {
-    let validator_key = consensus_keys.validator_key.encode();
-    let node_key = consensus_keys.node_key.encode();
-    secrets.insert("consensus.validator_key", validator_key)?;
-    secrets.insert("consensus.node_key", node_key)?;
-    Ok(())
-}
-
 pub fn node_public_key(secret_key: &str) -> anyhow::Result<String> {
     let secret_key: node::SecretKey = Text::new(secret_key)
         .decode()
         .context("invalid node key format")?;
     Ok(secret_key.public().encode())
-}
-
-#[derive(Debug, Clone)]
-pub struct ConsensusSecretKeys {
-    validator_key: validator::SecretKey,
-    node_key: node::SecretKey,
-}
-
-impl ConsensusSecretKeys {
-    pub fn generate() -> Self {
-        Self {
-            validator_key: validator::SecretKey::generate(),
-            node_key: node::SecretKey::generate(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct WeightedValidatorYaml {
-    key: String,
-    weight: u64,
-}
-
-/// Mirrors key–address pair used in the consensus config.
-#[derive(Debug, Serialize)]
-pub(crate) struct KeyAndAddress {
-    pub key: String,
-    pub addr: String,
 }
