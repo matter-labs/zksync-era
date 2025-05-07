@@ -1,20 +1,18 @@
 use std::sync::Arc;
 
 use zksync_config::configs::TeeProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{
+    di::{MasterPool, PoolResource},
+    ConnectionPool, Core,
+};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{di::ObjectStoreResource, ObjectStore};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
-
-use crate::implementations::resources::{
-    object_store::ObjectStoreResource,
-    pools::{MasterPool, PoolResource},
-};
 
 /// Wiring layer for proof data handler server.
 #[derive(Debug)]
@@ -91,7 +89,7 @@ impl Task for TeeProofDataHandlerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_tee_proof_data_handler::run_server(
+        crate::run_server(
             self.proof_data_handler_config,
             self.blob_store,
             self.main_pool,
