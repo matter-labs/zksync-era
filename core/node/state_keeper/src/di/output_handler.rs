@@ -1,4 +1,7 @@
 use anyhow::Context as _;
+use zksync_config::configs::contracts::chain::L2Contracts;
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_eth_client::di::SettlementLayerContractsResource;
 use zksync_node_framework::{
     resource::Unique,
     service::StopReceiver,
@@ -6,17 +9,12 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_state_keeper::{
-    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
-    StateKeeperPersistence, TreeWritesPersistence,
-};
 use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
-use crate::implementations::resources::{
-    contracts::{L2ContractsResource, SettlementLayerContractsResource},
-    pools::{MasterPool, PoolResource},
-    state_keeper::OutputHandlerResource,
-    sync_state::SyncStateResource,
+use super::resources::OutputHandlerResource;
+use crate::{
+    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
+    StateKeeperPersistence, TreeWritesPersistence,
 };
 
 /// Wiring layer for the state keeper output handler.
@@ -44,14 +42,14 @@ pub struct OutputHandlerLayer {
     /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes)
     /// or run `vm_runner_protective_reads` component.
     protective_reads_persistence_enabled: bool,
+    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
-    pub sync_state: Option<SyncStateResource>,
+    // FIXME: inject sync_state as additional output handler
     pub contracts: SettlementLayerContractsResource,
-    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -62,9 +60,10 @@ pub struct Output {
 }
 
 impl OutputHandlerLayer {
-    pub fn new(l2_block_seal_queue_capacity: usize) -> Self {
+    pub fn new(l2_block_seal_queue_capacity: usize, l2_contracts: L2Contracts) -> Self {
         Self {
             l2_block_seal_queue_capacity,
+            l2_contracts,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
         }
@@ -102,10 +101,10 @@ impl WiringLayer for OutputHandlerLayer {
             .await
             .context("Get master pool")?;
 
-        let l2_shared_bridge_addr = input.l2_contracts_resource.0.shared_bridge_addr;
+        let l2_shared_bridge_addr = self.l2_contracts.shared_bridge_addr;
         let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_ASSET_ROUTER_ADDRESS {
             // System has migrated to `L2_ASSET_ROUTER_ADDRESS`, use legacy shared bridge address from main node.
-            input.l2_contracts_resource.0.legacy_shared_bridge_addr
+            self.l2_contracts.legacy_shared_bridge_addr
         } else {
             // System hasn't migrated on `L2_ASSET_ROUTER_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
             Some(l2_shared_bridge_addr)
@@ -125,11 +124,8 @@ impl WiringLayer for OutputHandlerLayer {
         }
 
         let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
-        let mut output_handler = OutputHandler::new(Box::new(persistence))
+        let output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(tree_writes_persistence));
-        if let Some(sync_state) = input.sync_state {
-            output_handler = output_handler.with_handler(Box::new(sync_state.0));
-        }
         let output_handler = OutputHandlerResource(Unique::new(output_handler));
 
         Ok(Output {

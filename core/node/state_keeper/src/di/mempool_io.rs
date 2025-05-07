@@ -1,23 +1,22 @@
 use anyhow::Context as _;
 use zksync_config::configs::{
     chain::{MempoolConfig, StateKeeperConfig},
+    contracts::chain::L2Contracts,
     wallets,
 };
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_eth_client::di::SettlementLayerContractsResource;
+use zksync_node_fee_model::di::SequencerFeeInputResource;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
-use crate::implementations::resources::{
-    contracts::{L2ContractsResource, SettlementLayerContractsResource},
-    fee_input::SequencerFeeInputResource,
-    pools::{MasterPool, PoolResource},
-    state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
-};
+use super::resources::{ConditionalSealerResource, StateKeeperIOResource};
+use crate::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
 
 /// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
 ///
@@ -41,6 +40,7 @@ pub struct MempoolIOLayer {
     mempool_config: MempoolConfig,
     wallets: wallets::StateKeeper,
     pubdata_type: PubdataType,
+    l2_contracts: L2Contracts,
 }
 
 #[derive(Debug, FromContext)]
@@ -48,7 +48,6 @@ pub struct Input {
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
     pub contracts_resource: SettlementLayerContractsResource,
-    pub l2_contracts_resource: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -66,6 +65,7 @@ impl MempoolIOLayer {
         mempool_config: MempoolConfig,
         wallets: wallets::StateKeeper,
         pubdata_type: PubdataType,
+        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             zksync_network_id,
@@ -73,6 +73,7 @@ impl MempoolIOLayer {
             mempool_config,
             wallets,
             pubdata_type,
+            l2_contracts,
         }
     }
 
@@ -133,7 +134,7 @@ impl WiringLayer for MempoolIOLayer {
             self.wallets.fee_account.address(),
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
-            input.l2_contracts_resource.0.da_validator_addr,
+            self.l2_contracts.da_validator_addr,
             self.pubdata_type,
         )?;
 
