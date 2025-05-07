@@ -210,17 +210,23 @@ pub(crate) async fn get_gateway_migration_state(
             ));
         }
 
-        let current_sl_from_server = gateway_migration_status.settlement_layer.chain_id().0;
+        let Some(current_sl_from_server) = gateway_migration_status.settlement_layer else {
+            todo!(
+                "
+                The migration has started, but the settlement layer is not defined. \
+                Waiting manual finalization or L2 L1 transaction"
+            );
+        };
 
         // No migration event present, but the server uses inconsistent settlement layer
-        if current_sl_from_l1 != current_sl_from_server {
-            anyhow::bail!(format!("No migration event present, but server uses inconsistent settlement layer. Server: {current_sl_from_server}, L1 Bridgehub: {current_sl_from_l1}"));
+        if current_sl_from_l1 != current_sl_from_server.chain_id().0 {
+            anyhow::bail!(format!("No migration event present, but server uses inconsistent settlement layer. Server: {current_sl_from_server:?}, L1 Bridgehub: {current_sl_from_l1:?}"));
         }
 
         // The system does not have any migration at this point, we just need to check
         // whether it is `NotStarted` or `Finished` depending on the propoed direction
 
-        let status = match (direction, gateway_migration_status.settlement_layer) {
+        let status = match (direction, current_sl_from_server) {
             (MigrationDirection::ToGateway, SettlementLayer::Gateway(_)) => {
                 GatewayMigrationProgressState::Finished
             }
@@ -252,8 +258,8 @@ pub(crate) async fn get_gateway_migration_state(
 
     match (direction, gateway_migration_status.settlement_layer) {
         // The server already uses the new settlement layer, so the migration is over
-        (MigrationDirection::ToGateway, SettlementLayer::Gateway(_))
-        | (MigrationDirection::FromGateway, SettlementLayer::L1(_)) => {
+        (MigrationDirection::ToGateway, Some(SettlementLayer::Gateway(_)))
+        | (MigrationDirection::FromGateway, Some(SettlementLayer::L1(_))) => {
             return Ok(GatewayMigrationProgressState::Finished)
         }
         _ => {}

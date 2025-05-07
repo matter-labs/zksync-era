@@ -7,7 +7,6 @@ use crate::{
     implementations::resources::{
         contracts::L1ChainContractsResource,
         eth_interface::{EthInterfaceResource, L2InterfaceResource},
-        pools::{MasterPool, PoolResource},
         settlement_layer::SettlementModeResource,
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -27,7 +26,6 @@ pub struct Input {
     gateway_client: Option<L2InterfaceResource>,
     contracts: L1ChainContractsResource,
     settlement_mode_resource: SettlementModeResource,
-    pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -52,9 +50,10 @@ impl WiringLayer for GatewayMigratorLayer {
             input
                 .gateway_client
                 .map(|a| Box::new(a.0) as Box<dyn EthInterface>),
-            input.settlement_mode_resource.0,
             self.l2_chain_id,
-            input.pool.get().await?,
+            input
+                .settlement_mode_resource
+                .settlement_layer_for_sending_txs(),
             input.contracts.0,
         );
 
