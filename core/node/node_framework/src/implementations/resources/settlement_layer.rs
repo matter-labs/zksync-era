@@ -19,7 +19,7 @@ impl SettlementModeResource {
 
     /// Method returns the settlement layer, where we really should send the transactions, it could be None during the migration. Please use this method only if you know how to handle unknown settlement layer
     pub fn probably_unknown_settlement_layer(&self) -> Option<SettlementLayer> {
-        self.0.probably_unknown_settlement_layer()
+        self.0.settlement_layer_for_sending_txs()
     }
 }
 

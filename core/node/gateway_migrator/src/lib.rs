@@ -72,9 +72,13 @@ impl GatewayMigrator {
             match current_settlement_layer {
                 Ok(current_settlement_layer) => {
                     if self.settlement_layer
-                        != current_settlement_layer.probably_unknown_settlement_layer()
+                        != current_settlement_layer.settlement_layer_for_sending_txs()
                     {
-                        bail!("Settlement layer changed")
+                        bail!(
+                            "Settlement layer changed, from {:?} to {:?}",
+                            self.settlement_layer,
+                            current_settlement_layer.settlement_layer_for_sending_txs()
+                        );
                     }
                 }
                 Err(GatewayMigratorError::ContractCall(ContractCallError::EthereumGateway(
@@ -119,7 +123,7 @@ impl WorkingSettlementLayer {
         self.unsafe_settlement_layer
     }
 
-    pub fn probably_unknown_settlement_layer(&self) -> Option<SettlementLayer> {
+    pub fn settlement_layer_for_sending_txs(&self) -> Option<SettlementLayer> {
         if self.migration_in_progress {
             None
         } else {
