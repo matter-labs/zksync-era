@@ -71,6 +71,7 @@ impl FromStr for L1BatchCommitmentMode {
     }
 }
 
+
 #[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize, Display)]
 pub enum PubdataType {
     #[default]
@@ -98,8 +99,19 @@ impl FromStr for PubdataType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize)]
+#[repr(u8)]
+pub enum L2DACommitmentScheme {
+    #[default]
+    None = 0,
+    EmptyNoDA = 1,
+    PubdataKeccak256 = 2,
+    BlobsAndPubdataKeccak256 = 3
+}
+
 #[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PubdataParams {
-    pub l2_da_validator_address: Address,
+    pub l2_da_commitment_scheme: Address,
     pub pubdata_type: PubdataType,
 }
