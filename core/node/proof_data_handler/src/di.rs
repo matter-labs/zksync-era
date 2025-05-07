@@ -1,21 +1,20 @@
 use std::sync::Arc;
 
 use zksync_config::configs::{fri_prover_gateway::ApiMode, ProofDataHandlerConfig};
-use zksync_dal::{ConnectionPool, Core};
+use zksync_dal::{
+    di::{MasterPool, PoolResource},
+    ConnectionPool, Core,
+};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::ObjectStore;
-use zksync_proof_data_handler::ProofDataHandlerClient;
+use zksync_object_store::{di::ObjectStoreResource, ObjectStore};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
-use crate::implementations::resources::{
-    object_store::ObjectStoreResource,
-    pools::{MasterPool, PoolResource},
-};
+use crate::ProofDataHandlerClient;
 
 /// Wiring layer for proof data handler server.
 #[derive(Debug)]
@@ -97,7 +96,7 @@ impl Task for ProofDataHandlerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let server_task = zksync_proof_data_handler::run_server(
+        let server_task = crate::run_server(
             self.proof_data_handler_config.clone(),
             self.blob_store.clone(),
             self.main_pool.clone(),
