@@ -65,7 +65,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local --cargo-features gateway
+          ci_run zkstackup -g --local
 
       - name: Build contracts
         run: |
@@ -142,7 +142,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local --cargo-features gateway
+          ci_run zkstackup -g --local
 
 
       - name: Create and initialize legacy chain
@@ -226,7 +226,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local --cargo-features gateway
+          ci_run zkstackup -g --local
 
       - name: Create log directories
         run: |
@@ -471,11 +471,6 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
-
-      - name: Set up attester committee for the consensus chain
-        run: |
-          ci_run zkstack consensus wait-for-registry --ignore-prerequisites --verbose --chain consensus
-          ci_run zkstack consensus set-attester-committee --chain consensus --ignore-prerequisites --verbose --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
 
       - name: Run integration tests
         run: |

@@ -4,9 +4,7 @@ use smart_config::{
     de::{Optional, Serde},
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId,
-};
+use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 
 /// Temporary config for initializing external node, will be completely replaced by consensus config later
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -16,8 +14,6 @@ pub struct ENConfig {
     pub l2_chain_id: L2ChainId,
     #[config(with = Serde![int])]
     pub l1_chain_id: L1ChainId,
-    #[config(default, with = Serde![str])]
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
 
     // Main node configuration
     #[config(secret, with = Serde![str])]
@@ -42,7 +38,6 @@ mod tests {
             l2_chain_id: L2ChainId::from(271),
             l1_chain_id: L1ChainId(9),
             gateway_chain_id: Some(SLChainId(123)),
-            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             main_node_url: "http://127.0.0.1:3050/".parse().unwrap(),
             main_node_rate_limit_rps: NonZeroUsize::new(200).unwrap(),
             gateway_url: None,
@@ -68,7 +63,6 @@ mod tests {
             EN_GATEWAY_CHAIN_ID=123
             EN_MAIN_NODE_URL=http://127.0.0.1:3050/
             EN_MAIN_NODE_RATE_LIMIT_RPS=200
-            EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE=Rollup
             EN_BRIDGE_ADDRESSES_REFRESH_INTERVAL="15s"
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -90,7 +84,6 @@ mod tests {
             l2_chain_id: 271
             l1_chain_id: 9
             gateway_chain_id: 123
-            l1_batch_commit_data_generator_mode: Rollup
             bridge_addresses_refresh_interval: '15s'
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -111,7 +104,6 @@ mod tests {
             l2_chain_id: 271
             l1_chain_id: 9
             gateway_chain_id: 123
-            l1_batch_commit_data_generator_mode: Rollup
             bridge_addresses_refresh_interval: '15s'
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();

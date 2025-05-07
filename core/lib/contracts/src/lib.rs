@@ -62,8 +62,8 @@ const SERVER_NOTIFIER_CONTRACT_FILE: (&str, &str) =
     ("governance", "ServerNotifier.sol/ServerNotifier.json");
 
 const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/chain-interfaces",
-    "IGetters.sol/IGetters.json",
+    "state-transition/chain-deps/facets",
+    "Getters.sol/GettersFacet.json",
 );
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");

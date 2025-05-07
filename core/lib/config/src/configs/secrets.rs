@@ -119,10 +119,6 @@ mod tests {
             secrets.consensus.node_key.unwrap().expose_secret(),
             "node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
         );
-        assert_eq!(
-            secrets.consensus.attester_key.unwrap().expose_secret(),
-            "attester:secret:secp256k1:a32fc914d5131642cf7d7952d95e018c95b1852eafb4204043c4a9614488de2e"
-        );
         let DataAvailabilitySecrets::Avail(avail) = secrets.data_availability.unwrap() else {
             panic!("unexpected DA secrets");
         };
@@ -152,7 +148,6 @@ mod tests {
 
             CONSENSUS_VALIDATOR_KEY="validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866"
             CONSENSUS_NODE_KEY="node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
-            CONSENSUS_ATTESTER_KEY="attester:secret:secp256k1:a32fc914d5131642cf7d7952d95e018c95b1852eafb4204043c4a9614488de2e"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
         let secrets: Secrets = test(env).unwrap();
@@ -170,7 +165,6 @@ mod tests {
             consensus:
               validator_key: validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866
               node_key: node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3
-              attester_key: attester:secret:secp256k1:a32fc914d5131642cf7d7952d95e018c95b1852eafb4204043c4a9614488de2e
             da:
               client: Avail
               seed_phrase: 'correct horse battery staple'

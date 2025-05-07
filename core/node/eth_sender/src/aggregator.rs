@@ -371,6 +371,16 @@ impl Aggregator {
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
     ) -> Option<AggregatedOperation> {
+        // The commit operation is not aggregated at the moment. The code below relies on `limit`
+        // being set to 1 when defining the pubdata commitment mode.
+        if limit != 1 {
+            tracing::error!(
+                "Commit operation is not aggregated anymore. \
+                The limit of commit operation is set to 1."
+            );
+            return None;
+        }
+
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -420,9 +430,52 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| {
-            AggregatedOperation::Commit(last_committed_l1_batch, batches, self.pubdata_da)
-        })
+        let batches = batches?;
+
+        // Note: the line below only works correctly during rollup <-> validium transitions
+        // if the limit of commit operation is set to 1.
+        let (pubdata_sending_mode, commitment_mode) =
+            self.get_commitment_modes(batches.first()?, storage).await;
+
+        Some(AggregatedOperation::Commit(
+            last_committed_l1_batch,
+            batches,
+            pubdata_sending_mode,
+            commitment_mode,
+        ))
+    }
+
+    async fn get_commitment_modes(
+        &self,
+        batch: &L1BatchWithMetadata,
+        storage: &mut Connection<'_, Core>,
+    ) -> (PubdataSendingMode, L1BatchCommitmentMode) {
+        let pubdata_params = storage
+            .blocks_dal()
+            .get_l1_batch_pubdata_params(batch.header.number)
+            .await
+            .unwrap();
+
+        match pubdata_params {
+            Some(p) => {
+                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type);
+
+                if commitment_mode == L1BatchCommitmentMode::Rollup
+                    && self.pubdata_da == PubdataSendingMode::Custom
+                {
+                    tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
+                    (PubdataSendingMode::Blobs, commitment_mode)
+                } else if commitment_mode == L1BatchCommitmentMode::Validium
+                    && self.pubdata_da != PubdataSendingMode::Custom
+                {
+                    tracing::warn!("Overriding pubdata sending mode to Custom, most likely validium -> rollup migration is in place");
+                    (PubdataSendingMode::Custom, commitment_mode)
+                } else {
+                    (self.pubdata_da, self.commitment_mode)
+                }
+            }
+            None => (self.pubdata_da, self.commitment_mode),
+        }
     }
 
     async fn load_dummy_proof_operations(
@@ -652,14 +705,6 @@ impl Aggregator {
                 }
             }
         }
-    }
-
-    pub fn pubdata_da(&self) -> PubdataSendingMode {
-        self.pubdata_da
-    }
-
-    pub fn mode(&self) -> L1BatchCommitmentMode {
-        self.commitment_mode
     }
 }
 

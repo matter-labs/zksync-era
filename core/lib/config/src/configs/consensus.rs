@@ -26,17 +26,6 @@ impl WellKnown for ValidatorPublicKey {
         Qualified::new(Serde![str], "has `validator:public:bls12_381:` prefix");
 }
 
-/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::PublicKey`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
-#[serde(transparent)]
-pub struct AttesterPublicKey(pub String);
-
-impl WellKnown for AttesterPublicKey {
-    type Deserializer = Qualified<Serde![str]>;
-    const DE: Self::Deserializer =
-        Qualified::new(Serde![str], "has `attester:public:secp256k1:` prefix");
-}
-
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize)]
 #[serde(transparent)]
@@ -81,9 +70,6 @@ pub struct GenesisSpec {
     /// The validator committee. Represents `zksync_consensus_roles::validator::Committee`.
     #[config(default, with = Entries::WELL_KNOWN.named("key", "weight"))]
     pub validators: Vec<(ValidatorPublicKey, u64)>,
-    /// The attester committee. Represents `zksync_consensus_roles::attester::Committee`.
-    #[config(default, with = Entries::WELL_KNOWN.named("key", "weight"))]
-    pub attesters: Vec<(AttesterPublicKey, u64)>,
     /// Leader of the committee. Represents
     /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
     pub leader: ValidatorPublicKey,
@@ -206,8 +192,6 @@ impl ConsensusConfig {
 pub struct ConsensusSecrets {
     /// Has `validator:secret:bls12_381:` prefix.
     pub validator_key: Option<SecretString>,
-    /// Has `attester:secret:secp256k1:` prefix.
-    pub attester_key: Option<SecretString>,
     /// Has `node:secret:ed25519:` prefix.
     pub node_key: Option<SecretString>,
 }
@@ -242,10 +226,6 @@ mod tests {
                 chain_id: L2ChainId::from(271),
                 protocol_version: ProtocolVersion(1),
                 validators: vec![(ValidatorPublicKey(VALIDATOR.into()), 1)],
-                attesters: vec![(
-                    AttesterPublicKey("attester:public:secp256k1:0301978974fe58a57b07e786e14f1edff9e1e203643ab657ac31df3771c9175236".into()),
-                    1,
-                )],
                 leader: ValidatorPublicKey(VALIDATOR.into()),
                 registry_address: Some("0x2469b58c37e02d53a65cdf248d4086beba17de85".parse().unwrap()),
                 seed_peers: BTreeMap::from([(
@@ -283,9 +263,6 @@ mod tests {
               - key: validator:public:bls12_381:80ee14e3a66e1324b9af2531054a823a1224b4336c6e46fa9491220bb94c887a66b14549060046537e17f831453d358d0b0662322437876622a2490246c0fe0a6a0b5013062d50a6411ddb745189da7e5d79ffd64903e899c8b5a3e7cd89be5a
                 weight: 1
               leader: validator:public:bls12_381:80ee14e3a66e1324b9af2531054a823a1224b4336c6e46fa9491220bb94c887a66b14549060046537e17f831453d358d0b0662322437876622a2490246c0fe0a6a0b5013062d50a6411ddb745189da7e5d79ffd64903e899c8b5a3e7cd89be5a
-              attesters:
-              - key: attester:public:secp256k1:0301978974fe58a57b07e786e14f1edff9e1e203643ab657ac31df3771c9175236
-                weight: 1
               seed_peers:
               - key: 'node:public:ed25519:68d29127ab03408bf5c838553b19c32bdb3aaaae9bf293e5e078c3a0d265822a'
                 addr: 'example.com:3054'
@@ -321,8 +298,6 @@ mod tests {
               validators:
                 'validator:public:bls12_381:80ee14e3a66e1324b9af2531054a823a1224b4336c6e46fa9491220bb94c887a66b14549060046537e17f831453d358d0b0662322437876622a2490246c0fe0a6a0b5013062d50a6411ddb745189da7e5d79ffd64903e899c8b5a3e7cd89be5a': 1
               leader: validator:public:bls12_381:80ee14e3a66e1324b9af2531054a823a1224b4336c6e46fa9491220bb94c887a66b14549060046537e17f831453d358d0b0662322437876622a2490246c0fe0a6a0b5013062d50a6411ddb745189da7e5d79ffd64903e899c8b5a3e7cd89be5a
-              attesters:
-                'attester:public:secp256k1:0301978974fe58a57b07e786e14f1edff9e1e203643ab657ac31df3771c9175236': 1
               seed_peers:
                 'node:public:ed25519:68d29127ab03408bf5c838553b19c32bdb3aaaae9bf293e5e078c3a0d265822a': 'example.com:3054'
               registry_address: 0x2469b58c37e02d53a65cdf248d4086beba17de85
