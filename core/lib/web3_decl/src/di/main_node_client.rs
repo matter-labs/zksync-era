@@ -8,12 +8,12 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::{url::SensitiveUrl, L2ChainId};
-use zksync_web3_decl::{
+
+use super::resources::MainNodeClientResource;
+use crate::{
     client::{Client, DynClient, L2},
     namespaces::EthNamespaceClient,
 };
-
-use super::resources::MainNodeClientResource;
 
 /// Wiring layer for main node client.
 #[derive(Debug)]

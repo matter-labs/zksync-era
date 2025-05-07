@@ -3,7 +3,8 @@ use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_eth_client::{
     clients::PKSigningClient,
-    di::{BaseL1ContractsResource, EthInterfaceResource, L1EcosystemContractsResource},
+    di::{BaseL1ContractsResource, L1EcosystemContractsResource},
+    web3_decl::di::EthInterfaceResource,
 };
 use zksync_node_fee_model::di::TxParamsResource;
 use zksync_node_framework::{

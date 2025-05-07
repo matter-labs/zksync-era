@@ -4,8 +4,7 @@ use zksync_config::{
 };
 use zksync_dal::di::{MasterPool, PoolResource};
 use zksync_eth_client::di::{
-    BaseL1ContractsResource, BaseSettlementLayerContractsResource, EthInterfaceResource,
-    L1EcosystemContractsResource, SettlementLayerClient, SettlementModeResource,
+    BaseL1ContractsResource, BaseSettlementLayerContractsResource, L1EcosystemContractsResource,
 };
 use zksync_node_framework::{
     service::StopReceiver,
@@ -14,7 +13,10 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::L2ChainId;
-use zksync_web3_decl::client::{DynClient, Network};
+use zksync_web3_decl::{
+    client::{DynClient, Network},
+    di::{EthInterfaceResource, SettlementLayerClient, SettlementModeResource},
+};
 
 use crate::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
 

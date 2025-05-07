@@ -1,8 +1,10 @@
 //! Dependency injection for the consistency checker.
 
 use zksync_dal::di::{MasterPool, PoolResource};
-use zksync_eth_client::di::{
-    BaseSettlementLayerContractsResource, SettlementLayerClient, SettlementModeResource,
+use zksync_eth_client::{
+    di::BaseSettlementLayerContractsResource,
+    web3_decl::di::{SettlementLayerClient, SettlementModeResource},
+    EthInterface,
 };
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
@@ -54,11 +56,14 @@ impl WiringLayer for ConsistencyCheckerLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let settlement_layer_client = input.settlement_layer_client;
+        let settlement_layer_client: Box<dyn EthInterface> = match input.settlement_layer_client {
+            SettlementLayerClient::L1(client) => Box::new(client),
+            SettlementLayerClient::L2(client) => Box::new(client),
+        };
 
         let singleton_pool = input.master_pool.get_singleton().await?;
         let consistency_checker = ConsistencyChecker::new(
-            settlement_layer_client.into(),
+            settlement_layer_client,
             self.max_batches_to_recheck,
             singleton_pool,
             input.settlement_mode.0,

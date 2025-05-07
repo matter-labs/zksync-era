@@ -3,19 +3,9 @@ use zksync_config::configs::{
     eth_sender::SenderConfig,
 };
 use zksync_node_framework::resource::Resource;
-use zksync_types::{settlement::SettlementLayer, Address, SLChainId};
-use zksync_web3_decl::client::{DynClient, L1, L2};
+use zksync_types::{Address, SLChainId};
 
-use crate::{BoundEthInterface, EthInterface};
-
-#[derive(Debug, Clone, Copy)]
-pub struct SettlementModeResource(pub SettlementLayer);
-
-impl Resource for SettlementModeResource {
-    fn name() -> String {
-        "common/settlement_mode".into()
-    }
-}
+use crate::BoundEthInterface;
 
 #[derive(Debug, Clone)]
 pub struct BaseL1ContractsResource(pub SettlementLayerSpecificContracts);
@@ -66,51 +56,6 @@ impl Resource for SenderConfigResource {
     }
 }
 
-/// A resource that provides L1 interface object to the service.
-#[derive(Debug, Clone)]
-pub struct EthInterfaceResource(pub Box<DynClient<L1>>);
-
-impl Resource for EthInterfaceResource {
-    fn name() -> String {
-        "common/eth_interface".into()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum SettlementLayerClient {
-    L1(Box<DynClient<L1>>),
-    L2(Box<DynClient<L2>>),
-}
-
-impl From<SettlementLayerClient> for Box<dyn EthInterface> {
-    fn from(value: SettlementLayerClient) -> Self {
-        match value {
-            SettlementLayerClient::L1(client) => Box::new(client),
-            SettlementLayerClient::L2(client) => Box::new(client),
-        }
-    }
-}
-
-impl Resource for SettlementLayerClient {
-    fn name() -> String {
-        "common/settlement_layer_client".into()
-    }
-}
-
-/// A resource that provides L2 interface object to the service.
-/// It is expected to have the same URL as the `EthInterfaceResource`, but have different capabilities.
-///
-/// This resource is provided separately from `EthInterfaceResource`, to provide type safety in places, where the
-/// component must work with L1-interface only and should use `EthInterfaceResource` instead.
-#[derive(Debug, Clone)]
-pub struct L2InterfaceResource(pub Box<DynClient<L2>>);
-
-impl Resource for L2InterfaceResource {
-    fn name() -> String {
-        "common/l2_interface".into()
-    }
-}
-
 /// A resource that provides L1 interface with signing capabilities to the service.
 #[derive(Debug, Clone)]
 pub struct BoundEthInterfaceResource(pub Box<dyn BoundEthInterface>);
@@ -137,21 +82,5 @@ pub struct BoundEthInterfaceForL2Resource(pub Box<dyn BoundEthInterface>);
 impl Resource for BoundEthInterfaceForL2Resource {
     fn name() -> String {
         "common/bound_eth_interface_for_l2".into()
-    }
-}
-
-/// A resource that provides L2 interface object to the service.
-#[derive(Debug, Clone)]
-pub struct MainNodeClientResource(pub Box<DynClient<L2>>);
-
-impl Resource for MainNodeClientResource {
-    fn name() -> String {
-        "external_node/main_node_client".into()
-    }
-}
-
-impl<T: Into<Box<DynClient<L2>>>> From<T> for MainNodeClientResource {
-    fn from(client: T) -> Self {
-        Self(client.into())
     }
 }

@@ -40,4 +40,4 @@ serde_json.workspace = true
 
 [features]
 default = []
-di = ["zksync_node_framework", "zksync_health_check/di"]
+di = ["zksync_node_framework", "zksync_health_check/di", "zksync_web3_decl/di"]

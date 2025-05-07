@@ -1,4 +1,4 @@
-use zksync_eth_client::di::{BaseGatewayContractsResource, EthInterfaceResource};
+use zksync_eth_client::{di::BaseGatewayContractsResource, web3_decl::di::EthInterfaceResource};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},

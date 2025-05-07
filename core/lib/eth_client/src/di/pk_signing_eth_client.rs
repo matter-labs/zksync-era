@@ -3,11 +3,11 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_web3_decl::di::{EthInterfaceResource, SettlementLayerClient};
 
 use super::resources::{
     BaseGatewayContractsResource, BaseL1ContractsResource, BoundEthInterfaceForBlobsResource,
-    BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, EthInterfaceResource,
-    SettlementLayerClient,
+    BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
 };
 use crate::{clients::PKSigningClient, EthInterface};
 

@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_config::{GasAdjusterConfig, GenesisConfig};
-use zksync_eth_client::di::SettlementLayerClient;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_web3_decl::di::SettlementLayerClient;
 
 use super::resources::{GasAdjusterResource, PubdataSendingModeResource};
 use crate::l1_gas_price::GasAdjuster;

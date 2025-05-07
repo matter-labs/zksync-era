@@ -17,9 +17,8 @@ use zksync_eth_client::{
         get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
     },
     di::{
-        BaseL1ContractsResource, BaseSettlementLayerContractsResource, EthInterfaceResource,
-        L1EcosystemContractsResource, L2InterfaceResource, SenderConfigResource,
-        SettlementModeResource,
+        BaseL1ContractsResource, BaseSettlementLayerContractsResource,
+        L1EcosystemContractsResource, SenderConfigResource,
     },
     EthInterface,
 };
@@ -30,6 +29,7 @@ use zksync_node_framework::{
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, L2},
+    di::{EthInterfaceResource, L2InterfaceResource, SettlementModeResource},
     namespaces::ZksNamespaceClient,
 };
 

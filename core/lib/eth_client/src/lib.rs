@@ -13,6 +13,7 @@ use zksync_types::{
     Address, SLChainId, H160, H256, U256, U64,
 };
 pub use zksync_web3_decl::{
+    self as web3_decl,
     error::{EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
 };

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use zksync_eth_client::di::MainNodeClientResource;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_web3_decl::di::MainNodeClientResource;
 
 use super::resources::{ApiFeeInputResource, SequencerFeeInputResource};
 use crate::l1_gas_price::MainNodeFeeParamsFetcher;

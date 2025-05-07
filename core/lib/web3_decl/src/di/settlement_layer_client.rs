@@ -4,9 +4,9 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::{settlement::SettlementLayer, url::SensitiveUrl, L1ChainId, L2ChainId};
-use zksync_web3_decl::client::Client;
 
 use super::resources::{SettlementLayerClient, SettlementModeResource};
+use crate::client::Client;
 
 /// Wiring layer for Ethereum client.
 #[derive(Debug)]

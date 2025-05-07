@@ -1,10 +1,12 @@
 use anyhow::Context;
 use zksync_circuit_breaker::{di::CircuitBreakersResource, l1_txs::FailedL1TransactionChecker};
 use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
-use zksync_eth_client::di::{
-    BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
-    BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
-    SettlementModeResource,
+use zksync_eth_client::{
+    di::{
+        BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
+        BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
+    },
+    web3_decl::di::SettlementModeResource,
 };
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{

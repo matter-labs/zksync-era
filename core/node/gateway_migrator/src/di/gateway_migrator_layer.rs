@@ -1,16 +1,12 @@
 use async_trait::async_trait;
 use zksync_basic_types::L2ChainId;
 use zksync_dal::di::{MasterPool, PoolResource};
-use zksync_eth_client::{
-    di::{
-        BaseL1ContractsResource, EthInterfaceResource, L2InterfaceResource, SettlementModeResource,
-    },
-    EthInterface,
-};
+use zksync_eth_client::{di::BaseL1ContractsResource, EthInterface};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext, StopReceiver, Task, TaskId,
 };
+use zksync_web3_decl::di::{EthInterfaceResource, L2InterfaceResource, SettlementModeResource};
 
 use crate::GatewayMigrator;
 
