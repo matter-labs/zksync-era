@@ -14,6 +14,8 @@ use zksync_eth_client::{
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
+pub mod di;
+
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayMigratorError {
     #[error("ContractCall Error: {0}")]

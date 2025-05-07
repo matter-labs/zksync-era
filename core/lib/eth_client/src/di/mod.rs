@@ -9,7 +9,7 @@ pub use self::{
         BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
         BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, EthInterfaceResource,
         L1EcosystemContractsResource, L2InterfaceResource, MainNodeClientResource,
-        SettlementLayerClient, SettlementModeResource,
+        SenderConfigResource, SettlementLayerClient, SettlementModeResource,
     },
     settlement_layer_client::SettlementLayerClientLayer,
 };

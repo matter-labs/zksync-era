@@ -12,6 +12,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_types::L1ChainId;
 
 use super::resources::PriceAPIClientResource;
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
@@ -24,6 +25,7 @@ use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 pub struct BaseTokenRatioPersisterLayer {
     config: BaseTokenAdjusterConfig,
     wallets_config: Wallets,
+    l1_chain_id: L1ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -44,10 +46,15 @@ pub struct Output {
 }
 
 impl BaseTokenRatioPersisterLayer {
-    pub fn new(config: BaseTokenAdjusterConfig, wallets_config: Wallets) -> Self {
+    pub fn new(
+        config: BaseTokenAdjusterConfig,
+        wallets_config: Wallets,
+        l1_chain_id: L1ChainId,
+    ) -> Self {
         Self {
             config,
             wallets_config,
+            l1_chain_id,
         }
     }
 }
@@ -74,12 +81,17 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                 let tms_private_key = token_multiplier_setter.wallet.private_key();
                 let tms_address = token_multiplier_setter.wallet.address();
                 let EthInterfaceResource(query_client) = input.eth_client;
+                let l1_diamond_proxy_addr = input
+                    .l1_contracts
+                    .0
+                    .chain_contracts_config
+                    .diamond_proxy_addr;
 
                 let signing_client = PKSigningClient::new_raw(
                     tms_private_key.clone(),
-                    input.l1_contracts.diamond_proxy_addr,
+                    l1_diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
-                    input.l1_contracts.chain_id.into(),
+                    self.l1_chain_id.into(),
                     query_client.clone().for_component("base_token_adjuster"),
                 );
                 BaseTokenL1Behaviour::UpdateOnL1 {
@@ -89,7 +101,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
-                        diamond_proxy_contract_address: input.l1_contracts.diamond_proxy_addr,
+                        diamond_proxy_contract_address: l1_diamond_proxy_addr,
                         chain_admin_contract_address: input
                             .l1_ecosystem_contracts_resource
                             .0

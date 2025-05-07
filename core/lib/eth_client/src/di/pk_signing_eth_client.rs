@@ -9,7 +9,7 @@ use super::resources::{
     BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, EthInterfaceResource,
     SettlementLayerClient,
 };
-use crate::clients::PKSigningClient;
+use crate::{clients::PKSigningClient, EthInterface};
 
 /// Wiring layer for [`PKSigningClient`].
 #[derive(Debug)]
@@ -22,7 +22,6 @@ pub struct PKSigningEthClientLayer {
 pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub gateway_client: SettlementLayerClient,
-    // FIXME: provide!
     pub contracts: BaseGatewayContractsResource,
     pub l1_contracts: BaseL1ContractsResource,
 }
@@ -58,11 +57,21 @@ impl WiringLayer for PKSigningEthClientLayer {
         let gas_adjuster_config = &self.gas_adjuster_config;
         let EthInterfaceResource(query_client) = input.eth_client;
 
+        let l1_diamond_proxy_addr = input
+            .l1_contracts
+            .0
+            .chain_contracts_config
+            .diamond_proxy_addr;
+        let l1_chain_id = query_client
+            .fetch_chain_id()
+            .await
+            .map_err(WiringError::internal)?;
+
         let signing_client = PKSigningClient::new_raw(
             private_key.clone(),
-            input.l1_contracts.diamond_proxy_addr,
+            l1_diamond_proxy_addr,
             gas_adjuster_config.default_priority_fee_per_gas,
-            input.l1_contracts.chain_id.into(),
+            l1_chain_id,
             query_client.clone(),
         );
         let signing_client = BoundEthInterfaceResource(Box::new(signing_client));
@@ -71,9 +80,9 @@ impl WiringLayer for PKSigningEthClientLayer {
             let private_key = blob_operator.private_key();
             let signing_client_for_blobs = PKSigningClient::new_raw(
                 private_key.clone(),
-                input.l1_contracts.diamond_proxy_addr,
+                l1_diamond_proxy_addr,
                 gas_adjuster_config.default_priority_fee_per_gas,
-                input.l1_contracts.chain_id.into(),
+                l1_chain_id,
                 query_client,
             );
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))

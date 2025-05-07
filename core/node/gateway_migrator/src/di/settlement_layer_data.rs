@@ -1,45 +1,41 @@
 use anyhow::Context;
+use zksync_basic_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
+    L2ChainId, SLChainId,
+};
 use zksync_config::configs::{
-    contracts::{
-        chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
-    },
+    contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
     eth_sender::SenderConfig,
 };
 use zksync_contracts::getters_facet_contract;
-use zksync_dal::{Core, CoreDal};
-use zksync_db_connection::connection::Connection;
+use zksync_dal::{
+    di::{MasterPool, PoolResource},
+    Connection, Core, CoreDal,
+};
 use zksync_eth_client::{
     contracts_loader::{
         get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
     },
+    di::{
+        BaseL1ContractsResource, BaseSettlementLayerContractsResource, EthInterfaceResource,
+        L1EcosystemContractsResource, L2InterfaceResource, SenderConfigResource,
+        SettlementModeResource,
+    },
     EthInterface,
 };
-use zksync_gateway_migrator::current_settlement_layer;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
-    L2ChainId, SLChainId, L2_BRIDGEHUB_ADDRESS,
-};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::ZksNamespaceClient,
 };
 
-use crate::implementations::resources::{
-    contracts::{
-        L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-        SettlementLayerContractsResource,
-    },
-    eth_interface::{EthInterfaceResource, L2InterfaceResource},
-    pools::{MasterPool, PoolResource},
-    settlement_layer::SettlementModeResource,
-};
+use crate::current_settlement_layer;
 
 pub struct MainNodeConfig {
-    pub l2_contracts: L2Contracts,
     pub l1_specific_contracts: L1SpecificContracts,
     // This contracts are required as a fallback
     pub l1_sl_specific_contracts: Option<SettlementLayerSpecificContracts>,
@@ -70,12 +66,11 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
-    contracts: SettlementLayerContractsResource,
+    contracts: BaseSettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
-    l1_contracts: L1ChainContractsResource,
-    l2_contracts: L2ContractsResource,
+    l1_contracts: BaseL1ContractsResource,
     l2_eth_client: Option<L2InterfaceResource>,
-    eth_sender_config: Option<SenderConfig>,
+    eth_sender_config: Option<SenderConfigResource>,
 }
 
 #[async_trait::async_trait]
@@ -157,15 +152,14 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource(final_settlement_mode),
-            contracts: SettlementLayerContractsResource(sl_chain_contracts),
+            contracts: BaseSettlementLayerContractsResource(sl_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(l1_specific_contracts),
-            l2_contracts: L2ContractsResource(self.config.l2_contracts),
-            l1_contracts: L1ChainContractsResource(sl_l1_contracts),
+            l1_contracts: BaseL1ContractsResource(sl_l1_contracts),
             l2_eth_client,
-            eth_sender_config: Some(adjust_eth_sender_config(
+            eth_sender_config: Some(SenderConfigResource(adjust_eth_sender_config(
                 self.config.eth_sender_config,
                 final_settlement_mode,
-            )),
+            ))),
         })
     }
 }
@@ -174,7 +168,6 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
 pub struct ENConfig {
     pub l1_specific_contracts: L1SpecificContracts,
     pub l1_chain_contracts: SettlementLayerSpecificContracts,
-    pub l2_contracts: L2Contracts,
     pub chain_id: L2ChainId,
     pub gateway_rpc_url: Option<SensitiveUrl>,
 }
@@ -256,11 +249,10 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         };
 
         Ok(Output {
-            contracts: SettlementLayerContractsResource(contracts),
-            l1_contracts: L1ChainContractsResource(self.config.l1_chain_contracts),
-            l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
-            l2_contracts: L2ContractsResource(self.config.l2_contracts),
             initial_settlement_mode: SettlementModeResource(initial_sl_mode),
+            contracts: BaseSettlementLayerContractsResource(contracts),
+            l1_contracts: BaseL1ContractsResource(self.config.l1_chain_contracts),
+            l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
             l2_eth_client,
             eth_sender_config: None,
         })

@@ -1,6 +1,9 @@
-use zksync_config::configs::contracts::ecosystem::{EcosystemCommonContracts, L1SpecificContracts};
+use zksync_config::configs::{
+    contracts::{ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts},
+    eth_sender::SenderConfig,
+};
 use zksync_node_framework::resource::Resource;
-use zksync_types::{settlement::SettlementLayer, Address, L1ChainId, SLChainId};
+use zksync_types::{settlement::SettlementLayer, Address, SLChainId};
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::{BoundEthInterface, EthInterface};
@@ -15,11 +18,7 @@ impl Resource for SettlementModeResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct BaseL1ContractsResource {
-    pub diamond_proxy_addr: Address,
-    pub state_transition_proxy_addr: Option<Address>,
-    pub chain_id: L1ChainId,
-}
+pub struct BaseL1ContractsResource(pub SettlementLayerSpecificContracts);
 
 impl Resource for BaseL1ContractsResource {
     fn name() -> String {
@@ -40,11 +39,7 @@ impl Resource for BaseGatewayContractsResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct BaseSettlementLayerContractsResource {
-    pub diamond_proxy_addr: Address,
-    pub common: EcosystemCommonContracts,
-    pub chain_id: SLChainId,
-}
+pub struct BaseSettlementLayerContractsResource(pub SettlementLayerSpecificContracts);
 
 impl Resource for BaseSettlementLayerContractsResource {
     fn name() -> String {
@@ -58,6 +53,16 @@ pub struct L1EcosystemContractsResource(pub L1SpecificContracts);
 impl Resource for L1EcosystemContractsResource {
     fn name() -> String {
         "common/l1_ecosystem_contracts".into()
+    }
+}
+
+// FIXME: clearly out of place here. Probably remove, replacing by `SettlementModeResource` + patching config
+#[derive(Debug, Clone)]
+pub struct SenderConfigResource(pub SenderConfig);
+
+impl Resource for SenderConfigResource {
+    fn name() -> String {
+        "common/eth_sender_config".into()
     }
 }
 

@@ -3,7 +3,8 @@ use zksync_circuit_breaker::{di::CircuitBreakersResource, l1_txs::FailedL1Transa
 use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::di::{
     BaseSettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
-    BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SettlementModeResource,
+    BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
+    SettlementModeResource,
 };
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
@@ -15,7 +16,6 @@ use zksync_node_framework::{
 use zksync_object_store::di::ObjectStoreResource;
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
-use super::SenderConfigResource;
 use crate::{Aggregator, EthTxAggregator};
 
 /// Wiring layer for aggregating l1 batches into `eth_txs`
@@ -95,22 +95,21 @@ impl WiringLayer for EthTxAggregatorLayer {
         tracing::info!("Contracts: {:?}", input.sl_contracts);
         // Get resources.
 
-        let validator_timelock_addr = input
-            .sl_contracts
-            .common
+        let ecosystem_contracts = &input.sl_contracts.0.ecosystem_contracts;
+        let validator_timelock_addr = ecosystem_contracts
             .validator_timelock_addr
             .context("validator_timelock_addr not present in SL contracts")?;
-        let multicall3_addr = input
-            .sl_contracts
-            .common
+        let multicall3_addr = ecosystem_contracts
             .multicall3
             .context("multicall3 not present in SL contracts")?;
-        let diamond_proxy_addr = input.sl_contracts.diamond_proxy_addr;
-        let state_transition_manager_address = input
-            .sl_contracts
-            .common
+        let state_transition_manager_address = ecosystem_contracts
             .state_transition_proxy_addr
             .context("state_transition_proxy_addr not present in SL contracts")?;
+        let diamond_proxy_addr = input
+            .sl_contracts
+            .0
+            .chain_contracts_config
+            .diamond_proxy_addr;
 
         let eth_client = if input.settlement_mode.0.is_gateway() {
             input

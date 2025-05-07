@@ -2,6 +2,7 @@ use zksync_circuit_breaker::{di::CircuitBreakersResource, l1_txs::FailedL1Transa
 use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::di::{
     BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
+    SenderConfigResource,
 };
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_fee_model::di::GasAdjusterResource;
@@ -12,7 +13,6 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use super::SenderConfigResource;
 use crate::EthTxManager;
 
 /// Wiring layer for `eth_txs` managing

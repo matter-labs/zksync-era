@@ -1,18 +1,18 @@
 use async_trait::async_trait;
-use zksync_eth_client::EthInterface;
-use zksync_gateway_migrator::GatewayMigrator;
+use zksync_basic_types::L2ChainId;
+use zksync_dal::di::{MasterPool, PoolResource};
+use zksync_eth_client::{
+    di::{
+        BaseL1ContractsResource, EthInterfaceResource, L2InterfaceResource, SettlementModeResource,
+    },
+    EthInterface,
+};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext, StopReceiver, Task, TaskId,
 };
-use zksync_types::L2ChainId;
 
-use crate::implementations::resources::{
-    contracts::L1ChainContractsResource,
-    eth_interface::{EthInterfaceResource, L2InterfaceResource},
-    pools::{MasterPool, PoolResource},
-    settlement_layer::SettlementModeResource,
-};
+use crate::GatewayMigrator;
 
 /// Wiring layer for [`GatewayMigrator`].
 #[derive(Debug)]
@@ -24,7 +24,7 @@ pub struct GatewayMigratorLayer {
 pub struct Input {
     eth_client: EthInterfaceResource,
     gateway_client: Option<L2InterfaceResource>,
-    contracts: L1ChainContractsResource,
+    contracts: BaseL1ContractsResource,
     settlement_mode_resource: SettlementModeResource,
     pool: PoolResource<MasterPool>,
 }
