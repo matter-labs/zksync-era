@@ -9300,9 +9300,7 @@ name = "zksync_proof_fri_compressor"
 version = "20.3.1"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap 4.5.37",
- "ctrlc",
  "proof-compression",
  "reqwest 0.12.9",
  "tokio",
@@ -9316,11 +9314,8 @@ dependencies = [
  "zksync_proof_fri_compressor_service",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
- "zksync_prover_interface",
  "zksync_prover_keystore",
- "zksync_queued_job_processor",
  "zksync_task_management",
- "zksync_types",
  "zksync_vlog",
 ]
 
