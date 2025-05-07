@@ -530,7 +530,7 @@ jobs:
           
           # restarting the server so that config changes take effect
           echo "Restarting server to apply configuration changes"
-          ci_run pkill -9 -f "zksync_server.*--chain era"
+          ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
@@ -544,7 +544,7 @@ jobs:
           echo "Disabling inclusion verification transition"
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
-          ci_run pkill -9 -f "zksync_server.*--chain era"
+          ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
