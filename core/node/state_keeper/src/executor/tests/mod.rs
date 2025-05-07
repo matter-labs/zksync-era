@@ -9,7 +9,9 @@ use zksync_multivm::interface::{
 use zksync_system_constants::{COMPRESSOR_ADDRESS, L1_MESSENGER_ADDRESS};
 use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
-    address_to_h256, get_nonce_key,
+    address_to_h256,
+    commitment::PubdataParams,
+    get_nonce_key,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     vm::FastVmMode,
     web3, Execute, PriorityOpId, H256, L2_MESSAGE_ROOT_ADDRESS, U256,
@@ -96,7 +98,10 @@ async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
 
     let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -168,7 +173,10 @@ async fn execute_l2_tx_after_snapshot_recovery(
     let res = executor.execute_tx(alice.execute()).await.unwrap();
     if mutation.is_none() {
         assert_executed(&res);
-        executor.finish_batch().await.unwrap();
+        executor
+            .finish_batch(PubdataParams::default())
+            .await
+            .unwrap();
     } else {
         assert_rejected(&res);
     }
@@ -215,7 +223,10 @@ async fn execute_l1_tx(vm_mode: FastVmMode) {
         .await
         .unwrap();
     assert_executed(&res);
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 /// Checks that we can successfully execute a single L2 tx and a single L1 tx in batch executor.
@@ -262,7 +273,10 @@ async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
         .unwrap();
     assert_executed(&res);
 
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -290,7 +304,10 @@ async fn working_with_transient_storage() {
     let res = executor.execute_tx(test_tx).await.unwrap();
     assert_succeeded(&res);
 
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -318,7 +335,10 @@ async fn decommitting_contract() {
     let res = executor.execute_tx(test_tx).await.unwrap();
     assert_succeeded(&res);
 
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 /// Checks that we can successfully rollback the transaction and execute it once again.
@@ -374,7 +394,10 @@ async fn rollback(vm_mode: FastVmMode) {
         "Execution results must be the same"
     );
 
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 /// Checks that incorrect transactions are marked as rejected.
@@ -436,7 +459,10 @@ async fn too_big_gas_limit(vm_mode: FastVmMode) {
 
     let res = executor.execute_tx(big_gas_limit_tx).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -579,7 +605,10 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
             .await
             .unwrap(),
     );
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 #[test_casing(3, FAST_VM_MODES)]
@@ -600,7 +629,10 @@ async fn deploy_failedcall(vm_mode: FastVmMode) {
     let execute_tx = executor.execute_tx(tx.tx).await.unwrap();
     assert_executed(&execute_tx);
 
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 /// Checks that a tx that is reverted by the VM still can be included into a batch.
@@ -652,7 +684,10 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
             .await
             .unwrap(),
     );
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 /// Runs the batch executor through a semi-realistic basic scenario:
@@ -736,7 +771,10 @@ async fn execute_realistic_scenario(vm_mode: FastVmMode) {
         .unwrap();
     assert_executed(&res);
 
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 /// Checks that we handle the bootloader out of gas error on execution phase.
@@ -789,7 +827,10 @@ async fn bootloader_tip_out_of_gas() {
     let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
 
-    let (finished_batch, _) = executor.finish_batch().await.unwrap();
+    let (finished_batch, _) = executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.
@@ -863,7 +904,10 @@ async fn catchup_rocksdb_cache() {
     let tx = alice.execute();
     let res = executor.execute_tx(tx.clone()).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 
     // Async RocksDB cache should be aware of the tx and should reject it
     let mut executor = tester
@@ -878,7 +922,10 @@ async fn catchup_rocksdb_cache() {
     executor.rollback_last_tx().await.unwrap(); // Roll back the vm to the pre-rejected-tx state.
     let res = executor.execute_tx(bob.execute()).await.unwrap();
     assert_executed(&res);
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
     // Wait for all background tasks to exit, otherwise we might still be holding a RocksDB lock
     tester.wait_for_tasks().await;
 
@@ -936,7 +983,10 @@ async fn execute_tx_with_large_packable_bytecode(vm_mode: FastVmMode) {
     assert_eq!(compressed_bytecodes.len(), 1);
     assert!(compressed_bytecodes[0].len() < BYTECODE_LEN / 2);
 
-    executor.finish_batch().await.unwrap();
+    executor
+        .finish_batch(PubdataParams::default())
+        .await
+        .unwrap();
 }
 
 #[test_casing(3, FAST_VM_MODES)]
