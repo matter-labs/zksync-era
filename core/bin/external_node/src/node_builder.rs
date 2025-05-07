@@ -23,6 +23,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
+        contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
             avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
             no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
@@ -375,6 +376,16 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
+        if let Some(contract_verifier_config) = self.config.contract_verifier.clone() {
+            self.node
+                .add_layer(ContractVerificationApiLayer(contract_verifier_config));
+        } else {
+            tracing::warn!("Contract verifier configuration is missing, skipping contract verification API layer");
+        }
+        Ok(self)
+    }
+
     fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
         let metadata_calculator_config = MetadataCalculatorConfig {
             db_path: self.config.required.merkle_tree_path.clone(),
@@ -712,6 +723,9 @@ impl ExternalNodeBuilder {
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?
                         .add_logs_bloom_backfill_layer()?;
+                }
+                Component::ContractVerificationApi => {
+                    self = self.add_contract_verification_api_layer()?;
                 }
             }
         }
