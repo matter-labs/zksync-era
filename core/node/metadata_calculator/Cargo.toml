@@ -12,14 +12,15 @@ categories.workspace = true
 
 [dependencies]
 zksync_crypto_primitives.workspace = true
-zksync_dal.workspace = true
-zksync_health_check.workspace = true
+zksync_dal = { workspace = true, features = ["di"] }
+zksync_health_check = { workspace = true, features = ["di"] }
 zksync_merkle_tree.workspace = true
+zksync_node_framework.workspace = true
 zksync_types.workspace = true
 zksync_config.workspace = true
 zksync_storage.workspace = true
 zksync_shared_metrics.workspace = true
-zksync_object_store.workspace = true
+zksync_object_store = { workspace = true, features = ["di"] }
 vise.workspace = true
 
 async-trait.workspace = true

@@ -6,24 +6,37 @@ use std::{
 
 use anyhow::Context as _;
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
-use zksync_metadata_calculator::{
-    LazyAsyncTreeReader, MerkleTreePruningTask, MerkleTreeReaderConfig, MetadataCalculator,
-    MetadataCalculatorConfig, StaleKeysRepairTask, TreeReaderTask,
-};
+use zksync_dal::di::{MasterPool, PoolResource, ReplicaPool};
+use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
-    resource::healthcheck::AppHealthCheckResource,
     service::{ShutdownHook, StopReceiver},
     task::{Task, TaskId, TaskKind},
     wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+    FromContext, IntoContext, Resource,
 };
+use zksync_object_store::di::ObjectStoreResource;
 use zksync_storage::RocksDB;
 
-use crate::implementations::resources::{
-    object_store::ObjectStoreResource,
-    pools::{MasterPool, PoolResource, ReplicaPool},
-    web3_api::TreeApiClientResource,
+use crate::{
+    api_server::TreeApiClient, LazyAsyncTreeReader, MerkleTreePruningTask, MerkleTreeReaderConfig,
+    MetadataCalculator, MetadataCalculatorConfig, StaleKeysRepairTask, TreeReaderTask,
 };
+
+/// A resource that provides [`TreeApiClient`] implementation to the service.
+#[derive(Debug, Clone)]
+pub struct TreeApiClientResource(pub Arc<dyn TreeApiClient>);
+
+impl Resource for TreeApiClientResource {
+    fn name() -> String {
+        "api/tree_api_client".into()
+    }
+}
+
+impl<T: TreeApiClient> From<Arc<T>> for TreeApiClientResource {
+    fn from(client: Arc<T>) -> Self {
+        Self(client)
+    }
+}
 
 /// Wiring layer for Metadata calculator and Tree API.
 #[derive(Debug)]

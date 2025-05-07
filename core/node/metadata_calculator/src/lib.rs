@@ -31,6 +31,7 @@ pub use self::{
 use crate::helpers::create_readonly_db;
 
 pub mod api_server;
+pub mod di;
 mod helpers;
 mod metrics;
 mod pruning;
