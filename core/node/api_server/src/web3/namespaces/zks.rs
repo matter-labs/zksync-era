@@ -413,47 +413,31 @@ impl ZksNamespace {
             // Serve a proof to the L2 batch's ChainBatchRoot
             (0, Vec::new(), true)
         } else if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
-            // Serve a proof to Gateway's ChainBatchRoot
-            let Some(mut batch_chain_proof) = storage
-                .blocks_dal()
-                .get_l1_batch_chain_merkle_path(l1_batch_number)
-                .await
-                .map_err(DalError::generalize)?
-            else {
-                return Ok(None);
+            let batch_chain_proof = if log_proof_target == Some(LogProofTarget::GatewayMessageRoot) {
+                // Serve a proof to Gateway's MessageRoot
+                storage
+                    .blocks_dal()
+                    .get_gw_batch_chain_merkle_path(l1_batch_number)
+                    .await
+                    .map_err(DalError::generalize)
+            } else {
+                // Serve a proof to Gateway's ChainBatchRoot
+                storage
+                    .blocks_dal()
+                    .get_l1_batch_chain_merkle_path(l1_batch_number)
+                    .await
+                    .map_err(DalError::generalize)
             };
 
-            if log_proof_target == Some(LogProofTarget::GatewayMessageRoot) {
-                // Serve a proof to Gateway's MessageRoot
-                // Gateway's MessageRoot is a child of ChainBatchRoot, we need to remove the last sibling of the log proof
-                batch_chain_proof.proof.pop();
-
-                // Modify the last log proof metadata accordingly: its length gets decreased by 1
-                let metadata_index = batch_chain_proof.batch_proof_len as usize + 3;
-                let mut metadata = batch_chain_proof.proof[metadata_index].0;
-                let log_tree_height = metadata[1];
-                metadata[1] = log_tree_height.saturating_sub(1);
-                batch_chain_proof.proof[metadata_index] = H256::from_slice(&metadata);
-
-                // The returned proof specifies the GW batch number on L1 where this L2 tx was included and a mask for the log proof
-                // We need to instead use the batch number to be the GW block number where the block containing this L2 tx was executed
-                let block_number = self.get_gw_block_number(l1_batch_number).await?;
-                // The mask must also be modified as the proof we'll serve is for the right subtree of Gateway's ChainBatchRoot
-                let number_mask_index = batch_chain_proof.batch_proof_len as usize + 1;
-                let number_mask = batch_chain_proof.proof[number_mask_index].0;
-                let mut mask_bytes = [0u8; 16];
-                mask_bytes.copy_from_slice(&number_mask[16..32]);
-                let mask = u128::from_be_bytes(mask_bytes).saturating_sub(1u128 << (log_tree_height - 1));
-                // Update the block number and mask values in the proof
-                batch_chain_proof.proof[number_mask_index] =
-                    H256::from_slice(&[block_number.to_be_bytes(), mask.to_be_bytes()].concat());
+            if let Ok(Some(batch_chain_proof)) = batch_chain_proof {
+                (
+                    batch_chain_proof.batch_proof_len,
+                    batch_chain_proof.proof,
+                    false,
+                )
+            } else {
+                return Ok(None);
             }
-
-            (
-                batch_chain_proof.batch_proof_len,
-                batch_chain_proof.proof,
-                false,
-            )
         } else {
             (0, Vec::new(), true)
         };
