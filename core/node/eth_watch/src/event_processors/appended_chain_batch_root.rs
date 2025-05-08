@@ -159,7 +159,6 @@ impl EventProcessor for BatchRootProcessor {
                 let batch_proof_len = batch_proof.len() as u32;
                 let mut proof = vec![H256::from_low_u64_be(leaf_position as u64)];
                 proof.extend(batch_proof);
-                proof.extend(chain_proof_vector.clone());
 
                 BatchAndChainMerklePath {
                     batch_proof_len,
@@ -167,7 +166,8 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-            for ((batch_number, _), proof) in chain_batches.iter().zip(batch_proofs) {
+            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs.clone()) {
+                proof.proof.extend(chain_proof_vector.clone());
                 tracing::info!(%batch_number, "Saving batch-chain merkle path");
                 println!("saving batch-chain merkle path {:?}", batch_number);
                 println!("proof {:?}", proof);
@@ -178,23 +178,7 @@ impl EventProcessor for BatchRootProcessor {
                     .map_err(DalError::generalize)?;
             }
 
-            let gw_batch_proofs = (0..chain_batches.len()).map(|i| {
-                let leaf_position = number_of_leaves - chain_batches.len() + i;
-                let gw_batch_proof = self
-                    .merkle_tree
-                    .merkle_root_and_path_by_absolute_index(leaf_position)
-                    .1;
-                let batch_proof_len = gw_batch_proof.len() as u32;
-                let mut proof = vec![H256::from_low_u64_be(leaf_position as u64)];
-                proof.extend(gw_batch_proof);
-
-                BatchAndChainMerklePath {
-                    batch_proof_len,
-                    proof,
-                }
-            });
-
-            for ((batch_number, _), mut proof) in chain_batches.iter().zip(gw_batch_proofs) {
+            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs) {
                 let gw_block_number =
                     Self::get_gw_block_number(&mut transaction, *batch_number).await?;
                 let gw_chain_agg_proof = self
