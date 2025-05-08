@@ -550,8 +550,12 @@ jobs:
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
 
           echo "Deploying L2 DA validator"
-          ci_run zkstack chain deploy-l2da-validator
           
+          L2_DA_VALIDATOR_BEFORE=$(yq '.l2.da_validator_addr' "./chains/era/configs/contracts.yaml")
+          ci_run zkstack chain deploy-l2da-validator
+          L2_DA_VALIDATOR_AFTER=$(yq '.l2.da_validator_addr' "./chains/era/configs/contracts.yaml")
+          echo "L2 da validator before and after $L2_DA_VALIDATOR_BEFORE $L2_DA_VALIDATOR_AFTER"
+
           echo "Restarting server to apply configuration changes"
           ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
