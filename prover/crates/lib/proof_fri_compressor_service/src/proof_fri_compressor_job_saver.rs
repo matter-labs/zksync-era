@@ -2,20 +2,10 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use proof_compression_gpu::SnarkWrapperProof;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{
-    circuit_definitions::{
-        boojum::field::goldilocks::GoldilocksField,
-        zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
-    },
-    AuxOutputWitnessWrapper,
-};
 use zksync_prover_interface::{
-    outputs::{
-        FflonkL1BatchProofForL1, L1BatchProofForL1, L1BatchProofForL1Key, PlonkL1BatchProofForL1,
-    },
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
     CBOR,
 };
 use zksync_prover_job_processor::JobSaver;
@@ -47,20 +37,6 @@ impl ProofFriCompressorJobSaver {
             protocol_version,
         }
     }
-
-    fn aux_output_witness_to_array(
-        aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
-    ) -> [[u8; 32]; 4] {
-        let mut array: [[u8; 32]; 4] = [[0; 32]; 4];
-
-        for i in 0..32 {
-            array[0][i] = aux_output_witness.l1_messages_linear_hash[i];
-            array[1][i] = aux_output_witness.rollup_state_diff_for_compression[i];
-            array[2][i] = aux_output_witness.bootloader_heap_initial_content[i];
-            array[3][i] = aux_output_witness.events_queue_state[i];
-        }
-        array
-    }
 }
 
 #[async_trait]
@@ -68,14 +44,14 @@ impl JobSaver for ProofFriCompressorJobSaver {
     type ExecutorType = ProofFriCompressorExecutor;
 
     #[tracing::instrument(
-        name = "gpu_circuit_prover_job_saver",
+        name = "proof_fri_compressor_job_saver",
         skip_all,
         fields(l1_batch = % data.1.l1_batch_id)
     )]
     async fn save_job_result(
         &self,
         data: (
-            anyhow::Result<SnarkWrapperProof>,
+            anyhow::Result<L1BatchProofForL1<CBOR>>,
             ProofFriCompressorMetadata,
         ),
     ) -> anyhow::Result<()> {
@@ -88,36 +64,11 @@ impl JobSaver for ProofFriCompressorJobSaver {
 
         match result {
             Ok(snark_wrapper_proof) => {
-                let aux_output_witness_wrapper: AuxOutputWitnessWrapper = self
-                    .blob_store
-                    .get(metadata.l1_batch_id)
-                    .await
-                    .context("Failed to get aggregation result coords from blob store")?;
-                let aggregation_result_coords =
-                    Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
-
-                let l1_batch_proof: L1BatchProofForL1<CBOR> = match snark_wrapper_proof {
-                    SnarkWrapperProof::Plonk(proof) => {
-                        L1BatchProofForL1::new_plonk(PlonkL1BatchProofForL1 {
-                            aggregation_result_coords,
-                            scheduler_proof: proof,
-                            protocol_version: self.protocol_version,
-                        })
-                    }
-                    SnarkWrapperProof::FFfonk(proof) => {
-                        L1BatchProofForL1::new_fflonk(FflonkL1BatchProofForL1 {
-                            aggregation_result_coords,
-                            scheduler_proof: proof,
-                            protocol_version: self.protocol_version,
-                        })
-                    }
-                };
-
                 let blob_url = self
                     .blob_store
                     .put(
                         L1BatchProofForL1Key::Prover((metadata.l1_batch_id, self.protocol_version)),
-                        &l1_batch_proof,
+                        &snark_wrapper_proof,
                     )
                     .await
                     .context("Failed to save converted l1_batch_proof")?;

@@ -10,7 +10,7 @@ use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_proof_fri_compressor_service::job_runner::ProofFriCompressorRunnerBuilder;
+use zksync_proof_fri_compressor_service::proof_fri_compressor_runner;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
@@ -98,15 +98,14 @@ async fn main() -> anyhow::Result<()> {
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
 
-    let proof_fri_compressor_runner = ProofFriCompressorRunnerBuilder::new(
+    let proof_fri_compressor_runner = proof_fri_compressor_runner(
         pool,
         blob_store,
         protocol_version,
         keystore,
         is_fflonk,
         cancellation_token.clone(),
-    )
-    .proof_fri_compressor_runner();
+    );
 
     tracing::info!("Starting proof compressor");
 
