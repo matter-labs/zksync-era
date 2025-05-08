@@ -89,7 +89,7 @@ pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
 pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
     "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
 
-pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+pub const UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-upgrade-ecosystem.toml",
     output: "script-out/gateway-upgrade-ecosystem.toml",
     script_path: "deploy-scripts/upgrade/EcosystemUpgrade.s.sol",

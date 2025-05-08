@@ -3,48 +3,45 @@
 While it is theoretically possible to do it in CI-like style, it generally leads to needless recompilations, esp of rust
 programs.
 
-Here we contain the files/instructions needed to test the gateway upgrade locally.
+Here we contain the files/instructions needed to test an upgrade locally. The approach is to have two clones of the
+repo, and to copy the config files between them. We could save target-etc in a different directory, but this process is
+simpler and more robust.
 
-## Step 0
+We clone the two repos. We switch between them by copying them into zksync-working.
 
-- pull zksync-era to ~/zksync-era
-- pull zksync-era-private to ~/zksync-era-private
+## Setup
 
-## Step 1: Preparation
+```
+mkdir upgrade-testing
+cd upgrade-testing
 
-To easiest way to avoid needless is caching. There are two ways to avoid caching:
+git clone https://github.com/matter-labs/zksync-era.git zksync-old
+git clone https://github.com/matter-labs/zksync-era.git zksync-new
 
-- Cache target/etc in a separate directory
-- Have two folders of zksync-era and switch between those
+cd zksync-old
+git checkout main
+git submodule update --init --recursive
+cd ..
 
-We use the second approach for robustness and simplicity.
+cd zksync-new
+git checkout kl/reduced-interop-support
+git submodule update --init --recursive
+cd ..
 
-### Enabling `era-cacher`
 
-Copy `era-cacher` to some other folder (as the zksync-era one will change) and add it to PATH, so it can be invoked.
+cp -r zksync-new/infrastructure/local-gateway-upgrade-testing/era-cacher .
 
-You should download a clone of zksync-era, put it into the `zksync-era-old` directory. It should point to the commit of
-`main` we will upgrade from.
-
-## Step 2: spawning old chain
-
-Run `use-old-era.sh`. The old contents of the zksync-era will be moved to `zksync-era-new` folder (there the gateway
-version is stored), while the old one will be present in `zksync-era-new`.
-
-## Step 3: Move to new chain and upgrade it
-
-Use upgrade scripts as in the example below.
+```
 
 ## Full flow
 
 ```
-# make sure that there are 2 folders: zksync-era with old era and zksync-era-private with new era
-# if test was run previously you probably need to move folder
-mv ~/zksync-era-current ~/zksync-era-private
+# need to reset the folders if the tests were run previously.
+era-cacher/reset.sh
 
-cd ~ && use-old-era.sh && cd ./zksync-era-current
+era-cacher/use-old-era.sh && cd zksync-working
 
-zkstackup --local && zkstack dev clean all && zkstack up --observability false
+cargo install --path zkstack_cli/crates/zkstack --force --locked  && zkstack dev clean all && zkstack up --observability false
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
@@ -53,28 +50,28 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --ignore-prerequisites --verbose \
     --observability=false
 
-cd ~ && use-new-era.sh && cd ./zksync-era-current
+## kl todo start chain here, turn it off.
 
-zkstackup --local
+cd .. && era-cacher/use-new-era.sh && cd zksync-working
+
+cargo install --path zkstack_cli/crates/zkstack --force --locked 
 zkstack dev contracts
-zkstack dev database migrate
+zkstack dev database migrate --prover false --core true 
 
 zkstack chain gateway-upgrade -- adapt-config
 
 # Server should be started in a different window for consistency
-zkstack server --ignore-prerequisites --chain era
+zkstack server --ignore-prerequisites --chain era &> ./rollup.log &
 
 zkstack e gateway-upgrade --ecosystem-upgrade-stage no-governance-prepare
-
-# only if chain has weth deployed before upgrade.
-# i.e. you must run it iff `predeployed_l2_wrapped_base_token_address` is set in config.
-zkstack chain gateway-upgrade -- set-l2weth-for-chain
 
 zkstack e gateway-upgrade --ecosystem-upgrade-stage governance-stage1
 
 zkstack chain gateway-upgrade -- prepare-stage1
 
 # restart the server. wait for all L1 txs to exeucte!!!!
+pkill -9 zksync_server
+zkstack server --ignore-prerequisites --chain era &> ../rollup2.log &
 
 zkstack chain gateway-upgrade -- schedule-stage1
 
