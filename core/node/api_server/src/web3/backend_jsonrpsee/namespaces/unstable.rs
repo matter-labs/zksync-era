@@ -3,7 +3,7 @@ use zksync_types::{
         ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
     },
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -39,6 +39,16 @@ impl UnstableNamespaceServer for UnstableNamespace {
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>> {
         self.get_chain_log_proof_impl(l1_batch_number, chain_id)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_chain_log_proof_for_block(
+        &self,
+        l2_block_number: L2BlockNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>> {
+        self.get_chain_log_proof_for_block_impl(l2_block_number, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

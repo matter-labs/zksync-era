@@ -17,8 +17,8 @@ use zksync_types::{
     ethabi::{decode, Contract, ParamType},
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-    U64,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -581,6 +581,12 @@ pub trait ZkSyncExtentionEthClient: EthClient {
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>>;
 
+    async fn get_chain_log_proof_for_block(
+        &self,
+        l2_block_number: L2BlockNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>>;
+
     async fn get_chain_root_l2(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -603,6 +609,17 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
         Err(EnrichedClientError::custom(
             "Method is not supported",
             "get_chain_log_proof",
+        ))
+    }
+
+    async fn get_chain_log_proof_for_block(
+        &self,
+        _l2_block_number: L2BlockNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        Err(EnrichedClientError::custom(
+            "Method is not supported",
+            "get_chain_log_proof_for_block",
         ))
     }
 
@@ -633,6 +650,17 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
             .get_chain_log_proof(l1_batch_number, chain_id)
             .await
             .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))
+    }
+
+    async fn get_chain_log_proof_for_block(
+        &self,
+        l2_block_number: L2BlockNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        self.client
+            .get_chain_log_proof_for_block(l2_block_number, chain_id)
+            .await
+            .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProofForBlock"))
     }
 
     async fn get_chain_root_l2(

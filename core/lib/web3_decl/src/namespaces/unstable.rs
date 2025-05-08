@@ -6,7 +6,7 @@ use zksync_types::{
         ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
     },
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 
 use crate::client::{ForWeb3Network, L2};
@@ -38,6 +38,13 @@ pub trait UnstableNamespace {
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>>;
+
+    #[method(name = "getChainLogProofForBlock")]
+    async fn get_chain_log_proof_for_block(
+        &self,
+        l2_block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 
