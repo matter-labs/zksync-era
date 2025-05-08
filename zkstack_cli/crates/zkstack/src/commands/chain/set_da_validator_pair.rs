@@ -1,4 +1,5 @@
 use anyhow::Context;
+use chrono::format;
 use ethers::utils::hex;
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
@@ -21,14 +22,17 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
-    let token_multiplier_setter_address = chain_config
-        .get_wallets_config()
-        .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?
-        .token_multiplier_setter
-        .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
-        .address;
 
     let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
+
+    let l1_da_validator_address = contracts_config
+        .l1
+        .no_da_validium_l1_validator_addr
+        .context("no_da_validium_l1_validator_addr")?;
+    let l2_da_validator_address = contracts_config
+        .l2
+        .da_validator_addr
+        .context("da_validator_addr")?;
 
     set_da_validator_pair(
         shell,
@@ -37,14 +41,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         AdminScriptMode::OnlySave,
         chain_config.chain_id.as_u64(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        contracts_config
-            .l1
-            .no_da_validium_l1_validator_addr
-            .context("no_da_validium_l1_validator_addr")?,
-        contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
+        l1_da_validator_address,
+        l2_da_validator_address,
         l1_url,
     )
     .await?;
@@ -53,7 +51,11 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::note(
         MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
-        hex::encode(token_multiplier_setter_address),
+        format!(
+            "{} {}",
+            hex::encode(l1_da_validator_address),
+            hex::encode(l2_da_validator_address)
+        ),
     );
 
     Ok(())
