@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::runtime::Runtime;
 use zksync_config::{
+    cli::ConfigArgs,
     configs::{wallets::Wallets, ContractsConfig, GeneralConfig, GenesisConfigWrapper, Secrets},
     full_config_schema,
     sources::ConfigFilePaths,
@@ -22,13 +23,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[derive(Debug, Subcommand)]
 enum CliCommand {
     /// Configuration-related tools.
-    Config {
-        /// If set, debugs configuration instead of printing help.
-        #[arg(long)]
-        debug: bool,
-        /// Allows filtering config params by path.
-        filter: Option<String>,
-    },
+    Config(ConfigArgs),
 }
 
 #[derive(Debug, Parser)]
@@ -88,19 +83,6 @@ fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
     let schema = full_config_schema(false);
 
-    if let Some(CliCommand::Config {
-        debug: false,
-        filter,
-    }) = opt.cmd
-    {
-        smart_config_commands::Printer::stdout().print_help(&schema, |param| {
-            filter.as_ref().map_or(true, |needle| {
-                param.all_paths().any(|path| path.contains(needle))
-            })
-        })?;
-        return Ok(());
-    }
-
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -119,6 +101,15 @@ fn main() -> anyhow::Result<()> {
     };
 
     let repo = config_sources.build_repository(&schema);
+    if let Some(command) = opt.cmd {
+        match command {
+            CliCommand::Config(config_args) => {
+                config_args.run(repo)?;
+            }
+        }
+        return Ok(());
+    }
+
     let configs: GeneralConfig = repo.parse()?;
     let wallets: Wallets = repo.parse()?;
     let secrets: Secrets = repo.parse()?;
@@ -128,20 +119,6 @@ fn main() -> anyhow::Result<()> {
         .genesis
         .context("missing genesis config")?;
     let consensus = repo.parse_opt()?;
-
-    if let Some(CliCommand::Config {
-        debug: true,
-        filter,
-    }) = opt.cmd
-    {
-        smart_config_commands::Printer::stdout().print_debug(&repo, |param| {
-            filter.as_ref().map_or(true, |needle| {
-                param.all_paths().any(|path| path.contains(needle))
-            })
-        })??;
-        return Ok(());
-    }
-
     let node = MainNodeBuilder::new(
         runtime,
         configs,

@@ -24,7 +24,6 @@ use zksync_config::{
         en_config::ENConfig,
         DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
-    full_config_schema,
     sources::ConfigFilePaths,
     ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
 };
@@ -42,7 +41,7 @@ use zksync_types::{
     commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1BatchNumber, L1ChainId,
     L2ChainId, SLChainId, ETHEREUM_ADDRESS,
 };
-use zksync_vlog::{prometheus::PrometheusExporterConfig, ObservabilityGuard};
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::ClientRpcContext,
@@ -50,10 +49,7 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
 };
 
-use self::{
-    env_config::{da_client_config_from_env, da_client_secrets_from_env},
-    observability::ObservabilityENConfig,
-};
+use self::env_config::{da_client_config_from_env, da_client_secrets_from_env};
 
 mod env_config;
 pub(crate) mod observability;
@@ -1154,8 +1150,6 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
-    // Optional to take the guard when starting the node
-    pub observability: Option<ObservabilityGuard>,
     pub prometheus: Option<PrometheusExporterConfig>,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
@@ -1170,14 +1164,7 @@ impl ExternalNodeConfig<()> {
     /// Parses the local part of node configuration from the environment.
     ///
     /// **Important.** This method is blocking.
-    pub fn new(runtime: &tokio::runtime::Runtime) -> anyhow::Result<Self> {
-        let observability = ObservabilityENConfig::from_env()?;
-        let prometheus = observability.prometheus();
-        let observability = {
-            let _rt_guard = runtime.enter();
-            observability.build_observability()?
-        };
-
+    pub fn new(prometheus: Option<PrometheusExporterConfig>) -> anyhow::Result<Self> {
         // Consensus and secrets are read from files even with the env-based config.
         let mut consensus_sources = ConfigSources::default();
         if let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") {
@@ -1203,7 +1190,6 @@ impl ExternalNodeConfig<()> {
             required: RequiredENConfig::from_env()?,
             postgres: PostgresConfig::from_env()?,
             optional: OptionalENConfig::from_env()?,
-            observability: Some(observability),
             prometheus,
             experimental: envy::prefixed("EN_EXPERIMENTAL_")
                 .from_env::<ExperimentalENConfig>()
@@ -1224,30 +1210,7 @@ impl ExternalNodeConfig<()> {
         })
     }
 
-    pub fn from_files(
-        runtime: &tokio::runtime::Runtime,
-        general_config_path: PathBuf,
-        external_node_config_path: PathBuf,
-        secrets_configs_path: PathBuf,
-        consensus_config_path: Option<PathBuf>,
-    ) -> anyhow::Result<Self> {
-        let has_consensus = consensus_config_path.is_some();
-        let config_file_paths = ConfigFilePaths {
-            general: Some(general_config_path),
-            secrets: Some(secrets_configs_path),
-            external_node: Some(external_node_config_path),
-            consensus: consensus_config_path,
-            ..ConfigFilePaths::default()
-        };
-        let config_sources = config_file_paths.into_config_sources("EN_")?;
-
-        let observability = {
-            let _rt_guard = runtime.enter();
-            config_sources.observability()?.install()?
-        };
-
-        let schema = full_config_schema(true);
-        let repo = config_sources.build_repository(&schema);
+    pub fn from_files(repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
         let general_config: GeneralConfig = repo.parse()?;
         let external_node_config: ENConfig = repo.parse()?;
         let secrets_config: Secrets = repo.parse()?;
@@ -1290,7 +1253,6 @@ impl ExternalNodeConfig<()> {
             required,
             postgres,
             optional,
-            observability: Some(observability),
             prometheus,
             experimental,
             consensus,
@@ -1327,7 +1289,6 @@ impl ExternalNodeConfig<()> {
             required: self.required,
             postgres: self.postgres,
             optional: self.optional,
-            observability: self.observability,
             prometheus: self.prometheus,
             experimental: self.experimental,
             consensus: self.consensus,
@@ -1348,7 +1309,6 @@ impl ExternalNodeConfig {
             postgres: PostgresConfig::mock(test_pool),
             optional: OptionalENConfig::mock(),
             remote: RemoteENConfig::mock(),
-            observability: None,
             prometheus: None,
             experimental: ExperimentalENConfig::mock(),
             consensus: None,

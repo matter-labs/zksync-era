@@ -15,7 +15,7 @@ publish = false
 zksync_commitment_generator.workspace = true
 zksync_dal.workspace = true
 zksync_db_connection.workspace = true
-zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_config = { workspace = true, features = ["observability_ext", "cli"] }
 zksync_eth_client.workspace = true
 zksync_storage.workspace = true
 zksync_state.workspace = true

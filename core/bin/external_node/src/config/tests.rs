@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 
 use super::*;
+use crate::config::observability::ObservabilityENConfig;
 
 #[derive(Debug)]
 struct MockEnvironment(HashMap<&'static str, &'static str>);
