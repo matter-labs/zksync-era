@@ -525,7 +525,20 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
-          echo "Server restart wait completed"
+          
+          echo "Server restart wait completed - verifying that the batch was committed to L1"
+          ERA_HTTP_PORT=$(yq '.api.web3_json_rpc.http_port' "./chains/era/configs/general.yaml")
+          RESPONSE=$(curl --silent --request POST \
+              --url "http://localhost:${ERA_HTTP_PORT}" \
+              --header 'Content-Type: application/json' \
+              --data '{
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "zks_L1BatchNumber",
+              "params": []
+            }')
+          ERA_BATCH_NUMBER=$(echo "$RESPONSE" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+          echo "Batch number $ERA_BATCH_NUMBER"
           
           echo "Deploying L2 DA validator"
           ci_run zkstack chain deploy-l2da-validator
