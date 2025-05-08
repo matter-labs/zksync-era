@@ -1,4 +1,4 @@
-sudo era-cacher/reset.sh
+era-cacher/reset.sh
 
 era-cacher/use-old-era.sh && cd zksync-working
 
