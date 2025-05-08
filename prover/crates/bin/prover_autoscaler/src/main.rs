@@ -91,8 +91,8 @@ async fn main() -> anyhow::Result<()> {
             let watcher = Watcher::new(
                 http_client,
                 client.clone(),
+                agent_config.clone(), // Pass the agent_config
                 opt.cluster_name,
-                agent_config.namespaces,
             )
             .await;
             let scaler = Scaler::new(client, agent_config.dry_run);

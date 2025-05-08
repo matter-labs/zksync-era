@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use futures::{stream, StreamExt, TryStreamExt};
 use k8s_openapi::api;
 use kube::{
-    api::{Api, ResourceExt},
+    api::{Api, ListParams, ResourceExt},
     runtime::{watcher, WatchStreamExt},
     Resource,
 };
@@ -13,17 +13,20 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     Method,
 };
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::interval};
 
 use crate::{
     cluster_types::{Cluster, ClusterName, Deployment, Namespace, NamespaceName, Pod, ScaleEvent},
+    config::ProverAutoscalerAgentConfig,
     http_client::HttpClient,
+    metrics::AUTOSCALER_METRICS,
 };
 
 #[derive(Clone)]
 pub struct Watcher {
     pub client: kube::Client,
     pub cluster: Arc<Mutex<Cluster>>,
+    pub config: ProverAutoscalerAgentConfig,
 }
 
 async fn get_cluster_name(http_client: HttpClient) -> anyhow::Result<ClusterName> {
@@ -45,12 +48,12 @@ impl Watcher {
     pub async fn new(
         http_client: HttpClient,
         client: kube::Client,
+        config: ProverAutoscalerAgentConfig,
         cluster_name: Option<ClusterName>,
-        namespaces: Vec<NamespaceName>,
     ) -> Self {
         let mut ns = HashMap::new();
-        namespaces.into_iter().for_each(|n| {
-            ns.insert(n, Namespace::default());
+        config.namespaces.iter().for_each(|n| {
+            ns.insert(n.clone(), Namespace::default());
         });
 
         let cluster_name = match cluster_name {
@@ -67,12 +70,64 @@ impl Watcher {
                 name: cluster_name,
                 namespaces: ns,
             })),
+            config,
         }
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        // TODO: add actual metrics
+        let cluster_clone_for_cleanup = Arc::clone(&self.cluster);
+        let client_clone_for_cleanup = self.client.clone();
+        let pod_check_interval = self.config.pod_check_interval;
+        tokio::spawn(async move {
+            let mut ticker = interval(pod_check_interval);
+            loop {
+                ticker.tick().await;
+                tracing::info!("Running periodic pod cleanup task...");
+                let namespaces_to_check: Vec<NamespaceName> = {
+                    let cluster_guard = cluster_clone_for_cleanup.lock().await;
+                    cluster_guard.namespaces.keys().cloned().collect()
+                };
 
+                for ns_name in namespaces_to_check {
+                    let pods_api: Api<api::core::v1::Pod> =
+                        Api::namespaced(client_clone_for_cleanup.clone(), ns_name.to_str());
+                    match pods_api.list(&ListParams::default()).await {
+                        Ok(live_pods_list) => {
+                            let live_pod_names: std::collections::HashSet<String> =
+                                live_pods_list.items.iter().map(|p| p.name_any()).collect();
+
+                            let mut cluster_guard = cluster_clone_for_cleanup.lock().await;
+                            if let Some(namespace_data) = cluster_guard.namespaces.get_mut(&ns_name)
+                            {
+                                let stored_pod_names: Vec<String> =
+                                    namespace_data.pods.keys().cloned().collect();
+                                for pod_name in stored_pod_names {
+                                    if !live_pod_names.contains(&pod_name) {
+                                        tracing::warn!(
+                                            "Pods cleanup: Removing missing pod {} from namespace {}.",
+                                            pod_name,
+                                            ns_name
+                                        );
+                                        AUTOSCALER_METRICS.stale_pods[&pod_name.clone()].inc();
+                                        namespace_data.pods.remove(&pod_name);
+                                        // TODO: Add more specific monitoring metrics for each missing pod if a metrics system is available
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                "Periodic cleanup: Failed to list pods in namespace {}: {:?}",
+                                ns_name,
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+        });
+
+        // TODO: add actual metrics
         // TODO: watch for a list of namespaces, get:
         //  - deployments (name, running, desired) [done]
         //  - pods (name, parent deployment, statuses, when the last status change) [~done]
