@@ -517,7 +517,7 @@ jobs:
       - name: DA migration tests
         run: |
           echo "Updating l1 batch seal timeout to 30 seconds so that we have at least one committed batch before migration"
-          sudo yq -i '.state_keeper.block_commit_deadline_ms = "30000"' ./chains/era/configs/genesis.yaml
+          sudo yq -i '.state_keeper.block_commit_deadline_ms = "30000"' ./chains/era/configs/general.yaml
           echo "Restarting server to apply configuration changes"
           ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
@@ -551,6 +551,9 @@ jobs:
 
           echo "Deploying L2 DA validator"
           
+          echo "Genesis config"
+          cat ./chains/era/configs/genesis.yaml
+          
           L2_DA_VALIDATOR_BEFORE=$(yq '.l2.da_validator_addr' "./chains/era/configs/contracts.yaml")
           ci_run zkstack chain deploy-l2da-validator
           L2_DA_VALIDATOR_AFTER=$(yq '.l2.da_validator_addr' "./chains/era/configs/contracts.yaml")
@@ -566,6 +569,7 @@ jobs:
           echo "Updating DA valdiator addresses on L1"
           ci_run zkstack chain set-da-validator-pair
           
+          echo "General config"
           cat ./chains/era/configs/general.yaml
           
           echo "Disabling inclusion verification transition"
