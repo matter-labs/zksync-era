@@ -54,9 +54,9 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 
 cd .. && era-cacher/use-new-era.sh && cd zksync-working
 
-cargo install --path zkstack_cli/crates/zkstack --force --locked 
+cargo install --path zkstack_cli/crates/zkstack --force --locked
 zkstack dev contracts
-zkstack dev database migrate --prover false --core true 
+zkstack dev database migrate --prover false --core true
 
 zkstack chain gateway-upgrade -- adapt-config
 
