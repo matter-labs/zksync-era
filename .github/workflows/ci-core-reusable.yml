@@ -476,8 +476,6 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
-          ci_run ps aux | grep zksync_server
-
       - name: Run integration tests
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
@@ -522,7 +520,7 @@ jobs:
           sudo yq -i '.state_keeper.block_commit_deadline_ms = "30000"' ./chains/era/configs/genesis.yaml
           echo "Restarting server to apply configuration changes"
           ci_run pkill -f "zksync_server.*chains/era/configs"
-          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           
@@ -538,8 +536,11 @@ jobs:
               "params": []
             }')
           ERA_BATCH_NUMBER=$(echo "$RESPONSE" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
-          echo "Batch number $ERA_BATCH_NUMBER"
-          
+          if [[ "$ERA_BATCH_NUMBER" == "0x0" ]]; then
+            echo "Error: ERA_BATCH_NUMBER is 0x0. Exiting."
+            exit 1
+          fi
+            
           echo "Setting pubdata pricing mode to validium"
           ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
           
@@ -553,7 +554,7 @@ jobs:
           
           echo "Restarting server to apply configuration changes"
           ci_run pkill -f "zksync_server.*chains/era/configs"
-          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           echo "Server restart wait completed"
@@ -565,7 +566,7 @@ jobs:
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
           ci_run pkill -f "zksync_server.*chains/era/configs"
-          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           echo "Server restart wait completed"
@@ -588,8 +589,6 @@ jobs:
 
       - name: Run external nodes
         run: |
-          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
-          
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
