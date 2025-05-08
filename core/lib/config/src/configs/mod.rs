@@ -7,7 +7,7 @@ pub use self::{
     contracts::chain::AllContractsConfig,
     da_client::{
         avail::AvailConfig, celestia::CelestiaConfig, eigenv1m0::EigenConfigV1M0,
-        eigenv2m1::EigenConfigV2M1, DAClientConfig,
+        eigenv2m0::EigenConfigV2M0, eigenv2m1::EigenConfigV2M1, DAClientConfig,
     },
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},

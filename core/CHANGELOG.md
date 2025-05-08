@@ -1,5 +1,40 @@
 # Changelog
 
+## [28.0.0](https://github.com/matter-labs/zksync-era/compare/core-v27.5.2...core-v28.0.0) (2025-05-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* update zksync-protocol and zksync-crypto-gpu deps ([#3948](https://github.com/matter-labs/zksync-era/issues/3948))
+
+### Features
+
+* Add Support for Protocol Version v28 ([#3821](https://github.com/matter-labs/zksync-era/issues/3821)) ([5419420](https://github.com/matter-labs/zksync-era/commit/5419420e23a3c083187065219a0722179dab0419))
+* update zksync-protocol and zksync-crypto-gpu deps ([#3948](https://github.com/matter-labs/zksync-era/issues/3948)) ([1ddf85a](https://github.com/matter-labs/zksync-era/commit/1ddf85a14b6a54ce926482eafc84ef0979c9afd3))
+
+
+### Bug Fixes
+
+* **deployment-allowlist:** Add an ability to read deploy list from configs directly ([#3917](https://github.com/matter-labs/zksync-era/issues/3917)) ([897d3df](https://github.com/matter-labs/zksync-era/commit/897d3dff70a6651f7b5a0b6d189e57ad2acd7790))
+* **gateway-migration:** Allow prove, execute txs to be sent during the migration ([#3848](https://github.com/matter-labs/zksync-era/issues/3848)) ([3a3f700](https://github.com/matter-labs/zksync-era/commit/3a3f700bc54c824a8b47eeb4f4b93626e6a4993f))
+* **gateway-migrator:** Do not fail gateway migrator during the problems with network ([#3938](https://github.com/matter-labs/zksync-era/issues/3938)) ([f91aecc](https://github.com/matter-labs/zksync-era/commit/f91aecc5372f167df6ad3281e76f884ffaa63b84))
+
+## [27.5.2](https://github.com/matter-labs/zksync-era/compare/core-v27.5.1...core-v27.5.2) (2025-05-02)
+
+
+### Bug Fixes
+
+* Fix issue with EVM bytecodes not being stored in DB ([#3928](https://github.com/matter-labs/zksync-era/issues/3928)) ([0e8f1da](https://github.com/matter-labs/zksync-era/commit/0e8f1dacb27be3b33aaabf842ea4350e20a3cada))
+
+## [27.5.1](https://github.com/matter-labs/zksync-era/compare/core-v27.5.0...core-v27.5.1) (2025-05-01)
+
+
+### Bug Fixes
+
+* **api:** Fix `contractAddress` in transaction receipts for unparseable deployment calldata ([#3927](https://github.com/matter-labs/zksync-era/issues/3927)) ([82e9e05](https://github.com/matter-labs/zksync-era/commit/82e9e05e3f50658af867454cbdb880818feff37d))
+* **eth-sender:** consider null from_addr in `get_next_nonce` ([#3933](https://github.com/matter-labs/zksync-era/issues/3933)) ([5b3c733](https://github.com/matter-labs/zksync-era/commit/5b3c7337f504a25b4cdea2ae550256755eb03432))
+* witness inputs filename ([#3932](https://github.com/matter-labs/zksync-era/issues/3932)) ([7aa3c5f](https://github.com/matter-labs/zksync-era/commit/7aa3c5fc3b872c3a1e13fab3a2fc3d467aae44a5))
+
 ## [27.5.0](https://github.com/matter-labs/zksync-era/compare/core-v27.4.0...core-v27.5.0) (2025-04-30)
 
 

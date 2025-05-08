@@ -63,7 +63,8 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                     2 => PubdataType::Avail,
                     3 => PubdataType::Celestia,
                     4 => PubdataType::EigenV1M0,
-                    6 => PubdataType::EigenV2M1,
+                    6 => PubdataType::EigenV2M0,
+                    7 => PubdataType::EigenV2M1,
                     _ => PubdataType::ObjectStore,
                 },
                 l2_da_validator_address: rng.gen(),
@@ -78,7 +79,6 @@ fn test_encoding() {
     abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_all_formats::<FmtConv<AttestationStatus>>(rng);
     test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
     test_encode_all_formats::<FmtConv<BlockMetadata>>(rng);
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l1_transaction(rng));

@@ -16,6 +16,21 @@ pub enum L1BatchCommitmentMode {
     Validium,
 }
 
+impl From<PubdataType> for L1BatchCommitmentMode {
+    fn from(value: PubdataType) -> Self {
+        match value {
+            PubdataType::Rollup => L1BatchCommitmentMode::Rollup,
+            PubdataType::NoDA
+            | PubdataType::Avail
+            | PubdataType::Celestia
+            | PubdataType::EigenV1M0
+            | PubdataType::EigenV2M0
+            | PubdataType::EigenV2M1
+            | PubdataType::ObjectStore => L1BatchCommitmentMode::Validium,
+        }
+    }
+}
+
 // The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
 // And knowing that, in Ethereum, the response is the index of the enum case.
 // 0 corresponds to Rollup case,
@@ -66,6 +81,7 @@ pub enum PubdataType {
     Avail,
     Celestia,
     EigenV1M0,
+    EigenV2M0,
     EigenV2M1,
     ObjectStore,
 }
@@ -80,9 +96,10 @@ impl FromStr for PubdataType {
             "Avail" => Ok(Self::Avail),
             "Celestia" => Ok(Self::Celestia),
             "EigenV1M0" => Ok(Self::EigenV1M0),
+            "EigenV2M0" => Ok(Self::EigenV2M0),
             "EigenV2M1" => Ok(Self::EigenV2M1),
             "ObjectStore" => Ok(Self::ObjectStore),
-            _ => Err("Incorrect DA client type; expected one of `Rollup`, `NoDA`, `Avail`, `Celestia`, `EigenV1M0`, `ObjectStore`, `EigenV2M1`"),
+            _ => Err("Incorrect DA client type; expected one of `Rollup`, `NoDA`, `Avail`, `Celestia`, `EigenV1M0`, `EigenV2M0`, `ObjectStore`, `EigenV2M1`"),
         }
     }
 }

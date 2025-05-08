@@ -9,7 +9,7 @@ use zksync_basic_types::{
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
     da_client::{
-        avail::AvailSecrets, celestia::CelestiaSecrets, eigenv1m0::EigenSecretsV1M0,
+        avail::AvailSecrets, celestia::CelestiaSecrets, eigenv1m0::EigenSecretsV1M0, eigenv2m0::EigenSecretsV2M0,
         eigenv2m1::EigenSecretsV2M1,
     },
     secrets::{DataAvailabilitySecrets, Secrets},
@@ -151,6 +151,13 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                         .as_str(),
                 ),
             }),
+            DaSecrets::Eigenv2m0(eigen) => DataAvailabilitySecrets::EigenV2M0(EigenSecretsV2M0 {
+                private_key: PrivateKey::from(
+                    required(&eigen.private_key)
+                        .context("private_key")?
+                        .as_str(),
+                ),
+            }),
             DaSecrets::Eigenv2m1(eigen) => DataAvailabilitySecrets::EigenV2M1(EigenSecretsV2M1 {
                 private_key: PrivateKey::from(
                     required(&eigen.private_key)
@@ -209,6 +216,11 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
+            DataAvailabilitySecrets::EigenV2M0(config) => {
+                Some(DaSecrets::Eigenv2m0(proto::EigenSecretV2m0 {
+                    private_key: Some(config.private_key.0.expose_secret().to_string()),
+                }))
+            }
             DataAvailabilitySecrets::EigenV2M1(config) => {
                 Some(DaSecrets::Eigenv2m1(proto::EigenSecretV2m1 {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
@@ -230,25 +242,16 @@ impl ProtoRepr for proto::ConsensusSecrets {
                 .validator_key
                 .as_ref()
                 .map(|x| ValidatorSecretKey(x.clone().into())),
-            attester_key: self
-                .attester_key
-                .as_ref()
-                .map(|x| AttesterSecretKey(x.clone().into())),
             node_key: self
                 .node_key
                 .as_ref()
                 .map(|x| NodeSecretKey(x.clone().into())),
         })
     }
-
     fn build(this: &Self::Type) -> Self {
         Self {
             validator_key: this
                 .validator_key
-                .as_ref()
-                .map(|x| x.0.expose_secret().to_string()),
-            attester_key: this
-                .attester_key
                 .as_ref()
                 .map(|x| x.0.expose_secret().to_string()),
             node_key: this

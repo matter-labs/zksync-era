@@ -11,15 +11,15 @@ use zksync_config::{
             },
             celestia::CelestiaSecrets,
             eigenv1m0::EigenSecretsV1M0,
-            eigenv2m1::EigenSecretsV2M1,
+            eigenv2m0::EigenSecretsV2M0,eigenv2m1::EigenSecretsV2M1,
             DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-            EIGENV1M0_CLIENT_CONFIG_NAME, EIGENV2M1_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME,
+            EIGENV1M0_CLIENT_CONFIG_NAME, EIGENV2M0_CLIENT_CONFIG_NAME, EIGENV2M1_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME,
             OBJECT_STORE_CLIENT_CONFIG_NAME,
         },
         secrets::DataAvailabilitySecrets,
         AvailConfig,
     },
-    EigenConfigV1M0, EigenConfigV2M1,
+    EigenConfigV1M0, EigenConfigV2M0, EigenConfigV2M1,
 };
 
 use crate::{envy_load, FromEnv};
@@ -79,6 +79,27 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                     .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
                     .collect::<anyhow::Result<Vec<_>>>()?,
                 Err(_) => vec![],
+            },
+        }),
+        EIGENV2M0_CLIENT_CONFIG_NAME => DAClientConfig::EigenV2M0(EigenConfigV2M0 {
+            disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
+            eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
+                // Use a specific L1 RPC URL for the EigenDA client.
+                Ok(url) => Some(SensitiveUrl::from_str(&url)?),
+                // Err means that the environment variable is not set.
+                // Use zkSync default L1 RPC for the EigenDA client.
+                Err(_) => None,
+            },
+            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
+            cert_verifier_addr: H160::from_str(&env::var(format!(
+                "{}CERT_VERIFIER_ADDR",
+                prefix
+            ))?)?,
+            blob_version: env::var(format!("{}BLOB_VERSION", prefix))?.parse()?,
+            polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
+                "Coeff" => zksync_config::configs::da_client::eigenv2m0::PolynomialForm::Coeff,
+                "Poly" => zksync_config::configs::da_client::eigenv2m0::PolynomialForm::Eval,
+                _ => anyhow::bail!("Unknown polynomial form"),
             },
         }),
         EIGENV2M1_CLIENT_CONFIG_NAME => DAClientConfig::EigenV2M1(EigenConfigV2M1 {
@@ -154,6 +175,12 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
                 .into();
             DataAvailabilitySecrets::EigenV1M0(EigenSecretsV1M0 { private_key })
         }
+        EIGENV2M0_CLIENT_CONFIG_NAME => {
+            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
+                .context("Eigen private key not found")?
+                .into();
+            DataAvailabilitySecrets::EigenV2M0(EigenSecretsV2M0 { private_key })
+        }
         EIGENV2M1_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
                 .context("Eigen private key not found")?
@@ -187,7 +214,7 @@ mod tests {
             },
             object_store::ObjectStoreMode::GCS,
         },
-        AvailConfig, CelestiaConfig, EigenConfigV1M0, EigenConfigV2M1, ObjectStoreConfig,
+        AvailConfig, CelestiaConfig, EigenConfigV1M0,EigenConfigV2M0, EigenConfigV2M1, ObjectStoreConfig,
     };
 
     use super::*;
@@ -367,10 +394,41 @@ mod tests {
     }
 
     #[test]
+    fn from_env_eigenv2m0_client() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="EigenV2M0"
+            DA_DISPERSER_RPC="http://localhost:8080"
+            DA_EIGENDA_ETH_RPC="http://localhost:8545"
+            DA_AUTHENTICATED=false
+            DA_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000012345"
+            DA_BLOB_VERSION="0"
+            DA_POLYNOMIAL_FORM="Coeff"
+        "#;
+        lock.set_env(config);
+
+        let actual = DAClientConfig::from_env().unwrap();
+        assert_eq!(
+            actual,
+            DAClientConfig::EigenV2M0(EigenConfigV2M0 {
+                disperser_rpc: "http://localhost:8080".to_string(),
+                eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
+                authenticated: false,
+                cert_verifier_addr: "0x0000000000000000000000000000000000012345"
+                    .parse()
+                    .unwrap(),
+                blob_version: 0,
+                polynomial_form:
+                    zksync_config::configs::da_client::eigenv2m1::PolynomialForm::Coeff,
+            })
+        );
+    }
+
+    #[test]
     fn from_env_eigenv2m1_client() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            DA_CLIENT="Eigen"
+            DA_CLIENT="EigenV2M1"
             DA_DISPERSER_RPC="http://localhost:8080"
             DA_EIGENDA_ETH_RPC="http://localhost:8545"
             DA_AUTHENTICATED=false

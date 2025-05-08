@@ -26,11 +26,11 @@ use zksync_node_framework::{
         da_clients::{
             avail::AvailWiringLayer, celestia::CelestiaWiringLayer,
             eigenv1m0::EigenV1M0WiringLayer, eigenv2m1::EigenV2M1WiringLayer,
+            eigenv2m0::EigenV2M0WiringLayer,
             no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
-        l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
@@ -46,8 +46,7 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
         settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data,
-        settlement_layer_data::SettlementLayerData,
+        settlement_layer_data::{self, SettlementLayerData},
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -290,14 +289,6 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
-        let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.optional.l1_batch_commit_data_generator_mode,
-        );
-        self.node.add_layer(layer);
-        Ok(self)
-    }
-
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.l1_chain_id,
@@ -309,22 +300,17 @@ impl ExternalNodeBuilder {
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
-        let layer = ConsistencyCheckerLayer::new(
-            max_batches_to_recheck,
-            self.config.optional.l1_batch_commit_data_generator_mode,
-        );
+        let layer = ConsistencyCheckerLayer::new(max_batches_to_recheck);
         self.node.add_layer(layer);
         Ok(self)
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        let layer =
-            CommitmentGeneratorLayer::new(self.config.optional.l1_batch_commit_data_generator_mode)
-                .with_max_parallelism(
-                    self.config
-                        .experimental
-                        .commitment_generator_max_parallelism,
-                );
+        let layer = CommitmentGeneratorLayer::default().with_max_parallelism(
+            self.config
+                .experimental
+                .commitment_generator_max_parallelism,
+        );
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -380,6 +366,14 @@ impl ExternalNodeBuilder {
 
                 self.node
                     .add_layer(EigenV2M1WiringLayer::new(config, secret));
+            }
+            (DAClientConfig::EigenV2M0(mut config), DataAvailabilitySecrets::EigenV2M0(secret)) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
+                }
+
+                self.node
+                    .add_layer(EigenV2M0WiringLayer::new(config, secret));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }
@@ -669,7 +663,6 @@ impl ExternalNodeBuilder {
 
         // Add preconditions for all the components.
         self = self
-            .add_l1_batch_commitment_mode_validation_layer()?
             .add_validate_chain_ids_layer()?
             .add_storage_initialization_layer(LayerKind::Precondition)?;
 

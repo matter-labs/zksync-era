@@ -19,6 +19,7 @@ pub fn pubdata_params_to_builder(params: PubdataParams) -> Rc<dyn PubdataBuilder
         | PubdataType::Avail
         | PubdataType::Celestia
         | PubdataType::EigenV1M0
+        | PubdataType::EigenV2M0
         | PubdataType::EigenV2M1
         | PubdataType::ObjectStore => {
             Rc::new(FullPubdataBuilder::new(params.l2_da_validator_address))
