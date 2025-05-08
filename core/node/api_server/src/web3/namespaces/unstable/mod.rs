@@ -179,6 +179,16 @@ impl UnstableNamespace {
         let chain_merkle_tree =
             MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leaves.into_iter(), None);
 
+        // sma TODO - remove
+        // Root should match the one printed on `set_interop_root` log
+        // see which tree is being used here
+        println!(
+            "Getting log_proof_for_block at block number {:?} with chain_merkle_tree of root {:?}",
+            l2_block_number,
+            chain_merkle_tree.merkle_root()
+        );
+        // sma TODO - remove
+
         let chain_id_leaf_proof = chain_merkle_tree
             .merkle_root_and_path(chain_id_leaf_proof_mask)
             .1;
