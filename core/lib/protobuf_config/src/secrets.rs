@@ -7,10 +7,10 @@ use zksync_basic_types::{
     url::SensitiveUrl,
 };
 use zksync_config::configs::{
-    consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
+    consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
     da_client::{
-        avail::AvailSecrets, celestia::CelestiaSecrets, eigenv1m0::EigenSecretsV1M0, eigenv2m0::EigenSecretsV2M0,
-        eigenv2m1::EigenSecretsV2M1,
+        avail::AvailSecrets, celestia::CelestiaSecrets, eigenv1m0::EigenSecretsV1M0,
+        eigenv2m0::EigenSecretsV2M0, eigenv2m1::EigenSecretsV2M1,
     },
     secrets::{DataAvailabilitySecrets, Secrets},
     ContractVerifierSecrets, DatabaseSecrets, L1Secrets,

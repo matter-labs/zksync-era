@@ -1,16 +1,18 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use zksync_config::configs::{
-    self,
-    da_client::{
-        avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
-        celestia::CelestiaConfig,
-        eigenv1m0::EigenConfigV1M0,
-        eigenv2m1::EigenConfigV2M1,
-        DAClientConfig::{Avail, Celestia, EigenV1M0, EigenV2M0, EigenV2M1, NoDA, ObjectStore},
+use zksync_config::{
+    configs::{
+        self,
+        da_client::{
+            avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
+            celestia::CelestiaConfig,
+            eigenv1m0::EigenConfigV1M0,
+            eigenv2m1::EigenConfigV2M1,
+            DAClientConfig::{Avail, Celestia, EigenV1M0, EigenV2M0, EigenV2M1, NoDA, ObjectStore},
+        },
     },
-    EigenConfigV1M0,
+    EigenConfigV2M0,
 };
 use zksync_protobuf::{required, ProtoRepr};
 use zksync_types::url::SensitiveUrl;

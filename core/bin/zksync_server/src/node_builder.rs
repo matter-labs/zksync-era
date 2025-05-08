@@ -33,8 +33,9 @@ use zksync_node_framework::{
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
             avail::AvailWiringLayer, celestia::CelestiaWiringLayer,
-            eigenv1m0::EigenV1M0WiringLayer, eigenv2m1::EigenV2M1WiringLayer, eigenv2m0::EigenV2M0WiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
+            eigenv1m0::EigenV1M0WiringLayer, eigenv2m0::EigenV2M0WiringLayer,
+            eigenv2m1::EigenV2M1WiringLayer, no_da::NoDAClientWiringLayer,
+            object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},

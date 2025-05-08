@@ -11,9 +11,11 @@ use zksync_config::{
             },
             celestia::CelestiaSecrets,
             eigenv1m0::EigenSecretsV1M0,
-            eigenv2m0::EigenSecretsV2M0,eigenv2m1::EigenSecretsV2M1,
+            eigenv2m0::EigenSecretsV2M0,
+            eigenv2m1::EigenSecretsV2M1,
             DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, CELESTIA_CLIENT_CONFIG_NAME,
-            EIGENV1M0_CLIENT_CONFIG_NAME, EIGENV2M0_CLIENT_CONFIG_NAME, EIGENV2M1_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME,
+            EIGENV1M0_CLIENT_CONFIG_NAME, EIGENV2M0_CLIENT_CONFIG_NAME,
+            EIGENV2M1_CLIENT_CONFIG_NAME, NO_DA_CLIENT_CONFIG_NAME,
             OBJECT_STORE_CLIENT_CONFIG_NAME,
         },
         secrets::DataAvailabilitySecrets,
@@ -214,7 +216,8 @@ mod tests {
             },
             object_store::ObjectStoreMode::GCS,
         },
-        AvailConfig, CelestiaConfig, EigenConfigV1M0,EigenConfigV2M0, EigenConfigV2M1, ObjectStoreConfig,
+        AvailConfig, CelestiaConfig, EigenConfigV1M0, EigenConfigV2M0, EigenConfigV2M1,
+        ObjectStoreConfig,
     };
 
     use super::*;
@@ -419,7 +422,7 @@ mod tests {
                     .unwrap(),
                 blob_version: 0,
                 polynomial_form:
-                    zksync_config::configs::da_client::eigenv2m1::PolynomialForm::Coeff,
+                    zksync_config::configs::da_client::eigenv2m0::PolynomialForm::Coeff,
             })
         );
     }
