@@ -10,6 +10,8 @@ pub use crate::configs::{
 #[cfg(feature = "observability_ext")]
 pub use crate::observability_ext::ConfigRepositoryExt;
 
+#[cfg(feature = "cli")]
+pub mod cli;
 pub mod configs;
 #[cfg(feature = "observability_ext")]
 mod observability_ext;

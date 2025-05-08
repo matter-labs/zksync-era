@@ -1,9 +1,12 @@
 //! Extensions for the `ObservabilityConfig` to install the observability stack.
 
-use std::any;
+use std::{any, any::Any, mem};
 
 use anyhow::Context;
 use smart_config::{
+    metadata::ConfigMetadata,
+    value,
+    visit::{ConfigVisitor, VisitConfig},
     ConfigRepository, ConfigSchema, DescribeConfig, DeserializeConfig, ParseErrors,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -161,23 +164,123 @@ pub trait ConfigRepositoryExt {
 impl ConfigRepositoryExt for ConfigRepository<'_> {
     /// Parses a configuration from this repo. The configuration must have a unique mounting point.
     fn parse<C: DeserializeConfig>(&self) -> anyhow::Result<C> {
-        self.single()?.parse().map_err(log_all_errors)
+        let config_parser = self.single::<C>()?;
+        let prefix = config_parser.config().prefix();
+        let config = config_parser.parse().map_err(log_all_errors)?;
+        ObservabilityVisitor::visit(self, prefix, &config);
+        Ok(config)
     }
 
     /// Parses an optional configuration from this repo. The configuration must have a unique mounting point.
     fn parse_opt<C: DeserializeConfig>(&self) -> anyhow::Result<Option<C>> {
-        self.single()?.parse_opt().map_err(log_all_errors)
+        let config_parser = self.single::<C>()?;
+        let prefix = config_parser.config().prefix();
+        let maybe_config = config_parser.parse_opt().map_err(log_all_errors)?;
+        if let Some(config) = &maybe_config {
+            ObservabilityVisitor::visit(self, prefix, config);
+        }
+        Ok(maybe_config)
     }
 
     fn parse_at<C: DeserializeConfig>(&self, prefix: &str) -> anyhow::Result<C> {
-        self.get(prefix)
-            .with_context(|| {
-                format!(
-                    "config `{}` is missing at `{prefix}`",
-                    any::type_name::<C>()
-                )
-            })?
-            .parse()
-            .map_err(log_all_errors)
+        let config_parser = self.get(prefix).with_context(|| {
+            format!(
+                "config `{}` is missing at `{prefix}`",
+                any::type_name::<C>()
+            )
+        })?;
+        let prefix = config_parser.config().prefix();
+        let config = config_parser.parse().map_err(log_all_errors)?;
+        ObservabilityVisitor::visit(self, prefix, &config);
+        Ok(config)
+    }
+}
+
+#[derive(Debug)]
+struct ObservabilityVisitor<'a> {
+    source: Option<&'a value::Map>,
+    metadata: &'static ConfigMetadata,
+}
+
+impl<'a> ObservabilityVisitor<'a> {
+    fn visit<C: DeserializeConfig>(repo: &'a ConfigRepository<'_>, prefix: &str, config: &C) {
+        let source = repo
+            .merged()
+            .pointer(prefix)
+            .and_then(|val| val.inner.as_object());
+        let mut this = Self {
+            source,
+            metadata: &C::DESCRIPTION,
+        };
+        (C::DESCRIPTION.visitor)(config, &mut this);
+    }
+}
+
+impl ConfigVisitor for ObservabilityVisitor<'_> {
+    fn visit_tag(&mut self, variant_index: usize) {
+        let tag = self.metadata.tag.unwrap();
+        let param = tag.param;
+        let tag_variant = &tag.variants[variant_index];
+        let origin = self
+            .source
+            .and_then(|map| Some(map.get(param.name)?.origin.as_ref()));
+        let value = tag_variant.name;
+        tracing::debug!(
+            param = param.name,
+            rust_name = param.rust_field_name,
+            config = self.metadata.ty.name_in_code(),
+            origin = origin.map(tracing::field::display),
+            value,
+            "parsed config tag"
+        );
+    }
+
+    fn visit_param(&mut self, param_index: usize, value: &dyn Any) {
+        let param = &self.metadata.params[param_index];
+        let rust_name = (param.rust_field_name != param.name).then_some(param.rust_field_name);
+        let origin = self
+            .source
+            .and_then(|map| Some(map.get(param.name)?.origin.as_ref()));
+        let (is_secret, is_default, value) = if param.type_description().contains_secrets() {
+            // We don't want to serialize secrets to check defaults in the same way as non-secret values,
+            // but if there's no `origin`, we can be sure that the param is set to the default value (usually `None`).
+            let is_default = origin.is_none().then_some(true);
+            (true, is_default, None)
+        } else {
+            let json = param.deserializer.serialize_param(value);
+            let is_default = param
+                .default_value_json()
+                .map(|default_val| default_val == json);
+            (false, is_default, Some(json))
+        };
+
+        tracing::debug!(
+            param = param.name,
+            rust_name,
+            config = self.metadata.ty.name_in_code(),
+            origin = origin.map(tracing::field::display),
+            value = value.map(tracing::field::display),
+            is_secret,
+            is_default,
+            "parsed config param"
+        );
+    }
+
+    fn visit_nested_config(&mut self, config_index: usize, config: &dyn VisitConfig) {
+        let nested_metadata = &self.metadata.nested_configs[config_index];
+        let prev_metadata = mem::replace(&mut self.metadata, nested_metadata.meta);
+
+        if nested_metadata.name.is_empty() {
+            config.visit_config(self);
+        } else {
+            let new_source = self
+                .source
+                .and_then(|map| map.get(nested_metadata.name)?.inner.as_object());
+            let prev_source = mem::replace(&mut self.source, new_source);
+            config.visit_config(self);
+            self.source = prev_source;
+        }
+
+        self.metadata = prev_metadata;
     }
 }
