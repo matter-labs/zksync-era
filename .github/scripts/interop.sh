@@ -7,8 +7,7 @@ zkstack dev contracts
 
 zkstack dev generate-genesis
 
-zkstack ecosystem init --dev --observability=false \
-    --update-submodules false
+zkstack ecosystem init --dev --observability=false --update-submodules false --validium-type no-da
 
 zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
 zkstack server --ignore-prerequisites --chain gateway &> ./gateway.log & 
@@ -17,9 +16,8 @@ zkstack server wait --ignore-prerequisites --verbose --chain gateway
 zkstack chain migrate-to-gateway --chain era --gateway-chain-name gateway
 zkstack chain migrate-to-gateway --chain second --gateway-chain-name gateway
 
- zkstack server --ignore-prerequisites --chain era &> ./rollup.log &
-
- zkstack server --ignore-prerequisites --chain second &> ./second.log &
+zkstack server --ignore-prerequisites --chain era &> ./rollup.log &
+    zkstack server --ignore-prerequisites --chain second &> ./second.log
 
 # sleep 20
 
