@@ -9,7 +9,6 @@ use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     address_to_h256,
-    aggregated_operations::AggregatedActionType,
     api::{
         self, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
         L1BatchDetails, L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, StorageProof,
@@ -462,31 +461,6 @@ impl ZksNamespace {
             root,
             id: l1_log_index as u32,
         }))
-    }
-
-    pub async fn get_gw_block_number(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<u128, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
-
-        let eth_tx_id = storage
-            .eth_sender_dal()
-            .get_last_sent_eth_tx_id(l1_batch_number, AggregatedActionType::Execute)
-            .await;
-
-        let tx = storage
-            .eth_sender_dal()
-            .get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id.unwrap())
-            .await
-            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
-
-        let Some(tx) = tx else {
-            return Err(Web3Error::NoBlock);
-        };
-        tx.confirmed_at_block
-            .map(|block| block as u128)
-            .ok_or_else(|| Web3Error::NoBlock)
     }
 
     pub async fn get_l2_to_l1_log_proof_impl(
