@@ -9,8 +9,11 @@ use zksync_object_store::ObjectStoreError;
 pub enum TeeProcessorError {
     #[error("General error: {0}")]
     GeneralError(String),
-    #[error("GCS error: {0}")]
-    ObjectStore(#[from] ObjectStoreError),
+    #[error("GCS error: {context}: {source}")]
+    ObjectStore {
+        source: ObjectStoreError,
+        context: String,
+    },
     #[error("Failed fetching/saving from db: {0}")]
     Dal(#[from] DalError),
 }
@@ -19,7 +22,7 @@ impl TeeProcessorError {
     pub fn status_code(&self) -> StatusCode {
         match self {
             Self::GeneralError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::ObjectStore(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::ObjectStore { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Dal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
