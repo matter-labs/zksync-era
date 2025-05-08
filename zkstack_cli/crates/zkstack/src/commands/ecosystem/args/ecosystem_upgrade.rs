@@ -28,7 +28,7 @@ pub enum EcosystemUpgradeStage {
     GovernanceStage1,
     // Governance will execute stage 2 of the upgrade. It is CRUCIAL
     // to have it done only after protocol deadline has passed.
-    // Unpause migrations, etc. 
+    // Unpause migrations, etc.
     GovernanceStage2,
     // Finish finalizing tokens, chains, etc
     NoGovernanceStage2,

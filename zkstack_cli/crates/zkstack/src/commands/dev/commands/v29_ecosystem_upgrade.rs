@@ -7,13 +7,11 @@ use zkstack_cli_common::{db::DatabaseConfig, forge::Forge, git, spinner::Spinner
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
-        ecosystem_upgrade::{
-            input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput,
-        },
         gateway_preparation::input::GatewayPreparationConfig,
         script_params::{
             FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION, UPGRADE_ECOSYSTEM_PARAMS,
         },
+        upgrade_ecosystem::{input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput},
     },
     raw::RawConfig,
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
@@ -23,7 +21,6 @@ use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
-use super::args::gateway_upgrade::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal};
 use crate::{
     accept_ownership::{
         accept_admin, governance_execute_calls, make_permanent_rollup, set_da_validator_pair,
@@ -37,7 +34,9 @@ use crate::{
             },
             genesis::genesis,
         },
-        ecosystem::args::gateway_upgrade::EcosystemUpgradeStage,
+        ecosystem::args::gateway_upgrade::{
+            EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage,
+        },
     },
     defaults::{generate_db_names, DBNames, DATABASE_SERVER_URL},
     messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR, MSG_INTALLING_DEPS_SPINNER},
@@ -123,10 +122,7 @@ async fn no_governance_prepare(
     gateway_upgrade_input.save(shell, ecosystem_upgrade_config_path.clone())?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
-        .script(
-            &UPGRADE_ECOSYSTEM_PARAMS.script(),
-            forge_args.clone(),
-        )
+        .script(&UPGRADE_ECOSYSTEM_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
         .with_slow()
@@ -228,6 +224,14 @@ async fn no_governance_prepare_gateway(
         Some(output.contracts_config.expected_rollup_l2_da_validator);
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
+    Ok(())
+}
+
+async fn governance_stage_0(
+    init_args: &mut EcosystemUpgradeArgsFinal,
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
     Ok(())
 }
 

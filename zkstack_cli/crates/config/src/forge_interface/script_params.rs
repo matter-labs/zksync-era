@@ -80,6 +80,12 @@ pub const DEPLOY_GATEWAY_TX_FILTERER: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/DeployGatewayTransactionFilterer.s.sol",
 };
 
+pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-preparation.toml",
+    output: "script-out/gateway-preparation.toml",
+    script_path: "deploy-scripts/GatewayPreparation.s.sol",
+};
+
 pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-vote-preparation.toml",
     output: "script-out/gateway-vote-preparation.toml",
