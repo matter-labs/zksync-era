@@ -96,12 +96,14 @@ jobs:
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
   
   install-zkstack-with-upgrades:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+    runs-on: matterlabs-ci-runner
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
 
-      steps:
+
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
