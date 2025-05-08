@@ -1,5 +1,4 @@
 use anyhow::Context;
-use chrono::format;
 use ethers::utils::hex;
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
@@ -10,8 +9,7 @@ use crate::{
     commands::chain::utils::get_default_foundry_path,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
-        MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER, MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
-        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER,
     },
 };
 
