@@ -181,7 +181,6 @@ impl DataAvailabilityClient for EigenDAClientV2M1 {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
-            println!("EigenDA cert: {:?}", eigenda_cert);
             let inclusion_data = eigenda_cert
                 .to_bytes()
                 .map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes"))
