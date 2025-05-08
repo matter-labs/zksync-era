@@ -12962,7 +12962,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_crypto_primitives",
  "zksync_dal",
- "zksync_eth_client",
  "zksync_health_check",
  "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
@@ -13436,9 +13435,10 @@ dependencies = [
 name = "zksync_shared_di"
 version = "28.0.0-non-semver-compat"
 dependencies = [
- "zksync_basic_types",
+ "tokio",
  "zksync_config",
  "zksync_node_framework",
+ "zksync_types",
 ]
 
 [[package]]

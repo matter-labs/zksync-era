@@ -11,6 +11,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_basic_types.workspace = true
+zksync_types.workspace = true
 zksync_config.workspace = true
 zksync_node_framework.workspace = true
+
+tokio.workspace = true

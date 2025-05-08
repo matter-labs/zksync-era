@@ -1,29 +1,33 @@
-// FIXME: move to node_sync?
-
 use std::time::Duration;
 
-use zksync_eth_client::{CallFunctionArgs, ContractCallError, EthInterface};
-use zksync_node_framework::{StopReceiver, Task, TaskId};
+use anyhow::Context;
+use async_trait::async_trait;
+use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
+use zksync_node_framework::{
+    FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
+};
+use zksync_shared_di::{api::BridgeAddressesHandle, contracts::L1ChainContractsResource};
 use zksync_types::{ethabi::Contract, Address, L2_ASSET_ROUTER_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L2},
+    di::{EthInterfaceResource, MainNodeClientResource},
     namespaces::ZksNamespaceClient,
 };
 
-use crate::web3::state::BridgeAddressesHandle;
+use crate::{CallFunctionArgs, ContractCallError, EthInterface};
 
 #[derive(Debug)]
-pub struct MainNodeUpdaterInner {
-    pub bridge_address_updater: BridgeAddressesHandle,
-    pub main_node_client: Box<DynClient<L2>>,
-    pub update_interval: Option<Duration>,
+struct MainNodeUpdater {
+    bridge_addresses: BridgeAddressesHandle,
+    main_node_client: Box<DynClient<L2>>,
+    update_interval: Duration,
 }
 
-impl MainNodeUpdaterInner {
+impl MainNodeUpdater {
     async fn loop_iteration(&self) {
         match self.main_node_client.get_bridge_contracts().await {
             Ok(bridge_addresses) => {
-                self.bridge_address_updater.update(bridge_addresses).await;
+                self.bridge_addresses.update(bridge_addresses).await;
             }
             Err(err) => {
                 tracing::error!("Failed to query `get_bridge_contracts`, error: {:?}", err);
@@ -33,13 +37,13 @@ impl MainNodeUpdaterInner {
 }
 
 #[derive(Debug)]
-pub struct L1UpdaterInner {
-    pub bridge_address_updater: BridgeAddressesHandle,
-    pub l1_eth_client: Box<dyn EthInterface>,
-    pub bridgehub_addr: Address,
-    pub update_interval: Option<Duration>,
-    pub bridgehub_abi: Contract,
-    pub l1_asset_router_abi: Contract,
+struct L1Updater {
+    bridge_addresses: BridgeAddressesHandle,
+    l1_eth_client: Box<dyn EthInterface>,
+    bridgehub_addr: Address,
+    update_interval: Duration,
+    bridgehub_abi: Contract,
+    l1_asset_router_abi: Contract,
 }
 
 struct L1SharedBridgeInfo {
@@ -47,7 +51,7 @@ struct L1SharedBridgeInfo {
     should_use_l2_asset_router: bool,
 }
 
-impl L1UpdaterInner {
+impl L1Updater {
     async fn get_shared_bridge_info(&self) -> Result<L1SharedBridgeInfo, ContractCallError> {
         let l1_shared_bridge_addr: Address = CallFunctionArgs::new("sharedBridge", ())
             .for_contract(self.bridgehub_addr, &self.bridgehub_abi)
@@ -74,14 +78,14 @@ impl L1UpdaterInner {
     async fn loop_iteration(&self) {
         match self.get_shared_bridge_info().await {
             Ok(info) => {
-                self.bridge_address_updater
+                self.bridge_addresses
                     .update_l1_shared_bridge(info.l1_shared_bridge_addr)
                     .await;
                 // We only update one way:
                 // - Once the L2 asset router should be used, there is never a need to go back
                 // - To not undo the previous change in case of a network error
                 if info.should_use_l2_asset_router {
-                    self.bridge_address_updater
+                    self.bridge_addresses
                         .update_l2_bridges(L2_ASSET_ROUTER_ADDRESS)
                         .await;
                 }
@@ -95,9 +99,9 @@ impl L1UpdaterInner {
 
 // Define the enum to hold either updater
 #[derive(Debug)]
-pub enum BridgeAddressesUpdaterTask {
-    L1Updater(L1UpdaterInner),
-    MainNodeUpdater(MainNodeUpdaterInner),
+enum BridgeAddressesUpdaterTask {
+    L1Updater(L1Updater),
+    MainNodeUpdater(MainNodeUpdater),
 }
 
 impl BridgeAddressesUpdaterTask {
@@ -108,7 +112,7 @@ impl BridgeAddressesUpdaterTask {
         }
     }
 
-    fn update_interval(&self) -> Option<Duration> {
+    fn update_interval(&self) -> Duration {
         match self {
             BridgeAddressesUpdaterTask::L1Updater(updater) => updater.update_interval,
             BridgeAddressesUpdaterTask::MainNodeUpdater(updater) => updater.update_interval,
@@ -123,9 +127,7 @@ impl Task for BridgeAddressesUpdaterTask {
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        const DEFAULT_INTERVAL: Duration = Duration::from_secs(30);
-
-        let update_interval = self.update_interval().unwrap_or(DEFAULT_INTERVAL);
+        let update_interval = self.update_interval();
         while !*stop_receiver.0.borrow_and_update() {
             self.loop_iteration().await;
 
@@ -136,7 +138,59 @@ impl Task for BridgeAddressesUpdaterTask {
                 break;
             }
         }
-
         Ok(())
+    }
+}
+
+#[derive(Debug, FromContext)]
+pub struct Input {
+    #[context(default)]
+    bridge_addresses: BridgeAddressesHandle,
+    main_node_client: Option<MainNodeClientResource>,
+    l1_client: EthInterfaceResource,
+    l1_contracts: L1ChainContractsResource,
+}
+
+#[derive(Debug, IntoContext)]
+pub struct Output {
+    #[context(task)]
+    updater_task: BridgeAddressesUpdaterTask,
+}
+
+#[derive(Debug)]
+pub struct BridgeAddressesUpdaterLayer {
+    pub refresh_interval: Duration,
+}
+
+#[async_trait]
+impl WiringLayer for BridgeAddressesUpdaterLayer {
+    type Input = Input;
+    type Output = Output;
+
+    fn layer_name(&self) -> &'static str {
+        "bridge_addresses_updater_layer"
+    }
+
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let updater_task = if let Some(main_node_client) = input.main_node_client {
+            BridgeAddressesUpdaterTask::MainNodeUpdater(MainNodeUpdater {
+                bridge_addresses: input.bridge_addresses,
+                main_node_client: main_node_client.0,
+                update_interval: self.refresh_interval,
+            })
+        } else {
+            let l1_contracts = &input.l1_contracts.0.ecosystem_contracts;
+            BridgeAddressesUpdaterTask::L1Updater(L1Updater {
+                bridge_addresses: input.bridge_addresses,
+                l1_eth_client: Box::new(input.l1_client.0),
+                bridgehub_addr: l1_contracts
+                    .bridgehub_proxy_addr
+                    .context("Lacking l1 bridgehub proxy address")?,
+                update_interval: self.refresh_interval,
+                bridgehub_abi: bridgehub_contract(),
+                l1_asset_router_abi: l1_asset_router_contract(),
+            })
+        };
+        Ok(Output { updater_task })
     }
 }

@@ -1,8 +1,9 @@
 //! Shared dependency injection code for ZKsync node.
 
-use zksync_basic_types::pubdata_da::PubdataSendingMode;
 use zksync_node_framework::Resource;
+use zksync_types::pubdata_da::PubdataSendingMode;
 
+pub mod api;
 pub mod contracts;
 
 #[derive(Debug, Clone, Copy)]

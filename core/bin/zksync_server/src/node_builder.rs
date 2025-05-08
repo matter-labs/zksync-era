@@ -1,6 +1,8 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
+use std::time::Duration;
+
 use anyhow::{bail, Context};
 use zksync_base_token_adjuster::di::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
@@ -30,7 +32,7 @@ use zksync_da_clients::di::{
 use zksync_da_dispatcher::di::DataAvailabilityDispatcherLayer;
 use zksync_dal::di::{PoolsLayerBuilder, PostgresMetricsLayer};
 use zksync_eth_client::{
-    di::PKSigningEthClientLayer,
+    di::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
     web3_decl::di::{QueryEthClientLayer, SettlementLayerClientLayer},
 };
 use zksync_eth_sender::di::{EthTxAggregatorLayer, EthTxManagerLayer};
@@ -374,6 +376,13 @@ impl MainNodeBuilder {
                 deployment_allowlist: allow_list,
             });
         }
+        Ok(self)
+    }
+
+    fn add_bridge_addresses_updater_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(BridgeAddressesUpdaterLayer {
+            refresh_interval: Duration::from_secs(30),
+        });
         Ok(self)
     }
 
@@ -822,6 +831,7 @@ impl MainNodeBuilder {
                 Component::HttpApi => {
                     self = self
                         .add_allow_list_task_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
@@ -831,6 +841,7 @@ impl MainNodeBuilder {
                 Component::WsApi => {
                     self = self
                         .add_allow_list_task_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?

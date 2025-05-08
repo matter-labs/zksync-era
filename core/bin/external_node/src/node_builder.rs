@@ -19,6 +19,7 @@ use zksync_da_clients::di::{
     ObjectStorageClientWiringLayer,
 };
 use zksync_dal::di::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_eth_client::di::BridgeAddressesUpdaterLayer;
 use zksync_gateway_migrator::di::SettlementLayerData;
 use zksync_logs_bloom_backfill::di::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
@@ -489,6 +490,13 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_bridge_addresses_updater_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(BridgeAddressesUpdaterLayer {
+            refresh_interval: self.config.optional.bridge_addresses_refresh_interval(),
+        });
+        Ok(self)
+    }
+
     fn web3_api_optional_config(&self) -> Web3ServerOptionalConfig {
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
@@ -502,10 +510,6 @@ impl ExternalNodeBuilder {
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
-            bridge_addresses_refresh_interval: self
-                .config
-                .optional
-                .bridge_addresses_refresh_interval(),
             polling_interval: Some(self.config.optional.polling_interval()),
             websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
             replication_lag_limit: None,               // TODO: Support replication lag limit
@@ -644,6 +648,7 @@ impl ExternalNodeBuilder {
                 Component::HttpApi => {
                     self = self
                         .add_sync_state_updater_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?
@@ -653,6 +658,7 @@ impl ExternalNodeBuilder {
                 Component::WsApi => {
                     self = self
                         .add_sync_state_updater_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?

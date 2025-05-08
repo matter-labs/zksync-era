@@ -1,11 +1,8 @@
 use std::{num::NonZeroU32, time::Duration};
 
-use anyhow::Context;
-use bridge_addresses::{L1UpdaterInner, MainNodeUpdaterInner};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::{di::CircuitBreakersResource, replication_lag::ReplicationLagChecker};
 use zksync_config::configs::api::MaxResponseSize;
-use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_dal::di::{PoolResource, ReplicaPool};
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_metadata_calculator::di::TreeApiClientResource;
@@ -16,22 +13,22 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_node_sync::di::SyncStateResource;
-use zksync_shared_di::contracts::{
-    L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-    SettlementLayerContractsResource,
+use zksync_shared_di::{
+    api::BridgeAddressesHandle,
+    contracts::{
+        L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
+        SettlementLayerContractsResource,
+    },
 };
 use zksync_web3_decl::di::{EthInterfaceResource, MainNodeClientResource, SettlementModeResource};
 
-use self::{
-    bridge_addresses::BridgeAddressesUpdaterTask, sealed_l2_block::SealedL2BlockUpdaterTask,
-};
+use self::sealed_l2_block::SealedL2BlockUpdaterTask;
 use super::resources::{MempoolCacheResource, TxSenderResource};
 use crate::web3::{
-    state::{BridgeAddressesHandle, InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
+    state::{InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
     ApiBuilder, ApiServer, Namespace,
 };
 
-mod bridge_addresses;
 mod sealed_l2_block;
 
 /// Set of optional variables that can be altered to modify the behavior of API builder.
@@ -49,7 +46,6 @@ pub struct Web3ServerOptionalConfig {
     // Used by the external node.
     pub pruning_info_refresh_interval: Option<Duration>,
     // Used by the external node.
-    pub bridge_addresses_refresh_interval: Option<Duration>,
     pub polling_interval: Option<Duration>,
 }
 
@@ -120,6 +116,8 @@ pub struct Web3ServerLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
+    #[context(default)]
+    pub bridge_addresses: BridgeAddressesHandle,
     pub replica_pool: PoolResource<ReplicaPool>,
     pub tx_sender: TxSenderResource,
     pub sync_state: Option<SyncStateResource>,
@@ -146,8 +144,6 @@ pub struct Output {
     pub garbage_collector_task: ApiTaskGarbageCollector,
     #[context(task)]
     pub sealed_l2_block_updater_task: SealedL2BlockUpdaterTask,
-    #[context(task)]
-    pub bridge_addresses_updater_task: BridgeAddressesUpdaterTask,
 }
 
 impl Web3ServerLayer {
@@ -209,36 +205,14 @@ impl WiringLayer for Web3ServerLayer {
             input.initial_settlement_mode.0,
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
-        let bridge_addresses_handle =
-            BridgeAddressesHandle::new(internal_api_config.bridge_addresses.clone());
-
+        let bridge_addresses = input.bridge_addresses;
+        bridge_addresses
+            .update(internal_api_config.bridge_addresses.clone())
+            .await;
         let sealed_l2_block_updater_task = SealedL2BlockUpdaterTask {
             number_updater: sealed_l2_block_handle.clone(),
             pool: updaters_pool,
         };
-
-        // In case it is an EN, the bridge addresses should be updated by fetching values from the main node.
-        // It is the main node, the bridge addresses need to be updated by querying the L1.
-        let bridge_addresses_updater_task =
-            if let Some(main_node_client) = input.main_node_client.clone() {
-                BridgeAddressesUpdaterTask::MainNodeUpdater(MainNodeUpdaterInner {
-                    bridge_address_updater: bridge_addresses_handle.clone(),
-                    main_node_client: main_node_client.0,
-                    update_interval: self.optional_config.bridge_addresses_refresh_interval,
-                })
-            } else {
-                BridgeAddressesUpdaterTask::L1Updater(L1UpdaterInner {
-                    bridge_address_updater: bridge_addresses_handle.clone(),
-                    l1_eth_client: Box::new(input.l1_client.0),
-                    bridgehub_addr: internal_api_config
-                        .l1_ecosystem_contracts
-                        .bridgehub_proxy_addr
-                        .context("Lacking l1 bridgehub proxy address")?,
-                    update_interval: self.optional_config.bridge_addresses_refresh_interval,
-                    bridgehub_abi: bridgehub_contract(),
-                    l1_asset_router_abi: l1_asset_router_contract(),
-                })
-            };
 
         // Build server.
         let mut api_builder =
@@ -247,7 +221,7 @@ impl WiringLayer for Web3ServerLayer {
                 .with_mempool_cache(mempool_cache)
                 .with_extended_tracing(self.optional_config.with_extended_tracing)
                 .with_sealed_l2_block_handle(sealed_l2_block_handle)
-                .with_bridge_addresses_handle(bridge_addresses_handle);
+                .with_bridge_addresses_handle(bridge_addresses);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }
@@ -300,7 +274,6 @@ impl WiringLayer for Web3ServerLayer {
             web3_api_task,
             garbage_collector_task,
             sealed_l2_block_updater_task,
-            bridge_addresses_updater_task,
         })
     }
 }

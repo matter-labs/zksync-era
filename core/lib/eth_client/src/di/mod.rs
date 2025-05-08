@@ -4,6 +4,7 @@
 pub use zksync_shared_di::contracts;
 
 pub use self::{
+    bridge_addresses::BridgeAddressesUpdaterLayer,
     pk_signing_eth_client::PKSigningEthClientLayer,
     resources::{
         BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
@@ -11,5 +12,6 @@ pub use self::{
     },
 };
 
+mod bridge_addresses;
 mod pk_signing_eth_client;
 mod resources;
