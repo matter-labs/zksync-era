@@ -2,7 +2,7 @@ use zksync_basic_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     H256,
 };
-use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::Prover;
 
@@ -16,7 +16,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         &mut self,
         id: ProtocolSemanticVersion,
         l1_verifier_config: L1VerifierConfig,
-    ) -> Result<(), DalError> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -102,13 +102,16 @@ impl FriProtocolVersionsDal<'_, '_> {
         })
     }
 
-    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+    pub async fn delete(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM prover_fri_protocol_versions
             "#
         )
-        .execute(self.storage.conn())
-        .await
+        .instrument("delete")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 }

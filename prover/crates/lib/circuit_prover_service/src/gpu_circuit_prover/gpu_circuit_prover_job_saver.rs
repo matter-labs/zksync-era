@@ -95,7 +95,8 @@ impl JobSaver for GpuCircuitProverJobSaver {
                             self.protocol_version,
                             metadata.batch_sealed_at,
                         )
-                        .await;
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?;
                 }
                 transaction
                     .commit()
@@ -111,7 +112,8 @@ impl JobSaver for GpuCircuitProverJobSaver {
                     .context("failed to get db connection")?
                     .fri_prover_jobs_dal()
                     .save_proof_error(metadata.id, error_message)
-                    .await;
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
             }
         };
         tracing::info!(
