@@ -540,8 +540,6 @@ jobs:
           ERA_BATCH_NUMBER=$(echo "$RESPONSE" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
           echo "Batch number $ERA_BATCH_NUMBER"
           
-          echo "Deploying L2 DA validator"
-          ci_run zkstack chain deploy-l2da-validator
           echo "Setting pubdata pricing mode to validium"
           ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
           
@@ -549,6 +547,9 @@ jobs:
           sudo yq -i '.da_client.no_da = {}' ./chains/era/configs/general.yaml
           sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/era/configs/general.yaml
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
+
+          echo "Deploying L2 DA validator"
+          ci_run zkstack chain deploy-l2da-validator
           
           echo "Restarting server to apply configuration changes"
           ci_run pkill -f "zksync_server.*chains/era/configs"
