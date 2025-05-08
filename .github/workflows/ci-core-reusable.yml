@@ -94,6 +94,20 @@ jobs:
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
+  
+  install-zkstack-with-upgrades:
+    runs-on: [ matterlabs-ci-runner-high-performance ]
+    steps:
+      - name: Install v27
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local --cargo-features v27_evm_interpreter
+
+      - name: Install v28
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local --cargo-features v28_precompiles
+
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]

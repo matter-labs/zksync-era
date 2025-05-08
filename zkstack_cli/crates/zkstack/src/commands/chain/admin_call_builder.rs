@@ -1,10 +1,18 @@
+use std::path::Path;
+
 use ethers::{
     abi::{decode, ParamType, Token},
+    types::Bytes,
     utils::hex,
 };
 use serde::Serialize;
+use xshell::Shell;
+use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
+
+#[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+use crate::admin_functions::prepare_upgrade_zk_chain_on_gateway;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
