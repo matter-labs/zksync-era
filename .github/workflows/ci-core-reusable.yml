@@ -217,6 +217,10 @@ jobs:
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
 
+      - name: Install psql
+        run: |
+          sudo apt-get install postgresql-client
+
       - name: Start services
         run: |
           ci_localnet_up
@@ -581,6 +585,8 @@ jobs:
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           echo "Server restart wait completed"
+          
+          psql "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" -c "select * from l1_batches"
           
           echo "Running integration tests"
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
