@@ -562,6 +562,8 @@ jobs:
           echo "Updating DA valdiator addresses on L1"
           ci_run zkstack chain set-da-validator-pair
           
+          cat ./chains/era/configs/general.yaml
+          
           echo "Disabling inclusion verification transition"
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
