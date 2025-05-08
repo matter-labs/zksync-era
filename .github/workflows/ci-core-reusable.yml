@@ -516,8 +516,8 @@ jobs:
 
       - name: DA migration tests
         run: |
-          echo "Updating l1 batch seal timeout to 30 seconds so that we have at least one committed batch before migration"
-          sudo yq -i '.state_keeper.block_commit_deadline_ms = "30000"' ./chains/era/configs/general.yaml
+          echo "Updating l1 batch seal timeout to 10 seconds so that we have at least one committed batch before migration"
+          sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/era/configs/general.yaml
           echo "Restarting server to apply configuration changes"
           ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
@@ -564,7 +564,7 @@ jobs:
           ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
-          ci_run sleep 60
+          ci_run sleep 100
           echo "Server restart wait completed"
           
           echo "Updating DA valdiator addresses on L1"
