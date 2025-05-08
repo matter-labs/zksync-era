@@ -37,7 +37,7 @@ pub struct ProverAutoscalerAgentConfig {
     /// If dry-run enabled don't do any k8s updates, just report success.
     #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
     pub dry_run: bool,
-    /// Interval for periodic pod checks against the K8s API.
+    /// Interval for periodic pod checks against the K8s API to remove stale pods.
     #[serde(
         with = "humantime_serde",
         default = "ProverAutoscalerAgentConfig::default_pod_check_interval"
