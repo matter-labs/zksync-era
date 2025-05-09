@@ -32,7 +32,7 @@ use itertools::{Either, Itertools};
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
-use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, OrStopped, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::ReadStorage;
 
 use self::metrics::METRICS;
@@ -117,25 +117,6 @@ impl StateValue {
     }
 }
 
-/// Error emitted when [`RocksdbStorage`] is being updated.
-#[derive(Debug)]
-pub(crate) enum RocksdbSyncError {
-    Internal(anyhow::Error),
-    Interrupted,
-}
-
-impl From<anyhow::Error> for RocksdbSyncError {
-    fn from(err: anyhow::Error) -> Self {
-        Self::Internal(err)
-    }
-}
-
-impl From<DalError> for RocksdbSyncError {
-    fn from(err: DalError) -> Self {
-        Self::Internal(err.generalize())
-    }
-}
-
 /// Options for [`RocksdbStorage`].
 #[derive(Debug, Clone, Copy)]
 pub struct RocksdbStorageOptions {
@@ -215,20 +196,16 @@ impl RocksdbStorageBuilder {
         mut self,
         recovery_pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<(RocksdbStorage, InitStrategy)>> {
-        let ready_result = self
+    ) -> Result<(RocksdbStorage, InitStrategy), OrStopped> {
+        let init_strategy = self
             .0
             .ensure_ready(
                 recovery_pool,
                 RocksdbStorage::DESIRED_LOG_CHUNK_SIZE,
                 stop_receiver,
             )
-            .await;
-        match ready_result {
-            Ok((strategy, _)) => Ok(Some((self.0, strategy))),
-            Err(RocksdbSyncError::Interrupted) => Ok(None),
-            Err(RocksdbSyncError::Internal(err)) => Err(err),
-        }
+            .await?;
+        Ok((self.0, init_strategy))
     }
 
     /// Gets the underlying storage if it is initialized. Unlike [`Self::ensure_ready()`], this method
@@ -300,12 +277,18 @@ impl RocksdbStorage {
     ///
     /// - Errors if the local L1 batch number is greater than the last sealed L1 batch number
     ///   in Postgres.
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        err,
+        fields(to_l1_batch_number = ?to_l1_batch_number)
+    )]
     pub async fn synchronize(
         mut self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
         to_l1_batch_number: Option<L1BatchNumber>,
-    ) -> anyhow::Result<Option<Self>> {
+    ) -> Result<Self, OrStopped> {
         let mut current_l1_batch_number = self.next_l1_batch_number().await;
 
         let latency = METRICS.update.start();
@@ -313,15 +296,16 @@ impl RocksdbStorage {
             storage.blocks_dal().get_sealed_l1_batch_number().await?
         else {
             // No L1 batches are persisted in Postgres; update is not necessary.
-            return Ok(Some(self));
+            return Ok(self);
         };
 
         let to_l1_batch_number = if let Some(to_l1_batch_number) = to_l1_batch_number {
             if to_l1_batch_number > latest_l1_batch_number {
-                anyhow::bail!(
+                let err = anyhow::anyhow!(
                     "Requested to update RocksDB to L1 batch number ({to_l1_batch_number}) that \
                      is greater than the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
                 );
+                return Err(err.into());
             }
             to_l1_batch_number
         } else {
@@ -330,15 +314,16 @@ impl RocksdbStorage {
         tracing::debug!("Loading storage for l1 batch number {to_l1_batch_number}");
 
         if current_l1_batch_number > to_l1_batch_number + 1 {
-            anyhow::bail!(
+            let err = anyhow::anyhow!(
                 "L1 batch number in state keeper cache ({current_l1_batch_number}) is greater than \
                  the requested batch number ({to_l1_batch_number})"
             );
+            return Err(err.into());
         }
 
         while current_l1_batch_number <= to_l1_batch_number {
             if *stop_receiver.borrow() {
-                return Ok(None);
+                return Err(OrStopped::Stopped);
             }
             let current_lag = to_l1_batch_number.0 - current_l1_batch_number.0 + 1;
             METRICS.lag.set(current_lag.into());
@@ -380,7 +365,7 @@ impl RocksdbStorage {
             "Secondary storage for L1 batch #{to_l1_batch_number} initialized, size is {estimated_size}"
         );
 
-        Ok(Some(self))
+        Ok(self)
     }
 
     async fn apply_storage_logs(

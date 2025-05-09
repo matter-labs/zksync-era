@@ -67,7 +67,7 @@ pub trait JobProcessor: Sync + Send {
         while iterations_left.is_none_or(|i| i > 0) {
             if *stop_receiver.borrow() {
                 tracing::warn!(
-                    "Stop signal received, shutting down {} component while waiting for a new job",
+                    "Stop request received, shutting down {} component while waiting for a new job",
                     Self::SERVICE_NAME
                 );
                 return Ok(());
@@ -141,7 +141,7 @@ pub trait JobProcessor: Sync + Send {
             .await
             .is_ok()
             {
-                // Stop signal received, return early.
+                // Stop request received, return early.
                 // Exit will be processed/reported by the main loop.
                 return Ok(());
             }

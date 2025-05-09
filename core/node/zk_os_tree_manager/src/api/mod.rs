@@ -345,10 +345,10 @@ impl AsyncTreeReader {
             server.with_graceful_shutdown(async move {
                 if stop_receiver.changed().await.is_err() {
                     tracing::warn!(
-                        "Stop signal sender for Merkle tree API server was dropped without sending a signal"
+                        "Stop request sender for Merkle tree API server was dropped without sending a signal"
                     );
                 }
-                tracing::info!("Stop signal received, Merkle tree API server is shutting down");
+                tracing::info!("Stop request received, Merkle tree API server is shutting down");
             })
             .await
             .context("Merkle tree API server failed")?;

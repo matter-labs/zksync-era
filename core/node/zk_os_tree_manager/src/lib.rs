@@ -9,6 +9,7 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::tree::{ConfigLabels, ModeLabel, METRICS};
+use zksync_types::try_stoppable;
 #[cfg(test)]
 use zksync_types::L1BatchNumber;
 
@@ -140,8 +141,10 @@ impl TreeManager {
         let tree_reader = tree.reader();
         self.tree_reader.send_replace(Some(tree_reader));
 
-        tree.ensure_consistency(self.config.delay_interval, &self.pool, &mut stop_receiver)
-            .await?;
+        try_stoppable!(
+            tree.ensure_consistency(self.config.delay_interval, &self.pool, &mut stop_receiver)
+                .await
+        );
 
         let tree_info = tree.reader().info().await.context("cannot get tree info")?;
         tracing::info!("Merkle tree is initialized and ready to process L1 batches: {tree_info:?}");

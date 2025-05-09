@@ -35,9 +35,9 @@ async fn run_server(
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for healthcheck server was dropped without sending a signal");
+                tracing::warn!("Stop request sender for healthcheck server was dropped without sending a request");
             }
-            tracing::info!("Stop signal received, healthcheck server is shutting down");
+            tracing::info!("Stop request received, healthcheck server is shutting down");
         })
         .await
         .expect("Healthcheck server failed");

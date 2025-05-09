@@ -158,7 +158,7 @@ impl AllowListTask {
             let _ = tokio::time::timeout(self.refresh_interval(), stop_receiver.changed()).await;
         }
 
-        tracing::info!("received a stop signal; allow list task is shut down");
+        tracing::info!("received a stop request; allow list task is shut down");
 
         Ok(())
     }

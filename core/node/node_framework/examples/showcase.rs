@@ -105,7 +105,7 @@ impl Task for PutTask {
         tracing::info!("Starting the task {}", self.id());
 
         // We have to respect the stop receiver and should exit as soon as we receive
-        // a stop signal.
+        // a stop request.
         tokio::select! {
             _ = self.run_inner() => {},
             _ = stop_receiver.0.changed() => {},

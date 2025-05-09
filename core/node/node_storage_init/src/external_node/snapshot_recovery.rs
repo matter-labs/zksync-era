@@ -9,6 +9,7 @@ use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
 use zksync_snapshots_applier::{
     RecoveryCompletionStatus, SnapshotsApplierConfig, SnapshotsApplierTask,
 };
+use zksync_types::OrStopped;
 use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::{InitializeStorage, SnapshotRecoveryConfig};
@@ -24,7 +25,10 @@ pub struct ExternalNodeSnapshotRecovery {
 
 #[async_trait::async_trait]
 impl InitializeStorage for ExternalNodeSnapshotRecovery {
-    async fn initialize_storage(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    async fn initialize_storage(
+        &self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Result<(), OrStopped> {
         tracing::warn!("Proceeding with snapshot recovery. This is an experimental feature; use at your own risk");
 
         let pool_size = self.pool.max_size() as usize;
@@ -66,13 +70,11 @@ impl InitializeStorage for ExternalNodeSnapshotRecovery {
             snapshots_applier_task.drop_storage_key_preimages();
         }
         self.app_health
-            .insert_component(snapshots_applier_task.health_check())?;
+            .insert_component(snapshots_applier_task.health_check())
+            .map_err(OrStopped::internal)?;
 
         let recovery_started_at = Instant::now();
-        let stats = snapshots_applier_task
-            .run(stop_receiver)
-            .await
-            .context("snapshot recovery failed")?;
+        let stats = snapshots_applier_task.run(stop_receiver).await?;
         if stats.done_work {
             let latency = recovery_started_at.elapsed();
             APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::Postgres].set(latency);

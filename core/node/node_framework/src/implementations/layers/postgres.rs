@@ -93,7 +93,7 @@ impl Task for PostgresMetricsScrapingTask {
                 tracing::warn!("Postgres metrics scraping unexpectedly stopped");
             }
             _ = stop_receiver.0.changed() => {
-                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+                tracing::info!("Stop request received, Postgres metrics scraping is shutting down");
             }
         }
         Ok(())
