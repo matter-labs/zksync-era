@@ -2,8 +2,9 @@ use std::{collections::HashSet, iter, sync::Arc};
 
 use anyhow::Context as _;
 use axum::{
+    body::{to_bytes, Body},
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, Request, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -16,11 +17,19 @@ use zksync_types::{
             VerificationProblem, VerificationRequestStatus,
         },
         contract_identifier::ContractIdentifier,
+        etherscan::{EtherscanRequest, EtherscanRequestPayload, EtherscanResponse},
     },
     Address,
 };
 
 use super::{api_decl::RestApi, metrics::METRICS};
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+pub enum APIPostResponse {
+    EtherscanResponse(EtherscanResponse),
+    VerificationId(usize),
+}
 
 #[derive(Debug)]
 pub(crate) enum ApiError {
@@ -34,6 +43,8 @@ pub(crate) enum ApiError {
     AlreadyVerified,
     ActiveRequestExists(usize),
     Internal(anyhow::Error),
+    DeserializationError(anyhow::Error),
+    UnsupportedContentType,
 }
 
 impl From<anyhow::Error> for ApiError {
@@ -65,6 +76,8 @@ impl ApiError {
                 format!("active request for this contract already exists, ID: {id}")
             }
             Self::Internal(_) => "internal server error".into(),
+            Self::UnsupportedContentType => "Specified content type is not supported".into(),
+            Self::DeserializationError(e) => format!("Failed to deserialize the request: {}", e),
         }
     }
 }
@@ -78,7 +91,10 @@ impl IntoResponse for ApiError {
             | Self::BogusZkCompilerVersion
             | Self::NoDeployedContract
             | Self::AlreadyVerified
-            | Self::ActiveRequestExists(_) => StatusCode::BAD_REQUEST,
+            | Self::ActiveRequestExists(_)
+            | Self::DeserializationError(_) => StatusCode::BAD_REQUEST,
+
+            Self::UnsupportedContentType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
 
             Self::RequestNotFound | Self::VerificationInfoNotFound => StatusCode::NOT_FOUND,
 
@@ -89,6 +105,17 @@ impl IntoResponse for ApiError {
             }
         };
         (status_code, self.message()).into_response()
+    }
+}
+
+impl From<ApiError> for EtherscanResponse {
+    fn from(api_error: ApiError) -> Self {
+        match api_error {
+            ApiError::AlreadyVerified => {
+                Self::failed("Contract source code already verified".into())
+            }
+            _ => Self::failed(api_error.message()),
+        }
     }
 }
 
@@ -120,12 +147,90 @@ impl RestApi {
         }
     }
 
+    /// Handler to process ZKsync verification requests and Etherscan-like requests for multiple actions.
+    #[tracing::instrument(skip(self_, request))]
+    pub async fn post(
+        State(self_): State<Arc<Self>>,
+        request: Request<Body>,
+    ) -> ApiResult<APIPostResponse> {
+        let (parts, body) = request.into_parts();
+        let headers: HeaderMap = parts.headers;
+
+        let content_type = headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+
+        let body_bytes = to_bytes(body, usize::MAX)
+            .await
+            .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
+
+        match content_type {
+            // ZKsync verification request in JSON format
+            "application/json" => {
+                let req: VerificationIncomingRequest = serde_json::from_slice(&body_bytes)
+                    .map_err(|e| ApiError::DeserializationError(anyhow::anyhow!(e)))?;
+                let verification_id = Self::verification(State(self_), req).await?;
+                return Ok(Json(APIPostResponse::VerificationId(verification_id)));
+            }
+            // Etherscan-like verification request in urlencoded form format
+            "application/x-www-form-urlencoded" => {
+                let req: EtherscanRequest =
+                    serde_urlencoded::from_bytes::<EtherscanRequest>(&body_bytes)
+                        .map_err(|e| ApiError::DeserializationError(anyhow::anyhow!(e)))?;
+
+                let etherscan_response = Self::etherscan_action(State(self_), req).await?;
+                return Ok(Json(APIPostResponse::EtherscanResponse(etherscan_response)));
+            }
+            _ => return Err(ApiError::UnsupportedContentType),
+        }
+    }
+
+    /// General handler to process Etherscan-like verification requests. Based on the EtherscanRequestPayload
+    /// variant, it either checks the verification status or verifies the source code.
+    #[tracing::instrument(skip(self_, request))]
+    async fn etherscan_action(
+        State(self_): State<Arc<Self>>,
+        request: EtherscanRequest,
+    ) -> Result<EtherscanResponse, ApiError> {
+        match request.payload {
+            EtherscanRequestPayload::CheckVerifyStatus { guid } => {
+                let verification_id = guid.parse::<usize>().map_err(|_| {
+                    ApiError::DeserializationError(anyhow::anyhow!(
+                        "Invalid verification id format. A number is expected."
+                    ))
+                })?;
+                let Json(status) =
+                    Self::verification_request_status(State(self_), Path(verification_id)).await?;
+                return Ok(status.into());
+            }
+            EtherscanRequestPayload::VerifySourceCode(verification_req) => {
+                let verification_id = Self::verification(
+                    State(self_),
+                    verification_req
+                        .to_verification_request()
+                        .map_err(ApiError::DeserializationError)?,
+                )
+                .await;
+                match verification_id {
+                    Ok(id) => {
+                        return Ok(EtherscanResponse::successful(id.to_string()));
+                    }
+                    // For Etherscan-like requests we need to return the error message as 200 OK
+                    Err(err) => {
+                        return Ok(err.into());
+                    }
+                }
+            }
+        }
+    }
+
     /// Add a contract verification job to the queue if the requested contract wasn't previously verified.
     #[tracing::instrument(skip(self_, request))]
-    pub async fn verification(
+    async fn verification(
         State(self_): State<Arc<Self>>,
-        Json(request): Json<VerificationIncomingRequest>,
-    ) -> ApiResult<usize> {
+        request: VerificationIncomingRequest,
+    ) -> Result<usize, ApiError> {
         let method_latency = METRICS.call[&"contract_verification"].start();
         Self::validate_contract_verification_query(&request)?;
 
@@ -197,7 +302,7 @@ impl RestApi {
             .add_contract_verification_request(&request)
             .await?;
         method_latency.observe();
-        Ok(Json(request_id))
+        Ok(request_id)
     }
 
     #[tracing::instrument(skip(self_))]

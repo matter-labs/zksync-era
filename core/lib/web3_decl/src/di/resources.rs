@@ -3,6 +3,7 @@ use zksync_types::settlement::SettlementLayer;
 
 use crate::client::{DynClient, L1, L2};
 
+// FIXME: update
 #[derive(Debug, Clone, Copy)]
 pub struct SettlementModeResource(pub SettlementLayer);
 

@@ -39,7 +39,7 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use crate::current_settlement_layer;
+use crate::{current_settlement_layer, WorkingSettlementLayer};
 
 pub struct MainNodeConfig {
     pub l1_specific_contracts: L1SpecificContracts,
@@ -122,8 +122,6 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             };
         }
 
-        let pool = input.pool.get().await?;
-
         let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
 
         let final_settlement_mode = current_settlement_layer(
@@ -131,13 +129,12 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             l2_eth_client.as_ref().map(|a| &a.0 as &dyn EthInterface),
             &sl_l1_contracts,
             self.config.l2_chain_id,
-            &mut pool.connection().await.context("Can't connect")?,
             &getters_facet_contract(),
         )
         .await
         .context("Error occured while getting current SL mode")?;
 
-        let sl_chain_contracts = match final_settlement_mode {
+        let sl_chain_contracts = match final_settlement_mode.settlement_layer() {
             SettlementLayer::L1(_) => sl_l1_contracts.clone(),
             SettlementLayer::Gateway(_) => {
                 let client = l2_eth_client.clone().unwrap().0;
@@ -162,7 +159,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         let eth_sender_config =
             adjust_eth_sender_config(self.config.eth_sender_config, final_settlement_mode);
         Ok(Output {
-            initial_settlement_mode: SettlementModeResource(final_settlement_mode),
+            initial_settlement_mode: SettlementModeResource::new(final_settlement_mode.clone()),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(l1_specific_contracts),
             l1_contracts: L1ChainContractsResource(sl_l1_contracts),
@@ -261,8 +258,10 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             },
         };
 
+        let sl = WorkingSettlementLayer::new(initial_sl_mode);
+
         Ok(Output {
-            initial_settlement_mode: SettlementModeResource(initial_sl_mode),
+            initial_settlement_mode: SettlementModeResource::new(sl),
             contracts: SettlementLayerContractsResource(contracts),
             l1_contracts: L1ChainContractsResource(self.config.l1_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),

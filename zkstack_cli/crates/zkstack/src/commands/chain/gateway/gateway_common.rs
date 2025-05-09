@@ -54,6 +54,31 @@ impl MigrationDirection {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum NotificationReceivedState {
+    NotAllBatchesExecuted(U256, U256),
+    UnconfirmedTxs(usize),
+}
+
+impl std::fmt::Display for NotificationReceivedState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            NotificationReceivedState::NotAllBatchesExecuted(
+                total_batches_committed,
+                total_batches_executed,
+            ) => {
+                write!(f, "For migration from Gateway we need all batches to be executed. Executed/committed: {total_batches_executed}/{total_batches_committed}")
+            }
+            NotificationReceivedState::UnconfirmedTxs(unconfirmed_txs) => {
+                write!(
+                    f,
+                    "There are some unconfirmed transactions: {unconfirmed_txs}"
+                )
+            }
+        }
+    }
+}
+
 /// Each migration to or from ZK gateway has multiple states it can be in.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum GatewayMigrationProgressState {
@@ -62,7 +87,7 @@ pub enum GatewayMigrationProgressState {
     /// The chain admin has sent the notification
     NotificationSent,
     /// The server has received the notification, but it is not yet ready for the migration.
-    NotificationReceived,
+    NotificationReceived(NotificationReceivedState),
     /// The server has received the notification and has no pending transactions
     ServerReady,
     /// The server is ready and the migration has started, but the server has not started sending transactions
@@ -147,11 +172,11 @@ pub(crate) async fn get_migration_transaction(
     Ok(log.transaction_hash)
 }
 
-async fn check_whether_all_batches_are_executed(
+async fn get_batch_execution_status(
     sl_rpc_url: &str,
     bridgehub_address: Address,
     l2_chain_id: u64,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<(U256, U256)> {
     let provider = get_ethers_provider(sl_rpc_url)?;
     let sl_bridgehub = BridgehubAbi::new(bridgehub_address, provider.clone());
     let zk_chain_address = sl_bridgehub.get_zk_chain(U256::from(l2_chain_id)).await?;
@@ -159,7 +184,7 @@ async fn check_whether_all_batches_are_executed(
     let total_committed = zk_chain.get_total_batches_committed().await?;
     let total_executed = zk_chain.get_total_batches_committed().await?;
 
-    Ok(total_committed == total_executed)
+    Ok((total_committed, total_executed))
 }
 
 pub(crate) async fn get_gateway_migration_state(
@@ -201,26 +226,27 @@ pub(crate) async fn get_gateway_migration_state(
         // No event has been sent.
         // It means that either migration has not yet started or
         // the chain admin has completed the migration but without sending any notiifcation.
+        // Or the latest migration was long time ago.
 
         // Firslty check for consistency with the server.
-        if gateway_migration_status.latest_notification.is_some() {
-            anyhow::bail!(format!(
-                "Server has seen an event not present on L1. Status {:#?}",
-                gateway_migration_status
-            ));
+        if gateway_migration_status.state == GatewayMigrationState::InProgress {
+            anyhow::bail!("Very old migration in progress");
         }
 
-        let current_sl_from_server = gateway_migration_status.settlement_layer.chain_id().0;
+        let Some(current_sl_from_server) = gateway_migration_status.settlement_layer else {
+            // It means that the server is in the middle of some migration.
+            anyhow::bail!("Very old migration in progress");
+        };
 
         // No migration event present, but the server uses inconsistent settlement layer
-        if current_sl_from_l1 != current_sl_from_server {
-            anyhow::bail!(format!("No migration event present, but server uses inconsistent settlement layer. Server: {current_sl_from_server}, L1 Bridgehub: {current_sl_from_l1}"));
+        if current_sl_from_l1 != current_sl_from_server.chain_id().0 {
+            anyhow::bail!(format!("No migration event present, but server uses inconsistent settlement layer. Server: {current_sl_from_server:?}, L1 Bridgehub: {current_sl_from_l1:?}"));
         }
 
         // The system does not have any migration at this point, we just need to check
         // whether it is `NotStarted` or `Finished` depending on the propoed direction
 
-        let status = match (direction, gateway_migration_status.settlement_layer) {
+        let status = match (direction, current_sl_from_server) {
             (MigrationDirection::ToGateway, SettlementLayer::Gateway(_)) => {
                 GatewayMigrationProgressState::Finished
             }
@@ -252,8 +278,8 @@ pub(crate) async fn get_gateway_migration_state(
 
     match (direction, gateway_migration_status.settlement_layer) {
         // The server already uses the new settlement layer, so the migration is over
-        (MigrationDirection::ToGateway, SettlementLayer::Gateway(_))
-        | (MigrationDirection::FromGateway, SettlementLayer::L1(_)) => {
+        (MigrationDirection::ToGateway, Some(SettlementLayer::Gateway(_)))
+        | (MigrationDirection::FromGateway, Some(SettlementLayer::L1(_))) => {
             return Ok(GatewayMigrationProgressState::Finished)
         }
         _ => {}
@@ -279,24 +305,30 @@ pub(crate) async fn get_gateway_migration_state(
         anyhow::bail!("Server has seen notification, does not use the settlement layer, but still the migration is not in progress. Status: {:#?}", gateway_migration_status);
     }
 
+    // For migration from Gateway we also require that all batches have been executed
+
+    if direction == MigrationDirection::FromGateway {
+        let (total_batches_committed, total_batches_executed) =
+            get_batch_execution_status(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id).await?;
+
+        if total_batches_committed != total_batches_executed {
+            // Server still waits for the batches to get executed
+            return Ok(GatewayMigrationProgressState::NotificationReceived(
+                NotificationReceivedState::NotAllBatchesExecuted(
+                    total_batches_committed,
+                    total_batches_executed,
+                ),
+            ));
+        }
+    }
+
     let unconfirmed_txs = zk_client.get_unconfirmed_txs_count().await?;
 
     if unconfirmed_txs != 0 {
         // The server has received the notification, but there are still some pending txs
-        return Ok(GatewayMigrationProgressState::NotificationReceived);
-    }
-
-    // For migration from Gateway we also require that all batches have been executed
-
-    if direction == MigrationDirection::FromGateway {
-        let whether_all_batches_are_executed =
-            check_whether_all_batches_are_executed(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id)
-                .await?;
-
-        if !whether_all_batches_are_executed {
-            // Server still waits for the batches to get executed
-            return Ok(GatewayMigrationProgressState::NotificationReceived);
-        }
+        return Ok(GatewayMigrationProgressState::NotificationReceived(
+            NotificationReceivedState::UnconfirmedTxs(unconfirmed_txs),
+        ));
     }
 
     // Now we know that the server is ready, but we need to double check whether the migration has already
