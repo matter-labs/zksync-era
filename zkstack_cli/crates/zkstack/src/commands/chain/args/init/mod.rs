@@ -94,12 +94,6 @@ impl InitArgs {
             })
         };
 
-        let make_permanent_rollup = self.make_permanent_rollup.unwrap_or_else(|| {
-            zkstack_cli_common::PromptConfirm::new(MSG_MAKE_PERMANENT_ROLLUP)
-                .default(false)
-                .ask()
-        });
-
         let validium_config = match config.l1_batch_commit_data_generator_mode {
             L1BatchCommitmentMode::Validium => match self.validium_args.validium_type {
                 None => Some(ValidiumType::read()),
@@ -119,7 +113,7 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
-            make_permanent_rollup,
+            make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
         }
     }
 }
