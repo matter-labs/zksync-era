@@ -67,7 +67,6 @@ async fn reset_db(shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-
 async fn initialize_private_rpc_database(
     shell: &Shell,
     chain_config: &ChainConfig,
