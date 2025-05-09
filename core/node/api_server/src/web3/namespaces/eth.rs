@@ -677,14 +677,15 @@ impl EthNamespace {
 
     pub fn syncing_impl(&self) -> SyncState {
         if let Some(state) = &self.state.sync_state {
+            let state = state.borrow();
             // Node supports syncing process (i.e. not the main node).
             if state.is_synced() {
                 SyncState::NotSyncing
             } else {
                 SyncState::Syncing(SyncInfo {
-                    starting_block: 0u64.into(), // We always start syncing from genesis right now.
-                    current_block: state.get_local_block().0.into(),
-                    highest_block: state.get_main_node_block().0.into(),
+                    starting_block: 0_u64.into(), // We always start syncing from genesis right now.
+                    current_block: state.local_block().unwrap_or_default().0.into(),
+                    highest_block: state.main_node_block().unwrap_or_default().0.into(),
                 })
             }
         } else {

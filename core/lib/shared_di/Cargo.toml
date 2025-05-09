@@ -13,6 +13,13 @@ categories.workspace = true
 [dependencies]
 zksync_types.workspace = true
 zksync_config.workspace = true
+zksync_health_check.workspace = true
 zksync_node_framework.workspace = true
 
+async-trait.workspace = true
+serde.workspace = true
 tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true

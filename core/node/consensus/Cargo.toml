@@ -35,6 +35,7 @@ zksync_state.workspace = true
 zksync_vm_executor= { workspace = true, features = ["di"] }
 zksync_vm_interface.workspace = true
 zksync_node_framework.workspace = true
+zksync_shared_di.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

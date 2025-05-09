@@ -1,11 +1,8 @@
 pub use self::{
     batch_status_updater::BatchStatusUpdaterLayer,
-    data_availability_fetcher::DataAvailabilityFetcherLayer,
-    external_io::ExternalIOLayer,
-    resources::{ActionQueueSenderResource, SyncStateResource},
-    sync_state_updater::SyncStateUpdaterLayer,
-    tree_data_fetcher::TreeDataFetcherLayer,
-    validate_chain_ids::ValidateChainIdsLayer,
+    data_availability_fetcher::DataAvailabilityFetcherLayer, external_io::ExternalIOLayer,
+    resources::ActionQueueSenderResource, sync_state_updater::SyncStateUpdaterLayer,
+    tree_data_fetcher::TreeDataFetcherLayer, validate_chain_ids::ValidateChainIdsLayer,
 };
 
 mod batch_status_updater;

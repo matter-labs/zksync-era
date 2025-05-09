@@ -8,7 +8,8 @@ use zksync_dal::{
     Core, CoreDal, DalError,
 };
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
-use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
+use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender};
+use zksync_shared_di::api::SyncState;
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber};
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};

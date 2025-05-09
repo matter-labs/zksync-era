@@ -11,10 +11,8 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::{
-    di::{ActionQueueSenderResource, SyncStateResource},
-    ActionQueueSender, SyncState,
-};
+use zksync_node_sync::{di::ActionQueueSenderResource, ActionQueueSender};
+use zksync_shared_di::api::SyncState;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     di::MainNodeClientResource,
@@ -32,7 +30,7 @@ pub struct ExternalNodeConsensusLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
-    pub sync_state: SyncStateResource,
+    pub sync_state: SyncState,
     pub action_queue_sender: ActionQueueSenderResource,
 }
 
@@ -55,7 +53,7 @@ impl WiringLayer for ExternalNodeConsensusLayer {
         let pool = input.master_pool.get().await?;
 
         let main_node_client = input.main_node_client.0;
-        let sync_state = input.sync_state.0;
+        let sync_state = input.sync_state;
         let action_queue_sender = input.action_queue_sender.0.take().ok_or_else(|| {
             WiringError::Configuration(
                 "Action queue sender is taken by another resource".to_string(),

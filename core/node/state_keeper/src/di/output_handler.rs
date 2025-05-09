@@ -7,7 +7,10 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::contracts::{L2ContractsResource, SettlementLayerContractsResource};
+use zksync_shared_di::{
+    api::SyncState,
+    contracts::{L2ContractsResource, SettlementLayerContractsResource},
+};
 use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use super::resources::OutputHandlerResource;
@@ -46,7 +49,7 @@ pub struct OutputHandlerLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
-    // FIXME: inject sync_state as additional output handler
+    pub sync_state: Option<SyncState>,
     pub contracts: SettlementLayerContractsResource,
     pub l2_contracts: L2ContractsResource,
 }
@@ -123,8 +126,11 @@ impl WiringLayer for OutputHandlerLayer {
         }
 
         let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);
-        let output_handler = OutputHandler::new(Box::new(persistence))
+        let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(tree_writes_persistence));
+        if let Some(sync_state) = input.sync_state {
+            output_handler = output_handler.with_handler(Box::new(sync_state));
+        }
         let output_handler = OutputHandlerResource(Unique::new(output_handler));
 
         Ok(Output {

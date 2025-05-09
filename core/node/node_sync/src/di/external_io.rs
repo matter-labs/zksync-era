@@ -7,6 +7,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_di::api::SyncState;
 use zksync_state_keeper::{
     di::{ConditionalSealerResource, StateKeeperIOResource},
     seal_criteria::NoopSealer,
@@ -14,8 +15,8 @@ use zksync_state_keeper::{
 use zksync_types::L2ChainId;
 use zksync_web3_decl::di::MainNodeClientResource;
 
-use super::resources::{ActionQueueSenderResource, SyncStateResource};
-use crate::{ActionQueue, ExternalIO, SyncState};
+use super::resources::ActionQueueSenderResource;
+use crate::{ActionQueue, ExternalIO};
 
 /// Wiring layer for `ExternalIO`, an IO part of state keeper used by the external node.
 #[derive(Debug)]
@@ -32,10 +33,10 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub sync_state: SyncStateResource,
-    pub action_queue_sender: ActionQueueSenderResource,
-    pub io: StateKeeperIOResource,
-    pub sealer: ConditionalSealerResource,
+    sync_state: SyncState,
+    action_queue_sender: ActionQueueSenderResource,
+    io: StateKeeperIOResource,
+    sealer: ConditionalSealerResource,
 }
 
 impl ExternalIOLayer {
@@ -78,7 +79,7 @@ impl WiringLayer for ExternalIOLayer {
         let sealer = ConditionalSealerResource(Arc::new(NoopSealer));
 
         Ok(Output {
-            sync_state: sync_state.into(),
+            sync_state,
             action_queue_sender: action_queue_sender.into(),
             io: io.into(),
             sealer,

@@ -12,9 +12,8 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_node_sync::di::SyncStateResource;
 use zksync_shared_di::{
-    api::BridgeAddressesHandle,
+    api::{BridgeAddressesHandle, SyncState},
     contracts::{
         L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
         SettlementLayerContractsResource,
@@ -96,7 +95,7 @@ enum Transport {
 ///
 /// - `PoolResource<ReplicaPool>`
 /// - `TxSenderResource`
-/// - `SyncStateResource` (optional)
+/// - `SyncState` (optional)
 /// - `TreeApiClientResource` (optional)
 /// - `MempoolCacheResource`
 /// - `CircuitBreakersResource` (adds a circuit breaker)
@@ -120,7 +119,7 @@ pub struct Input {
     pub bridge_addresses: BridgeAddressesHandle,
     pub replica_pool: PoolResource<ReplicaPool>,
     pub tx_sender: TxSenderResource,
-    pub sync_state: Option<SyncStateResource>,
+    pub sync_state: Option<SyncState>,
     pub tree_api_client: Option<TreeApiClientResource>,
     pub mempool_cache: MempoolCacheResource,
     #[context(default)]
@@ -193,7 +192,7 @@ impl WiringLayer for Web3ServerLayer {
         let replica_pool = replica_resource_pool.get().await?;
         let TxSenderResource(tx_sender) = input.tx_sender;
         let MempoolCacheResource(mempool_cache) = input.mempool_cache;
-        let sync_state = input.sync_state.map(|state| state.0);
+        let sync_state = input.sync_state;
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
         let l1_contracts = input.l1_contracts.0;

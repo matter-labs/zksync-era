@@ -7,7 +7,6 @@ pub mod fetcher;
 pub mod genesis;
 mod metrics;
 pub mod sync_action;
-mod sync_state;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
@@ -18,7 +17,6 @@ pub use self::{
     client::MainNodeClient,
     external_io::ExternalIO,
     sync_action::{ActionQueue, ActionQueueSender},
-    sync_state::SyncState,
 };
 
 /// Validation gas limit used by the external node.

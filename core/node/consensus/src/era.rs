@@ -7,7 +7,8 @@
 use zksync_concurrency::ctx;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::Core;
-use zksync_node_sync::{sync_action::ActionQueueSender, SyncState};
+use zksync_node_sync::sync_action::ActionQueueSender;
+use zksync_shared_di::api::SyncState;
 use zksync_web3_decl::client::{DynClient, L2};
 
 use super::{en, mn, storage::ConnectionPool};

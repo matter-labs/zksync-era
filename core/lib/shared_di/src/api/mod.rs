@@ -6,6 +6,10 @@ use tokio::sync::RwLock;
 use zksync_node_framework::Resource;
 use zksync_types::{api, Address};
 
+pub use self::sync_state::{SyncState, SyncStateData};
+
+mod sync_state;
+
 /// Shared bridge addresses.
 #[derive(Debug, Clone, Default)]
 pub struct BridgeAddressesHandle(Arc<RwLock<Option<api::BridgeAddresses>>>);

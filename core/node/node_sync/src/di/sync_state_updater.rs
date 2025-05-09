@@ -1,8 +1,10 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
+use async_trait::async_trait;
+use tokio::sync::watch;
 use zksync_dal::{
     di::{MasterPool, PoolResource},
-    ConnectionPool, Core,
+    ConnectionPool, Core, CoreDal,
 };
 use zksync_health_check::di::AppHealthCheckResource;
 use zksync_node_framework::{
@@ -11,13 +13,13 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_di::api::{SyncState, SyncStateData};
+use zksync_shared_metrics::EN_METRICS;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     di::MainNodeClientResource,
+    namespaces::EthNamespaceClient,
 };
-
-use super::resources::SyncStateResource;
-use crate::SyncState;
 
 /// Wiring layer for [`SyncState`] maintenance.
 /// If [`SyncStateResource`] is already provided by another layer, this layer does nothing.
@@ -27,7 +29,7 @@ pub struct SyncStateUpdaterLayer;
 #[derive(Debug, FromContext)]
 pub struct Input {
     /// Fetched to check whether the `SyncState` was already provided by another layer.
-    pub sync_state: Option<SyncStateResource>,
+    pub sync_state: Option<SyncState>,
     pub app_health: AppHealthCheckResource,
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
@@ -35,7 +37,9 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub sync_state: Option<SyncStateResource>,
+    #[context(task)]
+    sync_state_metrics_task: SyncStateMetricsTask,
+    pub sync_state: Option<SyncState>,
     #[context(task)]
     pub sync_state_updater: Option<SyncStateUpdater>,
 }
@@ -50,13 +54,14 @@ impl WiringLayer for SyncStateUpdaterLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        if input.sync_state.is_some() {
+        if let Some(sync_state) = &input.sync_state {
             // `SyncState` was provided by some other layer -- we assume that the layer that added this resource
             // will be responsible for its maintenance.
             tracing::info!(
                 "SyncState was provided by another layer, skipping SyncStateUpdaterLayer"
             );
             return Ok(Output {
+                sync_state_metrics_task: SyncStateMetricsTask(sync_state.subscribe()),
                 sync_state: None,
                 sync_state_updater: None,
             });
@@ -72,7 +77,8 @@ impl WiringLayer for SyncStateUpdaterLayer {
             .map_err(WiringError::internal)?;
 
         Ok(Output {
-            sync_state: Some(sync_state.clone().into()),
+            sync_state_metrics_task: SyncStateMetricsTask(sync_state.subscribe()),
+            sync_state: Some(sync_state.clone()),
             sync_state_updater: Some(SyncStateUpdater {
                 sync_state,
                 connection_pool,
@@ -95,10 +101,59 @@ impl Task for SyncStateUpdater {
         "sync_state_updater".into()
     }
 
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.sync_state
-            .run_updater(self.connection_pool, self.main_node_client, stop_receiver.0)
-            .await?;
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        const UPDATE_INTERVAL: Duration = Duration::from_secs(10);
+
+        while !*stop_receiver.0.borrow_and_update() {
+            let local_block = self
+                .connection_pool
+                .connection()
+                .await?
+                .blocks_dal()
+                .get_sealed_l2_block_number()
+                .await?;
+
+            let main_node_block = self.main_node_client.get_block_number().await?;
+
+            if let Some(local_block) = local_block {
+                self.sync_state.set_local_block(local_block);
+                self.sync_state
+                    .set_main_node_block(main_node_block.as_u32().into());
+            }
+
+            tokio::time::timeout(UPDATE_INTERVAL, stop_receiver.0.changed())
+                .await
+                .ok();
+        }
+        Ok(())
+    }
+}
+
+/// Task updating sync state-related metrics.
+#[derive(Debug)]
+struct SyncStateMetricsTask(watch::Receiver<SyncStateData>);
+
+#[async_trait]
+impl Task for SyncStateMetricsTask {
+    fn id(&self) -> TaskId {
+        "sync_state_metrics_task".into()
+    }
+
+    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        while !*stop_receiver.0.borrow() {
+            tokio::select! {
+                _ = self.0.changed() => {
+                    let data = self.0.borrow_and_update().clone();
+                    let (is_synced, lag) = data.lag();
+                    EN_METRICS.synced.set(is_synced.into());
+                    if let Some(lag) = lag {
+                        EN_METRICS.sync_lag.set(lag.into());
+                    }
+                }
+                _ = stop_receiver.0.changed() => (),
+            }
+        }
+        tracing::info!("Stop signal received, shutting down");
         Ok(())
     }
 }

@@ -12969,7 +12969,6 @@ dependencies = [
  "zksync_node_fee_model",
  "zksync_node_framework",
  "zksync_node_genesis",
- "zksync_node_sync",
  "zksync_node_test_utils",
  "zksync_object_store",
  "zksync_protobuf",
@@ -13019,6 +13018,7 @@ dependencies = [
  "zksync_node_sync",
  "zksync_node_test_utils",
  "zksync_protobuf",
+ "zksync_shared_di",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_system_constants",
@@ -13174,6 +13174,7 @@ dependencies = [
  "zksync_node_framework",
  "zksync_node_genesis",
  "zksync_node_test_utils",
+ "zksync_shared_di",
  "zksync_shared_metrics",
  "zksync_state_keeper",
  "zksync_system_constants",
@@ -13435,8 +13436,13 @@ dependencies = [
 name = "zksync_shared_di"
 version = "28.0.0-non-semver-compat"
 dependencies = [
+ "assert_matches",
+ "async-trait",
+ "serde",
  "tokio",
+ "tracing",
  "zksync_config",
+ "zksync_health_check",
  "zksync_node_framework",
  "zksync_types",
 ]

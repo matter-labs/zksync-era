@@ -18,7 +18,6 @@ zksync_consensus_roles.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_dal = { workspace = true, features = ["di"] }
-zksync_node_sync.workspace = true # FIXME: insane
 zksync_health_check = { workspace = true, features = ["di"] }
 zksync_node_fee_model.workspace = true
 zksync_object_store = { workspace = true, features = ["di"] }
