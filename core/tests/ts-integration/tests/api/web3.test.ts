@@ -183,7 +183,7 @@ describe('web3 API compatibility tests', () => {
         ['net_peerCount', [], '0x0'],
         ['net_listening', [], false],
         ['web3_clientVersion', [], 'zkSync/v2.0'],
-        ['eth_protocolVersion', [], 'zks/1'],
+        ['eth_protocolVersion', [], 'zks/0.28.0'],
         ['eth_accounts', [], []],
         ['eth_coinbase', [], '0x0000000000000000000000000000000000000000'],
         ['eth_getCompilers', [], []],

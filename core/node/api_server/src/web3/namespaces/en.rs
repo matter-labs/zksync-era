@@ -2,8 +2,10 @@ use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
-    api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
-    L2BlockNumber,
+    api::{en, ProtocolVersionInfo},
+    protocol_version::ProtocolSemanticVersion,
+    tokens::TokenInfo,
+    Address, L1BatchNumber, L2BlockNumber,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -190,5 +192,28 @@ impl EnNamespace {
             .tx_sender
             .read_whitelisted_tokens_for_aa_cache()
             .await)
+    }
+
+    pub async fn get_protocol_version_impl(
+        &self,
+        version_id: Option<u16>,
+    ) -> Result<Option<ProtocolVersionInfo>, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        let protocol_version_info = if let Some(id) = version_id {
+            storage
+                .protocol_versions_web3_dal()
+                .get_protocol_version_info_by_id(id)
+                .await
+                .map_err(DalError::generalize)?
+        } else {
+            Some(
+                storage
+                    .protocol_versions_web3_dal()
+                    .get_latest_protocol_version_info()
+                    .await
+                    .map_err(DalError::generalize)?,
+            )
+        };
+        Ok(protocol_version_info)
     }
 }

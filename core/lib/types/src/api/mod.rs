@@ -681,8 +681,7 @@ pub struct DebugCall {
     pub calls: Vec<DebugCall>,
 }
 
-// TODO (PLA-965): remove deprecated fields from the struct. It is currently in a "migration" phase
-// to keep compatibility between old and new versions.
+// TODO: remove in favour of `ProtocolVersionInfo` once all ENs have been upgraded.
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct ProtocolVersion {
     /// Minor version of the protocol
@@ -769,6 +768,27 @@ impl ProtocolVersion {
         self.l2_system_upgrade_tx_hash_new
             .or(self.l2_system_upgrade_tx_hash)
     }
+}
+
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+pub struct ProtocolVersionInfo {
+    /// Minor version of the protocol
+    #[serde(rename = "minorVersion")]
+    pub minor_version: u16,
+    /// Timestamp at which upgrade should be performed
+    pub timestamp: u64,
+    /// Bootloader code hash
+    #[serde(rename = "bootloaderCodeHash")]
+    pub bootloader_code_hash: H256,
+    /// Default account code hash
+    #[serde(rename = "defaultAccountCodeHash")]
+    pub default_account_code_hash: H256,
+    /// EVM emulator code hash
+    #[serde(rename = "evmEmulatorCodeHash")]
+    pub evm_emulator_code_hash: Option<H256>,
+    /// L2 Upgrade transaction hash
+    #[serde(rename = "l2SystemUpgradeTxHash")]
+    pub l2_system_upgrade_tx_hash: Option<H256>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

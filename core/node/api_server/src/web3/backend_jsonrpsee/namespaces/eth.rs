@@ -214,7 +214,9 @@ impl EthNamespaceServer for EthNamespace {
     }
 
     async fn protocol_version(&self) -> RpcResult<String> {
-        Ok(self.protocol_version())
+        self.protocol_version_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256> {

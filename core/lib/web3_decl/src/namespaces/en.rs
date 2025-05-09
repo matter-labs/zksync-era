@@ -1,7 +1,11 @@
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
+use zksync_types::{
+    api::{en, ProtocolVersionInfo},
+    tokens::TokenInfo,
+    Address, L2BlockNumber,
+};
 
 use crate::{
     client::{ForWeb3Network, L2},
@@ -49,4 +53,10 @@ pub trait EnNamespace {
 
     #[method(name = "getEcosystemContracts")]
     async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContractsDto>;
+
+    #[method(name = "getProtocolVersionInfo")]
+    async fn get_protocol_version_info(
+        &self,
+        version_id: Option<u16>,
+    ) -> RpcResult<Option<ProtocolVersionInfo>>;
 }

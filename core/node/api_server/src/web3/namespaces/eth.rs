@@ -26,7 +26,6 @@ use crate::{
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
-pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug)]
 pub(crate) struct EthNamespace {
@@ -649,9 +648,15 @@ impl EthNamespace {
         Ok(installed_filters.lock().await.remove(idx))
     }
 
-    pub fn protocol_version(&self) -> String {
-        // TODO (SMA-838): Versioning of our protocol
-        PROTOCOL_VERSION.to_string()
+    pub async fn protocol_version_impl(&self) -> Result<String, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        let protocol_version = storage
+            .protocol_versions_dal()
+            .latest_semantic_version()
+            .await
+            .map_err(DalError::generalize)?
+            .context("expected some version to be present in DB")?;
+        Ok(format!("zks/{protocol_version}"))
     }
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
