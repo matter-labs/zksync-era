@@ -182,6 +182,7 @@ impl UnstableNamespace {
         // sma TODO - remove
         // Root should match the one printed on `set_interop_root` log
         // see which tree is being used here
+        tracing::info!(%l2_block_number, "Getting log_proof_for_block at block number");
         println!(
             "Getting log_proof_for_block at block number {:?} with chain_merkle_tree of root {:?}",
             l2_block_number,
