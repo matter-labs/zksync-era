@@ -222,11 +222,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Install cast
-        run: |
-          curl -L https://foundry.paradigm.xyz | bash
-          foundryup
-
       - name: Start services
         run: |
           ci_localnet_up
@@ -609,7 +604,8 @@ jobs:
           echo "Server restart wait completed"
           
           echo "DA validator pair from diamond proxy"
-          cast call $(yq '.l1.diamond_proxy_addr' ./chains/era/configs/contracts.yaml) "getDAValidatorPair()(address,address)"
+          DIAMOND_PROXY_ADDR=$(yq '.l1.diamond_proxy_addr' ./chains/era/configs/contracts.yaml)
+          ci_run cast call $DIAMOND_PROXY_ADDR "getDAValidatorPair()(address,address)" --rpc-url http://localhost:8545
           
           echo "Running integration tests"
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
