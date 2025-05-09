@@ -442,13 +442,9 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    /// Runs this detector *once* checking whether there is a reorg. This method will return:
+    /// Runs this detector *once* checking whether there is a reorg.
     ///
-    /// - `Ok(())` if there is no reorg, or if a stop signal is received.
-    /// - `Err(ReorgDetected(_))` if a reorg was detected.
-    /// - `Err(_)` for fatal errors.
-    ///
-    /// Retriable errors are retried indefinitely accounting for a stop signal.
+    /// Only fatal errors are returned (incl. detected reorgs). Retriable errors are retried indefinitely accounting for a stop request.
     pub async fn run_once(
         &mut self,
         stop_receiver: watch::Receiver<bool>,
@@ -457,7 +453,7 @@ impl ReorgDetector {
     }
 
     /// Runs this detector continuously checking for a reorg until a fatal error occurs (including if a reorg is detected),
-    /// or a stop signal is received.
+    /// or a stop request is received.
     pub async fn run(
         mut self,
         stop_receiver: watch::Receiver<bool>,

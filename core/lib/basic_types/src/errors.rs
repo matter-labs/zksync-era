@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// Represents an error in a stoppable task: either an internal / fatal error, or a task getting stopped
-/// after receiving a stop signal.
+/// after receiving a stop request.
 ///
 /// The [`Error`](std::error::Error) trait is intentionally not implemented for this enum to force users
 /// to treat the `Stopped` variant with care. Depending on the application, it may not be an error.
@@ -10,7 +10,7 @@ use std::fmt;
 pub enum OrStopped<E = anyhow::Error> {
     /// Internal error.
     Internal(E),
-    /// Stop after receiving a signal.
+    /// Graceful stop after receiving the corresponding request.
     Stopped,
 }
 
@@ -18,7 +18,7 @@ impl fmt::Display for OrStopped {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Internal(err) => write!(formatter, "{err:#}"),
-            Self::Stopped => formatter.write_str("stopped by signal"),
+            Self::Stopped => formatter.write_str("gracefully stopped"),
         }
     }
 }

@@ -62,7 +62,7 @@ impl BaseTokenRatioPersister {
             }
         }
 
-        tracing::info!("Stop signal received, base_token_ratio_persister is shutting down");
+        tracing::info!("Stop request received, base_token_ratio_persister is shutting down");
         Ok(())
     }
 

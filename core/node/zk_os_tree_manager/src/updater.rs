@@ -175,7 +175,7 @@ impl TreeUpdater {
 
         loop {
             if *stop_receiver.borrow_and_update() {
-                tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                tracing::info!("Stop request received, metadata_calculator is shutting down");
                 break;
             }
 
@@ -202,7 +202,7 @@ impl TreeUpdater {
             // and the stop receiver still allows to be more responsive during shutdown.
             tokio::select! {
                 _ = stop_receiver.changed() => {
-                    tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                    tracing::info!("Stop request received, metadata_calculator is shutting down");
                     break;
                 }
                 () = delay => { /* The delay has passed */ }

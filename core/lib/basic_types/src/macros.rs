@@ -89,7 +89,7 @@ macro_rules! try_stoppable {
         match $res {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err($crate::OrStopped::Stopped) => {
-                ::tracing::info!("Stop signal was received");
+                ::tracing::info!("Stop request was received");
                 return Ok(());
             }
             ::core::result::Result::Err($crate::OrStopped::Internal(err)) => {

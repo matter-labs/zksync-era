@@ -344,7 +344,7 @@ impl ZkSyncStateKeeper {
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
-        // until we get the rest of parameters from I/O or receive a stop signal.
+        // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
             .wait_for_new_batch_params(cursor, stop_receiver)
             .await?;

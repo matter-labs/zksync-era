@@ -360,7 +360,7 @@ impl AsyncTreeRecovery {
         let mut tree = tree.into_inner();
         if *stop_receiver.borrow() {
             // Waiting for persistence is mostly useful for tests. Normally, the tree database won't be used in the same process
-            // after a stop signal is received, so there's no risk of data races with the background persistence thread.
+            // after a stop request is received, so there's no risk of data races with the background persistence thread.
             tree.wait_for_persistence().await?;
             return Err(OrStopped::Stopped);
         }

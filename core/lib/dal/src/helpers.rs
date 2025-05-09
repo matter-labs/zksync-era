@@ -30,7 +30,7 @@ pub async fn wait_for_l1_batch(
             return Ok(number);
         }
 
-        // We don't check the result: if a stop signal is received, we'll return at the start
+        // We don't check the result: if a stop request is received, we'll return at the start
         // of the next iteration.
         tokio::time::timeout(poll_interval, stop_receiver.changed())
             .await

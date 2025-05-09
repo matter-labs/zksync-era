@@ -666,7 +666,7 @@ impl ConsistencyChecker {
                     .await
                     .is_ok()
                 {
-                    tracing::info!("Stop signal received, consistency_checker is shutting down");
+                    tracing::info!("Stop request received, consistency_checker is shutting down");
                     return Ok(());
                 }
             } else {
@@ -786,7 +786,7 @@ impl ConsistencyChecker {
             }
         }
 
-        tracing::info!("Stop signal received, consistency_checker is shutting down");
+        tracing::info!("Stop request received, consistency_checker is shutting down");
         Ok(())
     }
 }
@@ -794,7 +794,7 @@ impl ConsistencyChecker {
 /// Repeatedly polls the DB until there is an L1 batch with metadata. We may not have such a batch initially
 /// if the DB is recovered from an application-level snapshot.
 ///
-/// Returns the number of the *earliest* L1 batch with metadata, or `None` if the stop signal is received.
+/// Returns the number of the *earliest* L1 batch with metadata, or `None` if a stop request is received.
 async fn wait_for_l1_batch_with_metadata(
     pool: &ConnectionPool<Core>,
     poll_interval: Duration,

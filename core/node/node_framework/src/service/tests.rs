@@ -210,7 +210,7 @@ impl Task for SuccessfulTask {
 }
 
 // `ZkStack` Service's `run()` method has to allow remaining tasks to finish,
-// after stop signal was send.
+// after a stop request was sent.
 #[derive(Debug)]
 struct RemainingTask(Arc<Barrier>, Arc<Mutex<bool>>);
 

@@ -199,11 +199,11 @@ impl KeepUpdatedTask {
                 // `unwrap()` is safe by construction
                 db.clone().unwrap()
             } else {
-                tracing::info!("Stop signal received, shutting down rocksdb updater task");
+                tracing::info!("Stop request received, shutting down rocksdb updater task");
                 return Ok(());
             },
             _ = stop_receiver.changed() => {
-                tracing::info!("Stop signal received, shutting down rocksdb updater task");
+                tracing::info!("Stop request received, shutting down rocksdb updater task");
                 return Ok(());
             }
         };

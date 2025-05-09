@@ -180,7 +180,7 @@ impl NodeStorageInitializer {
         &self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
-        // May be `true` if stop signal is received, but the node will shut down without launching any tasks anyway.
+        // May be `true` if stop request is received, but the node will shut down without launching any tasks anyway.
         let initialized = if let Some(reverter) = &self.strategy.block_reverter {
             !reverter
                 .is_reorg_needed(stop_receiver)

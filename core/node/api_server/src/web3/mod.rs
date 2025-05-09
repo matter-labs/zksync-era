@@ -749,7 +749,7 @@ impl ApiServer {
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
-                    "Stop signal sender for {transport_str} JSON-RPC server was dropped \
+                    "Stop request sender for {transport_str} JSON-RPC server was dropped \
                      without sending a signal"
                 );
             }
@@ -757,7 +757,7 @@ impl ApiServer {
                 health_updater.update(HealthStatus::ShuttingDown.into());
             }
             tracing::info!(
-                "Stop signal received, {transport_str} JSON-RPC server is shutting down"
+                "Stop request received, {transport_str} JSON-RPC server is shutting down"
             );
 
             // Wait some time until the traffic to the server stops. This may be necessary if the API server

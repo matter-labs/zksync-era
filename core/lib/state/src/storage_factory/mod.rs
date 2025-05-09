@@ -335,8 +335,8 @@ pub trait ReadStorageFactory<S = OwnedStorage>: fmt::Debug + Send + Sync + 'stat
     /// Creates a storage instance, e.g. over a Postgres connection or a RocksDB instance.
     /// The specific criteria on which one are left up to the implementation.
     ///
-    /// Implementations may be cancel-aware and return `Ok(None)` iff `stop_receiver` receives
-    /// a stop signal; this is the only case in which `Ok(None)` should be returned.
+    /// Implementations may be stop-aware and return `Err(OrStopped::Stopped)` iff `stop_receiver` receives
+    /// a stop request.
     async fn access_storage(
         &self,
         stop_receiver: &watch::Receiver<bool>,

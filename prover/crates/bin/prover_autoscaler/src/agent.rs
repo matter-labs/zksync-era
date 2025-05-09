@@ -46,10 +46,10 @@ pub async fn run_server(
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
-                    "Stop signal sender for Autoscaler agent was dropped without sending a signal"
+                    "Stop request sender for Autoscaler agent was dropped without sending a signal"
                 );
             }
-            tracing::info!("Stop signal received, Autoscaler agent is shutting down");
+            tracing::info!("Stop request received, Autoscaler agent is shutting down");
         })
         .await
         .context("Autoscaler agent failed")?;

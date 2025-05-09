@@ -78,7 +78,7 @@ impl PubSubNotifier {
                 break;
             }
         }
-        Ok(None) // we can only break from the loop if we've received a stop signal
+        Ok(None) // we can only break from the loop if we've received a stop request
     }
 
     fn emit_event(&self, event: PubSubEvent) {
@@ -94,14 +94,14 @@ impl PubSubNotifier {
             .get_starting_l2_block_number(&mut stop_receiver)
             .await?
         else {
-            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+            tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
             return Ok(());
         };
 
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+                tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
                 break;
             }
             timer.tick().await;
@@ -154,7 +154,7 @@ impl PubSubNotifier {
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, pubsub_tx_notifier is shutting down");
+                tracing::info!("Stop request received, pubsub_tx_notifier is shutting down");
                 break;
             }
             timer.tick().await;
@@ -196,14 +196,14 @@ impl PubSubNotifier {
             .get_starting_l2_block_number(&mut stop_receiver)
             .await?
         else {
-            tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
+            tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
             return Ok(());
         };
 
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
+                tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
                 break;
             }
             timer.tick().await;

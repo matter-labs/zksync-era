@@ -71,8 +71,8 @@ enum PruningIterationOutcome {
     NoOp,
     /// Iteration resulted in pruning.
     Pruned,
-    /// Pruning was interrupted because of a stop signal.
-    Interrupted,
+    /// Pruning was interrupted because of a stop request.
+    Interrupted, // FIXME: use OrStopped?
 }
 
 /// Postgres database pruning component.
@@ -354,12 +354,12 @@ impl DbPruner {
                     .await
                     .is_ok()
             {
-                // The pruner either received a stop signal, or the stop receiver was dropped. In any case,
+                // The pruner either received a stop request, or the stop receiver was dropped. In any case,
                 // the pruner should exit.
                 break;
             }
         }
-        tracing::info!("Stop signal received, shutting down DB pruning");
+        tracing::info!("Stop request received, shutting down DB pruning");
         Ok(())
     }
 }

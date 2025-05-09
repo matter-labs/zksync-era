@@ -305,7 +305,7 @@ impl BatchStatusUpdater {
             }
         }
 
-        tracing::info!("Stop signal received, exiting the batch status updater routine");
+        tracing::info!("Stop request received, exiting the batch status updater routine");
         Ok(())
     }
 

@@ -225,7 +225,7 @@ impl TestScenario {
         );
         let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
-        // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
+        // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
         let hard_timeout = Duration::from_secs(60);
         let poll_interval = Duration::from_millis(50);

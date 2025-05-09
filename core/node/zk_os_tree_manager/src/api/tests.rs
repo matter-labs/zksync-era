@@ -125,7 +125,7 @@ async fn api_client_basics() {
     let internal_node = internal_node.internal.as_ref().unwrap();
     assert!(internal_node.0.len() > 1, "{internal_node:?}");
 
-    // Check that the server reacts to a stop signal.
+    // Check that the server reacts to a stop request.
     stop_sender.send_replace(true);
     server_task.await.unwrap().unwrap();
 }
