@@ -110,12 +110,12 @@ impl WiringLayer for EthWatchLayer {
         let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client {
             SettlementLayerClient::L1(client) => Box::new(self.create_client(
                 client,
-                &input.l1_contracts.0,
+                &input.sl_contracts.0,
                 &input.l1_ecosystem_contracts.0,
             )),
             SettlementLayerClient::L2(client) => Box::new(self.create_client(
                 client,
-                &input.l1_contracts.0,
+                &input.sl_contracts.0,
                 &input.l1_ecosystem_contracts.0,
             )),
         };
