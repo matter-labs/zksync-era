@@ -206,7 +206,7 @@ impl<K: Key> Scaler<K> {
     fn normalize_queue(&self, key: K, queue: usize) -> usize {
         let speed = self.speed(key);
         // Divide and round up if there's any remainder.
-        (queue + speed - 1) / speed * speed
+        queue.div_ceil(speed) * speed
     }
 
     pub fn calculate(

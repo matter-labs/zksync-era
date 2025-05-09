@@ -362,7 +362,7 @@ impl<P: TreeParams> WorkingPatchSet<P> {
                     });
                 } else if indices_on_level
                     .get(i + 1)
-                    .map_or(false, |&next_idx| next_idx == current_idx + 1)
+                    .is_some_and(|&next_idx| next_idx == current_idx + 1)
                 {
                     i += 2;
                     // Don't get the hash, it'll be available locally.

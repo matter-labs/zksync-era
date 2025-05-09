@@ -104,7 +104,7 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
         Ok(if let Err(err) = &batch.metadata {
             // Metadata may be incomplete for very old batches on full nodes.
             let protocol_version = batch.header.protocol_version;
-            let is_old = protocol_version.map_or(true, |ver| ver.is_pre_1_4_1());
+            let is_old = protocol_version.is_none_or(|ver| ver.is_pre_1_4_1());
             if is_old {
                 tracing::info!(
                     "Error getting metadata for L1 batch #{next_l1_batch_number} \
