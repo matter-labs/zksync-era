@@ -34,6 +34,8 @@ pub struct EcosystemCreateArgs {
     pub start_containers: Option<bool>,
     #[clap(long)]
     pub update_submodules: Option<bool>,
+    #[clap(long)]
+    pub fast_compilation: bool,
 }
 
 impl EcosystemCreateArgs {
@@ -73,6 +75,7 @@ impl EcosystemCreateArgs {
             chain_args: chain.clone(),
             start_containers,
             update_submodules: self.update_submodules,
+            fast_compilation: self.fast_compilation,
         })
     }
 }
@@ -87,6 +90,7 @@ pub struct EcosystemCreateArgsFinal {
     pub chain_args: ChainCreateArgsFinal,
     pub start_containers: bool,
     pub update_submodules: Option<bool>,
+    pub fast_compilation: bool,
 }
 
 impl EcosystemCreateArgsFinal {
