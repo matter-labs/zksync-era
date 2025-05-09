@@ -222,6 +222,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      - name: Install cast
+        run: |
+          curl -L https://foundry.paradigm.xyz | bash
+          foundryup
+
       - name: Start services
         run: |
           ci_localnet_up
@@ -603,6 +608,9 @@ jobs:
           ci_run sleep 60
           echo "Server restart wait completed"
           
+          echo "DA validator pair from diamond proxy"
+          cast call $(yq '.l1.diamond_proxy_addr' ./chains/era/configs/contracts.yaml) "getDAValidatorPair()(address,address)"
+          
           echo "Running integration tests"
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             "era" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
@@ -707,7 +715,8 @@ jobs:
             --format=custom \
             --file=db_dumps/tables_dump.sql \
             --table=l1_batches \
-            --table=miniblocks
+            --table=miniblocks \
+            --table=eth_txs
 
       - name: Upload logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
