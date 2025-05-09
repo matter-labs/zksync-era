@@ -1,54 +1,56 @@
 #!/usr/bin/env bash
-
+# shellcheck disable=SC2086,SC2155
 set -o errexit
 set -o pipefail
+set -o nounset
 
-# Needs following configuration
-# URL - URL of the API endpoint
-# INTERVAL - Time interval for polling in seconds
-# TIMEOUT - Timeout of script in seconds
+# ── Required env vars ───────────────────────────────────────────────────────────
+# URL           – API endpoint to poll
+# INTERVAL      – Seconds to wait between polls
+# TIMEOUT       – Maximum seconds before the script gives up
+# DATABASE_URL  – psql connection string
+# BATCH_NUMBER  – l1_batch_number to look up in the DB
+# ────────────────────────────────────────────────────────────────────────────────
 
-# Start timer
-START_TIME=$(date +%s)
+START_TIME="$(date +%s)"
+echo "URL: ${URL}"
 
-echo "URL: $URL"
+trim() { awk '{$1=$1;print}'; }  # quick whitespace-stripper
 
-# Loop to query periodically
 while true; do
-    # Calculate the elapsed time
-    CURRENT_TIME=$(date +%s)
-    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+  # ── timeout guard ────────────────────────────────────────────────────────────
+  ELAPSED_TIME="$(( $(date +%s) - START_TIME ))"
+  if [[ "${ELAPSED_TIME}" -ge "${TIMEOUT}" ]]; then
+    echo "Timeout (${TIMEOUT}s) reached. Failing CI…"
+    exit 1
+  fi
 
-    # Check if the timeout has been reached
-    if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
-        echo "Timeout reached. Failing CI..."
-        exit 1  # Exit with non-zero status to fail CI
-    fi
+  # ── poll the API ─────────────────────────────────────────────────────────────
+  RESPONSE="$(curl --silent --request POST \
+                   --url "${URL}" \
+                   --header 'Content-Type: application/json' \
+                   --data '{
+                     "jsonrpc": "2.0",
+                     "id": 1,
+                     "method": "zks_getBlockDetails",
+                     "params": [1]
+                   }')"
 
-    # Run the curl request and capture the response
-    RESPONSE=$(curl --silent --request POST \
-        --url $URL \
-        --header 'Content-Type: application/json' \
-        --data '{
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "zks_getBlockDetails",
-            "params": [1]
-        }')
+  EXECUTED_AT="$(echo "${RESPONSE}" | jq -r '.result.executedAt')"
 
-    # Parse the executedAt field using jq
-    EXECUTED_AT=$(echo $RESPONSE | jq -r '.result.executedAt')
+  # ── always query DB so we can evaluate both conditions together ──────────────
+  DB_STATUS="$(psql "${DATABASE_URL}" -qtA \
+    -c "SELECT status FROM proof_compression_jobs_fri \
+        WHERE l1_batch_number = ${BATCH_NUMBER} LIMIT 1;" \
+    | trim)"
 
-    # Check if executedAt is not null
-    if [ "$EXECUTED_AT" != "null" ] && [ -n "$EXECUTED_AT" ]; then
-        echo "executedAt is not null: $EXECUTED_AT"
-        echo "true"
-        exit 0  # Exit with zero status to succeed CI
-    else
-        DATABASE_STATUS=$(psql $DATABASE_URL -c "SELECT status FROM proof_compression_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER;" -t -A)
-        echo "executedAt is null, database status is $DATABASE_STATUS, retrying in $INTERVAL seconds..."
-    fi
+  # ── success when *both* conditions are satisfied ────────────────────────────
+  if [[ "${EXECUTED_AT}" != "null" && -n "${EXECUTED_AT}" \
+        && "${DB_STATUS}" == "sent_to_server" ]]; then
+    echo "Success: executedAt=${EXECUTED_AT}, DB status=${DB_STATUS}"
+    exit 0
+  fi
 
-    # Wait for the next interval
-    sleep $INTERVAL
+  echo "Waiting… executedAt=${EXECUTED_AT:-null}, DB status=${DB_STATUS}. Retrying in ${INTERVAL}s."
+  sleep "${INTERVAL}"
 done
