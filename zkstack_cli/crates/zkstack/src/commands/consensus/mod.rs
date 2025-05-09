@@ -19,78 +19,66 @@ use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
-use crate::{commands::args::WaitArgs, messages, utils::consensus::read_attester_committee_yaml};
+use crate::{
+    commands::args::WaitArgs,
+    messages,
+    utils::consensus::{read_validator_committee_yaml, Validator},
+};
 
 #[allow(warnings)]
 mod abi {
     include!(concat!(env!("OUT_DIR"), "/consensus_registry_abi.rs"));
 }
 
-fn decode_attester_key(k: &abi::Secp256K1PublicKey) -> anyhow::Result<attester::PublicKey> {
-    let mut x = vec![];
-    x.extend(k.tag);
-    x.extend(k.x);
-    ByteFmt::decode(&x)
-}
-
-fn decode_weighted_attester(
-    a: &abi::CommitteeAttester,
-) -> anyhow::Result<attester::WeightedAttester> {
-    Ok(attester::WeightedAttester {
-        weight: a.weight.into(),
-        key: decode_attester_key(&a.pub_key).context("key")?,
-    })
-}
-
-fn encode_attester_key(k: &attester::PublicKey) -> abi::Secp256K1PublicKey {
-    let b: [u8; 33] = ByteFmt::encode(k).try_into().unwrap();
-    abi::Secp256K1PublicKey {
-        tag: b[0..1].try_into().unwrap(),
-        x: b[1..33].try_into().unwrap(),
-    }
-}
-
-fn encode_validator_key(k: &validator::PublicKey) -> abi::Bls12381PublicKey {
-    let b: [u8; 96] = ByteFmt::encode(k).try_into().unwrap();
-    abi::Bls12381PublicKey {
-        a: b[0..32].try_into().unwrap(),
-        b: b[32..64].try_into().unwrap(),
-        c: b[64..96].try_into().unwrap(),
-    }
-}
-
-fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::Bls12381Signature {
-    let b: [u8; 48] = ByteFmt::encode(pop).try_into().unwrap();
-    abi::Bls12381Signature {
-        a: b[0..32].try_into().unwrap(),
-        b: b[32..48].try_into().unwrap(),
-    }
-}
-
 #[derive(clap::Args, Debug)]
-#[group(required = true, multiple = false)]
-pub struct SetAttesterCommitteeCommand {
-    /// Sets the attester committee in the consensus registry contract to
-    /// `consensus.genesis_spec.attesters` in general.yaml.
-    #[clap(long)]
-    from_genesis: bool,
-    /// Sets the attester committee in the consensus registry contract to
+#[group(required = true)]
+pub struct SetValidatorCommitteeCommand {
+    /// Sets the validator committee in the consensus registry contract to
     /// the committee in the yaml file.
-    /// File format is definied in `commands/consensus/proto/mod.proto`.
+    /// File format is defined in `SetValidatorCommitteeFile` in this crate.
     #[clap(long)]
-    from_file: Option<PathBuf>,
+    from_file: PathBuf,
 }
 
 #[derive(clap::Subcommand, Debug)]
 pub enum Command {
-    /// Sets the attester committee in the consensus registry contract to
-    /// `consensus.genesis_spec.attesters` in general.yaml.
-    SetAttesterCommittee(SetAttesterCommitteeCommand),
-    /// Fetches the attester committee from the consensus registry contract.
-    GetAttesterCommittee,
-    /// Wait until the consensus registry contract is deployed to L2 and its owner has non-zero balance
-    /// (i.e., can perform operations on the registry).
+    /// Sets the validator committee in the consensus registry contract to
+    /// the committee in the yaml file.
+    /// File format is defined in `SetValidatorCommitteeFile` in this crate.
+    SetValidatorCommittee(SetValidatorCommitteeCommand),
+    /// Fetches the validator committee from the consensus registry contract.
+    GetValidatorCommittee,
+    /// Wait until the consensus registry contract is deployed to L2.
     WaitForRegistry(WaitArgs),
+}
+
+impl Command {
+    pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
+        let setup = Setup::new(shell).await?;
+        match self {
+            Self::SetValidatorCommittee(opts) => {
+                let (want, validators) = setup
+                    .read_validator_committee_file(&opts)
+                    .context("read_validator_committee()")?;
+                setup.set_validator_committee(validators).await?;
+                let got = setup.get_validator_committee().await?;
+                anyhow::ensure!(
+                    got == want,
+                    messages::msg_setting_validator_committee_failed(&got, &want)
+                );
+                print_validators(&got);
+            }
+            Self::GetValidatorCommittee => {
+                let got = setup.get_validator_committee().await?;
+                print_validators(&got);
+            }
+            Self::WaitForRegistry(args) => {
+                let verbose = global_config().verbose;
+                setup.wait_for_registry_contract(&args, verbose).await?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Collection of sent transactions.
@@ -132,25 +120,44 @@ impl TxSet {
     }
 }
 
-fn print_attesters(committee: &attester::Committee) {
-    logger::success(
-        committee
-            .iter()
-            .map(|a| format!("{a:?}"))
-            .collect::<Vec<_>>()
-            .join("\n"),
-    );
-}
-
 struct Setup {
     chain: zkstack_cli_config::ChainConfig,
     contracts: zkstack_cli_config::ContractsConfig,
     l2_chain_id: L2ChainId,
     l2_http_url: String,
-    genesis_attesters: attester::Committee,
 }
 
 impl Setup {
+    async fn new(shell: &Shell) -> anyhow::Result<Self> {
+        let ecosystem_config =
+            EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
+        let chain = ecosystem_config
+            .load_current_chain()
+            .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
+        let contracts = chain
+            .get_contracts_config()
+            .context("get_contracts_config()")?;
+        let l2_chain_id = chain
+            .get_genesis_config()
+            .await
+            .context("get_genesis_config()")?
+            .l2_chain_id()
+            .context("l2_chain_id()")?;
+        let l2_http_url = chain
+            .get_general_config()
+            .await
+            .context("get_general_config()")?
+            .l2_http_url()
+            .context("l2_http_url()")?;
+
+        Ok(Self {
+            chain,
+            contracts,
+            l2_chain_id,
+            l2_http_url,
+        })
+    }
+
     fn provider(&self) -> anyhow::Result<Provider<Http>> {
         let l2_url = &self.l2_http_url;
         Provider::try_from(l2_url).with_context(|| format!("Provider::try_from({l2_url})"))
@@ -188,41 +195,6 @@ impl Setup {
         Ok(Arc::new(signer))
     }
 
-    async fn new(shell: &Shell) -> anyhow::Result<Self> {
-        let ecosystem_config =
-            EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
-        let chain = ecosystem_config
-            .load_current_chain()
-            .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
-        let contracts = chain
-            .get_contracts_config()
-            .context("get_contracts_config()")?;
-        let l2_chain_id = chain
-            .get_genesis_config()
-            .await
-            .context("get_genesis_config()")?
-            .l2_chain_id()?;
-
-        let general = chain
-            .get_general_config()
-            .await
-            .context("get_general_config()")?;
-        // We're getting a parent path here, since we need object input with the `attesters` array
-        let genesis_attesters = general
-            .raw_consensus_genesis_spec()
-            .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?
-            .clone();
-        let genesis_attesters = read_attester_committee_yaml(genesis_attesters)?;
-
-        Ok(Self {
-            chain,
-            contracts,
-            l2_chain_id,
-            l2_http_url: general.l2_http_url()?,
-            genesis_attesters,
-        })
-    }
-
     fn consensus_registry_addr(&self) -> anyhow::Result<Address> {
         self.contracts
             .l2
@@ -238,6 +210,15 @@ impl Setup {
         Ok(abi::ConsensusRegistry::new(addr, m))
     }
 
+    fn read_validator_committee_file(
+        &self,
+        opts: &SetValidatorCommitteeCommand,
+    ) -> anyhow::Result<(validator::Committee, Vec<Validator>)> {
+        let yaml = std::fs::read_to_string(opts.from_file.clone()).context("read_to_string()")?;
+        let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
+        read_validator_committee_yaml(yaml)
+    }
+
     async fn last_block(&self, m: &(impl 'static + Middleware)) -> anyhow::Result<BlockId> {
         Ok(m.get_block_number()
             .await
@@ -245,35 +226,16 @@ impl Setup {
             .into())
     }
 
-    async fn get_attester_committee(&self) -> anyhow::Result<attester::Committee> {
-        let provider = Arc::new(self.provider()?);
-        let consensus_registry = self
-            .consensus_registry(provider)
-            .context("consensus_registry()")?;
-        let attesters = consensus_registry
-            .get_attester_committee()
-            .call()
-            .await
-            .context("get_attester_committee()")?;
-        let attesters: Vec<_> = attesters
-            .iter()
-            .map(decode_weighted_attester)
-            .collect::<Result<_, _>>()
-            .context("decode_weighted_attester()")?;
-        attester::Committee::new(attesters.into_iter()).context("attester::Committee::new()")
-    }
-
-    fn read_attester_committee(
+    async fn wait_for_registry_contract(
         &self,
-        opts: &SetAttesterCommitteeCommand,
-    ) -> anyhow::Result<attester::Committee> {
-        // Fetch the desired state.
-        if let Some(path) = &opts.from_file {
-            let yaml = std::fs::read_to_string(path).context("read_to_string()")?;
-            let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
-            return read_attester_committee_yaml(yaml);
-        }
-        Ok(self.genesis_attesters.clone())
+        args: &WaitArgs,
+        verbose: bool,
+    ) -> anyhow::Result<()> {
+        args.poll_with_timeout(
+            messages::MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT,
+            self.wait_for_registry_contract_inner(args, verbose),
+        )
+        .await
     }
 
     async fn wait_for_registry_contract_inner(
@@ -345,21 +307,27 @@ impl Setup {
         Ok(())
     }
 
-    async fn wait_for_registry_contract(
-        &self,
-        args: &WaitArgs,
-        verbose: bool,
-    ) -> anyhow::Result<()> {
-        args.poll_with_timeout(
-            messages::MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT,
-            self.wait_for_registry_contract_inner(args, verbose),
-        )
-        .await
+    async fn get_validator_committee(&self) -> anyhow::Result<validator::Committee> {
+        let provider = Arc::new(self.provider()?);
+        let consensus_registry = self
+            .consensus_registry(provider)
+            .context("consensus_registry()")?;
+        let validators = consensus_registry
+            .get_validator_committee()
+            .call()
+            .await
+            .context("get_validator_committee()")?;
+        let validators: Vec<_> = validators
+            .iter()
+            .map(decode_weighted_validator)
+            .collect::<Result<_, _>>()
+            .context("decode_weighted_validator()")?;
+        validator::Committee::new(validators.into_iter()).context("validator::Committee::new()")
     }
 
-    async fn set_attester_committee(&self, want: &attester::Committee) -> anyhow::Result<()> {
+    async fn set_validator_committee(&self, validators: Vec<Validator>) -> anyhow::Result<()> {
         if global_config().verbose {
-            logger::debug(format!("Setting attester committee: {want:?}"));
+            logger::debug(format!("Setting validator committee: {validators:?}"));
         }
 
         let provider = self.provider().context("provider()")?;
@@ -451,34 +419,38 @@ impl Setup {
 
         // Update the state.
         let mut txs = TxSet::default();
-        let mut to_insert: HashMap<_, _> = want.iter().map(|a| (a.key.clone(), a.weight)).collect();
+        let mut to_insert: HashMap<_, _> = validators
+            .iter()
+            .map(|a| (a.key.clone(), (a.pop.clone(), a.weight)))
+            .collect();
+
         for (i, node) in nodes.into_iter().enumerate() {
-            if node.attester_latest.removed {
+            if node.validator_latest.removed {
                 continue;
             }
 
             let node_owner = node_owners[i];
-            let got = attester::WeightedAttester {
-                key: decode_attester_key(&node.attester_latest.pub_key)
-                    .context("decode_attester_key()")?,
-                weight: node.attester_latest.weight.into(),
+            let got = validator::WeightedValidator {
+                key: decode_validator_key(&node.validator_latest.pub_key)
+                    .context("decode_validator_key()")?,
+                weight: node.validator_latest.weight.into(),
             };
 
-            if let Some(weight) = to_insert.remove(&got.key) {
+            if let Some((_pop, weight)) = to_insert.remove(&got.key) {
                 if weight != got.weight {
                     txs.send(
                         format!(
-                            "change_attester_weight({node_owner:?}, {} -> {weight})",
+                            "change_validator_weight({node_owner:?}, {} -> {weight})",
                             got.weight
                         ),
-                        consensus_registry.change_attester_weight(
+                        consensus_registry.change_validator_weight(
                             node_owners[i],
                             weight.try_into().context("weight overflow")?,
                         ),
                     )
                     .await?;
                 }
-                if !node.attester_latest.active {
+                if !node.validator_latest.active {
                     txs.send(
                         format!("activate({node_owner:?})"),
                         consensus_registry.activate(node_owner),
@@ -493,24 +465,26 @@ impl Setup {
                 .await?;
             }
         }
-        for (key, weight) in to_insert {
-            let vk = validator::SecretKey::generate();
+
+        for (key, (pop, weight)) in to_insert {
+            // We are inserting dummy attester keys here since we won't use them.
+            let ak = attester::SecretKey::generate();
             txs.send(
                 format!("add({key:?}, {weight})"),
                 consensus_registry.add(
                     Address::random(),
-                    /*validator_weight=*/ 1,
-                    encode_validator_key(&vk.public()),
-                    encode_validator_pop(&vk.sign_pop()),
                     weight.try_into().context("overflow")?,
-                    encode_attester_key(&key),
+                    encode_validator_key(&key),
+                    encode_validator_pop(&pop),
+                    1,
+                    encode_attester_key(&ak.public()),
                 ),
             )
             .await?;
         }
         txs.send(
-            "commit_attester_committee".to_owned(),
-            consensus_registry.commit_attester_committee(),
+            "commit_validator_committee".to_owned(),
+            consensus_registry.commit_validator_committee(),
         )
         .await?;
         txs.wait(&provider).await.context("wait()")?;
@@ -518,31 +492,54 @@ impl Setup {
     }
 }
 
-impl Command {
-    pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
-        let setup = Setup::new(shell).await?;
-        match self {
-            Self::SetAttesterCommittee(opts) => {
-                let want = setup
-                    .read_attester_committee(&opts)
-                    .context("read_attester_committee()")?;
-                setup.set_attester_committee(&want).await?;
-                let got = setup.get_attester_committee().await?;
-                anyhow::ensure!(
-                    got == want,
-                    messages::msg_setting_attester_committee_failed(&got, &want)
-                );
-                print_attesters(&got);
-            }
-            Self::GetAttesterCommittee => {
-                let got = setup.get_attester_committee().await?;
-                print_attesters(&got);
-            }
-            Self::WaitForRegistry(args) => {
-                let verbose = global_config().verbose;
-                setup.wait_for_registry_contract(&args, verbose).await?;
-            }
-        }
-        Ok(())
+fn encode_attester_key(k: &attester::PublicKey) -> abi::Secp256K1PublicKey {
+    let b: [u8; 33] = ByteFmt::encode(k).try_into().unwrap();
+    abi::Secp256K1PublicKey {
+        tag: b[0..1].try_into().unwrap(),
+        x: b[1..33].try_into().unwrap(),
     }
+}
+
+fn encode_validator_key(k: &validator::PublicKey) -> abi::Bls12381PublicKey {
+    let b: [u8; 96] = ByteFmt::encode(k).try_into().unwrap();
+    abi::Bls12381PublicKey {
+        a: b[0..32].try_into().unwrap(),
+        b: b[32..64].try_into().unwrap(),
+        c: b[64..96].try_into().unwrap(),
+    }
+}
+
+fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::Bls12381Signature {
+    let b: [u8; 48] = ByteFmt::encode(pop).try_into().unwrap();
+    abi::Bls12381Signature {
+        a: b[0..32].try_into().unwrap(),
+        b: b[32..48].try_into().unwrap(),
+    }
+}
+
+fn decode_validator_key(k: &abi::Bls12381PublicKey) -> anyhow::Result<validator::PublicKey> {
+    let mut x = vec![];
+    x.extend(k.a);
+    x.extend(k.b);
+    x.extend(k.c);
+    ByteFmt::decode(&x)
+}
+
+fn decode_weighted_validator(
+    v: &abi::CommitteeValidator,
+) -> anyhow::Result<validator::WeightedValidator> {
+    Ok(validator::WeightedValidator {
+        weight: v.weight.into(),
+        key: decode_validator_key(&v.pub_key).context("key")?,
+    })
+}
+
+fn print_validators(committee: &validator::Committee) {
+    logger::success(
+        committee
+            .iter()
+            .map(|a| format!("{a:?}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
 }

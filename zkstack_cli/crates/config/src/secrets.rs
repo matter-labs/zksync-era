@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use url::Url;
 use xshell::Shell;
 use zkstack_cli_common::db::DatabaseConfig;
+use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_roles::{node, validator};
 
 use crate::{
     da::AvailSecrets,
@@ -12,8 +14,16 @@ use crate::{
 #[derive(Debug)]
 pub struct RawConsensusKeys {
     pub validator: String,
-    pub attester: String,
     pub node: String,
+}
+
+impl RawConsensusKeys {
+    pub fn generate() -> Self {
+        Self {
+            validator: validator::SecretKey::generate().encode(),
+            node: node::SecretKey::generate().encode(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -83,8 +93,6 @@ impl SecretsConfigPatch {
     pub fn set_consensus_keys(&mut self, consensus_keys: RawConsensusKeys) -> anyhow::Result<()> {
         self.0
             .insert("consensus.validator_key", consensus_keys.validator)?;
-        self.0
-            .insert("consensus.attester_key", consensus_keys.attester)?;
         self.0.insert("consensus.node_key", consensus_keys.node)
     }
 

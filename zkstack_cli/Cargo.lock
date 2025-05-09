@@ -6633,6 +6633,8 @@ dependencies = [
  "zkstack_cli_common",
  "zkstack_cli_types",
  "zksync_basic_types",
+ "zksync_consensus_crypto",
+ "zksync_consensus_roles",
  "zksync_system_constants",
 ]
 
