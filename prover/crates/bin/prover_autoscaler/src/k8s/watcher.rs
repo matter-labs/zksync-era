@@ -96,7 +96,7 @@ impl Watcher {
                         tracing::info!("Running periodic pod cleanup task...");
                         let namespaces: Vec<NamespaceName> = get_namespaces(&cluster).await;
 
-                        for ns_name in namespaces{
+                        for ns_name in namespaces {
                             let pods_api: Api<api::core::v1::Pod> =
                                 Api::namespaced(client.clone(), ns_name.to_str());
                             match pods_api.list(&ListParams::default()).await {
