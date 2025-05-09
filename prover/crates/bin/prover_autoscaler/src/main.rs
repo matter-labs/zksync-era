@@ -77,6 +77,7 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = vec![];
 
     let http_client = HttpClient::default();
+
     match opt.job {
         AutoscalerType::Agent => {
             tracing::info!("Starting ProverAutoscaler Agent");
