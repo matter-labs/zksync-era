@@ -23,6 +23,8 @@
     clippy::doc_markdown
 )]
 
+#[cfg(feature = "di")]
+pub mod di;
 mod factory;
 mod file;
 mod gcs;

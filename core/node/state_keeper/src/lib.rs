@@ -11,6 +11,7 @@ pub use self::{
     updates::UpdatesManager,
 };
 
+pub mod di;
 pub mod executor;
 mod health;
 pub mod io;

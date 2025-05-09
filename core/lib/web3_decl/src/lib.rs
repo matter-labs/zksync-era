@@ -8,6 +8,8 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 pub mod client;
+#[cfg(feature = "di")]
+pub mod di;
 pub mod error;
 pub mod namespaces;
 pub mod types;

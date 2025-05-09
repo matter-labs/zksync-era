@@ -26,6 +26,7 @@ use crate::event_processors::{
 };
 
 mod client;
+pub mod di;
 mod event_processors;
 mod metrics;
 #[cfg(test)]

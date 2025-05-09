@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 use tokio::sync::oneshot;
-use zksync_dal::{ConnectionPoolBuilder, Core, CoreDal};
-use zksync_db_connection::connection_pool::TestTemplate;
+use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_genesis::{insert_genesis_batch, GenesisBatchParams, GenesisParams};
@@ -56,10 +55,7 @@ impl TestEnvironment {
 
         // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
         // in the network.
-        let test_db: ConnectionPoolBuilder<Core> =
-            TestTemplate::empty().unwrap().create_db(100).await.unwrap();
-        let connection_pool = test_db.build().await.unwrap();
-        // let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
+        let connection_pool = ConnectionPool::test_pool().await;
         let mut storage = connection_pool.connection().await.unwrap();
         let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await

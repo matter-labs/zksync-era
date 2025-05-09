@@ -14,6 +14,8 @@ use tokio::sync::watch;
 
 use crate::metrics::{AppHealthCheckConfig, CheckResult, METRICS};
 
+#[cfg(feature = "di")]
+pub mod di;
 mod metrics;
 
 #[cfg(test)]

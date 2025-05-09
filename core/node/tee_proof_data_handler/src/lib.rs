@@ -12,6 +12,7 @@ use zksync_tee_prover_interface::api::{
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
+pub mod di;
 mod errors;
 mod metrics;
 mod tee_request_processor;

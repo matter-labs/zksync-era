@@ -7,6 +7,7 @@ use zksync_types::L1BatchNumber;
 
 pub use crate::traits::{InitializeStorage, RevertStorage};
 
+pub mod di;
 pub mod external_node;
 pub mod main_node;
 mod traits;

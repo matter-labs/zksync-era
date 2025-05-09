@@ -20,6 +20,7 @@ pub use crate::{
 };
 
 mod client;
+pub mod di;
 mod errors;
 mod metrics;
 mod processor;

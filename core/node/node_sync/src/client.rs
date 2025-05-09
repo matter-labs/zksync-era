@@ -4,7 +4,6 @@ use std::fmt;
 
 use async_trait::async_trait;
 use zksync_config::GenesisConfig;
-use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     api::{self, en},
@@ -146,33 +145,5 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .with_arg("number", &number)
             .with_arg("with_transactions", &with_transactions)
             .await
-    }
-}
-
-/// Main node health check.
-#[derive(Debug)]
-pub struct MainNodeHealthCheck(Box<DynClient<L2>>);
-
-impl From<Box<DynClient<L2>>> for MainNodeHealthCheck {
-    fn from(client: Box<DynClient<L2>>) -> Self {
-        Self(client.for_component("main_node_health_check"))
-    }
-}
-
-#[async_trait]
-impl CheckHealth for MainNodeHealthCheck {
-    fn name(&self) -> &'static str {
-        "main_node_http_rpc"
-    }
-
-    async fn check_health(&self) -> Health {
-        if let Err(err) = self.0.get_block_number().await {
-            tracing::warn!("Health-check call to main node HTTP RPC failed: {err}");
-            let details = serde_json::json!({
-                "error": err.to_string(),
-            });
-            return Health::from(HealthStatus::NotReady).with_details(details);
-        }
-        HealthStatus::Ready.into()
     }
 }

@@ -2,7 +2,6 @@
 
 use std::{slice, sync::Arc, time::Duration};
 
-use zksync_base_token_adjuster::NoOpRatioProvider;
 use zksync_config::{
     configs::{chain::StateKeeperConfig, wallets::Wallets},
     GasAdjusterConfig,
@@ -21,7 +20,7 @@ use zksync_multivm::{
 };
 use zksync_node_fee_model::{
     l1_gas_price::{GasAdjuster, GasAdjusterClient},
-    MainNodeFeeInputProvider,
+    MainNodeFeeInputProvider, NoOpRatioProvider,
 };
 use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::{

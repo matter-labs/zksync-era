@@ -23,6 +23,7 @@ use self::{
     },
 };
 
+pub mod di;
 mod metrics;
 mod prune_conditions;
 #[cfg(test)]
