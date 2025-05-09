@@ -61,6 +61,26 @@ curl -X POST http://localhost:4041/users \
            "address": "0x4f9133d1d3f50011a6859807c837bdcb31aaab13",
            "secret": "sososecret"
          }'
+```
 
+## Using the rpc
+
+```bash
+
+HOST="http://localhost:4041"
+TOKEN="<your-access-token>"
+ADDRESS="0x4f9133d1d3f50011a6859807c837bdcb31aaab13"
+
+curl -X POST "${HOST}/rpc/${TOKEN}" \
+     -H "Content-Type: application/json" \
+     --data '{
+       "jsonrpc":"2.0",
+       "method":"eth_getBalance",
+       "params":[
+         "'"${ADDRESS}"'",
+         "latest"
+       ],
+       "id":1
+     }'
 
 ```
