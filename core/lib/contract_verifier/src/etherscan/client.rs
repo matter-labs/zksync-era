@@ -81,7 +81,7 @@ impl EtherscanClient {
         Duration::from_secs(60)
     }
 
-    async fn post<'a, T>(
+    async fn post<T>(
         &self,
         module: EtherscanModule,
         action: EtherscanAction,
