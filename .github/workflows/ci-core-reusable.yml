@@ -552,7 +552,46 @@ jobs:
           ci_run sleep 100
           echo "Server restart wait completed"
           
-          echo "Updating DA valdiator addresses on L1"
+          echo "Checking database query before updating DA validator addresses on L1..."
+          # Database connection string
+          DB_CONN="postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+          # Maximum number of attempts (5 minutes / 30 seconds = 10 attempts)
+          MAX_ATTEMPTS=10
+          # Counter for attempts
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            RESULT=$(psql "$DB_CONN" -t -c "
+              select count(*) > 0
+              from l1_batches
+              where (select pubdata_type
+                     from miniblocks
+                     where l1_batch_number = l1_batches.number
+                     order by miniblocks.number
+                     limit 1) = 'Rollup'
+                and eth_commit_tx_id is null
+                and number > 0;
+            " | tr -d '[:space:]')
+          
+            echo "Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS: Query returned '$RESULT'"
+          
+            if [ "$RESULT" = "f" ]; then
+              echo "Success! Query returned 0 (false)"
+              break
+            fi
+          
+            ATTEMPT=$((ATTEMPT+1))
+          
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Waiting 30 seconds before next attempt..."
+              sleep 30
+            else
+              echo "Failed: Query did not return 0 after 5 minutes. Failing the build."
+              exit 1
+            fi
+          done
+          
+          echo "Updating DA validator addresses on L1"
           ci_run zkstack chain set-da-validator-pair
           
           echo "Disabling inclusion verification transition"
