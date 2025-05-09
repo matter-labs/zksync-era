@@ -120,9 +120,9 @@ impl StateDiffRecord {
 
     /// compression follows the following algorithm:
     /// 1. if repeated write:
-    ///      entry <- enumeration_index || compressed value
+    ///    entry <- enumeration_index || compressed value
     /// 2. if initial write:
-    ///      entry <- blake2(bytes32(address), key) || compressed value
+    ///    entry <- blake2(bytes32(address), key) || compressed value
     ///
     /// size:
     /// - initial:  max of 65 bytes
@@ -131,7 +131,7 @@ impl StateDiffRecord {
     pub fn compress(&self) -> Vec<u8> {
         let mut comp_state_diff = match self.enumeration_index {
             0 => self.derived_key.to_vec(),
-            enumeration_index if enumeration_index <= u32::MAX.into() => {
+            enumeration_index if enumeration_index <= (u32::MAX as u64) => {
                 (self.enumeration_index as u32).to_be_bytes().to_vec()
             }
             enumeration_index => panic!("enumeration_index is too large: {}", enumeration_index),

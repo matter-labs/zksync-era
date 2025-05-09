@@ -43,52 +43,6 @@ impl EnNamespace {
         )))
     }
 
-    pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let mut conn = self.state.acquire_connection().await?;
-        let Some(cfg) = conn
-            .consensus_dal()
-            .global_config()
-            .await
-            .context("global_config()")?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(en::ConsensusGenesis(
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(&cfg.genesis, serde_json::value::Serializer)
-                .unwrap(),
-        )))
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub async fn attestation_status_impl(
-        &self,
-    ) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let Some(status) = self
-            .state
-            .acquire_connection()
-            .await?
-            // unwrap is ok, because we start outermost transaction.
-            .transaction_builder()
-            .unwrap()
-            // run readonly transaction to perform consistent reads.
-            .set_readonly()
-            .build()
-            .await
-            .context("TransactionBuilder::build()")?
-            .consensus_dal()
-            .attestation_status()
-            .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(en::AttestationStatus(
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(&status, serde_json::value::Serializer)
-                .unwrap(),
-        )))
-    }
-
     #[tracing::instrument(skip(self))]
     pub async fn block_metadata_impl(
         &self,

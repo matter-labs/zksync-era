@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::runtime::Handle;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 use zksync_state::PostgresStorage;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{ethabi, fee::Fee, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256};
@@ -46,7 +46,7 @@ impl VM {
     pub async fn call<F: abi::Function>(
         &self,
         ctx: &ctx::Ctx,
-        batch: attester::BatchNumber,
+        block_number: validator::BlockNumber,
         address: abi::Address<F::Contract>,
         call: abi::Call<F>,
     ) -> ctx::Result<F::Outputs> {
@@ -68,9 +68,10 @@ impl VM {
 
         let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
         let (block_info, fee_input) = conn
-            .vm_block_info(ctx, batch)
+            .vm_block_info(ctx, block_number)
             .await
             .wrap("vm_block_info()")?;
+
         let env = ctx
             .wait(
                 self.options
@@ -78,6 +79,7 @@ impl VM {
             )
             .await?
             .context("to_env()")?;
+
         let storage = ctx
             .wait(PostgresStorage::new_async(
                 Handle::current(),

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
@@ -831,7 +831,7 @@ impl<H: HistoryMode> HistoryRecorder<TransientStorageWrapper, H> {
 
 #[cfg(test)]
 mod tests {
-    use zk_evm_1_5_0::{aux_structures::Timestamp, vm_state::PrimitiveValue};
+    use zk_evm_1_5_2::{aux_structures::Timestamp, vm_state::PrimitiveValue};
     use zksync_types::U256;
 
     use crate::vm_latest::{

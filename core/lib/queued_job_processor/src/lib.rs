@@ -64,7 +64,7 @@ pub trait JobProcessor: Sync + Send {
         Self: Sized,
     {
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
-        while iterations_left.map_or(true, |i| i > 0) {
+        while iterations_left.is_none_or(|i| i > 0) {
             if *stop_receiver.borrow() {
                 tracing::warn!(
                     "Stop signal received, shutting down {} component while waiting for a new job",

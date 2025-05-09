@@ -179,7 +179,9 @@ pub(crate) fn apply_pubdata_to_memory(
 
             (l1_messenger_pubdata_start_slot, pubdata)
         }
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => {
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles => {
             // Skipping the first slot as it will be filled by the bootloader itself:
             // It is for the selector of the call to the L1Messenger.
             let l1_messenger_pubdata_start_slot =
@@ -214,10 +216,10 @@ pub(crate) fn apply_pubdata_to_memory(
 /// # Current layout
 ///
 /// - 0 byte (MSB): server-side tx execution mode
-///     In the server, we may want to execute different parts of the transaction in the different context
-///     For example, when checking validity, we don't want to actually execute transaction and have side effects.
+///   In the server, we may want to execute different parts of the transaction in the different context
+///   For example, when checking validity, we don't want to actually execute transaction and have side effects.
 ///
-///     Possible values:
+///   Possible values:
 ///     - 0x00: validate & execute (normal mode)
 ///     - 0x02: execute but DO NOT validate
 ///

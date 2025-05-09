@@ -206,7 +206,7 @@ impl<K: Key> Scaler<K> {
     fn normalize_queue(&self, key: K, queue: usize) -> usize {
         let speed = self.speed(key);
         // Divide and round up if there's any remainder.
-        (queue + speed - 1) / speed * speed
+        queue.div_ceil(speed) * speed
     }
 
     pub fn calculate(
@@ -224,7 +224,9 @@ impl<K: Key> Scaler<K> {
 
         // Increase queue size, if it's too small, to make sure that required min_replicas are
         // running.
-        let queue: usize = if self.config.apply_min_to_namespace == Some(namespace.clone()) {
+        let queue: usize = if self.config.apply_min_to_namespace == Some(namespace.clone())
+            && self.min_replicas > 0
+        {
             self.normalize_queue(K::default(), queue)
                 .max(self.pods_to_speed(K::default(), self.min_replicas))
         } else {
@@ -248,19 +250,23 @@ impl<K: Key> Scaler<K> {
         }
 
         // Remove unneeded pods.
-        // Note: K::default() provides suboptimal result on low load and big difference between
-        // speed of different keys. But that very rare case, so can be ignored for now.
-        if (total as usize) > self.normalize_queue(K::default(), queue) {
+        if (total as usize) > queue {
             for cluster in sorted_clusters.iter().rev() {
-                let mut excess_queue = total as usize - self.normalize_queue(cluster.key, queue);
-                let mut excess_replicas = excess_queue / self.speed(cluster.key);
+                let mut excess_queue = total - self.normalize_queue(cluster.key, queue) as i64;
+                if excess_queue <= 0 {
+                    continue;
+                }
+                let mut excess_replicas = excess_queue as usize / self.speed(cluster.key);
                 let replicas = pods.entry(cluster.to_key()).or_default();
+                if *replicas == 0 {
+                    continue;
+                }
                 if *replicas < excess_replicas {
                     excess_replicas = *replicas;
-                    excess_queue = *replicas * self.speed(cluster.key);
+                    excess_queue = (*replicas * self.speed(cluster.key)) as i64;
                 }
                 *replicas -= excess_replicas;
-                total -= excess_queue as i64;
+                total -= excess_queue;
                 if total <= 0 {
                     break;
                 };
@@ -552,6 +558,182 @@ mod tests {
             ]
             .into(),
             "Preserve running"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_calculate_h100() {
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [
+                (
+                    "foo".into(),
+                    [(GpuKey(Gpu::L4), 0), (GpuKey(Gpu::H100), 100)].into(),
+                ),
+                (
+                    "bar".into(),
+                    [(GpuKey(Gpu::L4), 0), (GpuKey(Gpu::H100), 100)].into(),
+                ),
+            ]
+            .into(),
+            [
+                (GpuKey(Gpu::L4), 1500),
+                (GpuKey(Gpu::H100), 4000),
+                (GpuKey(Gpu::T4), 700),
+            ]
+            .into(),
+            scaler_config("prover"),
+        );
+
+        assert_eq!(
+            scaler.calculate(
+                &"prover".into(),
+                6308,
+                &Clusters {
+                    clusters: [
+                        (
+                            "foo".into(),
+                            Cluster {
+                                name: "foo".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments:
+                                            [
+                                                (
+                                                    "circuit-prover-gpu".into(),
+                                                    Deployment::default()
+                                                ),
+                                                (
+                                                    "circuit-prover-gpu-h100".into(),
+                                                    Deployment::default(),
+                                                ),
+                                                (
+                                                    "circuit-prover-gpu-t4".into(),
+                                                    Deployment::default(),
+                                                ),
+                                            ]
+                                            .into(),
+                                        pods: [
+                                            (
+                                                "circuit-prover-gpu-h100-7c5f8fc747-gmtcr".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                            (
+                                                "circuit-prover-gpu-h100-7c5f8fc747-gmtc1".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                            (
+                                                "circuit-prover-gpu-h100-7c5f8fc747-gmtc2".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                            (
+                                                "circuit-prover-gpu-t4-7c5f8fc747-gmtc2".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                        ]
+                                        .into(),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                            },
+                        ),
+                        (
+                            "bar".into(),
+                            Cluster {
+                                name: "bar".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments:
+                                            [
+                                                (
+                                                    "circuit-prover-gpu".into(),
+                                                    Deployment::default()
+                                                ),
+                                                (
+                                                    "circuit-prover-gpu-h100".into(),
+                                                    Deployment::default(),
+                                                ),
+                                                (
+                                                    "circuit-prover-gpu-t4".into(),
+                                                    Deployment::default(),
+                                                ),
+                                            ]
+                                            .into(),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                            },
+                        )
+                    ]
+                    .into(),
+                    ..Default::default()
+                },
+            ),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    0,
+                ),
+                (
+                    PoolKey {
+                        cluster: "bar".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    0,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    2,
+                ),
+                (
+                    PoolKey {
+                        cluster: "bar".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    0,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::T4),
+                    },
+                    0,
+                ),
+                (
+                    PoolKey {
+                        cluster: "bar".into(),
+                        key: GpuKey(Gpu::T4),
+                    },
+                    0,
+                ),
+            ]
+            .into(),
+            "Running 2 H100"
         );
     }
 

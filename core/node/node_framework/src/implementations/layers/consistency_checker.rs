@@ -1,5 +1,4 @@
 use zksync_consistency_checker::ConsistencyChecker;
-use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     implementations::resources::{
@@ -19,7 +18,6 @@ use crate::{
 #[derive(Debug)]
 pub struct ConsistencyCheckerLayer {
     max_batches_to_recheck: u32,
-    commitment_mode: L1BatchCommitmentMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -41,13 +39,9 @@ pub struct Output {
 }
 
 impl ConsistencyCheckerLayer {
-    pub fn new(
-        max_batches_to_recheck: u32,
-        commitment_mode: L1BatchCommitmentMode,
-    ) -> ConsistencyCheckerLayer {
+    pub fn new(max_batches_to_recheck: u32) -> ConsistencyCheckerLayer {
         Self {
             max_batches_to_recheck,
-            commitment_mode,
         }
     }
 }
@@ -69,8 +63,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
             settlement_layer_client.into(),
             self.max_batches_to_recheck,
             singleton_pool,
-            self.commitment_mode,
-            input.settlement_mode.0,
+            input.settlement_mode.settlement_layer(),
         )
         .await
         .map_err(WiringError::Internal)?

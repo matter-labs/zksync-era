@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Configuration
+# DATABASE_URL - The URL of the prover database to connect to
+# BATCH_NUMBER - The batch number to check readiness for
+# INTERVAL - Time interval for polling in seconds
+# TIMEOUT - Timeout of script in seconds
+
+# Start timer
+START_TIME=$(date +%s)
+
+# Loop to query periodically
+while true; do
+    # Calculate the elapsed time
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+    # Check if the timeout has been reached
+    if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+        echo "Timeout reached. Precompiles are not presented in l1_batch $BATCH_NUMBER. Failing CI..."
+        exit 1  # Exit with non-zero status to fail CI
+    fi
+
+    # Run the SQL query and capture the result
+    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM transactions WHERE contract_address IN ('\x0000000000000000000000000000000000000005','\x0000000000000000000000000000000000000006','\x0000000000000000000000000000000000000007','\x0000000000000000000000000000000000000008') AND l1_batch_number = $BATCH_NUMBER;" -t -A)
+
+    # We submit 7 txs to the precompiles, expecting all of them to be included in l1_batch 1.
+    if [ "$RESULT" -eq 7 ]; then
+        echo "All the precompiles txs are included in l1_batch $BATCH_NUMBER. Success!"
+        STATUS=$(psql $DATABASE_URL -c "SELECT count(*), contract_address, l1_batch_number, miniblock_number FROM transactions WHERE l1_batch_number = $BATCH_NUMBER GROUP BY l1_batch_number, contract_address, miniblock_number;" -t -A)
+        echo "Current status is $STATUS"
+        exit 0  # Exit with zero status to succeed CI
+    else
+        STATUS=$(psql $DATABASE_URL -c "SELECT count(*), contract_address, l1_batch_number, miniblock_number FROM transactions GROUP BY l1_batch_number, contract_address, miniblock_number;" -t -A)
+        echo "Some precompiles txs are missing in l1_batch $BATCH_NUMBER. Current status is $STATUS"
+        echo "Retrying in $INTERVAL seconds..."
+    fi
+
+    # Wait for the next interval
+    sleep $INTERVAL
+done

@@ -60,7 +60,7 @@ impl ReportFilter {
     pub fn should_report(&self) -> bool {
         let timestamp = self.last_timestamp.get();
         let now = Instant::now();
-        if timestamp.map_or(true, |ts| now - ts > self.interval) {
+        if timestamp.is_none_or(|ts| now - ts > self.interval) {
             self.last_timestamp.set(Some(now));
             true
         } else {
@@ -95,17 +95,17 @@ pub(crate) async fn fill_transaction_receipts(
 ) -> Result<Vec<TransactionReceipt>, Web3Error> {
     receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
-    let mut deployments = Vec::with_capacity(receipts.len());
-    for receipt in &receipts {
-        deployments.push(if receipt.inner.to.is_none() {
+    let deployments = receipts.iter().map(|receipt| {
+        if receipt.inner.to.is_none() {
             Some(DeploymentTransactionType::Evm)
         } else if receipt.inner.to == Some(CONTRACT_DEPLOYER_ADDRESS) {
-            DeploymentParams::decode(&receipt.calldata.0)?.map(DeploymentTransactionType::EraVm)
+            DeploymentParams::decode(&receipt.calldata.0).map(DeploymentTransactionType::EraVm)
         } else {
             // Not a deployment transaction.
             None
-        });
-    }
+        }
+    });
+    let deployments: Vec<_> = deployments.collect();
 
     // Get the AA type for deployment transactions to filter out custom AAs below.
     let deployment_receipts = receipts
@@ -437,6 +437,43 @@ mod tests {
             deploy_receipt.contract_address,
             Some(deployed_address_create(alice.address(), 0.into()))
         );
+    }
+
+    #[tokio::test]
+    async fn contract_address_not_filled_for_bogus_deployment() {
+        let mut alice = Account::random();
+        let mut calldata = Execute::encode_deploy_params_create(H256::zero(), H256::zero(), vec![]);
+        // Truncate the calldata so that it contains the valid Solidity selector for `create()`, but cannot be decoded.
+        calldata.truncate(5);
+        let bogus_deployment = alice.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        );
+        let deployment_hash = bogus_deployment.hash();
+
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        prepare_storage(&mut storage, alice.address()).await;
+        persist_block_with_transactions(&pool, vec![bogus_deployment]).await;
+
+        let receipts = storage
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[deployment_hash])
+            .await
+            .unwrap();
+        let filled_receipts = fill_transaction_receipts(&mut storage, receipts)
+            .await
+            .unwrap();
+
+        assert_eq!(filled_receipts.len(), 1);
+        assert_eq!(filled_receipts[0].to, Some(CONTRACT_DEPLOYER_ADDRESS));
+        assert_eq!(filled_receipts[0].contract_address, None);
+        assert_eq!(filled_receipts[0].status, 0.into());
     }
 
     #[tokio::test]
