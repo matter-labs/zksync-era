@@ -346,9 +346,6 @@ pub(super) fn msg_private_proxy_db_name_prompt(chain_name: &str) -> String {
     format!("Please provide private proxy database name for chain {chain_name}")
 }
 
-pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
-    "Failed to drop private proxy database";
-
 /// Explorer related messages
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
