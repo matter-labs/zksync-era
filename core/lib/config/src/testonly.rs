@@ -430,6 +430,7 @@ impl Distribution<configs::EthWatchConfig> for EncodeDist {
         configs::EthWatchConfig {
             confirmations_for_eth_event: self.sample(rng),
             eth_node_poll_interval: self.sample(rng),
+            event_expiration_blocks: self.sample(rng),
         }
     }
 }

@@ -762,8 +762,13 @@ impl MainNodeBuilder {
     /// This task works in pair with precondition, which must be present in every component:
     /// the precondition will prevent node from starting until the database is initialized.
     fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+        let eth_watcher_config = try_load_config!(self.configs.eth)
+            .watcher
+            .context("eth_watcher config is missing")?;
+
         self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
+            event_expiration_blocks: eth_watcher_config.event_expiration_blocks,
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {
