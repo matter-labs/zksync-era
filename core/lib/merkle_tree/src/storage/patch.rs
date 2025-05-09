@@ -459,7 +459,7 @@ impl WorkingPatchSet {
 
                 let was_replaced = node
                     .prev_version
-                    .map_or(true, |prev_version| prev_version < node_version);
+                    .is_none_or(|prev_version| prev_version < node_version);
                 if was_replaced {
                     if let Some(prev_version) = node.prev_version {
                         stale_keys.push(nibbles.with_version(prev_version));
