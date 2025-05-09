@@ -2,8 +2,8 @@ use clap::{command, Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
 use crate::commands::{
-    config, debug_proof, get_file_info, insert_batch, insert_version, requeue,
-    stats, status::StatusCommand,
+    config, debug_proof, get_file_info, insert_batch, insert_version, requeue, stats,
+    status::StatusCommand,
 };
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
