@@ -32,7 +32,9 @@ pub async fn create_private_rpc_service(
         image: "private-rpc".to_string(),
         platform: Some("linux/amd64".to_string()),
         ports: Some(vec![format!("{}:{}", port, port)]),
-        volumes: None,
+        volumes: Some(vec![
+            "./private-rpc-permissions.yaml:/app/private-rpc-permissions.yaml:ro".to_string(),
+        ]),
         depends_on: None,
         restart: None,
         environment: Some(HashMap::from([
@@ -40,7 +42,7 @@ pub async fn create_private_rpc_service(
             ("PORT".to_string(), port.to_string()),
             (
                 "PERMISSIONS_YAML_PATH".to_string(),
-                "./example-permissions.yaml".to_string(),
+                "./private-rpc-permissions.yaml".to_string(),
             ),
             ("TARGET_RPC".to_string(), l2_rpc_url.to_string()),
             (

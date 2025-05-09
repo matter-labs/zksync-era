@@ -22,8 +22,9 @@ use crate::{
         msg_private_proxy_db_name_prompt, msg_private_rpc_chain_not_initialized,
         msg_private_rpc_db_url_prompt, msg_private_rpc_docker_compose_file_generated,
         msg_private_rpc_docker_image_being_built, msg_private_rpc_initializing_database_for,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR, MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR,
+        msg_private_rpc_permissions_file_generated, MSG_CHAIN_NOT_FOUND_ERR,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR,
+        MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR,
     },
 };
 
@@ -135,6 +136,28 @@ pub async fn init(shell: &Shell) -> anyhow::Result<()> {
         docker_compose_path.display(),
     ));
     config.save(shell, docker_compose_path)?;
+
+    let src_permissions_path = chain_config
+        .link_to_code
+        .join("private-rpc")
+        .join("example-permissions.yaml");
+    let dst_permissions_path = chain_config
+        .link_to_code
+        .join("chains")
+        .join(chain_name.clone())
+        .join("configs")
+        .join("private-rpc-permissions.yaml");
+
+    if !dst_permissions_path.exists() {
+        Cmd::new(cmd!(
+            shell,
+            "cp {src_permissions_path} {dst_permissions_path}"
+        ))
+        .run()?;
+        logger::info(msg_private_rpc_permissions_file_generated(
+            dst_permissions_path.display(),
+        ));
+    }
 
     Ok(())
 }

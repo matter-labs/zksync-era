@@ -11,6 +11,4 @@ COPY tsconfig.json .
 RUN yarn install
 RUN yarn build
 
-COPY example-permissions.yaml .
-
 CMD [ "node", "dist/index.js" ]

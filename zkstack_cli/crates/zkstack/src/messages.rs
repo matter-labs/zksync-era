@@ -334,6 +334,9 @@ pub(super) fn msg_private_rpc_docker_image_being_built() -> String {
 pub(super) fn msg_private_rpc_docker_compose_file_generated(path: Display) -> String {
     format!("Generated private proxy docker-compose file and stored it at {path}")
 }
+pub(super) fn msg_private_rpc_permissions_file_generated(path: Display) -> String {
+    format!("Created example permissions config and stored it at {path}")
+}
 
 pub(super) fn msg_private_rpc_chain_not_initialized(chain: &str) -> String {
     format!("Chain {chain} is not initialized for private-proxy: run `zkstack private-proxy init --chain {chain}` first")
