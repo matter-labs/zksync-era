@@ -51,7 +51,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
             .map(|batch| batch.header.number.0);
 
         let first = batch_numbers.next()?;
-        let last_batch_number = batch_numbers.last().unwrap_or(first);
+        let last_batch_number = batch_numbers.next_back().unwrap_or(first);
         let batch_count = last_batch_number - first + 1;
         if batch_count >= self.limit {
             let result = L1BatchNumber(first + self.limit - 1);

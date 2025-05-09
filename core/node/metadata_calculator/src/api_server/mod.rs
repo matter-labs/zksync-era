@@ -403,7 +403,7 @@ impl TreeApiClient for TreeApiHttpClient {
         let is_problem = response
             .headers()
             .get(header::CONTENT_TYPE)
-            .map_or(false, |header| *header == PROBLEM_CONTENT_TYPE);
+            .is_some_and(|header| *header == PROBLEM_CONTENT_TYPE);
         if response.status() == StatusCode::NOT_FOUND && is_problem {
             // Try to parse `NoVersionError` from the response body.
             let problem_data: NoVersionErrorData = response

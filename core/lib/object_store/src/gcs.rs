@@ -158,7 +158,7 @@ impl From<HttpError> for ObjectStoreError {
         let is_not_found = match &err {
             HttpError::HttpClient(err) => err
                 .status()
-                .map_or(false, |status| matches!(status, StatusCode::NOT_FOUND)),
+                .is_some_and(|status| matches!(status, StatusCode::NOT_FOUND)),
             HttpError::Response(response) => response.code == StatusCode::NOT_FOUND.as_u16(),
             _ => false,
         };

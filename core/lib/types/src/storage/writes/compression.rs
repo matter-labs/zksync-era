@@ -54,7 +54,7 @@ impl CompressionMode for CompressionByteAdd {
     fn get_diff_and_size(&self) -> Option<(U256, usize)> {
         let diff = self.new_value.overflowing_sub(self.prev_value).0;
         // Ceiling division
-        let size = (diff.bits() + 7) / 8;
+        let size = diff.bits().div_ceil(8);
 
         if size >= 31 {
             None
@@ -77,7 +77,7 @@ impl CompressionMode for CompressionByteSub {
     fn get_diff_and_size(&self) -> Option<(U256, usize)> {
         let diff = self.prev_value.overflowing_sub(self.new_value).0;
         // Ceiling division
-        let size = (diff.bits() + 7) / 8;
+        let size = diff.bits().div_ceil(8);
 
         if size >= 31 {
             None
@@ -98,7 +98,7 @@ impl CompressionMode for CompressionByteTransform {
 
     fn get_diff_and_size(&self) -> Option<(U256, usize)> {
         // Ceiling division
-        let size = (self.new_value.bits() + 7) / 8;
+        let size = self.new_value.bits().div_ceil(8);
 
         if size >= 31 {
             None
