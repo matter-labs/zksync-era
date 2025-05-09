@@ -28,11 +28,42 @@ Where:
 - `sender` is the value of `this` in the frame where the L2→L1 log was emitted.
 - `key` and `value` are just two 32-byte values that could be used to carry some data with the log.
 
-The hashed array of these opcodes is then included into the
+The hashes of these logs are [aggregated](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/L1Messenger.sol#L133) in a dynamic incremental merkle tree into the `LocalLogsRoot`. The `LocalLogsRoot` is [hashed](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/L1Messenger.sol#L333) together with the chain's `MessageRoot` into the `ChainBatchRoot`. This `ChainBatchRoot` is then included into the 
 [batch commitment](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Executor.sol#L493).
 Because of that we know that if the proof verifies, then the L2→L1 logs provided by the operator were correct, so we can
 use that fact to produce more complex structures. Before Boojum such logs were also Merklized within the circuits and so
 the Merkle tree’s root hash was included into the batch commitment also.
+
+## Proving L2→L1 logs
+
+The following functions are available on L1 to prove that a certain L2→L1 log belongs to a certain batch
+
+```solidity
+function proveL2LogInclusion(
+  uint256 _chainId,
+  uint256 _batchNumber,
+  uint256 _index,
+  L2Log calldata _log,
+  bytes32[] calldata _proof
+) external view override returns (bool);
+
+function proveL2LeafInclusion(
+  uint256 _chainId,
+  uint256 _batchNumber,
+  uint256 _mask,
+  bytes32 _leaf,
+  bytes32[] calldata _proof
+) external view override returns (bool);
+```
+
+To prove inclusion the `_proof` input has to be provided. The user can request the chain's server for this, or reconstruct it from L1 data. Normally the proof is the merkle proof from the log via the `LocalLogsRoot` to the `ChainBatchRoot` of the chain. 
+
+The second function will prove that a certain 32-byte leaf belongs to the tree. Note, that the fact that the `leaf` is 32-bytes long means that the function could work successfully for internal leaves also. Furthermore, since the `LocalLogsRoot` is extended with the `MessageRoot`, this function can be used to prove inclusion in the MessageRoot tree.
+
+This function is particularly for proving that a log was included in the `ChainBatchRoot` via the `MessageRoot`. This is used for [interop](../../../bridging/interop/message_root.md) and in [nested message inclusion](../../../gateway/nested_l3_l1_messaging.md).
+
+> Note: intermediate nodes can also be proven via the `proveL2LeafInclusion` function, it will be the callers responsibility to ensure that the preimage of the leaf is larger than 32-bytes long and/or use other ways to ensuring that the function will be called securely.
+
 
 ## Important system values
 

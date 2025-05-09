@@ -74,7 +74,16 @@ pub(crate) async fn create_chain_inner(
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
-    let internal_id = ecosystem_config.list_of_chains().len() as u32;
+    let internal_id = ecosystem_config
+        .list_of_chains()
+        .iter()
+        .position(|x| *x == args.chain_name)
+        .unwrap() as u32
+        + 1;
+    println!(
+        "ecosystem_config.list_of_chains(): {:?}",
+        ecosystem_config.list_of_chains()
+    );
     let link_to_code = resolve_link_to_code(
         shell,
         chain_path.clone(),

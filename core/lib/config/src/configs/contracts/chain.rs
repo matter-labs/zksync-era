@@ -38,6 +38,7 @@ pub struct AllContractsConfig {
     // the location of the contracts we call it `l1_wrapped_base_token_store`
     pub l1_wrapped_base_token_store_addr: Option<Address>,
     pub server_notifier_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Address,
     pub l1_base_token_asset_id: Option<H256>,
@@ -74,6 +75,7 @@ impl AllContractsConfig {
             l1_bytecode_supplier_addr: Some(Address::repeat_byte(0x16)),
             l1_wrapped_base_token_store_addr: Some(Address::repeat_byte(0x17)),
             server_notifier_addr: Some(Address::repeat_byte(0x18)),
+            message_root_proxy_addr: Some(Address::repeat_byte(0x19)),
             chain_admin_addr: Address::repeat_byte(0x18),
             l2_da_validator_addr: Some(Address::repeat_byte(0x1a)),
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
@@ -115,6 +117,7 @@ impl AllContractsConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: Some(self.bridgehub_proxy_addr),
                 state_transition_proxy_addr: self.state_transition_proxy_addr,
+                message_root_proxy_addr: self.message_root_proxy_addr,
                 multicall3: Some(self.l1_multicall3_addr),
                 validator_timelock_addr: Some(self.validator_timelock_addr),
             },

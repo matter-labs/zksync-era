@@ -3,7 +3,8 @@
 mod commit_batch_info;
 mod stored_batch_info;
 
-pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
+pub const PRE_INTEROP_ENCODING_VERSION: u8 = 0;
+pub const SUPPORTED_ENCODING_VERSION: u8 = 1;
 
 #[cfg(test)]
 mod tests;

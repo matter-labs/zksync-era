@@ -11,3 +11,5 @@ a special transaction type called L1 transactions. In the L2->L1 direction we on
 In particular, deposits and withdrawals of ether also use the above methods. For deposits the L1->L2 transaction is sent
 with empty calldata, the recipients address and the deposited value. When withdrawing, an L2->L1 message is sent. This
 is then processed by the smart contract holding the ether on L1, which releases the funds.
+
+The details are covered in the [interop center](../../../bridging/interop/interop_center/overview.md) section.

@@ -123,6 +123,11 @@ impl EnNamespace {
             l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
             l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
             server_notifier_addr: self.state.api_config.server_notifier_addr,
+            message_root_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .message_root_proxy_addr,
         })
     }
 

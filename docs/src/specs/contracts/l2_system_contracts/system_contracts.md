@@ -124,7 +124,7 @@ Whenever anyone wants to do a non-zero value call, they need to call `MsgValueSi
 - Pass the address of the callee in the second extraAbiParam.
 
 More information on the extraAbiParams can be read
-[here](../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
+[here](../../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
 
 ## KnownCodeStorage
 
@@ -147,7 +147,7 @@ It is the responsibility of the [ContractDeployer](#contractdeployer--immutables
 those code hashes that are known.
 
 The KnownCodesStorage contract is also responsible for ensuring that all the “known” bytecode hashes are also
-[valid](../../guides/advanced/12_alternative_vm_intro.md#bytecode-validity).
+[valid](../../../guides/advanced/12_alternative_vm_intro.md#bytecode-validity).
 
 ## ContractDeployer & ImmutableSimulator
 
@@ -207,7 +207,7 @@ returns the deployment code of the contract. On ZKsync, there is no separation b
 code. The constructor is always a part of the deployment code of the contract. In order to protect it from being called,
 the compiler-generated contracts invoke constructor only if the `isConstructor` flag provided (it is only available for
 the system contracts). You can read more about flags
-[here](../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
+[here](../../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
 
 After execution, the constructor must return an array of:
 
@@ -230,7 +230,7 @@ address.
 Whenever a contract needs to access a value of some immutable, they call the
 `ImmutableSimulator.getImmutable(getCodeAddress(), index)`. Note that on ZKsync it is possible to get the current
 execution address you can read more about `getCodeAddress()`
-[here](../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes).
+[here](../../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes).
 
 ### **Return value of the deployment methods**
 

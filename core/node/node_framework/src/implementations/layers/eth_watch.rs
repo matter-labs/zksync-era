@@ -78,6 +78,9 @@ impl EthWatchLayer {
             l1_ecosystem_contracts_resource.shared_bridge,
             contracts_resource
                 .ecosystem_contracts
+                .message_root_proxy_addr,
+            contracts_resource
+                .ecosystem_contracts
                 .state_transition_proxy_addr,
             l1_ecosystem_contracts_resource.chain_admin,
             l1_ecosystem_contracts_resource.server_notifier_addr,
@@ -97,6 +100,7 @@ impl WiringLayer for EthWatchLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        // println!("input in wiring: {:?}", input);
         let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
@@ -114,6 +118,7 @@ impl WiringLayer for EthWatchLayer {
             &input.l1_contracts.0,
             &input.l1ecosystem_contracts_resource.0,
         );
+        // println!("l1_message_root_address 2: {:?}", self.contracts_config.l1_message_root_address);
 
         let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = match input.client.0 {
             SettlementLayerClient::L1(client) => Box::new(self.create_client(

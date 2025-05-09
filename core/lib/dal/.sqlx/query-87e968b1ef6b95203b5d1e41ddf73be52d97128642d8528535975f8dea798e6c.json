@@ -80,6 +80,11 @@
       },
       {
         "ordinal": 15,
+        "name": "confirmed_at_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -105,6 +110,7 @@
       true,
       true,
       false,
+      true,
       true
     ]
   },

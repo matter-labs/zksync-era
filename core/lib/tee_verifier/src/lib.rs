@@ -337,6 +337,7 @@ mod tests {
                     timestamp: 0,
                     prev_block_hash: H256([1; 32]),
                     max_virtual_blocks_to_create: 0,
+                    interop_roots: vec![],
                 },
             },
             SystemEnv {

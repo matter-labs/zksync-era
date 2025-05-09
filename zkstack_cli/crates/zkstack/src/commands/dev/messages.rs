@@ -104,6 +104,7 @@ pub(super) const MSG_EVM_TESTS_HELP: &str =
 pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contracts' or 'erc20'";
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
+pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
