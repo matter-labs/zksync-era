@@ -190,7 +190,7 @@ impl EventProcessor for BatchRootProcessor {
 
                 transaction
                     .blocks_dal()
-                    .set_gw_batch_chain_merkle_path(*batch_number, proof)
+                    .set_gw_interop_batch_chain_merkle_path(*batch_number, proof)
                     .await
                     .map_err(DalError::generalize)?;
             }
