@@ -58,9 +58,15 @@ impl ForgeScript {
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
         // When running the DeployL1 script, we skip recompiling the Bridgehub
         // because it must be compiled with a low optimizer-runs value.
-        if self.script_path == Path::new("deploy-scripts/DeployL1.s.sol") {
+        if self.script_path == Path::new("deploy-scripts/DeployL1.s.sol")
+            && !self.args.fast_compilation
+        {
             let skip_path: String = String::from("contracts/bridgehub/*");
             self.args.add_arg(ForgeScriptArg::Skip { skip_path });
+        }
+        if self.args.fast_compilation {
+            self.args
+                .add_arg(ForgeScriptArg::OptimizerRuns { runs: 200 });
         }
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
@@ -289,6 +295,10 @@ pub enum ForgeScriptArg {
     Skip {
         skip_path: String,
     },
+    #[strum(to_string = "optimizer-runs={runs}")]
+    OptimizerRuns {
+        runs: u64,
+    },
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.
@@ -320,6 +330,8 @@ pub struct ForgeScriptArgs {
     #[clap(long, short)]
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = false)]
     additional_args: Vec<String>,
+    #[clap(long)]
+    pub fast_compilation: bool,
 }
 
 impl ForgeScriptArgs {
