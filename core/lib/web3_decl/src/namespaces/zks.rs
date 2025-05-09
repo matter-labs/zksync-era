@@ -123,6 +123,8 @@ pub trait ZksNamespace {
     #[method(name = "getFeeParams")]
     async fn get_fee_params(&self) -> RpcResult<FeeParams>;
 
+    // TODO: remove in favour of `en_getProtocolVersionInfo` once all ENs have been upgraded.
+    #[deprecated]
     #[method(name = "getProtocolVersion")]
     async fn get_protocol_version(
         &self,
