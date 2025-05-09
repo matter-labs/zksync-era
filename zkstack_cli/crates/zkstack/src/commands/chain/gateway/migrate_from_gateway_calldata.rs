@@ -7,13 +7,17 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use xshell::Shell;
-use zkstack_cli_common::logger;
+use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
 use zkstack_cli_config::{traits::ReadConfig, ContractsConfig};
 
-use super::gateway_common::{
-    get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
+use super::{
+    gateway_common::{
+        get_gateway_migration_state, GatewayMigrationProgressState, MigrationDirection,
+    },
+    messages::{message_for_gateway_migration_progress_state, USE_SET_DA_VALIDATOR_COMMAND_INFO},
 };
 use crate::{
+    abi::{BridgehubAbi, ZkChainAbi},
     admin_functions::{start_migrate_chain_from_gateway, AdminScriptMode},
     commands::chain::utils::{display_admin_script_output, get_default_foundry_path},
 };
@@ -72,23 +76,11 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 .clone()
                 .context("L2 RPC URL must be provided for cross checking")?,
             params.gateway_rpc_url.clone(),
-            MigrationDirection::ToGateway,
+            MigrationDirection::FromGateway,
         )
         .await?;
 
         match state {
-            GatewayMigrationProgressState::NotStarted => {
-                logger::warn("Notification has not yet been sent. Please use the command to send notification first.");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::NotificationSent => {
-                logger::info("Notification has been sent, but the server has not yet picked it up. Please wait");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::NotificationReceived => {
-                logger::info("The server has received the notification about the migration, but it needs to finish all outstanding transactions. Please wait");
-                return Ok(());
-            }
             GatewayMigrationProgressState::ServerReady => {
                 logger::info(
                     "The server is ready to start the migration. Preparing the calldata...",
@@ -101,11 +93,42 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 return Ok(());
             }
             GatewayMigrationProgressState::PendingManualFinalization => {
-                logger::info("The chain migration to Gateway has been finalized on the Gateway side. Please use the script to finalize its migration to L1");
+                logger::info("The chain migration to Gateway has been finalized on the Gateway side. Please use the corresponding command to finalize its migration to L1");
                 return Ok(());
             }
             GatewayMigrationProgressState::Finished => {
-                logger::info("The migration in this direction has been already finished");
+                let l1_provider = get_ethers_provider(&params.l1_rpc_url)?;
+                let bridgehub = BridgehubAbi::new(params.l1_bridgehub_addr, l1_provider.clone());
+                let zk_chain_address = bridgehub.get_zk_chain(params.l2_chain_id.into()).await?;
+                if zk_chain_address == Address::zero() {
+                    anyhow::bail!("Chain does not exist");
+                }
+
+                let zk_chain = ZkChainAbi::new(zk_chain_address, l1_provider);
+                let (l1_da_validator, l2_da_validator) = zk_chain.get_da_validator_pair().await?;
+
+                // We always output the original message, but we provide additional helper log in case
+                // the DA validator is not yet set
+                let basic_message = message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::FromGateway,
+                );
+                logger::info(&basic_message);
+
+                if l1_da_validator == Address::zero() || l2_da_validator == Address::zero() {
+                    logger::warn("The DA validators are not yet set on the diamond proxy.");
+                    logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);
+                }
+
+                return Ok(());
+            }
+            _ => {
+                let msg = message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::FromGateway,
+                );
+                logger::info(&msg);
+
                 return Ok(());
             }
         }
@@ -136,11 +159,10 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
     )
     .await?;
 
-    // TODO(EVM-1000): The output below only contains the data needed to start migration from the Gateway.
-    // However after the migration is finalized, the chain admin will have to reset the validator DA pair on L1.
-    // This calldata is not yet present here, but it should be.
-
     display_admin_script_output(output);
+
+    logger::warn("Note, that the above calldata ONLY includes calldata to start migration from ZK Gateway to L1. Once the migration finishes, the DA validator pair will be reset and so you will have to set again. ");
+    logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);
 
     Ok(())
 }

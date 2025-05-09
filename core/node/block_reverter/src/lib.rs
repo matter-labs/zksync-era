@@ -281,8 +281,14 @@ impl BlockReverter {
         let sk_cache = RocksdbStorage::builder(storage_cache_path.as_ref())
             .await
             .context("failed initializing storage cache")?;
+        let Some(mut sk_cache) = sk_cache.get().await else {
+            tracing::info!(
+                "Storage cache at `{storage_cache_path}` is not initialized; nothing to do"
+            );
+            return Ok(());
+        };
 
-        if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
+        if sk_cache.next_l1_batch_number().await > last_l1_batch_to_keep + 1 {
             let mut storage = self.connection_pool.connection().await?;
             tracing::info!("Rolling back storage cache");
             sk_cache

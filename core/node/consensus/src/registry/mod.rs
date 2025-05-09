@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_crypto::ByteFmt;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 
 use crate::{storage::ConnectionPool, vm::VM};
 
@@ -11,17 +11,33 @@ pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 
-fn decode_attester_key(k: &abi::Secp256k1PublicKey) -> anyhow::Result<attester::PublicKey> {
+fn decode_validator_key(k: &abi::BLS12_381PublicKey) -> anyhow::Result<validator::PublicKey> {
     let mut x = vec![];
-    x.extend(k.tag);
-    x.extend(k.x);
+    x.extend(k.a);
+    x.extend(k.b);
+    x.extend(k.c);
     ByteFmt::decode(&x)
 }
 
-fn decode_weighted_attester(a: &abi::Attester) -> anyhow::Result<attester::WeightedAttester> {
-    Ok(attester::WeightedAttester {
-        weight: a.weight.into(),
-        key: decode_attester_key(&a.pub_key).context("key")?,
+fn decode_validator_pop(
+    pop: &abi::BLS12_381Signature,
+) -> anyhow::Result<validator::ProofOfPossession> {
+    let mut bytes = vec![];
+    bytes.extend(pop.a);
+    bytes.extend(pop.b);
+    ByteFmt::decode(&bytes).context("decode proof of possession")
+}
+
+fn decode_weighted_validator(v: &abi::Validator) -> anyhow::Result<validator::WeightedValidator> {
+    let key = decode_validator_key(&v.pub_key).context("key")?;
+
+    let pop = decode_validator_pop(&v.proof_of_possession).context("proof of possession")?;
+
+    pop.verify(&key).context("verify proof of possession")?;
+
+    Ok(validator::WeightedValidator {
+        weight: v.weight.into(),
+        key,
     })
 }
 
@@ -41,38 +57,58 @@ impl Registry {
         }
     }
 
-    /// Attester committee for the given batch.
-    /// It reads committee from the contract.
-    /// Falls back to empty committee.
-    pub async fn attester_committee_for(
+    /// It tries to get a pending validator committee from the consensus registry contract.
+    /// Returns `None` if there's no pending committee.
+    /// If a pending committee exists, returns a tuple of (Committee, commit_block_number).
+    pub async fn get_pending_validator_committee(
         &self,
         ctx: &ctx::Ctx,
         address: Option<Address>,
-        attested_batch: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::Committee>> {
-        let Some(batch_defining_committee) = attested_batch.prev() else {
-            // Batch 0 doesn't need attestation.
-            return Ok(None);
-        };
+        sealed_block_number: validator::BlockNumber,
+    ) -> ctx::Result<Option<(validator::Committee, validator::BlockNumber)>> {
         let Some(address) = address else {
             return Ok(None);
         };
-        let raw = self
+
+        let raw = match self
             .vm
             .call(
                 ctx,
-                batch_defining_committee,
+                sealed_block_number,
                 address,
-                self.contract.call(abi::GetAttesterCommittee),
+                self.contract.call(abi::GetNextValidatorCommittee),
             )
             .await
-            .wrap("vm.call()")?;
-        let mut attesters = vec![];
+        {
+            Ok(raw) => raw,
+            // TODO: If there's no pending committee, the call will fail with a revert.
+            // However, we should differentiate between no pending committee and an error.
+            Err(_) => return Ok(None),
+        };
+
+        // TODO: Check that it isn't empty?
+        let mut validators = vec![];
         for a in raw {
-            attesters.push(decode_weighted_attester(&a).context("decode_weighted_attester()")?);
+            validators.push(decode_weighted_validator(&a).context("decode_weighted_validator()")?);
         }
-        Ok(Some(
-            attester::Committee::new(attesters.into_iter()).context("Committee::new()")?,
-        ))
+
+        let committee =
+            validator::Committee::new(validators.into_iter()).context("Committee::new()")?;
+
+        // Get the validators commit block
+        let commit_block_uint = self
+            .vm
+            .call(
+                ctx,
+                sealed_block_number,
+                address,
+                self.contract.call(abi::ValidatorsCommitBlock),
+            )
+            .await
+            .wrap("get_validators_commit_block()")?;
+
+        let commit_block = validator::BlockNumber(commit_block_uint.as_u64());
+
+        Ok(Some((committee, commit_block)))
     }
 }

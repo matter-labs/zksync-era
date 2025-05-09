@@ -102,15 +102,14 @@ describe('ETH token checks', () => {
         );
 
         const l1EthBalanceAfter = await alice.getBalanceL1();
-        if (isETHBasedChain) {
-            expect(l1EthBalanceBefore - depositFee - l1EthBalanceAfter).toEqual(amount);
-        } else {
+        // It's not a strict equality since there could be a few deposits attempts.
+        expect(l1EthBalanceBefore).toBeGreaterThanOrEqual(l1EthBalanceAfter + depositFee + amount);
+        if (!isETHBasedChain) {
             // Base token checks
             const l1BaseTokenBalanceAfter = await alice.getBalanceL1(baseTokenAddress);
             expect(l1BaseTokenBalanceBefore).toEqual(l1BaseTokenBalanceAfter + expectedL2Costs);
 
             const l2BaseTokenBalanceAfter = await alice.getBalance();
-            expect(l1EthBalanceBefore).toEqual(l1EthBalanceAfter + depositFee + amount);
 
             // L2 balance for the base token increases do to some "overminting" of the base token
             // We verify that the amount reduced on L1 is greater than the amount increased on L2

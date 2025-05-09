@@ -252,10 +252,23 @@ export class RetryableWallet extends zksync.Wallet {
         maxAttempts: number = 3
     ): Promise<R> {
         const reporter = (<RetryProvider>this.provider!).reporter;
+        let previousGasLimit: bigint | null = null;
         for (let i = 0; i < maxAttempts; i += 1) {
             let deposit: zksync.types.PriorityOpResponse | null = null;
             try {
+                if (previousGasLimit) {
+                    const newGasLimit: bigint = previousGasLimit * 2n;
+                    if (depositData.overrides) {
+                        depositData.overrides.gasLimit = newGasLimit;
+                    } else {
+                        depositData.overrides = { gasLimit: newGasLimit };
+                    }
+                    previousGasLimit = newGasLimit;
+                }
                 deposit = await this.deposit(depositData);
+                if (!previousGasLimit) {
+                    previousGasLimit = deposit.gasLimit;
+                }
                 return await check(deposit);
             } catch (err: any) {
                 if (i + 1 == maxAttempts) {
