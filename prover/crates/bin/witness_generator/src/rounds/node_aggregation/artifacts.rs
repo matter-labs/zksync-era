@@ -108,7 +108,8 @@ impl ArtifactsManager for NodeAggregation {
                         protocol_version_id,
                         batch_sealed_at,
                     )
-                    .await;
+                    .await
+                    .expect("failed to insert prover jobs");
                 transaction
                     .fri_node_witness_generator_dal()
                     .insert_node_aggregation_jobs(
@@ -120,7 +121,8 @@ impl ArtifactsManager for NodeAggregation {
                         protocol_version_id,
                         batch_sealed_at,
                     )
-                    .await;
+                    .await
+                    .expect("failed to insert node aggregation job");
             }
             false => {
                 let (_, blob_url) = blob_urls.circuit_ids_and_urls[0].clone();
@@ -138,6 +140,7 @@ impl ArtifactsManager for NodeAggregation {
                         batch_sealed_at,
                     )
                     .await
+                    .expect("failed to insert prover job");
             }
         }
 
@@ -148,7 +151,8 @@ impl ArtifactsManager for NodeAggregation {
                 job_id.chain_id(),
                 started_at.elapsed(),
             )
-            .await;
+            .await
+            .expect("failed to mark node aggregation as successful");
 
         transaction.commit().await?;
 

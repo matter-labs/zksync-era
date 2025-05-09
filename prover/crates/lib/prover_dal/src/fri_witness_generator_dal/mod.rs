@@ -15,7 +15,10 @@ use zksync_basic_types::{
     prover_dal::{JobCountStatistics, ProofGenerationTime, StuckJobs},
     L1BatchId, L2ChainId,
 };
-use zksync_db_connection::{connection::Connection, utils::naive_time_from_pg_interval};
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt as _,
+    utils::naive_time_from_pg_interval,
+};
 
 use crate::Prover;
 
@@ -98,7 +101,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         job_id: u32,
         chain_id: L2ChainId,
         aggregation_round: AggregationRound,
-    ) {
+    ) -> DalResult<()> {
         let query = format!(
             r#"
             UPDATE {}
@@ -119,9 +122,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .bind(error)
             .bind(i32::try_from(job_id).expect("job_id must fit a i32"))
             .bind(chain_id.inner() as i64)
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+            .instrument("mark_witness_job_failed")
+            .execute(self.storage)
+            .await?;
+
+        Ok(())
     }
 
     pub async fn get_witness_jobs_stats(
@@ -169,7 +174,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         &mut self,
         batch_id: L1BatchId,
         aggregation_round: AggregationRound,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+    ) -> DalResult<()> {
         sqlx::query(
             format!(
                 r#"
@@ -185,14 +190,14 @@ impl FriWitnessGeneratorDal<'_, '_> {
         )
         .bind(batch_id.batch_number().0 as i64)
         .bind(batch_id.chain_id().inner() as i64)
-        .execute(self.storage.conn())
-        .await
+        .instrument("delete_witness_generator_data_for_batch")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
-    pub async fn delete_batch_data(
-        &mut self,
-        batch_id: L1BatchId,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+    pub async fn delete_batch_data(&mut self, batch_id: L1BatchId) -> DalResult<()> {
         self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::BasicCircuits)
             .await?;
         self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::LeafAggregation)
@@ -202,13 +207,15 @@ impl FriWitnessGeneratorDal<'_, '_> {
         self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::RecursionTip)
             .await?;
         self.delete_witness_generator_data_for_batch(batch_id, AggregationRound::Scheduler)
-            .await
+            .await?;
+
+        Ok(())
     }
 
     pub async fn delete_witness_generator_data(
         &mut self,
         aggregation_round: AggregationRound,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+    ) -> DalResult<()> {
         sqlx::query(
             format!(
                 r#"
@@ -219,11 +226,14 @@ impl FriWitnessGeneratorDal<'_, '_> {
             )
             .as_str(),
         )
-        .execute(self.storage.conn())
-        .await
+        .instrument("delete_witness_generator_data")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
-    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+    pub async fn delete(&mut self) -> DalResult<()> {
         self.delete_witness_generator_data(AggregationRound::BasicCircuits)
             .await?;
         self.delete_witness_generator_data(AggregationRound::LeafAggregation)
@@ -233,7 +243,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
         self.delete_witness_generator_data(AggregationRound::RecursionTip)
             .await?;
         self.delete_witness_generator_data(AggregationRound::Scheduler)
-            .await
+            .await?;
+
+        Ok(())
     }
 
     pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(

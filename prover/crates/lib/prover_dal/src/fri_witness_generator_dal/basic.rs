@@ -8,7 +8,7 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
-    error::DalError,
+    error::DalResult,
     instrument::InstrumentExt,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
@@ -50,7 +50,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         witness_inputs_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: chrono::DateTime<chrono::Utc>,
-    ) -> Result<(), DalError> {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -136,7 +136,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
         &mut self,
         status: FriWitnessJobStatus,
         batch_id: L1BatchId,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -152,16 +152,18 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("set_status_for_basic_witness_job")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn mark_witness_job_as_successful(
         &mut self,
         batch_id: L1BatchId,
         time_taken: Duration,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
@@ -177,9 +179,11 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_witness_job_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn requeue_stuck_basic_jobs(
