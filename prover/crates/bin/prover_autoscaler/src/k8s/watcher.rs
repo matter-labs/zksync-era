@@ -183,6 +183,7 @@ impl Watcher {
         // select on applied events from all watchers
         let mut combo_stream = stream::select_all(watchers);
         // SelectAll Stream elements must have the same Item, so all packed in this:
+        #[allow(clippy::large_enum_variant)]
         enum Watched {
             Deploy(api::apps::v1::Deployment),
             Pod(api::core::v1::Pod),
