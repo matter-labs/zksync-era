@@ -5,52 +5,30 @@ This package it's a proxy between final users and the network rpc.
 Users need to provide a unique token in order to interact with the network. Each token provides a scoped view of the
 network.
 
-## Preparing database
+## Usage
 
-A postgres database is required to run this service. The connection url has to be provided in the `DATABASE_URL`
-environment variable.
+Run the command below once to initialize the DB, build the image and generate docker-compose files:
 
-Migration can be executed doing.
-
-```shell
-yarn db:migrate
+```bash
+zkstack private-rpc init
 ```
 
-If the schema changes migrations can be created running
+You can later run the private proxy using:
 
-```shell
-yarn db:generate
+```bash
+zkstack private-rcp run
 ```
 
-Please remember that automatically generated migrations have to be double-checked to ensure its right behavior.
+To reset the DB run
 
-## Configuration
-
-An example configuration is located under `example.env`. The available configurations are:
-
-```dotenv
-# postgres uri
-DATABASE_URL="postgres://postgres:postgres@localhost:5433/private-rpc"
-# api port
-PORT="4041"
-# url for the rpc that it's going to be proxy-ed.
-TARGET_RPC=http://localhost:3050
+```bash
+zkstack private-rpc reset-db
 ```
 
-## Development
+## Modifying the permissions
 
-To run the server in development mode:
-
-```
-yarn dev
-```
-
-## Production
-
-```shell
-yarn build
-yarn start
-```
+The permissions can be modified by updating the `private-rpc-permissions.yaml` file. The exact path of this file will be printed
+during the init command.
 
 ## Creating access tokens
 

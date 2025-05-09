@@ -23,7 +23,8 @@ use crate::{
         msg_private_rpc_db_url_prompt, msg_private_rpc_docker_compose_file_generated,
         msg_private_rpc_docker_image_being_built, msg_private_rpc_initializing_database_for,
         msg_private_rpc_permissions_file_generated, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_CHAIN_NOT_INITIALIZED, MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR,
+        MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR,
     },
 };
 
@@ -33,6 +34,8 @@ pub enum PrivateRpcCommands {
     Init,
     /// Run private proxy
     Run,
+    /// Resets the private proxy database
+    ResetDB,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -46,8 +49,24 @@ pub(crate) async fn run(shell: &Shell, args: PrivateRpcCommands) -> anyhow::Resu
     match args {
         PrivateRpcCommands::Init => init(shell).await,
         PrivateRpcCommands::Run => run_proxy(shell).await,
+        PrivateRpcCommands::ResetDB => reset_db(shell).await,
     }
 }
+
+async fn reset_db(shell: &Shell) -> anyhow::Result<()> {
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem_config
+        .load_current_chain()
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let db_url = prompt_db_config(&chain_config)?;
+    let db_config = db::DatabaseConfig::from_url(&db_url)?;
+    db::drop_db_if_exists(&db_config)
+        .await
+        .context(MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR)?;
+    initialize_private_rpc_database(shell, &chain_config, &db_url).await?;
+    Ok(())
+}
+
 
 async fn initialize_private_rpc_database(
     shell: &Shell,
@@ -55,7 +74,12 @@ async fn initialize_private_rpc_database(
     db_url: &Url,
 ) -> anyhow::Result<()> {
     let db_config = db::DatabaseConfig::from_url(db_url)?;
-    db::init_db(&db_config).await?;
+    let result = db::init_db(&db_config).await;
+    if let Some(err) = result.err() {
+        if !err.to_string().contains("already exists") {
+            return Err(err);
+        }
+    }
 
     let db_url = db_config.full_url();
     let url_str = db_url.as_str();
