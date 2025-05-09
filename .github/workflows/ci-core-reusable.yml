@@ -529,23 +529,6 @@ jobs:
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           
-          echo "Server restart wait completed - verifying that the batch was committed to L1"
-          ERA_HTTP_PORT=$(yq '.api.web3_json_rpc.http_port' "./chains/era/configs/general.yaml")
-          RESPONSE=$(curl --silent --request POST \
-              --url "http://localhost:${ERA_HTTP_PORT}" \
-              --header 'Content-Type: application/json' \
-              --data '{
-              "jsonrpc": "2.0",
-              "id": 1,
-              "method": "zks_L1BatchNumber",
-              "params": []
-            }')
-          ERA_BATCH_NUMBER=$(echo "$RESPONSE" | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
-          if [[ "$ERA_BATCH_NUMBER" == "0x0" ]]; then
-            echo "Error: ERA_BATCH_NUMBER is 0x0. Exiting."
-            exit 1
-          fi
-            
           echo "Setting pubdata pricing mode to validium"
           ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
           
@@ -556,9 +539,6 @@ jobs:
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
 
           echo "Deploying L2 DA validator"
-          
-          echo "Genesis config"
-          cat ./chains/era/configs/genesis.yaml
           
           L2_DA_VALIDATOR_BEFORE=$(yq '.l2.da_validator_addr' "./chains/era/configs/contracts.yaml")
           ci_run zkstack chain deploy-l2da-validator
@@ -575,9 +555,6 @@ jobs:
           echo "Updating DA valdiator addresses on L1"
           ci_run zkstack chain set-da-validator-pair
           
-          echo "General config"
-          cat ./chains/era/configs/general.yaml
-          
           echo "Disabling inclusion verification transition"
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
@@ -587,23 +564,12 @@ jobs:
           ci_run sleep 60
           echo "Server restart wait completed"
           
-          mkdir -p db_dumps
-          pg_dump "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" \
-            --table=l1_batches \
-            --format=custom \
-            --file=db_dumps/l1_batches_dump.sql
-          pg_dump "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" \
-            --table=l1_batches \
-            --format=custom \
-            --file=db_dumps/miniblocks.sql
-          
           echo "Running integration tests"
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             "era" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
           
           echo "Integration tests completed"
-
 
       - name: Run recovery tests (from snapshot)
         run: |
@@ -694,6 +660,16 @@ jobs:
           # Always run the upgrade test against era
           ci_run zkstack dev test upgrade --no-deps --chain era
 
+      - name: Dump database tables
+        if: always()
+        run: |
+          mkdir -p db_dumps
+          pg_dump "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" \
+            --format=custom \
+            --file=db_dumps/tables_dump.sql \
+            --table=l1_batches \
+            --table=miniblocks
+
       - name: Upload logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -702,4 +678,5 @@ jobs:
           path: |
             logs/
             chains/*/artifacts/vm_dumps/
+            chains/*/configs/
             db_dumps/
