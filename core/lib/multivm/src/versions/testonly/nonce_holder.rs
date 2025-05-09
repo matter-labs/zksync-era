@@ -25,6 +25,7 @@ impl From<NonceHolderTestMode> for u8 {
     }
 }
 
+#[allow(dead_code)]
 fn run_nonce_test(
     vm: &mut impl TestedVm,
     account: &mut Account,
