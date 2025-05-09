@@ -25,3 +25,37 @@ impl SettlementLayer {
         Self::L1(SLChainId(9))
     }
 }
+
+/// During the migration settlement layer could be unknown for the server.
+/// In this case, we should not use it for sending transactions.
+/// Meanwhile we should continue to work with the old settlement layer.
+#[derive(Debug, Clone)]
+pub struct WorkingSettlementLayer {
+    unsafe_settlement_layer: SettlementLayer,
+    migration_in_progress: bool,
+}
+
+impl WorkingSettlementLayer {
+    pub fn new(unsafe_settlement_layer: SettlementLayer) -> Self {
+        Self {
+            unsafe_settlement_layer,
+            migration_in_progress: false,
+        }
+    }
+
+    pub fn set_migration_in_progress(&mut self, in_progress: bool) {
+        self.migration_in_progress = in_progress;
+    }
+
+    pub fn settlement_layer(&self) -> SettlementLayer {
+        self.unsafe_settlement_layer
+    }
+
+    pub fn settlement_layer_for_sending_txs(&self) -> Option<SettlementLayer> {
+        if self.migration_in_progress {
+            None
+        } else {
+            Some(self.unsafe_settlement_layer)
+        }
+    }
+}

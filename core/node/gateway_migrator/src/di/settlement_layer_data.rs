@@ -1,7 +1,9 @@
 use anyhow::Context;
 use zksync_basic_types::{
-    pubdata_da::PubdataSendingMode, settlement::SettlementLayer, url::SensitiveUrl, Address,
-    L2ChainId, SLChainId,
+    pubdata_da::PubdataSendingMode,
+    settlement::{SettlementLayer, WorkingSettlementLayer},
+    url::SensitiveUrl,
+    Address, L2ChainId, SLChainId,
 };
 use zksync_config::configs::{
     contracts::{
@@ -39,7 +41,7 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use crate::{current_settlement_layer, WorkingSettlementLayer};
+use crate::current_settlement_layer;
 
 pub struct MainNodeConfig {
     pub l1_specific_contracts: L1SpecificContracts,
@@ -156,8 +158,10 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             }
         };
 
-        let eth_sender_config =
-            adjust_eth_sender_config(self.config.eth_sender_config, final_settlement_mode);
+        let eth_sender_config = adjust_eth_sender_config(
+            self.config.eth_sender_config,
+            final_settlement_mode.settlement_layer(),
+        );
         Ok(Output {
             initial_settlement_mode: SettlementModeResource::new(final_settlement_mode.clone()),
             contracts: SettlementLayerContractsResource(sl_chain_contracts),
