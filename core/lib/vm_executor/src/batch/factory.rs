@@ -174,6 +174,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),

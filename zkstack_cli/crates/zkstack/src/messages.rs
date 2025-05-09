@@ -479,7 +479,7 @@ pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> Strin
     format!("Downloading {} {} binary", name, version)
 }
 
-/// Update related messages
+// Update related messages
 
 pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
 pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZKsync";

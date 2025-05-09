@@ -239,7 +239,7 @@ fn map_log_tree(
             }
             TreeInstruction::Read(key)
         }
-        (false, TreeLogEntry::ReadMissingKey { .. }) => TreeInstruction::Read(key),
+        (false, TreeLogEntry::ReadMissingKey) => TreeInstruction::Read(key),
         (true, TreeLogEntry::Read { .. })
         | (true, TreeLogEntry::ReadMissingKey)
         | (false, TreeLogEntry::Inserted)

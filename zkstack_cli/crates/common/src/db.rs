@@ -31,7 +31,7 @@ impl DatabaseConfig {
         let name = url
             .path_segments()
             .ok_or(anyhow!("Failed to parse database name from URL"))?
-            .last()
+            .next_back()
             .ok_or(anyhow!("Failed to parse database name from URL"))?;
         let url_without_db_name = {
             let mut url = url.clone();

@@ -31,6 +31,7 @@ pub struct UpdateOnL1Params {
     pub config: BaseTokenAdjusterConfig,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum BaseTokenL1Behaviour {
     UpdateOnL1 {

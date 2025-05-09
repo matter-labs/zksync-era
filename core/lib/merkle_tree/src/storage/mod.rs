@@ -204,7 +204,7 @@ impl TreeUpdater {
             }
         };
 
-        if matches!(log, TreeLogEntry::Inserted { .. }) {
+        if matches!(log, TreeLogEntry::Inserted) {
             self.insert_node(leaf_data.nibbles, leaf_data.leaf, true);
         }
         if let Some((nibbles, leaf)) = leaf_data.adjacent_leaf {
