@@ -354,8 +354,7 @@ impl SnapshotsApplierTask {
                 return Err(OrStopped::Stopped);
             }
 
-            let result = SnapshotsApplier::load_snapshot(&self, &mut stop_receiver).await;
-
+            let result = SnapshotsApplierOrStatus::load_snapshot(&self, &mut stop_receiver).await;
             match result {
                 Ok((strategy, final_status)) => {
                     let health_details = SnapshotsApplierHealthDetails::done(&final_status)?;
@@ -649,27 +648,39 @@ struct SnapshotsApplier<'a> {
     tokens_recovered: bool,
 }
 
-impl<'a> SnapshotsApplier<'a> {
+#[derive(Debug)]
+enum SnapshotsApplierOrStatus<'a> {
+    Applier(SnapshotsApplier<'a>, SnapshotRecoveryStrategy),
+    CompletedStatus(SnapshotRecoveryStatus),
+}
+
+impl<'a> SnapshotsApplierOrStatus<'a> {
     /// Returns final snapshot recovery status.
     async fn load_snapshot(
         task: &'a SnapshotsApplierTask,
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> StopResult<(SnapshotRecoveryStrategy, SnapshotRecoveryStatus)> {
-        let (mut this, strategy) = Self::new(task).await?;
-        this.recover_storage_logs(stop_receiver).await?;
-        for is_chunk_processed in &mut this.applied_snapshot_status.storage_logs_chunks_processed {
+        let (mut applier, strategy) = match Self::new(task).await? {
+            Self::Applier(applier, strategy) => (applier, strategy),
+            Self::CompletedStatus(status) => {
+                return Ok((SnapshotRecoveryStrategy::Completed, status))
+            }
+        };
+        applier.recover_storage_logs(stop_receiver).await?;
+        for is_chunk_processed in &mut applier
+            .applied_snapshot_status
+            .storage_logs_chunks_processed
+        {
             *is_chunk_processed = true;
         }
 
-        this.recover_tokens().await?;
-        this.tokens_recovered = true;
-        this.update_health();
-        Ok((strategy, this.applied_snapshot_status))
+        applier.recover_tokens().await?;
+        applier.tokens_recovered = true;
+        applier.update_health();
+        Ok((strategy, applier.applied_snapshot_status))
     }
 
-    async fn new(
-        task: &'a SnapshotsApplierTask,
-    ) -> Result<(Self, SnapshotRecoveryStrategy), SnapshotsApplierError> {
+    async fn new(task: &'a SnapshotsApplierTask) -> Result<Self, SnapshotsApplierError> {
         let health_updater = &task.health_updater;
         let connection_pool = &task.connection_pool;
         let main_node_client = task.main_node_client.as_ref();
@@ -693,10 +704,12 @@ impl<'a> SnapshotsApplier<'a> {
         let (created_from_scratch, snapshot_version) = match strategy {
             SnapshotRecoveryStrategy::New(version) => (true, version),
             SnapshotRecoveryStrategy::Resumed(version) => (false, version),
-            SnapshotRecoveryStrategy::Completed => (false, SnapshotVersion::Version1),
+            SnapshotRecoveryStrategy::Completed => {
+                return Ok(Self::CompletedStatus(applied_snapshot_status))
+            }
         };
 
-        let mut this = Self {
+        let mut applier = SnapshotsApplier {
             connection_pool,
             main_node_client,
             blob_store: task.blob_store.as_ref(),
@@ -709,26 +722,26 @@ impl<'a> SnapshotsApplier<'a> {
             tokens_recovered: false,
         };
 
-        if matches!(strategy, SnapshotRecoveryStrategy::Completed) {
-            return Ok((this, strategy));
-        }
-
         METRICS.storage_logs_chunks_count.set(
-            this.applied_snapshot_status
+            applier
+                .applied_snapshot_status
                 .storage_logs_chunks_processed
                 .len(),
         );
         METRICS.storage_logs_chunks_left_to_process.set(
-            this.applied_snapshot_status
+            applier
+                .applied_snapshot_status
                 .storage_logs_chunks_left_to_process(),
         );
-        this.update_health();
+        applier.update_health();
 
         if created_from_scratch {
-            this.recover_factory_deps(&mut storage_transaction).await?;
+            applier
+                .recover_factory_deps(&mut storage_transaction)
+                .await?;
             storage_transaction
                 .snapshot_recovery_dal()
-                .insert_initial_recovery_status(&this.applied_snapshot_status)
+                .insert_initial_recovery_status(&applier.applied_snapshot_status)
                 .await?;
 
             // Insert artificial entries into the pruning log so that it's guaranteed to match the snapshot recovery metadata.
@@ -736,26 +749,28 @@ impl<'a> SnapshotsApplier<'a> {
             storage_transaction
                 .pruning_dal()
                 .insert_soft_pruning_log(
-                    this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.l2_block_number,
+                    applier.applied_snapshot_status.l1_batch_number,
+                    applier.applied_snapshot_status.l2_block_number,
                 )
                 .await?;
             storage_transaction
                 .pruning_dal()
                 .insert_hard_pruning_log(
-                    this.applied_snapshot_status.l1_batch_number,
-                    this.applied_snapshot_status.l2_block_number,
-                    this.applied_snapshot_status.l1_batch_root_hash,
+                    applier.applied_snapshot_status.l1_batch_number,
+                    applier.applied_snapshot_status.l2_block_number,
+                    applier.applied_snapshot_status.l1_batch_root_hash,
                 )
                 .await?;
         }
         storage_transaction.commit().await?;
         drop(storage);
-        this.factory_deps_recovered = true;
-        this.update_health();
-        Ok((this, strategy))
+        applier.factory_deps_recovered = true;
+        applier.update_health();
+        Ok(Self::Applier(applier, strategy))
     }
+}
 
+impl<'a> SnapshotsApplier<'a> {
     fn update_health(&self) {
         let details = SnapshotsApplierHealthDetails {
             snapshot_l2_block: self.applied_snapshot_status.l2_block_number,
