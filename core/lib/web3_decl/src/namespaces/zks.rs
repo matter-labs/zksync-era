@@ -73,15 +73,6 @@ pub trait ZksNamespace {
     async fn get_all_account_balances(&self, address: Address)
         -> RpcResult<HashMap<Address, U256>>;
 
-    #[method(name = "getL2ToL1MsgProof")]
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        block: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-        l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>>;
-
     #[method(name = "getL2ToL1LogProof")]
     async fn get_l2_to_l1_log_proof(
         &self,
