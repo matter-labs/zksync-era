@@ -837,28 +837,6 @@ impl FriProverDal<'_, '_> {
         .await
     }
 
-    pub async fn delete_batch_data(
-        &mut self,
-        batch_id: L1BatchId,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_prover_jobs_fri_batch_data(batch_id).await
-    }
-
-    // todo: THIS LOOKS BAD
-    pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        sqlx::query!(
-            r#"
-            DELETE FROM prover_jobs_fri
-            "#
-        )
-        .execute(self.storage.conn())
-        .await
-    }
-
-    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
-        self.delete_prover_jobs_fri().await
-    }
-
     pub async fn requeue_stuck_jobs_for_batch(
         &mut self,
         batch_id: L1BatchId,
