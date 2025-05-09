@@ -81,7 +81,7 @@ impl MempoolFetcher {
 
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, mempool is shutting down");
+                tracing::info!("Stop request received, mempool is shutting down");
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();

@@ -1,6 +1,6 @@
 use tokio::sync::watch;
 
-/// Represents a receiver for the stop signal.
+/// Represents a receiver for the stop request.
 /// This signal is sent when the node is shutting down.
 /// Every task is expected to listen to this signal and stop its execution when it is received.
 ///

@@ -394,7 +394,7 @@ impl PostgresStorageCachesTask {
                     *self.command_receiver.borrow_and_update()
                 },
                 else => {
-                    // The command sender has been dropped, which means that we must receive the stop signal soon.
+                    // The command sender has been dropped, which means that we must receive the stop request soon.
                     stop_receiver.changed().await?;
                     break;
                 }

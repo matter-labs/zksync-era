@@ -243,7 +243,7 @@ impl DataAvailabilityFetcher {
         self.health_updater.update(health.into());
     }
 
-    /// Runs this component until a fatal error occurs or a stop signal is received. Retriable errors
+    /// Runs this component until a fatal error occurs or a stop request is received. Retriable errors
     /// (e.g., no network connection) are handled gracefully by retrying after a delay.
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
@@ -297,7 +297,7 @@ impl DataAvailabilityFetcher {
                 break;
             }
         }
-        tracing::info!("Stop signal received; data availability fetcher is shutting down");
+        tracing::info!("Stop request received; data availability fetcher is shutting down");
         Ok(())
     }
 

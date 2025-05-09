@@ -314,7 +314,7 @@ pub struct VmPlaygroundLoaderTask {
 }
 
 impl VmPlaygroundLoaderTask {
-    /// Runs a task until a stop signal is received.
+    /// Runs a task until a stop request is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let task = tokio::select! {
             biased;

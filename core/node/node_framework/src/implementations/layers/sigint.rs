@@ -62,7 +62,7 @@ impl Task for SigintHandlerTask {
         })
         .expect("Error setting Ctrl+C handler");
 
-        // Wait for either SIGINT or stop signal.
+        // Wait for either SIGINT or a stop request.
         tokio::select! {
             _ = sigint_receiver => {
                 tracing::info!("Received SIGINT signal");

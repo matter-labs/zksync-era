@@ -1,4 +1,5 @@
 use zksync_node_storage_init::{NodeInitializationStrategy, NodeStorageInitializer};
+use zksync_types::try_stoppable;
 
 use crate::{
     implementations::resources::pools::{MasterPool, PoolResource},
@@ -135,9 +136,9 @@ impl Task for NodeStorageInitializerPrecondition {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         tracing::info!("Waiting for node storage to be initialized");
-        let result = self.0.wait_for_initialized_storage(stop_receiver.0).await;
+        try_stoppable!(self.0.wait_for_initialized_storage(stop_receiver.0).await);
         tracing::info!("Node storage initialization precondition completed");
-        result
+        Ok(())
     }
 }
 

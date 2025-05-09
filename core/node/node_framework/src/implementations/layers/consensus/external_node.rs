@@ -112,7 +112,7 @@ impl Task for ExternalNodeTask {
         // exclusive).
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
-        // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
+        // but we only need to wait for a stop request once, and it will be propagated to all child contexts.
         scope::run!(&ctx::root(), |ctx, s| async {
             s.spawn_bg(consensus::era::run_external_node(
                 ctx,

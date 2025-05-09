@@ -36,7 +36,7 @@ impl PeriodicTask {
                 .await
                 .context("failed to invoke task")?;
         }
-        tracing::info!("Stop signal received; Task {} is shut down", self.name);
+        tracing::info!("Stop request received; Task {} is shut down", self.name);
         Ok(())
     }
 }

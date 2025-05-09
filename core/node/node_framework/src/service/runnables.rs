@@ -95,7 +95,7 @@ impl Runnables {
 
         let only_oneshot_tasks = long_running_tasks.is_empty();
         // Create a system task that is cancellation-aware and will only exit on either oneshot task failure or
-        // stop signal.
+        // a stop request.
         let oneshot_runner_system_task =
             oneshot_runner_task(oneshot_tasks, stop_receiver, only_oneshot_tasks);
         long_running_tasks.push(oneshot_runner_system_task);
@@ -138,15 +138,15 @@ fn oneshot_runner_task(
                 Ok(())
             }
             Ok(_) => {
-                // All oneshot tasks have exited and we have at least one long-running task.
-                // Simply wait for the stop signal.
+                // All oneshot tasks have exited, and we have at least one long-running task.
+                // Simply wait for the stop request.
                 stop_receiver.0.changed().await.ok();
                 Ok(())
             }
         }
-        // Note that we don't have to `select` on the stop signal explicitly:
-        // Each prerequisite is given a stop signal, and if everyone respects it, this future
-        // will still resolve once the stop signal is received.
+        // Note that we don't have to `select` on the stop request explicitly:
+        // Each prerequisite is given a stop request, and if everyone respects it, this future
+        // will still resolve once the stop request is received.
     };
 
     NamedBoxFuture::new(future.boxed(), "oneshot_runner".into())

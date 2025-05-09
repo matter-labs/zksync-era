@@ -6,13 +6,15 @@ use anyhow::Context as _;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{
-    storage_logs_dal::StorageRecoveryLogEntry, Connection, ConnectionPool, Core, CoreDal, DalError,
+    storage_logs_dal::StorageRecoveryLogEntry, Connection, ConnectionPool, Core, CoreDal,
 };
-use zksync_types::{snapshots::uniform_hashed_keys_chunk, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{
+    snapshots::uniform_hashed_keys_chunk, L1BatchNumber, L2BlockNumber, OrStopped, H256,
+};
 
 use super::{
     metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
-    RocksdbStorage, RocksdbSyncError, StateValue,
+    RocksdbStorage, StateValue,
 };
 
 #[derive(Debug)]
@@ -123,22 +125,19 @@ impl RocksdbStorage {
     /// # Return value
     ///
     /// Returns the next L1 batch that should be fed to the storage.
-    #[tracing::instrument(skip_all, ret)]
+    #[tracing::instrument(skip_all, ret, err)]
     pub(super) async fn ensure_ready(
         &mut self,
         pool: &ConnectionPool<Core>,
         desired_log_chunk_size: u64,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(InitStrategy, L1BatchNumber), RocksdbSyncError> {
+    ) -> Result<InitStrategy, OrStopped> {
         if let Some(l1_batch_number) = self.next_l1_batch_number_opt().await {
             tracing::info!(?l1_batch_number, "RocksDB storage is ready");
-            return Ok((InitStrategy::Complete, l1_batch_number));
+            return Ok(InitStrategy::Complete);
         }
 
-        let mut storage = pool
-            .connection_tagged("state_keeper")
-            .await
-            .map_err(DalError::generalize)?;
+        let mut storage = pool.connection_tagged("state_keeper").await?;
         let init_params = InitParameters::new(&mut storage, desired_log_chunk_size).await?;
         drop(storage);
 
@@ -159,11 +158,11 @@ impl RocksdbStorage {
         Ok(if let Some(init_params) = init_params {
             self.recover_from_snapshot(pool, &init_params, stop_receiver)
                 .await?;
-            (InitStrategy::Recovery, init_params.l1_batch + 1)
+            InitStrategy::Recovery
         } else {
             tracing::info!("Initializing RocksDB storage from genesis");
             self.set_l1_batch_number(L1BatchNumber(0), false).await?;
-            (InitStrategy::Genesis, L1BatchNumber(0))
+            InitStrategy::Genesis
         })
     }
 
@@ -176,9 +175,9 @@ impl RocksdbStorage {
         pool: &ConnectionPool<Core>,
         init_parameters: &InitParameters,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), RocksdbSyncError> {
+    ) -> Result<(), OrStopped> {
         if *stop_receiver.borrow() {
-            return Err(RocksdbSyncError::Interrupted);
+            return Err(OrStopped::Stopped);
         }
 
         tracing::info!(
@@ -194,7 +193,7 @@ impl RocksdbStorage {
             .await?;
 
         if *stop_receiver.borrow() {
-            return Err(RocksdbSyncError::Interrupted);
+            return Err(OrStopped::Stopped);
         }
         let key_chunks = Self::load_key_chunks(&mut storage, init_parameters).await?;
         drop(storage);
@@ -360,7 +359,7 @@ impl RocksdbStorage {
         Ok(retained_chunks)
     }
 
-    #[tracing::instrument(skip_all, fields(id = key_chunk.id, range = ?key_chunk.key_range))]
+    #[tracing::instrument(skip_all, err, fields(id = key_chunk.id, range = ?key_chunk.key_range))]
     async fn recover_logs_chunk(
         this: &Mutex<Self>,
         pool: &ConnectionPool<Core>,
@@ -368,14 +367,14 @@ impl RocksdbStorage {
         key_chunk: KeyChunk,
         total_chunk_count: usize,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), RocksdbSyncError> {
+    ) -> Result<(), OrStopped> {
         let latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
         let mut storage = pool.connection_tagged("state_keeper").await?;
         latency.observe();
 
         if *stop_receiver.borrow() {
-            return Err(RocksdbSyncError::Interrupted);
+            return Err(OrStopped::Stopped);
         }
 
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::LoadEntries].start();
@@ -387,7 +386,7 @@ impl RocksdbStorage {
         tracing::debug!(?latency, len = all_entries.len(), "Loaded log entries");
 
         if *stop_receiver.borrow() {
-            return Err(RocksdbSyncError::Interrupted);
+            return Err(OrStopped::Stopped);
         }
 
         Self::check_pruning_info(&mut storage, init_parameters.l1_batch).await?;
@@ -399,7 +398,7 @@ impl RocksdbStorage {
         tracing::debug!(?latency, "Acquired RocksDB mutex");
 
         if *stop_receiver.borrow() {
-            return Err(RocksdbSyncError::Interrupted);
+            return Err(OrStopped::Stopped);
         }
 
         let latency = RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::SaveEntries].start();

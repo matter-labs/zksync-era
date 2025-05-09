@@ -35,7 +35,7 @@ pub trait PeriodicJob: Sync + Send {
                 .ok();
         }
         tracing::info!(
-            "Stop signal received; periodic job {} is shut down",
+            "Stop request received; periodic job {} is shut down",
             Self::SERVICE_NAME
         );
         Ok(())
