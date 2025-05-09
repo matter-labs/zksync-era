@@ -38,7 +38,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &get_default_foundry_path(shell)?,
         AdminScriptMode::OnlySave,
         chain_config.chain_id.as_u64(),
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        contracts_config.l1.diamond_proxy_addr,
         l1_da_validator_address,
         l2_da_validator_address,
         l1_url,
