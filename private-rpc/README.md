@@ -54,7 +54,6 @@ yarn start
 
 ## Creating access tokens
 
-
 ```bash
 curl -X POST http://localhost:4041/users \
      -H "Content-Type: application/json" \
