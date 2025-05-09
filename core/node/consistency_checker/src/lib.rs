@@ -220,21 +220,21 @@ impl LocalL1BatchCommitData {
         self.l1_batch
             .header
             .protocol_version
-            .map_or(true, |version| version.is_pre_boojum())
+            .is_none_or(|version| version.is_pre_boojum())
     }
 
     fn is_pre_shared_bridge(&self) -> bool {
         self.l1_batch
             .header
             .protocol_version
-            .map_or(true, |version| version.is_pre_shared_bridge())
+            .is_none_or(|version| version.is_pre_shared_bridge())
     }
 
     fn is_pre_gateway(&self) -> bool {
         self.l1_batch
             .header
             .protocol_version
-            .map_or(true, |version| version.is_pre_gateway())
+            .is_none_or(|version| version.is_pre_gateway())
     }
 
     /// All returned errors are validation errors.

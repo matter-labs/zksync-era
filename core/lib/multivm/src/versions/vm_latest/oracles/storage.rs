@@ -35,11 +35,11 @@ use crate::{
     },
 };
 
-/// We employ the following rules for cold/warm storage rules:
-/// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
-///   would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
-/// - Thereafter, "warm" reads cost 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
-///   and so require more RAM to store them.
+// We employ the following rules for cold/warm storage rules:
+// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
+//   would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
+// - Thereafter, "warm" reads cost 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account cost more for the fact that they may be reverted
+//   and so require more RAM to store them.
 
 const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - STORAGE_ACCESS_WARM_READ_COST;
 const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_WARM_WRITE_COST;
