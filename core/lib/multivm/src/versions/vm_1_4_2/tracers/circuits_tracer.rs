@@ -168,7 +168,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
 
             // Each cycle of `CodeDecommitter` processes 2 words.
             // If the number of words in bytecode is odd, then number of cycles must be rounded up.
-            let decommitter_cycles_used = (bytecode_len + 1) / 2;
+            let decommitter_cycles_used = bytecode_len.div_ceil(2);
             self.statistics.code_decommitter_cycles += decommitter_cycles_used as u32;
         }
         self.last_decommitment_history_entry_checked = Some(history.len());

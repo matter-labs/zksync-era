@@ -233,7 +233,7 @@ impl TreeUpdater {
     }
 }
 
-impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
+impl<DB: Database + ?Sized> Storage<'_, DB> {
     pub fn extend_with_proofs(
         mut self,
         instructions: Vec<TreeInstruction>,

@@ -150,7 +150,7 @@ impl MethodCall<'_> {
     pub(super) fn set_as_current(&mut self) -> CurrentMethodGuard<'_> {
         let meta = &mut self.meta;
         let cell = self.tracer.inner.get_or_default();
-        let prev = mem::replace(&mut *cell.borrow_mut(), Some(meta.clone()));
+        let prev = (*cell.borrow_mut()).replace(meta.clone());
         CurrentMethodGuard {
             prev,
             current: meta,
