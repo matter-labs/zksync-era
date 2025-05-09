@@ -22,11 +22,6 @@ use crate::{
     testonly,
 };
 
-// NOTE: These tests are disabled since we are going to remove L1 batches. Most likely
-//       we will remove all the attester related code as well, but keeping this until
-//       we are sure.
-//mod attestation;
-
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];
 const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
@@ -155,7 +150,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
         for i in setup.genesis.first_block.0..sk.last_block().next().0 {
             let i = validator::BlockNumber(i);
             let payload = conn
-                .payload(ctx, i)
+                .block_payload(ctx, i)
                 .await
                 .wrap(i)?
                 .with_context(|| format!("payload for {i:?} not found"))?
@@ -808,18 +803,17 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         validator.push_random_blocks(rng, account, 5).await;
         validator.seal_batch().await;
         validator_pool
-            .wait_for_batch_info(ctx, validator.last_sealed_batch(), POLL_INTERVAL)
+            .wait_for_batch(ctx, validator.last_sealed_batch(), POLL_INTERVAL)
             .await
-            .wrap("wait_for_batch_info()")?;
+            .wrap("wait_for_batch()")?;
 
-        // The main node is not supposed to be pruned. In particular `ConsensusDal::attestation_status`
-        // does not look for where the last prune happened at, and thus if we prune the block genesis
+        // The main node is not supposed to be pruned. If we prune the block genesis
         // points at, we might never be able to start the Executor.
         tracing::info!("Wait until the external node has all the batches we want to prune");
         node_pool
-            .wait_for_batch_info(ctx, to_prune.next(), POLL_INTERVAL)
+            .wait_for_batch(ctx, to_prune.next(), POLL_INTERVAL)
             .await
-            .wrap("wait_for_batch_info()")?;
+            .wrap("wait_for_batch()")?;
         tracing::info!("Prune some blocks and sync more");
         node_pool
             .prune_batches(ctx, to_prune)
