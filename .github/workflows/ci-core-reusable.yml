@@ -587,12 +587,15 @@ jobs:
           ci_run sleep 60
           echo "Server restart wait completed"
           
-          echo "L1 batches"
-          psql "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" -c "select * from l1_batches"
-          echo "Miniblocks"
-          psql "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" -c "select * from miniblocks"
-          echo "L1 tx history"
-          psql "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" -c "select * from l1_txs_history"
+          mkdir -p db_dumps
+          pg_dump "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" \
+            --table=l1_batches \
+            --format=custom \
+            --file=db_dumps/l1_batches_dump.sql
+          pg_dump "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" \
+            --table=l1_batches \
+            --format=custom \
+            --file=db_dumps/miniblocks.sql
           
           echo "Running integration tests"
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
@@ -699,3 +702,4 @@ jobs:
           path: |
             logs/
             chains/*/artifacts/vm_dumps/
+            db_dumps/
