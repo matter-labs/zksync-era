@@ -27,7 +27,7 @@ mod types;
 /// implementation that returns `TaskKind::Task`.
 ///
 /// Typically, the implementation of [`Task::run`] will be some form of loop that runs until either an
-/// irrecoverable error happens (then task should return an error), or stop signal is received (then task should
+/// irrecoverable error happens (then task should return an error), or a stop request is received (then task should
 /// return `Ok(())`).
 ///
 /// ### `OneshotTask`
@@ -100,7 +100,7 @@ impl dyn Task {
         mut stop_receiver: StopReceiver,
         preconditions_barrier: Arc<Barrier>,
     ) -> anyhow::Result<()> {
-        // Wait either for barrier to be lifted or for the stop signal to be received.
+        // Wait either for barrier to be lifted or for the stop request to be received.
         tokio::select! {
             _ = preconditions_barrier.wait() => {
                 self.run(stop_receiver).await

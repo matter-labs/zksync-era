@@ -13,7 +13,7 @@ use zksync_dal::{
     Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::{L1BatchNumber, L2BlockNumber, OrStopped};
 
 use self::{
     metrics::{ConditionOutcome, PruneType, METRICS},
@@ -71,8 +71,6 @@ enum PruningIterationOutcome {
     NoOp,
     /// Iteration resulted in pruning.
     Pruned,
-    /// Pruning was interrupted because of a stop signal.
-    Interrupted,
 }
 
 /// Postgres database pruning component.
@@ -230,7 +228,7 @@ impl DbPruner {
         &self,
         storage: &mut Connection<'_, Core>,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> anyhow::Result<PruningIterationOutcome> {
+    ) -> Result<PruningIterationOutcome, OrStopped> {
         let latency = METRICS.pruning_chunk_duration[&PruneType::Hard].start();
         let mut transaction = storage.start_transaction().await?;
 
@@ -262,7 +260,7 @@ impl DbPruner {
                 // rather than waiting a node to force-exit after a timeout, which would interrupt the DB connection and will lead to an implicit rollback.
                 tracing::info!("Hard pruning interrupted; rolling back pruning transaction");
                 transaction.rollback().await?;
-                return Ok(PruningIterationOutcome::Interrupted);
+                return Err(OrStopped::Stopped);
             }
         };
         METRICS.observe_hard_pruning(stats);
@@ -290,7 +288,7 @@ impl DbPruner {
     async fn run_single_iteration(
         &self,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> anyhow::Result<PruningIterationOutcome> {
+    ) -> Result<PruningIterationOutcome, OrStopped> {
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
         self.update_health(current_pruning_info);
@@ -308,7 +306,7 @@ impl DbPruner {
             .await
             .is_ok()
         {
-            return Ok(PruningIterationOutcome::Interrupted);
+            return Err(OrStopped::Stopped);
         }
 
         let mut storage = self.connection_pool.connection_tagged("db_pruner").await?;
@@ -332,7 +330,7 @@ impl DbPruner {
             }
 
             let should_sleep = match self.run_single_iteration(&mut stop_receiver).await {
-                Err(err) => {
+                Err(OrStopped::Internal(err)) => {
                     // As this component is not really mission-critical, all errors are generally ignored
                     tracing::warn!(
                         "Pruning error, retrying in {next_iteration_delay:?}, error was: {err:?}"
@@ -344,7 +342,7 @@ impl DbPruner {
                     self.health_updater.update(health);
                     true
                 }
-                Ok(PruningIterationOutcome::Interrupted) => break,
+                Err(OrStopped::Stopped) => break,
                 Ok(PruningIterationOutcome::Pruned) => false,
                 Ok(PruningIterationOutcome::NoOp) => true,
             };
@@ -354,12 +352,12 @@ impl DbPruner {
                     .await
                     .is_ok()
             {
-                // The pruner either received a stop signal, or the stop receiver was dropped. In any case,
+                // The pruner either received a stop request, or the stop receiver was dropped. In any case,
                 // the pruner should exit.
                 break;
             }
         }
-        tracing::info!("Stop signal received, shutting down DB pruning");
+        tracing::info!("Stop request received, shutting down DB pruning");
         Ok(())
     }
 }
