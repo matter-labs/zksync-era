@@ -13,8 +13,9 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_MAKE_PERMANENT_ROLLUP,
+        MSG_NO_PORT_REALLOCATION_HELP, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
+        MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -41,6 +42,8 @@ pub struct InitArgs {
     pub no_port_reallocation: bool,
     #[clap(long)]
     pub update_submodules: Option<bool>,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub make_permanent_rollup: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
     #[clap(flatten)]
@@ -91,6 +94,12 @@ impl InitArgs {
             })
         };
 
+        let make_permanent_rollup = self.make_permanent_rollup.unwrap_or_else(|| {
+            zkstack_cli_common::PromptConfirm::new(MSG_MAKE_PERMANENT_ROLLUP)
+                .default(false)
+                .ask()
+        });
+
         let validium_config = match config.l1_batch_commit_data_generator_mode {
             L1BatchCommitmentMode::Validium => match self.validium_args.validium_type {
                 None => Some(ValidiumType::read()),
@@ -110,6 +119,7 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
+            make_permanent_rollup,
         }
     }
 }
@@ -122,4 +132,5 @@ pub struct InitArgsFinal {
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
+    pub make_permanent_rollup: bool,
 }
