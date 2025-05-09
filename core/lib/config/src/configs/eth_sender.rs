@@ -56,6 +56,7 @@ impl EthConfig {
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
+                time_in_mempool_multiplier_cap: None,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -152,6 +153,8 @@ pub struct SenderConfig {
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
     #[serde(default = "SenderConfig::default_max_acceptable_base_fee_in_wei")]
     pub max_acceptable_base_fee_in_wei: u64,
+    /// Cap for `b ^ time_in_mempool` used for price calculations.
+    pub time_in_mempool_multiplier_cap: Option<u32>,
 }
 
 impl SenderConfig {
@@ -204,6 +207,11 @@ impl SenderConfig {
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
         blocks_per_hour * 6
     }
+
+    // pub const fn default_time_in_mempool_multiplier_cap() -> u32 {
+    //     // by default we cap exponential price formula at roughly median * 10
+    //     10
+    // }
 
     pub const fn default_max_acceptable_base_fee_in_wei() -> u64 {
         u64::MAX

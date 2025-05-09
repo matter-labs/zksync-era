@@ -78,6 +78,7 @@ mod tests {
                     is_verifier_pre_fflonk: true,
                     gas_limit_mode: Default::default(),
                     max_acceptable_base_fee_in_wei: 100_000_000_000,
+                    time_in_mempool_multiplier_cap: Some(10),
                 }),
                 Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
@@ -137,6 +138,7 @@ mod tests {
             ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_IN_L1_BLOCKS_CAP="2000"
+            ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"

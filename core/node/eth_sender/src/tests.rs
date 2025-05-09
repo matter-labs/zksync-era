@@ -501,7 +501,9 @@ async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
     // second iteration sends first_batch prove tx and resends second_batch commit tx
     tester.assert_just_sent_tx_count_equals(2).await;
 
-    tester.run_eth_sender_tx_manager_iteration().await;
+    tester
+        .run_eth_sender_tx_manager_iteration_after_n_blocks(10)
+        .await;
     // we should resend both of those transactions here as they use different operators
     tester.assert_just_sent_tx_count_equals(2).await;
 }
