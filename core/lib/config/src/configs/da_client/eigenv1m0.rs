@@ -9,8 +9,10 @@ pub enum PointsSource {
 }
 
 /// Configuration for the EigenDA remote disperser client.
+/// This configuration is meant to be used by the EigenDA V1 client.
+/// The M0 stands for Milestone 0, an insecure integration, where the dispersal is not verified.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
-pub struct EigenConfig {
+pub struct EigenConfigV1M0 {
     /// URL of the Disperser RPC server
     pub disperser_rpc: String,
     /// Block height needed to reach in order to consider the blob finalized
@@ -31,6 +33,6 @@ pub struct EigenConfig {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EigenSecrets {
+pub struct EigenSecretsV1M0 {
     pub private_key: PrivateKey,
 }

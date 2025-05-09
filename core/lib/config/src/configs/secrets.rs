@@ -1,9 +1,10 @@
 use anyhow::Context;
 use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
+use super::da_client::eigenv1m0::EigenSecretsV1M0;
 use crate::configs::{
     consensus::ConsensusSecrets,
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigenv2m0::EigenSecretsV2M0},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,7 +24,8 @@ pub struct L1Secrets {
 pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
     Celestia(CelestiaSecrets),
-    Eigen(EigenSecrets),
+    EigenV1M0(EigenSecretsV1M0),
+    EigenV2M0(EigenSecretsV2M0),
 }
 
 #[derive(Debug, Clone, PartialEq)]

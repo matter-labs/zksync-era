@@ -24,7 +24,8 @@ use zksync_node_framework::{
         consensus::ExternalNodeConsensusLayer,
         consistency_checker::ConsistencyCheckerLayer,
         da_clients::{
-            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer,
+            eigenv1m0::EigenV1M0WiringLayer, eigenv2m0::EigenV2M0WiringLayer,
             no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
@@ -44,8 +45,7 @@ use zksync_node_framework::{
         query_eth_client::QueryEthClientLayer,
         reorg_detector::ReorgDetectorLayer,
         settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data,
-        settlement_layer_data::SettlementLayerData,
+        settlement_layer_data::{self, SettlementLayerData},
         sigint::SigintHandlerLayer,
         state_keeper::{
             external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
@@ -350,12 +350,21 @@ impl ExternalNodeBuilder {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
-            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
+            (DAClientConfig::EigenV1M0(mut config), DataAvailabilitySecrets::EigenV1M0(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
                     config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
                 }
 
-                self.node.add_layer(EigenWiringLayer::new(config, secret));
+                self.node
+                    .add_layer(EigenV1M0WiringLayer::new(config, secret));
+            }
+            (DAClientConfig::EigenV2M0(mut config), DataAvailabilitySecrets::EigenV2M0(secret)) => {
+                if config.eigenda_eth_rpc.is_none() {
+                    config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
+                }
+
+                self.node
+                    .add_layer(EigenV2M0WiringLayer::new(config, secret));
             }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }
