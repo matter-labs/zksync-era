@@ -24,6 +24,7 @@ use crate::{
 /// Methods with a tracer arg take the provided tracer, replacing it with the default value. Legacy tracers
 /// are adapted for this workflow (previously, tracers were passed by value), so they provide means to extract state after execution
 /// if necessary (e.g., using `Arc<OnceCell<_>>`).
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
     VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
@@ -251,6 +252,7 @@ pub type ShadowedFastVm<S, Tr, Val> = ShadowVm<
 >;
 
 /// Fast VM variants.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FastVmInstance<S: ReadStorage, Tr = (), Val = FastValidationTracer> {
     /// Fast VM running in isolation.
