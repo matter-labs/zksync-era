@@ -27,8 +27,8 @@ zkstack private-rpc reset-db
 
 ## Modifying the permissions
 
-The permissions can be modified by updating the `private-rpc-permissions.yaml` file. The exact path of this file will be printed
-during the init command.
+The permissions can be modified by updating the `private-rpc-permissions.yaml` file. The exact path of this file will be
+printed during the init command.
 
 ## Creating access tokens
 
