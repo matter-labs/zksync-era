@@ -103,10 +103,6 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
@@ -117,6 +113,10 @@ jobs:
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
+
+      - name: Start services
+        run: |
+          ci_localnet_up
 
       - name: Init
         run: |
