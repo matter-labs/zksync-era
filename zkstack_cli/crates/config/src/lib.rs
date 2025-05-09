@@ -23,6 +23,7 @@ mod genesis;
 mod manipulations;
 mod object_store;
 pub mod portal;
+pub mod private_proxy_compose;
 mod raw;
 mod secrets;
 pub mod traits;

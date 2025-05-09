@@ -1,4 +1,8 @@
-use std::{fmt, path::Path, time::Duration};
+use std::{
+    fmt,
+    path::{Display, Path},
+    time::Duration,
+};
 
 use ethers::{
     types::{Address, H160, U256},
@@ -311,6 +315,39 @@ pub(super) fn msg_portal_running_with_config(path: &Path) -> String {
 pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
 }
+
+/// Private proxy related messages
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run private proxy container";
+
+pub(super) fn msg_private_rpc_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database url for chain {chain_name}")
+}
+
+pub(super) fn msg_private_rpc_initializing_database_for(chain: &str) -> String {
+    format!("Initializing private proxy database for {chain} chain")
+}
+
+pub(super) fn msg_private_rpc_docker_image_being_built() -> String {
+    "Building private-proxy docker image, it may take a while...".to_string()
+}
+pub(super) fn msg_private_rpc_docker_compose_file_generated(path: Display) -> String {
+    format!("Generated private proxy docker-compose file and stored it at {path}")
+}
+pub(super) fn msg_private_rpc_permissions_file_generated(path: Display) -> String {
+    format!("Created example permissions config and stored it at {path}")
+}
+
+pub(super) fn msg_private_rpc_chain_not_initialized(chain: &str) -> String {
+    format!("Chain {chain} is not initialized for private-proxy: run `zkstack private-proxy init --chain {chain}` first")
+}
+
+pub(super) fn msg_private_proxy_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database name for chain {chain_name}")
+}
+
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
+    "Failed to drop private proxy database";
 
 /// Explorer related messages
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
