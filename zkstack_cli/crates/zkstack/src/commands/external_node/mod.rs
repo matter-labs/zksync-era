@@ -1,5 +1,4 @@
 use clap::Parser;
-use serde::{Deserialize, Serialize};
 use xshell::Shell;
 
 use self::args::{prepare_configs::PrepareConfigArgs, run::RunExternalNodeArgs};
@@ -12,7 +11,7 @@ mod prepare_configs;
 mod run;
 mod wait;
 
-#[derive(Debug, Serialize, Deserialize, Parser)]
+#[derive(Debug, Parser)]
 pub enum ExternalNodeCommands {
     /// Prepare configs for EN
     Configs(PrepareConfigArgs),

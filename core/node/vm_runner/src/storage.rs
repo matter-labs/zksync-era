@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
+    path::PathBuf,
     sync::Arc,
     time::Duration,
 };
@@ -148,7 +149,7 @@ impl<Io: VmRunnerIo + Clone> VmRunnerStorage<Io> {
     /// Creates a new VM runner storage using provided Postgres pool and RocksDB path.
     pub async fn new(
         pool: ConnectionPool<Core>,
-        rocksdb_path: String,
+        rocksdb_path: PathBuf,
         io: Io,
         chain_id: L2ChainId,
     ) -> anyhow::Result<(Self, StorageSyncTask<Io>)> {
@@ -260,7 +261,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
     async fn new(
         pool: ConnectionPool<Core>,
         chain_id: L2ChainId,
-        rocksdb_path: String,
+        rocksdb_path: PathBuf,
         io: Io,
         state: Arc<RwLock<State>>,
     ) -> anyhow::Result<Self> {

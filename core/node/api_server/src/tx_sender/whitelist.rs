@@ -83,13 +83,11 @@ pub struct AllowListTask {
 
 impl AllowListTask {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
     pub fn from_config(deployment_allowlist: DeploymentAllowlistDynamic) -> Self {
         Self {
-            url: deployment_allowlist
-                .http_file_url()
-                .expect("DeploymentAllowlist must contain a URL")
-                .to_string(),
-            refresh_interval: deployment_allowlist.refresh_interval(),
+            url: deployment_allowlist.http_file_url,
+            refresh_interval: deployment_allowlist.refresh_interval,
             allowlist: SharedAllowList::default(),
             client: Client::new(),
         }

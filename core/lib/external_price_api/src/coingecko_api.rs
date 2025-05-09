@@ -32,7 +32,7 @@ impl CoinGeckoPriceAPIClient {
 
             reqwest::Client::builder()
                 .default_headers(headers)
-                .timeout(config.client_timeout())
+                .timeout(config.client_timeout_ms)
                 .build()
                 .expect("Failed to build reqwest client")
         } else {
@@ -117,7 +117,6 @@ impl CoinGeckoPriceResponse {
 #[cfg(test)]
 mod test {
     use httpmock::MockServer;
-    use zksync_config::configs::external_price_api_client::DEFAULT_TIMEOUT_MS;
 
     use super::*;
     use crate::tests::*;
@@ -169,8 +168,7 @@ mod test {
             base_url: Some(base_url),
             api_key,
             source: "coingecko".to_string(),
-            client_timeout_ms: DEFAULT_TIMEOUT_MS,
-            forced: None,
+            ..ExternalPriceApiClientConfig::default()
         }
     }
 

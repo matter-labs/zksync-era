@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 
 use super::*;
+use crate::config::observability::ObservabilityENConfig;
 
 #[derive(Debug)]
 struct MockEnvironment(HashMap<&'static str, &'static str>);
@@ -157,14 +158,8 @@ fn parsing_optional_config_from_env() {
     assert_eq!(
         max_response_size.overrides,
         MaxResponseSizeOverrides::from_iter([
-            (
-                "zks_getProof",
-                NonZeroUsize::new(100 * BYTES_IN_MEGABYTE).unwrap()
-            ),
-            (
-                "eth_call",
-                NonZeroUsize::new(2 * BYTES_IN_MEGABYTE).unwrap()
-            )
+            ("zks_getProof", NonZeroUsize::new(100 * BYTES_IN_MEGABYTE)),
+            ("eth_call", NonZeroUsize::new(2 * BYTES_IN_MEGABYTE))
         ])
     );
 }

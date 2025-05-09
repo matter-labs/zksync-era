@@ -1,13 +1,10 @@
-extern crate core;
-
-use std::{fs, fs::File, io::BufWriter, path::PathBuf, str::FromStr};
+use std::{fs, io::BufWriter, path::PathBuf, str::FromStr};
 
 use clap::Parser;
+use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{custom_genesis_export_dal::GenesisState, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{make_genesis_batch_params, utils::get_deduped_log_queries};
-use zksync_protobuf_config::encode_yaml_repr;
 use zksync_types::{url::SensitiveUrl, StorageLog};
 
 #[derive(Debug, Parser)]
@@ -48,7 +45,7 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let mut out = BufWriter::new(File::create(&args.output_path)?);
+    let mut out = BufWriter::new(fs::File::create(&args.output_path)?);
 
     println!(
         "Export file: {}",
@@ -102,9 +99,9 @@ async fn main() -> anyhow::Result<()> {
     );
     println!("Calculating new genesis parameters");
 
-    let mut genesis_config = read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(
-        &args.genesis_config_path,
-    )?;
+    let genesis_config_path = args.genesis_config_path.clone();
+    let mut genesis_config =
+        tokio::task::spawn_blocking(move || GenesisConfig::read(&genesis_config_path)).await??;
 
     let base_system_contract_hashes = BaseSystemContractsHashes {
         bootloader: genesis_config
@@ -131,9 +128,8 @@ async fn main() -> anyhow::Result<()> {
     genesis_config.custom_genesis_state_path =
         args.output_path.canonicalize()?.to_str().map(String::from);
 
-    let bytes =
-        encode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&genesis_config)?;
-    fs::write(&args.genesis_config_path, &bytes)?;
+    let genesis_config_path = args.genesis_config_path;
+    tokio::task::spawn_blocking(move || genesis_config.write(&genesis_config_path)).await??;
 
     println!("Done.");
 

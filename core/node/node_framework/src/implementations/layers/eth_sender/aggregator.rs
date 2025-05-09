@@ -101,6 +101,7 @@ impl WiringLayer for EthTxAggregatorLayer {
         tracing::info!("Contracts: {:?}", &input.contracts_resource.0);
         // Get resources.
 
+        // FIXME: double-check
         let validator_timelock_addr = input
             .contracts_resource
             .0

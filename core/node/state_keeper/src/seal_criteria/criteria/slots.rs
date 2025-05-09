@@ -56,7 +56,7 @@ mod tests {
         // Create an empty config and only setup fields relevant for the test.
         let config = StateKeeperConfig {
             transaction_slots: 2,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         };
 
         let criterion = SlotsCriterion;

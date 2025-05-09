@@ -16,7 +16,7 @@ pub struct AvailGasRelayConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "avail_client_type")]
 pub enum AvailClientConfig {
     FullClient(AvailDefaultConfig),
     GasRelay(AvailGasRelayConfig),

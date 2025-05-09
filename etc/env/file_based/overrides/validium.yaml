@@ -5,4 +5,13 @@ state_keeper:
   pubdata_overhead_part: 0
   compute_overhead_part: 1
 da_client:
-  no_da: {}
+  # CHANGE: switch to inner tagged enum for DA client
+  client: NoDA
+  # CHANGE: switch to inner tagged enum for Avail client, e.g.:
+  #  da_client:
+  #    bridge_api_url: https://turing-bridge-api.avail.so/
+  #    timeout_ms: 10000
+  #    avail_client_type: GasRelay
+  #    gas_relay_api_url: https://example.com/
+  #    max_retries: 7
+  #    client: Avail

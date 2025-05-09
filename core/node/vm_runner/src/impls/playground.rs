@@ -48,7 +48,7 @@ impl From<VmPlaygroundHealth> for Health {
 #[non_exhaustive]
 pub enum VmPlaygroundStorageOptions {
     /// Use RocksDB cache.
-    Rocksdb(String),
+    Rocksdb(PathBuf),
     /// Use prefetched batch snapshots (with fallback to Postgres if protective reads are not available for a batch).
     Snapshots {
         /// Whether to shadow snapshot storage with Postgres. This degrades performance and is mostly useful
@@ -71,7 +71,7 @@ pub struct VmPlaygroundCursorOptions {
 #[derive(Debug)]
 enum VmPlaygroundStorage {
     Rocksdb {
-        path: String,
+        path: PathBuf,
         task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
     },
     Snapshots {
@@ -266,7 +266,7 @@ impl VmPlayground {
         if let VmPlaygroundStorage::Rocksdb { path, .. } = &self.storage {
             fs::create_dir_all(path)
                 .await
-                .with_context(|| format!("cannot create dir `{path}`"))?;
+                .with_context(|| format!("cannot create dir `{path:?}`"))?;
         }
 
         if let Some(reset_to_batch) = self.reset_to_batch {

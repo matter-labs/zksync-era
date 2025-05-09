@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
@@ -8,7 +10,7 @@ use zksync_types::L1BatchNumber;
 #[derive(Debug, Clone)]
 pub struct RocksdbStorageFactory {
     pool: ConnectionPool<Core>,
-    state_keeper_db_path: String,
+    state_keeper_db_path: PathBuf,
 }
 
 #[async_trait]
@@ -20,7 +22,7 @@ impl ReadStorageFactory for RocksdbStorageFactory {
     ) -> anyhow::Result<Option<OwnedStorage>> {
         // Waiting for recovery here is not a good idea in the general case because of snapshot recovery taking potentially very long time.
         // Since this is a test implementation, it's OK here.
-        let Some((rocksdb, _)) = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
+        let Some((rocksdb, _)) = RocksdbStorage::builder(&self.state_keeper_db_path)
             .await
             .context("Failed opening state keeper RocksDB")?
             .ensure_ready(&self.pool, stop_receiver)
@@ -46,7 +48,7 @@ impl ReadStorageFactory for RocksdbStorageFactory {
 }
 
 impl RocksdbStorageFactory {
-    pub fn new(pool: ConnectionPool<Core>, state_keeper_db_path: String) -> Self {
+    pub fn new(pool: ConnectionPool<Core>, state_keeper_db_path: PathBuf) -> Self {
         Self {
             pool,
             state_keeper_db_path,

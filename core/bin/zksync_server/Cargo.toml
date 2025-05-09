@@ -12,10 +12,8 @@ categories.workspace = true
 publish = false
 
 [dependencies]
-zksync_config = { workspace = true, features = ["observability_ext"] }
-zksync_env_config.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext", "cli"] }
 zksync_eth_client.workspace = true
-zksync_protobuf_config.workspace = true
 zksync_storage.workspace = true
 zksync_types.workspace = true
 zksync_core_leftovers.workspace = true
@@ -35,6 +33,8 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 futures.workspace = true
+smart-config.workspace = true
+smart-config-commands.workspace = true
 
 zksync_node_framework.workspace = true
 zksync_metadata_calculator.workspace = true

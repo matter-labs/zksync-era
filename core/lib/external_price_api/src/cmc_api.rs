@@ -36,7 +36,7 @@ impl CmcPriceApiClient {
         } else {
             reqwest::Client::builder()
         }
-        .timeout(config.client_timeout())
+        .timeout(config.client_timeout_ms)
         .build()
         .expect("Failed to build reqwest client");
 
@@ -180,6 +180,8 @@ impl PriceAPIClient for CmcPriceApiClient {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use httpmock::prelude::*;
     use serde_json::json;
 
@@ -191,7 +193,7 @@ mod tests {
             source: "coinmarketcap".to_string(),
             base_url: Some(server.base_url()),
             api_key,
-            client_timeout_ms: 5000,
+            client_timeout_ms: Duration::from_secs(5),
             forced: None,
         }))
     }
@@ -341,7 +343,7 @@ mod tests {
         let client = CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             api_key: Some(std::env::var("CMC_API_KEY").unwrap()),
             base_url: None,
-            client_timeout_ms: 5000,
+            client_timeout_ms: Duration::from_secs(5),
             source: "coinmarketcap".to_string(),
             forced: None,
         });

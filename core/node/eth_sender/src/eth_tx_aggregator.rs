@@ -169,7 +169,7 @@ impl EthTxAggregator {
                 tracing::warn!("eth_sender error {err:?}");
             }
 
-            tokio::time::sleep(self.config.aggregate_tx_poll_period()).await;
+            tokio::time::sleep(self.config.aggregate_tx_poll_period).await;
         }
         Ok(())
     }

@@ -191,7 +191,7 @@ impl Processor<Locking> {
         &self,
     ) -> Result<Option<ProofGenerationData>, ProcessorError> {
         let l1_batch_number = match self
-            .lock_batch_for_proving(self.config.proof_generation_timeout())
+            .lock_batch_for_proving(self.config.proof_generation_timeout_in_secs)
             .await?
         {
             Some(number) => number,

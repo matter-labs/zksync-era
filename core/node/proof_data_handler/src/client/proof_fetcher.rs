@@ -56,7 +56,7 @@ impl ProofFetcher {
 
             let Some(batch_to_fetch) = self.processor.get_oldest_not_proven_batch().await? else {
                 tracing::info!("No batches to fetch proofs for");
-                tokio::time::sleep(self.config.proof_fetch_interval()).await;
+                tokio::time::sleep(self.config.proof_fetch_interval_in_secs).await;
                 continue;
             };
 
@@ -78,9 +78,9 @@ impl ProofFetcher {
 
             tracing::info!(
                 "No proof was fetched, sleeping for {:?}",
-                self.config.proof_fetch_interval()
+                self.config.proof_fetch_interval_in_secs
             );
-            tokio::time::sleep(self.config.proof_fetch_interval()).await;
+            tokio::time::sleep(self.config.proof_fetch_interval_in_secs).await;
         }
 
         Ok(())

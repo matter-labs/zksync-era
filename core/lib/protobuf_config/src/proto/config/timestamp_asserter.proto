@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package zksync.config.timestamp_asserter;
-
-message TimestampAsserter {
-  optional uint32 min_time_till_end_sec = 1; // required; u32
-}

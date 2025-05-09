@@ -96,7 +96,7 @@ mod tests {
         let config = StateKeeperConfig {
             close_block_at_geometry_percentage: 0.95,
             reject_tx_at_geometry_percentage: 0.9,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         };
 
         let reject_bound =
