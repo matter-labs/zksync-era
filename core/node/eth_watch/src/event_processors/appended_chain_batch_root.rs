@@ -168,9 +168,7 @@ impl EventProcessor for BatchRootProcessor {
 
             for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs.clone()) {
                 proof.proof.extend(chain_proof_vector.clone());
-                tracing::info!(%batch_number, "Saving batch-chain merkle path");
-                println!("saving batch-chain merkle path {:?}", batch_number);
-                println!("proof {:?}", proof);
+
                 transaction
                     .blocks_dal()
                     .set_batch_chain_merkle_path(*batch_number, proof)
@@ -190,9 +188,6 @@ impl EventProcessor for BatchRootProcessor {
                     Self::chain_proof_vector(gw_block_number.0, gw_chain_agg_proof, sl_chain_id);
                 proof.proof.extend(gw_chain_proof_vector);
 
-                tracing::info!(%batch_number, "Saving batch-chain merkle path");
-                println!("saving gw-batch-chain merkle path {:?}", batch_number);
-                println!("proof {:?}", proof);
                 transaction
                     .blocks_dal()
                     .set_gw_batch_chain_merkle_path(*batch_number, proof)
