@@ -8,7 +8,7 @@ use zksync_types::{ethabi, ethabi::Token};
 
 use crate::abi;
 
-/// Reprents ConsensusRegistry contract.
+/// Represents ConsensusRegistry contract.
 #[derive(Debug, Clone)]
 pub(crate) struct ConsensusRegistry(Arc<ethabi::Contract>);
 
@@ -42,60 +42,6 @@ impl ConsensusRegistry {
     }
 }
 
-/// ConsensusRegistry.getAttesterCommittee function.
-#[derive(Debug, Default)]
-pub(crate) struct GetAttesterCommittee;
-
-impl abi::Function for GetAttesterCommittee {
-    type Contract = ConsensusRegistry;
-    const NAME: &'static str = "getAttesterCommittee";
-
-    fn encode(&self) -> Vec<Token> {
-        vec![]
-    }
-
-    type Outputs = Vec<Attester>;
-    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
-        let [attesters] = tokens.try_into().ok().context("bad size")?;
-        let mut res = vec![];
-        for token in attesters.into_array().context("not array")? {
-            res.push(Attester::from_token(token).context("attesters")?);
-        }
-        Ok(res)
-    }
-}
-
-/// ConsensusRegistry.add function.
-#[derive(Debug, Default)]
-pub(crate) struct Add {
-    pub(crate) node_owner: ethabi::Address,
-    pub(crate) validator_weight: u32,
-    pub(crate) validator_pub_key: BLS12_381PublicKey,
-    pub(crate) validator_pop: BLS12_381Signature,
-    pub(crate) attester_weight: u32,
-    pub(crate) attester_pub_key: Secp256k1PublicKey,
-}
-
-impl abi::Function for Add {
-    type Contract = ConsensusRegistry;
-    const NAME: &'static str = "add";
-    fn encode(&self) -> Vec<Token> {
-        vec![
-            Token::Address(self.node_owner),
-            Token::Uint(self.validator_weight.into()),
-            self.validator_pub_key.to_token(),
-            self.validator_pop.to_token(),
-            Token::Uint(self.attester_weight.into()),
-            self.attester_pub_key.to_token(),
-        ]
-    }
-    type Outputs = ();
-    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
-        let [] = tokens.try_into().ok().context("bad size")?;
-        Ok(())
-    }
-}
-
 /// ConsensusRegistry.initialize function.
 #[derive(Debug, Default)]
 pub(crate) struct Initialize {
@@ -115,13 +61,40 @@ impl abi::Function for Initialize {
     }
 }
 
-/// ConsensusRegistry.commitAttesterCommittee function.
+/// ConsensusRegistry.add function.
 #[derive(Debug, Default)]
-pub(crate) struct CommitAttesterCommittee;
+pub(crate) struct Add {
+    pub(crate) node_owner: ethabi::Address,
+    pub(crate) validator_weight: u32,
+    pub(crate) validator_pub_key: BLS12_381PublicKey,
+    pub(crate) validator_pop: BLS12_381Signature,
+}
 
-impl abi::Function for CommitAttesterCommittee {
+impl abi::Function for Add {
     type Contract = ConsensusRegistry;
-    const NAME: &'static str = "commitAttesterCommittee";
+    const NAME: &'static str = "add";
+    fn encode(&self) -> Vec<Token> {
+        vec![
+            Token::Address(self.node_owner),
+            Token::Uint(self.validator_weight.into()),
+            self.validator_pub_key.to_token(),
+            self.validator_pop.to_token(),
+        ]
+    }
+    type Outputs = ();
+    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
+        let [] = tokens.try_into().ok().context("bad size")?;
+        Ok(())
+    }
+}
+
+/// ConsensusRegistry.commitValidatorCommittee function.
+#[derive(Debug, Default)]
+pub(crate) struct CommitValidatorCommittee;
+
+impl abi::Function for CommitValidatorCommittee {
+    type Contract = ConsensusRegistry;
+    const NAME: &'static str = "commitValidatorCommittee";
     fn encode(&self) -> Vec<Token> {
         vec![]
     }
@@ -129,6 +102,84 @@ impl abi::Function for CommitAttesterCommittee {
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
         let [] = tokens.try_into().ok().context("bad size")?;
         Ok(())
+    }
+}
+
+/// ConsensusRegistry.getValidatorCommittee function.
+#[derive(Debug, Default)]
+pub(crate) struct GetValidatorCommittee;
+
+impl abi::Function for GetValidatorCommittee {
+    type Contract = ConsensusRegistry;
+    const NAME: &'static str = "getValidatorCommittee";
+    fn encode(&self) -> Vec<Token> {
+        vec![]
+    }
+    type Outputs = Vec<Validator>;
+    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
+        let [validators] = tokens.try_into().ok().context("bad size")?;
+        let mut res = vec![];
+        for token in validators.into_array().context("not array")? {
+            res.push(Validator::from_token(token).context("validators")?);
+        }
+        Ok(res)
+    }
+}
+
+/// ConsensusRegistry.getNextValidatorCommittee function.
+#[derive(Debug, Default)]
+pub(crate) struct GetNextValidatorCommittee;
+
+impl abi::Function for GetNextValidatorCommittee {
+    type Contract = ConsensusRegistry;
+    const NAME: &'static str = "getNextValidatorCommittee";
+    fn encode(&self) -> Vec<Token> {
+        vec![]
+    }
+    type Outputs = Vec<Validator>;
+    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
+        let [validators] = tokens.try_into().ok().context("bad size")?;
+        let mut res = vec![];
+        for token in validators.into_array().context("not array")? {
+            res.push(Validator::from_token(token).context("validators")?);
+        }
+        Ok(res)
+    }
+}
+
+/// ConsensusRegistry.setCommitteeActivationDelay function.
+#[derive(Debug, Default)]
+pub(crate) struct SetCommitteeActivationDelay {
+    pub(crate) delay: u32,
+}
+
+impl abi::Function for SetCommitteeActivationDelay {
+    type Contract = ConsensusRegistry;
+    const NAME: &'static str = "setCommitteeActivationDelay";
+    fn encode(&self) -> Vec<Token> {
+        vec![Token::Uint(self.delay.into())]
+    }
+    type Outputs = ();
+    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<()> {
+        let [] = tokens.try_into().ok().context("bad size")?;
+        Ok(())
+    }
+}
+
+/// ConsensusRegistry.validatorsCommitBlock function.
+#[derive(Debug, Default)]
+pub(crate) struct ValidatorsCommitBlock;
+
+impl abi::Function for ValidatorsCommitBlock {
+    type Contract = ConsensusRegistry;
+    const NAME: &'static str = "validatorsCommitBlock";
+    fn encode(&self) -> Vec<Token> {
+        vec![]
+    }
+    type Outputs = ethabi::Uint;
+    fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
+        let [block_number] = tokens.try_into().ok().context("bad size")?;
+        block_number.into_uint().context("not an uint")
     }
 }
 
@@ -151,43 +202,22 @@ impl abi::Function for Owner {
 
 // Auxiliary structs.
 
-/// Raw representation of a secp256k1 public key.
-#[derive(Debug, Default)]
-pub(crate) struct Secp256k1PublicKey {
-    pub(crate) tag: [u8; 1],
-    pub(crate) x: [u8; 32],
-}
-
-impl Secp256k1PublicKey {
-    fn from_token(token: Token) -> anyhow::Result<Self> {
-        let [tag, x] = abi::into_tuple(token)?;
-        Ok(Self {
-            tag: abi::into_fixed_bytes(tag).context("tag")?,
-            x: abi::into_fixed_bytes(x).context("x")?,
-        })
-    }
-
-    fn to_token(&self) -> Token {
-        Token::Tuple(vec![
-            Token::FixedBytes(self.tag.into()),
-            Token::FixedBytes(self.x.into()),
-        ])
-    }
-}
-
-/// Raw representation of an attester committee member.
+/// Raw representation of a validator committee member.
 #[derive(Debug)]
-pub(crate) struct Attester {
+pub(crate) struct Validator {
     pub(crate) weight: u32,
-    pub(crate) pub_key: Secp256k1PublicKey,
+    pub(crate) pub_key: BLS12_381PublicKey,
+    pub(crate) proof_of_possession: BLS12_381Signature,
 }
 
-impl Attester {
+impl Validator {
     fn from_token(token: Token) -> anyhow::Result<Self> {
-        let [weight, pub_key] = abi::into_tuple(token)?;
+        let [weight, pub_key, proof_of_possession] = abi::into_tuple(token)?;
         Ok(Self {
             weight: abi::into_uint(weight).context("weight")?,
-            pub_key: Secp256k1PublicKey::from_token(pub_key).context("pub_key")?,
+            pub_key: BLS12_381PublicKey::from_token(pub_key).context("pub_key")?,
+            proof_of_possession: BLS12_381Signature::from_token(proof_of_possession)
+                .context("proof_of_possession")?,
         })
     }
 }
@@ -201,6 +231,15 @@ pub(crate) struct BLS12_381PublicKey {
 }
 
 impl BLS12_381PublicKey {
+    fn from_token(token: Token) -> anyhow::Result<Self> {
+        let [a, b, c] = abi::into_tuple(token)?;
+        Ok(Self {
+            a: abi::into_fixed_bytes(a).context("a")?,
+            b: abi::into_fixed_bytes(b).context("b")?,
+            c: abi::into_fixed_bytes(c).context("c")?,
+        })
+    }
+
     fn to_token(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.a.into()),
@@ -217,6 +256,14 @@ pub(crate) struct BLS12_381Signature {
 }
 
 impl BLS12_381Signature {
+    fn from_token(token: Token) -> anyhow::Result<Self> {
+        let [a, b] = abi::into_tuple(token)?;
+        Ok(Self {
+            a: abi::into_fixed_bytes(a).context("a")?,
+            b: abi::into_fixed_bytes(b).context("b")?,
+        })
+    }
+
     fn to_token(&self) -> Token {
         Token::Tuple(vec![
             Token::FixedBytes(self.a.into()),

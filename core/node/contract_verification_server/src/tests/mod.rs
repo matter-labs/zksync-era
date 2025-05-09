@@ -5,7 +5,15 @@ use std::{str, vec};
 use test_casing::test_casing;
 use utils::{mock_verification_info, MockApiClient, MockContractVerifier};
 use zksync_types::{
-    bytecode::BytecodeMarker, contract_verification::api::VerificationProblem, Address,
+    bytecode::BytecodeMarker,
+    contract_verification::{
+        api::VerificationProblem,
+        etherscan::{
+            EtherscanBoolean, EtherscanCodeFormat, EtherscanRequest, EtherscanRequestPayload,
+            EtherscanVerificationRequest,
+        },
+    },
+    Address,
 };
 
 use super::*;
@@ -91,6 +99,110 @@ async fn submitting_request(bytecode_kind: BytecodeMarker) {
     client
         .assert_verification_request_error(&verification_request, ApiError::AlreadyVerified)
         .await;
+}
+
+#[test_casing(2, [BytecodeMarker::EraVm, BytecodeMarker::Evm])]
+#[tokio::test]
+async fn submitting_etherscan_request(bytecode_kind: BytecodeMarker) {
+    let pool = ConnectionPool::test_pool().await;
+    let contract_verifier = MockContractVerifier::new(pool.clone());
+    let client = MockApiClient::new(pool.clone());
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let address = Address::repeat_byte(0x23);
+    let etherscan_verification_req = EtherscanVerificationRequest {
+        code_format: EtherscanCodeFormat::SingleFile,
+        source_code: "contract Test {}".to_string(),
+        contract_address: address,
+        contract_name: "Test".to_string(),
+        zksolc_version: match bytecode_kind {
+            BytecodeMarker::EraVm => Some(ZKSOLC_VERSION.to_string()),
+            BytecodeMarker::Evm => None,
+        },
+        compiler_version: SOLC_VERSION.to_string(),
+        optimization_used: Some(EtherscanBoolean::True),
+        optimizer_mode: None,
+        runs: None,
+        evm_version: None,
+        compiler_mode: None,
+        is_system: Some(EtherscanBoolean::False),
+        force_evmla: Some(EtherscanBoolean::False),
+        constructor_arguments: String::default(),
+    };
+    let verification_json = serde_json::to_value(
+        etherscan_verification_req
+            .clone()
+            .to_verification_request()
+            .unwrap(),
+    )
+    .unwrap();
+
+    let verification_request = EtherscanRequest {
+        module: "contract".to_string(),
+        payload: EtherscanRequestPayload::VerifySourceCode(etherscan_verification_req),
+    };
+
+    mock_deploy_contract(&mut storage, address, bytecode_kind).await;
+
+    let etherscan_response = client.send_etherscan_request(&verification_request).await;
+
+    assert_eq!(etherscan_response.status, "1");
+    assert_eq!(etherscan_response.message, "OK");
+    assert_eq!(etherscan_response.result, "1");
+
+    let id = etherscan_response.result.parse::<usize>().unwrap();
+
+    // Duplicate request should not be created.
+    let etherscan_response = client.send_etherscan_request(&verification_request).await;
+
+    assert_eq!(etherscan_response.status, "0");
+    assert_eq!(etherscan_response.message, "NOTOK");
+    assert_eq!(
+        etherscan_response.result,
+        "active request for this contract already exists, ID: 1"
+    );
+
+    // Pick up the request.
+    contract_verifier
+        .pick_up_next_request(id, &verification_json, bytecode_kind)
+        .await;
+
+    // Should be in progress now.
+    let check_status_request = EtherscanRequest {
+        module: "contract".to_string(),
+        payload: EtherscanRequestPayload::CheckVerifyStatus {
+            guid: id.to_string(),
+        },
+    };
+
+    let etherscan_response = client.send_etherscan_request(&check_status_request).await;
+    assert_eq!(etherscan_response.status, "0");
+    assert_eq!(etherscan_response.message, "NOTOK");
+    assert_eq!(etherscan_response.result, "Pending in queue");
+
+    // Verify contract
+    let verification_info = mock_verification_info(id, &verification_json);
+    contract_verifier.verify_contract(verification_info).await;
+
+    let etherscan_response = client.send_etherscan_request(&check_status_request).await;
+    assert_eq!(etherscan_response.status, "1");
+    assert_eq!(etherscan_response.message, "OK");
+    assert_eq!(etherscan_response.result, "Pass - Verified");
+
+    // We should be able to fetch verification info
+    let info = client.verification_info(address).await;
+    assert_eq!(info.request.id, id);
+    assert_eq!(info.artifacts.bytecode, vec![0xff, 32]);
+
+    // No requests should be accepted after verification
+    let etherscan_response = client.send_etherscan_request(&verification_request).await;
+    assert_eq!(etherscan_response.status, "0");
+    assert_eq!(etherscan_response.message, "NOTOK");
+    assert_eq!(
+        etherscan_response.result,
+        "Contract source code already verified"
+    );
 }
 
 #[test_casing(2, [BytecodeMarker::EraVm, BytecodeMarker::Evm])]
