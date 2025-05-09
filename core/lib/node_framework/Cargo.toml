@@ -1,6 +1,6 @@
 [package]
 name = "zksync_node_framework"
-description = "ZKsync node framework"
+description = "ZKsync dependency injection framework used by node binaries"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -12,7 +12,7 @@ categories.workspace = true
 
 [dependencies]
 zksync_node_framework_derive.workspace = true
-zksync_utils.workspace = true # FIXME: remove?
+zksync_utils.workspace = true
 
 pin-project-lite.workspace = true
 tracing.workspace = true
@@ -21,7 +21,7 @@ async-trait.workspace = true
 futures.workspace = true
 anyhow.workspace = true
 serde.workspace = true
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["sync", "time", "macros", "rt-multi-thread"] }
 
 [dev-dependencies]
 assert_matches.workspace = true
