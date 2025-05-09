@@ -115,10 +115,6 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-
       - name: Init
         run: |
           ci_run run_retried rustup show
@@ -126,7 +122,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local --cargo-features v28_precompiles
+          ci_run zkstackup -g --local --cargo-features v27_evm_interpreter
 
       - name: Install v28
         run: |
