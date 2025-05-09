@@ -34,7 +34,7 @@ impl<'a> IntegrationTestRunner<'a> {
             shell,
             no_deps,
             ecosystem_config,
-            test_timeout: Duration::from_secs(timeout.unwrap_or(240)),
+            test_timeout: Duration::from_secs(timeout.unwrap_or(600)), // See jest.config.json
             test_suites: vec![],
             test_pattern: None,
         })

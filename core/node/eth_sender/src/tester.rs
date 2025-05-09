@@ -283,7 +283,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
-            SettlementLayer::L1(chain_id),
+            Some(SettlementLayer::L1(chain_id)),
         )
         .await;
 
