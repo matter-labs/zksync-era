@@ -56,9 +56,6 @@ async fn initialize_private_rpc_database(
     db_url: &Url,
 ) -> anyhow::Result<()> {
     let db_config = db::DatabaseConfig::from_url(db_url)?;
-    db::drop_db_if_exists(&db_config)
-        .await
-        .context(MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR)?;
     db::init_db(&db_config).await?;
 
     let db_url = db_config.full_url();
