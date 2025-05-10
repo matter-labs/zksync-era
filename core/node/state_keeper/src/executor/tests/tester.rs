@@ -179,8 +179,7 @@ impl Tester {
         let storage = storage_factory
             .access_storage(&stop_receiver, l1_batch_env.number - 1)
             .await
-            .expect("failed creating VM storage")
-            .unwrap();
+            .expect("failed creating VM storage");
         if self.config.trace_calls {
             let mut executor = MainBatchExecutorFactory::<TraceCalls>::new(false);
             executor.set_fast_vm_mode(self.config.fast_vm_mode);

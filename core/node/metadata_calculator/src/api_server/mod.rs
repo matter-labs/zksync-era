@@ -403,7 +403,7 @@ impl TreeApiClient for TreeApiHttpClient {
         let is_problem = response
             .headers()
             .get(header::CONTENT_TYPE)
-            .map_or(false, |header| *header == PROBLEM_CONTENT_TYPE);
+            .is_some_and(|header| *header == PROBLEM_CONTENT_TYPE);
         if response.status() == StatusCode::NOT_FOUND && is_problem {
             // Try to parse `NoVersionError` from the response body.
             let problem_data: NoVersionErrorData = response
@@ -527,10 +527,10 @@ impl AsyncTreeReader {
             server.with_graceful_shutdown(async move {
                 if stop_receiver.changed().await.is_err() {
                     tracing::warn!(
-                        "Stop signal sender for Merkle tree API server was dropped without sending a signal"
+                        "Stop request sender for Merkle tree API server was dropped without sending a signal"
                     );
                 }
-                tracing::info!("Stop signal received, Merkle tree API server is shutting down");
+                tracing::info!("Stop request received, Merkle tree API server is shutting down");
             })
             .await
             .context("Merkle tree API server failed")?;

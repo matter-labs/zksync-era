@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core};
-use zksync_types::L2ChainId;
+use zksync_types::{L2ChainId, OrStopped};
 use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::InitializeStorage;
@@ -20,7 +20,7 @@ impl InitializeStorage for ExternalNodeGenesis {
     async fn initialize_storage(
         &self,
         _stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OrStopped> {
         let mut storage = self.pool.connection_tagged("en").await?;
 
         // Custom genesis state for external nodes is not supported. If the main node has a custom genesis,
@@ -32,7 +32,9 @@ impl InitializeStorage for ExternalNodeGenesis {
             None,
         )
         .await
-        .context("performing genesis failed")
+        .context("performing genesis failed")?;
+
+        Ok(())
     }
 
     async fn is_initialized(&self) -> anyhow::Result<bool> {

@@ -149,7 +149,7 @@ impl Nibbles {
         if nibble_count % 2 == 1 {
             bytes[nibble_count / 2] &= 0xf0;
         }
-        let meaningful_bytes = (nibble_count + 1) / 2;
+        let meaningful_bytes = nibble_count.div_ceil(2);
         for byte in bytes.iter_mut().skip(meaningful_bytes) {
             *byte = 0;
         }
@@ -238,7 +238,7 @@ impl Nibbles {
 
     /// Returns nibbles that form a common prefix between these nibbles and the provided `key`.
     pub fn common_prefix(mut self, other: &Self) -> Self {
-        for i in 0..(self.nibble_count + 1) / 2 {
+        for i in 0..self.nibble_count.div_ceil(2) {
             let (this_byte, other_byte) = (self.bytes[i], other.bytes[i]);
             if this_byte != other_byte {
                 // Check whether the first nibble matches.
@@ -354,7 +354,7 @@ impl NodeKey {
         let version = u64::from_be_bytes(version_bytes);
         let nibble_count = usize::from(bytes[8]);
         assert!(nibble_count <= 2 * KEY_SIZE);
-        let nibbles_byte_len = (nibble_count + 1) / 2;
+        let nibbles_byte_len = nibble_count.div_ceil(2);
         assert_eq!(nibbles_byte_len, bytes.len() - 9);
         let mut nibbles = NibblesBytes::default();
         nibbles[..nibbles_byte_len].copy_from_slice(&bytes[9..]);
@@ -368,7 +368,7 @@ impl NodeKey {
 
     #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn to_db_key(self) -> Vec<u8> {
-        let nibbles_byte_len = (self.nibbles.nibble_count + 1) / 2;
+        let nibbles_byte_len = self.nibbles.nibble_count.div_ceil(2);
         // ^ equivalent to `ceil(self.nibble_count / 2)`
         let mut bytes = Vec::with_capacity(9 + nibbles_byte_len);
         // ^ 8 bytes for `version` + 1 byte for nibble count

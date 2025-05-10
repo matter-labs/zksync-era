@@ -68,9 +68,10 @@ impl InternalNode {
             hashes.0.extend_from_slice(level_hashes);
             // Pad if necessary so that there are uniform offsets for each level. The padding should never be read.
             // It doesn't waste that much space given that it may be required only for one internal node per level.
-            hashes
-                .0
-                .extend(iter::repeat(H256::zero()).take(full_level_len - level_hashes.len()));
+            hashes.0.extend(iter::repeat_n(
+                H256::zero(),
+                full_level_len - level_hashes.len(),
+            ));
             full_level_len /= 2;
         });
         hashes

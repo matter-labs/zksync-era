@@ -174,6 +174,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
@@ -398,7 +399,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
                 .observe(stats.time_spent_on_set_value);
         } else {
-            // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
+            // State keeper can exit because of a stop request, so it's OK to exit mid-batch.
             tracing::info!("State keeper exited with an unfinished L1 batch");
         }
         Ok(storage_view)

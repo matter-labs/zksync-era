@@ -107,17 +107,17 @@ async fn main() -> anyhow::Result<()> {
         .with_graceful_shutdown(async move {
             if receiver.changed().await.is_err() {
                 tracing::warn!(
-                    "Stop signal sender for PJM server was dropped without sending a signal"
+                    "Stop request sender for PJM server was dropped without sending a signal"
                 );
             }
-            tracing::info!("Stop signal received, PJM server is shutting down");
+            tracing::info!("Stop request received, PJM server is shutting down");
         })
         .into_future();
 
     tokio::select! {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            tracing::info!("Stop request received, shutting down");
         }
         _ = app => {}
     }

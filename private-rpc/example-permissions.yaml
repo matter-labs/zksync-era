@@ -1,0 +1,43 @@
+groups:
+  - name: "group1"
+    members:
+      - "0xeaAFbF6Fc352B0598e34f4F282939720D9cf0f59"
+  - name: "group2"
+    members:
+      - "0x71e6dDfE9074786Fd8e986C53f78D25450d614D5"
+contracts:
+  - address: "0xBE06E7e23AA92a6B0523A0E7cBb43690De7af8DB"
+    methods:
+      - signature: "function number() (uint256)"
+        read:
+          type: "public"
+        write:
+          type: "public"
+      - signature: "function owner() (address)"
+        read:
+          type: "group"
+          groups: ["group1"]
+        write:
+          type: "group"
+          groups: ["group1"]
+      - signature: "function fromGroup1Address() public"
+        read:
+          type: "group"
+          groups: ["group1"]
+        write:
+          type: "group"
+          groups: ["group1"]
+      - signature: "function fromGroup2Address() public"
+        read:
+          type: "group"
+          groups: ["group2"]
+        write:
+          type: "group"
+          groups: ["group2"]
+      - signature: "function hiTo(address) public"
+        read:
+          type: "checkArgument"
+          argIndex: 0
+        write:
+          type: "checkArgument"
+          argIndex: 0

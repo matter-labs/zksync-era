@@ -555,8 +555,8 @@ async fn pruning_iteration_timely_shuts_down() {
     assert!(!pruning_handle.is_finished());
 
     stop_sender.send_replace(true);
-    let outcome = pruning_handle.await.unwrap().unwrap();
-    assert_matches!(outcome, PruningIterationOutcome::Interrupted);
+    let err = pruning_handle.await.unwrap().unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 }
 
 #[tokio::test]

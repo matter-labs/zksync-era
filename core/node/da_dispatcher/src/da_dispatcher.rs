@@ -121,7 +121,7 @@ impl DataAvailabilityDispatcher {
             _ = stop_receiver.changed() => {},
         }
 
-        tracing::info!("Stop signal received, da_dispatcher is shutting down");
+        tracing::info!("Stop request received, da_dispatcher is shutting down");
         Ok(())
     }
 

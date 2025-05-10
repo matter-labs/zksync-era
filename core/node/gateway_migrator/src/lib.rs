@@ -57,7 +57,7 @@ impl GatewayMigrator {
         let gateway_client = self.gateway_client.as_deref();
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, GatewayMigrator is shutting down");
+                tracing::info!("Stop request received, GatewayMigrator is shutting down");
                 return Ok(());
             }
             let current_settlement_layer = current_settlement_layer(
@@ -183,13 +183,10 @@ pub async fn current_settlement_layer(
     };
 
     let final_settlement_mode = if use_settlement_mode_from_l1 {
-        WorkingSettlementLayer {
-            unsafe_settlement_layer: settlement_mode_from_l1,
-            migration_in_progress: false,
-        }
+        settlement_mode_from_l1
     } else {
         // If it's impossible to use settlement_mode_from_l1 server have to use the opposite settlement_layer
-        let unsafe_settlement_layer = match settlement_mode_from_l1 {
+        match settlement_mode_from_l1 {
             SettlementLayer::L1(_) => {
                 let chain_id = gateway_client
                     .unwrap()
@@ -205,12 +202,11 @@ pub async fn current_settlement_layer(
                     .map_err(ContractCallError::from)?;
                 SettlementLayer::L1(chain_id)
             }
-        };
-        WorkingSettlementLayer {
-            unsafe_settlement_layer,
-            migration_in_progress: true,
         }
     };
 
-    Ok(final_settlement_mode)
+    Ok(WorkingSettlementLayer {
+        unsafe_settlement_layer: final_settlement_mode,
+        migration_in_progress: !use_settlement_mode_from_l1,
+    })
 }

@@ -46,9 +46,9 @@ impl Api {
         axum::serve(listener, self.router)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for prover gateway API server was dropped without sending a signal");
+                tracing::warn!("Stop request sender for prover gateway API server was dropped without sending a signal");
             }
-            tracing::info!("Stop signal received, prover gateway API server is shutting down");
+            tracing::info!("Stop request received, prover gateway API server is shutting down");
         })
         .await
         .context("Prover gateway API server failed")?;

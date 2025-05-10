@@ -213,7 +213,7 @@ impl GasAdjuster {
     pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, gas_adjuster is shutting down");
+                tracing::info!("Stop request received, gas_adjuster is shutting down");
                 break;
             }
 
