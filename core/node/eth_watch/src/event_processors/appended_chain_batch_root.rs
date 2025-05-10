@@ -5,12 +5,14 @@ use itertools::Itertools;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     api::{ChainAggProof, Log},
+    block::BatchOrBlockNumber,
     ethabi, h256_to_u256,
     l2_to_l1_log::{
         BatchAndChainMerklePath, BATCH_LEAF_PADDING, LOG_PROOF_SUPPORTED_METADATA_VERSION,
     },
-    u256_to_h256, L1BatchNumber, L2ChainId, SLChainId, H256, U256,
+    u256_to_h256, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256, U256,
 };
 
 use crate::{
@@ -117,11 +119,14 @@ impl EventProcessor for BatchRootProcessor {
         for (sl_l1_batch_number, chain_batches) in new_events {
             let chain_agg_proof = self
                 .sl_l2_client
-                .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
+                .get_chain_log_proof(
+                    BatchOrBlockNumber::BatchNumber(sl_l1_batch_number),
+                    self.l2_chain_id,
+                )
                 .await?
                 .context("Missing chain log proof for finalized batch")?;
             let chain_proof_vector =
-                Self::chain_proof_vector(sl_l1_batch_number, chain_agg_proof, sl_chain_id);
+                Self::chain_proof_vector(sl_l1_batch_number.0, chain_agg_proof, sl_chain_id);
 
             for (batch_number, batch_root) in &chain_batches {
                 let root_from_db = transaction
@@ -158,7 +163,6 @@ impl EventProcessor for BatchRootProcessor {
                 let batch_proof_len = batch_proof.len() as u32;
                 let mut proof = vec![H256::from_low_u64_be(leaf_position as u64)];
                 proof.extend(batch_proof);
-                proof.extend(chain_proof_vector.clone());
 
                 BatchAndChainMerklePath {
                     batch_proof_len,
@@ -166,13 +170,34 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-            for ((batch_number, _), proof) in chain_batches.iter().zip(batch_proofs) {
-                tracing::info!(%batch_number, "Saving batch-chain merkle path");
-                println!("saving batch-chain merkle path {:?}", batch_number);
-                println!("proof {:?}", proof);
+            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs.clone()) {
+                proof.proof.extend(chain_proof_vector.clone());
+
                 transaction
                     .blocks_dal()
                     .set_batch_chain_merkle_path(*batch_number, proof)
+                    .await
+                    .map_err(DalError::generalize)?;
+            }
+
+            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs) {
+                let gw_block_number =
+                    Self::get_gw_block_number(&mut transaction, *batch_number).await?;
+                let gw_chain_agg_proof = self
+                    .sl_l2_client
+                    .get_chain_log_proof(
+                        BatchOrBlockNumber::BlockNumber(gw_block_number),
+                        self.l2_chain_id,
+                    )
+                    .await?
+                    .context("Missing chain log proof for finalized batch")?;
+                let gw_chain_proof_vector =
+                    Self::chain_proof_vector(gw_block_number.0, gw_chain_agg_proof, sl_chain_id);
+                proof.proof.extend(gw_chain_proof_vector);
+
+                transaction
+                    .blocks_dal()
+                    .set_gw_interop_batch_chain_merkle_path(*batch_number, proof)
                     .await
                     .map_err(DalError::generalize)?;
             }
@@ -216,13 +241,38 @@ impl BatchRootProcessor {
         full_preimage
     }
 
+    async fn get_gw_block_number(
+        storage: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<L2BlockNumber, EventProcessorError> {
+        let eth_tx_id = storage
+            .eth_sender_dal()
+            .get_last_sent_eth_tx_id(l1_batch_number, AggregatedActionType::Execute)
+            .await;
+
+        let tx = storage
+            .eth_sender_dal()
+            .get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id.unwrap())
+            .await
+            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
+
+        let Some(tx) = tx else {
+            return Err(EventProcessorError::Internal(anyhow::anyhow!(
+                "Execute tx not found"
+            )));
+        };
+        tx.confirmed_at_block
+            .map(|block| L2BlockNumber(block as u32))
+            .ok_or_else(|| EventProcessorError::Internal(anyhow::anyhow!("Execute tx not found")))
+    }
+
     fn chain_proof_vector(
-        sl_l1_batch_number: L1BatchNumber,
+        batch_or_block_number: u32,
         chain_agg_proof: ChainAggProof,
         sl_chain_id: SLChainId,
     ) -> Vec<H256> {
-        let sl_encoded_data =
-            (U256::from(sl_l1_batch_number.0) << 128u32) + chain_agg_proof.chain_id_leaf_proof_mask;
+        let sl_encoded_data = (U256::from(batch_or_block_number) << 128u32)
+            + chain_agg_proof.chain_id_leaf_proof_mask;
 
         let mut metadata = [0u8; 32];
         metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;

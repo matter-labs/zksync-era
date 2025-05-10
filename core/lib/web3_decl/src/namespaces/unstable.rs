@@ -5,6 +5,7 @@ use zksync_types::{
     api::{
         ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
     },
+    block::BatchOrBlockNumber,
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
@@ -37,7 +38,7 @@ pub trait UnstableNamespace {
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 

@@ -136,6 +136,7 @@ where
             self,
             withdrawal_hash,
             Some(l2_to_l1_log_index as usize),
+            None,
         )
         .await
         .map_err(|e| {
