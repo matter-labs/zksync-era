@@ -18,7 +18,6 @@ zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_protobuf = { workspace = true, optional = true }
 zksync_crypto_primitives.workspace = true
-zksync_da_client.workspace = true
 
 async-trait.workspace = true
 anyhow.workspace = true
@@ -42,6 +41,7 @@ blake2.workspace = true
 [dev-dependencies]
 assert_matches.workspace = true
 bincode.workspace = true
+serde_urlencoded.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build = { workspace = true, optional = true }

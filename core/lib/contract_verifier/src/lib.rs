@@ -259,8 +259,7 @@ impl ContractVerifier {
         let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
             .context("unknown bytecode kind")?;
         let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
-        let compiled_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, artifacts.deployed_bytecode());
+        let mut compiled_code = artifacts.deployed_bytecode().to_vec();
 
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
@@ -271,8 +270,19 @@ impl ContractVerifier {
             )
             .context("invalid stored EVM bytecode")?,
         };
+        let mut deployed_code = deployed_bytecode.to_vec();
+
+        // If contract contains immutable references (e.g. places to be filled during constructor execution),
+        // rewrite them with zeroes, as we can't know the values just yet.
+        // We're checking the constructor arguments as well, so assuming tha constructor arguments
+        // are the same, the immutable values should also be the same.
+        artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
+
+        let compiled_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code);
+
         let deployed_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, deployed_bytecode);
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
 
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self

@@ -487,7 +487,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -658,7 +658,7 @@ dependencies = [
  "k256",
  "serde",
  "sha2",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -674,7 +674,7 @@ dependencies = [
  "pbkdf2 0.12.2",
  "rand",
  "sha2",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -694,7 +694,7 @@ dependencies = [
  "serde_derive",
  "sha2",
  "sha3",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1031,7 +1031,16 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
 dependencies = [
- "derive_more-impl",
+ "derive_more-impl 1.0.0",
+]
+
+[[package]]
+name = "derive_more"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
+dependencies = [
+ "derive_more-impl 2.0.1",
 ]
 
 [[package]]
@@ -1039,6 +1048,17 @@ name = "derive_more-impl"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1331,7 +1351,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sha3",
- "thiserror",
+ "thiserror 1.0.69",
  "uuid 0.8.2",
 ]
 
@@ -1348,7 +1368,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3",
- "thiserror",
+ "thiserror 1.0.69",
  "uint",
 ]
 
@@ -1427,7 +1447,7 @@ dependencies = [
  "pin-project",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1495,7 +1515,7 @@ dependencies = [
  "strum",
  "syn 2.0.89",
  "tempfile",
- "thiserror",
+ "thiserror 1.0.69",
  "tiny-keccak",
  "unicode-xid",
 ]
@@ -1512,7 +1532,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
 ]
 
@@ -1536,7 +1556,7 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
  "tracing-futures",
@@ -1568,7 +1588,7 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
  "tracing",
@@ -1595,7 +1615,7 @@ dependencies = [
  "ethers-core",
  "rand",
  "sha2",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
 ]
 
@@ -1623,7 +1643,7 @@ dependencies = [
  "serde_json",
  "solang-parser",
  "svm-rs",
- "thiserror",
+ "thiserror 1.0.69",
  "tiny-keccak",
  "tokio",
  "tracing",
@@ -1956,7 +1976,7 @@ dependencies = [
  "pin-project",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -2618,7 +2638,7 @@ dependencies = [
  "combine",
  "jni-sys",
  "log",
- "thiserror",
+ "thiserror 1.0.69",
  "walkdir",
 ]
 
@@ -2679,7 +2699,7 @@ dependencies = [
  "rustls-pki-types",
  "rustls-platform-verifier",
  "soketto",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-rustls 0.26.0",
  "tokio-util",
@@ -2705,7 +2725,7 @@ dependencies = [
  "rustc-hash 2.0.0",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -2730,7 +2750,7 @@ dependencies = [
  "rustls-platform-verifier",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tower",
  "tracing",
@@ -2759,7 +2779,7 @@ dependencies = [
  "http 1.1.0",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2904,7 +2924,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -3027,7 +3047,7 @@ checksum = "59bb584eaeeab6bd0226ccf3509a69d7936d148cf3d036ad350abe35e8c6856e"
 dependencies = [
  "miette-derive",
  "once_cell",
- "thiserror",
+ "thiserror 1.0.69",
  "unicode-width 0.1.14",
 ]
 
@@ -3811,7 +3831,7 @@ dependencies = [
  "prost-reflect",
  "prost-types",
  "protox-parse",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3823,7 +3843,7 @@ dependencies = [
  "logos",
  "miette",
  "prost-types",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3926,7 +3946,7 @@ checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
 dependencies = [
  "getrandom",
  "libredox",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4346,7 +4366,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "346a3b32eba2640d17a9cb5927056b08f3de90f65b72fe09402c2ad07d684d0b"
 dependencies = [
  "cfg-if",
- "derive_more",
+ "derive_more 1.0.0",
  "parity-scale-codec",
  "scale-info-derive",
 ]
@@ -4668,7 +4688,7 @@ checksum = "adc4e5204eb1910f40f9cfa375f6f05b68c3abac4b6fd879c8ff5e7ae8a0a085"
 dependencies = [
  "num-bigint",
  "num-traits",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
 ]
 
@@ -4763,7 +4783,7 @@ dependencies = [
  "lalrpop",
  "lalrpop-util",
  "phf",
- "thiserror",
+ "thiserror 1.0.69",
  "unicode-xid",
 ]
 
@@ -4853,7 +4873,7 @@ dependencies = [
  "sha2",
  "smallvec",
  "sqlformat",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -4936,7 +4956,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
  "whoami",
 ]
@@ -4974,7 +4994,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
  "whoami",
 ]
@@ -5162,7 +5182,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "zip",
 ]
@@ -5314,7 +5334,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+dependencies = [
+ "thiserror-impl 2.0.12",
 ]
 
 [[package]]
@@ -5322,6 +5351,17 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5686,7 +5726,7 @@ dependencies = [
  "rand",
  "rustls 0.21.12",
  "sha1",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "utf-8",
 ]
@@ -5879,13 +5919,38 @@ dependencies = [
  "elsa",
  "once_cell",
  "prometheus-client",
- "vise-macros",
+ "vise-macros 0.2.0",
+]
+
+[[package]]
+name = "vise"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "269640ec8679c379b8ffefbd4623f7a435f40c159b87bee4620fd9585ea573ba"
+dependencies = [
+ "compile-fmt",
+ "ctor",
+ "elsa",
+ "once_cell",
+ "prometheus-client",
+ "vise-macros 0.3.0",
 ]
 
 [[package]]
 name = "vise-macros"
 version = "0.2.0"
 source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.89",
+]
+
+[[package]]
+name = "vise-macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b03810422b55b87bb8cba95a3708664c049125789a8d79ee524da6ed07ed067d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6309,7 +6374,7 @@ dependencies = [
  "pharos",
  "rustc_version",
  "send_wrapper 0.6.0",
- "thiserror",
+ "thiserror 1.0.69",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -6495,7 +6560,6 @@ dependencies = [
  "human-panic",
  "lazy_static",
  "prost",
- "rand",
  "reqwest 0.12.9",
  "secrecy 0.8.0",
  "serde",
@@ -6504,7 +6568,7 @@ dependencies = [
  "slugify-rs",
  "sqruff-lib",
  "strum",
- "thiserror",
+ "thiserror 2.0.12",
  "tokio",
  "toml",
  "url",
@@ -6513,13 +6577,9 @@ dependencies = [
  "zkstack_cli_config",
  "zkstack_cli_types",
  "zksync_basic_types",
- "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
- "zksync_consensus_utils",
  "zksync_contracts",
- "zksync_eth_client",
- "zksync_protobuf",
  "zksync_system_constants",
  "zksync_types",
  "zksync_web3_decl",
@@ -6542,7 +6602,7 @@ dependencies = [
  "serde_yaml",
  "sqlx",
  "strum",
- "thiserror",
+ "thiserror 2.0.12",
  "tokio",
  "toml",
  "url",
@@ -6566,15 +6626,13 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "strum",
- "thiserror",
+ "thiserror 2.0.12",
  "tokio",
  "url",
  "xshell",
  "zkstack_cli_common",
  "zkstack_cli_types",
  "zksync_basic_types",
- "zksync_config",
- "zksync_protobuf",
  "zksync_system_constants",
 ]
 
@@ -6593,13 +6651,13 @@ dependencies = [
  "ethers",
  "serde",
  "strum",
- "thiserror",
+ "thiserror 2.0.12",
  "zksync_basic_types",
 ]
 
 [[package]]
 name = "zksync_basic_types"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6613,7 +6671,7 @@ dependencies = [
  "serde_with",
  "sha2",
  "strum",
- "thiserror",
+ "thiserror 2.0.12",
  "tiny-keccak",
  "url",
 ]
@@ -6629,26 +6687,12 @@ dependencies = [
  "pin-project",
  "rand",
  "sha3",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "vise",
-]
-
-[[package]]
-name = "zksync_config"
-version = "27.2.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "rand",
- "secrecy 0.10.3",
- "serde",
- "zksync_basic_types",
- "zksync_concurrency",
- "zksync_consensus_utils",
- "zksync_crypto_primitives",
+ "vise 0.2.0",
 ]
 
 [[package]]
@@ -6667,7 +6711,7 @@ dependencies = [
  "num-traits",
  "rand",
  "sha3",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
  "zeroize",
 ]
@@ -6685,7 +6729,7 @@ dependencies = [
  "prost",
  "rand",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
  "tracing",
  "zksync_concurrency",
  "zksync_consensus_crypto",
@@ -6702,13 +6746,13 @@ checksum = "ed85ed3bccb73a24f3cade637db54d3da504e250b673a47c8179bd64fcb68ea8"
 dependencies = [
  "anyhow",
  "rand",
- "thiserror",
+ "thiserror 1.0.69",
  "zksync_concurrency",
 ]
 
 [[package]]
 name = "zksync_contracts"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "envy",
  "hex",
@@ -6721,7 +6765,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2",
@@ -6731,51 +6775,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror",
+ "thiserror 2.0.12",
  "zksync_basic_types",
-]
-
-[[package]]
-name = "zksync_da_client"
-version = "27.2.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde",
-]
-
-[[package]]
-name = "zksync_eth_client"
-version = "27.2.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "jsonrpsee",
- "rlp",
- "thiserror",
- "tracing",
- "vise",
- "zksync_config",
- "zksync_contracts",
- "zksync_eth_signer",
- "zksync_types",
- "zksync_web3_decl",
-]
-
-[[package]]
-name = "zksync_eth_signer"
-version = "27.2.0-non-semver-compat"
-dependencies = [
- "async-trait",
- "rlp",
- "thiserror",
- "zksync_basic_types",
- "zksync_crypto_primitives",
 ]
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6822,7 +6828,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6830,13 +6836,13 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
  "blake2",
  "chrono",
- "derive_more",
+ "derive_more 2.0.1",
  "hex",
  "num_enum",
  "once_cell",
@@ -6844,19 +6850,18 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "thiserror",
+ "thiserror 2.0.12",
  "tracing",
  "zksync_basic_types",
  "zksync_contracts",
  "zksync_crypto_primitives",
- "zksync_da_client",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
 ]
 
 [[package]]
 name = "zksync_utils"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6866,7 +6871,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "27.2.0-non-semver-compat"
+version = "28.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6877,11 +6882,10 @@ dependencies = [
  "rustls 0.23.19",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
- "vise",
- "zksync_config",
+ "vise 0.3.0",
  "zksync_types",
 ]
 

@@ -83,6 +83,14 @@ impl AccountTransactions {
         self.transactions.len()
     }
 
+    pub fn nonce(&self) -> Nonce {
+        self.nonce
+    }
+
+    pub fn clear_txs(&mut self) {
+        self.transactions.clear();
+    }
+
     fn score_for_transaction(transaction: &L2Tx) -> MempoolScore {
         MempoolScore {
             account: transaction.initiator_account(),

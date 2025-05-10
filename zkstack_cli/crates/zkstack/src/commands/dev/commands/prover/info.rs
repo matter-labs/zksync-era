@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::Context as _;
+use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{ChainConfig, EcosystemConfig};
@@ -83,8 +84,12 @@ pub(crate) async fn get_fflonk_snark_wrapper(link_to_prover: &Path) -> anyhow::R
     Ok(snark_wrapper)
 }
 
-pub(crate) async fn get_database_url(chain: &ChainConfig) -> anyhow::Result<String> {
-    chain.get_secrets_config().await?.get("database.prover_url")
+pub(crate) async fn get_database_url(chain: &ChainConfig) -> anyhow::Result<Url> {
+    chain
+        .get_secrets_config()
+        .await?
+        .prover_database_url()?
+        .context("missing prover database URL")
 }
 
 pub fn parse_version(version: &str) -> anyhow::Result<(&str, &str)> {

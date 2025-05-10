@@ -71,7 +71,6 @@ mod storage;
 mod tracing_execution_error;
 mod transfer;
 mod upgrade;
-mod v26_upgrade_utils;
 
 type TestedLatestVm = Vm<StorageView<InMemoryStorage>, HistoryEnabled>;
 

@@ -92,6 +92,7 @@ fn executor_options_with_evm_emulator() -> SandboxExecutorOptions {
     let base_contracts = Arc::<BaseContractsWithMockEvmEmulator>::default();
     SandboxExecutorOptions {
         fast_vm_mode: FastVmMode::Old,
+        vm_dump_store: None,
         estimate_gas: OneshotEnvParameters::new(
             base_contracts.clone(),
             L2ChainId::default(),

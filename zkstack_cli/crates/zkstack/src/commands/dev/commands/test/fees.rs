@@ -13,7 +13,7 @@ pub async fn run(shell: &Shell, args: FeesArgs) -> anyhow::Result<()> {
     ));
 
     let command = runner
-        .with_test_name("fees.test.ts")
+        .with_test_suite("fees")
         .build_command()
         .await?
         .env("SPAWN_NODE", "1")

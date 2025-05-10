@@ -68,7 +68,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
         operator_type: OperatorType,
     ) -> EnrichedClientResult<H256>;
 
-    fn get_blobs_operator_account(&self) -> Option<Address>;
+    fn get_operator_account(&self, operator_type: OperatorType) -> Address;
 
     async fn get_operator_nonce(
         &self,
@@ -123,10 +123,11 @@ impl RealL1Interface {
 #[async_trait]
 impl AbstractL1Interface for RealL1Interface {
     fn supported_operator_types(&self) -> Vec<OperatorType> {
-        let mut result = vec![];
         if self.sl_client.is_some() {
-            result.push(OperatorType::Gateway);
+            return vec![OperatorType::Gateway];
         }
+
+        let mut result = vec![];
         if self.ethereum_client_blobs.is_some() {
             result.push(OperatorType::Blob)
         }
@@ -177,11 +178,8 @@ impl AbstractL1Interface for RealL1Interface {
         self.query_client(operator_type).send_raw_tx(tx_bytes).await
     }
 
-    fn get_blobs_operator_account(&self) -> Option<Address> {
-        self.ethereum_client_blobs
-            .as_deref()
-            .as_ref()
-            .map(|s| s.sender_account())
+    fn get_operator_account(&self, operator_type: OperatorType) -> Address {
+        self.bound_query_client(operator_type).sender_account()
     }
 
     async fn get_operator_nonce(

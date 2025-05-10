@@ -3,22 +3,20 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{self as executor, attestation};
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStore, PersistentBlockStore as _};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, SyncState};
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
-    error::is_retriable,
-    jsonrpsee::{core::ClientError, types::error::ErrorCode},
+    error::is_retryable,
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
 
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
 use crate::{
     metrics::METRICS,
-    registry,
     storage::{self, ConnectionPool},
 };
 
@@ -44,12 +42,7 @@ impl EN {
         secrets: ConsensusSecrets,
         build_version: Option<semver::Version>,
     ) -> anyhow::Result<()> {
-        let attester = config::attester_key(&secrets).context("attester_key")?;
-
-        tracing::debug!(
-            is_attester = attester.is_some(),
-            "external node attester mode"
-        );
+        tracing::info!("running the external node");
 
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
@@ -60,8 +53,8 @@ impl EN {
                 .fetch_global_config(ctx)
                 .await
                 .wrap("fetch_global_config()")?;
-            let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
 
+            let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
             conn.try_update_global_config(ctx, &global_config)
                 .await
                 .wrap("try_update_global_config()")?;
@@ -127,24 +120,7 @@ impl EN {
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await.context("BlockStore::run()")?) });
 
-            let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg({
-                let global_config = global_config.clone();
-                let attestation = attestation.clone();
-                async {
-                    let res = self
-                        .run_attestation_controller(ctx, global_config, attestation)
-                        .await
-                        .wrap("run_attestation_controller()");
-                    // Attestation currently is not critical for the node to function.
-                    // If it fails, we just log the error and continue.
-                    if let Err(err) = res {
-                        tracing::error!("attestation controller failed: {err:#}");
-                    }
-                    Ok(())
-                }
-            });
-
+            let attestation = Arc::new(attestation::Controller::new(None));
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
                 block_store,
@@ -199,87 +175,6 @@ impl EN {
         }
     }
 
-    /// Monitors the `AttestationStatus` on the main node,
-    /// and updates the attestation config accordingly.
-    async fn run_attestation_controller(
-        &self,
-        ctx: &ctx::Ctx,
-        cfg: consensus_dal::GlobalConfig,
-        attestation: Arc<attestation::Controller>,
-    ) -> ctx::Result<()> {
-        const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-        let registry = registry::Registry::new(self.pool.clone()).await;
-        let mut next = attester::BatchNumber(0);
-        loop {
-            let status = loop {
-                match self
-                    .fetch_attestation_status(ctx)
-                    .await
-                    .wrap("fetch_attestation_status()")
-                {
-                    Err(err) => tracing::warn!("{err:#}"),
-                    Ok(status) => {
-                        if status.genesis != cfg.genesis.hash() {
-                            return Err(anyhow::format_err!("genesis mismatch").into());
-                        }
-                        if status.next_batch_to_attest >= next {
-                            break status;
-                        }
-                    }
-                }
-                ctx.sleep(POLL_INTERVAL).await?;
-            };
-            next = status.next_batch_to_attest.next();
-            tracing::info!(
-                "waiting for hash of batch {:?}",
-                status.next_batch_to_attest
-            );
-            let hash = consensus_dal::batch_hash(
-                &self
-                    .pool
-                    .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
-                    .await
-                    .wrap("wait_for_batch_info()")?,
-            );
-            let Some(committee) = registry
-                .attester_committee_for(
-                    ctx,
-                    cfg.registry_address.map(registry::Address::new),
-                    status.next_batch_to_attest,
-                )
-                .await
-                .wrap("attester_committee_for()")?
-            else {
-                tracing::info!("attestation not required");
-                continue;
-            };
-            let committee = Arc::new(committee);
-            // Persist the derived committee.
-            self.pool
-                .connection(ctx)
-                .await
-                .wrap("connection")?
-                .upsert_attester_committee(ctx, status.next_batch_to_attest, &committee)
-                .await
-                .wrap("upsert_attester_committee()")?;
-            tracing::info!(
-                "attesting batch {:?} with hash {hash:?}",
-                status.next_batch_to_attest
-            );
-            attestation
-                .start_attestation(Arc::new(attestation::Info {
-                    batch_to_attest: attester::Batch {
-                        genesis: status.genesis,
-                        hash,
-                        number: status.next_batch_to_attest,
-                    },
-                    committee: committee.clone(),
-                }))
-                .await
-                .context("start_attestation()")?;
-        }
-    }
-
     /// Periodically fetches the head of the main node
     /// and updates `SyncState` accordingly.
     async fn fetch_state_loop(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
@@ -306,57 +201,15 @@ impl EN {
         &self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<consensus_dal::GlobalConfig> {
-        match ctx.wait(self.client.consensus_global_config()).await? {
-            Ok(cfg) => {
-                let cfg = cfg.context("main node is not running consensus component")?;
-                return Ok(zksync_protobuf::serde::Deserialize {
-                    deny_unknown_fields: false,
-                }
-                .proto_fmt(&cfg.0)
-                .context("deserialize()")?);
-            }
-            // For non-whitelisted methods, proxyd returns HTTP 403 with MethodNotFound in the body.
-            // For some stupid reason ClientError doesn't expose HTTP error codes.
-            Err(ClientError::Transport(_)) => {}
-            // For missing methods api server, returns HTTP 200 with MethodNotFound in the body.
-            Err(ClientError::Call(err)) if err.code() == ErrorCode::MethodNotFound.code() => {}
-            Err(err) => {
-                return Err(err)
-                    .context("consensus_global_config()")
-                    .map_err(|err| err.into());
-            }
-        }
-        tracing::info!("consensus_global_config() not found, calling consensus_genesis() instead");
-        let genesis = ctx
-            .wait(self.client.consensus_genesis())
+        let cfg = ctx
+            .wait(self.client.consensus_global_config())
             .await?
-            .context("consensus_genesis()")?
+            .context("consensus_global_config()")?
             .context("main node is not running consensus component")?;
-        Ok(consensus_dal::GlobalConfig {
-            genesis: zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: false,
-            }
-            .proto_fmt(&genesis.0)
-            .context("deserialize()")?,
-            registry_address: None,
-            seed_peers: [].into(),
-        })
-    }
-
-    #[tracing::instrument(skip_all)]
-    async fn fetch_attestation_status(
-        &self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<consensus_dal::AttestationStatus> {
-        let status = ctx
-            .wait(self.client.attestation_status())
-            .await?
-            .context("attestation_status()")?
-            .context("main node is not runnign consensus component")?;
         Ok(zksync_protobuf::serde::Deserialize {
             deny_unknown_fields: false,
         }
-        .proto_fmt(&status.0)
+        .proto_fmt(&cfg.0)
         .context("deserialize()")?)
     }
 
@@ -373,7 +226,7 @@ impl EN {
             match ctx.wait(self.client.sync_l2_block(n, true)).await? {
                 Ok(Some(block)) => return Ok(block.try_into()?),
                 Ok(None) => {}
-                Err(err) if is_retriable(&err) => {}
+                Err(err) if is_retryable(&err) => {}
                 Err(err) => Err(err).with_context(|| format!("client.sync_l2_block({n})"))?,
             }
             ctx.sleep(RETRY_INTERVAL).await?;

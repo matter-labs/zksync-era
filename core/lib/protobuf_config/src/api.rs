@@ -61,15 +61,14 @@ impl ProtoRepr for proto::Web3JsonRpc {
         } else {
             Some(self.api_namespaces.clone())
         };
+
         Ok(Self::Type {
             http_port: required(&self.http_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("http_port")?,
-            http_url: required(&self.http_url).context("http_url")?.clone(),
             ws_port: required(&self.ws_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("ws_port")?,
-            ws_url: required(&self.ws_url).context("ws_url")?.clone(),
             req_entities_limit: self.req_entities_limit,
             filters_disabled: self.filters_disabled.unwrap_or(false),
             filters_limit: self.filters_limit,
@@ -157,9 +156,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
     fn build(this: &Self::Type) -> Self {
         Self {
             http_port: Some(this.http_port.into()),
-            http_url: Some(this.http_url.clone()),
             ws_port: Some(this.ws_port.into()),
-            ws_url: Some(this.ws_url.clone()),
             req_entities_limit: this.req_entities_limit,
             filters_disabled: Some(this.filters_disabled),
             mempool_cache_update_interval: this.mempool_cache_update_interval,

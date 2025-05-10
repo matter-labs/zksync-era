@@ -23,7 +23,7 @@ pub(super) struct IntegrationTestRunner<'a> {
     no_deps: bool,
     ecosystem_config: EcosystemConfig,
     test_timeout: Duration,
-    test_name: Option<&'a str>,
+    test_suites: Vec<&'a str>,
     test_pattern: Option<&'a str>,
 }
 
@@ -34,8 +34,8 @@ impl<'a> IntegrationTestRunner<'a> {
             shell,
             no_deps,
             ecosystem_config,
-            test_timeout: Duration::from_secs(timeout.unwrap_or(240)),
-            test_name: None,
+            test_timeout: Duration::from_secs(timeout.unwrap_or(600)), // See jest.config.json
+            test_suites: vec![],
             test_pattern: None,
         })
     }
@@ -44,8 +44,13 @@ impl<'a> IntegrationTestRunner<'a> {
         self.ecosystem_config.current_chain()
     }
 
-    pub fn with_test_name(mut self, name: &'a str) -> Self {
-        self.test_name = Some(name);
+    pub fn with_test_suite(mut self, name: &'a str) -> Self {
+        self.test_suites.push(name);
+        self
+    }
+
+    fn with_test_suites(mut self, names: impl Iterator<Item = &'a str>) -> Self {
+        self.test_suites.extend(names);
         self
     }
 
@@ -76,12 +81,21 @@ impl<'a> IntegrationTestRunner<'a> {
             .init_test_wallet(&ecosystem_config, &chain_config)
             .await?;
 
-        let test_pattern = self.test_pattern;
-        let test_name = self.test_name;
+        let test_pattern: &[_] = if let Some(pattern) = self.test_pattern {
+            &["-t", pattern]
+        } else {
+            &[]
+        };
+        let test_suites = if self.test_suites.is_empty() {
+            None
+        } else {
+            let names = self.test_suites.join("|");
+            Some(format!("/({names}).test.ts"))
+        };
         let timeout_ms = self.test_timeout.as_millis().to_string();
         let mut command = cmd!(
             self.shell,
-            "yarn jest --forceExit --testTimeout {timeout_ms} -t {test_pattern...} {test_name...}"
+            "yarn jest --forceExit --testTimeout {timeout_ms} {test_pattern...} {test_suites...}"
         )
         .env("CHAIN_NAME", ecosystem_config.current_chain())
         .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
@@ -99,6 +113,7 @@ impl<'a> IntegrationTestRunner<'a> {
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     logger::info(msg_integration_tests_run(args.external_node));
     let mut command = IntegrationTestRunner::new(shell, args.no_deps, args.timeout)?
+        .with_test_suites(args.suite.iter().map(String::as_str))
         .with_test_pattern(args.test_pattern.as_deref())
         .build_command()
         .await?;

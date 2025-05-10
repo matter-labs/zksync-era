@@ -46,6 +46,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Component for exposing APIs to TEE prover for providing proof generation data and accepting proofs.
+    TeeProofDataHandler,
     /// Component generating BFT consensus certificates for L2 blocks.
     Consensus,
     /// Component generating commitment for L1 batches.
@@ -93,6 +95,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "tee_proof_data_handler" => Ok(Components(vec![Component::TeeProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             "da_dispatcher" => Ok(Components(vec![Component::DADispatcher])),

@@ -105,7 +105,25 @@ impl MainNodeClient for Box<DynClient<L2>> {
     }
 
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
-        self.genesis_config().rpc_context("genesis_config").await
+        let dto = self.genesis_config().rpc_context("genesis_config").await?;
+        Ok(GenesisConfig {
+            protocol_version: Some(dto.protocol_version),
+            genesis_root_hash: Some(dto.genesis_root_hash),
+            rollup_last_leaf_index: Some(dto.rollup_last_leaf_index),
+            genesis_commitment: Some(dto.genesis_commitment),
+            bootloader_hash: Some(dto.bootloader_hash),
+            default_aa_hash: Some(dto.default_aa_hash),
+            evm_emulator_hash: dto.evm_emulator_hash,
+            l1_chain_id: dto.l1_chain_id,
+            l2_chain_id: dto.l2_chain_id,
+            snark_wrapper_vk_hash: dto.snark_wrapper_vk_hash,
+            fflonk_snark_wrapper_vk_hash: dto.fflonk_snark_wrapper_vk_hash,
+            fee_account: dto.fee_account,
+            dummy_verifier: dto.dummy_verifier,
+            l1_batch_commit_data_generator_mode: dto.l1_batch_commit_data_generator_mode,
+            // External node should initialise itself from a snapshot
+            custom_genesis_state_path: None,
+        })
     }
 
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber> {

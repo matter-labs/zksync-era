@@ -32,12 +32,5 @@ message Postgres {
   optional uint64 long_connection_threshold_ms = 7; // optional; ms
   optional uint64 slow_query_threshold_ms = 8; // optional; ms
   optional uint32 max_connections_master = 9; // optional
-  optional TestDatabase test = 10;
-  reserved 1, 2, 3; reserved "server_url", "server_replica_url", "prover_url";
-
-}
-
-message TestDatabase {
-  optional string server_url = 1; // optional
-  optional string prover_url = 2; // optional
+  reserved 1, 2, 3, 10; reserved "server_url", "server_replica_url", "prover_url", "test";
 }

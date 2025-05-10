@@ -22,6 +22,7 @@ use zksync_node_api_server::{
 };
 use zksync_node_framework::{
     implementations::layers::{
+        allow_list::DeploymentAllowListLayer,
         base_token::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
             base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
@@ -63,6 +64,7 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
+        tee_proof_data_handler::TeeProofDataHandlerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -72,7 +74,7 @@ use zksync_node_framework::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::MasterPoolSinkLayer,
+            tx_sink::{whitelist::WhitelistedMasterPoolSinkLayer, MasterPoolSinkLayer},
         },
     },
     service::{ZkStackService, ZkStackServiceBuilder},
@@ -347,8 +349,19 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        let gateway_config = try_load_config!(self.configs.prover_gateway);
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
+            gateway_config.api_mode,
+        ));
+        Ok(self)
+    }
+
+    fn add_tee_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TeeProofDataHandlerLayer::new(
+            try_load_config!(self.configs.tee_proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.genesis_config.l2_chain_id,
         ));
@@ -361,9 +374,21 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_allow_list_task_layer(mut self) -> anyhow::Result<Self> {
+        let allow_list = try_load_config!(self.configs.state_keeper_config).deployment_allowlist;
+
+        if let Some(allow_list) = allow_list {
+            self.node.add_layer(DeploymentAllowListLayer {
+                deployment_allowlist: allow_list,
+            });
+        }
+        Ok(self)
+    }
+
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+        let deployment_allowlist = sk_config.deployment_allowlist.clone();
 
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
@@ -378,7 +403,11 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        self.node.add_layer(MasterPoolSinkLayer);
+        if deployment_allowlist.is_some() {
+            self.node.add_layer(WhitelistedMasterPoolSinkLayer);
+        } else {
+            self.node.add_layer(MasterPoolSinkLayer);
+        }
 
         let layer = TxSenderLayer::new(
             postgres_storage_caches_config,
@@ -536,9 +565,7 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(CommitmentGeneratorLayer::new(
-            self.genesis_config.l1_batch_commit_data_generator_mode,
-        ));
+        self.node.add_layer(CommitmentGeneratorLayer::default());
 
         Ok(self)
     }
@@ -706,9 +733,12 @@ impl MainNodeBuilder {
 
     fn add_external_proof_integration_api_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_proof_integration_api_config);
+        let proof_data_handler_config = try_load_config!(self.configs.proof_data_handler_config);
         self.node.add_layer(ExternalProofIntegrationApiLayer::new(
             config,
+            proof_data_handler_config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
 
         Ok(self)
@@ -784,6 +814,12 @@ impl MainNodeBuilder {
             _ => 0,
         });
 
+        if components.contains(&Component::EthTxAggregator)
+            | components.contains(&Component::EthTxManager)
+        {
+            self = self.add_pk_signing_client_layer()?;
+        }
+
         // Add "component-specific" layers.
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
@@ -792,6 +828,7 @@ impl MainNodeBuilder {
                     // State keeper is the core component of the sequencer,
                     // which is why we consider it to be responsible for the storage initialization.
                     self = self
+                        .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
                         .add_state_keeper_layer()?
@@ -799,6 +836,7 @@ impl MainNodeBuilder {
                 }
                 Component::HttpApi => {
                     self = self
+                        .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
@@ -807,6 +845,7 @@ impl MainNodeBuilder {
                 }
                 Component::WsApi => {
                     self = self
+                        .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
@@ -831,9 +870,7 @@ impl MainNodeBuilder {
                     self = self.add_eth_watch_layer()?;
                 }
                 Component::EthTxAggregator => {
-                    self = self
-                        .add_pk_signing_client_layer()?
-                        .add_eth_tx_aggregator_layer()?;
+                    self = self.add_eth_tx_aggregator_layer()?;
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
@@ -843,6 +880,9 @@ impl MainNodeBuilder {
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
+                }
+                Component::TeeProofDataHandler => {
+                    self = self.add_tee_proof_data_handler_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;

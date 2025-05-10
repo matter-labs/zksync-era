@@ -17,3 +17,15 @@ contract Counter {
         return value;
     }
 }
+
+contract CounterFactory {
+    mapping(bytes32 => Counter) private deployedCounters;
+
+    function getAddress(bytes32 _salt) external view returns (address) {
+        return address(deployedCounters[_salt]);
+    }
+
+    function deploy(bytes32 _salt) external {
+        deployedCounters[_salt] = new Counter{salt: _salt}(false);
+    }
+}

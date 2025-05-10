@@ -1,19 +1,16 @@
 import { expect } from 'chai';
 import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
-
-import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet } from '../src';
-import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-
 import path from 'path';
 
-const pathToHome = path.join(__dirname, '../../../..');
-const fileConfig = shouldLoadConfigFromFile();
-
+import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet } from '../src';
+import { loadConfig } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 
-async function logsPath(name: string): Promise<string> {
-    return await logsTestPath(fileConfig.chain, 'logs/recovery/genesis', name);
+const pathToHome = path.join(__dirname, '../../../..');
+
+async function logsPath(chain: string, name: string): Promise<string> {
+    return await logsTestPath(chain, 'logs/recovery/genesis', name);
 }
 
 /**
@@ -31,17 +28,9 @@ describe('genesis recovery', () => {
     /** Number of L1 batches for the node to process during each phase of the test. */
     const CATCH_UP_BATCH_COUNT = 3;
 
-    const externalNodeEnvProfile =
-        'ext-node' +
-        (process.env.DEPLOYMENT_MODE === 'Validium' ? '-validium' : '') +
-        (process.env.IN_DOCKER ? '-docker' : '');
-    console.log('Using external node env profile', externalNodeEnvProfile);
-    let externalNodeEnv: { [key: string]: string } = {
-        ...process.env,
-        ZKSYNC_ENV: externalNodeEnvProfile,
-        EN_SNAPSHOTS_RECOVERY_ENABLED: 'false'
-    };
-    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
+    const autoKill: boolean = !process.env.NO_KILL;
+    const chainName = process.env.CHAIN_NAME!!;
+    console.log(`Testing chain: ${chainName}`);
 
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
@@ -52,31 +41,24 @@ describe('genesis recovery', () => {
     let ethRpcUrl: string;
     let externalNodeUrl: string;
     let extNodeHealthUrl: string;
+    let deploymentMode: string;
 
     before('prepare environment', async () => {
-        expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
-            .to.be.undefined;
+        const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
+        const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
+        const genesisConfig = loadConfig({ pathToHome, chain: chainName, config: 'genesis.yaml' });
+        const externalNodeGeneralConfig = loadConfig({
+            pathToHome,
+            chain: chainName,
+            configsFolderSuffix: 'external_node',
+            config: 'general.yaml'
+        });
 
-        if (fileConfig.loadFromFile) {
-            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
-            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
-            const externalNodeGeneralConfig = loadConfig({
-                pathToHome,
-                chain: fileConfig.chain,
-                configsFolderSuffix: 'external_node',
-                config: 'general.yaml'
-            });
-
-            ethRpcUrl = secretsConfig.l1.l1_rpc_url;
-            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-            externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
-            extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
-        } else {
-            ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
-            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
-            externalNodeUrl = 'http://127.0.0.1:3060';
-            extNodeHealthUrl = 'http://127.0.0.1:3081/health';
-        }
+        ethRpcUrl = secretsConfig.l1.l1_rpc_url;
+        apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+        externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+        extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
+        deploymentMode = genesisConfig.l1_batch_commit_data_generator_mode;
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
@@ -112,17 +94,16 @@ describe('genesis recovery', () => {
     });
 
     step('drop external node data', async () => {
-        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
+        await dropNodeData(chainName);
     });
 
     step('initialize external node w/o a tree', async () => {
         externalNodeProcess = await NodeProcess.spawn(
-            externalNodeEnv,
-            await logsPath('external-node.log'),
+            await logsPath(chainName, 'external-node.log'),
             pathToHome,
             NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
-            fileConfig.loadFromFile,
-            fileConfig.chain
+            chainName,
+            deploymentMode
         );
 
         const mainNodeBatchNumber = await mainNode.getL1BatchNumber();
@@ -141,12 +122,11 @@ describe('genesis recovery', () => {
                 // we must restart the node manually
                 if (externalNodeProcess.exitCode() != null) {
                     externalNodeProcess = await NodeProcess.spawn(
-                        externalNodeEnv,
-                        await logsPath('external-node.log'),
+                        await logsPath(chainName, 'external-node.log'),
                         pathToHome,
                         NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
-                        fileConfig.loadFromFile,
-                        fileConfig.chain
+                        chainName,
+                        deploymentMode
                     );
                 }
                 continue;
@@ -163,7 +143,7 @@ describe('genesis recovery', () => {
 
             if (!reorgDetectorSucceeded) {
                 const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.reorg_detector?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received reorg detector health details', details);
@@ -175,7 +155,7 @@ describe('genesis recovery', () => {
 
             if (!consistencyCheckerSucceeded) {
                 const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.consistency_checker?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received consistency checker health details', details);
@@ -211,12 +191,11 @@ describe('genesis recovery', () => {
 
     step('restart EN', async () => {
         externalNodeProcess = await NodeProcess.spawn(
-            externalNodeEnv,
             externalNodeProcess.logs,
             pathToHome,
             NodeComponents.WITH_TREE_FETCHER,
-            fileConfig.loadFromFile,
-            fileConfig.chain
+            chainName,
+            deploymentMode
         );
 
         let isNodeReady = false;
@@ -260,7 +239,7 @@ describe('genesis recovery', () => {
 
             if (!reorgDetectorSucceeded) {
                 const status = health.components.reorg_detector?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.reorg_detector?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received reorg detector health details', details);
@@ -272,7 +251,7 @@ describe('genesis recovery', () => {
 
             if (!consistencyCheckerSucceeded) {
                 const status = health.components.consistency_checker?.status;
-                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready']);
+                expect(status).to.be.oneOf([undefined, 'not_ready', 'ready', 'shut_down']);
                 const details = health.components.consistency_checker?.details;
                 if (status === 'ready' && details !== undefined) {
                     console.log('Received consistency checker health details', details);

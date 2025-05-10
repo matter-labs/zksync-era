@@ -30,12 +30,13 @@ on:
       CUDA_ARCH:
         description: "CUDA Arch to build"
         type: string
-        default: "75;80;89"
+        default: "75;80;89;90"
         required: false
         # Details: https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
         # L4: 89
         # T4: 75
         # A100: 80
+        # H100: 90
     outputs:
       protocol_version:
         description: "Protocol version of the binary"

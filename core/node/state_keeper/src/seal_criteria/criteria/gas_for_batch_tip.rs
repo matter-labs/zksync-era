@@ -13,7 +13,6 @@ impl SealCriterion for GasForBatchTipCriterion {
     fn should_seal(
         &self,
         _config: &StateKeeperConfig,
-        _block_open_timestamp_ms: u128,
         tx_count: usize,
         _l1_tx_count: usize,
         _block_data: &SealData,
@@ -57,44 +56,23 @@ mod tests {
             gas_remaining: gas_bootloader_batch_tip_overhead(protocol_version.into()),
             ..Default::default()
         };
-        let almost_full_block_resolution = criterion.should_seal(
-            &config,
-            Default::default(),
-            1,
-            0,
-            &seal_data,
-            &seal_data,
-            protocol_version,
-        );
+        let almost_full_block_resolution =
+            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version);
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
         let seal_data = SealData {
             gas_remaining: gas_bootloader_batch_tip_overhead(protocol_version.into()) - 1,
             ..Default::default()
         };
-        let full_block_first_tx_resolution = criterion.should_seal(
-            &config,
-            Default::default(),
-            1,
-            0,
-            &seal_data,
-            &seal_data,
-            protocol_version,
-        );
+        let full_block_first_tx_resolution =
+            criterion.should_seal(&config, 1, 0, &seal_data, &seal_data, protocol_version);
         assert_matches!(
             full_block_first_tx_resolution,
             SealResolution::Unexecutable(_)
         );
 
-        let full_block_second_tx_resolution = criterion.should_seal(
-            &config,
-            Default::default(),
-            2,
-            0,
-            &seal_data,
-            &seal_data,
-            protocol_version,
-        );
+        let full_block_second_tx_resolution =
+            criterion.should_seal(&config, 2, 0, &seal_data, &seal_data, protocol_version);
         assert_eq!(
             full_block_second_tx_resolution,
             SealResolution::ExcludeAndSeal

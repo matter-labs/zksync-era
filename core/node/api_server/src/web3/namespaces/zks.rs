@@ -488,7 +488,10 @@ impl ZksNamespace {
 
         let eth_tx_id = storage
             .eth_sender_dal()
-            .get_last_sent_eth_tx_id(l1_batch_number, AggregatedActionType::Execute)
+            .get_last_sent_successfully_eth_tx_id_by_batch_and_op(
+                l1_batch_number,
+                AggregatedActionType::Execute,
+            )
             .await;
 
         let tx = storage

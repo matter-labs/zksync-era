@@ -13,7 +13,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
     api,
-    bytecode::BytecodeHash,
+    bytecode::{BytecodeHash, BytecodeMarker},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
@@ -801,16 +801,42 @@ impl<'a> SnapshotsApplier<'a> {
         // in underlying query, see `https://www.postgresql.org/docs/current/limits.html`
         // there were around 100 thousand contracts on mainnet, where this issue first manifested
         for chunk in factory_deps.factory_deps.chunks(1000) {
-            // TODO: bytecode hashing is ambiguous with EVM bytecodes
             let chunk_deps_hashmap: HashMap<H256, Vec<u8>> = chunk
                 .iter()
                 .map(|dep| {
-                    (
-                        BytecodeHash::for_bytecode(&dep.bytecode.0).value(),
-                        dep.bytecode.0.clone(),
-                    )
+                    let bytecode_hash = if let Some(hash) = dep.hash {
+                        // Sanity-check the bytecode hash.
+                        let parsed_hash = BytecodeHash::try_from(hash)
+                            .with_context(|| format!("for bytecode hash {hash:?}"))?;
+                        let restored_hash = match parsed_hash.marker() {
+                            BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&dep.bytecode.0),
+                            BytecodeMarker::Evm => BytecodeHash::for_evm_bytecode(
+                                parsed_hash.len_in_bytes(),
+                                &dep.bytecode.0,
+                            ),
+                        };
+                        anyhow::ensure!(
+                            parsed_hash == restored_hash,
+                            "restored bytecode hash {restored_hash:?} doesn't match hash from the snapshot {parsed_hash:?}"
+                        );
+
+                        hash
+                    } else {
+                        // Assume that this is an EraVM bytecode from an old snapshot. Note that EVM bytecodes in Postgres and snapshots are padded,
+                        // so we wouldn't be able to conclusively get the bytecode length, even if we can more or less conclusively tell that it is
+                        // an EVM bytecode (EraVM bytecodes usually start with a 0 byte, EVM bytecodes almost never do).
+                        if dep.bytecode.0[0] != 0 {
+                            tracing::warn!(
+                                "Potential EVM bytecode included into an old snapshot: {:?}. If snapshot recovery fails, please use a newer snapshot",
+                                dep.bytecode
+                            );
+                        }
+                        BytecodeHash::for_bytecode(&dep.bytecode.0).value()
+                    };
+
+                    Ok((bytecode_hash, dep.bytecode.0.clone()))
                 })
-                .collect();
+                .collect::<anyhow::Result<_>>()?;
             storage
                 .factory_deps_dal()
                 .insert_factory_deps(

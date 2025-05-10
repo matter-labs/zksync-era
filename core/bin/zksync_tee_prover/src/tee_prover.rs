@@ -9,7 +9,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
-use zksync_prover_interface::inputs::TeeVerifierInput;
+use zksync_tee_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
 
 use crate::{

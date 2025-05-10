@@ -51,7 +51,8 @@ impl DivergenceHandler {
         Self(Arc::new(f))
     }
 
-    fn handle(&self, err: DivergenceErrors, dump: VmDump) {
+    /// Handles a VM divergence.
+    pub fn handle(&self, err: DivergenceErrors, dump: VmDump) {
         self.0(err, dump);
     }
 }

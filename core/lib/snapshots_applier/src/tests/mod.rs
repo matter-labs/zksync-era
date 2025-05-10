@@ -21,7 +21,7 @@ use self::utils::{
     random_storage_logs, MockMainNodeClient, ObjectStoreWithErrors,
 };
 use super::*;
-use crate::tests::utils::HangingObjectStore;
+use crate::tests::utils::{mock_factory_deps, HangingObjectStore};
 
 mod utils;
 
@@ -48,8 +48,10 @@ async fn snapshots_creator_can_successfully_recover_db(
     };
 
     let expected_status = mock_recovery_status();
+    let factory_deps = mock_factory_deps(None);
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
     let storage_logs_by_hashed_key: HashMap<_, _> =
         storage_logs.into_iter().map(|log| (log.key, log)).collect();
 
@@ -174,8 +176,10 @@ async fn snapshots_creator_can_successfully_recover_db(
 async fn applier_recovers_v0_snapshot(drop_storage_key_preimages: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
+    let factory_deps = mock_factory_deps(None);
     let storage_logs = random_storage_logs::<StorageKey>(expected_status.l1_batch_number, 200);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
 
     let mut task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
@@ -217,12 +221,16 @@ async fn applier_recovers_v0_snapshot(drop_storage_key_preimages: bool) {
     }
 }
 
+/// Also tests factory dependencies with the specified bytecode hash.
+#[test_casing(3, [None, Some(BytecodeMarker::EraVm), Some(BytecodeMarker::Evm)])]
 #[tokio::test]
-async fn applier_recovers_explicitly_specified_snapshot() {
+async fn applier_recovers_explicitly_specified_snapshot(bytecode_kind: Option<BytecodeMarker>) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
+    let factory_deps = mock_factory_deps(bytecode_kind);
     let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
 
     let mut task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
@@ -244,11 +252,54 @@ async fn applier_recovers_explicitly_specified_snapshot() {
 }
 
 #[tokio::test]
+async fn applier_errors_on_unexpected_bytecode_hash() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let expected_status = mock_recovery_status();
+    let mut factory_deps = mock_factory_deps(None);
+    factory_deps.factory_deps[0].hash = Some(H256::repeat_byte(0x42)); // unknown bytecode marker
+    let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
+
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool.clone(),
+        Box::new(client),
+        object_store,
+    );
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
+    assert!(
+        format!("{err:#}").contains("bytecode hash marker"),
+        "{err:#}"
+    );
+
+    factory_deps.factory_deps[0].hash = Some(BytecodeHash::for_bytecode(&[42; 32]).value());
+    let (object_store, client) =
+        prepare_clients::<H256>(&expected_status, &factory_deps, &storage_logs).await;
+
+    let task = SnapshotsApplierTask::new(
+        SnapshotsApplierConfig::for_tests(),
+        pool,
+        Box::new(client),
+        object_store,
+    );
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let err = task.run(stop_receiver).await.unwrap_err();
+    assert!(
+        format!("{err:#}").contains("restored bytecode hash"),
+        "{err:#}"
+    );
+}
+
+#[tokio::test]
 async fn applier_error_for_missing_explicitly_specified_snapshot() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
+    let factory_deps = mock_factory_deps(None);
     let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
 
     let mut task = SnapshotsApplierTask::new(
         SnapshotsApplierConfig::for_tests(),
@@ -271,8 +322,10 @@ async fn snapshot_applier_recovers_after_stopping() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut expected_status = mock_recovery_status();
     expected_status.storage_logs_chunks_processed = vec![true; 10];
+    let factory_deps = mock_factory_deps(None);
     let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
     let (stopping_object_store, mut stop_receiver) =
         HangingObjectStore::new(object_store.clone(), 1);
 
@@ -520,8 +573,10 @@ async fn applier_errors_with_unrecognized_snapshot_version() {
 async fn applier_returns_error_on_fatal_object_store_error() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
+    let factory_deps = mock_factory_deps(None);
     let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 100);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
         Err(ObjectStoreError::KeyNotFound("not found".into()))
     });
@@ -546,8 +601,10 @@ async fn applier_returns_error_on_fatal_object_store_error() {
 async fn applier_returns_error_after_too_many_object_store_retries() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
+    let factory_deps = mock_factory_deps(None);
     let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 100);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
         Err(ObjectStoreError::Other {
             is_retriable: true,
@@ -576,6 +633,7 @@ async fn recovering_tokens() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
     let tokens = mock_tokens();
+    let factory_deps = mock_factory_deps(None);
     let mut storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
     for token in &tokens {
         if token.l2_address.is_zero() {
@@ -588,7 +646,8 @@ async fn recovering_tokens() {
             enumeration_index: storage_logs.len() as u64 + 1,
         });
     }
-    let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, mut client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
 
     client.tokens_response.clone_from(&tokens);
 
@@ -662,8 +721,10 @@ async fn snapshot_applier_can_be_canceled() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut expected_status = mock_recovery_status();
     expected_status.storage_logs_chunks_processed = vec![true; 10];
+    let factory_deps = mock_factory_deps(None);
     let storage_logs = random_storage_logs::<H256>(expected_status.l1_batch_number, 200);
-    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let (object_store, client) =
+        prepare_clients(&expected_status, &factory_deps, &storage_logs).await;
     let (stopping_object_store, mut stop_receiver) =
         HangingObjectStore::new(object_store.clone(), 1);
 

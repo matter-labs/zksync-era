@@ -51,7 +51,7 @@ impl WiringLayer for SettlementLayerClientLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Output, WiringError> {
         Ok(Output {
-            settlement_layer_client: match input.initial_settlement_mode.0 {
+            settlement_layer_client: match input.initial_settlement_mode.settlement_layer() {
                 SettlementLayer::L1(chain_id) => {
                     let mut builder = Client::http(self.l1_rpc_url).context("Client::new()")?;
                     builder = builder.for_network(L1ChainId(chain_id.0).into());

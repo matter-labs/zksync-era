@@ -4,11 +4,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedActionType, L1_BATCH_EXECUTE_BASE_COST, L1_OPERATION_EXECUTE_COST,
-    },
-    commitment::L1BatchWithMetadata,
-    L1BatchNumber,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -26,6 +22,7 @@ pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
         storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
+        is_gateway: bool,
     ) -> Option<L1BatchNumber>;
 }
 
@@ -47,6 +44,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
         _storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
+        _is_gateway: bool,
     ) -> Option<L1BatchNumber> {
         let mut batch_numbers = consecutive_l1_batches
             .iter()
@@ -93,6 +91,7 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
         _storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
+        _is_gateway: bool,
     ) -> Option<L1BatchNumber> {
         let first_l1_batch = consecutive_l1_batches.iter().next()?;
         let last_l1_batch_number = consecutive_l1_batches.iter().last()?.header.number.0;
@@ -139,52 +138,51 @@ impl From<GasCriterionKind> for AggregatedActionType {
 
 #[derive(Debug)]
 pub struct L1GasCriterion {
-    pub gas_limit: u32,
+    pub gas_limit: u64,
     pub kind: GasCriterionKind,
 }
 
 impl L1GasCriterion {
-    /// Base gas cost of processing aggregated `Execute` operation.
-    /// It's applicable iff SL is Ethereum.
-    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u32 = 241_000;
-
-    /// Base gas cost of processing aggregated `Commit` operation.
-    /// It's applicable iff SL is Ethereum.
-    const AGGR_L1_BATCH_COMMIT_BASE_COST: u32 = 242_000;
-
-    /// Additional gas cost of processing `Commit` operation per batch.
-    /// It's applicable iff SL is Ethereum.
-    pub const L1_BATCH_COMMIT_BASE_COST: u32 = 31_000;
-
-    pub fn new(gas_limit: u32, kind: GasCriterionKind) -> L1GasCriterion {
+    pub fn new(gas_limit: u64, kind: GasCriterionKind) -> L1GasCriterion {
         L1GasCriterion { gas_limit, kind }
     }
 
     pub async fn total_execute_gas_amount(
         storage: &mut Connection<'_, Core>,
         batch_numbers: ops::RangeInclusive<L1BatchNumber>,
-    ) -> u32 {
-        let mut total = Self::AGGR_L1_BATCH_EXECUTE_BASE_COST;
+        is_gateway: bool,
+    ) -> u64 {
+        let costs = GasConsts::execute_costs(is_gateway);
+        let mut total = costs.base;
 
         for batch_number in batch_numbers.start().0..=batch_numbers.end().0 {
-            total += Self::get_execute_gas_amount(storage, batch_number.into()).await;
+            total += Self::get_execute_gas_amount(storage, batch_number.into(), &costs).await;
         }
 
         total
     }
 
-    pub fn total_validium_commit_gas_amount(
+    pub fn total_proof_gas_amount(is_gateway: bool) -> u64 {
+        GasConsts::proof_costs(is_gateway)
+    }
+
+    // Return the gas limit for the Validium part of commit.
+    // Gas limit for DA part will be adjusted later in eth_tx_manager,
+    // when the pubdata price will be known
+    pub fn total_commit_validium_gas_amount(
         batch_numbers: ops::RangeInclusive<L1BatchNumber>,
-    ) -> u32 {
-        Self::AGGR_L1_BATCH_COMMIT_BASE_COST
-            + (batch_numbers.end().0 - batch_numbers.start().0 + 1)
-                * Self::L1_BATCH_COMMIT_BASE_COST
+        is_gateway: bool,
+    ) -> u64 {
+        let costs = GasConsts::commit_costs(is_gateway);
+        costs.base
+            + ((batch_numbers.end().0 - batch_numbers.start().0 + 1) as u64) * costs.per_batch
     }
 
     async fn get_execute_gas_amount(
         storage: &mut Connection<'_, Core>,
         batch_number: L1BatchNumber,
-    ) -> u32 {
+        costs: &ExecuteCosts,
+    ) -> u64 {
         let header = storage
             .blocks_dal()
             .get_l1_batch_header(batch_number)
@@ -192,7 +190,7 @@ impl L1GasCriterion {
             .unwrap()
             .unwrap_or_else(|| panic!("Missing L1 batch header in DB for #{batch_number}"));
 
-        L1_BATCH_EXECUTE_BASE_COST + u32::from(header.l1_tx_count) * L1_OPERATION_EXECUTE_COST
+        costs.per_batch + u64::from(header.l1_tx_count) * costs.per_l1_l2_tx
     }
 }
 
@@ -207,25 +205,30 @@ impl L1BatchPublishCriterion for L1GasCriterion {
         storage: &mut Connection<'_, Core>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
+        is_gateway: bool,
     ) -> Option<L1BatchNumber> {
+        let execute_costs = GasConsts::execute_costs(is_gateway);
+        let commit_costs = GasConsts::commit_costs(is_gateway);
+
         let aggr_cost = match self.kind {
-            GasCriterionKind::Execute => Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
-            GasCriterionKind::CommitValidium => Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
+            GasCriterionKind::Execute => execute_costs.base,
+            GasCriterionKind::CommitValidium => commit_costs.base,
         };
         assert!(
             self.gas_limit > aggr_cost,
             "Config max gas cost for operations is too low"
         );
         // We're not sure our predictions are accurate, so it's safer to lower the gas limit by 10%
-        let mut gas_left = (self.gas_limit as f64 * 0.9).round() as u32 - aggr_cost;
+        let mut gas_left = (self.gas_limit as f64 * 0.9).round() as u64 - aggr_cost;
 
         let mut last_l1_batch = None;
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
             let batch_gas = match self.kind {
                 GasCriterionKind::Execute => {
-                    Self::get_execute_gas_amount(storage, l1_batch.header.number).await
+                    Self::get_execute_gas_amount(storage, l1_batch.header.number, &execute_costs)
+                        .await
                 }
-                GasCriterionKind::CommitValidium => Self::L1_BATCH_COMMIT_BASE_COST,
+                GasCriterionKind::CommitValidium => commit_costs.per_batch,
             };
             if batch_gas >= gas_left {
                 if index == 0 {
@@ -253,5 +256,108 @@ impl L1BatchPublishCriterion for L1GasCriterion {
             METRICS.block_aggregation_reason[&(op, "gas").into()].inc();
         }
         last_l1_batch
+    }
+}
+
+#[derive(Debug)]
+struct GasConsts;
+
+#[derive(Debug)]
+struct CommitGasConsts {
+    base: u64,
+    per_batch: u64,
+}
+
+#[derive(Debug)]
+struct ExecuteCosts {
+    base: u64,
+    per_batch: u64,
+    per_l1_l2_tx: u64,
+}
+
+impl GasConsts {
+    /// Base gas cost of processing aggregated `Execute` operation.
+    /// It's applicable iff SL is Ethereum.
+    const AGGR_L1_BATCH_EXECUTE_BASE_COST: u64 = 200_000;
+    /// Base gas cost of processing aggregated `Execute` operation.
+    /// It's applicable if SL is  Gateway.
+    const AGGR_GATEWAY_BATCH_EXECUTE_BASE_COST: u64 = 300_000;
+
+    /// Base gas cost of processing aggregated `Commit` operation.
+    /// It's applicable if SL is Ethereum.
+    const AGGR_L1_BATCH_COMMIT_BASE_COST: u64 = 242_000;
+
+    /// Additional gas cost of processing `Commit` operation per batch.
+    /// It's applicable if SL is Ethereum.
+    const L1_BATCH_COMMIT_BASE_COST: u64 = 31_000;
+
+    /// Additional gas cost of processing `Commit` operation per batch.
+    /// It's applicable if SL is Gateway.
+    const AGGR_GATEWAY_BATCH_COMMIT_BASE_COST: u64 = 150_000;
+
+    /// Additional gas cost of processing `Commit` operation per batch.
+    /// It's applicable if SL is Gateway.
+    const GATEWAY_BATCH_COMMIT_BASE_COST: u64 = 200_000;
+
+    /// All gas cost of processing `PROVE` operation per batch.
+    /// It's applicable if SL is GATEWAY.
+    /// TODO calculate it properly
+    const GATEWAY_BATCH_PROOF_GAS_COST: u64 = 1_600_000;
+
+    /// All gas cost of processing `PROVE` operation per batch.
+    /// It's applicable if SL is Ethereum.
+    const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u64 = 800_000;
+
+    /// Base gas cost of processing `EXECUTION` operation per batch.
+    /// It's applicable if SL is GATEWAY.
+    const GATEWAY_BATCH_EXECUTION_COST: u64 = 100_000;
+    /// Gas cost of processing `l1_operation` in batch.
+    /// It's applicable if SL is GATEWAY.
+    const GATEWAY_L1_OPERATION_COST: u64 = 4_000;
+
+    /// Additional gas cost of processing `Execute` operation per batch.
+    /// It's applicable iff SL is Ethereum.
+    const L1_BATCH_EXECUTE_BASE_COST: u64 = 30_000;
+
+    /// Additional gas cost of processing `Execute` operation per L1->L2 tx.
+    /// It's applicable iff SL is Ethereum.
+    const L1_OPERATION_EXECUTE_COST: u64 = 12_500;
+
+    fn commit_costs(is_gateway: bool) -> CommitGasConsts {
+        if is_gateway {
+            CommitGasConsts {
+                base: Self::GATEWAY_BATCH_COMMIT_BASE_COST,
+                per_batch: Self::AGGR_GATEWAY_BATCH_COMMIT_BASE_COST,
+            }
+        } else {
+            CommitGasConsts {
+                base: Self::L1_BATCH_COMMIT_BASE_COST,
+                per_batch: Self::AGGR_L1_BATCH_COMMIT_BASE_COST,
+            }
+        }
+    }
+
+    fn proof_costs(is_gateway: bool) -> u64 {
+        if is_gateway {
+            Self::GATEWAY_BATCH_PROOF_GAS_COST
+        } else {
+            Self::L1_BATCH_PROOF_GAS_COST_ETHEREUM
+        }
+    }
+
+    fn execute_costs(is_gateway: bool) -> ExecuteCosts {
+        if is_gateway {
+            ExecuteCosts {
+                base: Self::AGGR_GATEWAY_BATCH_EXECUTE_BASE_COST,
+                per_batch: Self::GATEWAY_BATCH_EXECUTION_COST,
+                per_l1_l2_tx: Self::GATEWAY_L1_OPERATION_COST,
+            }
+        } else {
+            ExecuteCosts {
+                base: Self::AGGR_L1_BATCH_EXECUTE_BASE_COST,
+                per_batch: Self::L1_BATCH_EXECUTE_BASE_COST,
+                per_l1_l2_tx: Self::L1_OPERATION_EXECUTE_COST,
+            }
+        }
     }
 }

@@ -10,7 +10,7 @@ use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
-use crate::artifacts::ArtifactsManager;
+use crate::artifacts::{ArtifactsManager, JobId};
 
 mod basic_circuits;
 mod leaf_aggregation;
@@ -27,10 +27,14 @@ use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::metrics::WITNESS_GENERATOR_METRICS;
 
+pub trait JobMetadata {
+    fn job_id(&self) -> JobId;
+}
+
 #[async_trait]
 pub trait JobManager: ArtifactsManager {
     type Job: Send + 'static;
-    type Metadata: Send + 'static;
+    type Metadata: Clone + Send + JobMetadata + 'static;
 
     const ROUND: AggregationRound;
     const SERVICE_NAME: &'static str;
@@ -51,7 +55,7 @@ pub trait JobManager: ArtifactsManager {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>>;
+    ) -> anyhow::Result<Option<Self::Metadata>>;
 }
 
 #[derive(Debug)]
@@ -92,21 +96,21 @@ where
     R: JobManager + ArtifactsManager + Send + Sync,
 {
     type Job = R::Job;
-    type JobId = u32;
+    type JobId = JobId;
     type JobArtifacts = R::OutputArtifacts;
 
     const SERVICE_NAME: &'static str = R::SERVICE_NAME;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        if let Some((id, metadata)) =
+        if let Some(job_metadata) =
             R::get_metadata(self.connection_pool.clone(), self.protocol_version)
                 .await
                 .context("get_metadata()")?
         {
-            tracing::info!("Processing {:?} job {:?}", R::ROUND, id);
+            tracing::info!("Processing {:?} job {:?}", R::ROUND, job_metadata.job_id());
             Ok(Some((
-                id,
-                R::prepare_job(metadata, &*self.object_store, self.keystore.clone())
+                job_metadata.job_id(),
+                R::prepare_job(job_metadata, &*self.object_store, self.keystore.clone())
                     .await
                     .context("prepare_job()")?,
             )))
@@ -121,7 +125,7 @@ where
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .mark_witness_job_failed(&error, job_id, R::ROUND)
+            .mark_witness_job_failed(&error, job_id.id(), job_id.chain_id(), R::ROUND)
             .await;
     }
 
@@ -180,7 +184,7 @@ where
         ))?;
         prover_storage
             .fri_witness_generator_dal()
-            .get_witness_job_attempts(*job_id, R::ROUND)
+            .get_witness_job_attempts(job_id.id(), job_id.chain_id(), R::ROUND)
             .await
             .map(|attempts| attempts.unwrap_or(0))
             .context(format!("failed to get job attempts for {:?}", R::ROUND))

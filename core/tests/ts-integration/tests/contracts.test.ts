@@ -7,7 +7,14 @@
  */
 
 import { TestMaster } from '../src';
-import { deployContract, getTestContract, scaledGasPrice, waitForNewL1Batch } from '../src/helpers';
+import {
+    deployContract,
+    getDeploymentNonce,
+    getAccountNonce,
+    getTestContract,
+    scaledGasPrice,
+    waitForNewL1Batch
+} from '../src/helpers';
 import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
 import * as ethers from 'ethers';
@@ -66,6 +73,14 @@ describe('Smart contract behavior checks', () => {
 
     test('Should deploy contract with create', async () => {
         const contractFactory = new zksync.ContractFactory(contracts.create.abi, contracts.create.bytecode, alice);
+        const nonce = await alice.getDeploymentNonce();
+        const accountNonce = await alice.getNonce();
+        // Not all Alice's transactions are deployments, but all deployments require a separate transaction (we don't use `Multicall3` etc.
+        // to batch deployments).
+        expect(accountNonce).toBeGreaterThanOrEqual(nonce);
+        const blockNumber = await alice.provider.getBlockNumber();
+
+        testMaster.reporter?.debug(`Nonces before deployment: deployment=${nonce}, account=${accountNonce}`);
         const contract = (await contractFactory.deploy({
             customData: {
                 factoryDeps: [contracts.create.factoryDep]
@@ -73,6 +88,36 @@ describe('Smart contract behavior checks', () => {
         })) as zksync.Contract;
         await contract.waitForDeployment();
         await expect(contract.getFooName()).resolves.toBe('Foo');
+
+        const newNonce = await alice.getDeploymentNonce();
+        expect(newNonce).toEqual(nonce + 1n);
+        const contractAddress = await contract.getAddress();
+        expect(contractAddress).toEqual(zksync.utils.createAddress(alice.address, nonce));
+
+        // Check `getTransactionCount` for contracts
+        let contractNonce = await alice.provider.getTransactionCount(contractAddress);
+        expect(contractNonce).toEqual(1); // `Foo` is deployed in the constructor
+        // Should also work using `NonceHolder.getDeploymentNonce()`
+        const contractDeploymentNonce = await getDeploymentNonce(alice.provider, contractAddress);
+        expect(contractDeploymentNonce).toEqual(1n);
+        // The account nonce for contracts should always stay 0.
+        expect(await getAccountNonce(alice.provider, contractAddress)).toEqual(0n);
+
+        // Check retrospective `getTransactionCount` values
+        expect(await alice.getNonce(blockNumber)).toEqual(accountNonce);
+        const oldContractNonce = await alice.provider.getTransactionCount(contractAddress, blockNumber);
+        expect(oldContractNonce).toEqual(0);
+
+        // Deploy a salted contract from the factory.
+        const salt = ethers.getBytes('0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+        await expect(contract.deploySalted(salt)).resolves.toBeAccepted();
+        const deployedCodeHash = zksync.utils.hashBytecode(contracts.create.factoryDep);
+        const expectedSaltedAddress = zksync.utils.create2Address(contractAddress, deployedCodeHash, salt, '0x');
+        expect(await contract.saltedContracts(salt)).toEqual(expectedSaltedAddress);
+
+        contractNonce = await alice.provider.getTransactionCount(contractAddress);
+        expect(contractNonce).toEqual(2);
+        expect(await getAccountNonce(alice.provider, contractAddress)).toEqual(0n);
     });
 
     test('Should perform "expensive" contract calls', async () => {
@@ -308,7 +353,7 @@ describe('Smart contract behavior checks', () => {
         // Wait till the new L1 batch is created.
         await waitForNewL1Batch(alice);
 
-        // Now we're sure than a new L1 batch is created, we may check the new properties.
+        // Now we're sure that a new L1 batch is created, we may check the new properties.
         const newL1Batch = await contextContract.getBlockNumber({
             blockTag: 'pending'
         });
@@ -439,28 +484,21 @@ async function invalidBytecodeTestTransaction(
 
     const gasPrice = await provider.getGasPrice();
     const address = zksync.Wallet.createRandom().address;
-    const tx: ethers.TransactionRequest = {
+    return {
         to: address,
         from: address,
         nonce: 0,
-
         gasLimit: 300000n,
-
         data: '0x',
         value: 0,
         chainId,
-
         type: 113,
-
         maxPriorityFeePerGas: gasPrice,
         maxFeePerGas: gasPrice,
-
         customData: {
             gasPerPubdata: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
             factoryDeps,
             customSignature: new Uint8Array(17)
         }
     };
-
-    return tx;
 }

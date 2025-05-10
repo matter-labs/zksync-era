@@ -198,13 +198,17 @@ impl InitParameters {
         }))
     }
 
-    #[tracing::instrument(level = "debug", skip_all)]
+    #[tracing::instrument(skip_all, ret)]
     async fn is_genesis_recovery_needed(
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<bool> {
-        let sealed_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
-        if sealed_l1_batch != Some(L1BatchNumber(0)) {
-            tracing::debug!(?sealed_l1_batch, "Latest sealed L1 batch mismatch");
+        let earliest_l2_block = storage.blocks_dal().get_earliest_l2_block_number().await?;
+        tracing::debug!(?earliest_l2_block, "Got earliest L2 block from Postgres");
+        if earliest_l2_block != Some(L2BlockNumber(0)) {
+            tracing::info!(
+                ?earliest_l2_block,
+                "There is no genesis block in Postgres; genesis recovery is impossible"
+            );
             return Ok(false);
         }
 
@@ -269,7 +273,8 @@ impl GenericAsyncTree {
                     let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode, config)?;
                     (tree, params)
                 } else {
-                    // Start the tree from scratch. The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
+                    // The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
+                    tracing::info!("Starting Merkle tree from scratch");
                     return Ok(Some(AsyncTree::new(db, mode)?));
                 }
             }

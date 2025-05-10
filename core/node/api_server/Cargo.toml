@@ -20,6 +20,7 @@ zksync_dal.workspace = true
 zksync_node_sync.workspace = true
 zksync_health_check.workspace = true
 zksync_node_fee_model.workspace = true
+zksync_object_store.workspace = true
 zksync_state_keeper.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_state.workspace = true
@@ -54,6 +55,7 @@ tower.workspace = true
 strum = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = ["cors", "metrics"] }
 lru.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
 zk_evm_1_5_0.workspace = true

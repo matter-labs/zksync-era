@@ -232,6 +232,16 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     }
 }
 
+export async function getDeploymentNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getDeploymentNonce(address);
+}
+
+export async function getAccountNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getMinNonce(address);
+}
+
 /**
  * Returns an increased gas price to decrease chances of L1 transactions being stuck
  *
