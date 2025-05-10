@@ -534,6 +534,7 @@ jobs:
           
           sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/genesis.yaml
           sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/ZkStack.yaml
+          sudo yq -i '.state_keeper.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/general.yaml
           sudo yq -i '.da_client.no_da = {}' ./chains/era/configs/general.yaml
           sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/era/configs/general.yaml
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
