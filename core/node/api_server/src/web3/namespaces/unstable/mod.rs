@@ -142,7 +142,7 @@ impl UnstableNamespace {
 
             // Chain tree is the right subtree of the aggregated tree.
             // We append root of the left subtree to form full proof.
-            chain_id_leaf_proof_mask = chain_id_leaf_proof_mask | (1 << chain_id_leaf_proof.len());
+            chain_id_leaf_proof_mask |= 1 << chain_id_leaf_proof.len();
             chain_id_leaf_proof.push(local_root);
         }
 
