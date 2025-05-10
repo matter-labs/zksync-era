@@ -28,6 +28,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles => 63_800_000,
+        MultiVmSubversion::Interop => 63_800_000, //kl todo vg todo change when memory layout is finalized for interop typeA
     }
 }
 
@@ -72,7 +73,8 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
         // With gateway upgrade we increased max number of factory dependencies
         MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles => 64,
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => 64,
     }
 }
 
@@ -148,7 +150,10 @@ pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;
 pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
 
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
-    get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS
+    match subversion {
+        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS,
+        _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
+    }
 }
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;
