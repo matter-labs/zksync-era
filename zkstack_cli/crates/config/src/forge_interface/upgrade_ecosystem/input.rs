@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct GatewayEcosystemUpgradeInput {
+pub struct EcosystemUpgradeInput {
     pub era_chain_id: L2ChainId,
     pub owner_address: Address,
     pub testnet_verifier: bool,
@@ -18,9 +18,9 @@ pub struct GatewayEcosystemUpgradeInput {
     pub governance_upgrade_timer_initial_delay: u64,
 }
 
-impl ZkStackConfig for GatewayEcosystemUpgradeInput {}
+impl ZkStackConfig for EcosystemUpgradeInput {}
 
-impl GatewayEcosystemUpgradeInput {
+impl EcosystemUpgradeInput {
     pub fn new(
         new_genesis_input: &GenesisInput,
         current_contracts_config: &ContractsConfig,
