@@ -607,11 +607,18 @@ jobs:
           DIAMOND_PROXY_ADDR=$(yq '.l1.diamond_proxy_addr' ./chains/era/configs/contracts.yaml)
           ci_run cast call $DIAMOND_PROXY_ADDR "getDAValidatorPair()(address,address)" --rpc-url http://localhost:8545
           
+          export CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE=Validium
+          ORIGINAL_PASSED_ENV_VARS=$PASSED_ENV_VARS
+          export PASSED_ENV_VARS="${PASSED_ENV_VARS:+$PASSED_ENV_VARS,}CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE"
+          
           echo "Running integration tests"
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             "era" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
-          
+
+          unset CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE
+          export PASSED_ENV_VARS=$ORIGINAL_PASSED_ENV_VARS
+
           echo "Integration tests completed"
 
       - name: Run recovery tests (from snapshot)
