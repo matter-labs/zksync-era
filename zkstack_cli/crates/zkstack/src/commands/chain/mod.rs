@@ -8,8 +8,10 @@ use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{
-    args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
-    genesis::GenesisCommand, init::ChainInitCommand,
+    args::{create::ChainCreateArgs, set_pubdata_pricing_mode::SetPubdataPricingModeArgs},
+    deploy_l2_contracts::Deploy2ContractsOption,
+    genesis::GenesisCommand,
+    init::ChainInitCommand,
 };
 
 mod accept_chain_ownership;
@@ -25,7 +27,9 @@ mod gateway;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
+mod set_da_validator_pair;
 mod set_da_validator_pair_calldata;
+mod set_pubdata_pricing_mode;
 mod set_token_multiplier_setter;
 pub(crate) mod set_transaction_filterer;
 mod setup_legacy_bridge;
@@ -64,6 +68,9 @@ pub enum ChainCommands {
     /// Deploy L2 TimestampAsserter
     #[command(alias = "timestamp-asserter")]
     DeployTimestampAsserter(ForgeScriptArgs),
+    /// Deploy L2 DA Validator
+    #[command(alias = "da-validator")]
+    DeployL2DAValidator(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -78,6 +85,10 @@ pub enum ChainCommands {
     SetDAValidatorPairCalldata(SetDAValidatorPairCalldataArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
+    /// Update pubdata pricing mode (used for Rollup -> Validium migration)
+    SetPubdataPricingMode(SetPubdataPricingModeArgs),
+    /// Update da validator pair (used for Rollup -> Validium migration)
+    SetDAValidatorPair(ForgeScriptArgs),
     #[command(subcommand, alias = "gw")]
     Gateway(gateway::GatewayComamnds),
 }
@@ -102,6 +113,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployTimestampAsserter(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::TimestampAsserter).await
         }
+        ChainCommands::DeployL2DAValidator(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::L2DAValidator).await
+        }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
         }
@@ -116,6 +130,10 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             set_da_validator_pair_calldata::run(shell, args).await
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
+        ChainCommands::SetPubdataPricingMode(args) => {
+            set_pubdata_pricing_mode::run(args, shell).await
+        }
+        ChainCommands::SetDAValidatorPair(args) => set_da_validator_pair::run(args, shell).await,
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }

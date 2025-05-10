@@ -198,7 +198,7 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+    if init_args.make_permanent_rollup {
         println!("Making permanent rollup!");
         make_permanent_rollup(
             shell,

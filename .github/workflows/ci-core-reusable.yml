@@ -11,6 +11,7 @@ on:
 env:
   RUST_BACKTRACE: 1
   PASSED_ENV_VARS: RUST_BACKTRACE
+  YQ_VERSION: "4.45.1"
 
 jobs:
   lint:
@@ -212,6 +213,14 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
+
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
+      - name: Install psql
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
       - name: Start services
         run: |
@@ -509,6 +518,108 @@ jobs:
           --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
+
+      - name: DA migration tests
+        run: |
+          echo "Updating l1 batch seal timeout to 10 seconds so that we have at least one committed batch before migration"
+          sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/era/configs/general.yaml
+          echo "Restarting server to apply configuration changes"
+          ci_run pkill -f "zksync_server.*chains/era/configs"
+          ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          echo "Server restart initiated, waiting 60 seconds for startup"
+          ci_run sleep 60
+          
+          echo "Setting pubdata pricing mode to validium"
+          ci_run zkstack chain set-pubdata-pricing-mode --rollup=false
+          
+          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/genesis.yaml
+          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/ZkStack.yaml
+          sudo yq -i '.state_keeper.l1_batch_commit_data_generator_mode = "Validium"' ./chains/era/configs/general.yaml
+          sudo yq -i '.da_client.no_da = {}' ./chains/era/configs/general.yaml
+          sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/era/configs/general.yaml
+          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/era/configs/general.yaml
+
+          echo "Deploying L2 DA validator"
+          
+          L2_DA_VALIDATOR_BEFORE=$(yq '.l2.da_validator_addr' "./chains/era/configs/contracts.yaml")
+          ci_run zkstack chain deploy-l2da-validator
+          L2_DA_VALIDATOR_AFTER=$(yq '.l2.da_validator_addr' "./chains/era/configs/contracts.yaml")
+          echo "L2 da validator before and after $L2_DA_VALIDATOR_BEFORE $L2_DA_VALIDATOR_AFTER"
+
+          echo "Restarting server to apply configuration changes"
+          ci_run pkill -f "zksync_server.*chains/era/configs"
+          ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          echo "Server restart initiated, waiting 60 seconds for startup"
+          ci_run sleep 100
+          echo "Server restart wait completed"
+          
+          echo "Checking database query before updating DA validator addresses on L1..."
+          # Database connection string
+          DB_CONN="postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+          # Maximum number of attempts (5 minutes / 30 seconds = 10 attempts)
+          MAX_ATTEMPTS=10
+          # Counter for attempts
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            RESULT=$(psql "$DB_CONN" -t -c "
+              select count(*) > 0
+              from l1_batches
+              where (select pubdata_type
+                     from miniblocks
+                     where l1_batch_number = l1_batches.number
+                     order by miniblocks.number
+                     limit 1) = 'Rollup'
+                and eth_commit_tx_id is null
+                and number > 0;
+            " | tr -d '[:space:]')
+          
+            echo "Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS: Query returned '$RESULT'"
+          
+            if [ "$RESULT" = "f" ]; then
+              echo "Success! Query returned 0 (false)"
+              break
+            fi
+          
+            ATTEMPT=$((ATTEMPT+1))
+          
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Waiting 30 seconds before next attempt..."
+              sleep 30
+            else
+              echo "Failed: Query did not return 0 after 5 minutes. Failing the build."
+              exit 1
+            fi
+          done
+          
+          echo "Updating DA validator addresses on L1"
+          ci_run zkstack chain set-da-validator-pair
+          
+          echo "Disabling inclusion verification transition"
+          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
+          echo "Restarting server again to apply new configuration"
+          ci_run pkill -f "zksync_server.*chains/era/configs"
+          ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          echo "Server restart initiated, waiting 60 seconds for startup"
+          ci_run sleep 60
+          echo "Server restart wait completed"
+          
+          echo "DA validator pair from diamond proxy"
+          DIAMOND_PROXY_ADDR=$(yq '.l1.diamond_proxy_addr' ./chains/era/configs/contracts.yaml)
+          ci_run cast call $DIAMOND_PROXY_ADDR "getDAValidatorPair()(address,address)" --rpc-url http://localhost:8545
+          
+          echo "Running integration tests"
+          export CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE=Validium
+
+          PASSED_ENV_VARS="RUST_BACKTRACE,CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE" \
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+            "era" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
+
+          unset CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE
+
+          echo "Integration tests completed"
+
       - name: Run recovery tests (from snapshot)
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}
@@ -598,6 +709,17 @@ jobs:
           # Always run the upgrade test against era
           ci_run zkstack dev test upgrade --no-deps --chain era
 
+      - name: Dump database tables
+        if: always()
+        run: |
+          mkdir -p db_dumps
+          pg_dump "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era" \
+            --format=custom \
+            --file=db_dumps/tables_dump.sql \
+            --table=l1_batches \
+            --table=miniblocks \
+            --table=eth_txs
+
       - name: Upload logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -606,3 +728,5 @@ jobs:
           path: |
             logs/
             chains/*/artifacts/vm_dumps/
+            chains/*/configs/
+            db_dumps/
