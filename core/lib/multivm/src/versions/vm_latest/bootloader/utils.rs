@@ -160,6 +160,7 @@ fn apply_l2_block_inner(
     ]);
 
     if subversion != MultiVmSubversion::Interop {
+        println!("not correct vm version {:?}", subversion);
         return;
     }
 
