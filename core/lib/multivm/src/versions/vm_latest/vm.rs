@@ -48,7 +48,7 @@ pub(crate) enum MultiVmSubversion {
 }
 
 impl MultiVmSubversion {
-    pub fn latest() -> Self {
+    pub(crate) fn latest() -> Self {
         Self::Interop
     }
 }
