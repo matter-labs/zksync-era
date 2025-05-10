@@ -22,8 +22,9 @@ zkstack dev database migrate --prover false --core true
 
 # # zkstack chain gateway-upgrade -- adapt-config
 
-# # Server should be started in a different window for consistency
-# zkstack server --ignore-prerequisites --chain era &> ./rollup.log &
+# Server should be started in a different window for consistency
+zkstack server --ignore-prerequisites --chain era &> ../rollup.log &
+echo "Server started"
 
 # zkstack e gateway-upgrade --ecosystem-upgrade-stage no-governance-prepare
 
