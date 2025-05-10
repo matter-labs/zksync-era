@@ -88,13 +88,6 @@ pub trait ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>>;
-
-    #[method(name = "getL2ToL1LogProofUntilTarget")]
-    async fn get_l2_to_l1_log_proof_until_target(
-        &self,
-        tx_hash: H256,
-        index: Option<usize>,
         log_proof_target: Option<LogProofTarget>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
