@@ -150,7 +150,10 @@ pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;
 pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
 
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
-    get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS
+    match subversion {
+        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS,
+        _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
+    }
 }
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;

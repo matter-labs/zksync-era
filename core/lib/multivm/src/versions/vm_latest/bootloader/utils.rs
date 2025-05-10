@@ -158,6 +158,11 @@ fn apply_l2_block_inner(
             },
         ),
     ]);
+
+    if subversion != MultiVmSubversion::Interop {
+        return;
+    }
+
     println!("block_number: {}", bootloader_l2_block.number);
     println!(
         "preexisting_interop_roots_number: {}",
