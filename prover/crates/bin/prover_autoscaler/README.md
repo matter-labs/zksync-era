@@ -127,6 +127,7 @@ observability:
 - `http_port` is the main port for Scaler to connect to.
 - `namespaces` is list of namespaces to watch.
 - `dry_run` if enabled, Agent will not change number of replicas, just report success. Default: true.
+- `pod_check_interval` interval to find and remove stale pods from watcher status. Default: 1h.
 
 Example:
 
@@ -138,6 +139,7 @@ agent_config:
     - prover-old
     - prover-new
   dry_run: true
+  pod_check_interval: 60m
 ```
 
 ### Scaler configuration
