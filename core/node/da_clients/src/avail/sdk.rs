@@ -4,7 +4,6 @@
 use std::{fmt::Debug, sync::Arc, time};
 
 use anyhow::{bail, Context};
-use backon::{ConstantBuilder, Retryable};
 use bip39::Mnemonic;
 use bytes::Bytes;
 use jsonrpsee::{
