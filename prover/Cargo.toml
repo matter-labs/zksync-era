@@ -104,15 +104,15 @@ zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { version = "=20.3.1", path = "crates/lib/prover_dal" }
-zksync_prover_fri_types = { version = "=20.3.1", path = "crates/lib/prover_fri_types" }
-zksync_prover_fri_utils = { version = "=20.3.1", path = "crates/lib/prover_fri_utils" }
-zksync_prover_task = { version = "=20.3.1", path = "crates/lib/prover_task" }
-zksync_prover_keystore = { version = "=20.3.1", path = "crates/lib/keystore" }
-zksync_vk_setup_data_generator_server_fri = { version = "=20.3.1", path = "crates/bin/vk_setup_data_generator_server_fri" }
-zksync_prover_job_processor = { version = "=20.3.1", path = "crates/lib/prover_job_processor" }
-zksync_circuit_prover_service = { version = "=20.3.1", path = "crates/lib/circuit_prover_service" }
-zksync_prover_job_monitor = { version = "=20.3.1", path = "crates/bin/prover_job_monitor" }
+zksync_prover_dal = { version = "=21.0.0", path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { version = "=21.0.0", path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { version = "=21.0.0", path = "crates/lib/prover_fri_utils" }
+zksync_prover_task = { version = "=21.0.0", path = "crates/lib/prover_task" }
+zksync_prover_keystore = { version = "=21.0.0", path = "crates/lib/keystore" }
+zksync_vk_setup_data_generator_server_fri = { version = "=21.0.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_processor = { version = "=21.0.0", path = "crates/lib/prover_job_processor" }
+zksync_circuit_prover_service = { version = "=21.0.0", path = "crates/lib/circuit_prover_service" }
+zksync_prover_job_monitor = { version = "=21.0.0", path = "crates/bin/prover_job_monitor" }
 
 # for `perf` profiling
 [profile.perf]
