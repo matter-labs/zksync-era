@@ -35,6 +35,7 @@ pub trait UnstableNamespace {
         tee_type: Option<TeeType>,
     ) -> RpcResult<Vec<TeeProof>>;
 
+    // Accepts batch_or_block_number as a JSON number (for L1 batch) or an object `{"block": <number>}` (for GW block).
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
         &self,
