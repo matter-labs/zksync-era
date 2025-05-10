@@ -499,39 +499,43 @@ impl GasRelayClient {
             self.api_url, submission_id
         );
 
-        let status_response = (|| async {
-            self.api_client
+        for _ in 0..self.max_retries {
+            let status_response = self
+                .api_client
                 .get(&status_url)
                 .header("x-api-key", &self.api_key)
                 .send()
+                .await?;
+
+            let status_response_bytes = status_response
+                .bytes()
                 .await
-        })
-        .retry(
-            &ConstantBuilder::default()
-                .with_delay(Self::RETRY_DELAY)
-                .with_max_times(self.max_retries),
-        )
-        .await?;
+                .context("Failed to read response body")?;
 
-        let status_response_bytes = status_response
-            .bytes()
-            .await
-            .context("Failed to read response body")?;
+            let status_response =
+                match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
+                    Ok(response) => {
+                        tracing::debug!("Status response: {:?}", response);
 
-        let status_response =
-            match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
-                Ok(response) => response,
-                Err(_) => {
-                    bail!(
-                        "Unexpected status response from gas relay: {:?}",
-                        String::from_utf8_lossy(&status_response_bytes).as_ref()
-                    )
-                }
-            };
+                        response
+                    }
+                    Err(_) => {
+                        bail!(
+                            "Unexpected status response from gas relay: {:?}",
+                            String::from_utf8_lossy(&status_response_bytes).as_ref()
+                        )
+                    }
+                };
 
-        Ok(status_response
-            .submission
-            .block_hash
-            .zip(status_response.submission.extrinsic_index))
+            match (
+                status_response.submission.block_hash,
+                status_response.submission.extrinsic_index,
+            ) {
+                (Some(block_hash), Some(ext_idx)) => return Ok(Some((block_hash, ext_idx))),
+                _ => tokio::time::sleep(Self::RETRY_DELAY).await,
+            }
+        }
+
+        Ok(None)
     }
 }
