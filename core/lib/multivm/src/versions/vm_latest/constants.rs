@@ -152,10 +152,7 @@ pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTE
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     match subversion {
         MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS,
-        _ => {
-            println!("not correct vm version 2 {:?}", subversion);
-            get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
-        }
+        _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
     }
 }
 
