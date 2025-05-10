@@ -226,11 +226,11 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 Self::Vm1_5_2(vm)
             }
             VmVersion::VmEcPrecompiles => {
-                let vm = vm_latest::Vm::new_with_subversion(
+                let vm = crate::vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::EcPrecompiles,
+                    crate::vm_latest::MultiVmSubversion::EcPrecompiles,
                 );
                 Self::Vm1_5_2(vm)
             }
