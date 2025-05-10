@@ -306,6 +306,12 @@ pub fn build_bloom<'a, I: IntoIterator<Item = BloomInput<'a>>>(items: I) -> Bloo
     bloom
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum BatchOrBlockNumber {
+    BatchNumber(L1BatchNumber),
+    BlockNumber(L2BlockNumber),
+}
+
 #[cfg(test)]
 mod tests {
     use std::{iter, str::FromStr};
