@@ -282,11 +282,14 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
         VmVersion::VmEvmEmulator => crate::vm_latest::constants::get_bootloader_tx_encoding_space(
             crate::vm_latest::MultiVmSubversion::EvmEmulator,
         ),
-        VmVersion::VmEcPrecompiles | VmVersion::VmInterop => {
+        VmVersion::VmEcPrecompiles => {
             crate::vm_latest::constants::get_bootloader_tx_encoding_space(
                 crate::vm_latest::MultiVmSubversion::EcPrecompiles,
             )
         }
+        VmVersion::VmInterop => crate::vm_latest::constants::get_bootloader_tx_encoding_space(
+            crate::vm_latest::MultiVmSubversion::Interop,
+        ),
     }
 }
 
@@ -460,11 +463,14 @@ pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
         VmVersion::VmEvmEmulator => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
             crate::vm_latest::MultiVmSubversion::EvmEmulator,
         ),
-        VmVersion::VmEcPrecompiles | VmVersion::VmInterop => {
+        VmVersion::VmEcPrecompiles => {
             crate::vm_latest::constants::get_used_bootloader_memory_bytes(
                 crate::vm_latest::MultiVmSubversion::EcPrecompiles,
             )
         }
+        VmVersion::VmInterop => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+            crate::vm_latest::MultiVmSubversion::Interop,
+        ),
     }
 }
 
@@ -504,11 +510,14 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
         VmVersion::VmEvmEmulator => crate::vm_latest::constants::get_used_bootloader_memory_words(
             crate::vm_latest::MultiVmSubversion::EvmEmulator,
         ),
-        VmVersion::VmEcPrecompiles | VmVersion::VmInterop => {
+        VmVersion::VmEcPrecompiles => {
             crate::vm_latest::constants::get_used_bootloader_memory_words(
                 crate::vm_latest::MultiVmSubversion::EcPrecompiles,
             )
         }
+        VmVersion::VmInterop => crate::vm_latest::constants::get_used_bootloader_memory_words(
+            crate::vm_latest::MultiVmSubversion::Interop,
+        ),
     }
 }
 
