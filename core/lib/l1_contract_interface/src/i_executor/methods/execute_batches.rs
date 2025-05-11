@@ -5,7 +5,7 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION, PRE_INTEROP_ENCODING_VERSION},
     Tokenizable,
 };
 
@@ -49,7 +49,7 @@ impl ExecuteBatches {
                         .collect(),
                 ),
             ]);
-            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+            let execute_data = [[PRE_INTEROP_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 

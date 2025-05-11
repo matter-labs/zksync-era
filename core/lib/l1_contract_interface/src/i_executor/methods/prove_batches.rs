@@ -16,7 +16,7 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION, PRE_INTEROP_ENCODING_VERSION},
     Tokenizable,
 };
 
@@ -75,6 +75,11 @@ impl ProveBatches {
 
                 vec![prev_l1_batch_info, batches_arg, proof_input]
             } else {
+                let encoding_version = if protocol_version.is_pre_interop() {
+                    PRE_INTEROP_ENCODING_VERSION
+                } else {
+                    SUPPORTED_ENCODING_VERSION
+                };
                 let proof_input = if should_use_fflonk {
                     Token::Array(
                         vec![verifier_type]
@@ -88,7 +93,7 @@ impl ProveBatches {
                 };
 
                 let encoded_data = encode(&[prev_l1_batch_info, batches_arg, proof_input]);
-                let prove_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+                let prove_data = [[encoding_version].to_vec(), encoded_data]
                     .concat()
                     .to_vec();
 
@@ -107,8 +112,13 @@ impl ProveBatches {
                 Token::Tuple(vec![Token::Array(vec![]), Token::Array(vec![])]),
             ]
         } else {
+            let encoding_version = if protocol_version.is_pre_interop() {
+                PRE_INTEROP_ENCODING_VERSION
+            } else {
+                SUPPORTED_ENCODING_VERSION
+            };
             let encoded_data = encode(&[prev_l1_batch_info, batches_arg, Token::Array(vec![])]);
-            let prove_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+            let prove_data = [[encoding_version].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 
