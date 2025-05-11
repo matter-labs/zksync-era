@@ -31,14 +31,14 @@ pub struct ProveBatches {
 
 impl ProveBatches {
     pub fn conditional_into_tokens(&self, is_verifier_pre_fflonk: bool) -> Vec<Token> {
-        let prev_l1_batch_info = StoredBatchInfo::from(&self.prev_l1_batch).into_token();
+        let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
+        let prev_l1_batch_info = StoredBatchInfo::from(&self.prev_l1_batch).into_token_with_protocol_version(protocol_version);
         let batches_arg = self
             .l1_batches
             .iter()
-            .map(|batch| StoredBatchInfo::from(batch).into_token())
+            .map(|batch| StoredBatchInfo::from(batch).into_token_with_protocol_version(protocol_version))
             .collect();
         let batches_arg = Token::Array(batches_arg);
-        let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
 
         if self.should_verify {
             // currently we only support submitting a single proof
