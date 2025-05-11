@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::{
     de::{self, MapAccess, Visitor},
     ser::SerializeStruct,
@@ -14,7 +16,6 @@ use crate::{
     web3::{keccak256, keccak256_concat},
     AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
-use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeployedContract {
