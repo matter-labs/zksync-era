@@ -57,7 +57,7 @@ impl DBBaseTokenRatioProvider {
             self.update_latest_price().await?;
         }
 
-        tracing::info!("Stop signal received, base_token_ratio_provider is shutting down");
+        tracing::info!("Stop request received, base_token_ratio_provider is shutting down");
         Ok(())
     }
 

@@ -144,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
         result = tokio::signal::ctrl_c() => {
             match result {
                 Ok(_) => {
-                    tracing::info!("Stop signal received, shutting down...");
+                    tracing::info!("Stop request received, shutting down...");
                     cancellation_token.cancel();
                 },
                 Err(_err) => {

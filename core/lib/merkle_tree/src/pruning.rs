@@ -233,7 +233,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 self.poll_interval
             };
         }
-        tracing::info!("Stop signal received, tree pruning is shut down");
+        tracing::info!("Stop request received, tree pruning is shut down");
         Ok(())
     }
 }

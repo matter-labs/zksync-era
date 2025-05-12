@@ -123,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         () = tasks.wait_single() => {},
         _ = tokio::signal::ctrl_c() => {
-            tracing::info!("Stop signal received, shutting down");
+            tracing::info!("Stop request received, shutting down");
         },
     };
     stop_sender.send_replace(true);

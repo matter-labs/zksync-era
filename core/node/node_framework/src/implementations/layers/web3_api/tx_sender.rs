@@ -258,9 +258,9 @@ impl Task for VmConcurrencyBarrier {
     }
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        // Wait for the stop signal.
+        // Wait for a stop request.
         stop_receiver.0.changed().await?;
-        // Stop signal was received: seal the barrier so that no new VM requests are accepted.
+        // Stop request was received: seal the barrier so that no new VM requests are accepted.
         self.close();
         // Wait until all the existing API requests are processed.
         // We don't have to synchronize this with API servers being stopped, as they can decide themselves how to handle

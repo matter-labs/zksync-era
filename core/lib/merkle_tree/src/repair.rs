@@ -275,7 +275,7 @@ impl StaleKeysRepairTask {
                 self.poll_interval
             };
         }
-        tracing::info!("Stop signal received, stale keys repair is shut down");
+        tracing::info!("Stop request received, stale keys repair is shut down");
         Ok(())
     }
 }

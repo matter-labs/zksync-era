@@ -44,7 +44,10 @@ pub(crate) trait PeriodicApi: Sync + Send + 'static + Sized {
 
         loop {
             if *stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down {}", Self::SERVICE_NAME);
+                tracing::warn!(
+                    "Stop request received, shutting down {}",
+                    Self::SERVICE_NAME
+                );
                 return Ok(());
             }
 

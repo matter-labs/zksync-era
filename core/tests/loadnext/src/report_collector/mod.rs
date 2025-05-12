@@ -47,7 +47,7 @@ impl Collectors {
     }
 
     fn final_resolution(&self, expected_tx_count: Option<usize>) -> LoadtestResult {
-        let is_tx_count_acceptable = expected_tx_count.map_or(true, |expected_count| {
+        let is_tx_count_acceptable = expected_tx_count.is_none_or(|expected_count| {
             const MIN_ACCEPTABLE_DELTA: f64 = -10.0;
             const MAX_ACCEPTABLE_DELTA: f64 = 100.0;
 

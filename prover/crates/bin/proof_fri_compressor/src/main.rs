@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            tracing::info!("Stop request received, shutting down");
         }
     };
     stop_sender.send_replace(true);

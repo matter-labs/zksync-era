@@ -199,7 +199,6 @@ pub(crate) const fn get_result_success_first_slot(subversion: MultiVmSubversion)
 ///
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
-
 pub const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 =
     zk_evm_1_5_2::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 

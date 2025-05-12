@@ -14,7 +14,7 @@ use zksync_state::{
     AsyncCatchupTask, BatchDiff, OwnedStorage, RocksdbCell, RocksdbStorage, RocksdbWithMemory,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, L2ChainId,
+    block::L2BlockExecutionData, commitment::PubdataParams, try_stoppable, L1BatchNumber, L2ChainId,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
@@ -299,7 +299,7 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
         const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
         self.catchup_task.run(stop_receiver.clone()).await?;
-        let mut rocksdb = self.rocksdb_cell.wait().await?;
+        let mut rocksdb = try_stoppable!(self.rocksdb_cell.wait().await);
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("`StorageSyncTask` was interrupted");
@@ -326,15 +326,11 @@ impl<Io: VmRunnerIo> StorageSyncTask<Io> {
             // number less than `latest_processed_batch`. If they do, RocksDB synchronization below
             // will cause them to have an inconsistent view on DB which we consider to be an
             // undefined behavior.
-            let Some(updated_rocksdb) = rocksdb
-                .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
-                .await
-                .context("Failed to catch up state keeper RocksDB storage to Postgres")?
-            else {
-                tracing::info!("`StorageSyncTask` was interrupted during RocksDB synchronization");
-                return Ok(());
-            };
-            rocksdb = updated_rocksdb;
+            rocksdb = try_stoppable!(
+                rocksdb
+                    .synchronize(&mut conn, &stop_receiver, Some(latest_processed_batch))
+                    .await
+            );
 
             let mut state = self.state.write().await;
             state.rocksdb = Some(rocksdb.clone());

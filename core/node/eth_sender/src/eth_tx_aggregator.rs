@@ -159,7 +159,7 @@ impl EthTxAggregator {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
+                tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
                 break;
             }
 

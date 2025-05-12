@@ -49,7 +49,7 @@ impl ProofGenDataSubmitter {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!(
-                    "Stop signal received, proof generation data submitter is shutting down"
+                    "Stop request received, proof generation data submitter is shutting down"
                 );
                 break;
             }
