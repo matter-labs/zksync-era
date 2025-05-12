@@ -194,26 +194,28 @@ impl EnNamespace {
             .await)
     }
 
-    pub async fn get_protocol_version_impl(
+    pub async fn get_protocol_version_info_impl(
         &self,
         version_id: Option<u16>,
     ) -> Result<Option<ProtocolVersionInfo>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let protocol_version_info = if let Some(id) = version_id {
-            storage
-                .protocol_versions_web3_dal()
-                .get_protocol_version_info_by_id(id)
-                .await
-                .map_err(DalError::generalize)?
-        } else {
-            Some(
+        let version_id = match version_id {
+            Some(version_id) => version_id,
+            None => {
                 storage
-                    .protocol_versions_web3_dal()
-                    .get_latest_protocol_version_info()
+                    .protocol_versions_dal()
+                    .latest_semantic_version()
                     .await
-                    .map_err(DalError::generalize)?,
-            )
+                    .map_err(DalError::generalize)?
+                    .context("expected some version to be present in DB")?
+                    .minor as u16
+            }
         };
+        let protocol_version_info = storage
+            .protocol_versions_web3_dal()
+            .get_protocol_version_info_by_id(version_id)
+            .await
+            .map_err(DalError::generalize)?;
         Ok(protocol_version_info)
     }
 }

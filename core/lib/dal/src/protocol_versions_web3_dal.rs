@@ -81,16 +81,4 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
 
         Ok(storage_protocol_version.map(ProtocolVersionInfo::from))
     }
-
-    pub async fn get_latest_protocol_version_info(&mut self) -> DalResult<ProtocolVersionInfo> {
-        let latest_version = self
-            .storage
-            .protocol_versions_dal()
-            .latest_semantic_version()
-            .await?
-            .unwrap();
-        self.get_protocol_version_info_by_id(latest_version.minor as u16)
-            .await
-            .map(|v| v.unwrap())
-    }
 }

@@ -66,7 +66,7 @@ impl EnNamespaceServer for EnNamespace {
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersionInfo>> {
-        self.get_protocol_version_impl(version_id)
+        self.get_protocol_version_info_impl(version_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
