@@ -96,7 +96,7 @@ jobs:
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
   
   install-zkstack-with-upgrades:
-    runs-on: matterlabs-ci-runner
+    runs-on: [ubuntu-24.04-github-hosted-16core]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
