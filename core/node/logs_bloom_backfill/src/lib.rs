@@ -39,7 +39,7 @@ impl LogsBloomBackfill {
                 return Ok(BloomWaitOutcome::Ok);
             }
 
-            // We don't check the result: if a stop signal is received, we'll return at the start
+            // We don't check the result: if a stop request is received, we'll return at the start
             // of the next iteration.
             tokio::time::timeout(INTERVAL, stop_receiver.changed())
                 .await
@@ -56,7 +56,7 @@ impl LogsBloomBackfill {
         if Self::wait_for_l2_block_with_bloom(&mut connection, &mut stop_receiver).await?
             == BloomWaitOutcome::Canceled
         {
-            return Ok(()); // Stop signal received
+            return Ok(()); // Stop request received
         }
 
         let genesis_block_has_bloom = connection
@@ -89,7 +89,7 @@ impl LogsBloomBackfill {
             const WINDOW: u32 = 1000;
 
             if *stop_receiver.borrow_and_update() {
-                tracing::info!("received a stop signal; logs bloom backfill is shut down");
+                tracing::info!("received a stop request; logs bloom backfill is shut down");
             }
 
             let left_bound = right_bound.saturating_sub(WINDOW - 1).max(first_l2_block.0);

@@ -172,7 +172,7 @@ impl EthWatch {
             }
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop request received, eth_watch is shutting down");
         Ok(())
     }
 

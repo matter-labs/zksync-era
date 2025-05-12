@@ -88,7 +88,7 @@ impl CircuitBreakerChecker {
                 .await
                 .ok();
         }
-        tracing::info!("received a stop signal; circuit breaker is shut down");
+        tracing::info!("received a stop request; circuit breaker is shut down");
         Ok(())
     }
 }

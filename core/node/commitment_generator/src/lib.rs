@@ -478,7 +478,7 @@ impl CommitmentGenerator {
 
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, commitment generator is shutting down");
+                tracing::info!("Stop request received, commitment generator is shutting down");
                 break;
             }
 

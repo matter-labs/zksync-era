@@ -6,6 +6,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_types::try_stoppable;
 use zksync_web3_decl::di::MainNodeClientResource;
 
 use crate::ReorgDetector;
@@ -62,7 +63,7 @@ impl Task for ReorgDetector {
     }
 
     async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await?;
+        try_stoppable!((*self).run(stop_receiver.0).await);
         Ok(())
     }
 }
