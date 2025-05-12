@@ -56,6 +56,15 @@ pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
+macro_rules! load_optional_config_or_default {
+    ($config:expr, $($name:ident).+, $default:ident) => {
+        $config
+            .as_ref()
+            .map(|a| a.$($name).+)
+            .unwrap_or_else(Self::$default)
+    };
+}
+
 macro_rules! load_config_or_default {
     ($config:expr, $($name:ident).+, $default:ident) => {
         $config
@@ -600,15 +609,21 @@ impl OptionalENConfig {
                 l2_block_seal_queue_capacity,
                 default_l2_block_seal_queue_capacity
             ),
-            snapshots_recovery_enabled: general_config.snapshot_recovery.enabled,
-            snapshots_recovery_postgres_max_concurrency: general_config
+            snapshots_recovery_enabled: general_config
                 .snapshot_recovery
-                .postgres
-                .max_concurrency,
-            pruning_enabled: general_config.pruning.enabled,
-            snapshots_recovery_object_store: Some(
-                general_config.snapshot_recovery.object_store.clone(),
+                .as_ref()
+                .map(|a| a.enabled)
+                .unwrap_or_default(),
+            snapshots_recovery_postgres_max_concurrency: load_optional_config_or_default!(
+                general_config.snapshot_recovery,
+                postgres.max_concurrency,
+                default_snapshots_recovery_postgres_max_concurrency
             ),
+            pruning_enabled: general_config.pruning.enabled,
+            snapshots_recovery_object_store: general_config
+                .snapshot_recovery
+                .as_ref()
+                .and_then(|config| config.object_store.clone()),
             pruning_chunk_size: general_config.pruning.chunk_size.get(),
             pruning_removal_delay_sec: NonZeroU64::new(
                 general_config.pruning.removal_delay_sec.as_secs(),
@@ -1075,15 +1090,20 @@ impl ExperimentalENConfig {
                 .db_config
                 .experimental
                 .state_keeper_db_max_open_files,
-            snapshots_recovery_l1_batch: general_config.snapshot_recovery.l1_batch,
-            snapshots_recovery_tree_chunk_size: general_config.snapshot_recovery.tree.chunk_size,
-            snapshots_recovery_tree_parallel_persistence_buffer: general_config
-                .snapshot_recovery
-                .tree
-                .parallel_persistence_buffer,
+            snapshots_recovery_l1_batch: load_config!(general_config.snapshot_recovery, l1_batch),
+            snapshots_recovery_tree_chunk_size: load_optional_config_or_default!(
+                general_config.snapshot_recovery,
+                tree.chunk_size,
+                default_snapshots_recovery_tree_chunk_size
+            ),
+            snapshots_recovery_tree_parallel_persistence_buffer: load_config!(
+                general_config.snapshot_recovery,
+                tree.parallel_persistence_buffer
+            ),
             snapshots_recovery_drop_storage_key_preimages: general_config
                 .snapshot_recovery
-                .drop_storage_key_preimages,
+                .as_ref()
+                .is_some_and(|config| config.drop_storage_key_preimages),
             commitment_generator_max_parallelism: general_config
                 .commitment_generator
                 .max_parallelism,

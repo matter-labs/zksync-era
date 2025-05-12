@@ -7,7 +7,6 @@ use smart_config::{DescribeConfig, DeserializeConfig};
 
 /// Configuration for the object store
 #[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
 pub struct ObjectStoreConfig {
     #[config(flatten)]
     #[serde(flatten)]
@@ -30,10 +29,20 @@ impl ObjectStoreConfig {
     const fn default_max_retries() -> u16 {
         5
     }
+
+    pub fn for_tests() -> Self {
+        Self {
+            mode: ObjectStoreMode::FileBacked {
+                file_backed_base_path: "./artifacts".into(),
+            },
+            max_retries: 5,
+            local_mirror_path: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
-#[config(tag = "mode", derive(Default))]
+#[config(tag = "mode")]
 #[serde(tag = "mode")]
 pub enum ObjectStoreMode {
     GCS {
@@ -59,7 +68,6 @@ pub enum ObjectStoreMode {
     },
     #[config(default)]
     FileBacked {
-        #[config(default_t = "./artifacts".into())] // FIXME: remove default
         file_backed_base_path: PathBuf,
     },
 }

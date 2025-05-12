@@ -78,7 +78,7 @@ pub struct GeneralConfig {
     #[config(nest)]
     pub commitment_generator: CommitmentGeneratorConfig,
     #[config(nest)]
-    pub snapshot_recovery: SnapshotRecoveryConfig,
+    pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     #[config(nest)]
     pub pruning: PruningConfig,
     #[config(nest)]

@@ -36,7 +36,6 @@ pub struct PostgresRecoveryConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
 pub struct SnapshotRecoveryConfig {
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
@@ -57,7 +56,8 @@ pub struct SnapshotRecoveryConfig {
     #[config(nest)]
     pub postgres: PostgresRecoveryConfig,
     #[config(nest)]
-    pub object_store: ObjectStoreConfig,
+    // TODO: logically, this config is required if recovery is enabled, but this cannot be expressed yet
+    pub object_store: Option<ObjectStoreConfig>,
 }
 
 #[cfg(test)]
@@ -79,13 +79,13 @@ mod tests {
             postgres: PostgresRecoveryConfig {
                 max_concurrency: NonZeroUsize::new(10).unwrap(),
             },
-            object_store: ObjectStoreConfig {
+            object_store: Some(ObjectStoreConfig {
                 mode: ObjectStoreMode::FileBacked {
                     file_backed_base_path: "./chains/era/artifacts/".into(),
                 },
                 max_retries: 100,
                 local_mirror_path: None,
-            },
+            }),
         }
     }
 

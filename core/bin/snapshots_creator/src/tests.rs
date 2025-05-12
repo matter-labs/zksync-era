@@ -32,7 +32,7 @@ fn test_config() -> SnapshotsCreatorConfig {
         l1_batch_number: None,
         storage_logs_chunk_size: 1_000_000,
         concurrent_queries_count: 10,
-        object_store: ObjectStoreConfig::default(),
+        object_store: ObjectStoreConfig::for_tests(),
     }
 }
 
