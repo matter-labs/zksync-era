@@ -5,6 +5,7 @@ use zksync_types::{
     api::{
         ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
     },
+    block::BatchOrBlockNumber,
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
@@ -34,10 +35,11 @@ pub trait UnstableNamespace {
         tee_type: Option<TeeType>,
     ) -> RpcResult<Vec<TeeProof>>;
 
+    // Accepts batch_or_block_number as a JSON number (for L1 batch) or an object `{"block": <number>}` (for GW block).
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 
