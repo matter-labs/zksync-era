@@ -137,7 +137,9 @@ impl ArtifactsManager for RecursionTip {
             .fri_recursion_tip_witness_generator_dal()
             .mark_recursion_tip_job_as_successful(job_id.into(), started_at.elapsed())
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to mark recursion tip job as successful: {}", e))?;
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to mark recursion tip job as successful: {}", e)
+            })?;
 
         transaction.commit().await?;
 

@@ -133,7 +133,7 @@ impl ArtifactsManager for LeafAggregation {
             )
             .await
             .map_err(|e| anyhow::anyhow!("Failed to update node aggregation jobs url: {}", e))?;
-        
+
         tracing::info!(
             "Marking leaf aggregation job as successful for job id {}, block {} with circuit id {}",
             job_id,
@@ -148,7 +148,9 @@ impl ArtifactsManager for LeafAggregation {
                 started_at.elapsed(),
             )
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to mark leaf aggregation job as successful: {}", e))?;
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to mark leaf aggregation job as successful: {}", e)
+            })?;
 
         tracing::info!(
             "Committing transaction for job_id {}, block {} with circuit id {}",
