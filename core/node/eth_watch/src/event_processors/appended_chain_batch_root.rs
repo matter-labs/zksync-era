@@ -190,7 +190,7 @@ impl EventProcessor for BatchRootProcessor {
                         self.l2_chain_id,
                     )
                     .await?
-                    .context("Missing chain log proof for finalized batch")?;
+                    .context("Missing Gateway chain log proof for finalized batch")?;
                 let gw_chain_proof_vector =
                     Self::chain_proof_vector(gw_block_number.0, gw_chain_agg_proof, sl_chain_id);
                 proof.proof.extend(gw_chain_proof_vector);
