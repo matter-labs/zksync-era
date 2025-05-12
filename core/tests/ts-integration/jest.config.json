@@ -1,4 +1,5 @@
 {
+  "maxWorkers": "70%",
   "reporters": [
     "default",
     "github-actions"
@@ -17,9 +18,5 @@
   "setupFilesAfterEnv": [
     "<rootDir>/src/jest-setup/add-matchers.ts"
   ],
-  "slowTestThreshold": 120,
-  "//": "Enable worker threads for assertion failures involving BigInt",
-  "//": "See https://github.com/jestjs/jest/issues/11617#issuecomment-1458155552",
-  "workerThreads": true,
-  "maxWorkers": 1
+  "slowTestThreshold": 120
 }
