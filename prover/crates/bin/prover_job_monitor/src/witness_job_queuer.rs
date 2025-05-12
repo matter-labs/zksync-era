@@ -30,8 +30,8 @@ impl WitnessJobQueuer {
                 l1_batch_id,
                 circuit_id
             );
-            SERVER_METRICS
-                .leaf_fri_witness_generator_waiting_to_queued_jobs_transitions[&l1_batch_id.chain_id().as_u64()]
+            SERVER_METRICS.leaf_fri_witness_generator_waiting_to_queued_jobs_transitions
+                [&l1_batch_id.chain_id().as_u64()]
                 .inc_by(1);
         }
     }
@@ -66,8 +66,8 @@ impl WitnessJobQueuer {
                 circuit_id,
                 depth
             );
-            SERVER_METRICS
-                .node_fri_witness_generator_waiting_to_queued_jobs_transitions[&batch_id.chain_id().as_u64()]
+            SERVER_METRICS.node_fri_witness_generator_waiting_to_queued_jobs_transitions
+                [&batch_id.chain_id().as_u64()]
                 .inc_by(1);
         }
     }
@@ -84,8 +84,8 @@ impl WitnessJobQueuer {
                 "Marked recursion tip job for l1_batch {} as queued.",
                 l1_batch_id,
             );
-            SERVER_METRICS
-                .recursion_tip_witness_generator_waiting_to_queued_jobs_transitions[&l1_batch_id.chain_id().as_u64()]
+            SERVER_METRICS.recursion_tip_witness_generator_waiting_to_queued_jobs_transitions
+                [&l1_batch_id.chain_id().as_u64()]
                 .inc_by(1);
         }
     }
@@ -102,8 +102,8 @@ impl WitnessJobQueuer {
                 "Marked scheduler job for l1_batch {} as queued.",
                 l1_batch_id,
             );
-            SERVER_METRICS
-                .scheduler_witness_generator_waiting_to_queued_jobs_transitions[&l1_batch_id.chain_id().as_u64()]
+            SERVER_METRICS.scheduler_witness_generator_waiting_to_queued_jobs_transitions
+                [&l1_batch_id.chain_id().as_u64()]
                 .inc_by(1);
         }
     }

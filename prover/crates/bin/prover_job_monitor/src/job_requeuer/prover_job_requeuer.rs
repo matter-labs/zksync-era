@@ -42,12 +42,10 @@ impl Task for ProverJobRequeuer {
             .fri_prover_jobs_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
             .await;
-        
+
         for stuck_job in stuck_jobs {
             tracing::info!("requeued circuit prover job {:?}", stuck_job);
-            SERVER_METRICS
-                .prover_fri_requeued_jobs[&stuck_job.chain_id.as_u64()]
-                .inc_by(1);
+            SERVER_METRICS.prover_fri_requeued_jobs[&stuck_job.chain_id.as_u64()].inc_by(1);
         }
         Ok(())
     }
