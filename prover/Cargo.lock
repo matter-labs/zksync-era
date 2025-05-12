@@ -2732,7 +2732,7 @@ dependencies = [
  "pkcs8 0.10.2",
  "regex",
  "reqwest 0.12.9",
- "reqwest-middleware 0.3.3",
+ "reqwest-middleware",
  "ring",
  "serde",
  "serde_json",
@@ -3233,7 +3233,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.61.0",
+ "windows-core",
 ]
 
 [[package]]
