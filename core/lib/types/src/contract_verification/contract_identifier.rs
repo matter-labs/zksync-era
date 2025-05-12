@@ -591,7 +591,7 @@ mod tests {
         let swarm_bytecode = "6080604052348015600e575f5ffd5b5060ae80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80636d4ce63c14602a575b5f5ffd5b60306044565b604051603b91906062565b60405180910390f35b5f5f54905090565b5f819050919050565b605c81604c565b82525050565b5f60208201905060735f8301846055565b9291505056fea265627a7a72315820c0def30c57166e97d6a58290213f3b0d1f83532e7a0371c8e2b6dba826bae46164736f6c634300081c0032";
 
         // Different variations of the same contract, compiled with different metadata options.
-        // Tuples of (label, bytecode, size of metadata (including length)).
+        // Tuples of (label, bytecode, size of metadata (including length), detected metadata).
         // Size of metadata can be found using https://playground.sourcify.dev/
         let test_vector = [
             (
@@ -647,6 +647,132 @@ mod tests {
                         experimental: None,
                         solc: Some(CborCompilerVersion::Native(vec![0, 8, 28])),
                         vyper: None,
+                    },
+                }),
+            ),
+        ];
+
+        for (label, bytecode, full_metadata_len, metadata) in test_vector {
+            let data = hex::decode(bytecode).unwrap();
+            let bytecode_keccak256 = H256(keccak256(&data));
+            let bytecode_without_metadata_keccak256 =
+                H256(keccak256(&data[..data.len() - full_metadata_len]));
+
+            let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
+            assert_eq!(
+                identifier.bytecode_keccak256, bytecode_keccak256,
+                "{label}: Incorrect bytecode hash"
+            );
+            assert_eq!(
+                identifier.detected_metadata, metadata,
+                "{label}: Incorrect detected metadata"
+            );
+            assert_eq!(
+                identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
+                "{label}: Incorrect bytecode without metadata hash"
+            );
+        }
+    }
+
+    #[test]
+    fn vyper_none() {
+        // Sample contract with no methods, compiled from the root of monorepo with:
+        // ./etc/vyper-bin/0.3.10/vyper test.vy --no-bytecode-metadata
+        // (Use `zkstack contract-verifier init` to download compilers)
+        let data = hex::decode("61002761000f6000396100276000f35f3560e01c6398716725811861001f5734610023575f5460405260206040f35b5f5ffd5b5f80fd").unwrap();
+        let bytecode_keccak256 = H256(keccak256(&data));
+
+        let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
+        assert_eq!(
+            identifier.bytecode_keccak256, bytecode_keccak256,
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.detected_metadata, None,
+            "Incorrect detected metadata"
+        );
+        // When no metadata is detected, `bytecode_without_metadata_keccak256` is equal to
+        // `bytecode_keccak256`.
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_keccak256,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
+    fn vyper_keccak_without_padding() {
+        // Sample contract with no methods, compiled from the root of monorepo with:
+        // ./etc/zkvyper-bin/v1.5.4/zkvyper --vyper ./etc/vyper-bin/0.3.10/vyper test.vy
+        // (Use `zkstack contract-verifier init` to download compilers)
+        let data = hex::decode("0000000100200190000000100000c13d00000000020100190000000800200198000000150000613d000000000101043b00000009011001970000000a0010009c000000150000c13d0000000001000416000000000001004b000000150000c13d000000000100041a000000400010043f0000000b01000041000000180001042e0000002001000039000001000010044300000120000004430000000701000041000000180001042e000000000100001900000019000104300000001700000432000000180001042e000000190001043000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff0000000000000000000000000000000000000000000000000000000098716725000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000400000000000000000e80a9cfd35cba3f2346174b8eda3178b883727aff1778ac11ca8411a8e6fbae4").unwrap();
+        let bytecode_keccak256 = H256(keccak256(&data));
+        let full_metadata_len = 32; // (keccak only)
+        let bytecode_without_metadata_keccak256 =
+            H256(keccak256(&data[..data.len() - full_metadata_len]));
+
+        let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
+        assert_eq!(
+            identifier.bytecode_keccak256, bytecode_keccak256,
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Keccak256),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
+    fn zkvyper_cbor() {
+        // ./etc/zkvyper-bin/v1.5.10/zkvyper --vyper ./etc/vyper-bin/0.3.10/vyper --metadata-hash none test.vy
+        let none_bytecode = "00000001002001900000000f0000c13d0000000800100198000000140000613d000000000101043b00000009011001970000000a0010009c000000140000c13d0000000001000416000000000001004b000000140000c13d000000000100041a000000400010043f0000000b01000041000000170001042e0000002001000039000001000010044300000120000004430000000701000041000000170001042e000000000100001900000018000104300000001600000432000000170001042e0000001800010430000000000000000000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff000000000000000000000000000000000000000000000000000000009871672500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a1657679706572781b7a6b76797065723a312e352e31303b76797065723a302e332e31300024";
+
+        // ./etc/zkvyper-bin/v1.5.10/zkvyper --vyper ./etc/vyper-bin/0.3.10/vyper --metadata-hash ipfs test.vy
+        let ipfs_bytecode = "00000001002001900000000f0000c13d0000000800100198000000140000613d000000000101043b00000009011001970000000a0010009c000000140000c13d0000000001000416000000000001004b000000140000c13d000000000100041a000000400010043f0000000b01000041000000170001042e0000002001000039000001000010044300000120000004430000000701000041000000170001042e000000000100001900000018000104300000001600000432000000170001042e0000001800010430000000000000000000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff00000000000000000000000000000000000000000000000000000000987167250000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000004000000000000000000000000000000000000000000000000000a264697066735822122027a39f09f1e84c0633aef5d8768191da6ec0ad423dd55c63e107bb831bbab1e4657679706572781b7a6b76797065723a312e352e31303b76797065723a302e332e3130004d";
+
+        // // Different variations of the same contract, compiled with different metadata options.
+        let test_vector = [
+            (
+                "none",
+                none_bytecode,
+                36usize + 2,
+                Some(DetectedMetadata::Cbor {
+                    full_length: 38,
+                    metadata: CborMetadata {
+                        ipfs: None,
+                        bzzr1: None,
+                        bzzr0: None,
+                        experimental: None,
+                        solc: None,
+                        vyper: Some(CborCompilerVersion::ZKsync(
+                            "zkvyper:1.5.10;vyper:0.3.10".to_string(),
+                        )),
+                    },
+                }),
+            ),
+            (
+                "ipfs",
+                ipfs_bytecode,
+                77usize + 2,
+                Some(DetectedMetadata::Cbor {
+                    full_length: 79,
+                    metadata: CborMetadata {
+                        ipfs: Some(vec![
+                            18, 32, 39, 163, 159, 9, 241, 232, 76, 6, 51, 174, 245, 216, 118, 129,
+                            145, 218, 110, 192, 173, 66, 61, 213, 92, 99, 225, 7, 187, 131, 27,
+                            186, 177, 228,
+                        ]),
+                        bzzr1: None,
+                        bzzr0: None,
+                        experimental: None,
+                        solc: None,
+                        vyper: Some(CborCompilerVersion::ZKsync(
+                            "zkvyper:1.5.10;vyper:0.3.10".to_string(),
+                        )),
                     },
                 }),
             ),
