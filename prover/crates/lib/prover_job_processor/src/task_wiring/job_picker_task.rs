@@ -71,7 +71,7 @@ impl<P: JobPicker> Task for JobPickerTask<P> {
                 }
             }
         }
-        tracing::info!("Stop signal received, shutting down JobPickerTask...");
+        tracing::info!("Stop request received, shutting down JobPickerTask...");
         Ok(())
     }
 }
