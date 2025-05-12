@@ -1,4 +1,5 @@
 use zksync_reorg_detector::{self, ReorgDetector};
+use zksync_types::try_stoppable;
 
 use crate::{
     implementations::resources::{
@@ -66,7 +67,7 @@ impl Task for ReorgDetector {
     }
 
     async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(stop_receiver.0).await?;
+        try_stoppable!((*self).run(stop_receiver.0).await);
         Ok(())
     }
 }

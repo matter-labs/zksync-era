@@ -65,7 +65,7 @@ pub struct PrometheusRuntime {
 impl Drop for PrometheusRuntime {
     fn drop(&mut self) {
         self.stop_sender.send_replace(true);
-        // Metrics are pushed automatically on exit, so we wait *after* sending a stop signal
+        // Metrics are pushed automatically on exit, so we wait *after* sending a stop request
         println!("Waiting for Prometheus metrics to be pushed");
         thread::sleep(Duration::from_secs(1));
     }

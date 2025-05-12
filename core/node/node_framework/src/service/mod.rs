@@ -257,9 +257,9 @@ impl ZkStackService {
         remaining
     }
 
-    /// Sends the stop signal and waits for the remaining tasks to finish.
+    /// Sends the stop request and waits for the remaining tasks to finish.
     fn shutdown_tasks(&mut self, remaining: Vec<TaskFuture>) {
-        // Send stop signal to remaining tasks and wait for them to finish.
+        // Send a stop request to remaining tasks and wait for them to finish.
         self.stop_sender.send(true).ok();
 
         // Collect names for remaining tasks for reporting purposes.
