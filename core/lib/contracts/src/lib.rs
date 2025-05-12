@@ -340,6 +340,7 @@ impl SystemContractsRepo {
         match lang {
             ContractLanguage::Sol => {
                 let possible_paths = [
+                    self.root.join(format!("zkout/{0}.sol/{0}.json", name)),
                     self.root
                         .join(format!("zkout/{0}{1}.sol/{1}.json", directory, name)),
                     self.root.join(format!(
