@@ -246,9 +246,10 @@ Note, that by default this command will check the status of the migration to Gat
 after the notification has passed and the server is ready to migrate. To prepare the calldata even before the server is
 ready (helpful for multisigs), please provide `--no-cross-check` option.
 
-For `--gateway-config-path` please use the corresponding files for ZK Gateway inside the `./etc/env/ecosystems` folder.
+For `--gateway-config-path` please use the corresponding files for ZK Gateway inside the `./etc/env/ecosystems/gateway`
+folder.
 
-The migration to ZK Gateway involves the following L1->GW transaction:
+When the calldata for the migration to the ZK Gateway is executed, it will generate the following L1->GW transactions:
 
 - One from the L1 asset router (to migrate the chain).
 - The other ones from the chain admin.
@@ -281,6 +282,10 @@ For `--ecosystem-contracts-config-path` please use the corresponding file inside
 Note, that by default this command will check the status of the migration from Gateway and will only output the calldata
 after the notification has passed and the server is ready to migrate. To prepare the calldata even before the server is
 ready (helpful for multisigs), please provide `--no-cross-check` option.
+
+When the calldata for the migration from the ZK Gateway is executed, it will generate the L1->GW transactions from the
+L1 chain admin to the chain's diamond proxy on ZK Gateway. To track its status, please use the standard tool to track L2
+txs status described [here](#tracking-l1-l2-transactions-status).
 
 After the migration transaction is processed and the corresponding GW batch is finalized on L1, anyone can finalize the
 migration:
