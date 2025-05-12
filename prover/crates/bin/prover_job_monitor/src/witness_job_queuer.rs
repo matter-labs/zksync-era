@@ -20,22 +20,20 @@ impl WitnessJobQueuer {
     /// Marks leaf witness jobs as queued.
     /// The trigger condition is all prover jobs on round 0 for a given circuit, per batch, have been completed.
     async fn queue_leaf_jobs(&self, connection: &mut Connection<'_, Prover>) {
-        let l1_batch_numbers = connection
+        let l1_batch_ids = connection
             .fri_leaf_witness_generator_dal()
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
             .await;
-        let len = l1_batch_numbers.len();
-        for (l1_batch_number, circuit_id) in l1_batch_numbers {
+        for (l1_batch_id, circuit_id) in l1_batch_ids {
             tracing::info!(
                 "Marked leaf job for l1_batch {} and circuit_id {} as queued.",
-                l1_batch_number,
+                l1_batch_id,
                 circuit_id
             );
+            SERVER_METRICS
+                .leaf_fri_witness_generator_waiting_to_queued_jobs_transitions[&l1_batch_id.chain_id().as_u64()]
+                .inc_by(1);
         }
-
-        SERVER_METRICS
-            .leaf_fri_witness_generator_waiting_to_queued_jobs_transitions
-            .inc_by(len as u64);
     }
 
     async fn move_node_aggregation_jobs_from_waiting_to_queued(
@@ -61,7 +59,6 @@ impl WitnessJobQueuer {
         let l1_batch_ids = self
             .move_node_aggregation_jobs_from_waiting_to_queued(connection)
             .await;
-        let len = l1_batch_ids.len();
         for (batch_id, circuit_id, depth) in l1_batch_ids {
             tracing::info!(
                 "Marked node job for l1_batch {} and circuit_id {} at depth {} as queued.",
@@ -69,46 +66,46 @@ impl WitnessJobQueuer {
                 circuit_id,
                 depth
             );
+            SERVER_METRICS
+                .node_fri_witness_generator_waiting_to_queued_jobs_transitions[&batch_id.chain_id().as_u64()]
+                .inc_by(1);
         }
-        SERVER_METRICS
-            .node_fri_witness_generator_waiting_to_queued_jobs_transitions
-            .inc_by(len as u64);
     }
 
     /// Marks recursion tip witness jobs as queued.
     /// The trigger condition is all final node proving jobs for the batch have been completed.
     async fn queue_recursion_tip_jobs(&self, connection: &mut Connection<'_, Prover>) {
-        let l1_batch_numbers = connection
+        let l1_batch_ids = connection
             .fri_recursion_tip_witness_generator_dal()
             .move_recursion_tip_jobs_from_waiting_to_queued()
             .await;
-        for l1_batch_number in &l1_batch_numbers {
+        for l1_batch_id in &l1_batch_ids {
             tracing::info!(
                 "Marked recursion tip job for l1_batch {} as queued.",
-                l1_batch_number,
+                l1_batch_id,
             );
+            SERVER_METRICS
+                .recursion_tip_witness_generator_waiting_to_queued_jobs_transitions[&l1_batch_id.chain_id().as_u64()]
+                .inc_by(1);
         }
-        SERVER_METRICS
-            .recursion_tip_witness_generator_waiting_to_queued_jobs_transitions
-            .inc_by(l1_batch_numbers.len() as u64);
     }
 
     /// Marks scheduler witness jobs as queued.
     /// The trigger condition is the recursion tip proving job for the batch has been completed.
     async fn queue_scheduler_jobs(&self, connection: &mut Connection<'_, Prover>) {
-        let l1_batch_numbers = connection
+        let l1_batch_ids = connection
             .fri_scheduler_witness_generator_dal()
             .move_scheduler_jobs_from_waiting_to_queued()
             .await;
-        for l1_batch_number in &l1_batch_numbers {
+        for l1_batch_id in &l1_batch_ids {
             tracing::info!(
                 "Marked scheduler job for l1_batch {} as queued.",
-                l1_batch_number,
+                l1_batch_id,
             );
+            SERVER_METRICS
+                .scheduler_witness_generator_waiting_to_queued_jobs_transitions[&l1_batch_id.chain_id().as_u64()]
+                .inc_by(1);
         }
-        SERVER_METRICS
-            .scheduler_witness_generator_waiting_to_queued_jobs_transitions
-            .inc_by(l1_batch_numbers.len() as u64);
     }
 }
 
