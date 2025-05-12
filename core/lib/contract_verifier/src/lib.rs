@@ -287,6 +287,10 @@ impl ContractVerifier {
         let compiled_identifier =
             ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code);
 
+        // regenerate the deployed identifier after patching the immutable bytecode
+        let deployed_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
+
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self
                 .decode_era_vm_constructor_args(&deployed_contract, request.req.contract_address)?,
