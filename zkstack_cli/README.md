@@ -220,7 +220,7 @@ zkstack chain gateway --help
 
 To get params of each of the provided commands, please use `--help`.
 
-| Note, that at the time of this writing, ZK Gateway is not available yet on public networks
+> Note that at the time of this writing, ZK Gateway is not available yet on public networks
 
 #### Migrating to Gateway
 
@@ -233,8 +233,8 @@ zkstack chain gateway notify-about-to-gateway-update-calldata
 It will provide you with the calldata to call the chain admin with to notify the server about imminent migration on top
 of Gateway. This is a step needed to ensure smooth migration.
 
-| Note, that even though the notification step is not strictly necessary, it is required for the server to migrate
-properly and the zkstack_cli tool may not be ready to handle migrations without a priority notification.
+> Note that even though the notification step is not strictly necessary, it is required for the server to migrate
+> properly and the zkstack_cli tool may not be ready to handle migrations without a priority notification.
 
 Secondly, you will have to generate the calldata to start the actual migration:
 
@@ -242,7 +242,7 @@ Secondly, you will have to generate the calldata to start the actual migration:
 zkstack chain gateway migrate-to-gateway-calldata
 ```
 
-Note, that by default this command will check the status of the migration to Gateway and will only output the calldata
+Note that by default this command will check the status of the migration to Gateway and will only output the calldata
 after the notification has passed and the server is ready to migrate. To prepare the calldata even before the server is
 ready (helpful for multisigs), please provide `--no-cross-check` option.
 
@@ -262,14 +262,14 @@ To track their status, please use the standard tool to track L2 txs status descr
 Firstly, we need to generate the calldata to notify the server:
 
 ```bash
-zkstack chain gateway migrate-from-gateway-calldata
+zkstack chain gateway notify-about-from-gateway-update-calldata
 ```
 
 It will provide you with the calldata to call the chain admin with to notify the server about imminent migration on top
 of Gateway. This is a step needed to ensure smooth migration.
 
-| Note, that even though the notification step is not strictly necessary, it is required for the server to migrate
-properly and the zkstack_cli tool may not be ready to handle migrations without a priority notification.
+> Note that even though the notification step is not strictly necessary, it is required for the server to migrate
+> properly and the zkstack_cli tool may not be ready to handle migrations without a priority notification.
 
 After that, you will need to prepare the calldata to finalize the migration:
 
@@ -279,7 +279,7 @@ zkstack chain gateway migrate-from-gateway-calldata
 
 For `--ecosystem-contracts-config-path` please use the corresponding file inside the `./etc/env/ecosystems` folder.
 
-Note, that by default this command will check the status of the migration from Gateway and will only output the calldata
+Note that by default this command will check the status of the migration from Gateway and will only output the calldata
 after the notification has passed and the server is ready to migrate. To prepare the calldata even before the server is
 ready (helpful for multisigs), please provide `--no-cross-check` option.
 
@@ -294,15 +294,15 @@ migration:
 zkstack chain gateway finalize-chain-migration-from-gateway
 ```
 
-Note, that after migraiton to L1, the DA validators will be reset. To generate the calldata to reset the DA validators,
+Note that after migration to L1, the DA validators will be reset. To generate the calldata to reset the DA validators,
 do the following:
 
 ```bash
 zkstack chain set-da-validator-pair-calldata
 ```
 
-| So when preparing a migration from GW for a multisig-controlled ChainAdmin, the calldata for the following steps
-should be signed as different transactions: the notification, the migration and the setting of the DA validators.
+> So when preparing a migration from GW for a multisig-controlled ChainAdmin, the calldata for the following steps
+> should be signed as different transactions: the notification, the migration and the setting of the DA validators.
 
 ### Contract Verifier
 
