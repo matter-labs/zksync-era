@@ -20,7 +20,6 @@ mod eth;
 mod experimental;
 mod external_price_api_client;
 mod external_proof_integration_api;
-mod gateway;
 mod general;
 mod genesis;
 mod house_keeper;
@@ -34,6 +33,7 @@ mod pruning;
 mod secrets;
 mod snapshot_recovery;
 mod snapshots_creator;
+mod tee_proof_data_handler;
 #[cfg(test)]
 mod tests;
 mod timestamp_asserter;

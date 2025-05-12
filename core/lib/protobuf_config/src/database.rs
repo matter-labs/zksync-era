@@ -96,12 +96,6 @@ impl ProtoRepr for proto::Postgres {
     type Type = configs::database::PostgresConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let (test_server_url, test_prover_url) = self
-            .test
-            .as_ref()
-            .map(|x| (x.server_url.clone(), x.prover_url.clone()))
-            .unwrap_or_default();
-
         Ok(Self::Type {
             max_connections: self.max_connections,
             max_connections_master: self.max_connections_master,
@@ -109,8 +103,6 @@ impl ProtoRepr for proto::Postgres {
             statement_timeout_sec: self.statement_timeout_sec,
             long_connection_threshold_ms: self.long_connection_threshold_ms,
             slow_query_threshold_ms: self.slow_query_threshold_ms,
-            test_server_url,
-            test_prover_url,
         })
     }
 
@@ -122,10 +114,6 @@ impl ProtoRepr for proto::Postgres {
             statement_timeout_sec: this.statement_timeout_sec,
             long_connection_threshold_ms: this.long_connection_threshold_ms,
             slow_query_threshold_ms: this.slow_query_threshold_ms,
-            test: Some(proto::TestDatabase {
-                server_url: this.test_server_url.clone(),
-                prover_url: this.test_prover_url.clone(),
-            }),
         }
     }
 }

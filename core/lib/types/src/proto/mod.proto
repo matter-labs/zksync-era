@@ -24,4 +24,5 @@ message SnapshotFactoryDependencies {
 
 message SnapshotFactoryDependency {
     optional bytes bytecode = 1; // required
+    optional bytes hash = 2; // required (missing in old snapshots; then the bytecode is assumed to be an EraVM bytecode)
 }

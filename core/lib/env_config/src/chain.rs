@@ -1,14 +1,8 @@
 use zksync_config::configs::chain::{
-    CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig,
+    CircuitBreakerConfig, MempoolConfig, OperationsManagerConfig, StateKeeperConfig,
 };
 
 use crate::{envy_load, FromEnv};
-
-impl FromEnv for NetworkConfig {
-    fn from_env() -> anyhow::Result<Self> {
-        envy_load("network", "CHAIN_ETH_")
-    }
-}
 
 impl FromEnv for StateKeeperConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -36,7 +30,7 @@ impl FromEnv for MempoolConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+    use zksync_basic_types::commitment::L1BatchCommitmentMode;
     use zksync_config::configs::chain::FeeModelVersion;
 
     use super::*;
@@ -45,28 +39,6 @@ mod tests {
     static MUTEX: EnvMutex = EnvMutex::new();
     const VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: &str = "Validium";
     const ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: &str = "Rollup";
-
-    fn expected_network_config() -> NetworkConfig {
-        NetworkConfig {
-            network: "localhost".parse().unwrap(),
-            zksync_network: "localhost".to_string(),
-            zksync_network_id: L2ChainId::from(270),
-        }
-    }
-
-    #[test]
-    fn network_from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
-            CHAIN_ETH_NETWORK="localhost"
-            CHAIN_ETH_ZKSYNC_NETWORK="localhost"
-            CHAIN_ETH_ZKSYNC_NETWORK_ID=270
-        "#;
-        lock.set_env(config);
-
-        let actual = NetworkConfig::from_env().unwrap();
-        assert_eq!(actual, expected_network_config());
-    }
 
     #[allow(deprecated)]
     fn expected_state_keeper_config(
@@ -106,6 +78,7 @@ mod tests {
             l1_batch_commit_data_generator_mode,
             max_circuits_per_batch: 24100,
             protective_reads_persistence_enabled: true,
+            deployment_allowlist: None,
         }
     }
 

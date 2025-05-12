@@ -12,8 +12,9 @@ pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 400_000_000;
 pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u32 = 12_000;
 pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u32 = 2000;
 
-/// In the version `1.5.0` the maximal number of circuits per batch has been increased from `24100` to `34100`.
-pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 34100;
+/// In the version `1.5.2` the maximal number of circuits per batch has been decreased to '28000'.
+// Please see scheduler capacity in https://github.com/matter-labs/zksync-protocol/blob/main/crates/circuit_definitions/src/circuit_definitions/recursion_layer/mod.rs#L38
+pub(crate) const MAX_BASE_LAYER_CIRCUITS: usize = 28_000;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
@@ -27,6 +28,7 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles => 63_800_000,
+        MultiVmSubversion::Interop => 63_800_000, //kl todo vg todo change when memory layout is finalized for interop typeA
     }
 }
 
@@ -71,7 +73,8 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
         // With gateway upgrade we increased max number of factory dependencies
         MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
-        | MultiVmSubversion::EcPrecompiles => 64,
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => 64,
     }
 }
 
@@ -147,7 +150,10 @@ pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;
 pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
 
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
-    get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS
+    match subversion {
+        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS,
+        _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
+    }
 }
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 196608;

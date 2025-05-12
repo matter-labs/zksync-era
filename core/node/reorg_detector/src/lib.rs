@@ -72,7 +72,7 @@ pub enum Error {
 impl HashMatchError {
     pub fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_retriable(),
+            Self::Rpc(err) => err.is_retryable(),
             Self::MissingData(_) => true,
             Self::Internal(_) => false,
         }

@@ -33,9 +33,27 @@ message StateKeeper {
   optional uint64 max_circuits_per_batch = 27; // required
   optional uint64 miniblock_max_payload_size = 28; // required
   optional bool protective_reads_persistence_enabled = 29; // optional
+  optional DeploymentAllowlist deployment_allowlist = 37;
   reserved 23; reserved "virtual_blocks_interval";
   reserved 24; reserved "virtual_blocks_per_miniblock";
   reserved 26; reserved "enum_index_migration_chunk_size";
+}
+
+
+message DeploymentAllowlist {
+  message Dynamic {
+    optional string http_file_url = 3;
+    optional uint64 refresh_interval_secs = 4;
+  }
+
+  message Static {
+    repeated string addresses = 5;
+  }
+
+  oneof allow_list {
+    Dynamic dynamic = 6;
+    Static static = 7;
+  }
 }
 
 message OperationsManager {

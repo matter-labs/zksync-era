@@ -473,7 +473,7 @@ impl L2BlockSealCommand {
         is_fictive: bool,
         tx_location: impl Fn(&T) -> u32,
     ) -> Vec<(IncludedTxLocation, Vec<&'a T>)> {
-        let grouped_entries = entries.iter().group_by(|&entry| tx_location(entry));
+        let grouped_entries = entries.iter().chunk_by(|&entry| tx_location(entry));
         let grouped_entries = grouped_entries.into_iter().map(|(tx_index, entries)| {
             let tx_hash = if is_fictive {
                 assert_eq!(tx_index as usize, self.first_tx_index);

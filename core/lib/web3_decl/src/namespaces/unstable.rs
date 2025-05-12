@@ -3,7 +3,8 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        TransactionExecutionInfo,
     },
     block::BatchOrBlockNumber,
     tee_types::TeeType,
@@ -57,4 +58,7 @@ pub trait UnstableNamespace {
 
     #[method(name = "l1ToL2TxsStatus")]
     async fn l1_to_l2_txs_status(&self) -> RpcResult<L1ToL2TxsStatus>;
+
+    #[method(name = "gatewayMigrationStatus")]
+    async fn gateway_migration_status(&self) -> RpcResult<GatewayMigrationStatus>;
 }

@@ -26,6 +26,7 @@ use crate::{
             healthcheck::AppHealthCheckResource,
             main_node_client::MainNodeClientResource,
             pools::{PoolResource, ReplicaPool},
+            settlement_layer::SettlementModeResource,
             sync_state::SyncStateResource,
             web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
         },
@@ -141,6 +142,7 @@ pub struct Input {
     pub l1_contracts_resource: L1ChainContractsResource,
     pub l1_ecosystem_contracts_resource: L1EcosystemContractsResource,
     pub l2_contracts_resource: L2ContractsResource,
+    pub initial_settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -212,6 +214,9 @@ impl WiringLayer for Web3ServerLayer {
             &l1_contracts,
             &input.l1_ecosystem_contracts_resource.0,
             &input.l2_contracts_resource.0,
+            input
+                .initial_settlement_mode
+                .settlement_layer_for_sending_txs(),
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =

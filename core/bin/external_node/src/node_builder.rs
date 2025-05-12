@@ -29,7 +29,6 @@ use zksync_node_framework::{
         },
         data_availability_fetcher::DataAvailabilityFetcherLayer,
         healtcheck_server::HealthCheckLayer,
-        l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
@@ -117,8 +116,6 @@ impl ExternalNodeBuilder {
                 .optional
                 .slow_query_threshold()
                 .map(|d| d.as_millis() as u64),
-            test_server_url: None,
-            test_prover_url: None,
         };
         let secrets = DatabaseSecrets {
             server_url: Some(self.config.postgres.database_url()),
@@ -291,14 +288,6 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
-        let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.optional.l1_batch_commit_data_generator_mode,
-        );
-        self.node.add_layer(layer);
-        Ok(self)
-    }
-
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.l1_chain_id,
@@ -310,22 +299,17 @@ impl ExternalNodeBuilder {
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
-        let layer = ConsistencyCheckerLayer::new(
-            max_batches_to_recheck,
-            self.config.optional.l1_batch_commit_data_generator_mode,
-        );
+        let layer = ConsistencyCheckerLayer::new(max_batches_to_recheck);
         self.node.add_layer(layer);
         Ok(self)
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        let layer =
-            CommitmentGeneratorLayer::new(self.config.optional.l1_batch_commit_data_generator_mode)
-                .with_max_parallelism(
-                    self.config
-                        .experimental
-                        .commitment_generator_max_parallelism,
-                );
+        let layer = CommitmentGeneratorLayer::default().with_max_parallelism(
+            self.config
+                .experimental
+                .commitment_generator_max_parallelism,
+        );
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -661,7 +645,6 @@ impl ExternalNodeBuilder {
 
         // Add preconditions for all the components.
         self = self
-            .add_l1_batch_commitment_mode_validation_layer()?
             .add_validate_chain_ids_layer()?
             .add_storage_initialization_layer(LayerKind::Precondition)?;
 

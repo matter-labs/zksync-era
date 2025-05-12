@@ -2,6 +2,7 @@ use std::fs;
 
 use clap::Args as ClapArgs;
 use colored::Colorize;
+use zksync_circuit_prover_service::types::circuit_wrapper::CircuitWrapper;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -13,9 +14,12 @@ use zksync_prover_fri_types::{
         },
         zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
     },
-    CircuitWrapper, FriProofWrapper,
+    FriProofWrapper,
 };
-use zksync_prover_interface::{inputs::WitnessInputMerklePaths, outputs::L1BatchProofForL1};
+use zksync_prover_interface::{
+    inputs::WitnessInputMerklePaths,
+    outputs::{L1BatchProofForL1, TypedL1BatchProofForL1},
+};
 use zksync_types::{u256_to_h256, H256};
 
 #[derive(ClapArgs)]
@@ -242,9 +246,9 @@ fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
         hex::encode(aggregation_result_coords[3])
     );
 
-    let inputs = match result {
-        L1BatchProofForL1::Fflonk(proof) => &proof.scheduler_proof.inputs,
-        L1BatchProofForL1::Plonk(proof) => &proof.scheduler_proof.inputs,
+    let inputs = match result.inner() {
+        TypedL1BatchProofForL1::Fflonk(proof) => proof.clone().scheduler_proof.inputs,
+        TypedL1BatchProofForL1::Plonk(proof) => proof.clone().scheduler_proof.inputs,
     };
 
     println!("Inputs: {:?}", inputs);

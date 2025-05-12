@@ -16,6 +16,7 @@ cobertura.xml
 tags
 *.orig
 .direnv
+.cache
 
 # Yarn files
 .yarn/

@@ -561,7 +561,12 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         &cursor,
         previous_batch_hash,
     );
-    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
+    let mut updates = UpdatesManager::new(
+        &l1_batch_env,
+        &system_env,
+        pubdata_params,
+        system_env.version,
+    );
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(

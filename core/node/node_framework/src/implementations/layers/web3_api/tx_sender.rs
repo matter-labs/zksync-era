@@ -18,7 +18,9 @@ use crate::{
     implementations::resources::{
         contracts::{L2ContractsResource, SettlementLayerContractsResource},
         fee_input::ApiFeeInputResource,
+        healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
+        object_store::ObjectStoreResource,
         pools::{PoolResource, ReplicaPool},
         state_keeper::ConditionalSealerResource,
         web3_api::{TxSenderResource, TxSinkResource},
@@ -69,6 +71,7 @@ pub struct TxSenderLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
+    pub app_health: AppHealthCheckResource,
     pub tx_sink: TxSinkResource,
     pub replica_pool: PoolResource<ReplicaPool>,
     pub fee_input: ApiFeeInputResource,
@@ -76,6 +79,7 @@ pub struct Input {
     pub sealer: Option<ConditionalSealerResource>,
     pub contracts_resource: SettlementLayerContractsResource,
     pub l2_contracts_resource: L2ContractsResource,
+    pub core_object_store: Option<ObjectStoreResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -190,6 +194,10 @@ impl WiringLayer for TxSenderLayer {
         .await?;
         executor_options.set_fast_vm_mode(self.vm_mode);
 
+        if let Some(store) = input.core_object_store {
+            executor_options.set_vm_dump_object_store(store.0);
+        }
+
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(config, replica_pool, tx_sink);
         if let Some(sealer) = sealer {
@@ -221,6 +229,11 @@ impl WiringLayer for TxSenderLayer {
             executor_options,
             storage_caches,
         );
+        input
+            .app_health
+            .0
+            .insert_custom_component(Arc::new(tx_sender.health_check()))
+            .map_err(WiringError::internal)?;
 
         Ok(Output {
             tx_sender: tx_sender.into(),

@@ -246,9 +246,10 @@ async fn prepare_postgres(
         if block_number + 1 < block_count {
             let factory_deps =
                 factory_deps
-                    .into_values()
-                    .map(|bytecode| SnapshotFactoryDependency {
+                    .into_iter()
+                    .map(|(hash, bytecode)| SnapshotFactoryDependency {
                         bytecode: bytecode.into(),
+                        hash: Some(hash),
                     });
             outputs.deps.extend(factory_deps);
 

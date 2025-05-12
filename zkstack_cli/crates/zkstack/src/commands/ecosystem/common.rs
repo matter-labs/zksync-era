@@ -8,9 +8,8 @@ use zkstack_cli_config::{
         },
         script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
-    raw::RawConfig,
     traits::{ReadConfig, SaveConfig},
-    ContractsConfig, EcosystemConfig, GENESIS_FILE,
+    ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::{L1Network, ProverMode};
 
@@ -27,9 +26,9 @@ pub async fn deploy_l1(
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
+    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
     let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
-    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
 
     let wallets_config = config.get_wallets()?;
@@ -74,7 +73,7 @@ pub async fn deploy_l1(
 
     let script_output = DeployL1Output::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.link_to_code),
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_l1_foundry()),
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);

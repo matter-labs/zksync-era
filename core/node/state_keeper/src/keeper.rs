@@ -22,6 +22,7 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
     utils::display_timestamp, InteropRoot, L1BatchNumber, L2BlockNumber, Transaction,
 };
+use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
 use crate::{
     executor::TxExecutionResult,
@@ -73,6 +74,7 @@ pub struct ZkSyncStateKeeper {
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
+    deployment_tx_filter: Option<DeploymentTxFilter>,
 }
 
 impl ZkSyncStateKeeper {
@@ -82,6 +84,7 @@ impl ZkSyncStateKeeper {
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
+        deployment_tx_filter: Option<DeploymentTxFilter>,
     ) -> Self {
         Self {
             io: sequencer,
@@ -90,6 +93,7 @@ impl ZkSyncStateKeeper {
             sealer,
             storage_factory,
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
+            deployment_tx_filter,
         }
     }
 
@@ -153,7 +157,16 @@ impl ZkSyncStateKeeper {
         };
 
         let protocol_version = system_env.version;
-        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
+        let previous_batch_protocol_version = self
+            .io
+            .load_batch_version_id(l1_batch_env.number - 1)
+            .await?;
+        let mut updates_manager = UpdatesManager::new(
+            &l1_batch_env,
+            &system_env,
+            pubdata_params,
+            previous_batch_protocol_version,
+        );
         let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
             .load_protocol_upgrade_tx(&pending_l2_blocks, protocol_version, l1_batch_env.number)
             .await?;
@@ -203,6 +216,7 @@ impl ZkSyncStateKeeper {
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             let mut next_cursor = updates_manager.io_cursor();
+            let previous_batch_protocol_version = updates_manager.protocol_version();
             self.output_handler
                 .handle_l1_batch(Arc::new(updates_manager))
                 .await
@@ -218,7 +232,12 @@ impl ZkSyncStateKeeper {
             (system_env, l1_batch_env, pubdata_params) = self
                 .wait_for_new_batch_env(&next_cursor, &mut stop_receiver)
                 .await?;
-            updates_manager = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
+            updates_manager = UpdatesManager::new(
+                &l1_batch_env,
+                &system_env,
+                pubdata_params,
+                previous_batch_protocol_version,
+            );
             batch_executor = self
                 .create_batch_executor(
                     l1_batch_env.clone(),
@@ -599,6 +618,7 @@ impl ZkSyncStateKeeper {
             if self
                 .io
                 .should_seal_l1_batch_unconditionally(updates_manager)
+                .await?
             {
                 tracing::debug!(
                     "L1 batch #{} should be sealed unconditionally as per sealing rules",
@@ -612,6 +632,9 @@ impl ZkSyncStateKeeper {
                         .update_next_l2_block_timestamp(next_l2_block_timestamp);
                     Self::start_next_l2_block(updates_manager, batch_executor).await?;
                 }
+
+                self.report_seal_criteria_capacity(updates_manager);
+                full_latency.observe();
 
                 return Ok(());
             }
@@ -719,6 +742,7 @@ impl ZkSyncStateKeeper {
                      transaction {tx_hash}",
                     updates_manager.l1_batch.number
                 );
+                self.report_seal_criteria_capacity(updates_manager);
                 full_latency.observe();
                 return Ok(());
             }
@@ -851,7 +875,6 @@ impl ZkSyncStateKeeper {
                 ..
             } => {
                 let tx_execution_status = &tx_result.result;
-
                 tracing::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in L2 block {}) \
                     status: {:?}. Tx execution metrics: {:?}, block execution metrics: {:?}",
@@ -866,6 +889,26 @@ impl ZkSyncStateKeeper {
                     &tx_execution_metrics,
                     updates_manager.pending_execution_metrics() + **tx_execution_metrics,
                 );
+
+                if let Some(tx_filter) = &self.deployment_tx_filter {
+                    if !tx.is_l1()
+                        && tx_filter
+                            .find_not_allowed_deployer(
+                                tx.initiator_account(),
+                                &tx_result.logs.events,
+                            )
+                            .await
+                            .is_some()
+                    {
+                        tracing::warn!(
+                                "Deployment transaction {tx:?} is not allowed. Mark it as unexecutable."
+                            );
+                        return Ok((
+                            SealResolution::Unexecutable(UnexecutableReason::DeploymentNotAllowed),
+                            exec_result,
+                        ));
+                    }
+                }
 
                 let encoding_len = tx.encoding_len();
 
@@ -895,7 +938,6 @@ impl ZkSyncStateKeeper {
 
                 self.sealer.should_seal_l1_batch(
                     updates_manager.l1_batch.number.0,
-                    updates_manager.batch_timestamp() as u128 * 1_000,
                     updates_manager.pending_executed_transactions_len() + 1,
                     updates_manager.pending_l1_transactions_len() + is_tx_l1,
                     &block_data,
@@ -911,5 +953,26 @@ impl ZkSyncStateKeeper {
     /// Returns the health check for state keeper.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+
+    fn report_seal_criteria_capacity(&self, manager: &UpdatesManager) {
+        let block_writes_metrics = manager.storage_writes_deduplicator.metrics();
+
+        let block_data = SealData {
+            execution_metrics: manager.pending_execution_metrics(),
+            cumulative_size: manager.pending_txs_encoding_size(),
+            writes_metrics: block_writes_metrics,
+            gas_remaining: u32::MAX, // not used
+        };
+
+        let capacities = self.sealer.capacity_filled(
+            manager.pending_executed_transactions_len(),
+            manager.pending_l1_transactions_len(),
+            &block_data,
+            manager.protocol_version(),
+        );
+        for (criterion, capacity) in capacities {
+            AGGREGATION_METRICS.record_criterion_capacity(criterion, capacity);
+        }
     }
 }

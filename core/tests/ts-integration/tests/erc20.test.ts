@@ -11,6 +11,7 @@ import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { RetryableWallet } from '../src/retry-provider';
 
 import {
     L2_MESSAGE_VERIFICATION_ADDRESS,
@@ -23,7 +24,7 @@ import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/ty
 
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let baseTokenAddress: string;
@@ -66,8 +67,8 @@ describe('L1 ERC20 contract checks', () => {
             { wallet: alice, change: amount }
         ]);
         const feeCheck = await shouldOnlyTakeFee(alice, true);
-        await expect(
-            alice.deposit({
+        await alice.retryableDepositCheck(
+            {
                 token: tokenDetails.l1Address,
                 amount,
                 approveERC20: true,
@@ -78,8 +79,9 @@ describe('L1 ERC20 contract checks', () => {
                 overrides: {
                     gasPrice
                 }
-            })
-        ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+            },
+            (deposit) => expect(deposit).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck])
+        );
     });
 
     test('Can perform a transfer', async () => {

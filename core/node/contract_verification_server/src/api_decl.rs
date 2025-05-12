@@ -27,10 +27,7 @@ impl RestApi {
 
     pub fn into_router(self) -> axum::Router<()> {
         axum::Router::new()
-            .route(
-                "/contract_verification",
-                axum::routing::post(Self::verification),
-            )
+            .route("/contract_verification", axum::routing::post(Self::post))
             .route(
                 "/contract_verification/zksolc_versions",
                 axum::routing::get(Self::zksolc_versions),

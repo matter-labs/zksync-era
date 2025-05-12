@@ -18,6 +18,7 @@ thiserror.workspace = true
 zksync_prover_interface.workspace = true
 zksync_basic_types.workspace = true
 zksync_object_store.workspace = true
+zksync_proof_data_handler.workspace = true
 zksync_dal.workspace = true
 tokio.workspace = true
 bincode.workspace = true

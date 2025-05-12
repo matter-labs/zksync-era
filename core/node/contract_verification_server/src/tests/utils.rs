@@ -12,9 +12,12 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_test_utils::create_l2_block;
 use zksync_types::{
     bytecode::{BytecodeHash, BytecodeMarker},
-    contract_verification::api::{
-        CompilationArtifacts, CompilerVersions, VerificationIncomingRequest, VerificationInfo,
-        VerificationRequest, VerificationRequestStatus,
+    contract_verification::{
+        api::{
+            CompilationArtifacts, CompilerVersions, VerificationIncomingRequest, VerificationInfo,
+            VerificationRequest, VerificationRequestStatus,
+        },
+        etherscan::EtherscanResponse,
     },
     get_code_key, Address, L2BlockNumber, ProtocolVersion, StorageLog, H256,
 };
@@ -78,6 +81,7 @@ pub(super) fn mock_verification_info(
             bytecode: vec![0xff, 32],
             deployed_bytecode: None,
             abi: Default::default(),
+            immutable_refs: Default::default(),
         },
         verified_at: Default::default(),
         verification_problems: Vec::new(),
@@ -170,6 +174,14 @@ impl MockApiClient {
         Self::json_response::<usize>(response).await
     }
 
+    pub async fn send_etherscan_request<T>(&self, request: &T) -> EtherscanResponse
+    where
+        T: serde::Serialize,
+    {
+        let response = self.send_form("/contract_verification", request).await;
+        Self::json_response::<EtherscanResponse>(response).await
+    }
+
     pub async fn assert_verification_request_error(
         &self,
         request: &serde_json::Value,
@@ -238,6 +250,21 @@ impl MockApiClient {
             .uri(url)
             .header(header::CONTENT_TYPE, "application/json")
             .body(body)
+            .unwrap();
+
+        self.router.clone().oneshot(req).await.unwrap()
+    }
+
+    async fn send_form<T>(&self, url: &str, body: &T) -> Response<Body>
+    where
+        T: serde::Serialize,
+    {
+        let form = serde_urlencoded::to_string(body).expect("Unable to serialize body into form");
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri(url)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(form)
             .unwrap();
 
         self.router.clone().oneshot(req).await.unwrap()

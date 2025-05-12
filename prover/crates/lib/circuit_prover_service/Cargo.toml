@@ -23,6 +23,7 @@ anyhow.workspace = true
 tokio = { workspace = true, features = ["macros", "time"] }
 tokio-util.workspace = true
 tracing.workspace = true
+serde = { workspace = true, features = ["derive"] }
 
 shivini = { workspace = true, features = ["circuit_definitions"] }
 zkevm_test_harness.workspace = true

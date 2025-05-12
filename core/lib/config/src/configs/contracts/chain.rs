@@ -91,6 +91,8 @@ impl AllContractsConfig {
             shared_bridge: self.l1_shared_bridge_proxy_addr,
             erc_20_bridge: self.l1_erc20_bridge_proxy_addr,
             base_token_address: self.base_token_addr,
+            chain_admin: Some(self.chain_admin_addr),
+            server_notifier_addr: self.server_notifier_addr,
         }
     }
 
@@ -116,13 +118,11 @@ impl AllContractsConfig {
                 bridgehub_proxy_addr: Some(self.bridgehub_proxy_addr),
                 state_transition_proxy_addr: self.state_transition_proxy_addr,
                 message_root_proxy_addr: self.message_root_proxy_addr,
-                server_notifier_addr: self.server_notifier_addr,
                 multicall3: Some(self.l1_multicall3_addr),
                 validator_timelock_addr: Some(self.validator_timelock_addr),
             },
             chain_contracts_config: ChainContracts {
                 diamond_proxy_addr: self.diamond_proxy_addr,
-                chain_admin: Some(self.chain_admin_addr),
             },
         }
     }
@@ -132,7 +132,6 @@ impl AllContractsConfig {
 #[derive(Debug, Clone)]
 pub struct ChainContracts {
     pub diamond_proxy_addr: Address,
-    pub chain_admin: Option<Address>,
 }
 
 // Contracts deployed to the l2

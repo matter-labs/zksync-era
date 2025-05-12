@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto::chain as proto;
+use crate::{parse_h160, proto::chain as proto, read_optional_repr};
 
 impl proto::FeeModelVersion {
     fn new(n: &configs::chain::FeeModelVersion) -> Self {
@@ -89,6 +89,7 @@ impl ProtoRepr for proto::StateKeeper {
             evm_emulator_hash: None,
             fee_account_addr: None,
             l1_batch_commit_data_generator_mode: Default::default(),
+            deployment_allowlist: read_optional_repr(&self.deployment_allowlist),
         })
     }
 
@@ -120,6 +121,10 @@ impl ProtoRepr for proto::StateKeeper {
             save_call_traces: Some(this.save_call_traces),
             max_circuits_per_batch: Some(this.max_circuits_per_batch.try_into().unwrap()),
             protective_reads_persistence_enabled: Some(this.protective_reads_persistence_enabled),
+            deployment_allowlist: this
+                .deployment_allowlist
+                .as_ref()
+                .map(proto::DeploymentAllowlist::build),
         }
     }
 }
@@ -166,6 +171,50 @@ impl ProtoRepr for proto::Mempool {
             delay_interval: Some(this.delay_interval),
             skip_unsafe_deposit_checks: Some(this.skip_unsafe_deposit_checks),
             l1_to_l2_txs_paused: Some(this.l1_to_l2_txs_paused),
+        }
+    }
+}
+
+impl ProtoRepr for proto::DeploymentAllowlist {
+    type Type = configs::chain::DeploymentAllowlist;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        let res = match required(&self.allow_list).context("DeploymentAllowlist")? {
+            proto::deployment_allowlist::AllowList::Dynamic(list) => {
+                Self::Type::Dynamic(configs::chain::DeploymentAllowlistDynamic::new(
+                    list.http_file_url.clone(),
+                    list.refresh_interval_secs,
+                ))
+            }
+            proto::deployment_allowlist::AllowList::Static(list) => {
+                let res: Result<Vec<_>, _> =
+                    list.addresses.iter().map(|item| parse_h160(item)).collect();
+                Self::Type::Static(res?)
+            }
+        };
+        Ok(res)
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        let allow_list = match this {
+            configs::chain::DeploymentAllowlist::Dynamic(list) => {
+                proto::deployment_allowlist::AllowList::Dynamic(
+                    proto::deployment_allowlist::Dynamic {
+                        http_file_url: list.http_file_url().map(String::from),
+                        refresh_interval_secs: Some(list.refresh_interval().as_secs()),
+                    },
+                )
+            }
+            configs::chain::DeploymentAllowlist::Static(list) => {
+                proto::deployment_allowlist::AllowList::Static(
+                    proto::deployment_allowlist::Static {
+                        addresses: list.iter().map(|item| format!("{:?}", item)).collect(),
+                    },
+                )
+            }
+        };
+        Self {
+            allow_list: Some(allow_list),
         }
     }
 }

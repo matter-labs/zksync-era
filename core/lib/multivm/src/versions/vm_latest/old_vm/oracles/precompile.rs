@@ -39,7 +39,7 @@ impl<H: HistoryMode> PrecompilesProcessorWithHistory<H> {
 
     /// Returns `PrecompileAddress` if there is indeed a precompile under provided address.
     /// Takes into account that v28 precompiles can be disabled.
-    fn resolve_precompile_address(&self, address: u16) -> Option<PrecompileAddress> {
+    pub fn resolve_precompile_address(&self, address: u16) -> Option<PrecompileAddress> {
         let address = PrecompileAddress::try_from(address).ok()?;
         let is_v28_precompile = matches!(
             address,

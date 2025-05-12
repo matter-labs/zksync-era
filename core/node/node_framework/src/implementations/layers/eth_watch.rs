@@ -82,8 +82,8 @@ impl EthWatchLayer {
             contracts_resource
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
-            contracts_resource.chain_contracts_config.chain_admin,
-            contracts_resource.ecosystem_contracts.server_notifier_addr,
+            l1_ecosystem_contracts_resource.chain_admin,
+            l1_ecosystem_contracts_resource.server_notifier_addr,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
         )
@@ -136,7 +136,7 @@ impl WiringLayer for EthWatchLayer {
         let eth_watch = EthWatch::new(
             Box::new(l1_client),
             sl_l2_client,
-            input.settlement_mode.0,
+            input.settlement_mode.settlement_layer_for_sending_txs(),
             main_pool,
             self.eth_watch_config.poll_interval(),
             self.chain_id,
