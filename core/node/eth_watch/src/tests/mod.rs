@@ -5,15 +5,15 @@ use zksync_types::{
     abi,
     aggregated_operations::AggregatedActionType,
     api::ChainAggProof,
-    block::L1BatchHeader,
+    block::{BatchOrBlockNumber, L1BatchHeader},
     commitment::L1BatchCommitmentArtifacts,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2_to_l1_log::BatchAndChainMerklePath,
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
     settlement::SettlementLayer,
-    Address, Execute, L1BatchNumber, L1TxCommonData, L2ChainId, PriorityOpId, ProtocolUpgrade,
-    ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
+    Address, Execute, L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, PriorityOpId,
+    ProtocolUpgrade, ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
 use crate::{tests::client::MockEthClient, EthWatch, ZkSyncExtentionEthClient};
@@ -662,10 +662,22 @@ fn batch_roots() -> Vec<H256> {
     .collect()
 }
 
-fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
+fn chain_log_proofs() -> Vec<(BatchOrBlockNumber, ChainAggProof)> {
     vec![
         (
-            L1BatchNumber(5),
+            BatchOrBlockNumber::BlockNumber(L2BlockNumber(0)),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            BatchOrBlockNumber::BatchNumber(L1BatchNumber(5)),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -685,7 +697,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
             },
         ),
         (
-            L1BatchNumber(9),
+            BatchOrBlockNumber::BatchNumber(L1BatchNumber(9)),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -705,7 +717,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
             },
         ),
         (
-            L1BatchNumber(11),
+            BatchOrBlockNumber::BatchNumber(L1BatchNumber(11)),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -725,7 +737,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
             },
         ),
         (
-            L1BatchNumber(13),
+            BatchOrBlockNumber::BatchNumber(L1BatchNumber(13)),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -745,7 +757,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
             },
         ),
         (
-            L1BatchNumber(14),
+            BatchOrBlockNumber::BatchNumber(L1BatchNumber(14)),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -830,6 +842,17 @@ async fn setup_batch_roots(
             )
             .await
             .unwrap();
+        let tx_hash = H256::random();
+        connection
+            .eth_sender_dal()
+            .insert_tx_history(eth_tx_id, 0, 0, None, None, tx_hash, &[], 0, None)
+            .await
+            .unwrap();
+        connection
+            .eth_sender_dal()
+            .confirm_tx(tx_hash, U256::zero(), 0)
+            .await
+            .unwrap();
 
         if i < number_of_processed_batches {
             connection
@@ -842,7 +865,18 @@ async fn setup_batch_roots(
                     },
                 )
                 .await
-                .unwrap()
+                .unwrap();
+            connection
+                .blocks_dal()
+                .set_gw_interop_batch_chain_merkle_path(
+                    batch_number,
+                    BatchAndChainMerklePath {
+                        batch_proof_len: 0,
+                        proof: Vec::new(),
+                    },
+                )
+                .await
+                .unwrap();
         }
     }
 }

@@ -752,16 +752,16 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 eth_tx_id = $1
                 AND eth_txs_history.confirmed_at IS NOT NULL
+                AND eth_txs.has_failed IS FALSE
             ORDER BY
                 eth_txs_history.created_at
-            LIMIT
-                1
             "#,
             eth_tx_id as i32
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_all(self.storage.conn())
         .await?;
-        Ok(history_item)
+        println!("history_item: {:?}", history_item);
+        Ok(Some(history_item[0].clone()))
     }
 
     pub async fn get_last_sent_successfully_eth_tx(
