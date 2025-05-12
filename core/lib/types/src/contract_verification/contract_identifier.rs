@@ -1,8 +1,11 @@
-use serde::{Deserialize, Serialize};
+use std::fmt;
+
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Serialize,
+};
 
 use crate::{bytecode::BytecodeMarker, web3::keccak256, H256};
-use serde::de::{self, Visitor};
-use std::fmt;
 
 /// An identifier of the contract bytecode.
 ///
