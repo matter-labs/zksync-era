@@ -3,23 +3,23 @@
 use std::time::Duration;
 
 use tokio::sync::watch;
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, OrStopped};
 
 use crate::{ConnectionPool, Core, CoreDal};
 
 /// Repeatedly polls the DB until there is an L1 batch. We may not have such a batch initially
 /// if the DB is recovered from an application-level snapshot.
 ///
-/// Returns the number of the *earliest* L1 batch, or `None` if the stop signal is received.
+/// Returns the number of the *earliest* L1 batch.
 pub async fn wait_for_l1_batch(
     pool: &ConnectionPool<Core>,
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
-) -> anyhow::Result<Option<L1BatchNumber>> {
+) -> Result<L1BatchNumber, OrStopped> {
     tracing::debug!("Waiting for at least one L1 batch in db in DB");
     loop {
         if *stop_receiver.borrow() {
-            return Ok(None);
+            return Err(OrStopped::Stopped);
         }
 
         let mut storage = pool.connection().await?;
@@ -27,10 +27,10 @@ pub async fn wait_for_l1_batch(
         drop(storage);
 
         if let Some(number) = sealed_l1_batch_number {
-            return Ok(Some(number));
+            return Ok(number);
         }
 
-        // We don't check the result: if a stop signal is received, we'll return at the start
+        // We don't check the result: if a stop request is received, we'll return at the start
         // of the next iteration.
         tokio::time::timeout(poll_interval, stop_receiver.changed())
             .await
@@ -68,7 +68,7 @@ mod tests {
         let l1_batch = wait_for_l1_batch(&pool, Duration::from_millis(10), &mut stop_receiver)
             .await
             .unwrap();
-        assert_eq!(l1_batch, Some(L1BatchNumber(0)));
+        assert_eq!(l1_batch, L1BatchNumber(0));
     }
 
     #[tokio::test]
@@ -81,9 +81,9 @@ mod tests {
             stop_sender.send_replace(true);
         });
 
-        let l1_batch = wait_for_l1_batch(&pool, Duration::from_secs(30), &mut stop_receiver)
+        let err = wait_for_l1_batch(&pool, Duration::from_secs(30), &mut stop_receiver)
             .await
-            .unwrap();
-        assert_eq!(l1_batch, None);
+            .unwrap_err();
+        assert!(matches!(err, OrStopped::Stopped));
     }
 }

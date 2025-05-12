@@ -1,0 +1,40 @@
+import {
+    eth_call,
+    eth_getBlockByHash,
+    eth_getBlockByNumber,
+    eth_getBlockReceipts,
+    eth_getLogs,
+    eth_getTransactionReceipt,
+    eth_sendRawTransaction,
+    forbiddenMethod,
+    onlyCurrentUser,
+    whoAmI,
+    zks_getRawBlockTransactions,
+    zks_sendRawTransactionWithDetailedOutput
+} from '@/rpc/methods';
+
+export const allHandlers = [
+    forbiddenMethod('debug_traceBlockByHash'),
+    forbiddenMethod('debug_traceBlockByNumber'),
+    forbiddenMethod('debug_traceCall'),
+    forbiddenMethod('debug_traceTransaction'),
+    forbiddenMethod('eth_accounts'),
+    forbiddenMethod('eth_getStorageAt'),
+    forbiddenMethod('eth_getTransactionByBlockHashAndIndex'),
+    forbiddenMethod('eth_newFilter'),
+    forbiddenMethod('eth_newPendingTransactionFilter'),
+    forbiddenMethod('zks_getProof'),
+    onlyCurrentUser('eth_getBalance'),
+    onlyCurrentUser('eth_getTransactionCount'),
+    onlyCurrentUser('zks_getAllAccountBalances'),
+    eth_call,
+    eth_getBlockByHash,
+    eth_getBlockByNumber,
+    eth_getBlockReceipts,
+    eth_getLogs,
+    eth_getTransactionReceipt,
+    eth_sendRawTransaction,
+    whoAmI,
+    zks_getRawBlockTransactions,
+    zks_sendRawTransactionWithDetailedOutput
+];
