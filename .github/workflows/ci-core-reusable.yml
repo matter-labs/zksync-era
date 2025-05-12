@@ -597,6 +597,8 @@ jobs:
           
           echo "Disabling inclusion verification transition"
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/era/configs/general.yaml
+          sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/era/configs/general.yaml
+          sudo yq -i '.state_keeper.compute_overhead_part = 1' ./chains/era/configs/general.yaml
           echo "Restarting server again to apply new configuration"
           ci_run pkill -f "zksync_server.*chains/era/configs"
           ci_run zkstack server --ignore-prerequisites --chain era &>> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
