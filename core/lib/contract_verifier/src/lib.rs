@@ -376,10 +376,8 @@ impl ContractVerifier {
             let metadata_compiler = compiler_version.as_deref().unwrap_or(request_compiler);
             let metadata_zk_compiler = zk_compiler_version.as_deref().or(request_zk_compiler);
 
-            let compiler_mismatch = request_compiler != metadata_compiler;
-            let zk_compiler_mismatch = request_zk_compiler != metadata_zk_compiler;
-
-            if zk_compiler_mismatch || compiler_mismatch {
+            if request_compiler != metadata_compiler || request_zk_compiler != metadata_zk_compiler
+            {
                 tracing::warn!(
                     request_id = request.id,
                     request_compiler,
@@ -394,6 +392,8 @@ impl ContractVerifier {
                     .connection_tagged("contract_verifier")
                     .await?;
 
+                // Update the verification request in the DB because other components depend on the compiler versions,
+                // such as Etherscan verification and block explorer.
                 storage
                     .contract_verification_dal()
                     .update_verification_request_compiler_versions(
@@ -403,6 +403,7 @@ impl ContractVerifier {
                     )
                     .await?;
 
+                // Update the verification request instance, so it's passed to the compiler with the correct versions.
                 match request.req.compiler_versions.compiler_type() {
                     api::CompilerType::Solc => {
                         request.req.compiler_versions = api::CompilerVersions::Solc {
