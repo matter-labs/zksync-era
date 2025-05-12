@@ -84,12 +84,14 @@ impl ArtifactsManager for Scheduler {
                 protocol_version_id,
                 batch_sealed_at,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert prover job: {}", e))?;
 
         transaction
             .fri_scheduler_witness_generator_dal()
             .mark_scheduler_job_as_successful(job_id.into(), started_at.elapsed())
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to mark scheduler job as successful: {}", e))?;
 
         transaction.commit().await?;
         Ok(())
