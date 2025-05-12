@@ -64,7 +64,7 @@ export function createFetchRequest(
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
  */
 export class RetryProvider extends zksync.Provider {
-    private readonly reporter: Reporter;
+    public readonly reporter: Reporter;
     private readonly knownTransactionHashes: Set<string> = new Set();
 
     constructor(url: UrlLike, network?: ethers.Networkish, reporter?: Reporter) {
@@ -244,6 +244,42 @@ export class RetryableWallet extends zksync.Wallet {
 
     override ethWallet(): RetryableL1Wallet {
         return new RetryableL1Wallet(this.privateKey, <EthersRetryProvider>this._providerL1());
+    }
+
+    async retryableDepositCheck<R>(
+        depositData: any,
+        check: (deposit: zksync.types.PriorityOpResponse) => Promise<R>,
+        maxAttempts: number = 3
+    ): Promise<R> {
+        const reporter = (<RetryProvider>this.provider!).reporter;
+        let previousGasLimit: bigint | null = null;
+        for (let i = 0; i < maxAttempts; i += 1) {
+            let deposit: zksync.types.PriorityOpResponse | null = null;
+            try {
+                if (previousGasLimit) {
+                    const newGasLimit: bigint = previousGasLimit * 2n;
+                    if (depositData.overrides) {
+                        depositData.overrides.gasLimit = newGasLimit;
+                    } else {
+                        depositData.overrides = { gasLimit: newGasLimit };
+                    }
+                    previousGasLimit = newGasLimit;
+                }
+                deposit = await this.deposit(depositData);
+                if (!previousGasLimit) {
+                    previousGasLimit = deposit.gasLimit;
+                }
+                return await check(deposit);
+            } catch (err: any) {
+                if (i + 1 == maxAttempts) {
+                    reporter.debug('Last deposit check failed', deposit, err);
+                    throw err;
+                } else {
+                    reporter.debug('Retrying deposit check', deposit, err);
+                }
+            }
+        }
+        throw 'unreachable';
     }
 }
 

@@ -99,4 +99,3 @@
 # Announcements
 
 - [Announcements](announcements/README.md)
-  - [Attester Committee](announcements/attester_commitee.md)

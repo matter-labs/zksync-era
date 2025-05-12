@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.24;
+pragma solidity ^0.8.24;
 
 import {SystemContractsCaller, CalldataForwardingMode} from "l1-contracts/common/libraries/SystemContractsCaller.sol";
 

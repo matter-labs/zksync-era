@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use zksync_concurrency::net;
-use zksync_consensus_roles::{attester, node, validator};
+use zksync_consensus_roles::{node, validator};
 use zksync_consensus_storage::Last;
 use zksync_types::{
     commitment::PubdataParams, ethabi, Address, L1BatchNumber, ProtocolVersionId, Transaction, H256,
@@ -60,14 +60,6 @@ pub struct GlobalConfig {
     pub genesis: validator::Genesis,
     pub registry_address: Option<ethabi::Address>,
     pub seed_peers: BTreeMap<node::PublicKey, net::Host>,
-}
-
-/// Global attestation status served by
-/// `attestationStatus` RPC.
-#[derive(Debug, PartialEq, Clone)]
-pub struct AttestationStatus {
-    pub genesis: validator::GenesisHash,
-    pub next_batch_to_attest: attester::BatchNumber,
 }
 
 /// L2 block (= miniblock) payload.

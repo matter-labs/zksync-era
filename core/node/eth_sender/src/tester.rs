@@ -283,7 +283,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
-            SettlementLayer::L1(chain_id),
+            Some(SettlementLayer::L1(chain_id)),
         )
         .await;
 
@@ -511,6 +511,12 @@ impl EthSenderTester {
         } else {
             PubdataSendingMode::Calldata
         };
+        let commitment_mode = if self.pubdata_sending_mode == PubdataSendingMode::Custom {
+            L1BatchCommitmentMode::Validium
+        } else {
+            L1BatchCommitmentMode::Rollup
+        };
+
         let operation = AggregatedOperation::Commit(
             l1_batch_with_metadata(
                 self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
@@ -521,6 +527,7 @@ impl EthSenderTester {
                     .await,
             )],
             pubdata_mode,
+            commitment_mode,
         );
         self.next_l1_batch_number_to_commit += 1;
         self.save_operation(operation).await

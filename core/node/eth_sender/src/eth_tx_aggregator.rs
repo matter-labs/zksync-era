@@ -39,6 +39,12 @@ use crate::{
     Aggregator, EthSenderError,
 };
 
+#[derive(Debug)]
+pub struct DAValidatorPair {
+    l1_validator: Address,
+    l2_validator: Address,
+}
+
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -52,6 +58,7 @@ pub struct MulticallData {
     /// validator timelock in the config. However, it is expected that it will be done eventually.
     pub stm_validator_timelock_address: Address,
     pub stm_protocol_version_id: ProtocolVersionId,
+    pub da_validator_pair: DAValidatorPair,
 }
 
 /// The component is responsible for aggregating l1 batches into eth_txs.
@@ -77,7 +84,7 @@ pub struct EthTxAggregator {
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
     priority_tree_start_index: Option<usize>,
-    settlement_layer: SettlementLayer,
+    settlement_layer: Option<SettlementLayer>,
     initial_pending_nonces: HashMap<Address, u64>,
 }
 
@@ -101,7 +108,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
-        settlement_layer: SettlementLayer,
+        settlement_layer: Option<SettlementLayer>,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let eth_client_blobs = eth_client_blobs.map(|c| c.for_component("eth_tx_aggregator"));
@@ -152,7 +159,7 @@ impl EthTxAggregator {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
+                tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
                 break;
             }
 
@@ -265,6 +272,18 @@ impl EthTxAggregator {
             calldata: get_stm_validator_timelock_input,
         };
 
+        let get_da_validator_pair_input = self
+            .functions
+            .get_da_validator_pair
+            .encode_input(&[])
+            .unwrap();
+
+        let get_da_validator_pair_call = Multicall3Call {
+            target: self.state_transition_chain_contract,
+            allow_failure: ALLOW_FAILURE,
+            calldata: get_da_validator_pair_input,
+        };
+
         let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
@@ -273,6 +292,7 @@ impl EthTxAggregator {
             get_protocol_version_call.into_token(),
             get_stm_protocol_version_call.into_token(),
             get_stm_validator_timelock_call.into_token(),
+            get_da_validator_pair_call.into_token(),
         ];
 
         let mut evm_emulator_hash_requested = false;
@@ -308,8 +328,8 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 8 } else { 7 };
-            // 7 or 8 calls are aggregated in multicall
+            let number_of_calls = if evm_emulator_hash_requested { 9 } else { 8 };
+            // 8 or 9 calls are aggregated in multicall
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
@@ -381,12 +401,18 @@ impl EthTxAggregator {
                 "STM validator timelock address",
             )?;
 
+            let da_validator_pair = Self::parse_da_validator_pair(
+                call_results_iterator.next().unwrap(),
+                "contract DA validator pair",
+            )?;
+
             return Ok(MulticallData {
                 base_system_contracts_hashes,
                 verifier_address,
                 chain_protocol_version_id,
                 stm_protocol_version_id,
                 stm_validator_timelock_address,
+                da_validator_pair,
             });
         }
         parse_error(&[token])
@@ -430,6 +456,33 @@ impl EthTxAggregator {
         }
 
         Ok(Address::from_slice(&multicall_data[12..]))
+    }
+
+    fn parse_da_validator_pair(
+        data: Token,
+        name: &'static str,
+    ) -> Result<DAValidatorPair, EthSenderError> {
+        // In the first word of the output, the L1 DA validator is present
+        const L1_DA_VALIDATOR_OFFSET: usize = 12;
+        // In the second word of the output, the L2 DA validator is present
+        const L2_DA_VALIDATOR_OFFSET: usize = 32 + 12;
+
+        let multicall_data = Multicall3Result::from_token(data)?.return_data;
+        if multicall_data.len() != 64 {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!(
+                    "multicall3 {name} data is not of the len of 32: {:?}",
+                    multicall_data
+                ),
+            )));
+        }
+
+        let pair = DAValidatorPair {
+            l1_validator: Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]),
+            l2_validator: Address::from_slice(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]),
+        };
+
+        Ok(pair)
     }
 
     fn timelock_contract_address(
@@ -532,6 +585,7 @@ impl EthTxAggregator {
             chain_protocol_version_id,
             stm_protocol_version_id,
             stm_validator_timelock_address,
+            da_validator_pair,
         } = self.get_multicall_data().await.map_err(|err| {
             tracing::error!("Failed to get multicall data {err:?}");
             err
@@ -580,6 +634,17 @@ impl EthTxAggregator {
             .await
             .then_some("there is a pending gateway upgrade"),
         };
+
+        // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
+        // send new commit transactions before the da validator pair is updated
+        if da_validator_pair.l1_validator == Address::zero()
+            || da_validator_pair.l2_validator == Address::zero()
+        {
+            let reason = Some("DA validator pair is not set on the settlement layer");
+            op_restrictions.commit_restriction = reason;
+            // We only disable commit operations, the rest are allowed
+        }
+
         if self.config.tx_aggregation_paused {
             let reason = Some("tx aggregation is paused");
             op_restrictions.commit_restriction = reason;
@@ -590,8 +655,11 @@ impl EthTxAggregator {
         if gateway_migration_state == GatewayMigrationState::InProgress {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
-            op_restrictions.prove_restriction = reason;
-            op_restrictions.execute_restriction = reason;
+            // For the migration from gateway to L1, we need to wait for all blocks to be executed
+            if let None | Some(SettlementLayer::L1(_)) = self.settlement_layer {
+                op_restrictions.prove_restriction = reason;
+                op_restrictions.execute_restriction = reason;
+            }
         }
 
         if let Some(agg_op) = self
@@ -606,7 +674,7 @@ impl EthTxAggregator {
             )
             .await?
         {
-            let is_gateway = self.settlement_layer.is_gateway();
+            let is_gateway = self.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
@@ -644,7 +712,7 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(_, l1_batches, _) = aggregated_op {
+        if let AggregatedOperation::Commit(_, l1_batches, _, _) = aggregated_op {
             for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
@@ -674,12 +742,17 @@ impl EthTxAggregator {
         let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {
-            AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
+            AggregatedOperation::Commit(
+                last_committed_l1_batch,
+                l1_batches,
+                pubdata_da,
+                commitment_mode,
+            ) => {
                 let commit_batches = CommitBatches {
                     last_committed_l1_batch,
                     l1_batches,
                     pubdata_da: *pubdata_da,
-                    mode: self.aggregator.mode(),
+                    mode: *commitment_mode,
                 };
                 let commit_data_base = commit_batches.into_tokens();
 
@@ -691,12 +764,11 @@ impl EthTxAggregator {
                     &self.functions.post_gateway_commit
                 };
 
-                let l1_batch_for_sidecar =
-                    if PubdataSendingMode::Blobs == self.aggregator.pubdata_da() {
-                        Some(l1_batches[0].clone())
-                    } else {
-                        None
-                    };
+                let l1_batch_for_sidecar = if PubdataSendingMode::Blobs == *pubdata_da {
+                    Some(l1_batches[0].clone())
+                } else {
+                    None
+                };
 
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
@@ -779,15 +851,17 @@ impl EthTxAggregator {
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let sender_addr = match (op_type, is_gateway) {
+        let (sender_addr, is_non_blob_sender) = match (op_type, is_gateway) {
             (AggregatedActionType::Commit, false) => self
                 .eth_client_blobs
                 .as_ref()
-                .map(|c| c.sender_account())
-                .unwrap_or_else(|| self.eth_client.sender_account()),
-            (_, _) => self.eth_client.sender_account(),
+                .map(|c| (c.sender_account(), false))
+                .unwrap_or_else(|| (self.eth_client.sender_account(), true)),
+            (_, _) => (self.eth_client.sender_account(), true),
         };
-        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
+        let nonce = self
+            .get_next_nonce(&mut transaction, sender_addr, is_non_blob_sender)
+            .await?;
         let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
@@ -840,15 +914,25 @@ impl EthTxAggregator {
         Ok(eth_tx)
     }
 
+    // Just because we block all operations during gateway migration,
+    // this function should not be called when the settlement layer is unknown
+    fn is_gateway(&self) -> bool {
+        self.settlement_layer
+            .as_ref()
+            .map(|sl| sl.is_gateway())
+            .unwrap_or(false)
+    }
+
     async fn get_next_nonce(
         &self,
         storage: &mut Connection<'_, Core>,
         from_addr: Address,
+        is_non_blob_sender: bool,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.settlement_layer.is_gateway();
+        let is_gateway = self.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(Some(from_addr), is_gateway)
+            .get_next_nonce(from_addr, is_non_blob_sender, is_gateway)
             .await
             .unwrap()
             .unwrap_or(0);

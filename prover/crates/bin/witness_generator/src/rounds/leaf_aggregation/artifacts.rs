@@ -8,7 +8,7 @@ use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata};
 
 use crate::{
-    artifacts::{AggregationBlobUrls, ArtifactsManager},
+    artifacts::{AggregationBlobUrls, ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
     rounds::leaf_aggregation::{LeafAggregation, LeafAggregationArtifacts},
     utils::{AggregationWrapper, ClosedFormInputWrapper},
@@ -26,7 +26,7 @@ impl ArtifactsManager for LeafAggregation {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts> {
         let key = ClosedFormInputKey {
-            block_number: metadata.block_number,
+            batch_id: metadata.batch_id,
             circuit_id: metadata.circuit_id,
         };
 
@@ -40,16 +40,16 @@ impl ArtifactsManager for LeafAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+        fields(l1_batch = %artifacts.batch_id, circuit_id = %artifacts.circuit_id)
     )]
     async fn save_to_bucket(
-        _job_id: u32,
+        _job_id: JobId,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> AggregationBlobUrls {
         let started_at = Instant::now();
         let key = AggregationsKey {
-            block_number: artifacts.block_number,
+            batch_id: artifacts.batch_id,
             circuit_id: get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
             depth: 0,
         };
@@ -73,7 +73,7 @@ impl ArtifactsManager for LeafAggregation {
     )]
     async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
-        job_id: u32,
+        job_id: JobId,
         started_at: Instant,
         blob_urls: AggregationBlobUrls,
         artifacts: Self::OutputArtifacts,
@@ -81,7 +81,7 @@ impl ArtifactsManager for LeafAggregation {
         tracing::info!(
             "Updating database for job_id {}, block {} with circuit id {}",
             job_id,
-            artifacts.block_number.0,
+            artifacts.batch_id,
             artifacts.circuit_id,
         );
 
@@ -90,25 +90,25 @@ impl ArtifactsManager for LeafAggregation {
         let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
         let protocol_version_id = transaction
             .fri_basic_witness_generator_dal()
-            .protocol_version_for_l1_batch(artifacts.block_number)
+            .protocol_version_for_l1_batch(artifacts.batch_id)
             .await
             .unwrap();
         let batch_sealed_at = transaction
             .fri_basic_witness_generator_dal()
-            .get_batch_sealed_at_timestamp(artifacts.block_number)
+            .get_batch_sealed_at_timestamp(artifacts.batch_id)
             .await;
 
         tracing::info!(
             "Inserting {} prover jobs for job_id {}, block {} with circuit id {}",
             blob_urls.circuit_ids_and_urls.len(),
             job_id,
-            artifacts.block_number.0,
+            artifacts.batch_id,
             artifacts.circuit_id,
         );
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
-                artifacts.block_number,
+                artifacts.batch_id,
                 blob_urls.circuit_ids_and_urls,
                 AggregationRound::LeafAggregation,
                 0,
@@ -119,13 +119,13 @@ impl ArtifactsManager for LeafAggregation {
         tracing::info!(
             "Updating node aggregation jobs url for job_id {}, block {} with circuit id {}",
             job_id,
-            artifacts.block_number.0,
+            artifacts.batch_id,
             artifacts.circuit_id,
         );
         transaction
             .fri_node_witness_generator_dal()
             .update_node_aggregation_jobs_url(
-                artifacts.block_number,
+                artifacts.batch_id,
                 get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
                 number_of_dependent_jobs,
                 0,
@@ -135,18 +135,22 @@ impl ArtifactsManager for LeafAggregation {
         tracing::info!(
             "Marking leaf aggregation job as successful for job id {}, block {} with circuit id {}",
             job_id,
-            artifacts.block_number.0,
+            artifacts.batch_id,
             artifacts.circuit_id,
         );
         transaction
             .fri_leaf_witness_generator_dal()
-            .mark_leaf_aggregation_as_successful(job_id, started_at.elapsed())
+            .mark_leaf_aggregation_as_successful(
+                job_id.id(),
+                job_id.chain_id(),
+                started_at.elapsed(),
+            )
             .await;
 
         tracing::info!(
             "Committing transaction for job_id {}, block {} with circuit id {}",
             job_id,
-            artifacts.block_number.0,
+            artifacts.batch_id,
             artifacts.circuit_id,
         );
         transaction.commit().await?;

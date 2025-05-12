@@ -16,6 +16,7 @@ pub mod object_store;
 mod observability;
 mod proof_data_handler;
 mod snapshots_creator;
+mod tee_proof_data_handler;
 mod utils;
 
 mod base_token_adjuster;
@@ -31,7 +32,6 @@ mod wallets;
 
 pub mod da_client;
 mod timestamp_asserter;
-
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
 }

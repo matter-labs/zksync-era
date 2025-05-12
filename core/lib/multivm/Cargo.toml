@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zk_evm_1_5_2.workspace = true
 zk_evm_1_5_0.workspace = true
 zk_evm_1_4_1.workspace = true
 zk_evm_1_4_0.workspace = true

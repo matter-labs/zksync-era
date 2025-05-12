@@ -1,6 +1,7 @@
 use anyhow::Context;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_prover_task::Task;
+use zksync_types::L1BatchId;
 
 use crate::metrics::SERVER_METRICS;
 
@@ -40,7 +41,7 @@ impl WitnessJobQueuer {
     async fn move_node_aggregation_jobs_from_waiting_to_queued(
         &self,
         connection: &mut Connection<'_, Prover>,
-    ) -> Vec<(i64, u8, u16)> {
+    ) -> Vec<(L1BatchId, u8, u16)> {
         let mut jobs = connection
             .fri_node_witness_generator_dal()
             .move_depth_zero_node_aggregation_jobs()
@@ -57,14 +58,14 @@ impl WitnessJobQueuer {
     /// Marks node witness jobs as queued.
     /// The trigger condition is all prover jobs on round 1 (or 2 if recursing) for a given circuit, per batch, have been completed.
     async fn queue_node_jobs(&self, connection: &mut Connection<'_, Prover>) {
-        let l1_batch_numbers = self
+        let l1_batch_ids = self
             .move_node_aggregation_jobs_from_waiting_to_queued(connection)
             .await;
-        let len = l1_batch_numbers.len();
-        for (l1_batch_number, circuit_id, depth) in l1_batch_numbers {
+        let len = l1_batch_ids.len();
+        for (batch_id, circuit_id, depth) in l1_batch_ids {
             tracing::info!(
                 "Marked node job for l1_batch {} and circuit_id {} at depth {} as queued.",
-                l1_batch_number,
+                batch_id,
                 circuit_id,
                 depth
             );

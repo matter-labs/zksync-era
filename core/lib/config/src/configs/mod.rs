@@ -21,7 +21,7 @@ pub use self::{
     genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
-    proof_data_handler::{ProofDataHandlerConfig, TeeConfig},
+    proof_data_handler::ProofDataHandlerConfig,
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{
@@ -29,6 +29,7 @@ pub use self::{
     },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
+    tee_proof_data_handler::TeeProofDataHandlerConfig,
     utils::PrometheusConfig,
     vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
 };
@@ -64,6 +65,7 @@ pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;
 pub mod snapshots_creator;
+pub mod tee_proof_data_handler;
 pub mod utils;
 pub mod vm_runner;
 pub mod wallets;

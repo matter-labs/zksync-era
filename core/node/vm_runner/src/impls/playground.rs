@@ -239,15 +239,21 @@ impl VmPlayground {
         };
 
         let builder = RocksdbStorage::builder(path.as_ref()).await?;
-        let current_l1_batch = builder.l1_batch_number().await;
-        if current_l1_batch <= Some(last_retained_batch) {
+        let Some(mut cache) = builder.get().await else {
+            tracing::info!("Resetting RocksDB cache is not required: the cache is not initialized");
+            return Ok(());
+        };
+
+        let current_l1_batch = cache.next_l1_batch_number().await;
+        if current_l1_batch <= last_retained_batch {
             tracing::info!("Resetting RocksDB cache is not required: its current batch #{current_l1_batch:?} is lower than the target");
             return Ok(());
         }
 
         tracing::info!("Resetting RocksDB cache from batch #{current_l1_batch:?}");
         let mut conn = self.pool.connection_tagged("vm_playground").await?;
-        builder.roll_back(&mut conn, last_retained_batch).await
+        // `assert_ready()` always succeeds due to the `current_l1_batch` check above
+        cache.roll_back(&mut conn, last_retained_batch).await
     }
 
     /// Continuously loads new available batches and writes the corresponding data
@@ -308,7 +314,7 @@ pub struct VmPlaygroundLoaderTask {
 }
 
 impl VmPlaygroundLoaderTask {
-    /// Runs a task until a stop signal is received.
+    /// Runs a task until a stop request is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let task = tokio::select! {
             biased;

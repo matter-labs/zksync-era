@@ -46,9 +46,9 @@ impl Api {
         axum::serve(listener, self.router)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for prover gateway API server was dropped without sending a signal");
+                tracing::warn!("Stop request sender for prover gateway API server was dropped without sending a signal");
             }
-            tracing::info!("Stop signal received, prover gateway API server is shutting down");
+            tracing::info!("Stop request received, prover gateway API server is shutting down");
         })
         .await
         .context("Prover gateway API server failed")?;
@@ -62,22 +62,17 @@ impl Api {
     ) -> Result<Json<Option<PollGeneratedProofsResponse>>, ProcessorError> {
         tracing::info!("Received request for proof: {:?}", request);
 
-        let proof = processor
-            .get_proof_for_batch(request.l1_batch_number)
-            .await?;
+        let proof = processor.get_proof_for_batch(request.l1_batch_id).await?;
 
         let response = proof.map(|proof| PollGeneratedProofsResponse {
-            l1_batch_number: request.l1_batch_number,
+            l1_batch_id: request.l1_batch_id,
             proof: proof.into(),
         });
 
         if response.is_none() {
-            tracing::info!(
-                "Proof for batch {} is not ready yet",
-                request.l1_batch_number
-            );
+            tracing::info!("Proof for batch {} is not ready yet", request.l1_batch_id);
         } else {
-            tracing::info!("Proof is ready for batch {}", request.l1_batch_number);
+            tracing::info!("Proof is ready for batch {}", request.l1_batch_id);
         }
 
         Ok(Json(response))
@@ -88,8 +83,9 @@ impl Api {
         Json(data): Json<ProofGenerationData>,
     ) -> Result<Json<SubmitProofGenerationDataResponse>, ProcessorError> {
         tracing::info!(
-            "Received proof generation data for batch {}",
-            data.l1_batch_number
+            "Received proof generation data for batch {}, chain_id {}",
+            data.l1_batch_number,
+            data.chain_id
         );
         processor.save_proof_gen_data(data).await?;
 

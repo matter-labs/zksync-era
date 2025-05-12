@@ -14,7 +14,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
+use zksync_consensus_roles::{validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
@@ -76,7 +76,7 @@ impl ConfigSet {
         let net = network::testonly::new_fullnode(rng, &self.net);
         ConfigSet {
             config: make_config(&net, None),
-            secrets: make_secrets(&net, None),
+            secrets: make_secrets(&net),
             net,
         }
     }
@@ -95,14 +95,6 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
                 weight: 1,
             })
             .collect(),
-        attesters: setup
-            .attester_keys
-            .iter()
-            .map(|k| config::WeightedAttester {
-                key: config::AttesterPublicKey(k.public().encode()),
-                weight: 1,
-            })
-            .collect(),
         leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
         registry_address: None,
         seed_peers: net_cfgs[..seed_peers]
@@ -117,26 +109,21 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
     };
     net_cfgs
         .into_iter()
-        .enumerate()
-        .map(|(i, net)| ConfigSet {
+        .map(|net| ConfigSet {
             config: make_config(&net, Some(genesis_spec.clone())),
-            secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
+            secrets: make_secrets(&net),
             net,
         })
         .collect()
 }
 
-fn make_secrets(
-    cfg: &network::Config,
-    attester_key: Option<attester::SecretKey>,
-) -> config::ConsensusSecrets {
+fn make_secrets(cfg: &network::Config) -> config::ConsensusSecrets {
     config::ConsensusSecrets {
         node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
         validator_key: cfg
             .validator_key
             .as_ref()
             .map(|k| config::ValidatorSecretKey(k.encode().into())),
-        attester_key: attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
     }
 }
 
@@ -363,15 +350,14 @@ impl StateKeeper {
         validator::BlockNumber(self.last_block.0.into())
     }
 
-    /// Batch of the `last_block`.
-    pub fn last_batch(&self) -> attester::BatchNumber {
-        attester::BatchNumber(self.last_batch.0.into())
-    }
-
     /// Last L1 batch that has been sealed and will have
     /// metadata computed eventually.
-    pub fn last_sealed_batch(&self) -> attester::BatchNumber {
-        attester::BatchNumber((self.last_batch.0 - (!self.batch_sealed) as u32).into())
+    pub fn last_sealed_batch(&self) -> L1BatchNumber {
+        if self.batch_sealed {
+            self.last_batch
+        } else {
+            self.last_batch - 1
+        }
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
@@ -592,6 +578,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                         Arc::new(async_cache),
+                        None,
                     )
                     .run(stop_recv)
                     .await
@@ -677,6 +664,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                         Arc::new(MockReadStorageFactory),
+                        None,
                     )
                     .run(stop_recv)
                     .await

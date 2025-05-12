@@ -89,7 +89,53 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(feature = "v27_evm_interpreter")]
+    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[allow(clippy::too_many_arguments)]
+    pub async fn prepare_upgrade_chain_on_gateway_calls(
+        &mut self,
+        shell: &Shell,
+        forge_args: &ForgeScriptArgs,
+        foundry_contracts_path: &Path,
+        chain_id: u64,
+        gateway_chain_id: u64,
+        bridgehub: Address,
+        l1_gas_price: u64,
+        old_protocol_version: u64,
+        chain_diamond_proxy_on_gateway: Address,
+        l1_asset_router_proxy: Address,
+        refund_recipient: Address,
+        upgrade_cut_data: Bytes,
+        l1_rpc_url: String,
+    ) {
+        let result = prepare_upgrade_zk_chain_on_gateway(
+            shell,
+            forge_args,
+            foundry_contracts_path,
+            crate::admin_functions::AdminScriptMode::OnlySave,
+            chain_id,
+            gateway_chain_id,
+            bridgehub,
+            l1_gas_price,
+            old_protocol_version,
+            chain_diamond_proxy_on_gateway,
+            l1_asset_router_proxy,
+            refund_recipient,
+            upgrade_cut_data,
+            l1_rpc_url,
+        )
+        .await;
+
+        match result {
+            Ok(output) => {
+                self.calls.extend(output.calls);
+            }
+            Err(e) => {
+                eprintln!("Error preparing upgrade: {}", e);
+            }
+        }
+    }
+
+    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
     pub fn append_execute_upgrade(
         &mut self,
         hyperchain_addr: Address,
@@ -124,7 +170,7 @@ impl AdminCallBuilder {
         serde_json::to_string_pretty(&self.calls).unwrap()
     }
 
-    #[cfg(feature = "v27_evm_interpreter")]
+    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
     pub fn display(&self) {
         // Serialize with pretty printing
         let serialized = serde_json::to_string_pretty(&self.calls).unwrap();

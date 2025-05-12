@@ -78,6 +78,7 @@ mod tests {
             l1_batch_commit_data_generator_mode,
             max_circuits_per_batch: 24100,
             protective_reads_persistence_enabled: true,
+            deployment_allowlist: None,
         }
     }
 

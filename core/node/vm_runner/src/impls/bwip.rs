@@ -11,8 +11,8 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_interface::inputs::VMRunWitnessInputData;
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    block::StorageOracleInfo, h256_to_u256, u256_to_h256, witness_block_state::WitnessStorageState,
-    L1BatchNumber, L2ChainId, H256,
+    block::StorageOracleInfo, bytecode::BytecodeMarker, h256_to_u256, u256_to_h256,
+    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, H256,
 };
 use zksync_vm_interface::{executor::BatchExecutorFactory, L1BatchEnv, L2BlockEnv, SystemEnv};
 
@@ -335,12 +335,19 @@ async fn assert_database_witness_input_data(
         used_bytecodes.insert(account_code_hash, account_bytecode_bytes);
     }
 
-    assert_eq!(
-        hashes.len(),
-        used_bytecodes.len(),
-        "{} factory deps are not found in DB",
-        hashes.len() - used_bytecodes.len()
-    );
+    for hash in hashes {
+        // EVM bytecodes will be extracted from VM during witness generation
+        // We skip EVM bytecodes that are not published (tx with deployment reverted)
+        if BytecodeMarker::new(hash).expect("Failed to get bytecode marker") != BytecodeMarker::Evm
+        {
+            assert!(
+                used_bytecodes.contains_key(&h256_to_u256(hash)),
+                "{} factory dependency is not found in DB",
+                hash
+            );
+        }
+    }
+
     let used_bytecodes: HashMap<_, _> = used_bytecodes
         .into_iter()
         .map(|(hash, code)| (hash, bytes_to_chunks(&code)))

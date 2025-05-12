@@ -118,6 +118,7 @@ pub struct StateKeeperConfig {
     #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
     #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    pub deployment_allowlist: Option<DeploymentAllowlist>,
 }
 
 impl StateKeeperConfig {
@@ -157,6 +158,7 @@ impl StateKeeperConfig {
             default_aa_hash: None,
             evm_emulator_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            deployment_allowlist: None,
         }
     }
 }
@@ -228,4 +230,40 @@ impl MempoolConfig {
 pub struct TimestampAsserterConfig {
     /// Minimum time between current block.timestamp and the end of the asserted range
     pub min_time_till_end_sec: u32,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum DeploymentAllowlist {
+    Dynamic(DeploymentAllowlistDynamic),
+    Static(Vec<Address>),
+}
+
+#[derive(Default, Debug, Deserialize, Clone, PartialEq)]
+pub struct DeploymentAllowlistDynamic {
+    /// If `Some(url)`, allowlisting is enabled. If `None`, it's disabled.
+    /// If the `String` is empty, treat it as invalid and effectively disable.
+    http_file_url: Option<String>,
+    /// Private field for the refresh interval (in seconds).
+    refresh_interval_secs: Option<u64>,
+}
+
+impl DeploymentAllowlistDynamic {
+    /// Create a new `DeploymentAllowlist` instance.
+    pub fn new(http_file_url: Option<String>, refresh_interval_secs: Option<u64>) -> Self {
+        Self {
+            http_file_url,
+            refresh_interval_secs,
+        }
+    }
+
+    /// Returns the allowlist file URL, if present and non-empty.
+    pub fn http_file_url(&self) -> Option<&str> {
+        self.http_file_url.as_deref().filter(|s| !s.is_empty())
+    }
+
+    /// Returns the refresh interval used to reload the allowlist.
+    /// Defaults to 5 minutes if not set.
+    pub fn refresh_interval(&self) -> Duration {
+        Duration::from_secs(self.refresh_interval_secs.unwrap_or(300))
+    }
 }

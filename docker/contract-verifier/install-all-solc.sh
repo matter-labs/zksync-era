@@ -9,7 +9,7 @@ wget -O list.txt https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/l
 for LN in $(cat list.txt)
 do
     # Download
-    wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/$LN
+    ./run_retried wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/$LN
 
     # Get short version name
     temp="${LN#"solc-linux-amd64-v"}"
@@ -31,6 +31,6 @@ list=(
 for version in ${list[@]};
 do
     mkdir -p etc/solc-bin/zkVM-$version/
-    wget https://github.com/matter-labs/era-solidity/releases/download/$version/solc-linux-amd64-$version -O etc/solc-bin/zkVM-$version/solc
+    ./run_retried wget https://github.com/matter-labs/era-solidity/releases/download/$version/solc-linux-amd64-$version -O etc/solc-bin/zkVM-$version/solc
     chmod +x etc/solc-bin/zkVM-$version/solc
 done

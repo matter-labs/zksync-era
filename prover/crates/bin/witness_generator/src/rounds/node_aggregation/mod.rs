@@ -23,11 +23,12 @@ use zksync_prover_fri_types::{
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
-    prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
+    prover_dal::NodeAggregationJobMetadata, L1BatchId,
 };
 
+use super::JobMetadata;
 use crate::{
-    artifacts::ArtifactsManager,
+    artifacts::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
     rounds::JobManager,
     utils::{load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts},
@@ -37,7 +38,7 @@ mod artifacts;
 #[derive(Clone)]
 pub struct NodeAggregationArtifacts {
     circuit_id: u8,
-    block_number: L1BatchNumber,
+    batch_id: L1BatchId,
     depth: u16,
     pub next_aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     pub recursive_circuit_ids_and_urls: Vec<(u8, String)>,
@@ -46,7 +47,7 @@ pub struct NodeAggregationArtifacts {
 #[derive(Clone)]
 pub struct NodeAggregationWitnessGeneratorJob {
     circuit_id: u8,
-    block_number: L1BatchNumber,
+    batch_id: L1BatchId,
     depth: u16,
     aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     proofs_ids: Vec<u32>,
@@ -67,7 +68,7 @@ impl JobManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % job.block_number, circuit_id = % job.circuit_id)
+        fields(l1_batch = % job.batch_id, circuit_id = % job.circuit_id)
     )]
     async fn process_job(
         job: NodeAggregationWitnessGeneratorJob,
@@ -79,7 +80,7 @@ impl JobManager for NodeAggregation {
         tracing::info!(
             "Starting witness generation of type {:?} for block {} circuit id {} depth {}",
             AggregationRound::NodeAggregation,
-            job.block_number.0,
+            job.batch_id,
             job.circuit_id,
             job.depth
         );
@@ -122,14 +123,18 @@ impl JobManager for NodeAggregation {
                     .await
                     .expect("failed to get permit to process queues chunk");
 
-                let proofs = load_proofs_for_job_ids(&proofs_ids_for_chunk, &*object_store).await;
+                let job_ids: Vec<JobId> = proofs_ids_for_chunk
+                    .iter()
+                    .map(|id| JobId::new(*id, job.batch_id.chain_id()))
+                    .collect();
+                let proofs = load_proofs_for_job_ids(&job_ids, &*object_store).await;
                 let mut recursive_proofs = vec![];
                 for wrapper in proofs {
                     match wrapper {
                         FriProofWrapper::Base(_) => {
                             panic!(
                                 "Expected only recursive proofs for node agg {} {}",
-                                job.circuit_id, job.block_number
+                                job.circuit_id, job.batch_id
                             );
                         }
                         FriProofWrapper::Recursive(recursive_proof) => {
@@ -147,7 +152,7 @@ impl JobManager for NodeAggregation {
                 );
 
                 let recursive_circuit_id_and_url = save_recursive_layer_prover_input_artifacts(
-                    job.block_number,
+                    job.batch_id,
                     circuit_idx,
                     vec![recursive_circuit],
                     AggregationRound::NodeAggregation,
@@ -181,7 +186,7 @@ impl JobManager for NodeAggregation {
 
         tracing::info!(
             "Node witness generation for block {} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
-            job.block_number.0,
+            job.batch_id,
             job.circuit_id,
             job.depth,
             next_aggregations.len(),
@@ -190,7 +195,7 @@ impl JobManager for NodeAggregation {
 
         Ok(NodeAggregationArtifacts {
             circuit_id: job.circuit_id,
-            block_number: job.block_number,
+            batch_id: job.batch_id,
             depth: job.depth + 1,
             next_aggregations,
             recursive_circuit_ids_and_urls,
@@ -199,7 +204,7 @@ impl JobManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
+        fields(l1_batch = % metadata.batch_id, circuit_id = % metadata.circuit_id)
     )]
     async fn prepare_job(
         metadata: Self::Metadata,
@@ -227,7 +232,7 @@ impl JobManager for NodeAggregation {
 
         Ok(NodeAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,
-            block_number: metadata.block_number,
+            batch_id: metadata.batch_id,
             depth: metadata.depth,
             aggregations: artifacts.0,
             proofs_ids: metadata.prover_job_ids_for_proofs,
@@ -241,7 +246,7 @@ impl JobManager for NodeAggregation {
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+    ) -> anyhow::Result<Option<Self::Metadata>> {
         let pod_name = get_current_pod_name();
         let Some(metadata) = connection_pool
             .connection()
@@ -253,6 +258,12 @@ impl JobManager for NodeAggregation {
             return Ok(None);
         };
 
-        Ok(Some((metadata.id, metadata)))
+        Ok(Some(metadata))
+    }
+}
+
+impl JobMetadata for NodeAggregationJobMetadata {
+    fn job_id(&self) -> JobId {
+        JobId::new(self.id, self.batch_id.chain_id())
     }
 }

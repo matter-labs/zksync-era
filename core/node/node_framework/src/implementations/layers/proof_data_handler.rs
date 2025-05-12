@@ -117,6 +117,7 @@ impl Task for ProofDataHandlerTask {
                 self.main_pool,
                 self.proof_data_handler_config,
                 self.commitment_mode,
+                self.l2_chain_id,
             );
 
             let client_task = client.run(stop_receiver.0);

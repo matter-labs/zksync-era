@@ -561,10 +561,7 @@ impl L1BatchMetaParameters {
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
 
-        if self
-            .protocol_version
-            .map_or(false, |ver| ver.is_post_1_5_0())
-        {
+        if self.protocol_version.is_some_and(|ver| ver.is_post_1_5_0()) {
             let evm_emulator_code_hash = self
                 .evm_emulator_code_hash
                 .unwrap_or(self.default_aa_code_hash);

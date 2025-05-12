@@ -66,10 +66,10 @@ impl Task for ProofCompressorQueueReporter {
             .get_oldest_not_compressed_batch()
             .await;
 
-        if let Some(l1_batch_number) = oldest_not_compressed_batch {
+        if let Some(batch_id) = oldest_not_compressed_batch {
             PROVER_FRI_METRICS
                 .proof_compressor_oldest_uncompressed_batch
-                .set(l1_batch_number.0 as u64);
+                .set(batch_id.batch_number().0 as u64);
         }
 
         Ok(())

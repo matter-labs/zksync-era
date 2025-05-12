@@ -2,7 +2,6 @@
 
 use std::time::Duration;
 
-use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_da_client::{types::InclusionData, DataAvailabilityClient};
@@ -73,6 +72,7 @@ pub struct DataAvailabilityFetcher {
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     poll_interval: Duration,
+    last_scanned_batch: L1BatchNumber,
 }
 
 impl DataAvailabilityFetcher {
@@ -90,6 +90,7 @@ impl DataAvailabilityFetcher {
             pool,
             health_updater: ReactiveHealthCheck::new("data_availability_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
+            last_scanned_batch: L1BatchNumber(0),
         }
     }
 
@@ -98,7 +99,7 @@ impl DataAvailabilityFetcher {
         self.health_updater.subscribe()
     }
 
-    async fn get_batch_to_fetch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
+    async fn get_batch_to_fetch(&mut self) -> anyhow::Result<Option<L1BatchNumber>> {
         let mut storage = self
             .pool
             .connection_tagged("data_availability_fetcher")
@@ -114,28 +115,25 @@ impl DataAvailabilityFetcher {
 
         let last_l1_batch_with_da_info = storage
             .data_availability_dal()
-            .get_latest_batch_with_inclusion_data()
+            .get_latest_batch_with_inclusion_data(self.last_scanned_batch)
+            .await?
+            .unwrap_or(L1BatchNumber(0));
+
+        let l1_batch_to_fetch = storage
+            .blocks_dal()
+            .get_first_validium_l1_batch_number(last_l1_batch_with_da_info)
             .await?;
 
-        let l1_batch_to_fetch = if let Some(batch) = last_l1_batch_with_da_info {
-            batch + 1
-        } else {
-            let earliest_l1_batch = storage
-                .blocks_dal()
-                .get_earliest_l1_batch_number()
-                .await?
-                .context("all L1 batches disappeared from Postgres")?
-                .max(L1BatchNumber(1)); // if only the genesis batch is in the storage, we should start from the first one, skipping the genesis
+        let Some(l1_batch_to_fetch) = l1_batch_to_fetch else {
+            // if the batch is sealed but there are no Validium batches to process before it - we
+            // can skip all the batches including the last sealed one
+            self.last_scanned_batch = last_l1_batch;
 
-            tracing::debug!("No L1 batches with DA info present in the storage; will fetch the earliest batch #{earliest_l1_batch}");
-            earliest_l1_batch
+            tracing::debug!("No L1 batches to fetch DA info for");
+            return Ok(None);
         };
 
-        Ok(if l1_batch_to_fetch <= last_l1_batch {
-            Some(l1_batch_to_fetch)
-        } else {
-            None
-        })
+        Ok(Some(l1_batch_to_fetch))
     }
 
     async fn step(&mut self) -> Result<StepOutcome, DataAvailabilityFetcherError> {
@@ -226,13 +224,15 @@ impl DataAvailabilityFetcher {
                 da_details.l2_da_validator,
             )
             .await
-            .map_err(|err| to_fatal_error(err.generalize()))?;
+            .map_err(|err| to_retriable_error(err.generalize()))?;
 
         tracing::debug!(
             "Updated L1 batch #{} with DA blob id: {}",
             l1_batch_to_fetch,
             da_details.blob_id
         );
+        self.last_scanned_batch = l1_batch_to_fetch;
+
         Ok(StepOutcome::UpdatedBatch(l1_batch_to_fetch))
     }
 
@@ -243,12 +243,13 @@ impl DataAvailabilityFetcher {
         self.health_updater.update(health.into());
     }
 
-    /// Runs this component until a fatal error occurs or a stop signal is received. Retriable errors
+    /// Runs this component until a fatal error occurs or a stop request is received. Retriable errors
     /// (e.g., no network connection) are handled gracefully by retrying after a delay.
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
+        self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {
             let step_outcome = self.step().await;
@@ -296,7 +297,21 @@ impl DataAvailabilityFetcher {
                 break;
             }
         }
-        tracing::info!("Stop signal received; data availability fetcher is shutting down");
+        tracing::info!("Stop request received; data availability fetcher is shutting down");
+        Ok(())
+    }
+
+    /// Drops all entries from the database that do not have inclusion data.
+    /// This is necessary during snapshot recovery, otherwise the fetcher will try fetching the
+    /// batches that are already in the database.
+    pub async fn drop_entries_without_inclusion_data(&self) -> anyhow::Result<()> {
+        self.pool
+            .connection_tagged("data_availability_fetcher")
+            .await?
+            .data_availability_dal()
+            .remove_batches_without_inclusion_data()
+            .await?;
+
         Ok(())
     }
 }

@@ -214,7 +214,9 @@ impl WiringLayer for Web3ServerLayer {
             &l1_contracts,
             &input.l1_ecosystem_contracts_resource.0,
             &input.l2_contracts_resource.0,
-            input.initial_settlement_mode.0,
+            input
+                .initial_settlement_mode
+                .settlement_layer_for_sending_txs(),
         );
         let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
@@ -366,7 +368,7 @@ impl Task for ApiTaskGarbageCollector {
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        // We can ignore the stop signal here, since we're tied to the main API task through the channel:
+        // We can ignore a stop request here, since we're tied to the main API task through the channel:
         // it'll either get dropped if API cannot be built or will send something through the channel.
         // The tasks it sends are aware of the stop receiver themselves.
         let Ok(tasks) = self.task_receiver.await else {

@@ -178,7 +178,7 @@ pub struct InternalApiConfig {
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
-    pub settlement_layer: SettlementLayer,
+    pub settlement_layer: Option<SettlementLayer>,
 }
 
 impl InternalApiConfig {
@@ -187,7 +187,7 @@ impl InternalApiConfig {
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
-        settlement_layer: SettlementLayer,
+        settlement_layer: Option<SettlementLayer>,
     ) -> Self {
         Self {
             l1_chain_id: base.l1_chain_id,
@@ -243,7 +243,7 @@ impl InternalApiConfig {
             l1_contracts_config,
             l1_ecosystem_contracts,
             l2_contracts,
-            settlement_layer,
+            Some(settlement_layer),
         )
     }
 }

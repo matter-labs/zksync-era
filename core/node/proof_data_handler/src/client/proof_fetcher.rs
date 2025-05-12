@@ -4,7 +4,7 @@ use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchId, L2ChainId};
 
 use super::http_client::HttpClient;
 use crate::processor::{Locking, Processor};
@@ -21,12 +21,14 @@ impl ProofFetcher {
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         let processor = Processor::new(
             blob_store.clone(),
             pool.clone(),
             config.clone(),
             commitment_mode,
+            l2_chain_id,
         );
 
         let Some(api_url) = config.gateway_api_url.clone() else {
@@ -47,7 +49,7 @@ impl ProofFetcher {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!(
-                    "Stop signal received, proof generation data submitter is shutting down"
+                    "Stop request received, proof generation data submitter is shutting down"
                 );
                 break;
             }
@@ -58,20 +60,18 @@ impl ProofFetcher {
                 continue;
             };
 
-            match self.client.fetch_proof(batch_to_fetch).await {
-                Ok(Some(response)) => {
-                    tracing::info!("Received proof for batch {batch_to_fetch}");
+            if let Err(e) = self
+                .fetch_proof(L1BatchId::new(self.processor.chain_id(), batch_to_fetch))
+                .await
+            {
+                tracing::error!("Request failed to get proof for batch {batch_to_fetch}: {e}");
+            }
 
-                    self.processor
-                        .save_proof(response.l1_batch_number, response.proof.into())
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?;
-                    continue;
-                }
-                Ok(None) => {
-                    tracing::info!("No proof is ready yet");
-                }
-                Err(e) => {
+            if self.config.fetch_zero_chain_id_proofs {
+                if let Err(e) = self
+                    .fetch_proof(L1BatchId::new(L2ChainId::zero(), batch_to_fetch))
+                    .await
+                {
                     tracing::error!("Request failed to get proof for batch {batch_to_fetch}: {e}");
                 }
             }
@@ -84,5 +84,33 @@ impl ProofFetcher {
         }
 
         Ok(())
+    }
+
+    async fn fetch_proof(&self, l1_batch_id: L1BatchId) -> anyhow::Result<()> {
+        match self.client.fetch_proof(l1_batch_id).await {
+            Ok(Some(response)) => {
+                if l1_batch_id.chain_id() != L2ChainId::zero()
+                    && response.l1_batch_id.chain_id() != self.processor.chain_id()
+                {
+                    tracing::error!("Received proof for batch {l1_batch_id} with wrong chain id");
+                    return Err(anyhow::anyhow!(
+                        "Received proof for batch {l1_batch_id} with wrong chain id"
+                    ));
+                }
+
+                tracing::info!("Received proof for batch {l1_batch_id}");
+
+                self.processor
+                    .save_proof(l1_batch_id, response.proof.into())
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
+                Ok(())
+            }
+            Ok(None) => {
+                tracing::info!("No proof for batch {l1_batch_id} is ready yet");
+                Ok(())
+            }
+            Err(e) => Err(anyhow::anyhow!(e)),
+        }
     }
 }

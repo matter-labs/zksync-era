@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                chain_id,\n                status,\n                protocol_version,\n                protocol_version_patch\n            FROM\n                proof_compression_jobs_fri\n            WHERE\n                status IN ($1, $2)\n            ORDER BY\n                batch_sealed_at ASC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "chain_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "bfd3d37924e21184b111c6d606b4804c4934c727c6a74ac56b80de43faeec43f"
+}

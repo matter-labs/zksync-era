@@ -67,6 +67,7 @@ pub enum UnexecutableReason {
     BootloaderOutOfGas,
     NotEnoughGasProvided,
     TooMuchUserL2L1Logs,
+    DeploymentNotAllowed,
 }
 
 impl UnexecutableReason {
@@ -82,6 +83,7 @@ impl UnexecutableReason {
             UnexecutableReason::BootloaderOutOfGas => "BootloaderOutOfGas",
             UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
             UnexecutableReason::TooMuchUserL2L1Logs => "TooMuchUserL2L1Logs",
+            UnexecutableReason::DeploymentNotAllowed => "DeploymentNotAllowed",
         }
     }
 }
@@ -107,6 +109,7 @@ impl fmt::Display for UnexecutableReason {
             UnexecutableReason::BootloaderOutOfGas => write!(f, "Bootloader out of gas"),
             UnexecutableReason::NotEnoughGasProvided => write!(f, "Not enough gas provided"),
             UnexecutableReason::TooMuchUserL2L1Logs => write!(f, "Too much user l2 l1 logs"),
+            UnexecutableReason::DeploymentNotAllowed => write!(f, "Deployment not allowed"),
         }
     }
 }

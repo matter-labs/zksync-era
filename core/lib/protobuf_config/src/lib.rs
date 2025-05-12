@@ -33,6 +33,7 @@ mod pruning;
 mod secrets;
 mod snapshot_recovery;
 mod snapshots_creator;
+mod tee_proof_data_handler;
 #[cfg(test)]
 mod tests;
 mod timestamp_asserter;

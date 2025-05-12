@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l2_da_validator_address, pubdata_type\n            FROM\n                miniblocks\n            WHERE\n                l1_batch_number = $1\n            ORDER BY number ASC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l2_da_validator_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "pubdata_type",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7bcc94d0fdc105bb7f307bfe23c3f732f3682e2e1cd1751f88b95eff295359bd"
+}
