@@ -1,8 +1,7 @@
 //! Hashing operations on the Merkle tree.
 
-use std::{fmt, iter};
+use std::{fmt, iter, sync::LazyLock};
 
-use once_cell::sync::Lazy;
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 
 pub(crate) use self::nodes::{InternalNodeCache, MerklePath};
@@ -130,7 +129,8 @@ impl HashTree for Blake2Hasher {
 
     /// Returns the hash of an empty subtree with the given depth.
     fn empty_subtree_hash(&self, depth: usize) -> ValueHash {
-        static EMPTY_TREE_HASHES: Lazy<Vec<ValueHash>> = Lazy::new(compute_empty_tree_hashes);
+        static EMPTY_TREE_HASHES: LazyLock<Vec<ValueHash>> =
+            LazyLock::new(compute_empty_tree_hashes);
         EMPTY_TREE_HASHES[depth]
     }
 }

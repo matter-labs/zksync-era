@@ -57,7 +57,7 @@ impl GatewayMigrator {
         let gateway_client = self.gateway_client.as_deref();
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, GatewayMigrator is shutting down");
+                tracing::info!("Stop request received, GatewayMigrator is shutting down");
                 return Ok(());
             }
             let current_settlement_layer = current_settlement_layer(

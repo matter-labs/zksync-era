@@ -121,14 +121,12 @@ async fn sync_test_storage(dir: &TempDir, pool: &ConnectionPool<Core>) -> Rocksd
         .expect("Failed initializing RocksDB")
         .ensure_ready(pool, &stop_receiver)
         .await
-        .expect("Failed recovering RocksDB")
-        .expect("recovery interrupted");
+        .expect("Failed recovering RocksDB");
     let mut conn = pool.connection().await.unwrap();
     rocksdb
         .synchronize(&mut conn, &stop_receiver, None)
         .await
         .unwrap()
-        .expect("Storage synchronization unexpectedly stopped")
 }
 
 async fn sync_test_storage_and_check_recovery(
@@ -142,8 +140,7 @@ async fn sync_test_storage_and_check_recovery(
         .expect("Failed initializing RocksDB")
         .ensure_ready(pool, &stop_receiver)
         .await
-        .unwrap()
-        .expect("initialization interrupted");
+        .unwrap();
     assert_eq!(
         matches!(init_strategy, InitStrategy::Recovery),
         expect_recovery
@@ -154,7 +151,6 @@ async fn sync_test_storage_and_check_recovery(
         .synchronize(&mut conn, &stop_receiver, None)
         .await
         .unwrap()
-        .expect("Storage synchronization unexpectedly stopped")
 }
 
 #[tokio::test]
@@ -195,8 +191,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
         .expect("Failed initializing RocksDB")
         .ensure_ready(&pool, &stop_receiver)
         .await
-        .unwrap()
-        .expect("recovery interrupted");
+        .unwrap();
     let expected_l1_batch_number = AtomicU32::new(0);
     storage.listener.on_l1_batch_synced = Arc::new(move |number: L1BatchNumber| {
         assert_eq!(
@@ -207,11 +202,11 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
             stop_sender.send_replace(true);
         }
     });
-    let storage = storage
+    let err = storage
         .synchronize(&mut conn, &stop_receiver, None)
         .await
-        .unwrap();
-    assert!(storage.is_none());
+        .unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 
     // Resume storage syncing and check that it completes.
     let storage = RocksdbStorage::builder(dir.path())
@@ -224,8 +219,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
     let mut storage = storage
         .synchronize(&mut conn, &stop_receiver, None)
         .await
-        .unwrap()
-        .expect("Storage synchronization unexpectedly stopped");
+        .unwrap();
     assert_eq!(storage.next_l1_batch_number().await, L1BatchNumber(6));
     for log in &storage_logs {
         assert_eq!(storage.read_value(&log.key), log.value);
@@ -335,11 +329,10 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
         .await
         .unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let (_, next_l1_batch) = storage
+    storage
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
-    assert_eq!(next_l1_batch, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(
         storage.next_l1_batch_number().await,
         snapshot_recovery.l1_batch_number + 1
@@ -488,7 +481,7 @@ async fn partially_recover_storage(
         .ensure_ready(pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap_err();
-    assert_matches!(err, RocksdbSyncError::Interrupted);
+    assert_matches!(err, OrStopped::Stopped);
 
     let recovery_l1_batch = storage.recovery_l1_batch_number().await.unwrap();
     let recovery_l1_batch = recovery_l1_batch.expect("no recovery batch");
@@ -520,11 +513,13 @@ async fn recovery_fault_tolerance(from_genesis: bool) {
         synced_chunk_count_for_listener.fetch_add(1, Ordering::Relaxed);
     });
 
-    let (strategy, next_l1_batch) = storage
+    let strategy = storage
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
     assert_matches!(strategy, InitStrategy::Recovery);
+
+    let next_l1_batch = storage.next_l1_batch_number().await;
     if from_genesis {
         assert_eq!(next_l1_batch, L1BatchNumber(1));
     } else {
@@ -565,11 +560,12 @@ async fn entire_workflow_for_genesis_recovery() {
 
     let log_chunk_size = 100;
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let (strategy, next_l1_batch) = storage
+    let strategy = storage
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
     assert_matches!(strategy, InitStrategy::Recovery);
+    let next_l1_batch = storage.next_l1_batch_number().await;
     assert_eq!(next_l1_batch, L1BatchNumber(1));
 
     let recovery_l1_batch = storage.recovery_l1_batch_number().await.unwrap();
@@ -603,11 +599,12 @@ async fn recovery_with_pruning() {
 
     let log_chunk_size = 10;
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let (strategy, next_l1_batch) = storage
+    let strategy = storage
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
     assert_matches!(strategy, InitStrategy::Recovery);
+    let next_l1_batch = storage.next_l1_batch_number().await;
     assert_eq!(next_l1_batch, L1BatchNumber(2));
 
     for log in &storage_logs {
@@ -628,8 +625,7 @@ async fn recovery_with_pruning() {
     let mut storage = storage
         .synchronize(&mut conn, &stop_receiver, None)
         .await
-        .unwrap()
-        .expect("sync interrupted");
+        .unwrap();
 
     assert!(is_synced.load(Ordering::Relaxed));
     for log in storage_logs.iter().chain(&overwritten_logs) {
@@ -668,11 +664,12 @@ async fn recovery_with_pruning_and_overwritten_logs() {
         .unwrap();
     let log_chunk_size = 10;
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let (strategy, next_l1_batch) = storage
+    let strategy = storage
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap();
     assert_matches!(strategy, InitStrategy::Recovery);
+    let next_l1_batch = storage.next_l1_batch_number().await;
     assert_eq!(next_l1_batch, L1BatchNumber(3));
 
     for log in &storage_logs {
@@ -715,7 +712,7 @@ async fn recovery_detects_additional_pruning_after_restart(from_genesis: bool) {
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap_err();
-    let RocksdbSyncError::Internal(err) = err else {
+    let OrStopped::Internal(err) = err else {
         panic!("Expected internal error");
     };
     assert!(
@@ -772,7 +769,7 @@ async fn recovery_detects_additional_pruning_in_progress() {
         .ensure_ready(&pool, log_chunk_size, &stop_receiver)
         .await
         .unwrap_err();
-    let RocksdbSyncError::Internal(err) = err else {
+    let OrStopped::Internal(err) = err else {
         panic!("Expected internal error");
     };
     assert!(

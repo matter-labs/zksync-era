@@ -92,6 +92,7 @@ impl L1UpdaterInner {
 }
 
 // Define the enum to hold either updater
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum BridgeAddressesUpdaterTask {
     L1Updater(L1UpdaterInner),

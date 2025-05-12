@@ -368,7 +368,7 @@ impl Task for ApiTaskGarbageCollector {
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        // We can ignore the stop signal here, since we're tied to the main API task through the channel:
+        // We can ignore a stop request here, since we're tied to the main API task through the channel:
         // it'll either get dropped if API cannot be built or will send something through the channel.
         // The tasks it sends are aware of the stop receiver themselves.
         let Ok(tasks) = self.task_receiver.await else {

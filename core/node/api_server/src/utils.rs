@@ -60,7 +60,7 @@ impl ReportFilter {
     pub fn should_report(&self) -> bool {
         let timestamp = self.last_timestamp.get();
         let now = Instant::now();
-        if timestamp.map_or(true, |ts| now - ts > self.interval) {
+        if timestamp.is_none_or(|ts| now - ts > self.interval) {
             self.last_timestamp.set(Some(now));
             true
         } else {

@@ -41,7 +41,7 @@ pub fn build_git_submodules(_item: TokenStream) -> TokenStream {
             // Index 0 is commit hash, index 1 is the path to the folder, and there
             // may be some metainformation after that.
             if parts.len() >= 2 {
-                let folder_name = parts[1].split('/').last().unwrap_or(parts[1]);
+                let folder_name = parts[1].split('/').next_back().unwrap_or(parts[1]);
                 Some((folder_name, parts[0]))
             } else {
                 None

@@ -814,6 +814,12 @@ impl MainNodeBuilder {
             _ => 0,
         });
 
+        if components.contains(&Component::EthTxAggregator)
+            | components.contains(&Component::EthTxManager)
+        {
+            self = self.add_pk_signing_client_layer()?;
+        }
+
         // Add "component-specific" layers.
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
@@ -864,9 +870,7 @@ impl MainNodeBuilder {
                     self = self.add_eth_watch_layer()?;
                 }
                 Component::EthTxAggregator => {
-                    self = self
-                        .add_pk_signing_client_layer()?
-                        .add_eth_tx_aggregator_layer()?;
+                    self = self.add_eth_tx_aggregator_layer()?;
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
