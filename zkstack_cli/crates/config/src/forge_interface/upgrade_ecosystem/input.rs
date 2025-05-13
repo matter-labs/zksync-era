@@ -98,7 +98,7 @@ impl EcosystemUpgradeInput {
                 token_weth_address: initial_deployment_config.token_weth_address,
             },
             support_l2_legacy_shared_bridge_test: false,
-            old_protocol_version: "0x1e00000000".to_string(),
+            old_protocol_version: "0x1c00000000".to_string(),
             priority_txs_l2_gas_limit: 800,
             max_expected_l1_gas_price: 10000000000,
         }
