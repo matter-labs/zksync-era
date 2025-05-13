@@ -9,7 +9,7 @@ use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 #[config(derive(Default))]
 pub struct ContractVerifierConfig {
     /// Max time of a single compilation (in s).
-    #[config(default_t = Duration::from_secs(240), with = TimeUnit::Seconds)]
+    #[config(default_t = 4 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
     pub compilation_timeout: Duration,
     /// Port to which the Prometheus exporter server is listening.
     #[config(default_t = 3_318)]

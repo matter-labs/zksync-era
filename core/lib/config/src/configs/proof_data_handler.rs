@@ -5,7 +5,7 @@ use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
-    #[config(default_t = Duration::from_secs(60), with = TimeUnit::Seconds)]
+    #[config(default_t = 1 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
     pub proof_generation_timeout_in_secs: Duration,
     pub gateway_api_url: Option<String>,
     #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]

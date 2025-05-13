@@ -12,7 +12,7 @@ pub struct FriProverConfig {
     pub prometheus_port: u16,
     #[config(default_t = 5)]
     pub max_attempts: u32,
-    #[config(default_t = Duration::from_secs(600), with = TimeUnit::Seconds)]
+    #[config(default_t = 10 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
     pub generation_timeout_in_secs: Duration,
     #[config(nest)]
     pub prover_object_store: ObjectStoreConfig,

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use smart_config::{DescribeConfig, DeserializeConfig};
+use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 
 /// Config used for running ProverJobMonitor.
 /// It handles configuration for setup of the binary (like database connections, prometheus) and configuration for jobs that are being ran.
@@ -18,16 +18,16 @@ pub struct ProverJobMonitorConfig {
     #[config(default_t = Duration::from_secs(5))]
     pub graceful_shutdown_timeout: Duration,
     /// The interval between runs for GPU Prover Archiver.
-    #[config(default_t = Duration::from_secs(86_400))]
+    #[config(default_t = 1 * TimeUnit::Days)]
     pub gpu_prover_archiver_run_interval: Duration,
     /// The amount of time after which 'dead' provers can be archived.
-    #[config(default_t = Duration::from_secs(86_400 * 2))]
+    #[config(default_t = 2 * TimeUnit::Days)]
     pub gpu_prover_archiver_archive_prover_after: Duration,
     /// The interval between runs for Prover Jobs Archiver.
-    #[config(default_t = Duration::from_secs(1_800))]
+    #[config(default_t = 30 * TimeUnit::Minutes)]
     pub prover_jobs_archiver_run_interval: Duration,
     /// The amount of time after which completed jobs (that belong to completed batches) can be archived.
-    #[config(default_t = Duration::from_secs(86_400 * 2))]
+    #[config(default_t = 2 * TimeUnit::Days)]
     pub prover_jobs_archiver_archive_jobs_after: Duration,
     /// The interval between runs for Proof Compressor Job Requeuer.
     #[config(default_t = Duration::from_secs(10))]

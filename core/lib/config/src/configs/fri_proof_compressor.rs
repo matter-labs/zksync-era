@@ -15,7 +15,7 @@ pub struct FriProofCompressorConfig {
     pub prometheus_push_interval_ms: Duration,
 
     /// Max time for proof compression to be performed
-    #[config(default_t = Duration::from_secs(3_600), with = TimeUnit::Seconds)]
+    #[config(default_t = 1 * TimeUnit::Hours, with = TimeUnit::Seconds)]
     pub generation_timeout_in_secs: Duration,
     /// Max attempts for proof compression to be performed
     #[config(default_t = 5)]

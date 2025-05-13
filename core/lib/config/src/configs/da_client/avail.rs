@@ -2,8 +2,9 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{FromSecretString, Optional, WellKnown},
-    DescribeConfig, DeserializeConfig, Serde,
+    de::{FromSecretString, Optional, Serde, WellKnown},
+    metadata::TimeUnit,
+    DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
@@ -55,7 +56,7 @@ pub struct AvailDefaultConfig {
     #[config(default)]
     #[serde(default)]
     pub finality_state: AvailFinalityState,
-    #[config(default_t = Duration::from_secs(180))]
+    #[config(default_t = 3 * TimeUnit::Minutes)]
     #[serde(default = "AvailDefaultConfig::default_dispatch_timeout")]
     pub dispatch_timeout: Duration,
 }

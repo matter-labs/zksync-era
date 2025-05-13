@@ -174,7 +174,7 @@ pub struct OperationsManagerConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct CircuitBreakerConfig {
-    #[config(default_t = Duration::from_secs(120), with = TimeUnit::Millis)]
+    #[config(default_t = 2 * TimeUnit::Minutes, with = TimeUnit::Millis)]
     pub sync_interval_ms: Duration,
     #[config(default_t = 10)]
     pub http_req_max_retry_number: usize,
@@ -193,7 +193,7 @@ pub struct MempoolConfig {
     pub sync_batch_size: usize,
     #[config(default_t = 10_000_000)]
     pub capacity: u64,
-    #[config(default_t = Duration::from_secs(172_800), with = TimeUnit::Seconds)]
+    #[config(default_t = 2 * TimeUnit::Days, with = TimeUnit::Seconds)]
     pub stuck_tx_timeout: Duration,
     #[config(default_t = true)]
     pub remove_stuck_txs: bool,
@@ -208,8 +208,8 @@ pub struct MempoolConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct TimestampAsserterConfig {
-    /// Minimum time between current block.timestamp and the end of the asserted range
-    #[config(default_t = Duration::from_secs(60), with = TimeUnit::Seconds)]
+    /// Minimum time between current `block.timestamp` and the end of the asserted range.
+    #[config(default_t = 1 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
     pub min_time_till_end_sec: Duration,
 }
 
@@ -229,7 +229,7 @@ pub struct DeploymentAllowlistDynamic {
     /// HTTP URL to fetch the file from.
     pub http_file_url: String,
     /// Refresh interval between fetches.
-    #[config(default_t = Duration::from_secs(300))]
+    #[config(default_t = 5 * TimeUnit::Minutes)]
     pub refresh_interval: Duration,
 }
 

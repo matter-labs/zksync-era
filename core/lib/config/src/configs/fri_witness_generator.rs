@@ -12,7 +12,7 @@ use zksync_basic_types::L1BatchNumber;
 #[config(derive(Default))]
 pub struct FriWitnessGeneratorConfig {
     /// Max time for witness to be generated
-    #[config(default_t = Duration::from_secs(900), with = TimeUnit::Seconds)]
+    #[config(default_t = 15 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
     pub generation_timeout_in_secs: Duration,
     #[config(with = Optional(TimeUnit::Seconds))]
     pub basic_generation_timeout_in_secs: Option<Duration>,
