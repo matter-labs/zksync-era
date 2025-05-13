@@ -311,7 +311,7 @@ fn set_file_backed_path_if_selected(
 ) -> anyhow::Result<()> {
     let mode_path = format!("{prefix}.mode");
     let mode = config.base().get_opt::<String>(&mode_path)?;
-    let is_file_backed = mode.as_ref().map_or(true, |mode| mode == "FileBacked");
+    let is_file_backed = mode.as_ref().is_none_or(|mode| mode == "FileBacked");
 
     if is_file_backed {
         config.insert(&mode_path, "FileBacked")?;
