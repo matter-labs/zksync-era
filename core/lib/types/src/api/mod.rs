@@ -85,6 +85,8 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "latest" => BlockNumber::Latest,
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
+                    // For zksync safe is finalized, but for compatibility with ethereum it's required to introduce it.
+                    "safe" => BlockNumber::Finalized,
                     "pending" => BlockNumber::Pending,
                     num => {
                         let number =
