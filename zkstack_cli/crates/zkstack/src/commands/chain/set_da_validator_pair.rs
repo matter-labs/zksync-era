@@ -30,12 +30,12 @@ pub struct SetDAValidatorPairArgs {
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
 
-    /// Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
-    pub max_l1_gas_price: Option<u64>,
-
     /// The address of the DA validator be to used on the settlement layer.
     /// It is a contract that is deployed on the corresponding settlement layer (either L1 or GW).
     pub l1_da_validator: Address,
+
+    /// Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
+    pub max_l1_gas_price: Option<u64>,
 }
 
 pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<()> {
