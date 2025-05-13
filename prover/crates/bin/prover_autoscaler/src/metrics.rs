@@ -29,6 +29,8 @@ pub(crate) struct AutoscalerMetrics {
     pub scale_errors: LabeledFamily<ClusterName, Gauge<u64>>,
     #[metrics(labels = ["target_namespace", "job"])]
     pub queue: LabeledFamily<(NamespaceName, DeploymentName), Gauge<usize>, 2>,
+    #[metrics(labels = ["pod_name"])]
+    pub stale_pods: LabeledFamily<String, Counter, 1>,
 }
 
 #[vise::register]
