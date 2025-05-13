@@ -20,7 +20,7 @@ use zksync_types::{
             self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
             VerificationProblem, VerificationRequest,
         },
-        contract_identifier::{ContractIdentifier, DetectedMetadata, Match},
+        contract_identifier::{CborMetadata, ContractIdentifier, DetectedMetadata, Match},
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
@@ -271,9 +271,15 @@ impl ContractVerifier {
         let deployed_identifier =
             ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
 
-        // Updates the compiler versions in the request to match the metadata if they do not match.
-        self.update_request_compiler_versions(&mut request, &deployed_identifier.detected_metadata)
-            .await?;
+        if let Some(DetectedMetadata::Cbor {
+            metadata: cbor_metadata,
+            ..
+        }) = &deployed_identifier.detected_metadata
+        {
+            // Updates the compiler versions in the request to match the metadata if they do not match.
+            self.update_request_compiler_versions(&mut request, cbor_metadata)
+                .await?;
+        }
 
         let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
         let mut compiled_code = artifacts.deployed_bytecode().to_vec();
@@ -365,24 +371,18 @@ impl ContractVerifier {
     async fn update_request_compiler_versions(
         &self,
         request: &mut VerificationRequest,
-        deployed_metadata: &Option<DetectedMetadata>,
+        cbor_metadata: &CborMetadata,
     ) -> Result<(), ContractVerifierError> {
-        if let Some(DetectedMetadata::Cbor {
-            metadata: cbor_metadata,
-            ..
-        }) = deployed_metadata
-        {
-            let (compiler_version, zk_compiler_version) = cbor_metadata.get_compiler_versions();
-            let request_compiler = request.req.compiler_versions.compiler_version();
-            let request_zk_compiler = request.req.compiler_versions.zk_compiler_version();
+        let (compiler_version, zk_compiler_version) = cbor_metadata.get_compiler_versions();
+        let request_compiler = request.req.compiler_versions.compiler_version();
+        let request_zk_compiler = request.req.compiler_versions.zk_compiler_version();
 
-            // If the metadata doesn't contain the compiler version, we assume that it is the same as in the request.
-            let metadata_compiler = compiler_version.as_deref().unwrap_or(request_compiler);
-            let metadata_zk_compiler = zk_compiler_version.as_deref().or(request_zk_compiler);
+        // If the metadata doesn't contain the compiler version, we assume that it is the same as in the request.
+        let metadata_compiler = compiler_version.as_deref().unwrap_or(request_compiler);
+        let metadata_zk_compiler = zk_compiler_version.as_deref().or(request_zk_compiler);
 
-            if request_compiler != metadata_compiler || request_zk_compiler != metadata_zk_compiler
-            {
-                tracing::warn!(
+        if request_compiler != metadata_compiler || request_zk_compiler != metadata_zk_compiler {
+            tracing::warn!(
                     request_id = request.id,
                     request_compiler,
                     request_zk_compiler,
@@ -391,36 +391,35 @@ impl ContractVerifier {
                     "Compiler versions in the request don't match the ones in the CBOR metadata. Updating the request."
                 );
 
-                let mut storage = self
-                    .connection_pool
-                    .connection_tagged("contract_verifier")
-                    .await?;
+            let mut storage = self
+                .connection_pool
+                .connection_tagged("contract_verifier")
+                .await?;
 
-                // Update the verification request in the DB because other components depend on the compiler versions,
-                // such as Etherscan verification and block explorer.
-                storage
-                    .contract_verification_dal()
-                    .update_verification_request_compiler_versions(
-                        request.id,
-                        metadata_compiler,
-                        metadata_zk_compiler,
-                    )
-                    .await?;
+            // Update the verification request in the DB because other components depend on the compiler versions,
+            // such as Etherscan verification and block explorer.
+            storage
+                .contract_verification_dal()
+                .update_verification_request_compiler_versions(
+                    request.id,
+                    metadata_compiler,
+                    metadata_zk_compiler,
+                )
+                .await?;
 
-                // Update the verification request instance, so it's passed to the compiler with the correct versions.
-                match request.req.compiler_versions.compiler_type() {
-                    api::CompilerType::Solc => {
-                        request.req.compiler_versions = api::CompilerVersions::Solc {
-                            compiler_solc_version: metadata_compiler.to_string(),
-                            compiler_zksolc_version: metadata_zk_compiler.map(str::to_string),
-                        };
-                    }
-                    api::CompilerType::Vyper => {
-                        request.req.compiler_versions = api::CompilerVersions::Vyper {
-                            compiler_vyper_version: metadata_compiler.to_string(),
-                            compiler_zkvyper_version: metadata_zk_compiler.map(str::to_string),
-                        };
-                    }
+            // Update the verification request instance, so it's passed to the compiler with the correct versions.
+            match request.req.compiler_versions.compiler_type() {
+                api::CompilerType::Solc => {
+                    request.req.compiler_versions = api::CompilerVersions::Solc {
+                        compiler_solc_version: metadata_compiler.to_string(),
+                        compiler_zksolc_version: metadata_zk_compiler.map(str::to_string),
+                    };
+                }
+                api::CompilerType::Vyper => {
+                    request.req.compiler_versions = api::CompilerVersions::Vyper {
+                        compiler_vyper_version: metadata_compiler.to_string(),
+                        compiler_zkvyper_version: metadata_zk_compiler.map(str::to_string),
+                    };
                 }
             }
         }
