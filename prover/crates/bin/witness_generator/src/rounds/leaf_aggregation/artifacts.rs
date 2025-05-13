@@ -115,7 +115,9 @@ impl ArtifactsManager for LeafAggregation {
                 protocol_version_id,
                 batch_sealed_at,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert prover jobs: {}", e))?;
+
         tracing::info!(
             "Updating node aggregation jobs url for job_id {}, block {} with circuit id {}",
             job_id,
