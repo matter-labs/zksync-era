@@ -21,6 +21,20 @@ pub struct FriProverGatewayConfig {
     pub prometheus_listener_port: u16,
 }
 
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub enum ApiMode {
+    /// The legacy API mode, which is compatible with the old prover API.
+    #[default]
+    Legacy,
+    /// The new API mode, which is compatible with the prover cluster API.
+    ProverCluster,
+}
+
+impl WellKnown for ApiMode {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
+}
+
 #[cfg(test)]
 mod tests {
     use smart_config::{
@@ -70,18 +84,4 @@ mod tests {
         let config: FriProverGatewayConfig = test(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub enum ApiMode {
-    /// The legacy API mode, which is compatible with the old prover API.
-    #[default]
-    Legacy,
-    /// The new API mode, which is compatible with the prover cluster API.
-    ProverCluster,
-}
-
-impl WellKnown for ApiMode {
-    type Deserializer = Serde![str];
-    const DE: Self::Deserializer = Serde![str];
 }
