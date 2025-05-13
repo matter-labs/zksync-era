@@ -144,9 +144,6 @@ impl CborCompilerVersion {
 
 /// Possible values for the metadata hashes structure.
 /// Details can be found here: https://docs.soliditylang.org/en/latest/metadata.html
-///
-/// We're not really interested in the values here, we just want to make sure that we
-/// can deserialize the metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct CborMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
