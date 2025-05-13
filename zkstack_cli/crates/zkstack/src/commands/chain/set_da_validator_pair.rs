@@ -6,7 +6,10 @@ use zkstack_cli_config::EcosystemConfig;
 
 use crate::{
     admin_functions::{set_da_validator_pair, AdminScriptMode},
-    commands::chain::utils::get_default_foundry_path,
+    commands::chain::{
+        gateway::gateway_common::get_settlement_layer_address_from_l1,
+        utils::get_default_foundry_path,
+    },
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
         MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER,
@@ -19,7 +22,15 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let gateway_url = chain_config.get_secrets_config().await?.gateway_rpc_url();
+
+    let mut diamond_proxy_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
+    let mut l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    if gateway_url.is_ok() {
+        diamond_proxy_address =
+            get_settlement_layer_address_from_l1(l1_url, diamond_proxy_address).await?;
+        l1_url = gateway_url?;
+    }
 
     let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
 
@@ -38,7 +49,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &get_default_foundry_path(shell)?,
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
         chain_config.chain_id.as_u64(),
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        diamond_proxy_address,
         l1_da_validator_address,
         l2_da_validator_address,
         l1_url,

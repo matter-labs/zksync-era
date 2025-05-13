@@ -187,6 +187,15 @@ async fn get_batch_execution_status(
     Ok((total_committed, total_executed))
 }
 
+pub(crate) async fn get_settlement_layer_address_from_l1(
+    l1_rpc_url: String,
+    l1_diamond_proxy_address: Address,
+) -> anyhow::Result<Address> {
+    let l1_provider = get_ethers_provider(&l1_rpc_url)?;
+    let l1_zkchain_abi = ZkChainAbi::new(l1_diamond_proxy_address, l1_provider.clone());
+    Ok(l1_zkchain_abi.get_settlement_layer().await?)
+}
+
 pub(crate) async fn get_gateway_migration_state(
     l1_rpc_url: String,
     l1_bridgehub_addr: Address,

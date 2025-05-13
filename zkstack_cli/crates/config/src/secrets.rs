@@ -36,6 +36,10 @@ impl SecretsConfig {
         self.0.get("l1.l1_rpc_url")
     }
 
+    pub fn gateway_rpc_url(&self) -> anyhow::Result<String> {
+        self.0.get("l1.gateway_rpc_url")
+    }
+
     pub fn raw_consensus_node_key(&self) -> anyhow::Result<String> {
         self.0.get("consensus.node_key")
     }

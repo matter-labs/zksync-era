@@ -22,6 +22,7 @@ abigen!(
     function getTotalBatchesCommitted()(uint256)
     function getTotalBatchesVerified()(uint256)
     function getTotalBatchesExecuted()(uint256)
+    function getSettlementLayer()(address)
 ]"
 );
 
