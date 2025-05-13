@@ -12,7 +12,7 @@ use crate::{
     },
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
-        MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER,
+        MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW, MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER,
     },
 };
 
@@ -26,15 +26,15 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_id = chain_config.chain_id.as_u64();
 
     let mut diamond_proxy_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
-    let mut l1_url = chain_config
+    let mut settlement_layer_url = chain_config
         .get_secrets_config()
         .await?
         .l1_rpc_url()?
         .to_string();
     if gateway_url.is_ok() {
-        l1_url = gateway_url?.to_string();
+        settlement_layer_url = gateway_url?.to_string();
         diamond_proxy_address =
-            get_settlement_layer_address_from_gw(l1_url.clone(), chain_id).await?;
+            get_settlement_layer_address_from_gw(settlement_layer_url.clone(), chain_id).await?;
     }
 
     let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
@@ -48,6 +48,11 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .da_validator_addr
         .context("da_validator_addr")?;
 
+    logger::note(
+        MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
+        format!("{}", hex::encode(diamond_proxy_address)),
+    );
+
     set_da_validator_pair(
         shell,
         &args.clone(),
@@ -57,7 +62,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         diamond_proxy_address,
         l1_da_validator_address,
         l2_da_validator_address,
-        l1_url,
+        settlement_layer_url,
     )
     .await?;
 

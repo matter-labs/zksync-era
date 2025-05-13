@@ -109,6 +109,8 @@ pub(super) const MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER: &str = "Updating da val
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
     "Token multiplier setter updated to";
 pub(super) const MSG_DA_VALIDATOR_PAIR_UPDATED_TO: &str = "DA validator pair updated to";
+pub(super) const MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW: &str =
+    "Got the settlement layer address from gateway";
 pub(super) const MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER: &str =
     "Updating pubdata pricing mode...";
 pub(super) const MSG_PUBDATA_PRICING_MODE_UPDATED_TO: &str = "Pubdata pricing mode updated to";
