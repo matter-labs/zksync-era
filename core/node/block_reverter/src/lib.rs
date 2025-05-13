@@ -14,7 +14,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     ethabi::Token,
     settlement::SettlementLayer,
     snapshots::{
@@ -561,12 +561,12 @@ impl BlockReverter {
     async fn get_l1_batch_number_from_contract(
         eth_client: &dyn EthInterface,
         contract_address: Address,
-        op: AggregatedActionType,
+        op: L1BatchAggregatedActionType,
     ) -> anyhow::Result<L1BatchNumber> {
         let function_name = match op {
-            AggregatedActionType::Commit => "getTotalBatchesCommitted",
-            AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
-            AggregatedActionType::Execute => "getTotalBatchesExecuted",
+            L1BatchAggregatedActionType::Commit => "getTotalBatchesCommitted",
+            L1BatchAggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
+            L1BatchAggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())
             .for_contract(contract_address, &hyperchain_contract())
@@ -592,19 +592,19 @@ impl BlockReverter {
         let last_committed_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await?;
         let last_verified_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::PublishProofOnchain,
         )
         .await?;
         let last_executed_l1_batch_number = Self::get_l1_batch_number_from_contract(
             eth_client,
             contract_address,
-            AggregatedActionType::Execute,
+            L1BatchAggregatedActionType::Execute,
         )
         .await?;
 

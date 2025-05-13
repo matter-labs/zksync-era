@@ -14,7 +14,7 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     block::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
@@ -46,6 +46,43 @@ pub struct BlocksDal<'a, 'c> {
 }
 
 impl BlocksDal<'_, '_> {
+    pub async fn seal_rolling_txs_hash(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        miniblock_number: L2BlockNumber,
+        rolling_hash: H256,
+        final_hash: bool,
+    ) -> DalResult<()> {
+        let mut tx = self.storage.start_transaction().await?;
+        let rolling_tx_hash_id = sqlx::query!(
+            "INSERT INTO rolling_tx_hashes (l1_batch_number, rolling_hash, final) VALUES ($1, $2, $3) returning id",
+            i64::from(l1_batch_number.0),
+            rolling_hash.as_bytes(),
+            final_hash,
+            )
+            .instrument("insert_rolling_txs_hash")
+            .report_latency()
+            .fetch_one(&mut tx)
+            .await?.id;
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                rolling_txs_id = $1,
+                updated_at = NOW()
+            WHERE
+                number = $2
+            "#,
+            rolling_tx_hash_id,
+            i64::from(miniblock_number.0)
+        )
+        .instrument("set_rolling_txs_hash")
+        .report_latency()
+        .execute(&mut tx)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_consistency_checker_last_processed_l1_batch(
         &mut self,
     ) -> DalResult<L1BatchNumber> {
@@ -553,10 +590,10 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number_range: ops::RangeInclusive<L1BatchNumber>,
         eth_tx_id: u32,
-        aggregation_type: AggregatedActionType,
+        aggregation_type: L1BatchAggregatedActionType,
     ) -> DalResult<()> {
         match aggregation_type {
-            AggregatedActionType::Commit => {
+            L1BatchAggregatedActionType::Commit => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#commit")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -588,7 +625,7 @@ impl BlocksDal<'_, '_> {
                     return Err(err);
                 }
             }
-            AggregatedActionType::PublishProofOnchain => {
+            L1BatchAggregatedActionType::PublishProofOnchain => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#prove")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -620,7 +657,7 @@ impl BlocksDal<'_, '_> {
                     return Err(err);
                 }
             }
-            AggregatedActionType::Execute => {
+            L1BatchAggregatedActionType::Execute => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#execute")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -3146,7 +3183,10 @@ mod tests {
         ConnectionPool, Core, CoreDal,
     };
 
-    async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
+    async fn save_mock_eth_tx(
+        action_type: L1BatchAggregatedActionType,
+        conn: &mut Connection<'_, Core>,
+    ) {
         conn.eth_sender_dal()
             .save_eth_tx(
                 1,
@@ -3194,16 +3234,16 @@ mod tests {
 
         insert_mock_l1_batch_header(&mut conn, &header).await;
 
-        save_mock_eth_tx(AggregatedActionType::Commit, &mut conn).await;
-        save_mock_eth_tx(AggregatedActionType::PublishProofOnchain, &mut conn).await;
-        save_mock_eth_tx(AggregatedActionType::Execute, &mut conn).await;
+        save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        save_mock_eth_tx(L1BatchAggregatedActionType::PublishProofOnchain, &mut conn).await;
+        save_mock_eth_tx(L1BatchAggregatedActionType::Execute, &mut conn).await;
 
         assert!(conn
             .blocks_dal()
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
             )
             .await
             .is_ok());
@@ -3213,7 +3253,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
             )
             .await
             .is_err());
@@ -3223,7 +3263,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
             )
             .await
             .is_ok());
@@ -3233,7 +3273,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
             )
             .await
             .is_err());
@@ -3243,7 +3283,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::Execute,
+                L1BatchAggregatedActionType::Execute,
             )
             .await
             .is_ok());
@@ -3253,7 +3293,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::Execute,
+                L1BatchAggregatedActionType::Execute,
             )
             .await
             .is_err());

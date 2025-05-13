@@ -547,9 +547,12 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
+        let state_keeper = try_load_config!(self.configs.state_keeper_config);
+
         self.node.add_layer(EthTxAggregatorLayer::new(
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            state_keeper.finality,
         ));
 
         Ok(self)

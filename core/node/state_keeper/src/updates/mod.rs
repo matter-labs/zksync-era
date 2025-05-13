@@ -8,7 +8,7 @@ use zksync_multivm::{
 };
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    ProtocolVersionId, Transaction, H256,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -66,6 +66,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
+                H256::zero(),
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
@@ -116,6 +117,7 @@ impl UpdatesManager {
         &self,
         l2_legacy_shared_bridge_addr: Option<Address>,
         pre_insert_txs: bool,
+        seal_rolling_txs_hash: bool,
     ) -> L2BlockSealCommand {
         L2BlockSealCommand {
             l1_batch_number: self.l1_batch.number,
@@ -129,6 +131,7 @@ impl UpdatesManager {
             l2_legacy_shared_bridge_addr,
             pre_insert_txs,
             pubdata_params: self.pubdata_params,
+            seal_rolling_txs_hash,
         }
     }
 
@@ -206,6 +209,7 @@ impl UpdatesManager {
             self.l2_block.get_l2_block_hash(),
             next_l2_block_params.virtual_blocks,
             self.protocol_version,
+            self.l2_block.rolling_txs_hash,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
@@ -258,6 +262,7 @@ pub struct L2BlockSealCommand {
     /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
     pub pubdata_params: PubdataParams,
+    pub seal_rolling_txs_hash: bool,
 }
 
 #[cfg(test)]

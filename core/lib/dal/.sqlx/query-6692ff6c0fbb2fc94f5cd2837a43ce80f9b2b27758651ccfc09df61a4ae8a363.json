@@ -82,6 +82,11 @@
         "ordinal": 15,
         "name": "chain_id",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "finality_id",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -105,6 +110,7 @@
       true,
       true,
       false,
+      true,
       true
     ]
   },

@@ -15,6 +15,8 @@ pub(super) struct ZkSyncFunctions {
     pub(super) post_gateway_prove: Function,
     pub(super) post_gateway_execute: Function,
 
+    pub(super) precommit: Function,
+
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
     pub(super) get_da_validator_pair: Function,
@@ -66,6 +68,8 @@ impl Default for ZkSyncFunctions {
         let post_gateway_prove = get_function(&zksync_contract, "proveBatchesSharedBridge");
         let post_gateway_execute = get_function(&zksync_contract, "executeBatchesSharedBridge");
 
+        let precommit = get_function(&zksync_contract, "precommitSharedBridge");
+
         let get_l2_bootloader_bytecode_hash =
             get_function(&zksync_contract, "getL2BootloaderBytecodeHash");
         let get_l2_default_account_bytecode_hash =
@@ -86,6 +90,7 @@ impl Default for ZkSyncFunctions {
             post_gateway_commit,
             post_gateway_prove,
             post_gateway_execute,
+            precommit,
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,
             get_evm_emulator_bytecode_hash,

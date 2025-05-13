@@ -13,7 +13,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
+    aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
     GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
@@ -291,7 +291,7 @@ impl EthTxManager {
         };
 
         // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
-        if tx.tx_type == AggregatedActionType::Commit {
+        if tx.tx_type == L1BatchAggregatedActionType::Commit {
             match operator_type {
                 OperatorType::Blob | OperatorType::NonBlob => {
                     // Settlement mode is L1.

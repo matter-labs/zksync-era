@@ -1,6 +1,6 @@
 use zksync_multivm::interface::{FinishedL1Batch, TransactionExecutionResult, VmExecutionMetrics};
 use zksync_types::{
-    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, L1BatchNumber,
+    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, L1BatchNumber, H256,
 };
 
 use crate::updates::l2_block_updates::L2BlockUpdates;
@@ -14,6 +14,7 @@ pub struct L1BatchUpdates {
     pub txs_encoding_size: usize,
     pub l1_tx_count: usize,
     pub finished: Option<FinishedL1Batch>,
+    pub rolling_txs_hash: Option<H256>,
 }
 
 impl L1BatchUpdates {
@@ -26,6 +27,7 @@ impl L1BatchUpdates {
             txs_encoding_size: 0,
             l1_tx_count: 0,
             finished: None,
+            rolling_txs_hash: None,
         }
     }
 
@@ -61,6 +63,7 @@ mod tests {
             H256::zero(),
             1,
             ProtocolVersionId::latest(),
+            H256::zero(),
         );
         let tx = create_transaction(10, 100);
         let expected_tx_size = tx.bootloader_encoding_size();

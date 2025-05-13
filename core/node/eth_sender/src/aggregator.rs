@@ -1,5 +1,14 @@
 use std::sync::Arc;
 
+use super::{
+    aggregated_operations::AggregatedOperation,
+    publish_criterion::{
+        GasCriterionKind, L1BatchPublishCriterion, L1GasCriterion, NumberCriterion,
+        TimestampDeadlineCriterion,
+    },
+};
+use crate::aggregated_operations::L1BatchAggregatedOperation;
+use crate::EthSenderError;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -11,7 +20,7 @@ use zksync_prover_interface::{
     Bincode,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
@@ -21,15 +30,6 @@ use zksync_types::{
     settlement::SettlementLayer,
     L1BatchNumber, ProtocolVersionId,
 };
-
-use super::{
-    aggregated_operations::AggregatedOperation,
-    publish_criterion::{
-        GasCriterionKind, L1BatchPublishCriterion, L1GasCriterion, NumberCriterion,
-        TimestampDeadlineCriterion,
-    },
-};
-use crate::EthSenderError;
 
 #[derive(Debug)]
 pub struct Aggregator {
@@ -49,6 +49,7 @@ pub struct Aggregator {
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
     settlement_layer: SettlementLayer,
+    pub send_precommit_tx: bool,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -59,12 +60,13 @@ pub(crate) struct OperationSkippingRestrictions {
     pub(crate) commit_restriction: Option<&'static str>,
     pub(crate) prove_restriction: Option<&'static str>,
     pub(crate) execute_restriction: Option<&'static str>,
+    pub(crate) precommit_restriction: Option<&'static str>,
 }
 
 impl OperationSkippingRestrictions {
     fn check_for_continuation(
         &self,
-        agg_op: &AggregatedOperation,
+        agg_op: &L1BatchAggregatedOperation,
         reason: Option<&'static str>,
     ) -> bool {
         if let Some(reason) = reason {
@@ -85,23 +87,35 @@ impl OperationSkippingRestrictions {
     // easier compatibility with other interfaces in the file.
     fn filter_commit_op(
         &self,
-        commit_op: Option<AggregatedOperation>,
+        commit_op: Option<L1BatchAggregatedOperation>,
     ) -> Option<AggregatedOperation> {
         let commit_op = commit_op?;
         self.check_for_continuation(&commit_op, self.commit_restriction)
-            .then_some(commit_op)
+            .then_some(AggregatedOperation::L1BatchAggregatedOperation(commit_op))
     }
 
     fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
-        let op = AggregatedOperation::PublishProofOnchain(prove_op?);
+        let op = L1BatchAggregatedOperation::PublishProofOnchain(prove_op?);
         self.check_for_continuation(&op, self.prove_restriction)
-            .then_some(op)
+            .then_some(AggregatedOperation::L1BatchAggregatedOperation(op))
     }
 
     fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
-        let op = AggregatedOperation::Execute(execute_op?);
+        let op = L1BatchAggregatedOperation::Execute(execute_op?);
         self.check_for_continuation(&op, self.execute_restriction)
-            .then_some(op)
+            .then_some(AggregatedOperation::L1BatchAggregatedOperation(op))
+    }
+
+    // Unlike other funcitons `filter_commit_op` accepts an already prepared `AggregatedOperation` for
+    // easier compatibility with other interfaces in the file.
+    fn filter_precommit_op(
+        &self,
+        precommit_op: Option<AggregatedOperation>,
+    ) -> Option<AggregatedOperation> {
+        todo!()
+        // let precommit_op = precommit_op?;
+        // self.check_for_continuation(&precommit_op, self.precommit_restriction)
+        //     .then_some(precommit_op)
     }
 }
 
@@ -113,6 +127,7 @@ impl Aggregator {
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
+        send_precommit_tx: bool,
     ) -> anyhow::Result<Self> {
         let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
@@ -129,17 +144,17 @@ impl Aggregator {
             }
 
             vec![Box::from(NumberCriterion {
-                op: AggregatedActionType::Execute,
+                op: L1BatchAggregatedActionType::Execute,
                 limit: 1,
             })]
         } else {
             vec![
                 Box::from(NumberCriterion {
-                    op: AggregatedActionType::Execute,
+                    op: L1BatchAggregatedActionType::Execute,
                     limit: config.max_aggregated_blocks_to_execute,
                 }),
                 Box::from(TimestampDeadlineCriterion {
-                    op: AggregatedActionType::Execute,
+                    op: L1BatchAggregatedActionType::Execute,
                     deadline_seconds: config.aggregated_block_execute_deadline,
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
@@ -156,11 +171,11 @@ impl Aggregator {
             {
                 vec![
                     Box::from(NumberCriterion {
-                        op: AggregatedActionType::Commit,
+                        op: L1BatchAggregatedActionType::Commit,
                         limit: config.max_aggregated_blocks_to_commit,
                     }),
                     Box::from(TimestampDeadlineCriterion {
-                        op: AggregatedActionType::Commit,
+                        op: L1BatchAggregatedActionType::Commit,
                         deadline_seconds: config.aggregated_block_commit_deadline,
                         max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                     }),
@@ -178,7 +193,7 @@ impl Aggregator {
                     );
                 }
                 vec![Box::from(NumberCriterion {
-                    op: AggregatedActionType::Commit,
+                    op: L1BatchAggregatedActionType::Commit,
                     limit: 1,
                 })]
             };
@@ -186,7 +201,7 @@ impl Aggregator {
         Ok(Self {
             commit_criteria,
             proof_criteria: vec![Box::from(NumberCriterion {
-                op: AggregatedActionType::PublishProofOnchain,
+                op: L1BatchAggregatedActionType::PublishProofOnchain,
                 limit: 1,
             })],
             execute_criteria,
@@ -198,6 +213,7 @@ impl Aggregator {
             priority_merkle_tree: None,
             pool,
             settlement_layer,
+            send_precommit_tx,
         })
     }
 
@@ -370,7 +386,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<AggregatedOperation> {
+    ) -> Option<L1BatchAggregatedOperation> {
         // The commit operation is not aggregated at the moment. The code below relies on `limit`
         // being set to 1 when defining the pubdata commitment mode.
         if limit != 1 {
@@ -437,7 +453,7 @@ impl Aggregator {
         let (pubdata_sending_mode, commitment_mode) =
             self.get_commitment_modes(batches.first()?, storage).await;
 
-        Some(AggregatedOperation::Commit(
+        Some(L1BatchAggregatedOperation::Commit(
             last_committed_l1_batch,
             batches,
             pubdata_sending_mode,

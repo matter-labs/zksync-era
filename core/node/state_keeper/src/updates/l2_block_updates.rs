@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::metrics::KEEPER_METRICS;
 use zksync_multivm::{
     interface::{
         Call, ExecutionResult, L2BlockEnv, TransactionExecutionResult, TxExecutionStatus, VmEvent,
@@ -7,14 +8,14 @@ use zksync_multivm::{
     },
     vm_latest::TransactionVmExt,
 };
+use zksync_types::web3::keccak256_concat;
 use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
+    u256_to_h256, L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
+    U256,
 };
-
-use crate::metrics::KEEPER_METRICS;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockUpdates {
@@ -33,6 +34,7 @@ pub struct L2BlockUpdates {
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
+    pub rolling_txs_hash: H256,
 }
 
 impl L2BlockUpdates {
@@ -42,6 +44,7 @@ impl L2BlockUpdates {
         prev_block_hash: H256,
         virtual_blocks: u32,
         protocol_version: ProtocolVersionId,
+        rolling_txs_hash: H256,
     ) -> Self {
         Self {
             executed_transactions: vec![],
@@ -54,6 +57,7 @@ impl L2BlockUpdates {
             txs_encoding_size: 0,
             payload_encoding_size: 0,
             l1_tx_count: 0,
+            rolling_txs_hash,
             timestamp,
             number,
             prev_block_hash,
@@ -151,6 +155,7 @@ impl L2BlockUpdates {
             self.l1_tx_count += 1;
         }
 
+        self.append_rolling_hash(tx.hash(), execution_status);
         self.executed_transactions.push(TransactionExecutionResult {
             hash: tx.hash(),
             transaction: tx,
@@ -160,6 +165,18 @@ impl L2BlockUpdates {
             call_traces,
             revert_reason,
         });
+    }
+
+    fn append_rolling_hash(&mut self, tx_hash: H256, tx_execution_status: TxExecutionStatus) {
+        let status_bytes = match tx_execution_status {
+            TxExecutionStatus::Success => U256::zero(),
+            TxExecutionStatus::Failure => U256::one(),
+        };
+
+        self.rolling_txs_hash = keccak256_concat(
+            self.rolling_txs_hash,
+            keccak256_concat(tx_hash, u256_to_h256(status_bytes)),
+        )
     }
 
     /// Calculates L2 block hash based on the protocol version.
@@ -196,6 +213,7 @@ mod tests {
             H256::random(),
             0,
             ProtocolVersionId::latest(),
+            H256::zero(),
         );
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();

@@ -7,7 +7,7 @@ use zksync_db_connection::{
     match_query_as,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
@@ -139,10 +139,10 @@ impl EthSenderDal<'_, '_> {
             confirmed: bool,
         }
 
-        const TX_TYPES: &[AggregatedActionType] = &[
-            AggregatedActionType::Commit,
-            AggregatedActionType::PublishProofOnchain,
-            AggregatedActionType::Execute,
+        const TX_TYPES: &[L1BatchAggregatedActionType] = &[
+            L1BatchAggregatedActionType::Commit,
+            L1BatchAggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::Execute,
         ];
 
         let mut stats = L1BatchEthSenderStats::default();
@@ -158,16 +158,16 @@ impl EthSenderDal<'_, '_> {
                         " ORDER BY number DESC LIMIT 1"
                     ],
                     match ((confirmed, tx_type)) {
-                        (false, AggregatedActionType::Commit) => ("false", "eth_commit_tx_id", "";),
-                        (true, AggregatedActionType::Commit) => (
+                        (false, L1BatchAggregatedActionType::Commit) => ("false", "eth_commit_tx_id", "";),
+                        (true, L1BatchAggregatedActionType::Commit) => (
                             "true", "eth_commit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false, AggregatedActionType::PublishProofOnchain) => ("false", "eth_prove_tx_id", "";),
-                        (true, AggregatedActionType::PublishProofOnchain) => (
+                        (false, L1BatchAggregatedActionType::PublishProofOnchain) => ("false", "eth_prove_tx_id", "";),
+                        (true, L1BatchAggregatedActionType::PublishProofOnchain) => (
                             "true", "eth_prove_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false, AggregatedActionType::Execute) => ("false", "eth_execute_tx_id", "";),
-                        (true, AggregatedActionType::Execute) => (
+                        (false, L1BatchAggregatedActionType::Execute) => ("false", "eth_execute_tx_id", "";),
+                        (true, L1BatchAggregatedActionType::Execute) => (
                             "true", "eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
                     }
@@ -264,7 +264,7 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         nonce: u64,
         raw_tx: Vec<u8>,
-        tx_type: AggregatedActionType,
+        tx_type: L1BatchAggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: Option<u64>,
         from_address: Option<Address>,
@@ -571,7 +571,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn insert_bogus_confirmed_eth_tx(
         &mut self,
         l1_batch: L1BatchNumber,
-        tx_type: AggregatedActionType,
+        tx_type: L1BatchAggregatedActionType,
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
         sl_chain_id: Option<SLChainId>,
@@ -908,7 +908,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        op_type: AggregatedActionType,
+        op_type: L1BatchAggregatedActionType,
     ) -> Option<TxHistory> {
         let row = sqlx::query!(
             r#"
@@ -928,9 +928,9 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
         .unwrap();
         let eth_tx_id = match op_type {
-            AggregatedActionType::Commit => row.eth_commit_tx_id,
-            AggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
-            AggregatedActionType::Execute => row.eth_execute_tx_id,
+            L1BatchAggregatedActionType::Commit => row.eth_commit_tx_id,
+            L1BatchAggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
+            L1BatchAggregatedActionType::Execute => row.eth_execute_tx_id,
         }
         .unwrap() as u32;
         self.get_last_sent_successfully_eth_tx(eth_tx_id)

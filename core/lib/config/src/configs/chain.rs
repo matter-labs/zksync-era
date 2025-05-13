@@ -118,7 +118,16 @@ pub struct StateKeeperConfig {
     #[deprecated(note = "Use GenesisConfig::l1_batch_commit_data_generator_mode instead")]
     #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    #[serde(default)]
+    pub finality: Finality,
     pub deployment_allowlist: Option<DeploymentAllowlist>,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Default)]
+pub enum Finality {
+    #[default]
+    BatchExecution,
+    RollingTxHash(usize),
 }
 
 impl StateKeeperConfig {
@@ -158,6 +167,7 @@ impl StateKeeperConfig {
             default_aa_hash: None,
             evm_emulator_hash: None,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+            finality: Default::default(),
             deployment_allowlist: None,
         }
     }

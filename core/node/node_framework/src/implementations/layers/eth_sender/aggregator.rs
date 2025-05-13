@@ -1,5 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
+use zksync_config::configs::chain::Finality;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
@@ -45,6 +46,7 @@ use crate::{
 pub struct EthTxAggregatorLayer {
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    finality: Finality,
 }
 
 #[derive(Debug, FromContext)]
@@ -76,10 +78,12 @@ impl EthTxAggregatorLayer {
     pub fn new(
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+        finality: Finality,
     ) -> Self {
         Self {
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
+            finality,
         }
     }
 }
@@ -140,8 +144,12 @@ impl WiringLayer for EthTxAggregatorLayer {
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
 
-        // Create and add tasks.
+        let send_precommit_txs = match self.finality {
+            Finality::BatchExecution => false,
+            Finality::RollingTxHash(_) => true,
+        };
 
+        // Create and add tasks.
         let config = input.sender_config;
         let aggregator = Aggregator::new(
             config.clone(),
@@ -150,6 +158,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
             input.settlement_mode.settlement_layer(),
+            send_precommit_txs,
         )
         .await?;
 

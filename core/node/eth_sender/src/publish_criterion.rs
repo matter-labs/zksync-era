@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,
+    aggregated_operations::L1BatchAggregatedActionType, commitment::L1BatchWithMetadata,
+    L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -28,7 +29,7 @@ pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
 
 #[derive(Debug)]
 pub struct NumberCriterion {
-    pub op: AggregatedActionType,
+    pub op: L1BatchAggregatedActionType,
     /// Maximum number of L1 batches to be packed together.
     pub limit: u32,
 }
@@ -71,7 +72,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
 
 #[derive(Debug)]
 pub struct TimestampDeadlineCriterion {
-    pub op: AggregatedActionType,
+    pub op: L1BatchAggregatedActionType,
     /// Maximum L1 batch age in seconds. Once reached, we pack and publish all the available L1 batches.
     pub deadline_seconds: u64,
     /// If `max_allowed_lag` is `Some(_)` and last batch sent to L1 is more than `max_allowed_lag` behind,
@@ -127,11 +128,11 @@ pub enum GasCriterionKind {
     Execute,
 }
 
-impl From<GasCriterionKind> for AggregatedActionType {
+impl From<GasCriterionKind> for L1BatchAggregatedActionType {
     fn from(value: GasCriterionKind) -> Self {
         match value {
-            GasCriterionKind::CommitValidium => AggregatedActionType::Commit,
-            GasCriterionKind::Execute => AggregatedActionType::Execute,
+            GasCriterionKind::CommitValidium => L1BatchAggregatedActionType::Commit,
+            GasCriterionKind::Execute => L1BatchAggregatedActionType::Execute,
         }
     }
 }
@@ -245,7 +246,7 @@ impl L1BatchPublishCriterion for L1GasCriterion {
         }
 
         if let Some(last_l1_batch) = last_l1_batch {
-            let op: AggregatedActionType = self.kind.into();
+            let op: L1BatchAggregatedActionType = self.kind.into();
             let first_l1_batch_number = consecutive_l1_batches.first().unwrap().header.number.0;
             tracing::debug!(
                 "`gas_limit` publish criterion (gas={}) triggered for op {} with L1 batch range {:?}",

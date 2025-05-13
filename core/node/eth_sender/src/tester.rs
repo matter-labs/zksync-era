@@ -14,12 +14,13 @@ use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::L1BatchHeader,
+    aggregated_operations::L1BatchAggregatedActionType, block::L1BatchHeader,
     commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
     SLChainId, H256,
 };
 
+use crate::aggregated_operations::L1BatchAggregatedOperation;
 use crate::{
     abstract_l1_interface::{L1BlockNumbers, OperatorType},
     aggregated_operations::AggregatedOperation,
@@ -70,7 +71,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 true,
                 EthSenderTester::WAIT_CONFIRMATIONS,
             )
@@ -81,7 +82,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
                 true,
                 EthSenderTester::WAIT_CONFIRMATIONS,
             )
@@ -92,7 +93,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 false,
                 EthSenderTester::WAIT_CONFIRMATIONS,
             )
@@ -101,7 +102,7 @@ impl TestL1Batch {
 
     pub async fn assert_commit_tx_just_sent(&self, tester: &mut EthSenderTester) {
         tester
-            .assert_tx_was_sent_in_last_iteration(self.number, AggregatedActionType::Commit)
+            .assert_tx_was_sent_in_last_iteration(self.number, L1BatchAggregatedActionType::Commit)
             .await;
     }
 
@@ -262,6 +263,8 @@ impl EthSenderTester {
             commitment_mode,
             connection_pool.clone(),
             SettlementLayer::L1(chain_id),
+            // TODO check the tests, now it behaves as it used to behave
+            false,
         )
         .await
         .unwrap();
@@ -389,7 +392,7 @@ impl EthSenderTester {
     pub async fn execute_tx(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: L1BatchAggregatedActionType,
         success: bool,
         confirmations: u64,
     ) {
@@ -430,13 +433,15 @@ impl EthSenderTester {
             self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
                 .await,
         ];
-        let operation = AggregatedOperation::Execute(ExecuteBatches {
-            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
-            l1_batches: l1_batch_headers
-                .into_iter()
-                .map(l1_batch_with_metadata)
-                .collect(),
-        });
+        let operation = AggregatedOperation::L1BatchAggregatedOperation(
+            L1BatchAggregatedOperation::Execute(ExecuteBatches {
+                priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
+                l1_batches: l1_batch_headers
+                    .into_iter()
+                    .map(l1_batch_with_metadata)
+                    .collect(),
+            }),
+        );
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
     }
@@ -451,18 +456,20 @@ impl EthSenderTester {
 
     pub async fn save_prove_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_prove);
-        let operation = AggregatedOperation::PublishProofOnchain(ProveBatches {
-            prev_l1_batch: l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove - 1)
-                    .await,
-            ),
-            l1_batches: vec![l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove)
-                    .await,
-            )],
-            proofs: vec![],
-            should_verify: false,
-        });
+        let operation = AggregatedOperation::L1BatchAggregatedOperation(
+            L1BatchAggregatedOperation::PublishProofOnchain(ProveBatches {
+                prev_l1_batch: l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove - 1)
+                        .await,
+                ),
+                l1_batches: vec![l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove)
+                        .await,
+                )],
+                proofs: vec![],
+                should_verify: false,
+            }),
+        );
         self.next_l1_batch_number_to_prove += 1;
         self.save_operation(operation).await
     }
@@ -517,18 +524,19 @@ impl EthSenderTester {
             L1BatchCommitmentMode::Rollup
         };
 
-        let operation = AggregatedOperation::Commit(
-            l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
-                    .await,
-            ),
-            vec![l1_batch_with_metadata(
-                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit)
-                    .await,
-            )],
-            pubdata_mode,
-            commitment_mode,
-        );
+        let operation =
+            AggregatedOperation::L1BatchAggregatedOperation(L1BatchAggregatedOperation::Commit(
+                l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
+                        .await,
+                ),
+                vec![l1_batch_with_metadata(
+                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit)
+                        .await,
+                )],
+                pubdata_mode,
+                commitment_mode,
+            ));
         self.next_l1_batch_number_to_commit += 1;
         self.save_operation(operation).await
     }
@@ -595,7 +603,7 @@ impl EthSenderTester {
     pub async fn assert_tx_was_sent_in_last_iteration(
         &self,
         l1_batch_number: L1BatchNumber,
-        operation_type: AggregatedActionType,
+        operation_type: L1BatchAggregatedActionType,
     ) {
         let last_entry = self
             .conn

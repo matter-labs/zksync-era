@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_config::configs::chain::Finality;
 use zksync_node_framework_derive::FromContext;
 use zksync_state_keeper::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
@@ -45,6 +46,7 @@ pub struct OutputHandlerLayer {
     /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes)
     /// or run `vm_runner_protective_reads` component.
     protective_reads_persistence_enabled: bool,
+    finality: Option<Finality>,
 }
 
 #[derive(Debug, FromContext)]
@@ -70,6 +72,7 @@ impl OutputHandlerLayer {
             l2_block_seal_queue_capacity,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
+            finality: None,
         }
     }
 
@@ -83,6 +86,11 @@ impl OutputHandlerLayer {
         protective_reads_persistence_enabled: bool,
     ) -> Self {
         self.protective_reads_persistence_enabled = protective_reads_persistence_enabled;
+        self
+    }
+
+    pub fn with_finality(mut self, finality: Finality) -> Self {
+        self.finality = Some(finality);
         self
     }
 }
@@ -114,10 +122,18 @@ impl WiringLayer for OutputHandlerLayer {
             Some(l2_shared_bridge_addr)
         };
 
+        let l2_blocks_to_seal_rolling_hash = if let Some(Finality::RollingTxHash(n)) = self.finality
+        {
+            Some(n)
+        } else {
+            None
+        };
+
         let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
             l2_legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
+            l2_blocks_to_seal_rolling_hash,
         )
         .await?;
         if self.pre_insert_txs {

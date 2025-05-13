@@ -90,6 +90,8 @@ impl ProtoRepr for proto::StateKeeper {
             fee_account_addr: None,
             l1_batch_commit_data_generator_mode: Default::default(),
             deployment_allowlist: read_optional_repr(&self.deployment_allowlist),
+            // TODO add it to real config
+            finality: Default::default(),
         })
     }
 

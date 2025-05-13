@@ -58,6 +58,7 @@ impl UpdatesManager {
         let l2_block_command = self.seal_l2_block_command(
             l2_legacy_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
+            true,
         );
 
         let mut connection = pool.connection_tagged("state_keeper").await?;

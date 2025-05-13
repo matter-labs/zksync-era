@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     eth_sender::{EthTx, TxHistory},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
@@ -31,12 +31,13 @@ pub struct StorageEthTx {
     pub blob_sidecar: Option<Vec<u8>>,
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
+    pub finality_id: Option<i32>,
 }
 
 #[derive(Debug, Default)]
 pub struct L1BatchEthSenderStats {
-    pub saved: Vec<(AggregatedActionType, L1BatchNumber)>,
-    pub mined: Vec<(AggregatedActionType, L1BatchNumber)>,
+    pub saved: Vec<(L1BatchAggregatedActionType, L1BatchNumber)>,
+    pub mined: Vec<(L1BatchAggregatedActionType, L1BatchNumber)>,
 }
 
 #[derive(Clone, Debug)]
@@ -72,7 +73,7 @@ impl From<StorageEthTx> for EthTx {
             contract_address: Address::from_str(&tx.contract_address)
                 .expect("Incorrect address in db"),
             raw_tx: tx.raw_tx.clone(),
-            tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
+            tx_type: L1BatchAggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
             created_at_timestamp: tx.created_at.and_utc().timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost.map(|c| c as u64),
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),

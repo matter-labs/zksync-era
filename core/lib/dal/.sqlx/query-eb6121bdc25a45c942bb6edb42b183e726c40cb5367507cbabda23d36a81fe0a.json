@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE miniblocks\n            SET\n                rolling_txs_id = $1,\n                updated_at = NOW()\n            WHERE\n                number = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eb6121bdc25a45c942bb6edb42b183e726c40cb5367507cbabda23d36a81fe0a"
+}

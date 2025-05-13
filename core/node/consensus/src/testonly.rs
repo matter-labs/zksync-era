@@ -514,6 +514,7 @@ impl StateKeeperRunner {
                 self.pool.0.clone(),
                 Some(ethabi::Address::repeat_byte(11)),
                 5,
+                None,
             )
             .await
             .unwrap();
@@ -627,6 +628,7 @@ impl StateKeeperRunner {
                 self.pool.0.clone(),
                 Some(ethabi::Address::repeat_byte(11)),
                 5,
+                None,
             )
             .await
             .unwrap();

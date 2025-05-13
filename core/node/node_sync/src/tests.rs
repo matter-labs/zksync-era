@@ -108,7 +108,7 @@ impl StateKeeperHandles {
 
         let sync_state = SyncState::default();
         let (persistence, l2_block_sealer) =
-            StateKeeperPersistence::new(pool.clone(), Some(Address::repeat_byte(1)), 5)
+            StateKeeperPersistence::new(pool.clone(), Some(Address::repeat_byte(1)), 5, None)
                 .await
                 .unwrap();
         let tree_writes_persistence = TreeWritesPersistence::new(pool.clone());
