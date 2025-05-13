@@ -128,17 +128,27 @@ impl From<&str> for WitnessType {
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server")]
 pub(crate) struct ServerMetrics {
-    pub prover_fri_requeued_jobs: Counter<u64>,
-    pub requeued_jobs: Family<WitnessType, Counter<u64>>,
+    #[metrics(labels = ["chain_id"])]
+    pub prover_fri_requeued_jobs: LabeledFamily<u64, Counter<u64>>,
+    #[metrics(labels = ["witness_type", "chain_id"])]
+    pub requeued_jobs: LabeledFamily<(WitnessType, u64), Counter<u64>, 2>,
     #[metrics(labels = ["type", "round", "protocol_version"])]
     pub witness_generator_jobs_by_round:
         LabeledFamily<(&'static str, String, String), Gauge<u64>, 3>,
-    #[metrics(labels = ["type", "protocol_version"])]
-    pub witness_generator_jobs: LabeledFamily<(&'static str, String), Gauge<u64>, 2>,
-    pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub node_fri_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub recursion_tip_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
-    pub scheduler_witness_generator_waiting_to_queued_jobs_transitions: Counter<u64>,
+    #[metrics(labels = ["type", "protocol_version", "chain_id"])]
+    pub witness_generator_jobs: LabeledFamily<(&'static str, String, u64), Gauge<u64>, 3>,
+    #[metrics(labels = ["chain_id"])]
+    pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions:
+        LabeledFamily<u64, Counter<u64>>,
+    #[metrics(labels = ["chain_id"])]
+    pub node_fri_witness_generator_waiting_to_queued_jobs_transitions:
+        LabeledFamily<u64, Counter<u64>>,
+    #[metrics(labels = ["chain_id"])]
+    pub recursion_tip_witness_generator_waiting_to_queued_jobs_transitions:
+        LabeledFamily<u64, Counter<u64>>,
+    #[metrics(labels = ["chain_id"])]
+    pub scheduler_witness_generator_waiting_to_queued_jobs_transitions:
+        LabeledFamily<u64, Counter<u64>>,
 }
 
 #[vise::register]
