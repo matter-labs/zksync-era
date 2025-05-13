@@ -8,6 +8,7 @@ pub enum PolynomialForm {
 }
 
 /// Configuration for the EigenDA remote disperser client.
+///
 /// This configuration is meant to be used by the EigenDA V2 client.
 /// The M1 stands for Milestone 1, a secure integration, where the dispersal is verified.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
