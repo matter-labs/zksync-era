@@ -7,7 +7,7 @@ use zksync_db_connection::{
     match_query_as,
 };
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
@@ -264,7 +264,7 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         nonce: u64,
         raw_tx: Vec<u8>,
-        tx_type: L1BatchAggregatedActionType,
+        tx_type: AggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: Option<u64>,
         from_address: Option<Address>,

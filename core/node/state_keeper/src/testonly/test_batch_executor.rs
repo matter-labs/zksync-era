@@ -222,6 +222,7 @@ impl TestScenario {
             Arc::new(sealer),
             Arc::new(MockReadStorageFactory),
             None,
+            None,
         );
         let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
@@ -551,6 +552,14 @@ impl StateKeeperOutputHandler for TestPersistence {
         if let Some(check_fn) = check_fn {
             check_fn(updates_manager);
         }
+        Ok(())
+    }
+
+    async fn handle_rolling_tx_hash(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
+        // TODO add test scenario
         Ok(())
     }
 

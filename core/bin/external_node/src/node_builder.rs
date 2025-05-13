@@ -6,7 +6,7 @@ use zksync_block_reverter::NodeRole;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
-        chain::TimestampAsserterConfig,
+        chain::{Finality, TimestampAsserterConfig},
         database::MerkleTreeMode,
         DataAvailabilitySecrets, DatabaseSecrets,
     },
@@ -251,6 +251,8 @@ impl ExternalNodeBuilder {
         let state_keeper_layer = StateKeeperLayer::new(
             self.config.required.state_cache_path.clone(),
             rocksdb_options,
+            // TODO it's a good sign, that we have to move out from statekeeper
+            Finality::BatchExecution,
         );
         self.node
             .add_layer(io_layer)

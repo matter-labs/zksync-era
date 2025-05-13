@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use zksync_config::configs::chain::Finality;
 use zksync_health_check::ReactiveHealthCheck;
 use zksync_state::AsyncCatchupTask;
 pub use zksync_state::RocksdbStorageOptions;
@@ -33,6 +34,7 @@ pub mod output_handler;
 pub struct StateKeeperLayer {
     state_keeper_db_path: String,
     rocksdb_options: RocksdbStorageOptions,
+    finality: Finality,
 }
 
 #[derive(Debug, FromContext)]
@@ -60,10 +62,15 @@ pub struct Output {
 }
 
 impl StateKeeperLayer {
-    pub fn new(state_keeper_db_path: String, rocksdb_options: RocksdbStorageOptions) -> Self {
+    pub fn new(
+        state_keeper_db_path: String,
+        rocksdb_options: RocksdbStorageOptions,
+        finality: Finality,
+    ) -> Self {
         Self {
             state_keeper_db_path,
             rocksdb_options,
+            finality,
         }
     }
 }
@@ -105,6 +112,11 @@ impl WiringLayer for StateKeeperLayer {
         let recovery_pool = input.replica_pool.get_custom(10).await?;
         rocksdb_catchup = rocksdb_catchup.with_recovery_pool(recovery_pool);
 
+        let l2_blocks_to_seal_rolling_hash = if let Finality::RollingTxHash(n) = self.finality {
+            Some(n)
+        } else {
+            None
+        };
         let state_keeper = ZkSyncStateKeeper::new(
             io,
             batch_executor_base,
@@ -112,6 +124,7 @@ impl WiringLayer for StateKeeperLayer {
             sealer,
             Arc::new(storage_factory),
             input.shared_allow_list.map(DeploymentTxFilter::new),
+            l2_blocks_to_seal_rolling_hash,
         );
 
         let state_keeper = StateKeeperTask { state_keeper };

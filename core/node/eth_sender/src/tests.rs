@@ -38,16 +38,14 @@ use crate::{
 };
 
 fn get_dummy_operation(number: u32) -> AggregatedOperation {
-    AggregatedOperation::L1BatchAggregatedOperation(L1BatchAggregatedOperation::Execute(
-        ExecuteBatches {
-            l1_batches: vec![L1BatchWithMetadata {
-                header: create_l1_batch(number),
-                metadata: default_l1_batch_metadata(),
-                raw_published_factory_deps: Vec::new(),
-            }],
-            priority_ops_proofs: Vec::new(),
-        },
-    ))
+    AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
+        l1_batches: vec![L1BatchWithMetadata {
+            header: create_l1_batch(number),
+            metadata: default_l1_batch_metadata(),
+            raw_published_factory_deps: Vec::new(),
+        }],
+        priority_ops_proofs: Vec::new(),
+    }))
 }
 
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [

@@ -836,7 +836,7 @@ impl BlocksWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        aggregated_operations::L1BatchAggregatedActionType,
+        aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
         block::{L2BlockHasher, L2BlockHeader},
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
@@ -1044,7 +1044,7 @@ mod tests {
             .save_eth_tx(
                 0,
                 vec![],
-                L1BatchAggregatedActionType::Commit,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
                 Address::default(),
                 None,
                 None,

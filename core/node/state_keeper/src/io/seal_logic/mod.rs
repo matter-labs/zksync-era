@@ -58,7 +58,6 @@ impl UpdatesManager {
         let l2_block_command = self.seal_l2_block_command(
             l2_legacy_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
-            true,
         );
 
         let mut connection = pool.connection_tagged("state_keeper").await?;
@@ -75,6 +74,9 @@ impl UpdatesManager {
         };
         progress.observe(None);
 
+        self.seal_rolling_txs_hash(&mut transaction, true)
+            .await
+            .context("failed to seal rolling tx hash")?;
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
 
         progress.observe(
@@ -274,6 +276,24 @@ impl UpdatesManager {
         let elapsed = started_at.elapsed();
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
         tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
+    }
+
+    pub(super) async fn seal_rolling_txs_hash(
+        &self,
+        connection: &mut Connection<'_, Core>,
+        final_hash: bool,
+    ) -> anyhow::Result<()> {
+        connection
+            .rolling_tx_hashes()
+            .seal_rolling_txs_hash(
+                self.l1_batch.number,
+                self.rolling_tx_hash_updates.from_l2_block_number,
+                self.rolling_tx_hash_updates.to_l2_block_number,
+                self.rolling_tx_hash_updates.rolling_hash,
+                final_hash,
+            )
+            .await?;
+        Ok(())
     }
 }
 

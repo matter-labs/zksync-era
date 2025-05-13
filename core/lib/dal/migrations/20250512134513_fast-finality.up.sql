@@ -1,11 +1,12 @@
 -- Add up migration script here
 CREATE TABLE rolling_tx_hashes (
-    id SERIAL NOT NULL PRIMARY KEY,
+        id SERIAL NOT NULL PRIMARY KEY,
 		rolling_hash  BYTEA,
 		l1_batch_number BIGINT,
 		final BOOLEAN,
 		eth_tx_id INT REFERENCES eth_txs (id) ON DELETE SET NULL -- tx submitting this rolling hash
 );
+ -- Todo add unique for rolling_hash l1_batch_number
 
 ALTER TABLE miniblocks ADD COLUMN rolling_txs_id INT;
 --

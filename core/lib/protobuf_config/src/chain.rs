@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs;
+use zksync_config::{configs, configs::chain::Finality};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, proto::chain as proto, read_optional_repr};
@@ -91,7 +91,7 @@ impl ProtoRepr for proto::StateKeeper {
             l1_batch_commit_data_generator_mode: Default::default(),
             deployment_allowlist: read_optional_repr(&self.deployment_allowlist),
             // TODO add it to real config
-            finality: Default::default(),
+            finality: Finality::RollingTxHash(10),
         })
     }
 

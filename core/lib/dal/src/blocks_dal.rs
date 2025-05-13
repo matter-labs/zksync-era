@@ -46,50 +46,6 @@ pub struct BlocksDal<'a, 'c> {
 }
 
 impl BlocksDal<'_, '_> {
-    pub async fn seal_rolling_txs_hash(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-        miniblock_number: L2BlockNumber,
-        rolling_hash: H256,
-        final_hash: bool,
-    ) -> DalResult<()> {
-        let mut tx = self.storage.start_transaction().await?;
-        let rolling_tx_hash_id = sqlx::query!(
-            r#"
-            INSERT INTO
-            rolling_tx_hashes
-            (l1_batch_number, rolling_hash, final)
-            VALUES ($1, $2, $3)
-            RETURNING id
-            "#,
-            i64::from(l1_batch_number.0),
-            rolling_hash.as_bytes(),
-            final_hash,
-        )
-        .instrument("insert_rolling_txs_hash")
-        .report_latency()
-        .fetch_one(&mut tx)
-        .await?
-        .id;
-        sqlx::query!(
-            r#"
-            UPDATE miniblocks
-            SET
-                rolling_txs_id = $1,
-                updated_at = NOW()
-            WHERE
-                number = $2
-            "#,
-            rolling_tx_hash_id,
-            i64::from(miniblock_number.0)
-        )
-        .instrument("set_rolling_txs_hash")
-        .report_latency()
-        .execute(&mut tx)
-        .await?;
-        Ok(())
-    }
-
     pub async fn get_consistency_checker_last_processed_l1_batch(
         &mut self,
     ) -> DalResult<L1BatchNumber> {
@@ -2019,6 +1975,7 @@ impl BlocksDal<'_, '_> {
         protocol_version_id: ProtocolVersionId,
 
         with_da_inclusion_info: bool,
+        send_precommit_txs: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
@@ -2066,31 +2023,40 @@ impl BlocksDal<'_, '_> {
                 data_availability
                 ON data_availability.l1_batch_number = l1_batches.number
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            JOIN
+                rolling_tx_hashes
+                ON rolling_tx_hashes.l1_batch_number = l1_batches.number AND final = true
             WHERE
-                eth_commit_tx_id IS NULL
+                eth_commit_tx_id IS null
                 AND number != 0
                 AND protocol_versions.bootloader_code_hash = $1
                 AND protocol_versions.default_account_code_hash = $2
-                AND commitment IS NOT NULL
+                AND commitment IS NOT null
                 AND (
                     protocol_versions.id = $3
-                    OR protocol_versions.upgrade_tx_hash IS NULL
+                    OR protocol_versions.upgrade_tx_hash IS null
                 )
-                AND events_queue_commitment IS NOT NULL
-                AND bootloader_initial_content_commitment IS NOT NULL
+                AND events_queue_commitment IS NOT null
+                AND bootloader_initial_content_commitment IS NOT null
                 AND (
-                    data_availability.inclusion_data IS NOT NULL
-                    OR $4 IS FALSE
+                    data_availability.inclusion_data IS NOT null
+                    OR $4 IS false
                 )
+                AND (
+                    rolling_tx_hashes.eth_tx_id IS NOT null
+                    OR $5 IS false
+                )
+            
             ORDER BY
                 number
             LIMIT
-                $5
+                $6
             "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
             with_da_inclusion_info,
+            send_precommit_txs,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")
@@ -3182,7 +3148,10 @@ impl BlocksDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{tx::IncludedTxLocation, Address, ProtocolVersion};
+    use zksync_types::{
+        aggregated_operations::AggregatedActionType, tx::IncludedTxLocation, Address,
+        ProtocolVersion,
+    };
 
     use super::*;
     use crate::{
@@ -3198,7 +3167,7 @@ mod tests {
             .save_eth_tx(
                 1,
                 vec![],
-                action_type,
+                AggregatedActionType::L1Batch(action_type),
                 Address::default(),
                 Some(1),
                 None,

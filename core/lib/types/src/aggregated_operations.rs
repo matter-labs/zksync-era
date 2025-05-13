@@ -16,7 +16,7 @@ pub enum L1BatchAggregatedActionType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AggregatedActionType {
-    Miniblock(MiniblockAggregatedActionType),
+    L2Block(MiniblockAggregatedActionType),
     L1Batch(L1BatchAggregatedActionType),
 }
 
@@ -84,7 +84,7 @@ impl FromStr for MiniblockAggregatedActionType {
 impl AggregatedActionType {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Miniblock(action) => action.as_str(),
+            Self::L2Block(action) => action.as_str(),
             Self::L1Batch(action) => action.as_str(),
         }
     }
@@ -94,7 +94,7 @@ impl FromStr for AggregatedActionType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(action) = MiniblockAggregatedActionType::from_str(s) {
-            return Ok(Self::Miniblock(action));
+            return Ok(Self::L2Block(action));
         }
         if let Ok(action) = L1BatchAggregatedActionType::from_str(s) {
             return Ok(Self::L1Batch(action));
@@ -111,7 +111,7 @@ impl fmt::Display for AggregatedActionType {
 
 impl From<MiniblockAggregatedActionType> for AggregatedActionType {
     fn from(action: MiniblockAggregatedActionType) -> Self {
-        Self::Miniblock(action)
+        Self::L2Block(action)
     }
 }
 

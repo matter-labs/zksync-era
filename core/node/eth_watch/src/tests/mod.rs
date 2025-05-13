@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     abi,
-    aggregated_operations::L1BatchAggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     api::ChainAggProof,
     block::L1BatchHeader,
     commitment::L1BatchCommitmentArtifacts,
@@ -806,7 +806,7 @@ async fn setup_batch_roots(
             .save_eth_tx(
                 i as u64,
                 Default::default(),
-                L1BatchAggregatedActionType::Execute,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),
                 Default::default(),
                 Default::default(),
                 Default::default(),

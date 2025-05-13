@@ -95,6 +95,11 @@ pub async fn load_pending_batch(
         .first()
         .context("no pending L2 blocks; was environment loaded for a correct L1 batch number?")?;
     let expected_pending_l2_block_number = L2BlockNumber(l1_batch_env.first_l2_block.number);
+
+    let last_l2_block_with_rolling_txs_hash = storage
+        .rolling_tx_hashes()
+        .get_last_l2_block_with_rolling_txs_hash(l1_batch_env.number)
+        .await?;
     anyhow::ensure!(
         first_pending_l2_block.number == expected_pending_l2_block_number,
         "Invalid `L1BatchEnv` supplied: its L1 batch #{} is not pending; \
@@ -107,5 +112,6 @@ pub async fn load_pending_batch(
         system_env,
         pubdata_params,
         pending_l2_blocks,
+        last_l2_block_with_rolling_txs_hash,
     })
 }

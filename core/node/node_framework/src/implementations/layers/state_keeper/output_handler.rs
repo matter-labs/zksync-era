@@ -122,18 +122,10 @@ impl WiringLayer for OutputHandlerLayer {
             Some(l2_shared_bridge_addr)
         };
 
-        let l2_blocks_to_seal_rolling_hash = if let Some(Finality::RollingTxHash(n)) = self.finality
-        {
-            Some(n)
-        } else {
-            None
-        };
-
         let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
             l2_legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
-            l2_blocks_to_seal_rolling_hash,
         )
         .await?;
         if self.pre_insert_txs {

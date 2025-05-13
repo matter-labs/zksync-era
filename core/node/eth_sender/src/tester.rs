@@ -432,15 +432,14 @@ impl EthSenderTester {
             self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
                 .await,
         ];
-        let operation = AggregatedOperation::L1BatchAggregatedOperation(
-            L1BatchAggregatedOperation::Execute(ExecuteBatches {
+        let operation =
+            AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
                 priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
                 l1_batches: l1_batch_headers
                     .into_iter()
                     .map(l1_batch_with_metadata)
                     .collect(),
-            }),
-        );
+            }));
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
     }
@@ -455,7 +454,7 @@ impl EthSenderTester {
 
     pub async fn save_prove_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_prove);
-        let operation = AggregatedOperation::L1BatchAggregatedOperation(
+        let operation = AggregatedOperation::L1Batch(
             L1BatchAggregatedOperation::PublishProofOnchain(ProveBatches {
                 prev_l1_batch: l1_batch_with_metadata(
                     self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_prove - 1)
@@ -523,19 +522,18 @@ impl EthSenderTester {
             L1BatchCommitmentMode::Rollup
         };
 
-        let operation =
-            AggregatedOperation::L1BatchAggregatedOperation(L1BatchAggregatedOperation::Commit(
-                l1_batch_with_metadata(
-                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
-                        .await,
-                ),
-                vec![l1_batch_with_metadata(
-                    self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit)
-                        .await,
-                )],
-                pubdata_mode,
-                commitment_mode,
-            ));
+        let operation = AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Commit(
+            l1_batch_with_metadata(
+                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
+                    .await,
+            ),
+            vec![l1_batch_with_metadata(
+                self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit)
+                    .await,
+            )],
+            pubdata_mode,
+            commitment_mode,
+        ));
         self.next_l1_batch_number_to_commit += 1;
         self.save_operation(operation).await
     }

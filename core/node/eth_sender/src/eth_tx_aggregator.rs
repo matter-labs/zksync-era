@@ -16,7 +16,7 @@ use zksync_l1_contract_interface::{
 };
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
@@ -709,7 +709,7 @@ impl EthTxAggregator {
         tx: &EthTx,
     ) {
         match aggregated_op {
-            AggregatedOperation::L1BatchAggregatedOperation(aggregated_op) => {
+            AggregatedOperation::L1Batch(aggregated_op) => {
                 let l1_batch_number_range = aggregated_op.l1_batch_range();
                 tracing::info!(
                     "eth_tx with ID {} for op {} was saved for L1 batches {l1_batch_number_range:?}",
@@ -739,7 +739,7 @@ impl EthTxAggregator {
                     .track_eth_tx_metrics(storage, BlockL1Stage::Saved, tx)
                     .await;
             }
-            AggregatedOperation::L2BlockAggregatedOperation(op) => {
+            AggregatedOperation::L2Block(op) => {
                 tracing::info!(
                     "eth_tx with ID {} for op {} was saved",
                     tx.id,
@@ -757,7 +757,7 @@ impl EthTxAggregator {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
         match op {
-            AggregatedOperation::L1BatchAggregatedOperation(op) => {
+            AggregatedOperation::L1Batch(op) => {
                 let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
                 let (calldata, sidecar) = match op {
@@ -819,14 +819,10 @@ impl EthTxAggregator {
                 };
                 TxData { calldata, sidecar }
             }
-            AggregatedOperation::L2BlockAggregatedOperation(op) => match op {
-                L2BlockAggregatedOperation::PreCommit(
-                    l1_batch_number,
-                    last_l2_block,
-                    rolling_hash,
-                ) => {
+            AggregatedOperation::L2Block(op) => match op {
+                L2BlockAggregatedOperation::Precommit(l1_batch_number, last_l2_block, txs) => {
                     let precommit_batches = PrecommitBatches {
-                        txs: &[],
+                        txs,
                         last_l2_block: *last_l2_block,
                         l1_batch_number: *l1_batch_number,
                     };
@@ -895,26 +891,30 @@ impl EthTxAggregator {
         let mut transaction = storage.start_transaction().await.unwrap();
         let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
-        match aggregated_op {
-            AggregatedOperation::L1BatchAggregatedOperation(aggregated_op) => {
-                let op_type = aggregated_op.get_action_type();
-                // We may be using a custom sender for commit transactions, so use this
-                // var whatever it actually is: a `None` for single-addr operator or `Some`
-                // for multi-addr operator in 4844 mode.
-                let (sender_addr, is_non_blob_sender) = match (op_type, is_gateway) {
-                    (L1BatchAggregatedActionType::Commit, false) => self
-                        .eth_client_blobs
-                        .as_ref()
-                        .map(|c| (c.sender_account(), false))
-                        .unwrap_or_else(|| (self.eth_client.sender_account(), true)),
-                    (_, _) => (self.eth_client.sender_account(), true),
-                };
-                let nonce = self
-                    .get_next_nonce(&mut transaction, sender_addr, is_non_blob_sender)
-                    .await?;
-                let l1_batch_number_range = aggregated_op.l1_batch_range();
+        let op_type = aggregated_op.get_action_type();
+        // We may be using a custom sender for commit transactions, so use this
+        // var whatever it actually is: a `None` for single-addr operator or `Some`
+        // for multi-addr operator in 4844 mode.
+        let (sender_addr, is_non_blob_sender) = match (op_type, is_gateway) {
+            (AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit), false) => self
+                .eth_client_blobs
+                .as_ref()
+                .map(|c| (c.sender_account(), false))
+                .unwrap_or_else(|| (self.eth_client.sender_account(), true)),
+            (_, _) => (self.eth_client.sender_account(), true),
+        };
+        let nonce = self
+            .get_next_nonce(&mut transaction, sender_addr, is_non_blob_sender)
+            .await?;
 
-                let eth_tx_predicted_gas = match op_type {
+        let eth_tx_predicted_gas = match aggregated_op {
+            AggregatedOperation::L2Block(_) => {
+                // TODO calculate it properly
+                1_000_000
+            }
+            AggregatedOperation::L1Batch(agg_op) => {
+                let l1_batch_number_range = agg_op.l1_batch_range();
+                match agg_op.get_action_type() {
                     L1BatchAggregatedActionType::Execute => {
                         L1GasCriterion::total_execute_gas_amount(
                             &mut transaction,
@@ -932,41 +932,46 @@ impl EthTxAggregator {
                             is_gateway,
                         )
                     }
-                };
+                }
+            }
+        };
 
-                let mut eth_tx = transaction
-                    .eth_sender_dal()
-                    .save_eth_tx(
-                        nonce,
-                        encoded_aggregated_op.calldata,
-                        op_type,
-                        timelock_contract_address,
-                        Some(eth_tx_predicted_gas),
-                        Some(sender_addr),
-                        encoded_aggregated_op.sidecar,
-                        is_gateway,
-                    )
-                    .await
-                    .unwrap();
+        let mut eth_tx = transaction
+            .eth_sender_dal()
+            .save_eth_tx(
+                nonce,
+                encoded_aggregated_op.calldata,
+                op_type,
+                timelock_contract_address,
+                Some(eth_tx_predicted_gas),
+                Some(sender_addr),
+                encoded_aggregated_op.sidecar,
+                is_gateway,
+            )
+            .await
+            .unwrap();
 
-                transaction
-                    .eth_sender_dal()
-                    .set_chain_id(eth_tx.id, self.sl_chain_id.0)
-                    .await
-                    .unwrap();
-                eth_tx.chain_id = Some(self.sl_chain_id);
+        transaction
+            .eth_sender_dal()
+            .set_chain_id(eth_tx.id, self.sl_chain_id.0)
+            .await
+            .unwrap();
+        eth_tx.chain_id = Some(self.sl_chain_id);
+        match aggregated_op {
+            AggregatedOperation::L2Block(_) => {
+                // todo
+                // add eth tx to the rolling_txs_hash table
+            }
+            AggregatedOperation::L1Batch(agg_op) => {
                 transaction
                     .blocks_dal()
-                    .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
+                    .set_eth_tx_id(agg_op.l1_batch_range(), eth_tx.id, agg_op.get_action_type())
                     .await
                     .unwrap();
-                transaction.commit().await.unwrap();
-                Ok(eth_tx)
-            }
-            AggregatedOperation::L2BlockAggregatedOperation(_) => {
-                todo!()
             }
         }
+        transaction.commit().await.unwrap();
+        Ok(eth_tx)
     }
 
     // Just because we block all operations during gateway migration,

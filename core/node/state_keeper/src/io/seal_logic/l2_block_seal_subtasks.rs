@@ -110,7 +110,6 @@ impl L2BlockSealProcess {
             Box::new(InsertTokensSubtask),
             Box::new(InsertEventsSubtask),
             Box::new(InsertL2ToL1LogsSubtask),
-            Box::new(RollingTxsHashSubtask),
         ]
     }
 
@@ -454,49 +453,6 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
     }
 }
 
-#[derive(Debug)]
-pub(super) struct RollingTxsHashSubtask;
-
-#[async_trait]
-impl L2BlockSealSubtask for RollingTxsHashSubtask {
-    fn name(&self) -> &'static str {
-        "sealing_rolling_txs_hash"
-    }
-
-    async fn run(
-        self: Box<Self>,
-        command: &L2BlockSealCommand,
-        connection: &mut Connection<'_, Core>,
-    ) -> anyhow::Result<()> {
-        let is_fictive = command.is_l2_block_fictive();
-
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::SealRollingTxsHash, is_fictive);
-        if command.seal_rolling_txs_hash || is_fictive {
-            connection
-                .blocks_dal()
-                .seal_rolling_txs_hash(
-                    command.l1_batch_number,
-                    command.l2_block.number,
-                    command.l2_block.rolling_txs_hash,
-                    // If the block is fictive, we could consider this hash as final.
-                    is_fictive,
-                )
-                .await?;
-        }
-        progress.observe(1);
-
-        Ok(())
-    }
-
-    async fn rollback(
-        &self,
-        storage: &mut Connection<'_, Core>,
-        last_sealed_l2_block: L2BlockNumber,
-    ) -> anyhow::Result<()> {
-        todo!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use zksync_dal::{ConnectionPool, Core};
@@ -589,7 +545,6 @@ mod tests {
                 prev_block_hash: Default::default(),
                 virtual_blocks: Default::default(),
                 protocol_version: ProtocolVersionId::latest(),
-                rolling_txs_hash: Default::default(),
             },
             first_tx_index: 0,
             fee_account_address: Default::default(),
@@ -600,7 +555,6 @@ mod tests {
             l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_txs: false,
             pubdata_params: PubdataParams::default(),
-            seal_rolling_txs_hash: true,
         };
 
         // Run.

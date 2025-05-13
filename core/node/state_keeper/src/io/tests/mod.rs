@@ -249,7 +249,6 @@ fn create_block_seal_command(
         l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
         pubdata_params: PubdataParams::default(),
-        seal_rolling_txs_hash: false,
     }
 }
 
@@ -263,7 +262,6 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
-        H256::zero(),
     );
 
     let tx = create_transaction(10, 100);
@@ -355,7 +353,6 @@ async fn processing_events_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
-        H256::zero(),
     );
 
     let events = (0_u8..10).map(|i| VmEvent {
@@ -432,7 +429,6 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
-        H256::zero(),
     );
 
     let static_factory_deps: Vec<_> = (0_u8..10)
@@ -578,7 +574,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     );
 
     let (mut persistence, l2_block_sealer) =
-        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 0, None)
+        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 0)
             .await
             .unwrap();
     tokio::spawn(l2_block_sealer.run());

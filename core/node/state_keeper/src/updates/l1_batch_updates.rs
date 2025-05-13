@@ -63,7 +63,6 @@ mod tests {
             H256::zero(),
             1,
             ProtocolVersionId::latest(),
-            H256::zero(),
         );
         let tx = create_transaction(10, 100);
         let expected_tx_size = tx.bootloader_encoding_size();

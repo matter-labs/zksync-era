@@ -7,19 +7,24 @@ use zksync_types::{
     },
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     pubdata_da::PubdataSendingMode,
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    transaction_status_commitment::TransactionStatusCommitment,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum AggregatedOperation {
-    L1BatchAggregatedOperation(L1BatchAggregatedOperation),
-    L2BlockAggregatedOperation(L2BlockAggregatedOperation),
+    L1Batch(L1BatchAggregatedOperation),
+    L2Block(L2BlockAggregatedOperation),
 }
 
 #[derive(Debug, Clone)]
 pub enum L2BlockAggregatedOperation {
-    PreCommit(L1BatchNumber, L2BlockNumber, H256),
+    Precommit(
+        L1BatchNumber,
+        L2BlockNumber,
+        Vec<TransactionStatusCommitment>,
+    ),
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -79,13 +84,13 @@ impl L1BatchAggregatedOperation {
 impl L2BlockAggregatedOperation {
     pub fn get_action_type(&self) -> MiniblockAggregatedActionType {
         match self {
-            Self::PreCommit(..) => MiniblockAggregatedActionType::PreCommit,
+            Self::Precommit(..) => MiniblockAggregatedActionType::PreCommit,
         }
     }
 
     pub fn get_action_caption(&self) -> &'static str {
         match self {
-            Self::PreCommit(_, _, _) => "pre_commit",
+            Self::Precommit(_, _, _) => "precommit",
         }
     }
 }
@@ -93,15 +98,8 @@ impl L2BlockAggregatedOperation {
 impl AggregatedOperation {
     pub fn get_action_type(&self) -> AggregatedActionType {
         match self {
-            Self::L1BatchAggregatedOperation(op) => op.get_action_type().into(),
-            Self::L2BlockAggregatedOperation(op) => op.get_action_type().into(),
-        }
-    }
-
-    pub fn get_action_caption(&self) -> &'static str {
-        match self {
-            Self::L1BatchAggregatedOperation(op) => op.get_action_caption(),
-            Self::L2BlockAggregatedOperation(op) => op.get_action_caption(),
+            Self::L1Batch(op) => op.get_action_type().into(),
+            Self::L2Block(op) => op.get_action_type().into(),
         }
     }
 }

@@ -19,6 +19,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
+    transaction_status_commitment::TransactionStatusCommitment,
     L1BatchNumber, ProtocolVersionId,
 };
 
@@ -29,7 +30,10 @@ use super::{
         TimestampDeadlineCriterion,
     },
 };
-use crate::{aggregated_operations::L1BatchAggregatedOperation, EthSenderError};
+use crate::{
+    aggregated_operations::{L1BatchAggregatedOperation, L2BlockAggregatedOperation},
+    EthSenderError,
+};
 
 #[derive(Debug)]
 pub struct Aggregator {
@@ -91,31 +95,38 @@ impl OperationSkippingRestrictions {
     ) -> Option<AggregatedOperation> {
         let commit_op = commit_op?;
         self.check_for_continuation(&commit_op, self.commit_restriction)
-            .then_some(AggregatedOperation::L1BatchAggregatedOperation(commit_op))
+            .then_some(AggregatedOperation::L1Batch(commit_op))
     }
 
     fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
         let op = L1BatchAggregatedOperation::PublishProofOnchain(prove_op?);
         self.check_for_continuation(&op, self.prove_restriction)
-            .then_some(AggregatedOperation::L1BatchAggregatedOperation(op))
+            .then_some(AggregatedOperation::L1Batch(op))
     }
 
     fn filter_execute_op(&self, execute_op: Option<ExecuteBatches>) -> Option<AggregatedOperation> {
         let op = L1BatchAggregatedOperation::Execute(execute_op?);
         self.check_for_continuation(&op, self.execute_restriction)
-            .then_some(AggregatedOperation::L1BatchAggregatedOperation(op))
+            .then_some(AggregatedOperation::L1Batch(op))
     }
 
     // Unlike other funcitons `filter_commit_op` accepts an already prepared `AggregatedOperation` for
     // easier compatibility with other interfaces in the file.
     fn filter_precommit_op(
         &self,
-        precommit_op: Option<AggregatedOperation>,
+        precommit_op: Option<L2BlockAggregatedOperation>,
     ) -> Option<AggregatedOperation> {
-        todo!()
-        // let precommit_op = precommit_op?;
-        // self.check_for_continuation(&precommit_op, self.precommit_restriction)
-        //     .then_some(precommit_op)
+        let precommit_op = precommit_op?;
+        if let Some(reason) = self.precommit_restriction {
+            tracing::info!(
+                "Skipping sending operation of type {} for {}",
+                precommit_op.get_action_type(),
+                reason
+            );
+            None
+        } else {
+            Some(AggregatedOperation::L2Block(precommit_op))
+        }
     }
 }
 
@@ -250,17 +261,28 @@ impl Aggregator {
                 .await,
         ) {
             Ok(Some(op))
+        } else if let Some(op) = restrictions.filter_commit_op(
+            self.get_commit_operation(
+                storage,
+                self.config.max_aggregated_blocks_to_commit as usize,
+                last_sealed_l1_batch_number,
+                base_system_contracts_hashes,
+                protocol_version_id,
+                self.send_precommit_tx,
+            )
+            .await,
+        ) {
+            Ok(Some(op))
+        } else if self.send_precommit_tx {
+            if let Some(op) =
+                restrictions.filter_precommit_op(self.get_precommit_operation(storage).await?)
+            {
+                Ok(Some(op))
+            } else {
+                Ok(None)
+            }
         } else {
-            Ok(restrictions.filter_commit_op(
-                self.get_commit_operation(
-                    storage,
-                    self.config.max_aggregated_blocks_to_commit as usize,
-                    last_sealed_l1_batch_number,
-                    base_system_contracts_hashes,
-                    protocol_version_id,
-                )
-                .await,
-            ))
+            Ok(None)
         }
     }
 
@@ -289,6 +311,41 @@ impl Aggregator {
 
         // It is known that the `self.priority_merkle_tree` is initialized, so it is safe to unwrap here
         self.priority_merkle_tree.as_mut().unwrap()
+    }
+
+    async fn get_precommit_operation(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
+        // TODO make more specific requests to the database
+        let last_committed_l1_batch = storage
+            .blocks_dal()
+            .get_last_committed_to_eth_l1_batch()
+            .await
+            .unwrap();
+        let Some(l1_batch) = last_committed_l1_batch else {
+            return Ok(None);
+        };
+        let number = l1_batch.header.number;
+
+        let (txs, l1_batch) = storage
+            .rolling_tx_hashes()
+            .get_ready_rolling_txs_hashes(number)
+            .await
+            .unwrap();
+        if txs.is_empty() {
+            return Ok(None);
+        }
+
+        let (last_l2_block, _, _) = txs.last().unwrap();
+
+        Ok(Some(L2BlockAggregatedOperation::Precommit(
+            l1_batch,
+            *last_l2_block,
+            txs.into_iter()
+                .map(|(_, tx_hash, status)| TransactionStatusCommitment { tx_hash, status })
+                .collect(),
+        )))
     }
 
     async fn get_execute_operations(
@@ -386,6 +443,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
+        send_precommit_tx: bool,
     ) -> Option<L1BatchAggregatedOperation> {
         // The commit operation is not aggregated at the moment. The code below relies on `limit`
         // being set to 1 when defining the pubdata commitment mode.
@@ -421,6 +479,7 @@ impl Aggregator {
                     base_system_contracts_hashes.default_aa,
                     protocol_version_id,
                     self.commitment_mode != L1BatchCommitmentMode::Rollup,
+                    send_precommit_tx,
                 )
                 .await
                 .unwrap()
