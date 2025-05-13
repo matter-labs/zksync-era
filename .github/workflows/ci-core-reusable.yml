@@ -612,7 +612,9 @@ jobs:
           done
           
           echo "Updating DA validator addresses on L1 and restarting the server"
-          ci_run zkstack chain set-da-validator-pair --chain da_migration
+          L1_DA_VALIDATOR_GATEWAY=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/gateway/configs/contracts.yaml")
+          ci_run zkstack chain set-da-validator-pair --chain da_migration --max-l1-gas-price 50000000000 --l1-da-validator $L1_DA_VALIDATOR_GATEWAY
+          
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.state_keeper.compute_overhead_part = 1' ./chains/da_migration/configs/general.yaml

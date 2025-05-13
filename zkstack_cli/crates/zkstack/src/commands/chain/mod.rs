@@ -3,6 +3,7 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use set_da_validator_pair::SetDAValidatorPairArgs;
 use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
@@ -88,7 +89,7 @@ pub enum ChainCommands {
     /// Update pubdata pricing mode (used for Rollup -> Validium migration)
     SetPubdataPricingMode(SetPubdataPricingModeArgs),
     /// Update da validator pair (used for Rollup -> Validium migration)
-    SetDAValidatorPair(ForgeScriptArgs),
+    SetDAValidatorPair(SetDAValidatorPairArgs),
     #[command(subcommand, alias = "gw")]
     Gateway(gateway::GatewayComamnds),
 }
