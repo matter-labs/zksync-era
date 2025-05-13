@@ -2,8 +2,8 @@ use clap::{command, Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
 use crate::commands::{
-    config, debug_proof, delete, get_file_info, insert_batch, insert_version, requeue, restart,
-    stats, status::StatusCommand,
+    config, debug_proof, get_file_info, insert_batch, insert_version, requeue, stats,
+    status::StatusCommand,
 };
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -22,10 +22,8 @@ impl ProverCLI {
         match self.command {
             ProverCommand::FileInfo(args) => get_file_info::run(args).await?,
             ProverCommand::Config(cfg) => config::run(cfg).await?,
-            ProverCommand::Delete(args) => delete::run(args, self.config).await?,
             ProverCommand::Status(cmd) => cmd.run(self.config).await?,
             ProverCommand::Requeue(args) => requeue::run(args, self.config).await?,
-            ProverCommand::Restart(args) => restart::run(args).await?,
             ProverCommand::DebugProof(args) => debug_proof::run(args).await?,
             ProverCommand::Stats(args) => stats::run(args, self.config).await?,
             ProverCommand::InsertVersion(args) => insert_version::run(args, self.config).await?,
@@ -53,11 +51,9 @@ pub enum ProverCommand {
     DebugProof(debug_proof::Args),
     FileInfo(get_file_info::Args),
     Config(ProverCLIConfig),
-    Delete(delete::Args),
     #[command(subcommand)]
     Status(StatusCommand),
     Requeue(requeue::Args),
-    Restart(restart::Args),
     #[command(about = "Displays L1 Batch proving stats for a given period")]
     Stats(stats::Options),
     InsertVersion(insert_version::Args),
