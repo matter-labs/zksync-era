@@ -24,6 +24,10 @@ pub mod v27_evm_eq;
 #[cfg(feature = "v28_precompiles")]
 pub mod v28_precompiles;
 #[cfg(feature = "v29")]
+pub mod v29_chain_args;
+#[cfg(feature = "v29")]
 pub mod v29_chain_upgrade;
+#[cfg(feature = "v29")]
+pub mod v29_ecosystem_args;
 #[cfg(feature = "v29")]
 pub mod v29_ecosystem_upgrade;

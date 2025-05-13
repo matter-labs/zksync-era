@@ -16,7 +16,8 @@ use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_GENERATE_GENESIS_ABOUT,
     MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
     MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
-    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT, MSG_V29_CHAIN_UPGRADE,
+    MSG_V29_ECO_UPGRADE,
 };
 
 pub(crate) mod commands;
@@ -59,6 +60,18 @@ pub enum DevCommands {
     #[cfg(feature = "v28_precompiles")]
     #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
     GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
+    #[cfg(feature = "v29")]
+    #[command(about = MSG_V29_ECO_UPGRADE)]
+    GenerateV29EcosystemCalldata(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    #[cfg(feature = "v29")]
+    #[command(about = MSG_V29_ECO_UPGRADE)]
+    RunV29EcosystemUpgrade(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    #[cfg(feature = "v29")]
+    #[command(about = MSG_V29_CHAIN_UPGRADE)]
+    GenerateV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    #[cfg(feature = "v29")]
+    #[command(about = MSG_V29_CHAIN_UPGRADE)]
+    RunV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -85,6 +98,22 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         #[cfg(feature = "v28_precompiles")]
         DevCommands::GenerateV28UpgradeCalldata(args) => {
             commands::v28_precompiles::run(shell, args).await?
+        }
+        #[cfg(feature = "v29")]
+        DevCommands::GenerateV29EcosystemCalldata(args) => {
+            commands::v29_ecosystem_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "v29")]
+        DevCommands::RunV29EcosystemUpgrade(args) => {
+            commands::v29_ecosystem_upgrade::run(shell, args, true).await?
+        }
+        #[cfg(feature = "v29")]
+        DevCommands::GenerateV29ChainUpgrade(args) => {
+            commands::v29_chain_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "v29")]
+        DevCommands::RunV29ChainUpgrade(args) => {
+            commands::v29_chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())
