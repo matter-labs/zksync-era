@@ -13,8 +13,7 @@ pub struct EcosystemUpgradeOutput {
     pub l1_chain_id: u32,
     pub owner_address: Address,
     pub chain_upgrade_diamond_cut: Bytes,
-    pub governance_stage1_calls: Bytes,
-    pub governance_stage2_calls: Bytes,
+    pub governance_calls: GovernanceCalls,
 
     pub contracts_config: EcosystemUpgradeContractsOutput,
     pub deployed_addresses: EcosystemUpgradeDeployedAddresses,
@@ -98,6 +97,13 @@ pub struct EcosystemUpgradeStateTransition {
     pub mailbox_facet_addr: Address,
     pub state_transition_implementation_addr: Address,
     pub verifier_addr: Address,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GovernanceCalls {
+    pub stage0_calls: Bytes,
+    pub stage1_calls: Bytes,
+    pub stage2_calls: Bytes,
 }
 
 impl ZkStackConfig for EcosystemUpgradeOutput {}
