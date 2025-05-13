@@ -3,6 +3,7 @@ use std::{collections::HashMap, hash::Hash, time::Duration};
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Serde, WellKnown},
+    metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
 use strum::Display;
@@ -48,10 +49,7 @@ pub struct ProverAutoscalerAgentConfig {
     #[config(default_t = true)]
     pub dry_run: bool,
     /// Interval for periodic pod checks against the K8s API to remove stale pods.
-    #[serde(
-        with = "humantime_serde",
-        default = "ProverAutoscalerAgentConfig::default_pod_check_interval"
-    )]
+    #[config(default_t = 1 * TimeUnit::Hours)]
     pub pod_check_interval: Duration,
 }
 
@@ -75,13 +73,13 @@ pub struct ProverAutoscalerScalerConfig {
     /// Prover speed per GPU. Used to calculate desired number of provers for queue size.
     pub apply_min_to_namespace: Option<NamespaceName>,
     /// Duration after which pending pod considered long pending.
-    #[config(default_t = Duration::from_secs(600))]
+    #[config(default_t = 10 * TimeUnit::Minutes)]
     pub long_pending_duration: Duration,
     /// Time window for including scale errors in Autoscaler calculations. Clusters will be sorted by number of the errors.
-    #[config(default_t = Duration::from_secs(3600))]
+    #[config(default_t = 1 * TimeUnit::Hours)]
     pub scale_errors_duration: Duration,
     /// Time window for which Autoscaler forces pending pod migration due to scale errors.
-    #[config(default_t = Duration::from_secs(4 * 60))]
+    #[config(default_t = 4 * TimeUnit::Minutes)]
     pub need_to_move_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
@@ -168,23 +166,6 @@ impl WellKnown for ScalerTarget {
     const DE: Self::Deserializer = Serde![object];
 }
 
-impl ProverAutoscalerConfig {
-    /// Default graceful shutdown timeout -- 5 seconds
-    pub fn default_graceful_shutdown_timeout() -> Duration {
-        Duration::from_secs(5)
-    }
-}
-
-impl ProverAutoscalerAgentConfig {
-    pub fn default_dry_run() -> bool {
-        true
-    }
-
-    pub fn default_pod_check_interval() -> Duration {
-        Duration::from_secs(3600) // Default to 1 hour
-    }
-}
-
 impl ScalerTarget {
     pub fn default_speed() -> ScalarOrMap {
         ScalarOrMap::Scalar(1)
@@ -199,7 +180,6 @@ mod tests {
 
     #[test]
     fn deserializing_config() {
-        // FIXME: 'm' / 'h' are not recognized as minutes / hours!
         let yaml = r#"
             graceful_shutdown_timeout: 10s
             agent_config:
@@ -208,6 +188,7 @@ mod tests {
               namespaces:
                 - prover-blue
                 - prover-red
+              pod_check_interval: 10m
               dry_run: false
             scaler_config:
               dry_run: false
@@ -222,9 +203,9 @@ mod tests {
               cluster_priorities:
                 zksync-era-gateway-stage: 0
               apply_min_to_namespace: prover-blue
-              long_pending_duration: 10min
-              scale_errors_duration: 2hr
-              need_to_move_duration: 5min
+              long_pending_duration: 10m
+              scale_errors_duration: 2h
+              need_to_move_duration: 5m
               scaler_targets:
                 - queue_report_field: prover_jobs
                   scaler_target_type: gpu
@@ -283,6 +264,7 @@ mod tests {
             agent_config.namespaces,
             ["prover-blue".into(), "prover-red".into()]
         );
+        assert_eq!(agent_config.pod_check_interval, Duration::from_secs(600));
         assert!(!agent_config.dry_run);
 
         let scaler_config = config.scaler_config.unwrap();
