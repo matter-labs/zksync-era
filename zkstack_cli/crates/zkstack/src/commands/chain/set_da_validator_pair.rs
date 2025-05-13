@@ -35,6 +35,10 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         settlement_layer_url = gateway_url?.to_string();
         diamond_proxy_address =
             get_settlement_layer_address_from_gw(settlement_layer_url.clone(), chain_id).await?;
+        logger::note(
+            MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
+            format!("{}", hex::encode(diamond_proxy_address)),
+        );
     }
 
     let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
@@ -47,11 +51,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .l2
         .da_validator_addr
         .context("da_validator_addr")?;
-
-    logger::note(
-        MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
-        format!("{}", hex::encode(diamond_proxy_address)),
-    );
 
     set_da_validator_pair(
         shell,
