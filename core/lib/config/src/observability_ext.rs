@@ -160,7 +160,6 @@ pub trait ConfigRepositoryExt {
     fn parse_at<C: DeserializeConfig>(&self, prefix: &str) -> anyhow::Result<C>;
 }
 
-// TODO: report param values via visitor
 impl ConfigRepositoryExt for ConfigRepository<'_> {
     /// Parses a configuration from this repo. The configuration must have a unique mounting point.
     fn parse<C: DeserializeConfig>(&self) -> anyhow::Result<C> {
@@ -200,6 +199,7 @@ impl ConfigRepositoryExt for ConfigRepository<'_> {
 struct ObservabilityVisitor<'a> {
     source: Option<&'a value::Map>,
     metadata: &'static ConfigMetadata,
+    config_prefix: String,
 }
 
 impl<'a> ObservabilityVisitor<'a> {
@@ -211,8 +211,17 @@ impl<'a> ObservabilityVisitor<'a> {
         let mut this = Self {
             source,
             metadata: &C::DESCRIPTION,
+            config_prefix: prefix.to_owned(),
         };
         (C::DESCRIPTION.visitor)(config, &mut this);
+    }
+
+    fn join_path(prefix: &str, suffix: &str) -> String {
+        if prefix.is_empty() {
+            suffix.to_owned()
+        } else {
+            format!("{prefix}.{suffix}")
+        }
     }
 }
 
@@ -227,6 +236,7 @@ impl ConfigVisitor for ObservabilityVisitor<'_> {
         let value = tag_variant.name;
         tracing::debug!(
             param = param.name,
+            path = Self::join_path(&self.config_prefix, param.name),
             rust_name = param.rust_field_name,
             config = self.metadata.ty.name_in_code(),
             origin = origin.map(tracing::field::display),
@@ -257,6 +267,7 @@ impl ConfigVisitor for ObservabilityVisitor<'_> {
         tracing::debug!(
             param = param.name,
             rust_name,
+            path = Self::join_path(&self.config_prefix, param.name),
             config = self.metadata.ty.name_in_code(),
             origin = origin.map(tracing::field::display),
             value = value.map(tracing::field::display),
@@ -273,12 +284,15 @@ impl ConfigVisitor for ObservabilityVisitor<'_> {
         if nested_metadata.name.is_empty() {
             config.visit_config(self);
         } else {
+            let nested_prefix = Self::join_path(&self.config_prefix, nested_metadata.name);
+            let prev_prefix = mem::replace(&mut self.config_prefix, nested_prefix);
             let new_source = self
                 .source
                 .and_then(|map| map.get(nested_metadata.name)?.inner.as_object());
             let prev_source = mem::replace(&mut self.source, new_source);
             config.visit_config(self);
             self.source = prev_source;
+            self.config_prefix = prev_prefix;
         }
 
         self.metadata = prev_metadata;
