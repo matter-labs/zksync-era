@@ -6,6 +6,7 @@ abigen!(
     function assetRouter()(address)
     function settlementLayer(uint256)(uint256)
     function getZKChain(uint256)(address)
+    function getHyperchain(uint256)(address)
     function ctmAssetIdToAddress(bytes32)(address)
     function ctmAssetIdFromChainId(uint256)(bytes32)
     function baseTokenAssetId(uint256)(bytes32)
