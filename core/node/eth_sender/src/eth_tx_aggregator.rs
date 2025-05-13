@@ -9,7 +9,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_l1_contract_interface::{
     i_executor::{
         commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
-        methods::CommitBatches,
+        methods::{CommitBatches, PrecommitBatches},
     },
     multicall3::{Multicall3Call, Multicall3Result},
     Tokenizable, Tokenize,
@@ -29,7 +29,9 @@ use zksync_types::{
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
-use super::aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation};
+use super::aggregated_operations::{
+    AggregatedOperation, L1BatchAggregatedOperation, L2BlockAggregatedOperation,
+};
 use crate::{
     aggregator::OperationSkippingRestrictions,
     health::{EthTxAggregatorHealthDetails, EthTxDetails},
@@ -737,8 +739,12 @@ impl EthTxAggregator {
                     .track_eth_tx_metrics(storage, BlockL1Stage::Saved, tx)
                     .await;
             }
-            AggregatedOperation::MiniblockAggregatedOperation(_) => {
-                todo!()
+            AggregatedOperation::L2BlockAggregatedOperation(op) => {
+                tracing::info!(
+                    "eth_tx with ID {} for op {} was saved",
+                    tx.id,
+                    op.get_action_caption()
+                );
             }
         }
     }
@@ -813,9 +819,31 @@ impl EthTxAggregator {
                 };
                 TxData { calldata, sidecar }
             }
-            AggregatedOperation::MiniblockAggregatedOperation(_) => {
-                todo!()
-            }
+            AggregatedOperation::L2BlockAggregatedOperation(op) => match op {
+                L2BlockAggregatedOperation::PreCommit(
+                    l1_batch_number,
+                    last_l2_block,
+                    rolling_hash,
+                ) => {
+                    let precommit_batches = PrecommitBatches {
+                        txs: &[],
+                        last_l2_block: *last_l2_block,
+                        l1_batch_number: *l1_batch_number,
+                    };
+                    let precommit_data_base = precommit_batches.into_tokens();
+
+                    args.extend(precommit_data_base);
+                    let encoding_fn = &self.functions.precommit;
+
+                    let calldata = encoding_fn
+                        .encode_input(&args)
+                        .expect("Failed to encode execute transaction data");
+                    TxData {
+                        calldata,
+                        sidecar: None,
+                    }
+                }
+            },
         }
     }
 
@@ -935,7 +963,7 @@ impl EthTxAggregator {
                 transaction.commit().await.unwrap();
                 Ok(eth_tx)
             }
-            AggregatedOperation::MiniblockAggregatedOperation(_) => {
+            AggregatedOperation::L2BlockAggregatedOperation(_) => {
                 todo!()
             }
         }

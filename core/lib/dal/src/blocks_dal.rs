@@ -55,15 +55,22 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         let mut tx = self.storage.start_transaction().await?;
         let rolling_tx_hash_id = sqlx::query!(
-            "INSERT INTO rolling_tx_hashes (l1_batch_number, rolling_hash, final) VALUES ($1, $2, $3) returning id",
+            r#"
+            INSERT INTO
+            rolling_tx_hashes
+            (l1_batch_number, rolling_hash, final)
+            VALUES ($1, $2, $3)
+            RETURNING id
+            "#,
             i64::from(l1_batch_number.0),
             rolling_hash.as_bytes(),
             final_hash,
-            )
-            .instrument("insert_rolling_txs_hash")
-            .report_latency()
-            .fetch_one(&mut tx)
-            .await?.id;
+        )
+        .instrument("insert_rolling_txs_hash")
+        .report_latency()
+        .fetch_one(&mut tx)
+        .await?
+        .id;
         sqlx::query!(
             r#"
             UPDATE miniblocks

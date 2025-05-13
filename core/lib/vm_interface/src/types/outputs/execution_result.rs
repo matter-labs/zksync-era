@@ -1,5 +1,6 @@
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use zksync_system_constants::{
     BOOTLOADER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     PUBLISH_BYTECODE_OVERHEAD,

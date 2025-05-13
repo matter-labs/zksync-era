@@ -26,10 +26,9 @@ use zksync_types::{
 };
 use zksync_web3_decl::client::MockClient;
 
-use crate::aggregated_operations::L1BatchAggregatedOperation;
 use crate::{
     abstract_l1_interface::{AbstractL1Interface, OperatorType, RealL1Interface},
-    aggregated_operations::AggregatedOperation,
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tester::{
         EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS,
         STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,

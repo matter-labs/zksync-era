@@ -1,9 +1,10 @@
 use std::ops;
 
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
-use zksync_types::aggregated_operations::{AggregatedActionType, MiniblockAggregatedActionType};
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, MiniblockAggregatedActionType,
+    },
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     pubdata_da::PubdataSendingMode,
     L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
@@ -13,11 +14,11 @@ use zksync_types::{
 #[derive(Debug, Clone)]
 pub enum AggregatedOperation {
     L1BatchAggregatedOperation(L1BatchAggregatedOperation),
-    MiniblockAggregatedOperation(MiniblockAggregatedOperation),
+    L2BlockAggregatedOperation(L2BlockAggregatedOperation),
 }
 
 #[derive(Debug, Clone)]
-pub enum MiniblockAggregatedOperation {
+pub enum L2BlockAggregatedOperation {
     PreCommit(L1BatchNumber, L2BlockNumber, H256),
 }
 
@@ -75,7 +76,7 @@ impl L1BatchAggregatedOperation {
     }
 }
 
-impl MiniblockAggregatedOperation {
+impl L2BlockAggregatedOperation {
     pub fn get_action_type(&self) -> MiniblockAggregatedActionType {
         match self {
             Self::PreCommit(..) => MiniblockAggregatedActionType::PreCommit,
@@ -93,14 +94,14 @@ impl AggregatedOperation {
     pub fn get_action_type(&self) -> AggregatedActionType {
         match self {
             Self::L1BatchAggregatedOperation(op) => op.get_action_type().into(),
-            Self::MiniblockAggregatedOperation(op) => op.get_action_type().into(),
+            Self::L2BlockAggregatedOperation(op) => op.get_action_type().into(),
         }
     }
 
     pub fn get_action_caption(&self) -> &'static str {
         match self {
             Self::L1BatchAggregatedOperation(op) => op.get_action_caption(),
-            Self::MiniblockAggregatedOperation(op) => op.get_action_caption(),
+            Self::L2BlockAggregatedOperation(op) => op.get_action_caption(),
         }
     }
 }

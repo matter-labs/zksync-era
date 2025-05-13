@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO rolling_tx_hashes (l1_batch_number, rolling_hash, final) VALUES ($1, $2, $3) returning id",
+  "query": "\n            INSERT INTO\n            rolling_tx_hashes\n            (l1_batch_number, rolling_hash, final)\n            VALUES ($1, $2, $3)\n            RETURNING id\n            ",
   "describe": {
     "columns": [
       {
@@ -20,5 +20,5 @@
       false
     ]
   },
-  "hash": "b26afc92b9e2d0f2ffcfe85ae1960e1d57451b07e2ae6197b20c2acc40d3b59a"
+  "hash": "b97fb5b692e3e86c4a0ffa89a4c1e4f1965451a08d32dc7475491aca1e58560e"
 }

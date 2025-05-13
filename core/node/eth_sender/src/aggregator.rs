@@ -1,14 +1,5 @@
 use std::sync::Arc;
 
-use super::{
-    aggregated_operations::AggregatedOperation,
-    publish_criterion::{
-        GasCriterionKind, L1BatchPublishCriterion, L1GasCriterion, NumberCriterion,
-        TimestampDeadlineCriterion,
-    },
-};
-use crate::aggregated_operations::L1BatchAggregatedOperation;
-use crate::EthSenderError;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -30,6 +21,15 @@ use zksync_types::{
     settlement::SettlementLayer,
     L1BatchNumber, ProtocolVersionId,
 };
+
+use super::{
+    aggregated_operations::AggregatedOperation,
+    publish_criterion::{
+        GasCriterionKind, L1BatchPublishCriterion, L1GasCriterion, NumberCriterion,
+        TimestampDeadlineCriterion,
+    },
+};
+use crate::{aggregated_operations::L1BatchAggregatedOperation, EthSenderError};
 
 #[derive(Debug)]
 pub struct Aggregator {

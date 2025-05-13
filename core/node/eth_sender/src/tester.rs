@@ -20,10 +20,9 @@ use zksync_types::{
     SLChainId, H256,
 };
 
-use crate::aggregated_operations::L1BatchAggregatedOperation;
 use crate::{
     abstract_l1_interface::{L1BlockNumbers, OperatorType},
-    aggregated_operations::AggregatedOperation,
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tests::{default_l1_batch_metadata, l1_batch_with_metadata},
     Aggregator, EthTxAggregator, EthTxManager,
 };

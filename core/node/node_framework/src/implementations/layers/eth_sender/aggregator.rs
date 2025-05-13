@@ -1,7 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::chain::Finality;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::{chain::Finality, eth_sender::SenderConfig};
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 

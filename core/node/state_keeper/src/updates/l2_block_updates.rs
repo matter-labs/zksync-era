@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::metrics::KEEPER_METRICS;
 use zksync_multivm::{
     interface::{
         Call, ExecutionResult, L2BlockEnv, TransactionExecutionResult, TxExecutionStatus, VmEvent,
@@ -8,14 +7,16 @@ use zksync_multivm::{
     },
     vm_latest::TransactionVmExt,
 };
-use zksync_types::web3::keccak256_concat;
 use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    u256_to_h256, L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
-    U256,
+    u256_to_h256,
+    web3::keccak256_concat,
+    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256, U256,
 };
+
+use crate::metrics::KEEPER_METRICS;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockUpdates {
