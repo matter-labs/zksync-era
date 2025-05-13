@@ -1,4 +1,3 @@
-
 use assert_matches::assert_matches;
 use ethabi::Token;
 use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
@@ -85,8 +84,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
 fn inflated_counter_bytecode() -> Vec<u8> {
     let mut counter_bytecode = TestContract::counter().bytecode.to_vec();
     counter_bytecode.extend(
-        std::iter::repeat_n(EncodingModeProduction::nop_encoding().to_be_bytes(), 10_000)
-            .flatten(),
+        std::iter::repeat_n(EncodingModeProduction::nop_encoding().to_be_bytes(), 10_000).flatten(),
     );
     counter_bytecode
 }

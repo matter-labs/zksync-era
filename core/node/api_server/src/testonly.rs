@@ -55,8 +55,11 @@ const MULTICALL3_CONTRACT_PATH: &str =
 /// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
 fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
     bytecode.extend(
-        std::iter::repeat_n(EncodingModeProduction::nop_encoding().to_be_bytes(), nop_count)
-            .flatten(),
+        std::iter::repeat_n(
+            EncodingModeProduction::nop_encoding().to_be_bytes(),
+            nop_count,
+        )
+        .flatten(),
     );
 }
 
