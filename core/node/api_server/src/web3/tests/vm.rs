@@ -23,7 +23,7 @@ use zksync_vm_executor::oneshot::{
     BaseSystemContractsProvider, ContractsKind, MockOneshotExecutor, OneshotEnvParameters,
     ResolvedBlockInfo,
 };
-use zksync_web3_decl::namespaces::DebugNamespaceClient;
+use zksync_web3_decl::namespaces::{DebugNamespaceClient, UnstableNamespaceClient};
 
 use super::*;
 
