@@ -157,7 +157,7 @@ impl EthereumParameters {
 
         let l1_block_number = U64::from(l1_block_number);
         let last_commit = self.batches_and_sl_blocks_for_commits.last().copied();
-        let is_increasing = last_commit.map_or(true, |last| {
+        let is_increasing = last_commit.is_none_or(|last| {
             last.0 <= l1_batch_number && last.1 <= l1_block_number
         });
         assert!(

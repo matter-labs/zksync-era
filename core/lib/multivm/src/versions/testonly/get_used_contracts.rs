@@ -1,4 +1,3 @@
-use std::iter;
 
 use assert_matches::assert_matches;
 use ethabi::Token;
@@ -86,8 +85,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
 fn inflated_counter_bytecode() -> Vec<u8> {
     let mut counter_bytecode = TestContract::counter().bytecode.to_vec();
     counter_bytecode.extend(
-        iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
-            .take(10_000)
+        std::iter::repeat_n(EncodingModeProduction::nop_encoding().to_be_bytes(), 10_000)
             .flatten(),
     );
     counter_bytecode

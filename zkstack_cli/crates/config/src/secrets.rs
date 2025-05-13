@@ -23,7 +23,7 @@ impl RawConsensusKeys {
     pub fn generate() -> Self {
         let validator = validator::SecretKey::generate();
         let node = node::SecretKey::generate();
-        
+
         Self {
             validator_public: validator.public().encode(),
             node_public: node.public().encode(),
@@ -100,7 +100,8 @@ impl SecretsConfigPatch {
     pub fn set_consensus_keys(&mut self, consensus_keys: RawConsensusKeys) -> anyhow::Result<()> {
         self.0
             .insert("consensus.validator_key", consensus_keys.validator_secret)?;
-        self.0.insert("consensus.node_key", consensus_keys.node_secret)
+        self.0
+            .insert("consensus.node_key", consensus_keys.node_secret)
     }
 
     pub fn set_consensus_node_key(&mut self, raw_key: &str) -> anyhow::Result<()> {
