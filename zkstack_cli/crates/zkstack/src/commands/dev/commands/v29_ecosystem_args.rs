@@ -56,6 +56,7 @@ impl EcosystemUpgradeArgs {
         self,
         l1_network: L1Network,
         dev: bool,
+        run_upgrade: bool,
     ) -> EcosystemUpgradeArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
@@ -79,6 +80,7 @@ impl EcosystemUpgradeArgs {
             ecosystem_contracts_path: self.ecosystem_contracts_path,
             l1_rpc_url,
             server_command: self.server_command,
+            run_upgrade,
         }
     }
 }
@@ -97,4 +99,5 @@ pub struct EcosystemUpgradeArgsFinal {
     pub l1_rpc_url: String,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
+    pub run_upgrade: bool,
 }

@@ -1,15 +1,17 @@
+use std::str::FromStr;
+
 use anyhow::Context;
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use xshell::Shell;
+use xshell::{cmd, Shell};
 use zkstack_cli_common::{db::DatabaseConfig, forge::Forge, git, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
         deploy_ecosystem::input::GenesisInput,
         gateway_preparation::input::GatewayPreparationConfig,
         script_params::{
-            FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION, UPGRADE_ECOSYSTEM_PARAMS,
+            FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_PREPARATION, V29_UPGRADE_ECOSYSTEM_PARAMS,
         },
         upgrade_ecosystem::{input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput},
     },
@@ -17,8 +19,8 @@ use zkstack_cli_config::{
     EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
-use zksync_basic_types::commitment::L1BatchCommitmentMode;
-use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
+use zksync_basic_types::{commitment::L1BatchCommitmentMode, H160};
+use zksync_types::{L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
     admin_functions::{accept_admin, governance_execute_calls, set_da_validator_pair},
@@ -31,7 +33,7 @@ use crate::{
             // },
             genesis::genesis,
         },
-        ecosystem::args::ecosystem_upgrade::{
+        dev::commands::v29_ecosystem_args::{
             EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage,
         },
     },
@@ -40,18 +42,23 @@ use crate::{
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
-pub async fn run(args: EcosystemUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(
+    shell: &Shell,
+    args: EcosystemUpgradeArgs,
+    run_upgrade: bool,
+) -> anyhow::Result<()> {
     println!("Running ecosystem gateway upgrade args");
 
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 
-    let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network, true);
+    let mut final_ecosystem_args =
+        args.fill_values_with_prompt(ecosystem_config.l1_network, true, run_upgrade);
 
     match final_ecosystem_args.ecosystem_upgrade_stage {
         EcosystemUpgradeStage::NoGovernancePrepare => {
             no_governance_prepare(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
-            no_governance_prepare_gateway(shell, &mut ecosystem_config).await?;
+            // no_governance_prepare_gateway(shell, &mut ecosystem_config).await?;
         }
         EcosystemUpgradeStage::GovernanceStage0 => {
             governance_stage_0(&mut final_ecosystem_args, shell, &ecosystem_config).await?;
@@ -95,11 +102,58 @@ async fn no_governance_prepare(
         .join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
-    let current_contracts_config = ecosystem_config.get_contracts_config()?;
+    let mut current_contracts_config = ecosystem_config.get_contracts_config()?;
+    let bridgehub_proxy_address = current_contracts_config
+        .ecosystem_contracts
+        .bridgehub_proxy_addr;
+    // .context("BridgeHub proxy address is not set in current_contracts_config.ecosystem_contracts. This is required to fetch the messageRoot address.")?;
+
+    let bridgehub_proxy_address_str = format!("{:#x}", bridgehub_proxy_address);
+
+    println!(
+        "Executing: cast call {} \"messageRoot()(address)\" to get the current messageRoot address from BridgeHub.",
+        bridgehub_proxy_address_str
+    );
+
+    // Execute the cast call command.
+    // The command is: cast call <BRIDGEHUB_ADDRESS> "messageRoot()(address)"
+    // This retrieves the address of the messageRoot contract associated with the BridgeHub.
+    let cast_output_stdout = cmd!(
+        shell,
+        "cast call {bridgehub_proxy_address_str} messageRoot()(address)"
+    )
+    .read()
+    .context("Failed to execute 'cast call' to retrieve messageRoot address from BridgeHub.")?;
+
+    // The output from `cast call` is typically the address followed by a newline.
+    // Trim whitespace and store it.
+    let message_root_address_from_cast = cast_output_stdout.trim().to_string();
+
+    if message_root_address_from_cast.is_empty()
+        || message_root_address_from_cast == "0x0000000000000000000000000000000000000000"
+    {
+        anyhow::bail!(
+            "Retrieved messageRoot address from BridgeHub is empty or zero: '{}'. This indicates an issue.",
+            message_root_address_from_cast
+        );
+    }
+
+    println!(
+        "Successfully retrieved messageRoot address from BridgeHub: {}",
+        message_root_address_from_cast
+    );
+    // The variable `message_root_address_from_cast` now holds the address as a string.
+    // It can be used for subsequent operations if needed.
+
+    current_contracts_config
+        .ecosystem_contracts
+        .message_root_proxy_addr = Some(H160::from_str(&message_root_address_from_cast).unwrap());
+    current_contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
+
     let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
 
     let ecosystem_upgrade_config_path =
-        UPGRADE_ECOSYSTEM_PARAMS.input(&ecosystem_config.link_to_code);
+        V29_UPGRADE_ECOSYSTEM_PARAMS.input(&ecosystem_config.path_to_l1_foundry());
 
     let era_config = ecosystem_config
         .load_chain(Some("era".to_string()))
@@ -116,10 +170,18 @@ async fn no_governance_prepare(
         era_config.get_contracts_config()?.l1.diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );
+    println!("gateway_upgrade_input: {:?}", gateway_upgrade_input);
+    println!(
+        "ecosystem_upgrade_config_path: {:?}",
+        ecosystem_upgrade_config_path
+    );
     gateway_upgrade_input.save(shell, ecosystem_upgrade_config_path.clone())?;
-
+    println!(
+        "path to foundry: {}",
+        ecosystem_config.path_to_l1_foundry().display()
+    );
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
-        .script(&UPGRADE_ECOSYSTEM_PARAMS.script(), forge_args.clone())
+        .script(&V29_UPGRADE_ECOSYSTEM_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
         .with_slow()
@@ -146,7 +208,7 @@ async fn no_governance_prepare(
                 .link_to_code
                 .join("contracts/l1-contracts")
                 .join(format!(
-                    "broadcast/EcosystemUpgrade.s.sol/{}/run-latest.json",
+                    "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
                     l1_chain_id
                 )),
         )
@@ -156,7 +218,7 @@ async fn no_governance_prepare(
 
     let mut output = EcosystemUpgradeOutput::read(
         shell,
-        UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
+        V29_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.path_to_l1_foundry()),
     )?;
 
     // Add all the transaction hashes.
@@ -180,7 +242,7 @@ async fn no_governance_prepare_gateway(
 
     let output = EcosystemUpgradeOutput::read(
         shell,
-        UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
+        V29_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.path_to_l1_foundry()),
     )?;
 
     let mut s: String = "0x".to_string();
@@ -229,6 +291,30 @@ async fn governance_stage_0(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
+    println!("Executing governance stage 0!");
+
+    let previous_output = EcosystemUpgradeOutput::read(
+        shell,
+        V29_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.path_to_l1_foundry()),
+    )?;
+    previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
+
+    // These are ABI-encoded
+    let stage0_calls = previous_output.governance_calls.stage0_calls;
+
+    governance_execute_calls(
+        shell,
+        ecosystem_config,
+        &ecosystem_config.get_wallets()?.governor,
+        stage0_calls.0,
+        &init_args.forge_args.clone(),
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
+
+    let gateway_ecosystem_preparation_output =
+        EcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
+
     Ok(())
 }
 
@@ -242,12 +328,12 @@ async fn governance_stage_1(
 
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
-        UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
+        V29_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
 
     // These are ABI-encoded
-    let stage1_calls = previous_output.governance_stage1_calls;
+    let stage1_calls = previous_output.governance_calls.stage1_calls;
 
     governance_execute_calls(
         shell,
@@ -326,7 +412,7 @@ async fn governance_stage_2(
         EcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
     // These are ABI-encoded
-    let stage2_calls = previous_output.governance_stage2_calls;
+    let stage2_calls = previous_output.governance_calls.stage2_calls;
 
     governance_execute_calls(
         shell,
