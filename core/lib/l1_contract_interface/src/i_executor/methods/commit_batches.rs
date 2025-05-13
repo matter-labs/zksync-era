@@ -5,7 +5,9 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION, PRE_INTEROP_ENCODING_VERSION},
+    i_executor::structures::{
+        CommitBatchInfo, StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
+    },
     Tokenizable, Tokenize,
 };
 

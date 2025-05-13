@@ -5,7 +5,9 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION, PRE_INTEROP_ENCODING_VERSION},
+    i_executor::structures::{
+        StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
+    },
     Tokenizable,
 };
 
@@ -29,7 +31,10 @@ impl ExecuteBatches {
             vec![Token::Array(
                 self.l1_batches
                     .iter()
-                    .map(|batch| StoredBatchInfo::from(batch).into_token_with_protocol_version(internal_protocol_version))
+                    .map(|batch| {
+                        StoredBatchInfo::from(batch)
+                            .into_token_with_protocol_version(internal_protocol_version)
+                    })
                     .collect(),
             )]
         } else if internal_protocol_version.is_pre_interop()
@@ -39,7 +44,10 @@ impl ExecuteBatches {
                 Token::Array(
                     self.l1_batches
                         .iter()
-                        .map(|batch| StoredBatchInfo::from(batch).into_token_with_protocol_version(internal_protocol_version))
+                        .map(|batch| {
+                            StoredBatchInfo::from(batch)
+                                .into_token_with_protocol_version(internal_protocol_version)
+                        })
                         .collect(),
                 ),
                 Token::Array(
@@ -63,7 +71,10 @@ impl ExecuteBatches {
                 Token::Array(
                     self.l1_batches
                         .iter()
-                        .map(|batch| StoredBatchInfo::from(batch).into_token_with_protocol_version(internal_protocol_version))
+                        .map(|batch| {
+                            StoredBatchInfo::from(batch)
+                                .into_token_with_protocol_version(internal_protocol_version)
+                        })
                         .collect(),
                 ),
                 Token::Array(
