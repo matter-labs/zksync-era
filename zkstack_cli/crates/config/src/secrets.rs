@@ -13,15 +13,22 @@ use crate::{
 
 #[derive(Debug)]
 pub struct RawConsensusKeys {
-    pub validator: String,
-    pub node: String,
+    pub validator_public: String,
+    pub node_public: String,
+    pub validator_secret: String,
+    pub node_secret: String,
 }
 
 impl RawConsensusKeys {
     pub fn generate() -> Self {
+        let validator = validator::SecretKey::generate();
+        let node = node::SecretKey::generate();
+        
         Self {
-            validator: validator::SecretKey::generate().encode(),
-            node: node::SecretKey::generate().encode(),
+            validator_public: validator.public().encode(),
+            node_public: node.public().encode(),
+            validator_secret: validator.encode(),
+            node_secret: node.encode(),
         }
     }
 }
@@ -92,8 +99,8 @@ impl SecretsConfigPatch {
 
     pub fn set_consensus_keys(&mut self, consensus_keys: RawConsensusKeys) -> anyhow::Result<()> {
         self.0
-            .insert("consensus.validator_key", consensus_keys.validator)?;
-        self.0.insert("consensus.node_key", consensus_keys.node)
+            .insert("consensus.validator_key", consensus_keys.validator_secret)?;
+        self.0.insert("consensus.node_key", consensus_keys.node_secret)
     }
 
     pub fn set_consensus_node_key(&mut self, raw_key: &str) -> anyhow::Result<()> {

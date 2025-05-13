@@ -78,10 +78,10 @@ pub async fn init_configs(
     general_config.set_consensus_specs(ConsensusGenesisSpecs {
         chain_id: chain_config.chain_id,
         validators: vec![Weighted {
-            key: consensus_keys.validator.clone(),
+            key: consensus_keys.validator_public.clone(),
             weight: 1,
         }],
-        leader: consensus_keys.validator.clone(),
+        leader: consensus_keys.validator_public.clone(),
     })?;
 
     match &init_args.validium_config {
