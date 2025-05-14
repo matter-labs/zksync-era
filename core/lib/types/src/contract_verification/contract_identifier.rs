@@ -147,19 +147,19 @@ impl CborCompilerVersion {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct CborMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
-    ipfs: Option<Vec<u8>>,
+    pub ipfs: Option<Vec<u8>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    bzzr1: Option<Vec<u8>>,
+    pub bzzr1: Option<Vec<u8>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    bzzr0: Option<Vec<u8>>,
+    pub bzzr0: Option<Vec<u8>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    experimental: Option<bool>,
+    pub experimental: Option<bool>,
     // CborMetadata is deserialized with ciborium which doesn't properly deserialize CborCompilerVersion
     // with it's variants. That's why we need a custom deserializer.
     #[serde(default, deserialize_with = "deserialize_cbor_compiler")]
-    solc: Option<CborCompilerVersion>,
+    pub solc: Option<CborCompilerVersion>,
     #[serde(default, deserialize_with = "deserialize_cbor_compiler")]
-    vyper: Option<CborCompilerVersion>,
+    pub vyper: Option<CborCompilerVersion>,
 }
 
 impl CborMetadata {

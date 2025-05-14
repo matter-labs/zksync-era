@@ -20,7 +20,7 @@ use zksync_types::{
             self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
             VerificationProblem, VerificationRequest,
         },
-        contract_identifier::{CborMetadata, ContractIdentifier, DetectedMetadata, Match},
+        contract_identifier::{ContractIdentifier, DetectedMetadata, Match},
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
@@ -271,17 +271,14 @@ impl ContractVerifier {
         let deployed_identifier =
             ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
 
-        if let Some(DetectedMetadata::Cbor {
-            metadata: cbor_metadata,
-            ..
-        }) = &deployed_identifier.detected_metadata
-        {
-            // Updates the compiler versions in the request to match the metadata if they do not match.
-            self.update_request_compiler_versions(&mut request, cbor_metadata)
-                .await?;
-        }
+        let artifacts = self
+            .get_compilation_artifacts(
+                &mut request,
+                deployed_identifier.detected_metadata.as_ref(),
+                &bytecode_marker,
+            )
+            .await?;
 
-        let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
         let mut compiled_code = artifacts.deployed_bytecode().to_vec();
 
         // If contract contains immutable references (e.g. places to be filled during constructor execution),
@@ -366,63 +363,95 @@ impl ContractVerifier {
         Ok((info, compiled_identifier))
     }
 
-    /// Checks whether the compiler versions in the request match those in the CBOR metadata (if available).
-    /// If they do not match, the versions in the request are updated to match the metadata.
-    async fn update_request_compiler_versions(
+    /// Returns compilation artifacts for the given request.
+    /// Tries to use the compiler versions from the metadata if they are different from the ones in the request.
+    /// If the metadata is not present, or the versions are the same, uses the ones from the request.
+    async fn get_compilation_artifacts(
         &self,
         request: &mut VerificationRequest,
-        cbor_metadata: &CborMetadata,
-    ) -> Result<(), ContractVerifierError> {
-        let (compiler_version, zk_compiler_version) = cbor_metadata.get_compiler_versions();
-        let request_compiler = request.req.compiler_versions.compiler_version();
-        let request_zk_compiler = request.req.compiler_versions.zk_compiler_version();
+        detected_metadata: Option<&DetectedMetadata>,
+        bytecode_marker: &BytecodeMarker,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        match detected_metadata {
+            Some(DetectedMetadata::Cbor {
+                metadata: cbor_metadata,
+                ..
+            }) if !request.req.compiler_versions_match(cbor_metadata) => {
+                let updated_request = request
+                    .req
+                    .clone()
+                    .with_updated_compiler_versions(cbor_metadata);
 
-        // If the metadata doesn't contain the compiler version, we assume that it is the same as in the request.
-        let metadata_compiler = compiler_version.as_deref().unwrap_or(request_compiler);
-        let metadata_zk_compiler = zk_compiler_version.as_deref().or(request_zk_compiler);
+                match self
+                    .compile(updated_request.clone(), *bytecode_marker)
+                    .await
+                {
+                    Ok(artifacts) => {
+                        tracing::warn!(
+                            request_id = request.id,
+                            request_compiler = request.req.compiler_versions.compiler_version(),
+                            metadata_compiler =
+                                updated_request.compiler_versions.compiler_version(),
+                            request_zk_compiler =
+                                request.req.compiler_versions.zk_compiler_version(),
+                            metadata_zk_compiler =
+                                updated_request.compiler_versions.zk_compiler_version(),
+                            "Updating request compiler versions in the DB."
+                        );
 
-        if request_compiler != metadata_compiler || request_zk_compiler != metadata_zk_compiler {
-            tracing::warn!(
+                        // Since we know the version that should be used for the contract, we override one provided in
+                        // the request, so that if this request is interpreted by anyone else, they can get correct
+                        // compilation results
+                        self.update_request_compiler_versions(
+                            request.id,
+                            updated_request.compiler_versions.compiler_version(),
+                            updated_request.compiler_versions.zk_compiler_version(),
+                        )
+                        .await?;
+
+                        // Update the request for downstream use
+                        request.req = updated_request;
+
+                        Ok(artifacts)
+                    }
+                    Err(err) => {
+                        tracing::warn!(
                     request_id = request.id,
-                    request_compiler,
-                    request_zk_compiler,
-                    metadata_compiler,
-                    metadata_zk_compiler,
-                    "Compiler versions in the request don't match the ones in the CBOR metadata. Updating the request."
+                    "Failed to compile with the compiler versions from the metadata: {err}. Falling back to the original request."
                 );
-
-            let mut storage = self
-                .connection_pool
-                .connection_tagged("contract_verifier")
-                .await?;
-
-            // Update the verification request in the DB because other components depend on the compiler versions,
-            // such as Etherscan verification and block explorer.
-            storage
-                .contract_verification_dal()
-                .update_verification_request_compiler_versions(
-                    request.id,
-                    metadata_compiler,
-                    metadata_zk_compiler,
-                )
-                .await?;
-
-            // Update the verification request instance, so it's passed to the compiler with the correct versions.
-            match request.req.compiler_versions.compiler_type() {
-                api::CompilerType::Solc => {
-                    request.req.compiler_versions = api::CompilerVersions::Solc {
-                        compiler_solc_version: metadata_compiler.to_string(),
-                        compiler_zksolc_version: metadata_zk_compiler.map(str::to_string),
-                    };
-                }
-                api::CompilerType::Vyper => {
-                    request.req.compiler_versions = api::CompilerVersions::Vyper {
-                        compiler_vyper_version: metadata_compiler.to_string(),
-                        compiler_zkvyper_version: metadata_zk_compiler.map(str::to_string),
-                    };
+                        // Fallback to the original request
+                        self.compile(request.req.clone(), *bytecode_marker).await
+                    }
                 }
             }
+            _ => {
+                // No CBOR metadata — use original request
+                self.compile(request.req.clone(), *bytecode_marker).await
+            }
         }
+    }
+
+    // Updates request compiler versions in the DB.
+    async fn update_request_compiler_versions(
+        &self,
+        request_id: usize,
+        compiler_version: &str,
+        zk_compiler_version: Option<&str>,
+    ) -> Result<(), ContractVerifierError> {
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await?;
+
+        storage
+            .contract_verification_dal()
+            .update_verification_request_compiler_versions(
+                request_id,
+                compiler_version,
+                zk_compiler_version,
+            )
+            .await?;
+
         Ok(())
     }
 
