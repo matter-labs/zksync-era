@@ -5,9 +5,6 @@ use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
 pub const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
 pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
-
-pub const IN_BLOCK_FINALITY_STATE: &str = "inBlock";
-pub const FINALIZED_FINALITY_STATE: &str = "finalized";
 pub const DEFAULT_DISPATCH_TIMEOUT_MS: u64 = 180_000; // 3 minutes
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -46,21 +43,6 @@ pub struct AvailSecrets {
 }
 
 impl AvailDefaultConfig {
-    pub fn finality_state(&self) -> anyhow::Result<String> {
-        match self.finality_state.clone() {
-            Some(finality_state) => match finality_state.as_str() {
-                IN_BLOCK_FINALITY_STATE | FINALIZED_FINALITY_STATE => Ok(finality_state),
-                _ => Err(anyhow::anyhow!(
-                    "Invalid finality state: {}. Supported values are: {}, {}",
-                    finality_state,
-                    IN_BLOCK_FINALITY_STATE,
-                    FINALIZED_FINALITY_STATE
-                )),
-            },
-            None => Ok(IN_BLOCK_FINALITY_STATE.to_string()),
-        }
-    }
-
     pub fn dispatch_timeout(&self) -> Duration {
         Duration::from_millis(
             self.dispatch_timeout_ms
