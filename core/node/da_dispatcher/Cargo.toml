@@ -13,10 +13,10 @@ categories.workspace = true
 
 [dependencies]
 vise.workspace = true
-zksync_dal = { workspace = true, features = ["di"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_config.workspace = true
 zksync_types.workspace = true
-zksync_da_client = { workspace = true, features = ["di"] }
+zksync_da_client = { workspace = true, features = ["node_framework"] }
 zksync_system_constants.workspace = true
 zksync_node_framework.workspace = true
 zksync_shared_di.workspace = true

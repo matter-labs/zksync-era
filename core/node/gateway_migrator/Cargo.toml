@@ -11,13 +11,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_eth_client = { workspace = true, features = ["di"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_web3_decl.workspace = true
 zksync_contracts.workspace = true
 zksync_basic_types.workspace = true
 zksync_config.workspace = true
 zksync_system_constants.workspace = true
-zksync_dal = { workspace = true, features = ["di"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_node_framework.workspace = true
 zksync_shared_di.workspace = true
 

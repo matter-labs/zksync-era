@@ -3,7 +3,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 
-#[cfg(feature = "di")]
+#[cfg(feature = "node_framework")]
 pub mod di;
 pub mod l1_txs;
 mod metrics;

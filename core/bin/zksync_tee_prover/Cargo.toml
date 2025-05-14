@@ -34,7 +34,7 @@ zksync_env_config.workspace = true
 zksync_node_framework.workspace = true
 zksync_tee_prover_interface.workspace = true
 zksync_tee_verifier.workspace = true
-zksync_vlog = { workspace = true, features = ["di"] }
+zksync_vlog = { workspace = true, features = ["node_framework"] }
 
 [dev-dependencies]
 hex.workspace = true

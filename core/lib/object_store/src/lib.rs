@@ -23,7 +23,7 @@
     clippy::doc_markdown
 )]
 
-#[cfg(feature = "di")]
+#[cfg(feature = "node_framework")]
 pub mod di;
 mod factory;
 mod file;

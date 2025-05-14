@@ -20,4 +20,4 @@ anyhow.workspace = true
 
 [features]
 default = []
-di = ["zksync_node_framework"]
+node_framework = ["dep:zksync_node_framework"]

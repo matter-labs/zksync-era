@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData};
 
-#[cfg(feature = "di")]
+#[cfg(feature = "node_framework")]
 pub mod di;
 pub mod types;
 

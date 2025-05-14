@@ -28,4 +28,4 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = []
-di = ["zksync_node_framework"]
+node_framework = ["dep:zksync_node_framework"]

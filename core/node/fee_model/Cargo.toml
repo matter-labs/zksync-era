@@ -13,9 +13,9 @@ categories.workspace = true
 [dependencies]
 vise.workspace = true
 zksync_types.workspace = true
-zksync_dal = { workspace = true, features = ["di"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_config.workspace = true
-zksync_eth_client = { workspace = true, features = ["di"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_web3_decl.workspace = true
 zksync_node_framework.workspace = true
 zksync_shared_di.workspace = true

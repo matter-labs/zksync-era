@@ -13,17 +13,17 @@ publish = false
 
 [dependencies]
 zksync_config = { workspace = true, features = ["observability_ext"] }
-zksync_circuit_breaker = { workspace = true, features = ["di"] }
-zksync_dal = { workspace = true, features = ["di"] }
+zksync_circuit_breaker = { workspace = true, features = ["node_framework"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_env_config.workspace = true
-zksync_web3_decl = { workspace = true, features = ["di"] }
-zksync_eth_client = { workspace = true, features = ["di"] }
-zksync_object_store = { workspace = true, features = ["di"] }
+zksync_web3_decl = { workspace = true, features = ["node_framework"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
+zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_protobuf_config.workspace = true
 zksync_storage.workspace = true
 zksync_state.workspace = true
 zksync_types.workspace = true
-zksync_vlog = { workspace = true, features = ["di"] }
+zksync_vlog = { workspace = true, features = ["node_framework"] }
 
 # Node components
 zksync_base_token_adjuster.workspace = true

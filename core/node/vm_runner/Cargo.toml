@@ -13,15 +13,15 @@ categories.workspace = true
 [dependencies]
 zksync_vm_interface.workspace = true
 zksync_types.workspace = true
-zksync_dal = { workspace = true, features = ["di"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_state.workspace = true
 zksync_storage.workspace = true
 zksync_prover_interface.workspace = true
-zksync_object_store = { workspace = true, features = ["di"] }
+zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_vm_executor.workspace = true
-zksync_health_check = { workspace = true, features = ["di"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
 zksync_node_framework.workspace = true
 
 serde.workspace = true

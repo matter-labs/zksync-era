@@ -12,9 +12,9 @@ categories.workspace = true
 
 [dependencies]
 zksync_contracts.workspace = true
-zksync_dal = { workspace = true, features = ["di"] }
-zksync_eth_client = { workspace = true, features = ["di"] }
-zksync_health_check = { workspace = true, features = ["di"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
 zksync_l1_contract_interface.workspace = true
 zksync_node_framework.workspace = true
 zksync_shared_metrics.workspace = true

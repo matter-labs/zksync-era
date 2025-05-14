@@ -20,8 +20,8 @@ and are assembled together in the node binary using the **service builder**.
 
 Define DI logic in the separate `di` module of your crate.
 
-For lower-level libraries, the module should be gated behind an opt-in `di` feature (i.e., via
-`#[cfg(feature = "di")]`). Correspondingly, the DI framework should be an optional dependency, together with any
+For lower-level libraries, the module should be gated behind an opt-in `node_framework` feature (i.e., via
+`#[cfg(feature = "node_framework")]`). Correspondingly, the DI framework should be an optional dependency, together with any
 auxiliary DI-specific dependencies:
 
 ```toml
@@ -30,7 +30,7 @@ zksync_node_framework = { workspace = true, optional = true }
 
 [features]
 default = []
-di = ["zksync_node_framework"]
+node_framework = ["dep:zksync_node_framework"]
 ```
 
 DI should not require many of those, _maybe_ [health checks](../health_check) and/or

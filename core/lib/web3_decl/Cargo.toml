@@ -43,4 +43,4 @@ tokio = { workspace = true, features = ["rt", "test-util"] }
 default = []
 # Enables server stubs
 server = ["jsonrpsee/server"]
-di = ["zksync_node_framework", "zksync_health_check/di"]
+node_framework = ["dep:zksync_node_framework", "zksync_health_check/node_framework"]
