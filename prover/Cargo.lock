@@ -9674,6 +9674,7 @@ name = "zksync_vlog"
 version = "28.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "opentelemetry",
  "opentelemetry-appender-tracing",
