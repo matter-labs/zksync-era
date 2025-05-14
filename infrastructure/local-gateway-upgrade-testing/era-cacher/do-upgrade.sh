@@ -48,4 +48,6 @@ zkstack  dev run-v29-ecosystem-upgrade --ecosystem-upgrade-stage governance-stag
 pkill -9 zksync_server
 zkstack server --ignore-prerequisites --chain era &> ../rollup2.log &
 
+sleep 10
+
 zkstack dev test integration --no-deps --ignore-prerequisites --chain era
