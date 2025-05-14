@@ -8,15 +8,13 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::Address;
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
 use crate::{
     abi::BridgehubAbi,
     admin_functions::{set_da_validator_pair, set_da_validator_pair_via_gateway, AdminScriptMode},
-    commands::chain::{
-        gateway::gateway_common::get_settlement_layer_address_from_gw,
-        utils::get_default_foundry_path,
-    },
+    commands::chain::utils::get_default_foundry_path,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
         MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW, MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER,
@@ -51,15 +49,25 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         .l2
         .da_validator_addr
         .context("da_validator_addr")?;
+    let l1_rpc_url: String = chain_config
+        .get_secrets_config()
+        .await?
+        .l1_rpc_url()?
+        .to_string();
 
     let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
 
     if let Ok(gateway_url) = gateway_url {
-        let diamond_proxy_address =
-            get_settlement_layer_address_from_gw(gateway_url.clone(), chain_id).await?;
+        let gw_bridgehub =
+            BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, get_ethers_provider(&gateway_url)?);
+        let chain_diamond_proxy_on_gateway = gw_bridgehub.get_zk_chain(chain_id.into()).await?;
+
+        if chain_diamond_proxy_on_gateway == Address::zero() {
+            anyhow::bail!("The chain does not settle on GW yet, the address is known");
+        }
         logger::note(
             MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
-            format!("{}", hex::encode(diamond_proxy_address)),
+            format!("{}", hex::encode(chain_diamond_proxy_on_gateway)),
         );
 
         let l1_provider =
@@ -86,18 +94,13 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             gw_chain_id,
             args.l1_da_validator,
             l2_da_validator_address,
-            diamond_proxy_address,
+            chain_diamond_proxy_on_gateway,
             Address::zero(),
-            gateway_url,
+            l1_rpc_url,
         )
         .await?;
     } else {
         let diamond_proxy_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
-        let l1_rpc_url: String = chain_config
-            .get_secrets_config()
-            .await?
-            .l1_rpc_url()?
-            .to_string();
 
         set_da_validator_pair(
             shell,

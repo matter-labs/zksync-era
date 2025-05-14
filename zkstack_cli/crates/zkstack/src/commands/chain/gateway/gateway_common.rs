@@ -187,17 +187,6 @@ async fn get_batch_execution_status(
     Ok((total_committed, total_executed))
 }
 
-pub(crate) async fn get_settlement_layer_address_from_gw(
-    gw_rpc_url: String,
-    l2_chain_id: u64,
-) -> anyhow::Result<Address> {
-    let gw_provider = get_ethers_provider(&gw_rpc_url)?;
-    let bridgehub_abi = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gw_provider.clone());
-    Ok(bridgehub_abi
-        .get_hyperchain(U256::from(l2_chain_id))
-        .await?)
-}
-
 pub(crate) async fn get_gateway_migration_state(
     l1_rpc_url: String,
     l1_bridgehub_addr: Address,
