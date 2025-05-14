@@ -24,7 +24,7 @@ pub struct EcosystemUpgradeOutput {
 }
 
 impl FileConfigWithDefaultName for EcosystemUpgradeOutput {
-    const FILE_NAME: &'static str = "gateway_ecosystem_upgrade_output.yaml";
+    const FILE_NAME: &'static str = "../contracts/l1-contracts/script-out/v29_local_output.yaml";
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

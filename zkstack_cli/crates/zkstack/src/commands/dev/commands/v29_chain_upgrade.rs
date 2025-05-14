@@ -262,7 +262,7 @@ pub(crate) async fn run(
         .await;
 
         if let Err(err) = chain_readiness {
-            print_error(err);
+            // print_error(err);
             // return Ok(());
         };
     }
@@ -333,6 +333,16 @@ pub(crate) async fn run(
         // let forge_args = ForgeScriptArgs::default();
         println!("Running upgrade");
 
+        let receipt1 = send_tx(
+            chain_info.chain_admin_addr,
+            set_timestamp_call.data,
+            U256::from(0),
+            args.l1_rpc_url.clone().unwrap(),
+            chain_config.get_wallets_config()?.governor.private_key_h256().unwrap(),
+            "migrating from gateway",
+        )
+        .await?;
+    
         // logger::info("Starting the migration!");
         let receipt = send_tx(
             chain_info.chain_admin_addr,

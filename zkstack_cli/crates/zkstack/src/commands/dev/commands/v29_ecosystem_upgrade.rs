@@ -16,7 +16,7 @@ use zkstack_cli_config::{
         upgrade_ecosystem::{input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput},
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig, GenesisConfig, GENESIS_FILE,
+    EcosystemConfig, GenesisConfig, GENESIS_FILE, ContractsConfig
 };
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, H160};
@@ -161,8 +161,7 @@ async fn no_governance_prepare(
 
     // FIXME: we will have to force this in production environment
     // assert_eq!(era_config.chain_id, ecosystem_config.era_chain_id);
-
-    let gateway_upgrade_input = EcosystemUpgradeInput::new(
+    let mut gateway_upgrade_input = EcosystemUpgradeInput::new(
         &default_genesis_input,
         &current_contracts_config,
         &initial_deployment_config,
@@ -170,6 +169,19 @@ async fn no_governance_prepare(
         era_config.get_contracts_config()?.l1.diamond_proxy_addr,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );
+    // println!("6");
+    // let mut contracts_config = ecosystem_config.get_contracts_config()?;
+    // println!("7");
+    // let gateway_ecosystem_preparation_output =
+    //     EcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
+    // println!("8");
+    // update_contracts_config_from_output(
+    //     &mut contracts_config,
+    //     &gateway_ecosystem_preparation_output,
+    // );
+    // println!("9");
+    // update_upgrade_input_from_config(&mut gateway_upgrade_input, &contracts_config);
+    // println!("10");
     println!("gateway_upgrade_input: {:?}", gateway_upgrade_input);
     println!(
         "ecosystem_upgrade_config_path: {:?}",
@@ -286,6 +298,8 @@ async fn no_governance_prepare_gateway(
     Ok(())
 }
 
+
+
 async fn governance_stage_0(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
@@ -350,45 +364,7 @@ async fn governance_stage_1(
 
     let mut contracts_config = ecosystem_config.get_contracts_config()?;
 
-    contracts_config
-        .ecosystem_contracts
-        .stm_deployment_tracker_proxy_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .bridgehub
-            .ctm_deployment_tracker_proxy_addr,
-    );
-    // This is force deployment data for creating new contracts, not really relevant here tbh,
-    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
-        &gateway_ecosystem_preparation_output
-            .contracts_config
-            .force_deployments_data
-            .0,
-    ));
-    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .native_token_vault_addr,
-    );
-    contracts_config
-        .ecosystem_contracts
-        .l1_bytecodes_supplier_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .l1_bytecodes_supplier_addr,
-    );
-
-    contracts_config.l1.rollup_l1_da_validator_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .rollup_l1_da_validator_addr,
-    );
-
-    contracts_config.l1.no_da_validium_l1_validator_addr = Some(
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .validium_l1_da_validator_addr,
-    );
+    update_contracts_config_from_output(&mut contracts_config, &gateway_ecosystem_preparation_output);
 
     // This value is meaningless for the ecosystem, but we'll populate it for consistency
     contracts_config.l2.da_validator_addr = Some(H160::zero());
@@ -398,6 +374,62 @@ async fn governance_stage_1(
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
 
     Ok(())
+}
+
+fn update_contracts_config_from_output(
+    contracts_config: &mut ContractsConfig,
+    output: &EcosystemUpgradeOutput,
+) {
+    contracts_config
+        .ecosystem_contracts
+        .stm_deployment_tracker_proxy_addr = Some(
+        output
+            .deployed_addresses
+            .bridgehub
+            .ctm_deployment_tracker_proxy_addr,
+    );
+    // This is force deployment data for creating new contracts, not really relevant here tbh,
+    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
+        &output
+            .contracts_config
+            .force_deployments_data
+            .0,
+    ));
+    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(
+        output
+            .deployed_addresses
+            .native_token_vault_addr,
+    );
+    contracts_config
+        .ecosystem_contracts
+        .l1_bytecodes_supplier_addr = Some(
+        output
+            .deployed_addresses
+            .l1_bytecodes_supplier_addr,
+    );
+
+    contracts_config.l1.rollup_l1_da_validator_addr = Some(
+        output
+            .deployed_addresses
+            .rollup_l1_da_validator_addr,
+    );
+
+    contracts_config.l1.no_da_validium_l1_validator_addr = Some(
+        output
+            .deployed_addresses
+            .validium_l1_da_validator_addr,
+    );
+}
+
+fn update_upgrade_input_from_config(
+    upgrade_input: &mut EcosystemUpgradeInput,
+    contracts_config: &ContractsConfig,
+) {
+    upgrade_input.contracts.l1_bytecodes_supplier_addr = contracts_config.ecosystem_contracts.l1_bytecodes_supplier_addr.unwrap();
+    // upgrade_input.contracts.governance_security_council_address = contracts_config.l1.governance_addr;
+    // upgrade_input.contracts.evm_emulator_hash = contracts_config.ecosystem_contracts.evm_emulator_hash;
+    // upgrade_input.contracts.protocol_upgrade_handler_proxy_address = contracts_config.ecosystem_contracts.protocol_upgrade_handler_proxy_addr;
+    // upgrade_input.contracts.rollup_da_manager = contracts_config.ecosystem_contracts.rollup_da_manager;
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)

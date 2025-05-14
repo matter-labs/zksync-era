@@ -45,7 +45,14 @@ impl V29ChainUpgradeArgs {
                 .unwrap_or("http://localhost:8545".to_string()),
         );
 
-        self.server_upgrade_timestamp = Some(self.server_upgrade_timestamp.unwrap_or(0));
+        self.server_upgrade_timestamp = Some(
+            self.server_upgrade_timestamp.unwrap_or(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            ),
+        );
         self.gw_rpc_url = Some(
             self.gw_rpc_url
                 .unwrap_or("http://localhost:3250".to_string()),
