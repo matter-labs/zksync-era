@@ -195,11 +195,6 @@ impl DataAvailabilityClient for AvailClient {
                 })?
                 .map_err(to_retriable_da_error)?;
 
-                // let extrinsic_hash = client
-                //     .submit_extrinsic(&ws_client, extrinsic.as_str())
-                //     .await
-                //     .map_err(to_non_retriable_da_error)?;
-
                 Ok(DispatchResponse::from(extrinsic_hash))
             }
             AvailClientMode::GasRelay(client) => {
