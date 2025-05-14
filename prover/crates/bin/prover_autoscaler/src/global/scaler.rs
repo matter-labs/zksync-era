@@ -220,7 +220,8 @@ impl<K: Key> Scaler<K> {
 
         pools.sort_by(|a, b| {
             if self.target_priority.is_some() {
-                // Use target_priority for sorting.
+                // Use target_priority for sorting, which includes GPU key.
+                // This is needed to keep old behavior and use a new one if target_priority is set.
                 std::cmp::Ordering::Equal
             } else {
                 a.key.cmp(&b.key) // Sort by Key first.
