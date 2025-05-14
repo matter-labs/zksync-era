@@ -18,11 +18,11 @@ and are assembled together in the node binary using the **service builder**.
 
 ### How to work with DI
 
-Define DI logic in the separate `di` module of your crate.
+Define DI logic in the separate `node` module of your crate.
 
 For lower-level libraries, the module should be gated behind an opt-in `node_framework` feature (i.e., via
-`#[cfg(feature = "node_framework")]`). Correspondingly, the DI framework should be an optional dependency, together with any
-auxiliary DI-specific dependencies:
+`#[cfg(feature = "node_framework")]`). Correspondingly, the node framework should be an optional dependency, together
+with any auxiliary node-specific dependencies:
 
 ```toml
 [dependencies]
@@ -33,13 +33,13 @@ default = []
 node_framework = ["dep:zksync_node_framework"]
 ```
 
-DI should not require many of those, _maybe_ [health checks](../health_check) and/or
-[shared DI resources](../shared_di); if DI requires heavyweight deps, you're probably doing something wrong. The
+The node framework should not require many additional deps, _maybe_ [health checks](../health_check) and/or
+[shared DI resources](../shared_di); if it requires heavyweight deps, you're probably doing something wrong. The
 reasoning behind feature-gating is that it's reasonable to assume that lower-level libraries may be used outside node
 binaries.
 
-For node components, no feature-gating is necessary, but DI logic should still be placed in the `di` module, not
-scattered across the crate.
+For node components, no feature-gating is necessary, but node framework logic should still be placed in the `node`
+module, not scattered across the crate.
 
 [`zksync_server`]: ../../bin/zksync_server
 [`zksync_external_node`]: ../../bin/external_node
