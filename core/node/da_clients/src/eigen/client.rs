@@ -84,10 +84,18 @@ impl DataAvailabilityClient for EigenDAClient {
         &self,
         dispatch_request_id: String,
     ) -> Result<Option<FinalityResponse>, DAError> {
-        // TODO: return a quick confirmation in `dispatch_blob` and await here
-        Ok(Some(FinalityResponse {
-            blob_id: dispatch_request_id,
-        }))
+        let inclusion_data = self
+            .client
+            .get_inclusion_data(&dispatch_request_id)
+            .await
+            .map_err(to_retriable_da_error)?;
+        if let Some(_) = inclusion_data {
+            Ok(Some(FinalityResponse {
+                blob_id: dispatch_request_id,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
