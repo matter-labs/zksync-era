@@ -614,10 +614,8 @@ jobs:
           echo "Updating DA validator addresses on L1 and restarting the server"
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             L1_DA_VALIDATOR_ADDR=$(yq '.validium_da_validator' "./chains/gateway/configs/gateway.yaml")
-            echo "L1 DA Validator Address from Gateway: $L1_DA_VALIDATOR_ADDR"
           else
             L1_DA_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/da_migration/configs/contracts.yaml")
-            echo "L1 DA Validator Address from L1: $L1_DA_VALIDATOR_ADDR"
           fi
           
           ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_VALIDATOR_ADDR 50000000000

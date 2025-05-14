@@ -1,4 +1,4 @@
 experimental_vm:
   # Use the shadow VM mode everywhere to catch divergences as early as possible
-  state_keeper_fast_vm_mode: OLD
-  api_fast_vm_mode: OLD
+  state_keeper_fast_vm_mode: SHADOW
+  api_fast_vm_mode: SHADOW
