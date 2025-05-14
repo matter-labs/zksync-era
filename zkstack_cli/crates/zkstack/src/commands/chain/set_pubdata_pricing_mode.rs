@@ -25,7 +25,7 @@ use crate::{
 lazy_static! {
     static ref PUBDATA_PRICING_MODE_SETTER: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function chainSetPubdataPricingMode(address chainAdmin, address diamondProxy, uint8 mode) public"
+            "function setPubdataPricingMode(address chainAdmin, address target, uint8 pricingMode) public"
         ])
         .unwrap(),
     );
@@ -75,7 +75,7 @@ pub async fn set_pubdata_pricing_mode(
 
     let calldata = PUBDATA_PRICING_MODE_SETTER
         .encode(
-            "chainSetPubdataPricingMode",
+            "setPubdataPricingMode",
             (
                 chain_admin_addr,
                 diamond_proxy_address,
