@@ -202,6 +202,7 @@ impl DebugNamespace {
                 call_traces
                     .into_iter()
                     .map(|(call, meta)| ResultDebugCall {
+                        tx_hash: meta.tx_hash,
                         result: Self::map_default_call(
                             call,
                             options.tracer_config.only_top_call,
