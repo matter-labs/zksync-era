@@ -26,7 +26,6 @@ pub struct AvailConfig {
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
-    pub finality_state: Option<String>,
     pub dispatch_timeout_ms: Option<u64>,
 }
 
