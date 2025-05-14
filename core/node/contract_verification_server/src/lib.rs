@@ -9,8 +9,8 @@ use self::api_decl::RestApi;
 mod api_decl;
 mod api_impl;
 mod cache;
-pub mod di;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 

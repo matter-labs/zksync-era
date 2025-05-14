@@ -7,9 +7,9 @@ use zksync_types::{try_stoppable, L1BatchNumber, OrStopped, StopContext};
 
 pub use crate::traits::{InitializeStorage, RevertStorage};
 
-pub mod di;
 pub mod external_node;
 pub mod main_node;
+pub mod node;
 mod traits;
 
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use zksync_dal::{
-    di::{MasterPool, PoolResource},
+    node::{MasterPool, PoolResource},
     ConnectionPool, Core, CoreDal as _,
 };
 use zksync_node_framework::{

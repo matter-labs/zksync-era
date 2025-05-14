@@ -14,10 +14,10 @@ use zksync_proof_data_handler::{Processor, ProcessorError, Readonly};
 
 use crate::{metrics::Method, middleware::MetricsMiddleware};
 
-pub mod di;
 mod error;
 mod metrics;
 mod middleware;
+pub mod node;
 mod types;
 
 /// External API implementation.

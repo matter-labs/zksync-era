@@ -23,14 +23,14 @@
     clippy::doc_markdown
 )]
 
-#[cfg(feature = "node_framework")]
-pub mod di;
 mod factory;
 mod file;
 mod gcs;
 mod metrics;
 mod mirror;
 mod mock;
+#[cfg(feature = "node_framework")]
+pub mod node;
 mod objects;
 mod raw;
 mod retries;

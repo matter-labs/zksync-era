@@ -7,11 +7,11 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 
 mod abi;
 mod config;
-pub mod di;
 mod en;
 pub mod era;
 mod metrics;
 mod mn;
+pub mod node;
 mod registry;
 mod storage;
 #[cfg(test)]

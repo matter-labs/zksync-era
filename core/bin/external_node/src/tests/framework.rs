@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use zksync_health_check::{di::AppHealthCheckResource, AppHealthCheck};
+use zksync_health_check::{node::AppHealthCheckResource, AppHealthCheck};
 use zksync_node_framework::{
     service::ServiceContext, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
     WiringError, WiringLayer,
 };
 use zksync_types::{L1ChainId, L2ChainId};
-use zksync_vlog::di::SigintHandlerLayer;
+use zksync_vlog::node::SigintHandlerLayer;
 use zksync_web3_decl::{
     client::{MockClient, L1, L2},
-    di::{
+    node::{
         EthInterfaceResource, MainNodeClientLayer, MainNodeClientResource, QueryEthClientLayer,
         SettlementLayerClient, SettlementLayerClientLayer,
     },

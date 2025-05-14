@@ -1,11 +1,11 @@
 pub mod batch_status_updater;
 mod client;
 pub mod data_availability_fetcher;
-pub mod di;
 pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
 mod metrics;
+pub mod node;
 pub mod sync_action;
 pub mod testonly;
 #[cfg(test)]

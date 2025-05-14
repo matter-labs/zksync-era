@@ -23,8 +23,8 @@ use self::{
     },
 };
 
-pub mod di;
 mod metrics;
+pub mod node;
 mod prune_conditions;
 #[cfg(test)]
 mod tests;

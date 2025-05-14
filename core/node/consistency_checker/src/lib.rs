@@ -26,7 +26,7 @@ use zksync_types::{
     try_stoppable, Address, L1BatchNumber, OrStopped, ProtocolVersionId, SLChainId, H256, U256,
 };
 
-pub mod di;
+pub mod node;
 #[cfg(test)]
 mod tests;
 

@@ -37,8 +37,6 @@ pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod custom_genesis_export_dal;
 mod data_availability_dal;
-#[cfg(feature = "node_framework")]
-pub mod di;
 pub mod eth_sender_dal;
 pub mod eth_watcher_dal;
 pub mod etherscan_verification_dal;
@@ -48,6 +46,8 @@ pub mod factory_deps_dal;
 pub mod helpers;
 pub mod metrics;
 mod models;
+#[cfg(feature = "node_framework")]
+pub mod node;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;

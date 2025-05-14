@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use crate::types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData};
 
 #[cfg(feature = "node_framework")]
-pub mod di;
+pub mod node;
 pub mod types;
 
 /// Trait that defines the interface for the data availability layer clients.

@@ -2,8 +2,8 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::{bail, Context as _};
-use zksync_block_reverter::{di::BlockReverterLayer, NodeRole};
-use zksync_commitment_generator::di::CommitmentGeneratorLayer;
+use zksync_block_reverter::{node::BlockReverterLayer, NodeRole};
+use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
@@ -13,43 +13,45 @@ use zksync_config::{
     },
     DAClientConfig, PostgresConfig,
 };
-use zksync_consistency_checker::di::ConsistencyCheckerLayer;
-use zksync_da_clients::di::{
+use zksync_consistency_checker::node::ConsistencyCheckerLayer;
+use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
 };
-use zksync_dal::di::{PoolsLayerBuilder, PostgresMetricsLayer};
-use zksync_eth_client::di::BridgeAddressesUpdaterLayer;
-use zksync_gateway_migrator::di::SettlementLayerData;
-use zksync_logs_bloom_backfill::di::LogsBloomBackfillLayer;
+use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
+use zksync_gateway_migrator::node::SettlementLayerData;
+use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
-    di::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
+    node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 use zksync_node_api_server::{
-    di::{
+    node::{
         HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
         TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
     web3::{state::InternalApiConfigBase, Namespace},
 };
-use zksync_node_consensus::di::ExternalNodeConsensusLayer;
-use zksync_node_db_pruner::di::PruningLayer;
-use zksync_node_fee_model::di::MainNodeFeeParamsFetcherLayer;
+use zksync_node_consensus::node::ExternalNodeConsensusLayer;
+use zksync_node_db_pruner::node::PruningLayer;
+use zksync_node_fee_model::node::MainNodeFeeParamsFetcherLayer;
 use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
 use zksync_node_storage_init::{
-    di::{external_node_strategy::ExternalNodeInitStrategyLayer, NodeStorageInitializerLayer},
+    node::{external_node_strategy::ExternalNodeInitStrategyLayer, NodeStorageInitializerLayer},
     SnapshotRecoveryConfig,
 };
-use zksync_node_sync::di::{
+use zksync_node_sync::node::{
     BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, ExternalIOLayer, SyncStateUpdaterLayer,
     TreeDataFetcherLayer, ValidateChainIdsLayer,
 };
-use zksync_reorg_detector::di::ReorgDetectorLayer;
+use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
-use zksync_state_keeper::di::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
-use zksync_vlog::di::{PrometheusExporterLayer, SigintHandlerLayer};
-use zksync_web3_decl::di::{MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClientLayer};
+use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
+use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
+use zksync_web3_decl::node::{
+    MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClientLayer,
+};
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -136,7 +138,7 @@ impl ExternalNodeBuilder {
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(SettlementLayerData::new(
-            zksync_gateway_migrator::di::ENConfig {
+            zksync_gateway_migrator::node::ENConfig {
                 l1_specific_contracts: self.config.l1_specific_contracts(),
                 l1_chain_contracts: self.config.l1_settelment_contracts(),
                 l2_contracts: self.config.l2_contracts(),

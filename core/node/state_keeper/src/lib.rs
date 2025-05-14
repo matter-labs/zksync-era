@@ -11,13 +11,13 @@ pub use self::{
     updates::UpdatesManager,
 };
 
-pub mod di;
 pub mod executor;
 mod health;
 pub mod io;
 mod keeper;
 mod mempool_actor;
 pub mod metrics;
+pub mod node;
 pub mod seal_criteria;
 mod state_keeper_storage;
 pub mod testonly;

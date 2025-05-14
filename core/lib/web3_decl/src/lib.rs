@@ -8,10 +8,10 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 pub mod client;
-#[cfg(feature = "node_framework")]
-pub mod di;
 pub mod error;
 pub mod namespaces;
+#[cfg(feature = "node_framework")]
+pub mod node;
 pub mod types;
 
 // Re-export to simplify crate usage (especially for server implementations).

@@ -32,9 +32,9 @@ pub use self::{
 use crate::helpers::create_readonly_db;
 
 pub mod api_server;
-pub mod di;
 mod helpers;
 mod metrics;
+pub mod node;
 mod pruning;
 mod recovery;
 mod repair;

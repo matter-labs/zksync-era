@@ -1,7 +1,7 @@
 use tee_prover::TeeProverLayer;
 use zksync_node_framework::service::ZkStackServiceBuilder;
 use zksync_vlog::{
-    di::{PrometheusExporterLayer, SigintHandlerLayer},
+    node::{PrometheusExporterLayer, SigintHandlerLayer},
     prometheus::PrometheusExporterConfig,
 };
 

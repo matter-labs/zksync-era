@@ -3,10 +3,10 @@ use std::{fmt, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 
-#[cfg(feature = "node_framework")]
-pub mod di;
 pub mod l1_txs;
 mod metrics;
+#[cfg(feature = "node_framework")]
+pub mod node;
 pub mod replication_lag;
 
 #[derive(Default, Debug)]

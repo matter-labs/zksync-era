@@ -17,7 +17,7 @@ use zksync_eth_client::{
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
-pub mod di;
+pub mod node;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayMigratorError {

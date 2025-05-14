@@ -13,7 +13,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
-pub mod di;
+pub mod node;
 #[cfg(test)]
 mod tests;
 

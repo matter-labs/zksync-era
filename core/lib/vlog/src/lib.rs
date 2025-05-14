@@ -9,9 +9,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub use crate::{logs::Logs, opentelemetry::OpenTelemetry, sentry::Sentry};
 
-#[cfg(feature = "node_framework")]
-pub mod di;
 pub mod logs;
+#[cfg(feature = "node_framework")]
+pub mod node;
 pub mod opentelemetry;
 pub mod prometheus;
 pub mod sentry;

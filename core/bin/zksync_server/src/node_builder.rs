@@ -4,11 +4,11 @@
 use std::time::Duration;
 
 use anyhow::{bail, Context};
-use zksync_base_token_adjuster::di::{
+use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
-use zksync_circuit_breaker::di::CircuitBreakerCheckerLayer;
-use zksync_commitment_generator::di::{
+use zksync_circuit_breaker::node::CircuitBreakerCheckerLayer;
+use zksync_commitment_generator::node::{
     CommitmentGeneratorLayer, L1BatchCommitmentModeValidationLayer,
 };
 use zksync_config::{
@@ -23,30 +23,30 @@ use zksync_config::{
     },
     GenesisConfig,
 };
-use zksync_contract_verification_server::di::ContractVerificationApiLayer;
+use zksync_contract_verification_server::node::ContractVerificationApiLayer;
 use zksync_core_leftovers::Component;
-use zksync_da_clients::di::{
+use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
 };
-use zksync_da_dispatcher::di::DataAvailabilityDispatcherLayer;
-use zksync_dal::di::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_da_dispatcher::node::DataAvailabilityDispatcherLayer;
+use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
 use zksync_eth_client::{
-    di::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
-    web3_decl::di::{QueryEthClientLayer, SettlementLayerClientLayer},
+    node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
+    web3_decl::node::{QueryEthClientLayer, SettlementLayerClientLayer},
 };
-use zksync_eth_sender::di::{EthTxAggregatorLayer, EthTxManagerLayer};
-use zksync_eth_watch::di::EthWatchLayer;
-use zksync_external_proof_integration_api::di::ExternalProofIntegrationApiLayer;
-use zksync_gateway_migrator::di::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
-use zksync_house_keeper::di::HouseKeeperLayer;
-use zksync_logs_bloom_backfill::di::LogsBloomBackfillLayer;
+use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
+use zksync_eth_watch::node::EthWatchLayer;
+use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
+use zksync_gateway_migrator::node::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
+use zksync_house_keeper::node::HouseKeeperLayer;
+use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
-    di::{MetadataCalculatorLayer, TreeApiClientLayer},
+    node::{MetadataCalculatorLayer, TreeApiClientLayer},
     MetadataCalculatorConfig,
 };
 use zksync_node_api_server::{
-    di::{
+    node::{
         DeploymentAllowListLayer, HealthCheckLayer, MasterPoolSinkLayer, MempoolCacheLayer,
         PostgresStorageCachesConfig, TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
         WhitelistedMasterPoolSinkLayer,
@@ -54,29 +54,29 @@ use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfigBase, Namespace},
 };
-use zksync_node_consensus::di::MainNodeConsensusLayer;
-use zksync_node_fee_model::di::{GasAdjusterLayer, L1GasLayer};
+use zksync_node_consensus::node::MainNodeConsensusLayer;
+use zksync_node_fee_model::node::{GasAdjusterLayer, L1GasLayer};
 use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
-use zksync_node_storage_init::di::{
+use zksync_node_storage_init::node::{
     main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
 };
-use zksync_object_store::di::ObjectStoreLayer;
-use zksync_proof_data_handler::di::ProofDataHandlerLayer;
+use zksync_object_store::node::ObjectStoreLayer;
+use zksync_proof_data_handler::node::ProofDataHandlerLayer;
 use zksync_state::RocksdbStorageOptions;
-use zksync_state_keeper::di::{
+use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
 };
-use zksync_tee_proof_data_handler::di::TeeProofDataHandlerLayer;
+use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
     Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
 use zksync_vlog::{
-    di::{PrometheusExporterLayer, SigintHandlerLayer},
+    node::{PrometheusExporterLayer, SigintHandlerLayer},
     prometheus::PrometheusExporterConfig,
 };
-use zksync_vm_runner::di::{
+use zksync_vm_runner::node::{
     BasicWitnessInputProducerLayer, ProtectiveReadsWriterLayer, VmPlaygroundLayer,
 };
 

@@ -7,5 +7,5 @@ pub use self::{
 mod base_token_l1_behaviour;
 mod base_token_ratio_persister;
 mod base_token_ratio_provider;
-pub mod di;
 mod metrics;
+pub mod node;

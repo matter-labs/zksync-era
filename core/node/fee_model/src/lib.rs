@@ -9,8 +9,8 @@ use zksync_types::fee_model::{
 
 use crate::l1_gas_price::GasAdjuster;
 
-pub mod di;
 pub mod l1_gas_price;
+pub mod node;
 
 /// Trait responsible for providing numerator and denominator for adjusting gas price that is denominated
 /// in a non-eth base token
