@@ -85,7 +85,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .sl_client
                 .diamond_cut_by_version(version)
                 .await?
-                .context("missing upgrade data on STM")?;
+                .context("missing upgrade data on CTM")?;
 
             let upgrade = ProtocolUpgrade {
                 timestamp,
