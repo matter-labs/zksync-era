@@ -74,9 +74,6 @@ impl UpdatesManager {
         };
         progress.observe(None);
 
-        self.seal_rolling_txs_hash(&mut transaction, true)
-            .await
-            .context("failed to seal rolling tx hash")?;
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
 
         progress.observe(
@@ -277,24 +274,6 @@ impl UpdatesManager {
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
         tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
     }
-
-    pub(super) async fn seal_rolling_txs_hash(
-        &self,
-        connection: &mut Connection<'_, Core>,
-        final_hash: bool,
-    ) -> anyhow::Result<()> {
-        connection
-            .rolling_tx_hashes()
-            .seal_rolling_txs_hash(
-                self.l1_batch.number,
-                self.rolling_tx_hash_updates.from_l2_block_number,
-                self.rolling_tx_hash_updates.to_l2_block_number,
-                self.rolling_tx_hash_updates.rolling_hash,
-                final_hash,
-            )
-            .await?;
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
@@ -410,6 +389,7 @@ impl L2BlockSealCommand {
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
             logs_bloom,
             pubdata_params: self.pubdata_params,
+            rolling_txs_hash: Some(self.rolling_txs_hash),
         };
 
         let mut connection = strategy.connection().await?;

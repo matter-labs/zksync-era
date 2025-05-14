@@ -19,12 +19,6 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
     /// Handles an L2 block produced by the state keeper.
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
 
-    /// Handles a rolling transaction hash produced by the state keeper.
-    async fn handle_rolling_tx_hash(
-        &mut self,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()>;
-
     /// Handles an L1 batch produced by the state keeper.
     async fn handle_l1_batch(
         &mut self,
@@ -110,29 +104,6 @@ impl OutputHandler {
                     format!(
                         "failed handling L1 batch #{} on handler {handler:?}",
                         updates_manager.l1_batch.number
-                    )
-                })?;
-        }
-        Ok(())
-    }
-
-    #[tracing::instrument(
-        name = "OutputHandler::handle_rolling_tx_hash"
-        skip_all,
-        fields(l1_batch = %updates_manager.l1_batch.number)
-    )]
-    pub(crate) async fn handle_rolling_tx_hash(
-        &mut self,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
-        for handler in &mut self.inner {
-            handler
-                .handle_rolling_tx_hash(updates_manager)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed handling rolling txs_hash batch #{:?} on handler {handler:?}",
-                        updates_manager.rolling_tx_hash_updates.rolling_hash
                     )
                 })?;
         }

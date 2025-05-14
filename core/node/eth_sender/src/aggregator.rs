@@ -53,7 +53,7 @@ pub struct Aggregator {
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
     settlement_layer: SettlementLayer,
-    pub send_precommit_tx: bool,
+    send_precommit_tx_freq: Option<usize>,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -138,7 +138,7 @@ impl Aggregator {
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
-        send_precommit_tx: bool,
+        send_precommit_tx_freq: Option<usize>,
     ) -> anyhow::Result<Self> {
         let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
@@ -224,7 +224,7 @@ impl Aggregator {
             priority_merkle_tree: None,
             pool,
             settlement_layer,
-            send_precommit_tx,
+            send_precommit_tx_freq,
         })
     }
 
@@ -268,15 +268,16 @@ impl Aggregator {
                 last_sealed_l1_batch_number,
                 base_system_contracts_hashes,
                 protocol_version_id,
-                self.send_precommit_tx,
+                self.send_precommit_tx_freq.is_some(),
             )
             .await,
         ) {
             Ok(Some(op))
-        } else if self.send_precommit_tx {
-            if let Some(op) =
-                restrictions.filter_precommit_op(self.get_precommit_operation(storage).await?)
-            {
+        } else if let Some(number_of_blocks) = self.send_precommit_tx_freq {
+            if let Some(op) = restrictions.filter_precommit_op(
+                self.get_precommit_operation(storage, number_of_blocks)
+                    .await?,
+            ) {
                 Ok(Some(op))
             } else {
                 Ok(None)
@@ -316,6 +317,7 @@ impl Aggregator {
     async fn get_precommit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
+        number_of_blocks: usize,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
         // TODO make more specific requests to the database
         let last_committed_l1_batch = storage
@@ -323,24 +325,47 @@ impl Aggregator {
             .get_last_committed_to_eth_l1_batch()
             .await
             .unwrap();
-        let Some(l1_batch) = last_committed_l1_batch else {
-            return Ok(None);
-        };
-        let number = l1_batch.header.number;
 
-        let (txs, l1_batch) = storage
-            .rolling_tx_hashes()
-            .get_ready_rolling_txs_hashes(number)
+        let last_sealed_l1_batch = storage
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
             .await
             .unwrap();
+
+        let (actual_number, desired_number_for_db) =
+            match (last_sealed_l1_batch, last_committed_l1_batch) {
+                (None, _) => return Ok(None),
+                (Some(last_sealed_l1_batch), Some(last_committed_l1_batch))
+                    if last_sealed_l1_batch == last_committed_l1_batch.header.number =>
+                {
+                    (last_sealed_l1_batch + 1, None)
+                }
+                (Some(_), Some(committed_l1_batch_number)) => (
+                    committed_l1_batch_number.header.number + 1,
+                    Some(committed_l1_batch_number.header.number + 1),
+                ),
+                (Some(sealed), None) => (sealed, Some(sealed)),
+            };
+
+        let txs = storage
+            .rolling_tx_hashes()
+            .get_ready_rolling_txs_hashes(desired_number_for_db)
+            .await
+            .unwrap();
+
         if txs.is_empty() {
             return Ok(None);
         }
 
+        // TODO probably move it to
+        let (first_l2_block, _, _) = txs.first().unwrap();
         let (last_l2_block, _, _) = txs.last().unwrap();
+        if last_l2_block.0 - first_l2_block.0 < number_of_blocks as u32 {
+            return Ok(None);
+        }
 
         Ok(Some(L2BlockAggregatedOperation::Precommit(
-            l1_batch,
+            actual_number,
             *last_l2_block,
             txs.into_iter()
                 .map(|(_, tx_hash, status)| TransactionStatusCommitment { tx_hash, status })

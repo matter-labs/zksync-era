@@ -144,8 +144,8 @@ impl WiringLayer for EthTxAggregatorLayer {
         let object_store = input.object_store.0;
 
         let send_precommit_txs = match self.finality {
-            Finality::BatchExecution => false,
-            Finality::RollingTxHash(_) => true,
+            Finality::BatchExecution => None,
+            Finality::RollingTxHash(n) => Some(n),
         };
 
         // Create and add tasks.

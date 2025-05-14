@@ -70,8 +70,6 @@ impl UpdatesManager {
                 protocol_version,
             ),
             rolling_tx_hash_updates: RollingTxHashUpdates {
-                from_l2_block_number: L2BlockNumber(l1_batch_env.first_l2_block.number),
-                to_l2_block_number: L2BlockNumber(l1_batch_env.first_l2_block.number),
                 rolling_hash: H256::zero(),
             },
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
@@ -136,6 +134,7 @@ impl UpdatesManager {
             l2_legacy_shared_bridge_addr,
             pre_insert_txs,
             pubdata_params: self.pubdata_params,
+            rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
         }
     }
 
@@ -161,11 +160,8 @@ impl UpdatesManager {
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
 
-        self.rolling_tx_hash_updates.append_rolling_hash(
-            tx.hash(),
-            !tx_execution_result.result.is_failed(),
-            self.l2_block.number,
-        );
+        self.rolling_tx_hash_updates
+            .append_rolling_hash(tx.hash(), !tx_execution_result.result.is_failed());
         self.l2_block.extend_from_executed_transaction(
             tx,
             tx_execution_result,
@@ -220,7 +216,6 @@ impl UpdatesManager {
             next_l2_block_params.virtual_blocks,
             self.protocol_version,
         );
-        self.rolling_tx_hash_updates.to_l2_block_number = new_l2_block_updates.number;
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
             .extend_from_sealed_l2_block(old_l2_block_updates);
@@ -272,6 +267,7 @@ pub struct L2BlockSealCommand {
     /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
     pub pubdata_params: PubdataParams,
+    pub rolling_txs_hash: H256,
 }
 
 #[cfg(test)]

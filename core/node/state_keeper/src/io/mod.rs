@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, ProtocolVersionId,
+    Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -42,7 +42,6 @@ pub struct PendingBatchData {
     pub(crate) pubdata_params: PubdataParams,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
-    pub(crate) last_l2_block_with_rolling_txs_hash: Option<L2BlockNumber>,
 }
 
 #[derive(Debug, Copy, Clone, Default, PartialEq)]

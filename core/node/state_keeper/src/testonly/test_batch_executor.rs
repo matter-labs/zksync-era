@@ -555,14 +555,6 @@ impl StateKeeperOutputHandler for TestPersistence {
         Ok(())
     }
 
-    async fn handle_rolling_tx_hash(
-        &mut self,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
-        // TODO add test scenario
-        Ok(())
-    }
-
     async fn handle_l1_batch(
         &mut self,
         updates_manager: Arc<UpdatesManager>,

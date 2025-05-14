@@ -504,6 +504,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
         pubdata_params: Default::default(),
+        rolling_txs_hash: Some(H256::zero()),
     };
 
     let mut transaction = storage.start_transaction().await?;

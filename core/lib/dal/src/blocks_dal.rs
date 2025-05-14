@@ -931,6 +931,7 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
+                rolling_txs_hash,
                 created_at,
                 updated_at
             )
@@ -956,6 +957,7 @@ impl BlocksDal<'_, '_> {
                 $18,
                 $19,
                 $20,
+                $21,
                 NOW(),
                 NOW()
             )
@@ -993,6 +995,9 @@ impl BlocksDal<'_, '_> {
                 .l2_da_validator_address
                 .as_bytes(),
             l2_block_header.pubdata_params.pubdata_type.to_string(),
+            l2_block_header
+                .rolling_txs_hash
+                .map(|h| h.as_bytes().to_vec()),
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1023,7 +1028,8 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type
+                pubdata_type,
+                rolling_txs_hash
             FROM
                 miniblocks
             ORDER BY
@@ -1066,7 +1072,8 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type
+                pubdata_type,
+                rolling_txs_hash
             FROM
                 miniblocks
             WHERE
@@ -1977,6 +1984,7 @@ impl BlocksDal<'_, '_> {
         with_da_inclusion_info: bool,
         send_precommit_txs: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
+        // TODO use send_precommit_txs flag to filter out batches that are not ready for precommit txs
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
             r#"
@@ -2023,9 +2031,6 @@ impl BlocksDal<'_, '_> {
                 data_availability
                 ON data_availability.l1_batch_number = l1_batches.number
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
-            JOIN
-                rolling_tx_hashes
-                ON rolling_tx_hashes.l1_batch_number = l1_batches.number AND final = true
             WHERE
                 eth_commit_tx_id IS null
                 AND number != 0
@@ -2042,21 +2047,15 @@ impl BlocksDal<'_, '_> {
                     data_availability.inclusion_data IS NOT null
                     OR $4 IS false
                 )
-                AND (
-                    rolling_tx_hashes.eth_tx_id IS NOT null
-                    OR $5 IS false
-                )
-            
             ORDER BY
                 number
             LIMIT
-                $6
+                $5
             "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
             with_da_inclusion_info,
-            send_precommit_txs,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")

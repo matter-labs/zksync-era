@@ -194,18 +194,6 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         Ok(())
     }
 
-    async fn handle_rolling_tx_hash(
-        &mut self,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
-        let mut connection = self.pool.connection_tagged("state_keeper").await?;
-        updates_manager
-            .seal_rolling_txs_hash(&mut connection, false)
-            .await
-            .context("cannot persist rolling tx hash")?;
-        Ok(())
-    }
-
     async fn handle_l1_batch(
         &mut self,
         updates_manager: Arc<UpdatesManager>,
@@ -307,13 +295,6 @@ impl TreeWritesPersistence {
 #[async_trait]
 impl StateKeeperOutputHandler for TreeWritesPersistence {
     async fn handle_l2_block(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    async fn handle_rolling_tx_hash(
-        &mut self,
-        _updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
         Ok(())
     }
 

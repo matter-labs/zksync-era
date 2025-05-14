@@ -184,18 +184,11 @@ impl L2BlockUpdates {
 
 #[derive(Debug)]
 pub struct RollingTxHashUpdates {
-    pub from_l2_block_number: L2BlockNumber,
-    pub to_l2_block_number: L2BlockNumber,
     pub rolling_hash: H256,
 }
 
 impl RollingTxHashUpdates {
-    pub fn append_rolling_hash(
-        &mut self,
-        tx_hash: H256,
-        is_success: bool,
-        l2block_number: L2BlockNumber,
-    ) {
+    pub fn append_rolling_hash(&mut self, tx_hash: H256, is_success: bool) {
         let status_byte = if is_success {
             H256::from_low_u64_be(1)
         } else {
@@ -204,10 +197,6 @@ impl RollingTxHashUpdates {
 
         self.rolling_hash =
             keccak256_concat(self.rolling_hash, keccak256_concat(tx_hash, status_byte));
-
-        if self.to_l2_block_number != l2block_number {
-            self.to_l2_block_number = l2block_number;
-        }
     }
 }
 

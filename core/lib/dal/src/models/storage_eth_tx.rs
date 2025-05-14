@@ -32,6 +32,7 @@ pub struct StorageEthTx {
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
     pub finality_id: Option<i32>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Default)]

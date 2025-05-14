@@ -20,7 +20,7 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, L2BlockNumber, Transaction,
+    utils::display_timestamp, L1BatchNumber, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -75,7 +75,6 @@ pub struct ZkSyncStateKeeper {
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
-    n_l2_blocks_to_seal_rolling_hash: Option<usize>,
 }
 
 impl ZkSyncStateKeeper {
@@ -96,7 +95,6 @@ impl ZkSyncStateKeeper {
             storage_factory,
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
             deployment_tx_filter,
-            n_l2_blocks_to_seal_rolling_hash,
         }
     }
 
@@ -131,7 +129,6 @@ impl ZkSyncStateKeeper {
             mut system_env,
             mut pubdata_params,
             pending_l2_blocks,
-            last_l2_block_with_rolling_txs_hash,
         } = match pending_batch_params {
             Some(params) => {
                 tracing::info!(
@@ -156,7 +153,6 @@ impl ZkSyncStateKeeper {
                     pending_l2_blocks: Vec::new(),
                     system_env,
                     pubdata_params,
-                    last_l2_block_with_rolling_txs_hash: None,
                 }
             }
         };
@@ -188,7 +184,6 @@ impl ZkSyncStateKeeper {
             &mut *batch_executor,
             &mut updates_manager,
             pending_l2_blocks,
-            last_l2_block_with_rolling_txs_hash,
             &stop_receiver,
         )
         .await?;
@@ -501,7 +496,6 @@ impl ZkSyncStateKeeper {
         batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
-        last_saved_miniblock_with_rolling_hash: Option<L2BlockNumber>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), Error> {
         if l2_blocks_to_reexecute.is_empty() {
@@ -577,12 +571,6 @@ impl ZkSyncStateKeeper {
             }
         }
 
-        if let Some(last_saved_miniblock_with_rolling_hash) = last_saved_miniblock_with_rolling_hash
-        {
-            updates_manager.rolling_tx_hash_updates.from_l2_block_number =
-                last_saved_miniblock_with_rolling_hash;
-        }
-
         tracing::debug!(
             "All the transactions from the pending state were re-executed successfully"
         );
@@ -649,13 +637,6 @@ impl ZkSyncStateKeeper {
                     updates_manager.l1_batch.number
                 );
 
-                if self.should_seal_rolling_tx_hash(updates_manager) {
-                    self.output_handler
-                        .handle_rolling_tx_hash(updates_manager)
-                        .await?;
-                    updates_manager.rolling_tx_hash_updates.from_l2_block_number =
-                        updates_manager.l2_block.number + 1;
-                }
                 self.seal_l2_block(updates_manager).await?;
 
                 // Get a tentative new l2 block parameters
@@ -758,19 +739,6 @@ impl ZkSyncStateKeeper {
             full_latency.observe();
         }
         Err(Error::Canceled)
-    }
-
-    // Do we need a custom sealer?
-    fn should_seal_rolling_tx_hash(&self, updates_manager: &UpdatesManager) -> bool {
-        let Some(n_l2_blocks_to_seal_rolling_hash) = self.n_l2_blocks_to_seal_rolling_hash else {
-            return false;
-        };
-        updates_manager.rolling_tx_hash_updates.to_l2_block_number.0
-            - updates_manager
-                .rolling_tx_hash_updates
-                .from_l2_block_number
-                .0
-            >= n_l2_blocks_to_seal_rolling_hash as u32
     }
 
     async fn process_upgrade_tx(
