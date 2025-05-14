@@ -12,7 +12,7 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
 use crate::{
-    abi::{zk_chain_abi, BridgehubAbi, ZkChainAbi},
+    abi::{BridgehubAbi, ZkChainAbi},
     admin_functions::{set_da_validator_pair, set_da_validator_pair_via_gateway, AdminScriptMode},
     commands::chain::utils::get_default_foundry_path,
     messages::{
