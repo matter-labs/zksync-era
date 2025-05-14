@@ -9,7 +9,7 @@ use ethers::{
     utils::format_ether,
 };
 use url::Url;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 
 use crate::utils::forge::WalletOwner;
 
@@ -597,16 +597,14 @@ pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
 pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
 pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
     "consensus registry address not configured";
-pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
-    "consensus.genesis_spec.attesters missing in general.yaml";
 pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
 pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
 
-pub(super) fn msg_setting_attester_committee_failed(
-    got: &attester::Committee,
-    want: &attester::Committee,
+pub(super) fn msg_setting_validator_committee_failed(
+    got: &validator::Committee,
+    want: &validator::Committee,
 ) -> String {
-    format!("setting attester committee failed: got {got:?}, want {want:?}")
+    format!("setting validator committee failed: got {got:?}, want {want:?}")
 }
 
 pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {
