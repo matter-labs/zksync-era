@@ -9,7 +9,7 @@ use zksync_consensus_roles::{
     node, validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_consensus_storage::{BlockStore, PersistentBlockStore};
+use zksync_consensus_engine::{BlockStore, PersistentBlockStore};
 use zksync_dal::consensus_dal;
 use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;

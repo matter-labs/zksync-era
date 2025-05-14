@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
+use zksync_consensus_engine as storage;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage as storage;
 use zksync_dal::{
     consensus::BlockCertificate,
     consensus_dal::{BlockMetadata, GlobalConfig, Payload},

@@ -1,6 +1,6 @@
 use anyhow::Context as _;
+use zksync_consensus_engine::{BlockStoreState, Last};
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::{BlockStoreState, Last, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
@@ -37,7 +37,7 @@ pub fn verify_config_transition(old: &GlobalConfig, new: &GlobalConfig) -> anyho
         old.genesis.fork_number,
         new.genesis.fork_number,
     );
-    new.genesis.verify().context("genesis.verify()")?;
+
     // This is a temporary hack until the `consensus_genesis()` RPC is disabled.
     if new
         == (&GlobalConfig {
@@ -48,6 +48,7 @@ pub fn verify_config_transition(old: &GlobalConfig, new: &GlobalConfig) -> anyho
     {
         anyhow::bail!("new config is equal to truncated old config, which means that it was sourced from the wrong endpoint");
     }
+
     Ok(())
 }
 
@@ -138,7 +139,7 @@ impl ConsensusDal<'_, '_> {
         let s = zksync_protobuf::serde::Serialize;
         let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
         let state = s
-            .proto_fmt(&ReplicaState::default(), serde_json::value::Serializer)
+            .proto_fmt(&validator::ReplicaState::default(), serde_json::value::Serializer)
             .unwrap();
         sqlx::query!(
             r#"
@@ -209,8 +210,7 @@ impl ConsensusDal<'_, '_> {
                     .context("next_block()")?,
 
                 protocol_version: old.genesis.protocol_version,
-                validators: old.genesis.validators.clone(),
-                leader_selection: old.genesis.leader_selection.clone(),
+                validators_schedule: old.genesis.validators_schedule.clone(),
             }
             .with_hash(),
             registry_address: old.registry_address,
@@ -222,7 +222,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches the current BFT replica state.
-    pub async fn replica_state(&mut self) -> DalResult<ReplicaState> {
+    pub async fn replica_state(&mut self) -> DalResult<validator::ReplicaState> {
         sqlx::query!(
             r#"
             SELECT
@@ -246,7 +246,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Sets the current BFT replica state.
-    pub async fn set_replica_state(&mut self, state: &ReplicaState) -> DalResult<()> {
+    pub async fn set_replica_state(&mut self, state: &validator::ReplicaState) -> DalResult<()> {
         let state_json = zksync_protobuf::serde::Serialize
             .proto_fmt(state, serde_json::value::Serializer)
             .unwrap();
@@ -577,66 +577,6 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(BlockMetadata {
             payload_hash: b.encode().hash(),
         }))
-    }
-
-    /// Persist the validator committee that will be active at the given block.
-    pub async fn insert_validator_committee(
-        &mut self,
-        block_number: validator::BlockNumber,
-        committee: &validator::Committee,
-    ) -> anyhow::Result<()> {
-        let committee = zksync_protobuf::serde::Serialize
-            .proto_repr::<proto::ValidatorCommittee, _>(committee, serde_json::value::Serializer)
-            .unwrap();
-        sqlx::query!(
-            r#"
-            INSERT INTO
-            consensus_committees (active_at_block, validators)
-            VALUES
-            ($1, $2)
-            "#,
-            i64::try_from(block_number.0).context("overflow")?,
-            committee
-        )
-        .instrument("insert_validator_committee")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-        Ok(())
-    }
-
-    /// Fetches the validator committee for the L2 block with the given number.
-    pub async fn get_validator_committee(
-        &mut self,
-        block_number: validator::BlockNumber,
-    ) -> anyhow::Result<Option<validator::Committee>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                validators
-            FROM
-                consensus_committees
-            WHERE
-                active_at_block <= $1
-            ORDER BY
-                active_at_block DESC
-            LIMIT 1
-            "#,
-            i64::try_from(block_number.0)?
-        )
-        .instrument("validator_committee")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(
-            zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_repr::<proto::ValidatorCommittee, _>(row.validators)?,
-        ))
     }
 
     /// Checks if the L1 batch and metadata is stored in the database.

@@ -3,9 +3,9 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
+use zksync_consensus_engine::BlockStore;
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::BlockStore;
 
 use crate::{
     config,

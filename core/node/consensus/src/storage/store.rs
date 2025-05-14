@@ -4,8 +4,8 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
+use zksync_consensus_engine::{self as storage};
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::{self as storage};
 use zksync_dal::{
     consensus::BlockCertificate,
     consensus_dal::{self, Payload},
