@@ -14,7 +14,7 @@ mod store;
 
 pub(crate) use connection::*;
 pub(crate) use store::*;
-use zksync_shared_di::api::SyncState;
+use zksync_shared_resources::api::SyncState;
 
 #[cfg(test)]
 pub(crate) mod testonly;

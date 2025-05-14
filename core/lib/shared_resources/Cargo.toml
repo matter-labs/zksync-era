@@ -1,6 +1,6 @@
 [package]
-name = "zksync_shared_di"
-description = "Shared dependency injection code for ZKsync node"
+name = "zksync_shared_resources"
+description = "Shared resources for ZKsync node framework"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -13,8 +13,8 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::api::{SyncState, SyncStateData};
 use zksync_shared_metrics::EN_METRICS;
+use zksync_shared_resources::api::{SyncState, SyncStateData};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::EthNamespaceClient,

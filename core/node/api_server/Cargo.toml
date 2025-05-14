@@ -32,7 +32,7 @@ zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
 zksync_vm_executor = { workspace = true, features = ["node_framework"] }
 zksync_node_framework.workspace = true
-zksync_shared_di.workspace = true
+zksync_shared_resources.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true

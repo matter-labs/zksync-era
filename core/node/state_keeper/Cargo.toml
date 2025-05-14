@@ -31,7 +31,7 @@ zksync_vm_executor = { workspace = true, features = ["node_framework"] }
 zksync_system_constants.workspace = true
 zksync_base_token_adjuster.workspace = true
 zksync_node_framework.workspace = true
-zksync_shared_di.workspace = true
+zksync_shared_resources.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

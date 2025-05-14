@@ -7,7 +7,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::api::SyncState;
+use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     node::{ConditionalSealerResource, StateKeeperIOResource},
     seal_criteria::NoopSealer,

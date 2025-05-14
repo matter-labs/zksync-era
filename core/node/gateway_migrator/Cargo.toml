@@ -19,7 +19,7 @@ zksync_config.workspace = true
 zksync_system_constants.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_node_framework.workspace = true
-zksync_shared_di.workspace = true
+zksync_shared_resources.workspace = true
 
 tokio.workspace = true
 async-trait.workspace = true

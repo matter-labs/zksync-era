@@ -12,7 +12,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_node_sync::{node::ActionQueueSenderResource, ActionQueueSender};
-use zksync_shared_di::api::SyncState;
+use zksync_shared_resources::api::SyncState;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     node::MainNodeClientResource,

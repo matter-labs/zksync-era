@@ -6,7 +6,7 @@ use zksync_contracts::{bridgehub_contract, l1_asset_router_contract};
 use zksync_node_framework::{
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
-use zksync_shared_di::{api::BridgeAddressesHandle, contracts::L1ChainContractsResource};
+use zksync_shared_resources::{api::BridgeAddressesHandle, contracts::L1ChainContractsResource};
 use zksync_types::{ethabi::Contract, Address, L2_ASSET_ROUTER_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L2},

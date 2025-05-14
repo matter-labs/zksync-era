@@ -18,7 +18,7 @@ zksync_config.workspace = true
 zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_web3_decl.workspace = true
 zksync_node_framework.workspace = true
-zksync_shared_di.workspace = true
+zksync_shared_resources.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true

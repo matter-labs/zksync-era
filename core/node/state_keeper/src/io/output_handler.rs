@@ -4,7 +4,7 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_shared_di::api::SyncState;
+use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 
 use crate::{io::IoCursor, updates::UpdatesManager};

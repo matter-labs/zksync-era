@@ -7,7 +7,7 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStore, PersistentBlockStore as _};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender};
-use zksync_shared_di::api::SyncState;
+use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},

@@ -61,7 +61,7 @@ members = [
   "lib/mini_merkle_tree",
   "lib/node_framework",
   "lib/node_framework_derive",
-  "lib/shared_di",
+  "lib/shared_resources",
   "lib/object_store",
   "lib/prover_interface",
   "lib/queued_job_processor",
@@ -320,7 +320,7 @@ zk_os_merkle_tree = { version = "28.2.0-non-semver-compat", path = "lib/zk_os_me
 # Framework and components
 zksync_node_framework = { version = "28.2.0-non-semver-compat", path = "lib/node_framework" }
 zksync_node_framework_derive = { version = "28.2.0-non-semver-compat", path = "lib/node_framework_derive" }
-zksync_shared_di = { version = "28.2.0-non-semver-compat", path = "lib/shared_di" }
+zksync_shared_resources = { version = "28.2.0-non-semver-compat", path = "lib/shared_resources" }
 zksync_eth_watch = { version = "28.2.0-non-semver-compat", path = "node/eth_watch" }
 zksync_shared_metrics = { version = "28.2.0-non-semver-compat", path = "node/shared_metrics" }
 zksync_proof_data_handler = { version = "28.2.0-non-semver-compat", path = "node/proof_data_handler" }

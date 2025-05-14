@@ -3,7 +3,9 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::contracts::{L1ChainContractsResource, SettlementLayerContractsResource};
+use zksync_shared_resources::contracts::{
+    L1ChainContractsResource, SettlementLayerContractsResource,
+};
 use zksync_web3_decl::node::{EthInterfaceResource, SettlementLayerClient};
 
 use super::resources::{

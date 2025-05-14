@@ -1,4 +1,4 @@
-# Shared Dependency Injection Code for ZKsync Node
+# Shared Resources for ZKsync Node Framework
 
 This library contains resources shared among multiple components in the ZKsync node.
 

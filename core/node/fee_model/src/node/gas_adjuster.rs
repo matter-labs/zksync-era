@@ -8,7 +8,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::PubdataSendingModeResource;
+use zksync_shared_resources::PubdataSendingModeResource;
 use zksync_web3_decl::node::SettlementLayerClient;
 
 use super::resources::GasAdjusterResource;

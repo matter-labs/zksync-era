@@ -11,7 +11,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::contracts::{L2ContractsResource, SettlementLayerContractsResource};
+use zksync_shared_resources::contracts::{L2ContractsResource, SettlementLayerContractsResource};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
 use super::resources::{ConditionalSealerResource, StateKeeperIOResource};

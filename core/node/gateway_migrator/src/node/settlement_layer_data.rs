@@ -27,7 +27,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::{
+use zksync_shared_resources::{
     contracts::{
         L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
         SettlementLayerContractsResource,

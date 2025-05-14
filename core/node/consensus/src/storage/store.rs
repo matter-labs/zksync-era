@@ -11,7 +11,7 @@ use zksync_dal::{
     consensus_dal::{self, Payload},
 };
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
-use zksync_shared_di::api::SyncState;
+use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},

@@ -12,7 +12,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::node::ObjectStoreResource;
-use zksync_shared_di::contracts::{L2ContractsResource, SettlementLayerContractsResource};
+use zksync_shared_resources::contracts::{L2ContractsResource, SettlementLayerContractsResource};
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
 use zksync_state_keeper::node::ConditionalSealerResource;
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};

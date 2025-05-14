@@ -6,7 +6,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_di::contracts::SettlementLayerContractsResource;
+use zksync_shared_resources::contracts::SettlementLayerContractsResource;
 use zksync_web3_decl::node::EthInterfaceResource;
 
 use super::NodeInitializationStrategyResource;
