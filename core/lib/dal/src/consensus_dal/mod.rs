@@ -143,14 +143,6 @@ impl ConsensusDal<'_, '_> {
             .unwrap();
         sqlx::query!(
             r#"
-            DELETE FROM l1_batches_consensus
-            "#
-        )
-        .instrument("try_update_genesis#DELETE FROM l1_batches_consensus")
-        .execute(&mut txn)
-        .await?;
-        sqlx::query!(
-            r#"
             DELETE FROM miniblocks_consensus
             "#
         )
@@ -320,12 +312,10 @@ impl ConsensusDal<'_, '_> {
 
         // If there is a cert in storage, then the block range visible to consensus
         // is [first block, block of last cert].
-        // Also tries to fetch the last cert from the old column
-        // This is a temporary solution to support the transition to the new column.
         if let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate, versioned_certificate
+                versioned_certificate
             FROM
                 miniblocks_consensus
             ORDER BY
@@ -343,7 +333,6 @@ impl ConsensusDal<'_, '_> {
                 deny_unknown_fields: true,
             };
 
-            // First try to use versioned_certificate
             let cert: Option<BlockCertificate> = row
                 .versioned_certificate
                 .as_ref()
@@ -354,21 +343,6 @@ impl ConsensusDal<'_, '_> {
                 return Ok(BlockStoreState {
                     first,
                     last: Some(cert.into()),
-                });
-            }
-
-            // If versioned_certificate is None, try to use certificate
-            // This is for backward compatibility
-            let qc = row
-                .certificate
-                .as_ref()
-                .map(|cert| d.proto_fmt(cert))
-                .transpose()?;
-
-            if let Some(qc) = qc {
-                return Ok(BlockStoreState {
-                    first,
-                    last: Some(Last::FinalV1(qc)),
                 });
             }
         }
@@ -399,7 +373,7 @@ impl ConsensusDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate, versioned_certificate
+                versioned_certificate
             FROM
                 miniblocks_consensus
             WHERE
@@ -419,7 +393,6 @@ impl ConsensusDal<'_, '_> {
             deny_unknown_fields: true,
         };
 
-        // First try to use versioned_certificate
         let cert = row
             .versioned_certificate
             .as_ref()
@@ -428,18 +401,6 @@ impl ConsensusDal<'_, '_> {
 
         if cert.is_some() {
             return Ok(cert);
-        }
-
-        // If versioned_certificate is None, try to use certificate
-        // This is for backward compatibility
-        let qc = row
-            .certificate
-            .as_ref()
-            .map(|cert| d.proto_fmt(cert))
-            .transpose()?;
-
-        if qc.is_some() {
-            return Ok(qc);
         }
 
         Ok(None)
