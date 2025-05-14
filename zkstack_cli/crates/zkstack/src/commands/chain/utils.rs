@@ -1,8 +1,14 @@
 use std::path::PathBuf;
-use anyhow::Context;
 
-use ethers::{abi::encode, types::{TransactionReceipt, TransactionRequest}, middleware::SignerMiddleware,     signers::{LocalWallet, Signer},
-    utils::hex, providers::{Http, Middleware, Provider}};
+use anyhow::Context;
+use ethers::{
+    abi::encode,
+    middleware::SignerMiddleware,
+    providers::{Http, Middleware, Provider},
+    signers::{LocalWallet, Signer},
+    types::{TransactionReceipt, TransactionRequest},
+    utils::hex,
+};
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::EcosystemConfig;

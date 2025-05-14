@@ -16,7 +16,7 @@ use zkstack_cli_config::{
         upgrade_ecosystem::{input::EcosystemUpgradeInput, output::EcosystemUpgradeOutput},
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig, GenesisConfig, GENESIS_FILE, ContractsConfig
+    ContractsConfig, EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, H160};
@@ -298,8 +298,6 @@ async fn no_governance_prepare_gateway(
     Ok(())
 }
 
-
-
 async fn governance_stage_0(
     init_args: &mut EcosystemUpgradeArgsFinal,
     shell: &Shell,
@@ -364,7 +362,10 @@ async fn governance_stage_1(
 
     let mut contracts_config = ecosystem_config.get_contracts_config()?;
 
-    update_contracts_config_from_output(&mut contracts_config, &gateway_ecosystem_preparation_output);
+    update_contracts_config_from_output(
+        &mut contracts_config,
+        &gateway_ecosystem_preparation_output,
+    );
 
     // This value is meaningless for the ecosystem, but we'll populate it for consistency
     contracts_config.l2.da_validator_addr = Some(H160::zero());
@@ -390,42 +391,29 @@ fn update_contracts_config_from_output(
     );
     // This is force deployment data for creating new contracts, not really relevant here tbh,
     contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
-        &output
-            .contracts_config
-            .force_deployments_data
-            .0,
+        &output.contracts_config.force_deployments_data.0,
     ));
-    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(
-        output
-            .deployed_addresses
-            .native_token_vault_addr,
-    );
+    contracts_config.ecosystem_contracts.native_token_vault_addr =
+        Some(output.deployed_addresses.native_token_vault_addr);
     contracts_config
         .ecosystem_contracts
-        .l1_bytecodes_supplier_addr = Some(
-        output
-            .deployed_addresses
-            .l1_bytecodes_supplier_addr,
-    );
+        .l1_bytecodes_supplier_addr = Some(output.deployed_addresses.l1_bytecodes_supplier_addr);
 
-    contracts_config.l1.rollup_l1_da_validator_addr = Some(
-        output
-            .deployed_addresses
-            .rollup_l1_da_validator_addr,
-    );
+    contracts_config.l1.rollup_l1_da_validator_addr =
+        Some(output.deployed_addresses.rollup_l1_da_validator_addr);
 
-    contracts_config.l1.no_da_validium_l1_validator_addr = Some(
-        output
-            .deployed_addresses
-            .validium_l1_da_validator_addr,
-    );
+    contracts_config.l1.no_da_validium_l1_validator_addr =
+        Some(output.deployed_addresses.validium_l1_da_validator_addr);
 }
 
 fn update_upgrade_input_from_config(
     upgrade_input: &mut EcosystemUpgradeInput,
     contracts_config: &ContractsConfig,
 ) {
-    upgrade_input.contracts.l1_bytecodes_supplier_addr = contracts_config.ecosystem_contracts.l1_bytecodes_supplier_addr.unwrap();
+    upgrade_input.contracts.l1_bytecodes_supplier_addr = contracts_config
+        .ecosystem_contracts
+        .l1_bytecodes_supplier_addr
+        .unwrap();
     // upgrade_input.contracts.governance_security_council_address = contracts_config.l1.governance_addr;
     // upgrade_input.contracts.evm_emulator_hash = contracts_config.ecosystem_contracts.evm_emulator_hash;
     // upgrade_input.contracts.protocol_upgrade_handler_proxy_address = contracts_config.ecosystem_contracts.protocol_upgrade_handler_proxy_addr;

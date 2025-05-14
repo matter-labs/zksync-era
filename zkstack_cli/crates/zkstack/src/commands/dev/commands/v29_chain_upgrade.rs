@@ -329,7 +329,9 @@ pub(crate) async fn run(
 
     if run_upgrade {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let chain_config = ecosystem_config.load_chain(Some("era".to_string())).context("Chain not found")?;
+        let chain_config = ecosystem_config
+            .load_chain(Some("era".to_string()))
+            .context("Chain not found")?;
         // let forge_args = ForgeScriptArgs::default();
         println!("Running upgrade");
 
@@ -338,11 +340,15 @@ pub(crate) async fn run(
             set_timestamp_call.data,
             U256::from(0),
             args.l1_rpc_url.clone().unwrap(),
-            chain_config.get_wallets_config()?.governor.private_key_h256().unwrap(),
+            chain_config
+                .get_wallets_config()?
+                .governor
+                .private_key_h256()
+                .unwrap(),
             "migrating from gateway",
         )
         .await?;
-    
+
         // logger::info("Starting the migration!");
         let receipt = send_tx(
             chain_info.chain_admin_addr,
