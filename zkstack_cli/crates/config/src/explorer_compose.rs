@@ -84,8 +84,8 @@ impl ExplorerBackendComposeConfig {
         l2_rpc_url: Url,
         config: &ExplorerBackendConfig,
     ) -> anyhow::Result<Self> {
-        let db_url = adjust_localhost_for_docker(config.database_url.clone())?;
-        let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url)?;
+        let db_url = adjust_localhost_for_docker(config.database_url.clone(), "host.docker.internal")?;
+        let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url, "host.docker.internal")?;
 
         let mut services: HashMap<String, DockerComposeService> = HashMap::new();
         services.insert(

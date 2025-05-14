@@ -25,10 +25,10 @@ pub fn run(shell: &Shell, docker_image: &str, docker_args: Vec<String>) -> anyho
     Ok(Cmd::new(cmd!(shell, "docker run {docker_args...} {docker_image}")).run()?)
 }
 
-pub fn adjust_localhost_for_docker(mut url: Url) -> anyhow::Result<Url> {
+pub fn adjust_localhost_for_docker(mut url: Url, new_host: &str) -> anyhow::Result<Url> {
     if let Some(host) = url.host_str() {
         if host == "localhost" || host == "127.0.0.1" {
-            url.set_host(Some("host.docker.internal"))?;
+            url.set_host(Some(new_host))?;
         }
     } else {
         anyhow::bail!("Failed to parse: no host");
