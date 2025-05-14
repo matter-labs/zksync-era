@@ -155,6 +155,20 @@ impl<K: Key> Scaler<K> {
             .flat_map(|c| self.convert_to_pool(namespace, c))
             .collect();
 
+        // If a pool has NeedToMove pod, max_pool_size is set to number of Running+Pending pods.
+        for pool in &mut pools {
+            if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0 {
+                pool.max_pool_size = pool.sum_by_pod_status(PodStatus::Running)
+                    + pool.sum_by_pod_status(PodStatus::Pending);
+                tracing::debug!(
+                    "Pool {}:{:?} has NeedToMove pods, max_pool_size adjusted to {}",
+                    pool.name,
+                    pool.key,
+                    pool.max_pool_size
+                );
+            }
+        }
+
         let priority_cmp = |a: &Pool<K>, b: &Pool<K>| {
             match &self.target_priority {
                 Some(PriorityConfig::Gpu(gpu_priorities)) => {
@@ -1361,6 +1375,106 @@ mod tests {
                     },
                     1,
                 )
+            ]
+            .into(),
+            "Override priority: H100 in foo, then L4 in bar"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_calculate_backup_gpu() {
+        let target_priority = Some(PriorityConfig::Gpu(vec![
+            ("foo".into(), GpuKey(Gpu::L4)),
+            ("foo".into(), GpuKey(Gpu::H100)),
+        ]));
+
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [(
+                "foo".into(),
+                [(GpuKey(Gpu::L4), 50), (GpuKey(Gpu::H100), 10)].into(),
+            )]
+            .into(),
+            [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            scaler_config("prover"),
+            target_priority,
+        );
+
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [
+                                ("circuit-prover-gpu".into(), Deployment::default()),
+                                ("circuit-prover-gpu-h100".into(), Deployment::default()),
+                            ]
+                            .into(),
+                            pods: [
+                                (
+                                    "circuit-prover-gpu-7c5f8fc747-gmtcr".into(),
+                                    Pod {
+                                        status: "Running".into(),
+                                        changed: Utc::now(),
+                                        ..Default::default()
+                                    },
+                                ),
+                                (
+                                    "circuit-prover-gpu-7c5f8fc747-gmtc2".into(),
+                                    Pod {
+                                        status: "Pending".into(),
+                                        changed: Utc::now(),
+                                        out_of_resources: true,
+                                        ..Default::default()
+                                    },
+                                ),
+                                (
+                                    "circuit-prover-gpu-7c5f8fc747-gmtc3".into(),
+                                    Pod {
+                                        status: "Pending".into(),
+                                        changed: Utc::now(),
+                                        ..Default::default()
+                                    },
+                                ),
+                            ]
+                            .into(),
+                            scale_errors: vec![ScaleEvent {
+                                name: "circuit-prover-gpu-7c5f8fc747-gmtc2.123456".into(),
+                                time: Utc::now() - chrono::Duration::minutes(3),
+                            }],
+                            ..Default::default()
+                        },
+                    )]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            scaler.calculate(&"prover".into(), 2 * 1500 + 2 * 3000 + 2000, &clusters),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    2,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    3,
+                ),
             ]
             .into(),
             "Override priority: H100 in foo, then L4 in bar"
