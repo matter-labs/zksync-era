@@ -67,7 +67,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         }
         logger::note(
             MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
-            format!("{}", hex::encode(chain_diamond_proxy_on_gateway)),
+            hex::encode(chain_diamond_proxy_on_gateway).to_string(),
         );
 
         let l1_provider =
