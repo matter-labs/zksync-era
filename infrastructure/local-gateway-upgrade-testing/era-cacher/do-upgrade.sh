@@ -45,4 +45,7 @@ zkstack dev run-v29-chain-upgrade
 
 zkstack  dev run-v29-ecosystem-upgrade --ecosystem-upgrade-stage governance-stage2 --fast-compilation
 
+pkill -9 zksync_server
+zkstack server --ignore-prerequisites --chain era &> ../rollup2.log &
+
 zkstack dev test integration --no-deps --ignore-prerequisites --chain era
