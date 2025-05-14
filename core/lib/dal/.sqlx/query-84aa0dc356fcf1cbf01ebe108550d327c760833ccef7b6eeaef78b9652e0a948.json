@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                 SELECT eth_tx_id, rolling_txs_hash, number FROM miniblocks\n                 WHERE l1_batch_number = $1\n                 ORDER BY number DESC\n                 LIMIT 2\n                ",
+  "query": "\n                SELECT eth_tx_id, rolling_txs_hash, number FROM miniblocks\n                WHERE l1_batch_number = $1\n                ORDER BY number DESC\n                LIMIT 2\n                ",
   "describe": {
     "columns": [
       {
@@ -30,5 +30,5 @@
       false
     ]
   },
-  "hash": "ec7daeeafa1b8ef6a7b0dbd1071a8963330d750bf80b38093c790c0b76d490d6"
+  "hash": "84aa0dc356fcf1cbf01ebe108550d327c760833ccef7b6eeaef78b9652e0a948"
 }

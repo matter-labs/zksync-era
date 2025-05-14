@@ -1,5 +1,6 @@
-use chrono::Utc;
 use std::sync::Arc;
+
+use chrono::Utc;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -16,10 +17,10 @@ use zksync_types::{
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
-    precommit_batch::TransactionStatusCommitment,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
+    transaction_status_commitment::TransactionStatusCommitment,
     L1BatchNumber, ProtocolVersionId,
 };
 
@@ -333,37 +334,39 @@ impl Aggregator {
         storage: &mut Connection<'_, Core>,
         number_of_blocks: usize,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
-        // TODO make more specific requests to the database
         let last_committed_l1_batch = storage
             .blocks_dal()
-            .get_last_committed_to_eth_l1_batch()
+            .get_number_of_last_l1_batch_committed_on_eth()
             .await
             .unwrap();
 
-        dbg!(number_of_blocks);
         let last_sealed_l1_batch = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
             .unwrap();
 
+        // If we have some sealed, but not committed L1 batches, we need to precommit all txs from this batch,
+        // before sending the commit tx. If all batches were committed and we have only open batch,
+        // we have to start committing the txs from it (last_sealed_l1_batch == last_committed_l1_batch).
+        // If we have no committed  batches, we need to precommit the txs from the first batch.
         let (actual_number, desired_number_for_db) =
             match (last_sealed_l1_batch, last_committed_l1_batch) {
                 (None, _) => return Ok(None),
                 (Some(last_sealed_l1_batch), Some(last_committed_l1_batch))
-                    if last_sealed_l1_batch == last_committed_l1_batch.header.number =>
+                    if last_sealed_l1_batch == last_committed_l1_batch =>
                 {
                     (last_sealed_l1_batch + 1, None)
                 }
                 (Some(_), Some(committed_l1_batch_number)) => (
-                    committed_l1_batch_number.header.number + 1,
-                    Some(committed_l1_batch_number.header.number + 1),
+                    committed_l1_batch_number + 1,
+                    Some(committed_l1_batch_number + 1),
                 ),
                 (Some(sealed), None) => (sealed, Some(sealed)),
             };
 
         let txs = storage
-            .rolling_tx_hashes()
+            .blocks_dal()
             .get_ready_rolling_txs_hashes(desired_number_for_db)
             .await
             .unwrap();
@@ -372,16 +375,12 @@ impl Aggregator {
             return Ok(None);
         }
 
+        // checked that we have at least one tx
         let first_tx = txs.first().unwrap();
         let last_tx = txs.last().unwrap();
 
-        // dbg!(
-        //     "Precommit operation: first_l2_block_number = {}, last_l2_block_number = {}",
-        //     first_tx,
-        //     last_tx
-        // );
-        // We have to apply the logic with packing blocks only if we are
-        // precommiting not sealed block
+        // We can skip precommit if we are sending the precommit for not sealed batch and do some batching.
+        // If the batch already sealed we have to send it as soon as possible
         if desired_number_for_db.is_none() {
             // We need to check that the first and last L2 blocks are in the same batch
 
@@ -545,7 +544,6 @@ impl Aggregator {
                 .await
                 .unwrap()
         };
-        dbg!(&ready_for_commit_l1_batches);
 
         // Check that the L1 batches that are selected are sequential
         ready_for_commit_l1_batches

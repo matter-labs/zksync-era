@@ -45,6 +45,13 @@ pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
+pub struct TxForPrecommit {
+    pub l2block_number: L2BlockNumber,
+    pub timestamp: i64,
+    pub tx_hash: H256,
+    pub is_success: bool,
+}
+
 impl BlocksDal<'_, '_> {
     pub async fn get_consistency_checker_last_processed_l1_batch(
         &mut self,
@@ -552,8 +559,9 @@ impl BlocksDal<'_, '_> {
     pub async fn set_final_precommit_operation(&mut self) -> DalResult<()> {
         let l1_batches = sqlx::query!(
             r#"
-            SELECT number from l1_batches
-            WHERE is_sealed AND eth_commit_tx_id IS NULL AND final_precommit_eth_tx_id IS NULL
+            SELECT number FROM l1_batches
+            WHERE
+                is_sealed AND eth_commit_tx_id IS NULL AND final_precommit_eth_tx_id IS NULL
             "#,
         )
         .instrument("set_final_precommit_operation")
@@ -561,15 +569,13 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        dbg!(&l1_batches);
-
         for row in l1_batches {
             let last_2_miniblocks = sqlx::query!(
                 r#"
-                 SELECT eth_tx_id, rolling_txs_hash, number FROM miniblocks
-                 WHERE l1_batch_number = $1
-                 ORDER BY number DESC
-                 LIMIT 2
+                SELECT eth_tx_id, rolling_txs_hash, number FROM miniblocks
+                WHERE l1_batch_number = $1
+                ORDER BY number DESC
+                LIMIT 2
                 "#,
                 row.number as i32,
             )
@@ -577,7 +583,6 @@ impl BlocksDal<'_, '_> {
             .report_latency()
             .fetch_all(self.storage)
             .await?;
-            dbg!(&last_2_miniblocks);
             if last_2_miniblocks.len() != 2 {
                 continue;
             }
@@ -586,10 +591,10 @@ impl BlocksDal<'_, '_> {
                 if let Some(eth_tx_id) = last_2_miniblocks[1].eth_tx_id {
                     sqlx::query!(
                         r#"
-                    UPDATE l1_batches
-                    SET final_precommit_eth_tx_id = $1
-                    WHERE number = $2
-                    "#,
+                        UPDATE l1_batches
+                        SET final_precommit_eth_tx_id = $1
+                        WHERE number = $2
+                        "#,
                         eth_tx_id as i32,
                         row.number as i32,
                     )
@@ -852,6 +857,50 @@ impl BlocksDal<'_, '_> {
 
         transaction.commit().await?;
         Ok(())
+    }
+
+    pub async fn get_ready_rolling_txs_hashes(
+        &mut self,
+        l1_batch_number: Option<L1BatchNumber>,
+    ) -> DalResult<Vec<TxForPrecommit>> {
+        let mut tx = self.storage.start_transaction().await?;
+
+        let txs = sqlx::query!(
+            r#"
+            SELECT
+                transactions.hash, transactions.error,
+                miniblock_number AS "miniblock_number!",
+                miniblocks.timestamp
+            FROM transactions
+            JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
+            WHERE
+                (
+                    transactions.l1_batch_number IS NULL AND $2
+                    OR transactions.l1_batch_number = $1
+                )
+                AND
+                miniblocks.rolling_txs_hash IS NOT NULL
+                AND
+                miniblocks.eth_tx_id IS NULL
+            ORDER BY miniblock_number, index_in_block
+            "#,
+            l1_batch_number.map(|l1| i64::from(l1.0)),
+            l1_batch_number.is_none(),
+        )
+        .instrument("get_ready_rolling_txs_hashes")
+        .report_latency()
+        .fetch_all(&mut tx)
+        .await?
+        .into_iter()
+        .map(|row| TxForPrecommit {
+            l2block_number: L2BlockNumber(row.miniblock_number as u32),
+            timestamp: row.timestamp,
+            tx_hash: H256::from_slice(&row.hash),
+            is_success: row.error.is_none(),
+        })
+        .collect();
+
+        Ok(txs)
     }
 
     /// Marks provided L1 batch as sealed and populates it with all the runtime information.
@@ -2170,13 +2219,6 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        dbg!(
-            bootloader_hash,
-            default_aa_hash,
-            protocol_version_id as i32,
-            with_da_inclusion_info,
-            limit as i64
-        );
         self.map_l1_batches(raw_batches)
             .await
             .context("map_l1_batches()")

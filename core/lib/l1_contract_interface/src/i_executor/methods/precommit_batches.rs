@@ -1,6 +1,6 @@
 use zksync_types::{
     ethabi::{encode, Token},
-    precommit_batch::TransactionStatusCommitment,
+    transaction_status_commitment::TransactionStatusCommitment,
     L1BatchNumber, L2BlockNumber,
 };
 

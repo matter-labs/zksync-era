@@ -1,6 +1,5 @@
 use anyhow::Context;
 use zksync_basic_types::web3::contract::{Error, Tokenizable};
-use zksync_basic_types::{L1BatchNumber, L2BlockNumber};
 
 use crate::{ethabi::Token, H256};
 

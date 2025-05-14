@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                        UPDATE l1_batches\n                        SET final_precommit_eth_tx_id = $1\n                        WHERE number = $2\n                        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6fdefb57f8b160e7f1ebc07736572dd2e32586bce37d507f7a2aaf2553afbdb7"
+}
