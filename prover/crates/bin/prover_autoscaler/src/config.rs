@@ -79,12 +79,6 @@ pub struct ProverAutoscalerScalerConfig {
         default = "ProverAutoscalerScalerConfig::default_scale_errors_duration"
     )]
     pub scale_errors_duration: Duration,
-    /// Time window for which Autoscaler forces pending pod migration due to scale errors.
-    #[serde(
-        with = "humantime_serde",
-        default = "ProverAutoscalerScalerConfig::default_need_to_move_duration"
-    )]
-    pub need_to_move_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
     /// If dry-run enabled don't send any scale requests.
@@ -136,6 +130,13 @@ impl ScalarOrMap {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum PriorityConfig {
+    Gpu(Vec<(ClusterName, GpuKey)>),
+    Simple(Vec<ClusterName>),
+}
+
 #[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Deserialize)]
 pub enum ScalerTargetType {
     #[default]
@@ -161,6 +162,11 @@ pub struct ScalerTarget {
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
     pub speed: ScalarOrMap,
+    /// Optional priority list that overrides global cluster_priorities.
+    /// For GPU targets, this is a list of (ClusterName, GpuKey) tuples.
+    /// For Simple targets, this is a list of ClusterName.
+    #[serde(default)]
+    pub priority: Option<PriorityConfig>,
 }
 
 impl ProverAutoscalerConfig {
@@ -203,11 +209,6 @@ impl ProverAutoscalerScalerConfig {
     /// Default long_pending_duration -- 1h
     pub fn default_scale_errors_duration() -> Duration {
         Duration::from_secs(3600)
-    }
-
-    /// Default long_pending_duration -- 4m
-    pub fn default_need_to_move_duration() -> Duration {
-        Duration::from_secs(4 * 60)
     }
 }
 
