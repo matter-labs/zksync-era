@@ -8,8 +8,8 @@ use rust_eigenda_client::{
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PointsSource},
-    EigenConfig,
+    configs::da_client::eigenv1m0::{EigenSecretsV1M0, PointsSource},
+    EigenConfigV1M0,
 };
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
@@ -20,14 +20,14 @@ use crate::utils::to_retriable_da_error;
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
-pub struct EigenDAClient {
+pub struct EigenDAClientV1M0 {
     client: EigenClient,
 }
 
-impl EigenDAClient {
+impl EigenDAClientV1M0 {
     pub async fn new(
-        config: EigenConfig,
-        secrets: EigenSecrets,
+        config: EigenConfigV1M0,
+        secrets: EigenSecretsV1M0,
         blob_provider: Arc<dyn BlobProvider>,
     ) -> anyhow::Result<Self> {
         let url = Url::from_str(
@@ -65,7 +65,7 @@ impl EigenDAClient {
 }
 
 #[async_trait::async_trait]
-impl DataAvailabilityClient for EigenDAClient {
+impl DataAvailabilityClient for EigenDAClientV1M0 {
     async fn dispatch_blob(
         &self,
         _: u32, // batch number
@@ -114,7 +114,7 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     fn client_type(&self) -> ClientType {
-        ClientType::Eigen
+        ClientType::EigenV1M0
     }
 
     async fn balance(&self) -> Result<u64, DAError> {
