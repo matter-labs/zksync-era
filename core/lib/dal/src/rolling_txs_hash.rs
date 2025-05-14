@@ -29,13 +29,14 @@ impl RollingTxsHashDal<'_, '_> {
                         AND
                         eth_tx_id IS NULL
                         AND
-                        l1_batch_number = $1
+                        (l1_batch_number IS NULL AND $2 OR l1_batch_number = $1)
                     ORDER BY number DESC
 
                 )
             ORDER BY miniblock_number, index_in_block
             "#,
-            l1_batch_number.map(|l1| i64::from(l1.0))
+            l1_batch_number.map(|l1| i64::from(l1.0)),
+            l1_batch_number.is_none(),
         )
         .instrument("get_ready_rolling_txs_hashes")
         .report_latency()

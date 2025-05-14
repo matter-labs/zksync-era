@@ -5,12 +5,12 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
+use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::{aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTx};
-
-use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]
@@ -33,7 +33,7 @@ pub(super) enum BlockNumberVariant {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "type")]
-pub(super) struct ActionTypeLabel(L1BatchAggregatedActionType);
+pub(super) struct ActionTypeLabel(AggregatedActionType);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "transaction_type", rename_all = "snake_case")]
@@ -42,9 +42,15 @@ pub(super) enum TransactionType {
     Regular,
 }
 
+impl From<AggregatedActionType> for ActionTypeLabel {
+    fn from(action_type: AggregatedActionType) -> Self {
+        Self(action_type)
+    }
+}
+
 impl From<L1BatchAggregatedActionType> for ActionTypeLabel {
     fn from(action_type: L1BatchAggregatedActionType) -> Self {
-        Self(action_type)
+        Self(AggregatedActionType::L1Batch(action_type))
     }
 }
 
@@ -127,10 +133,14 @@ impl EthSenderMetrics {
         l1_stage: BlockL1Stage,
         tx: &EthTx,
     ) {
+        let AggregatedActionType::L1Batch(action_type) = tx.tx_type else {
+            // skip l2 block based actions
+            return;
+        };
         let metrics_latency = self.metrics_latency.start();
         let stage = BlockStage::L1 {
             l1_stage,
-            tx_type: tx.tx_type,
+            tx_type: action_type,
         };
 
         let l1_batches_statistics = connection

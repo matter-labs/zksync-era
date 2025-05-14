@@ -677,6 +677,7 @@ impl EthTxAggregator {
             )
             .await?
         {
+            dbg!(&agg_op);
             let is_gateway = self.is_gateway();
             let tx = self
                 .save_eth_tx(
@@ -820,7 +821,12 @@ impl EthTxAggregator {
                 TxData { calldata, sidecar }
             }
             AggregatedOperation::L2Block(op) => match op {
-                L2BlockAggregatedOperation::Precommit(l1_batch_number, last_l2_block, txs) => {
+                L2BlockAggregatedOperation::Precommit {
+                    l1_batch: l1_batch_number,
+                    last_l2_block,
+                    txs,
+                    ..
+                } => {
                     let precommit_batches = PrecommitBatches {
                         txs,
                         last_l2_block: *last_l2_block,
@@ -958,9 +964,16 @@ impl EthTxAggregator {
             .unwrap();
         eth_tx.chain_id = Some(self.sl_chain_id);
         match aggregated_op {
-            AggregatedOperation::L2Block(_) => {
-                // todo
-                // add eth tx to the rolling_txs_hash table
+            AggregatedOperation::L2Block(agg_op) => {
+                transaction
+                    .blocks_dal()
+                    .set_eth_tx_id_for_l2_blocks(
+                        agg_op.l2_blocks_range(),
+                        eth_tx.id,
+                        agg_op.get_action_type(),
+                    )
+                    .await
+                    .unwrap();
             }
             AggregatedOperation::L1Batch(agg_op) => {
                 transaction

@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use sqlx::types::chrono::NaiveDateTime;
+use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     eth_sender::{EthTx, TxHistory},
@@ -74,7 +75,7 @@ impl From<StorageEthTx> for EthTx {
             contract_address: Address::from_str(&tx.contract_address)
                 .expect("Incorrect address in db"),
             raw_tx: tx.raw_tx.clone(),
-            tx_type: L1BatchAggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
+            tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
             created_at_timestamp: tx.created_at.and_utc().timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost.map(|c| c as u64),
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),

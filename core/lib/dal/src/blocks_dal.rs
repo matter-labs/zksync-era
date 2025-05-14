@@ -13,6 +13,7 @@ use zksync_db_connection::{
     error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
+use zksync_types::aggregated_operations::L2BlockAggregatedActionType;
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     block::{
@@ -547,6 +548,49 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         Ok(storage_oracle_info.and_then(DbStorageOracleInfo::into_optional_batch_oracle_info))
+    }
+
+    pub async fn set_eth_tx_id_for_l2_blocks(
+        &mut self,
+        number_range: ops::RangeInclusive<L2BlockNumber>,
+        eth_tx_id: u32,
+        aggregation_type: L2BlockAggregatedActionType,
+    ) -> DalResult<()> {
+        match aggregation_type {
+            L2BlockAggregatedActionType::Precommit => {
+                let instrumentation = Instrumented::new("set_eth_tx_id#precommit")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+
+                let query = sqlx::query!(
+                    r#"
+                UPDATE miniblocks
+                SET
+                    eth_tx_id = $1,
+                    updated_at = NOW()
+                WHERE
+                    number BETWEEN $2 AND $3
+                    AND eth_tx_id IS NULL
+                "#,
+                    eth_tx_id as i32,
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
+                );
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
+
+                if result.rows_affected() == 0 {
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_tx_id that is is not null is not allowed"
+                    ));
+                    return Err(err);
+                }
+            }
+        }
+        Ok(())
     }
 
     pub async fn set_eth_tx_id(

@@ -3,8 +3,8 @@ use std::{fmt, str::FromStr};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum MiniblockAggregatedActionType {
-    PreCommit,
+pub enum L2BlockAggregatedActionType {
+    Precommit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -14,16 +14,16 @@ pub enum L1BatchAggregatedActionType {
     Execute,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AggregatedActionType {
-    L2Block(MiniblockAggregatedActionType),
+    L2Block(L2BlockAggregatedActionType),
     L1Batch(L1BatchAggregatedActionType),
 }
 
-impl MiniblockAggregatedActionType {
+impl L2BlockAggregatedActionType {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::PreCommit => "PreCommit",
+            Self::Precommit => "PreCommit",
         }
     }
 }
@@ -61,18 +61,18 @@ impl FromStr for L1BatchAggregatedActionType {
     }
 }
 
-impl fmt::Display for MiniblockAggregatedActionType {
+impl fmt::Display for L2BlockAggregatedActionType {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
     }
 }
 
-impl FromStr for MiniblockAggregatedActionType {
+impl FromStr for L2BlockAggregatedActionType {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "PreCommit" => Ok(Self::PreCommit),
+            "PreCommit" => Ok(Self::Precommit),
             _ => Err(
                 "Incorrect aggregated action type; expected one of `CommitBlocks`, `PublishProofBlocksOnchain`, \
                 `ExecuteBlocks`",
@@ -93,7 +93,7 @@ impl FromStr for AggregatedActionType {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(action) = MiniblockAggregatedActionType::from_str(s) {
+        if let Ok(action) = L2BlockAggregatedActionType::from_str(s) {
             return Ok(Self::L2Block(action));
         }
         if let Ok(action) = L1BatchAggregatedActionType::from_str(s) {
@@ -109,8 +109,8 @@ impl fmt::Display for AggregatedActionType {
     }
 }
 
-impl From<MiniblockAggregatedActionType> for AggregatedActionType {
-    fn from(action: MiniblockAggregatedActionType) -> Self {
+impl From<L2BlockAggregatedActionType> for AggregatedActionType {
+    fn from(action: L2BlockAggregatedActionType) -> Self {
         Self::L2Block(action)
     }
 }

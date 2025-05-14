@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::SLChainId;
 
-use crate::{aggregated_operations::L1BatchAggregatedActionType, Address, Nonce, H256};
+use crate::aggregated_operations::AggregatedActionType;
+use crate::{Address, Nonce, H256};
 
 /// A forward-compatible `enum` describing a EIP4844 sidecar
 ///
@@ -45,7 +46,7 @@ pub struct EthTx {
     pub nonce: Nonce,
     pub contract_address: Address,
     pub raw_tx: Vec<u8>,
-    pub tx_type: L1BatchAggregatedActionType,
+    pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
     pub predicted_gas_cost: Option<u64>,
     /// If this field is `Some` then it contains address of a custom operator that has sent

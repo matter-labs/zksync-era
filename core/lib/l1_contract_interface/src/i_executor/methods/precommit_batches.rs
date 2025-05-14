@@ -22,8 +22,10 @@ impl Tokenize for &PrecommitBatches<'_> {
             .map(|tx| tx.clone().into_token())
             .collect::<Vec<_>>();
 
-        let mut encoded_data =
-            encode(&[Token::Array(txs), Token::Uint(self.last_l2_block.0.into())]);
+        let mut encoded_data = encode(&[Token::Tuple(vec![
+            Token::Array(txs),
+            Token::Uint(self.last_l2_block.0.into()),
+        ])]);
         encoded_data.insert(0, SUPPORTED_ENCODING_VERSION);
         vec![
             Token::Uint(self.l1_batch_number.0.into()),

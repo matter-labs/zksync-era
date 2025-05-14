@@ -319,6 +319,7 @@ impl Aggregator {
         storage: &mut Connection<'_, Core>,
         number_of_blocks: usize,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
+        dbg!(number_of_blocks);
         // TODO make more specific requests to the database
         let last_committed_l1_batch = storage
             .blocks_dal()
@@ -347,6 +348,7 @@ impl Aggregator {
                 (Some(sealed), None) => (sealed, Some(sealed)),
             };
 
+        dbg!((actual_number, desired_number_for_db));
         let txs = storage
             .rolling_tx_hashes()
             .get_ready_rolling_txs_hashes(desired_number_for_db)
@@ -360,17 +362,20 @@ impl Aggregator {
         // TODO probably move it to
         let (first_l2_block, _, _) = txs.first().unwrap();
         let (last_l2_block, _, _) = txs.last().unwrap();
-        if last_l2_block.0 - first_l2_block.0 < number_of_blocks as u32 {
-            return Ok(None);
-        }
+        // if last_l2_block.0 - first_l2_block.0 < number_of_blocks as u32 {
+        //     return Ok(None);
+        // }
 
-        Ok(Some(L2BlockAggregatedOperation::Precommit(
-            actual_number,
-            *last_l2_block,
-            txs.into_iter()
+        dbg!(first_l2_block, last_l2_block);
+        Ok(Some(L2BlockAggregatedOperation::Precommit {
+            l1_batch: actual_number,
+            first_l2_block: *first_l2_block,
+            last_l2_block: *last_l2_block,
+            txs: txs
+                .into_iter()
                 .map(|(_, tx_hash, status)| TransactionStatusCommitment { tx_hash, status })
                 .collect(),
-        )))
+        }))
     }
 
     async fn get_execute_operations(

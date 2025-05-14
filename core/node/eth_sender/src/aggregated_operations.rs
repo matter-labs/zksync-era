@@ -3,7 +3,7 @@ use std::ops;
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_types::{
     aggregated_operations::{
-        AggregatedActionType, L1BatchAggregatedActionType, MiniblockAggregatedActionType,
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     pubdata_da::PubdataSendingMode,
@@ -20,11 +20,12 @@ pub enum AggregatedOperation {
 
 #[derive(Debug, Clone)]
 pub enum L2BlockAggregatedOperation {
-    Precommit(
-        L1BatchNumber,
-        L2BlockNumber,
-        Vec<TransactionStatusCommitment>,
-    ),
+    Precommit {
+        l1_batch: L1BatchNumber,
+        first_l2_block: L2BlockNumber,
+        last_l2_block: L2BlockNumber,
+        txs: Vec<TransactionStatusCommitment>,
+    },
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -82,15 +83,25 @@ impl L1BatchAggregatedOperation {
 }
 
 impl L2BlockAggregatedOperation {
-    pub fn get_action_type(&self) -> MiniblockAggregatedActionType {
+    pub fn get_action_type(&self) -> L2BlockAggregatedActionType {
         match self {
-            Self::Precommit(..) => MiniblockAggregatedActionType::PreCommit,
+            Self::Precommit { .. } => L2BlockAggregatedActionType::Precommit,
+        }
+    }
+
+    pub fn l2_blocks_range(&self) -> ops::RangeInclusive<L2BlockNumber> {
+        match self {
+            Self::Precommit {
+                first_l2_block,
+                last_l2_block,
+                ..
+            } => *first_l2_block..=*last_l2_block,
         }
     }
 
     pub fn get_action_caption(&self) -> &'static str {
         match self {
-            Self::Precommit(_, _, _) => "precommit",
+            Self::Precommit { .. } => "precommit",
         }
     }
 }

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_eth_client::ExecutedTxStatus;
 use zksync_health_check::{Health, HealthStatus};
+use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTx,
     web3::TransactionReceipt, L1BlockNumber, Nonce, H256,
@@ -37,7 +38,7 @@ impl From<EthTxAggregatorHealthDetails> for Health {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EthTxDetails {
     pub nonce: Nonce,
-    pub tx_type: L1BatchAggregatedActionType,
+    pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
     pub predicted_gas_cost: Option<u64>,
     pub status: Option<TxStatus>,
