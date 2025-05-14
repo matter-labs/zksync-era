@@ -620,6 +620,7 @@ jobs:
           
           # Extract the address
           L1_DA_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "$CONTRACTS_FILE")
+          echo "L1 DA Validator Address: $L1_DA_VALIDATOR_ADDR"
           ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_VALIDATOR_ADDR 50000000000
           
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/da_migration/configs/general.yaml

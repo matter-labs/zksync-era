@@ -11,8 +11,9 @@ use zksync_basic_types::Address;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
+use crate::abi::zk_chain_abi;
 use crate::{
-    abi::BridgehubAbi,
+    abi::{BridgehubAbi, ZkChainAbi},
     admin_functions::{set_da_validator_pair, set_da_validator_pair_via_gateway, AdminScriptMode},
     commands::chain::utils::get_default_foundry_path,
     messages::{
@@ -99,6 +100,24 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             l1_rpc_url,
         )
         .await?;
+
+        // Wait for the transaction to be picked up on Gateway
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let zk_chain_abi = ZkChainAbi::new(
+            chain_diamond_proxy_on_gateway,
+            get_ethers_provider(&gateway_url)?,
+        );
+        let (l1_da_validator, l2_da_validator) =
+            zk_chain_abi.get_da_validator_pair().call().await?;
+
+        logger::note(
+            "DA validator pair on Gateway:",
+            format!(
+                "L1: {}, L2: {}",
+                hex::encode(l1_da_validator),
+                hex::encode(l2_da_validator)
+            ),
+        );
     } else {
         let diamond_proxy_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
 
