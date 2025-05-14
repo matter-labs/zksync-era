@@ -14,7 +14,6 @@ use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
 use subxt_signer::sr25519::{Keypair, Signature};
-use tokio::time::Duration;
 use zksync_types::H256;
 
 use crate::utils::to_non_retriable_da_error;
