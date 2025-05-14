@@ -335,7 +335,7 @@ impl RawAvailClient {
 
     /// Finds the extrinsic with a certain hash in the array of extrinsics
     async fn find_ext_in_array(
-        extrinsics: &Vec<serde_json::Value>,
+        extrinsics: &[serde_json::Value],
         extrinsic_hash: &str,
     ) -> Option<usize> {
         for (index, ext) in extrinsics.iter().enumerate() {
