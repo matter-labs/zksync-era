@@ -5,12 +5,15 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
-use zksync_types::aggregated_operations::AggregatedActionType;
-use zksync_types::{aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTx};
+use zksync_types::{
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    eth_sender::EthTx,
+};
+
+use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]

@@ -6,8 +6,8 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
+    precommit_batch::TransactionStatusCommitment,
     pubdata_da::PubdataSendingMode,
-    transaction_status_commitment::TransactionStatusCommitment,
     L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 

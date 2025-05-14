@@ -53,11 +53,11 @@ pub mod api;
 pub mod base_token_ratio;
 pub mod eth_sender;
 pub mod helpers;
+pub mod precommit_batch;
 #[cfg(feature = "protobuf")]
 pub mod proto;
 pub mod server_notification;
 pub mod transaction_request;
-pub mod transaction_status_commitment;
 pub mod utils;
 
 /// Denotes the first byte of the special ZKsync's EIP-712-signed transaction.

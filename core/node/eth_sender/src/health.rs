@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 use zksync_eth_client::ExecutedTxStatus;
 use zksync_health_check::{Health, HealthStatus};
-use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTx,
-    web3::TransactionReceipt, L1BlockNumber, Nonce, H256,
+    aggregated_operations::AggregatedActionType, eth_sender::EthTx, web3::TransactionReceipt,
+    L1BlockNumber, Nonce, H256,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

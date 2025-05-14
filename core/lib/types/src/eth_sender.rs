@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::SLChainId;
 
-use crate::aggregated_operations::AggregatedActionType;
-use crate::{Address, Nonce, H256};
+use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
 /// A forward-compatible `enum` describing a EIP4844 sidecar
 ///

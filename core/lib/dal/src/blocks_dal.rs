@@ -13,9 +13,8 @@ use zksync_db_connection::{
     error::{DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::aggregated_operations::L2BlockAggregatedActionType;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
+    aggregated_operations::{L1BatchAggregatedActionType, L2BlockAggregatedActionType},
     block::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
@@ -550,6 +549,61 @@ impl BlocksDal<'_, '_> {
         Ok(storage_oracle_info.and_then(DbStorageOracleInfo::into_optional_batch_oracle_info))
     }
 
+    pub async fn set_final_precommit_operation(&mut self) -> DalResult<()> {
+        let l1_batches = sqlx::query!(
+            r#"
+            SELECT number from l1_batches
+            WHERE is_sealed AND eth_commit_tx_id IS NULL AND final_precommit_eth_tx_id IS NULL
+            "#,
+        )
+        .instrument("set_final_precommit_operation")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?;
+
+        dbg!(&l1_batches);
+
+        for row in l1_batches {
+            let last_2_miniblocks = sqlx::query!(
+                r#"
+                 SELECT eth_tx_id, rolling_txs_hash, number FROM miniblocks
+                 WHERE l1_batch_number = $1
+                 ORDER BY number DESC
+                 LIMIT 2
+                "#,
+                row.number as i32,
+            )
+            .instrument("set_final_precommit_operation")
+            .report_latency()
+            .fetch_all(self.storage)
+            .await?;
+            dbg!(&last_2_miniblocks);
+            if last_2_miniblocks.len() != 2 {
+                continue;
+            }
+
+            if last_2_miniblocks[0].rolling_txs_hash == last_2_miniblocks[1].rolling_txs_hash {
+                if let Some(eth_tx_id) = last_2_miniblocks[1].eth_tx_id {
+                    sqlx::query!(
+                        r#"
+                    UPDATE l1_batches
+                    SET final_precommit_eth_tx_id = $1
+                    WHERE number = $2
+                    "#,
+                        eth_tx_id as i32,
+                        row.number as i32,
+                    )
+                    .instrument("set_final_precommit_operation")
+                    .report_latency()
+                    .execute(self.storage)
+                    .await?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn set_eth_tx_id_for_l2_blocks(
         &mut self,
         number_range: ops::RangeInclusive<L2BlockNumber>,
@@ -564,14 +618,14 @@ impl BlocksDal<'_, '_> {
 
                 let query = sqlx::query!(
                     r#"
-                UPDATE miniblocks
-                SET
-                    eth_tx_id = $1,
-                    updated_at = NOW()
-                WHERE
-                    number BETWEEN $2 AND $3
-                    AND eth_tx_id IS NULL
-                "#,
+                    UPDATE miniblocks
+                    SET
+                        eth_tx_id = $1,
+                        updated_at = NOW()
+                    WHERE
+                        number BETWEEN $2 AND $3
+                        AND eth_tx_id IS NULL
+                    "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
                     i64::from(number_range.end().0)
@@ -2091,15 +2145,20 @@ impl BlocksDal<'_, '_> {
                     data_availability.inclusion_data IS NOT null
                     OR $4 IS false
                 )
+                AND (
+                    final_precommit_eth_tx_id IS NOT null
+                    OR $5 IS false
+                )
             ORDER BY
                 number
             LIMIT
-                $5
+                $6
             "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
             with_da_inclusion_info,
+            send_precommit_txs,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")
@@ -2111,6 +2170,13 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
+        dbg!(
+            bootloader_hash,
+            default_aa_hash,
+            protocol_version_id as i32,
+            with_da_inclusion_info,
+            limit as i64
+        );
         self.map_l1_batches(raw_batches)
             .await
             .context("map_l1_batches()")

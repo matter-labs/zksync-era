@@ -3,15 +3,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use super::{metrics::METRICS, EthSenderError};
-use crate::{
-    abstract_l1_interface::{
-        AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
-    },
-    eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
-    health::{EthTxDetails, EthTxManagerHealthDetails},
-    metrics::TransactionType,
-};
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::{GasLimitMode, SenderConfig};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -21,11 +12,21 @@ use zksync_eth_client::{
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
-    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    eth_sender::EthTx,
+    Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
+};
+
+use super::{metrics::METRICS, EthSenderError};
+use crate::{
+    abstract_l1_interface::{
+        AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
+    },
+    eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
+    health::{EthTxDetails, EthTxManagerHealthDetails},
+    metrics::TransactionType,
 };
 
 /// The component is responsible for managing sending eth_txs attempts.

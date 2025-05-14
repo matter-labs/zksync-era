@@ -1,6 +1,7 @@
 use std::{fmt, str::FromStr};
 
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::L2BlockNumber;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum L2BlockAggregatedActionType {

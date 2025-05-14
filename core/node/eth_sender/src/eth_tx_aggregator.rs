@@ -677,7 +677,6 @@ impl EthTxAggregator {
             )
             .await?
         {
-            dbg!(&agg_op);
             let is_gateway = self.is_gateway();
             let tx = self
                 .save_eth_tx(

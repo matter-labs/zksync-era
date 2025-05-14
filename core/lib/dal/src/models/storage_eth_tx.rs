@@ -1,9 +1,8 @@
 use std::str::FromStr;
 
 use sqlx::types::chrono::NaiveDateTime;
-use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     eth_sender::{EthTx, TxHistory},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };

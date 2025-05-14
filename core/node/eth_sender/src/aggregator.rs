@@ -1,5 +1,5 @@
+use chrono::Utc;
 use std::sync::Arc;
-
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -16,10 +16,10 @@ use zksync_types::{
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
+    precommit_batch::TransactionStatusCommitment,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    transaction_status_commitment::TransactionStatusCommitment,
     L1BatchNumber, ProtocolVersionId,
 };
 
@@ -274,14 +274,16 @@ impl Aggregator {
         ) {
             Ok(Some(op))
         } else if let Some(number_of_blocks) = self.send_precommit_tx_freq {
-            if let Some(op) = restrictions.filter_precommit_op(
+            let result = if let Some(op) = restrictions.filter_precommit_op(
                 self.get_precommit_operation(storage, number_of_blocks)
                     .await?,
             ) {
                 Ok(Some(op))
             } else {
                 Ok(None)
-            }
+            };
+            self.set_final_precommit_operation(storage).await?;
+            result
         } else {
             Ok(None)
         }
@@ -314,12 +316,23 @@ impl Aggregator {
         self.priority_merkle_tree.as_mut().unwrap()
     }
 
+    async fn set_final_precommit_operation(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<(), EthSenderError> {
+        storage
+            .blocks_dal()
+            .set_final_precommit_operation()
+            .await
+            .unwrap();
+        Ok(())
+    }
+
     async fn get_precommit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
         number_of_blocks: usize,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
-        dbg!(number_of_blocks);
         // TODO make more specific requests to the database
         let last_committed_l1_batch = storage
             .blocks_dal()
@@ -327,6 +340,7 @@ impl Aggregator {
             .await
             .unwrap();
 
+        dbg!(number_of_blocks);
         let last_sealed_l1_batch = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -348,7 +362,6 @@ impl Aggregator {
                 (Some(sealed), None) => (sealed, Some(sealed)),
             };
 
-        dbg!((actual_number, desired_number_for_db));
         let txs = storage
             .rolling_tx_hashes()
             .get_ready_rolling_txs_hashes(desired_number_for_db)
@@ -359,21 +372,39 @@ impl Aggregator {
             return Ok(None);
         }
 
-        // TODO probably move it to
-        let (first_l2_block, _, _) = txs.first().unwrap();
-        let (last_l2_block, _, _) = txs.last().unwrap();
-        // if last_l2_block.0 - first_l2_block.0 < number_of_blocks as u32 {
-        //     return Ok(None);
-        // }
+        let first_tx = txs.first().unwrap();
+        let last_tx = txs.last().unwrap();
 
-        dbg!(first_l2_block, last_l2_block);
+        // dbg!(
+        //     "Precommit operation: first_l2_block_number = {}, last_l2_block_number = {}",
+        //     first_tx,
+        //     last_tx
+        // );
+        // We have to apply the logic with packing blocks only if we are
+        // precommiting not sealed block
+        if desired_number_for_db.is_none() {
+            // We need to check that the first and last L2 blocks are in the same batch
+
+            let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
+            // TODO make special config for it
+
+            if first_l2_block_age < 12
+                && (first_tx.l2block_number.0 - last_tx.l2block_number.0 < number_of_blocks as u32)
+            {
+                return Ok(None);
+            }
+        }
+
         Ok(Some(L2BlockAggregatedOperation::Precommit {
             l1_batch: actual_number,
-            first_l2_block: *first_l2_block,
-            last_l2_block: *last_l2_block,
+            first_l2_block: first_tx.l2block_number,
+            last_l2_block: last_tx.l2block_number,
             txs: txs
                 .into_iter()
-                .map(|(_, tx_hash, status)| TransactionStatusCommitment { tx_hash, status })
+                .map(|tx| TransactionStatusCommitment {
+                    tx_hash: tx.tx_hash,
+                    is_success: tx.is_success,
+                })
                 .collect(),
         }))
     }
@@ -514,6 +545,7 @@ impl Aggregator {
                 .await
                 .unwrap()
         };
+        dbg!(&ready_for_commit_l1_batches);
 
         // Check that the L1 batches that are selected are sequential
         ready_for_commit_l1_batches
