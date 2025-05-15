@@ -60,7 +60,7 @@ To prove inclusion the `_proof` input has to be provided. The user can request t
 
 The second function will prove that a certain 32-byte leaf belongs to the tree. Note, that the fact that the `leaf` is 32-bytes long means that the function could work successfully for internal leaves also. Furthermore, since the `LocalLogsRoot` is extended with the `MessageRoot`, this function can be used to prove inclusion in the MessageRoot tree.
 
-This function is particularly for proving that a log was included in the `ChainBatchRoot` via the `MessageRoot`. This is used for [interop](../../../bridging/interop/message_root.md) and in [nested message inclusion](../../../gateway/l2_gw_l1_messaging.md).
+This function is particularly for proving that a log was included in the `ChainBatchRoot` via the `MessageRoot`. This is used for [interop](../../../interop/message_root.md) and in [nested message inclusion](../../../gateway/l2_gw_l1_messaging.md).
 
 > Note: intermediate nodes can also be proven via the `proveL2LeafInclusion` function, it will be the callers responsibility to ensure that the preimage of the leaf is larger than 32-bytes long and/or use other ways to ensuring that the function will be called securely.
 

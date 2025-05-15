@@ -18,7 +18,7 @@ A new priority operation can be appended by calling the `requestL2TransactionDir
 
 > In the previous system, priority operations were structured in a queue. However, now they will be stored in an incremental merkle tree. The motivation for the tree structure can be read [here](../priority-queue.md).
 
-The difference between `requestL2TransactionDirect` and `requestL2TransactionTwoBridges` is that the `msg.sender` on the L2 Transaction is the second bridge in the `requestL2TransactionTwoBridges` case, while it is the `msg.sender` of the `requestL2TransactionDirect` in the first case. For more details read the [bridgehub documentation](../../../bridging/interop/interop_center/overview.md)
+The difference between `requestL2TransactionDirect` and `requestL2TransactionTwoBridges` is that the `msg.sender` on the L2 Transaction is the second bridge in the `requestL2TransactionTwoBridges` case, while it is the `msg.sender` of the `requestL2TransactionDirect` in the first case. For more details read the [bridgehub documentation](../../../interop/interop_center/overview.md)
 
 The struct called in the `bridgehubRequestL2Transaction` method is the following: 
 ```solidity

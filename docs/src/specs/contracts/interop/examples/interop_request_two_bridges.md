@@ -6,9 +6,9 @@
 
 ## `requestL2TransactionTwoBridges`
 
-`L1AssetRouter` is used as the main "glue" for value bridging across chains. Whenever a token that is not native needs to be bridged between two chains an L1<>L2 transaction out of the name of an AssetRouter needs to be performed. For more details, check out the [asset router documentation](../../asset_router_and_ntv/asset_router.md). But for this section it is enough to understand that we need to somehow make a transaction out of the name of `L1AssetRouter` to its L2 counterpart to deliver the message about certain amount of asset being bridged.
+`L1AssetRouter` is used as the main "glue" for value bridging across chains. Whenever a token that is not native needs to be bridged between two chains an L1<>L2 transaction out of the name of an AssetRouter needs to be performed. For more details, check out the [asset router documentation](../../bridging/asset_router_and_ntv/asset_router.md). But for this section it is enough to understand that we need to somehow make a transaction out of the name of `L1AssetRouter` to its L2 counterpart to deliver the message about certain amount of asset being bridged.
 
-> In the next paragraphs we will often refer to `L1AssetRouter` as performing something. It is good enough for understanding of how bridgehub functionality works. Under the hood though, it mainly serves as common entry that calls various asset handlers that are chosen based on asset id. You can read more about it in the [asset router documentation](../../asset_router_and_ntv/asset_router.md).
+> In the next paragraphs we will often refer to `L1AssetRouter` as performing something. It is good enough for understanding of how bridgehub functionality works. Under the hood though, it mainly serves as common entry that calls various asset handlers that are chosen based on asset id. You can read more about it in the [asset router documentation](../../bridging/asset_router_and_ntv/asset_router.md).
 
 Let’s say that a ZKChain has ETH as its base token. Let’s say that the depositor wants to bridge USDC to that chain. We can not use `BridgeHub.requestL2TransactionDirect`, because it only takes base token `mintValue` and then starts an L1→L2 transaction rightaway out of the name of the user and not the `L1AssetRouter`.
 
@@ -50,11 +50,11 @@ This call will return the parameters to call the l2 contract with (the address o
 #### L2
 
 1. After some time, the corresponding L1→L2 is created.
-2. The L2AssetRouter will receive the message and re-route it to the asset handler of the bridged token. To read more about how it works, check out the [asset router documentation](../../asset_router_and_ntv/asset_router.md).
+2. The L2AssetRouter will receive the message and re-route it to the asset handler of the bridged token. To read more about how it works, check out the [asset router documentation](../../bridging/asset_router_and_ntv/asset_router.md).
 
 **_Diagram of a depositing ETH onto a chain with USDC as the baseToken. Note that some contract calls (like `USDC.transferFrom` are omitted for the sake of consiceness):_**
 
-![requestL2TransactionTwoBridges (SharedBridge) (1).png](../../img/requestL2TransactionTwoBridges_depositEthToUSDC.png)
+![requestL2TransactionTwoBridges (SharedBridge) (1).png](../../bridging/img/requestL2TransactionTwoBridges_depositEthToUSDC.png)
 
 
 ## Claiming failed deposits
@@ -65,7 +65,7 @@ In case a deposit fails, the `L1AssetRouter` allows users to recover the deposit
 
 Funds withdrawal is a similar way to how it is done currently on Era.
 
-The user needs to call the `L2AssetRouter.withdraw` function on L2, while providing the token they want to withdraw. This function would then calls the corresponding L2 asset handler and ask him to burn the funds. We expand a bit more about it in the [asset router documentation](../../asset_router_and_ntv/asset_router.md).
+The user needs to call the `L2AssetRouter.withdraw` function on L2, while providing the token they want to withdraw. This function would then calls the corresponding L2 asset handler and ask him to burn the funds. We expand a bit more about it in the [asset router documentation](../../bridging/asset_router_and_ntv/asset_router.md).
 
 Note, however, that it is not the way to withdraw base token. To withdraw base token, `L2BaseToken.withdraw` needs to be called.
 

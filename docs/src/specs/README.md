@@ -10,7 +10,7 @@
     - [Chain type manager](./contracts/chain_management/chain_type_manager.md)
     - [Upgrade Process](./contracts/chain_management/upgrade_process.md)
   - [Bridging](./contracts/bridging/overview.md)
-    - [Interop](./contracts/bridging/interop/overview.md)
+    - [Interop](./contracts/interop/overview.md)
     - [Asset Router](./contracts/bridging/asset_router_and_ntv/asset_router.md)
     - [Asset Tracker](./contracts/bridging/asset_tracker/asset_tracker.md)
   - [Settlment Contracts](./contracts/settlement_contracts/zkchain_basics.md)

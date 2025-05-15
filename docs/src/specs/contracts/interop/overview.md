@@ -2,9 +2,9 @@
 
 ### Interop Process
 
-![Interop](../img/hyperbridging.png)
+![Interop](./img/hyperbridging.png)
 
-![Interop](../img/interop_contracts.png)
+![Interop](./img/interop_contracts.png)
 
 This document describes a standard asset bridging scenario using proof-based interop. Other [finality](./forms_of_finality.md) options and interop [interface](./interop_center/overview.md) options are available. The interop process consists of seven main steps:
 
@@ -12,10 +12,10 @@ This document describes a standard asset bridging scenario using proof-based int
 
    - The user's EOA calls the InteropCenter contract. In the standard asset bridging scenario, they will call `requestL2TransactionSingleCall`. See the [InteropCenter](./interop_center/overview.md) documentation for additional options.
    - The InteropCenter emits two `InteropBundleSent` events and a single `InteropTriggerSent` event. Together, these events specify the interop transaction. One bundle is used to pay for gas fees, while the other is the main execution bundle used to bridge the asset. The trigger specifies the interop transaction parameters so that the transaction can be executed automatically on the destination chain.
-   - For each event, an L2→L1 message is created that contains the event data. Each L2→L1 message is included in the chain's Merkle tree of emitted transactions in the `L2toL1Logs` Merkle tree (see [here](../../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)). This inclusion makes the messages verifiable using Merkle proofs.
+   - For each event, an L2→L1 message is created that contains the event data. Each L2→L1 message is included in the chain's Merkle tree of emitted transactions in the `L2toL1Logs` Merkle tree (see [here](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)). This inclusion makes the messages verifiable using Merkle proofs.
 
 2. **Settlement of the Sending Chain on the Settlement Layer (SL)**
-   - The sending chain submits its proof to its settlement layer (L1 or Gateway). See [here](../../settlement_contracts/zkchain_basics.md) for more details.
+   - The sending chain submits its proof to its settlement layer (L1 or Gateway). See [here](../settlement_contracts/zkchain_basics.md) for more details.
 
 3. **Updating the MessageRoot on the Settlement Layer**
    - As the sending chain settles, the Executor facet of settling chain calls the MessageRoot contract, which is then updated with the new L2→L1 logs (see [here](./message_root.md#appending-new-batch-root-leaves)).
@@ -30,7 +30,7 @@ This document describes a standard asset bridging scenario using proof-based int
 
 5. **Submitting Cross-L2 Transactions on the Destination Chain**
    - The interop transactions (xL2 txs) can now be submitted to the destination chain. The `InteropSwitch/Slingshot` (name to be finalized) component on the sending chain monitors its own InteropCenter contract and detects the emitted `InteropBundleSent` and `InteropTriggerSent` events and corresponding L2→L1 messages.
-   - The InteropSwitch requests the Merkle proofs for the L2→L1 messages. These proofs are the same ones as are used to finalize the L2→L1 messages (see [here](../../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)).
+   - The InteropSwitch requests the Merkle proofs for the L2→L1 messages. These proofs are the same ones as are used to finalize the L2→L1 messages (see [here](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)).
    - The event data, combined with the Merkle proofs, is used to construct the interop transactions. This step applies to the standard interop scenario with two bundles and a trigger; in other cases, additional gas payment may be required on the destination chain.
    - The interop transaction is then submitted to the destination chain.
 
