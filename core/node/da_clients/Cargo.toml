@@ -17,6 +17,7 @@ async-trait.workspace = true
 anyhow.workspace = true
 flate2.workspace = true
 tokio.workspace = true
+chrono.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true

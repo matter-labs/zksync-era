@@ -16,3 +16,4 @@ zksync_types.workspace = true
 serde = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 anyhow.workspace = true
+chrono.workspace = true

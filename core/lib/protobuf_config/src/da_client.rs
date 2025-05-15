@@ -39,7 +39,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                 .context("api_node_url")?
                                 .clone(),
                             app_id: *required(&full_client_conf.app_id).context("app_id")?,
-                            finality_state: full_client_conf.finality_state.clone(),
                             dispatch_timeout_ms: full_client_conf.dispatch_timeout_ms,
                         })
                     }
@@ -123,7 +122,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         proto::avail_config::Config::FullClient(proto::AvailClientConfig {
                             api_node_url: Some(conf.api_node_url.clone()),
                             app_id: Some(conf.app_id),
-                            finality_state: conf.finality_state.clone(),
                             dispatch_timeout_ms: conf.dispatch_timeout_ms,
                         }),
                     ),
