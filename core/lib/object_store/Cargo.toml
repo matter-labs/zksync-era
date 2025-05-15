@@ -13,6 +13,7 @@ categories.workspace = true
 [dependencies]
 vise.workspace = true
 zksync_config.workspace = true
+zksync_node_framework = { workspace = true, optional = true }
 zksync_types = { workspace = true, features = ["protobuf"] }
 zksync_protobuf.workspace = true
 anyhow.workspace = true
@@ -38,3 +39,7 @@ tempfile.workspace = true
 clap = { workspace = true, features = ["derive"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 smart-config.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework"]

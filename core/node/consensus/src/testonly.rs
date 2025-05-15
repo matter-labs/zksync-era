@@ -24,9 +24,10 @@ use zksync_node_sync::{
     fetcher::{FetchedTransaction, IoCursorExt as _},
     sync_action::{ActionQueue, ActionQueueSender, SyncAction},
     testonly::MockMainNodeClient,
-    ExternalIO, MainNodeClient, SyncState,
+    ExternalIO, MainNodeClient,
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
+use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     executor::MainBatchExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams},

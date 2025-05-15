@@ -13,20 +13,22 @@ categories.workspace = true
 [dependencies]
 zksync_config.workspace = true
 zksync_contracts.workspace = true
-zksync_dal.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_node_genesis.workspace = true
 zksync_system_constants.workspace = true
 zksync_types.workspace = true
 zksync_state_keeper.workspace = true
 zksync_shared_metrics.workspace = true
-zksync_web3_decl.workspace = true
-zksync_health_check.workspace = true
-zksync_eth_client.workspace = true
+zksync_web3_decl = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
 vise.workspace = true
-zksync_vm_executor.workspace = true
-zksync_da_client.workspace = true
+zksync_vm_executor = { workspace = true, features = ["node_framework"] }
+zksync_da_client = { workspace = true, features = ["node_framework"] }
+zksync_node_framework.workspace = true
+zksync_shared_resources.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

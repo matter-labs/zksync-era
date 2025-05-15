@@ -78,9 +78,6 @@ pub struct ProverAutoscalerScalerConfig {
     /// Time window for including scale errors in Autoscaler calculations. Clusters will be sorted by number of the errors.
     #[config(default_t = 1 * TimeUnit::Hours)]
     pub scale_errors_duration: Duration,
-    /// Time window for which Autoscaler forces pending pod migration due to scale errors.
-    #[config(default_t = 4 * TimeUnit::Minutes)]
-    pub need_to_move_duration: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
     /// If dry-run enabled don't send any scale requests.
@@ -134,6 +131,13 @@ impl ScalarOrMap {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PriorityConfig {
+    Gpu(Vec<(ClusterName, GpuKey)>),
+    Simple(Vec<ClusterName>),
+}
+
 #[derive(Debug, Default, Display, Clone, Copy, PartialEq, EnumString, Serialize, Deserialize)]
 pub enum ScalerTargetType {
     #[default]
@@ -159,6 +163,11 @@ pub struct ScalerTarget {
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
     pub speed: ScalarOrMap,
+    /// Optional priority list that overrides global cluster_priorities.
+    /// For GPU targets, this is a list of (ClusterName, GpuKey) tuples.
+    /// For Simple targets, this is a list of ClusterName.
+    #[serde(default)]
+    pub priority: Option<PriorityConfig>,
 }
 
 impl WellKnown for ScalerTarget {
@@ -273,10 +282,6 @@ mod tests {
         assert_eq!(
             scaler_config.scale_errors_duration,
             Duration::from_secs(7_200)
-        );
-        assert_eq!(
-            scaler_config.need_to_move_duration,
-            Duration::from_secs(5 * 60)
         );
         assert_eq!(
             scaler_config.protocol_versions,

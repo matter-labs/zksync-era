@@ -13,8 +13,9 @@ categories.workspace = true
 [dependencies]
 vise.workspace = true
 zksync_types.workspace = true
-zksync_dal.workspace = true
-zksync_health_check.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_node_framework.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
