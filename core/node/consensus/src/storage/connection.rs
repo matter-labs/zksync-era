@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_engine as storage;
 use zksync_consensus_roles::validator;
 use zksync_dal::{
     consensus::BlockCertificate,
@@ -105,7 +104,7 @@ impl<'a> Connection<'a> {
     }
 
     /// Wrapper for `consensus_dal().replica_state()`.
-    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
+    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<validator::ReplicaState> {
         Ok(ctx
             .wait(self.0.consensus_dal().replica_state())
             .await?
@@ -116,7 +115,7 @@ impl<'a> Connection<'a> {
     pub async fn set_replica_state(
         &mut self,
         ctx: &ctx::Ctx,
-        state: &storage::ReplicaState,
+        state: &validator::ReplicaState,
     ) -> ctx::Result<()> {
         Ok(ctx
             .wait(self.0.consensus_dal().set_replica_state(state))
@@ -196,22 +195,6 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
-    /// Wrapper for `consensus_dal().insert_validator_committee()`.
-    pub async fn insert_validator_committee(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-        committee: &validator::Committee,
-    ) -> ctx::Result<()> {
-        ctx.wait(
-            self.0
-                .consensus_dal()
-                .insert_validator_committee(number, committee),
-        )
-        .await??;
-        Ok(())
-    }
-
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
     /// Noop if `spec` matches the current genesis.
     pub(crate) async fn adjust_global_config(
@@ -241,8 +224,8 @@ impl<'a> Connection<'a> {
                 }),
                 first_block: txn.next_block(ctx).await.context("next_block()")?,
                 protocol_version: spec.protocol_version,
-                validators: spec.validators.clone(),
-                leader_selection: spec.leader_selection.clone(),
+                validators_schedule: spec.validators_schedule.clone(),
+            }
             }
             .with_hash(),
             registry_address: spec.registry_address,

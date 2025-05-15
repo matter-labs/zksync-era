@@ -3,8 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_consensus_bft::PayloadManager;
-use zksync_consensus_engine::{self as storage};
+use zksync_consensus_engine::{self as engine};
 use zksync_consensus_roles::validator;
 use zksync_dal::{
     consensus::BlockCertificate,
