@@ -19,7 +19,7 @@ pub async fn get_diamond_proxy_contract(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
 ) -> Result<Address, ContractCallError> {
-    CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
+    CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
         .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
         .await

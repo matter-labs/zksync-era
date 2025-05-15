@@ -525,7 +525,6 @@ jobs:
           done
 
       - name: DA migration tests
-        if: matrix.use_gateway_chain == 'WITHOUT_GATEWAY'
         run: |
           echo "Reducing L1 batch seal timeout and restarting server"
           sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/da_migration/configs/general.yaml
