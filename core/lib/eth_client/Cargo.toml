@@ -20,6 +20,7 @@ zksync_health_check = { workspace = true, optional = true }
 zksync_web3_decl.workspace = true
 zksync_node_framework = { workspace = true, optional = true }
 zksync_shared_resources = { workspace = true, optional = true }
+hex.workspace = true
 
 thiserror.workspace = true
 async-trait.workspace = true

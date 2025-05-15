@@ -43,6 +43,12 @@ pub async fn load_settlement_layer_contracts(
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
 ) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
+    tracing::info!(
+        "Getting diamond proxy for chain {} address {}",
+        l2_chain_id,
+        hex::encode(bridgehub_address)
+    );
+
     let diamond_proxy =
         get_diamond_proxy_contract(sl_client, bridgehub_address, l2_chain_id).await?;
 
