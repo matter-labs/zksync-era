@@ -1,6 +1,8 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
+use std::num::{NonZero, NonZeroUsize};
+
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
@@ -45,6 +47,7 @@ use zksync_node_framework::{
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
         l1_gas::L1GasLayer,
         logs_bloom_backfill::LogsBloomBackfillLayer,
+        main_node_client::MainNodeClientLayer,
         metadata_calculator::MetadataCalculatorLayer,
         node_storage_init::{
             main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
@@ -60,8 +63,9 @@ use zksync_node_framework::{
         settlement_layer_data::{MainNodeConfig, SettlementLayerData},
         sigint::SigintHandlerLayer,
         state_keeper::{
-            main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
+            external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
+            mempool_io::MempoolIOLayer, output_handler::OutputHandlerLayer, RocksdbStorageOptions,
+            StateKeeperLayer,
         },
         tee_proof_data_handler::TeeProofDataHandlerLayer,
         vm_runner::{
@@ -274,16 +278,11 @@ impl MainNodeBuilder {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(sk_config.l2_block_seal_queue_capacity)
+            .with_pre_insert_txs(true)
             .with_protective_reads_persistence_enabled(
                 sk_config.protective_reads_persistence_enabled,
             );
-        let mempool_io_layer = MempoolIOLayer::new(
-            self.genesis_config.l2_chain_id,
-            sk_config.clone(),
-            try_load_config!(self.configs.mempool_config),
-            try_load_config!(wallets.state_keeper),
-            self.get_pubdata_type()?,
-        );
+        let exteranl_io_layer = ExternalIOLayer::new(self.genesis_config.l2_chain_id);
         let db_config = try_load_config!(self.configs.db_config);
         let experimental_vm_config = self
             .configs
@@ -302,9 +301,16 @@ impl MainNodeBuilder {
         };
         let state_keeper_layer =
             StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
+        let secrets = try_load_config!(self.secrets.l1);
+
         self.node
             .add_layer(persistence_layer)
-            .add_layer(mempool_io_layer)
+            .add_layer(MainNodeClientLayer::new(
+                secrets.gateway_rpc_url.unwrap(),
+                NonZeroUsize::new(1000).unwrap(),
+                self.genesis_config.l2_chain_id,
+            ))
+            .add_layer(exteranl_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
         Ok(self)

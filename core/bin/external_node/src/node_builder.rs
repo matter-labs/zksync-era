@@ -639,8 +639,8 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_settlement_layer_client_layer()?
-            .add_reorg_detector_layer()?;
+            .add_settlement_layer_client_layer()?;
+        // .add_reorg_detector_layer()?;
 
         // Add layers that must run only on a single component.
         if components.contains(&Component::Core) {
