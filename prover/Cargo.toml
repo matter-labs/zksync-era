@@ -66,22 +66,22 @@ tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.3.0"
 
-circuit_definitions = "=0.152.3"
-circuit_sequencer_api = "=0.152.3"
-zkevm_test_harness = "=0.152.3"
-
+#circuit_definitions = "=0.152.3"
+#circuit_sequencer_api = "=0.152.3"
+#zkevm_test_harness = "=0.152.3"
+#
 fflonk = "=0.32.1"
 franklin-crypto = "=0.32.1"
 
 # GPU proving dependencies
 
-proof-compression-gpu = { package = "proof-compression", version = "=0.154.3" }
+#proof-compression-gpu = { package = "proof-compression", version = "=0.154.3" }
 
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.3" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.3" }
+#fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.3" }
+#wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.3" }
 
-shivini = "=0.154.3"
-boojum-cuda = "=0.154.3"
+#shivini = "=0.154.3"
+#boojum-cuda = "=0.154.3"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
@@ -114,13 +114,7 @@ zksync_prover_job_processor = { version = "=21.0.0", path = "crates/lib/prover_j
 zksync_circuit_prover_service = { version = "=21.0.0", path = "crates/lib/circuit_prover_service" }
 zksync_prover_job_monitor = { version = "=21.0.0", path = "crates/bin/prover_job_monitor" }
 
-# for `perf` profiling
-[profile.perf]
-inherits = "release"
-debug = true
-
-
-[patch.crates-io]
+#[patch.crates-io]
 circuit_sequencer_api = { git = 'https://github.com/matter-labs/zksync-protocol.git', rev = '30c185fe4ab7a0e33c5a70d49a6bbde66b5862d1', package = 'circuit_sequencer_api' }
 circuit_definitions = { git = 'https://github.com/matter-labs/zksync-protocol.git', rev = '30c185fe4ab7a0e33c5a70d49a6bbde66b5862d1', package = 'circuit_definitions' }
 zkevm_test_harness = { git = 'https://github.com/matter-labs/zksync-protocol.git', rev = '30c185fe4ab7a0e33c5a70d49a6bbde66b5862d1', package = 'zkevm_test_harness' }
@@ -130,4 +124,11 @@ fflonk-gpu = { git = 'https://github.com/matter-labs/zksync-crypto-gpu.git', rev
 wrapper_prover = { git = 'https://github.com/matter-labs/zksync-crypto-gpu.git', rev = '960b05bad8fec715f2695836cdce14e6597dcd7f', package = 'zksync-wrapper-prover' }
 shivini = { git = 'https://github.com/matter-labs/zksync-crypto-gpu.git', rev = '960b05bad8fec715f2695836cdce14e6597dcd7f', package = 'shivini' }
 boojum-cuda = { git = 'https://github.com/matter-labs/zksync-crypto-gpu.git', rev = '960b05bad8fec715f2695836cdce14e6597dcd7f', package = 'boojum-cuda' }
+
+
+
+# for `perf` profiling
+[profile.perf]
+inherits = "release"
+debug = true
 

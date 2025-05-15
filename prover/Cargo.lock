@@ -8563,21 +8563,6 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.152.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a207813b523f4a617350f87bd56c4a56635c78ce14fb00828f52af442395b740"
-dependencies = [
- "anyhow",
- "lazy_static",
- "num",
- "serde",
- "serde_json",
- "static_assertions",
- "zk_evm_abstractions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zk_evm"
-version = "0.152.3"
 source = "git+https://github.com/matter-labs/zksync-protocol.git?rev=30c185fe4ab7a0e33c5a70d49a6bbde66b5862d1#30c185fe4ab7a0e33c5a70d49a6bbde66b5862d1"
 dependencies = [
  "anyhow",
@@ -9363,7 +9348,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.151.5",
- "zk_evm 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zk_evm 0.152.3 (git+https://github.com/matter-labs/zksync-protocol.git?rev=30c185fe4ab7a0e33c5a70d49a6bbde66b5862d1)",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
@@ -9902,8 +9887,3 @@ dependencies = [
  "zksync_types",
  "zksync_vlog",
 ]
-
-[[patch.unused]]
-name = "zksync-wrapper-prover"
-version = "0.154.3"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?rev=960b05bad8fec715f2695836cdce14e6597dcd7f#960b05bad8fec715f2695836cdce14e6597dcd7f"
