@@ -24,6 +24,7 @@ use self::{
 };
 
 mod metrics;
+pub mod node;
 mod prune_conditions;
 #[cfg(test)]
 mod tests;

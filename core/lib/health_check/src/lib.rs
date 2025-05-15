@@ -15,6 +15,8 @@ use tokio::sync::watch;
 use crate::metrics::{AppHealthCheckConfig, CheckResult, METRICS};
 
 mod metrics;
+#[cfg(feature = "node_framework")]
+pub mod node;
 
 #[cfg(test)]
 mod tests;

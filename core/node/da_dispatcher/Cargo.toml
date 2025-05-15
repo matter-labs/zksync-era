@@ -13,16 +13,17 @@ categories.workspace = true
 
 [dependencies]
 vise.workspace = true
-zksync_dal.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_config.workspace = true
 zksync_types.workspace = true
-zksync_da_client.workspace = true
-zksync_web3_decl.workspace = true
+zksync_da_client = { workspace = true, features = ["node_framework"] }
 zksync_system_constants.workspace = true
-zksync_eth_client.workspace = true
+zksync_node_framework.workspace = true
+zksync_shared_resources.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
+async-trait.workspace = true
 tracing.workspace = true
 chrono.workspace = true
 rand.workspace = true
