@@ -417,6 +417,7 @@ jobs:
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
+          ci_run zkstack chain gateway migrate-to-gateway --chain second --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
           
         # ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
@@ -445,9 +446,11 @@ jobs:
         run: |
           # Override config for part of chains to test the default config as well
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain second
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
           
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack server --ignore-prerequisites --chain second &> ${{ env.SERVER_LOGS_DIR }}/second.log &
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run zkstack server --ignore-prerequisites --chain consensus \
@@ -455,6 +458,7 @@ jobs:
             &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
 
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain second
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium
 
       - name: Run integration tests
