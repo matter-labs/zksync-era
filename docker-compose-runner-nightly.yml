@@ -1,3 +1,8 @@
+networks:
+  backend:
+    name: backend
+    driver: bridge
+
 services:
   zk:
     image: ghcr.io/matter-labs/zk-environment:latest2.0-lightweight-nightly
