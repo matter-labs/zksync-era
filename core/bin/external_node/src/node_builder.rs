@@ -2,7 +2,8 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::{bail, Context as _};
-use zksync_block_reverter::NodeRole;
+use zksync_block_reverter::{node::BlockReverterLayer, NodeRole};
+use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
@@ -12,59 +13,45 @@ use zksync_config::{
     },
     DAClientConfig, PostgresConfig,
 };
+use zksync_consistency_checker::node::ConsistencyCheckerLayer;
+use zksync_da_clients::node::{
+    AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
+    ObjectStorageClientWiringLayer,
+};
+use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
+use zksync_gateway_migrator::node::SettlementLayerData;
+use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
+    node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
-use zksync_node_api_server::web3::{state::InternalApiConfigBase, Namespace};
-use zksync_node_framework::{
-    implementations::layers::{
-        batch_status_updater::BatchStatusUpdaterLayer,
-        block_reverter::BlockReverterLayer,
-        commitment_generator::CommitmentGeneratorLayer,
-        consensus::ExternalNodeConsensusLayer,
-        consistency_checker::ConsistencyCheckerLayer,
-        da_clients::{
-            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
-        },
-        data_availability_fetcher::DataAvailabilityFetcherLayer,
-        healtcheck_server::HealthCheckLayer,
-        logs_bloom_backfill::LogsBloomBackfillLayer,
-        main_node_client::MainNodeClientLayer,
-        main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
-        metadata_calculator::{MetadataCalculatorLayer, TreeApiServerLayer},
-        node_storage_init::{
-            external_node_strategy::{ExternalNodeInitStrategyLayer, SnapshotRecoveryConfig},
-            NodeStorageInitializerLayer,
-        },
-        pools_layer::PoolsLayerBuilder,
-        postgres::PostgresLayer,
-        prometheus_exporter::PrometheusExporterLayer,
-        pruning::PruningLayer,
-        query_eth_client::QueryEthClientLayer,
-        reorg_detector::ReorgDetectorLayer,
-        settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data,
-        settlement_layer_data::SettlementLayerData,
-        sigint::SigintHandlerLayer,
-        state_keeper::{
-            external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
-            output_handler::OutputHandlerLayer, StateKeeperLayer,
-        },
-        sync_state_updater::SyncStateUpdaterLayer,
-        tree_data_fetcher::TreeDataFetcherLayer,
-        validate_chain_ids::ValidateChainIdsLayer,
-        web3_api::{
-            caches::MempoolCacheLayer,
-            server::{Web3ServerLayer, Web3ServerOptionalConfig},
-            tree_api_client::TreeApiClientLayer,
-            tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::ProxySinkLayer,
-        },
+use zksync_node_api_server::{
+    node::{
+        HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
+        TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
-    service::{ZkStackService, ZkStackServiceBuilder},
+    web3::{state::InternalApiConfigBase, Namespace},
 };
+use zksync_node_consensus::node::ExternalNodeConsensusLayer;
+use zksync_node_db_pruner::node::PruningLayer;
+use zksync_node_fee_model::node::MainNodeFeeParamsFetcherLayer;
+use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
+use zksync_node_storage_init::{
+    node::{external_node_strategy::ExternalNodeInitStrategyLayer, NodeStorageInitializerLayer},
+    SnapshotRecoveryConfig,
+};
+use zksync_node_sync::node::{
+    BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, ExternalIOLayer, SyncStateUpdaterLayer,
+    TreeDataFetcherLayer, ValidateChainIdsLayer,
+};
+use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
+use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
+use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
+use zksync_web3_decl::node::{
+    MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClientLayer,
+};
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -131,7 +118,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresLayer);
+        self.node.add_layer(PostgresMetricsLayer);
         Ok(self)
     }
 
@@ -150,14 +137,15 @@ impl ExternalNodeBuilder {
     }
 
     fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
-        self.node
-            .add_layer(SettlementLayerData::new(settlement_layer_data::ENConfig {
+        self.node.add_layer(SettlementLayerData::new(
+            zksync_gateway_migrator::node::ENConfig {
                 l1_specific_contracts: self.config.l1_specific_contracts(),
                 l1_chain_contracts: self.config.l1_settelment_contracts(),
                 l2_contracts: self.config.l2_contracts(),
                 chain_id: self.config.required.l2_chain_id,
                 gateway_rpc_url: self.config.optional.gateway_url.clone(),
-            }));
+            },
+        ));
         Ok(self)
     }
 
@@ -315,8 +303,7 @@ impl ExternalNodeBuilder {
     }
 
     fn add_batch_status_updater_layer(mut self) -> anyhow::Result<Self> {
-        let layer = BatchStatusUpdaterLayer;
-        self.node.add_layer(layer);
+        self.node.add_layer(BatchStatusUpdaterLayer);
         Ok(self)
     }
 
@@ -365,7 +352,6 @@ impl ExternalNodeBuilder {
 
     fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(DataAvailabilityFetcherLayer);
-
         Ok(self)
     }
 
@@ -506,6 +492,13 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_bridge_addresses_updater_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(BridgeAddressesUpdaterLayer {
+            refresh_interval: self.config.optional.bridge_addresses_refresh_interval(),
+        });
+        Ok(self)
+    }
+
     fn web3_api_optional_config(&self) -> Web3ServerOptionalConfig {
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
@@ -519,10 +512,6 @@ impl ExternalNodeBuilder {
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
-            bridge_addresses_refresh_interval: self
-                .config
-                .optional
-                .bridge_addresses_refresh_interval(),
             polling_interval: Some(self.config.optional.polling_interval()),
             websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
             replication_lag_limit: None,               // TODO: Support replication lag limit
@@ -661,6 +650,7 @@ impl ExternalNodeBuilder {
                 Component::HttpApi => {
                     self = self
                         .add_sync_state_updater_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?
@@ -670,6 +660,7 @@ impl ExternalNodeBuilder {
                 Component::WsApi => {
                     self = self
                         .add_sync_state_updater_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
                         .add_main_node_fee_params_fetcher_layer()?

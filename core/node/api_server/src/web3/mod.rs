@@ -13,7 +13,7 @@ use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_node_sync::SyncState;
+use zksync_shared_resources::api::{BridgeAddressesHandle, SyncState};
 use zksync_types::{try_stoppable, L2BlockNumber, StopContext};
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -49,7 +49,6 @@ use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
     utils::AccountTypesCache,
-    web3::state::BridgeAddressesHandle,
 };
 
 pub mod backend_jsonrpsee;
