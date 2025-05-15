@@ -123,7 +123,7 @@ fn prompt_db_config(config: &ChainConfig) -> anyhow::Result<Url> {
 
 pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let ecosystem_path = &shell.current_dir();
+    let ecosystem_path = shell.current_dir();
 
     let chain_config = ecosystem_config
         .load_current_chain()
