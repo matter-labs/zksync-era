@@ -11,6 +11,7 @@ on:
 env:
   RUST_BACKTRACE: 1
   PASSED_ENV_VARS: RUST_BACKTRACE
+  YQ_VERSION: "4.45.1"
 
 jobs:
   lint:
@@ -213,6 +214,14 @@ jobs:
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
 
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
+      - name: Install psql
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
       - name: Start services
         run: |
           ci_localnet_up
@@ -305,6 +314,29 @@ jobs:
           --chain validium \
           --validium-type no-da
 
+      - name: Create and initialize DA migration chain
+        run: |
+          ci_run zkstack chain create \
+          --chain-name da_migration \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites \
+          --evm-emulator true
+          
+          ci_run zkstack chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_da_migration \
+          --chain da_migration \
+          --validium-type no-da
+
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zkstack chain create \
@@ -389,7 +421,7 @@ jobs:
 
       - name: Export chain list to environment variable
         run: |
-          CHAINS="era,validium,custom_token,consensus"
+          CHAINS="era,validium,custom_token,da_migration,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
       # ----------------------------------------------------------------
@@ -433,6 +465,7 @@ jobs:
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
           ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain da_migration --gateway-chain-name gateway
           ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
@@ -463,6 +496,7 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack server --ignore-prerequisites --chain da_migration &> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           ci_run zkstack server --ignore-prerequisites --chain consensus \
             --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
@@ -470,6 +504,7 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain da_migration
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
       - name: Run integration tests
@@ -506,6 +541,10 @@ jobs:
           ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_da_migration --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain da_migration
+          ci_run zkstack external-node init --ignore-prerequisites --chain da_migration
+
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
           ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
@@ -522,11 +561,13 @@ jobs:
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain da_migration --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/da_migration.log &
           ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
 
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain era
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain validium
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain da_migration
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain consensus
 
       - name: Run integration tests en
@@ -606,3 +647,4 @@ jobs:
           path: |
             logs/
             chains/*/artifacts/vm_dumps/
+            chains/*/configs/
