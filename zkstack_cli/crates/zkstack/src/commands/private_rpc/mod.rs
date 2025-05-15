@@ -8,7 +8,7 @@ use slugify_rs::slugify;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::{
-    cmd::Cmd, db, docker, docker::adjust_localhost_for_docker, logger, Prompt,
+    cmd::Cmd, db, docker, logger, Prompt,
 };
 use zkstack_cli_config::{
     docker_compose::{DockerComposeConfig, DockerComposeService},
@@ -134,7 +134,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     logger::info(msg_private_rpc_docker_image_being_built());
     Cmd::new(cmd!(shell, "docker build -t private-rpc .")).run()?;
 
-    let mut db_config = if args.use_default {
+    let db_config = if args.use_default {
         let private_rpc_db_name: String = generate_private_rpc_db_name(&chain_config);
         let private_rpc_db_name = slugify!(&private_rpc_db_name, separator = "_");
         db::DatabaseConfig::new(DATABASE_PRIVATE_RPC_URL.clone(), private_rpc_db_name).full_url()
@@ -143,31 +143,20 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     };
 
     initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
-    db_config = adjust_localhost_for_docker(db_config, "postgres")?;
 
     let mut services: HashMap<String, DockerComposeService> = HashMap::new();
     let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
     let l2_rpc_url = Url::parse(l2_rpc_url.as_str())?;
-    let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url, "host.docker.internal")?;
 
     services.insert(
         "private-proxy".to_string(),
         create_private_rpc_service(db_config, 4041, "sososecret", l2_rpc_url).await?,
     );
 
-    let networks = json!({
-    "networks":
-        {
-            "backend": {
-                "external": true
-            }
-        }
-    });
-
     let config = DockerComposeConfig {
         name: Some(format!("{chain_name}-private-proxy")),
         services,
-        other: networks,
+        other: serde_json::Value::Null,
     };
 
     let docker_compose_path =

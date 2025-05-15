@@ -56,6 +56,6 @@ pub async fn create_private_rpc_service(
             ),
         ])),
         extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
-        other: json!({"networks": ["backend"]}),
+        other: json!({"network_mode": "host"}),
     })
 }
