@@ -10,9 +10,9 @@ git submodule update --init --recursive
 cd ..
 
 cd zksync-new
-git checkout kl/reduced-interop-support
+git checkout kl/upgrade-support
 git submodule update --init --recursive
 cd ..
 
 
-cp -r zksync-new/infrastructure/local-gateway-upgrade-testing/era-cacher .
+cp -r zksync-new/infrastructure/local-upgrade-testing/era-cacher .
