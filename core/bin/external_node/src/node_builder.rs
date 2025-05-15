@@ -18,7 +18,7 @@ use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
 };
-use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
 use zksync_gateway_migrator::node::SettlementLayerData;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
@@ -109,10 +109,9 @@ impl ExternalNodeBuilder {
             server_replica_url: Some(self.config.postgres.database_url()),
             prover_url: None,
         };
-        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
-            .with_replica(true)
-            .build();
+            .with_replica(true);
         self.node.add_layer(pools_layer);
         Ok(self)
     }

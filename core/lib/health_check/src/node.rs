@@ -6,6 +6,7 @@ use zksync_node_framework::Resource;
 
 use crate::AppHealthCheck;
 
+// FIXME(node): Arc<_> candidate
 /// A resource that provides [`AppHealthCheck`] to the service.
 #[derive(Debug, Clone, Default)]
 pub struct AppHealthCheckResource(pub Arc<AppHealthCheck>);

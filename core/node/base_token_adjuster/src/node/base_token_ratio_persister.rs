@@ -4,7 +4,7 @@ use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{
     clients::PKSigningClient,
     node::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
-    web3_decl::node::EthInterfaceResource,
+    web3_decl::client::{DynClient, L1},
 };
 use zksync_node_fee_model::node::TxParamsResource;
 use zksync_node_framework::{
@@ -34,7 +34,7 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
     pub price_api_client: PriceAPIClientResource,
-    pub eth_client: EthInterfaceResource,
+    pub eth_client: Box<DynClient<L1>>,
     pub tx_params: TxParamsResource,
     pub l1_contracts: L1ChainContractsResource,
     pub l1_ecosystem_contracts: L1EcosystemContractsResource,
@@ -81,7 +81,6 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             .map(|token_multiplier_setter| {
                 let tms_private_key = token_multiplier_setter.wallet.private_key();
                 let tms_address = token_multiplier_setter.wallet.address();
-                let EthInterfaceResource(query_client) = input.eth_client;
                 let l1_diamond_proxy_addr = input
                     .l1_contracts
                     .0
@@ -93,7 +92,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                     l1_diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
                     self.l1_chain_id.into(),
-                    query_client.clone().for_component("base_token_adjuster"),
+                    input.eth_client.for_component("base_token_adjuster"),
                 );
                 BaseTokenL1Behaviour::UpdateOnL1 {
                     params: UpdateOnL1Params {

@@ -28,15 +28,15 @@ pub struct PostgresMetricsLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub replica_pool: PoolResource<ReplicaPool>,
+    replica_pool: PoolResource<ReplicaPool>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub metrics_task: PostgresMetricsScrapingTask,
+    metrics_task: PostgresMetricsScrapingTask,
 }
 
 #[async_trait::async_trait]
@@ -96,7 +96,7 @@ impl Task for PostgresMetricsScrapingTask {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct DatabaseInfo {
+struct DatabaseInfo {
     last_migration: DatabaseMigration,
 }
 

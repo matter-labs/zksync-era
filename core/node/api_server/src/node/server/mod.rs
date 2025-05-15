@@ -21,8 +21,9 @@ use zksync_shared_resources::{
         SettlementLayerContractsResource,
     },
 };
-use zksync_web3_decl::node::{
-    EthInterfaceResource, MainNodeClientResource, SettlementModeResource,
+use zksync_web3_decl::{
+    client::{DynClient, L1},
+    node::{MainNodeClientResource, SettlementModeResource},
 };
 
 use self::sealed_l2_block::SealedL2BlockUpdaterTask;
@@ -131,7 +132,7 @@ pub struct Input {
     #[context(default)]
     pub app_health: AppHealthCheckResource,
     pub main_node_client: Option<MainNodeClientResource>,
-    pub l1_client: EthInterfaceResource,
+    pub l1_client: Box<DynClient<L1>>,
     pub sl_contracts: SettlementLayerContractsResource,
     pub l1_contracts: L1ChainContractsResource,
     pub l1_ecosystem_contracts: L1EcosystemContractsResource,

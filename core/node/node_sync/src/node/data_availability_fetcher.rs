@@ -1,4 +1,4 @@
-use zksync_da_client::node::DAClientResource;
+use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_health_check::node::AppHealthCheckResource;
 use zksync_node_framework::{
@@ -17,17 +17,17 @@ pub struct DataAvailabilityFetcherLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
-    pub da_client: DAClientResource,
+    master_pool: PoolResource<MasterPool>,
+    main_node_client: MainNodeClientResource,
+    da_client: Box<dyn DataAvailabilityClient>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: DataAvailabilityFetcher,
+    task: DataAvailabilityFetcher,
 }
 
 #[async_trait::async_trait]
@@ -42,10 +42,9 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        let DAClientResource(da_client) = input.da_client;
 
         tracing::info!("Running data availability fetcher.");
-        let task = DataAvailabilityFetcher::new(client, pool, da_client);
+        let task = DataAvailabilityFetcher::new(client, pool, input.da_client);
 
         // Insert healthcheck
         input

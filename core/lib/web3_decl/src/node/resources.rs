@@ -28,11 +28,7 @@ impl SettlementModeResource {
     }
 }
 
-/// A resource that provides L1 interface object to the service.
-#[derive(Debug, Clone)]
-pub struct EthInterfaceResource(pub Box<DynClient<L1>>);
-
-impl Resource for EthInterfaceResource {
+impl Resource for Box<DynClient<L1>> {
     fn name() -> String {
         "common/eth_interface".into()
     }
@@ -51,14 +47,11 @@ impl Resource for SettlementLayerClient {
 }
 
 /// A resource that provides L2 interface object to the service.
-/// It is expected to have the same URL as the `EthInterfaceResource`, but have different capabilities.
+/// It is expected to have the same URL as the `Box<DynClient<L1>>`, but have different capabilities.
 ///
-/// This resource is provided separately from `EthInterfaceResource`, to provide type safety in places, where the
-/// component must work with L1-interface only and should use `EthInterfaceResource` instead.
-#[derive(Debug, Clone)]
-pub struct L2InterfaceResource(pub Box<DynClient<L2>>);
-
-impl Resource for L2InterfaceResource {
+/// This resource is provided separately from `Box<DynClient<L1>>`, to provide type safety in places, where the
+/// component must work with L1-interface only and should use `Box<DynClient<L1>>` instead.
+impl Resource for Box<DynClient<L2>> {
     fn name() -> String {
         "common/l2_interface".into()
     }

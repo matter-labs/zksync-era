@@ -30,7 +30,7 @@ use zksync_da_clients::node::{
     ObjectStorageClientWiringLayer,
 };
 use zksync_da_dispatcher::node::DataAvailabilityDispatcherLayer;
-use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::{
     node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
     web3_decl::node::{QueryEthClientLayer, SettlementLayerClientLayer},
@@ -157,10 +157,9 @@ impl MainNodeBuilder {
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.postgres_config);
         let secrets = try_load_config!(self.secrets.database);
-        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
-            .with_replica(true)
-            .build();
+            .with_replica(true);
         self.node.add_layer(pools_layer);
         Ok(self)
     }

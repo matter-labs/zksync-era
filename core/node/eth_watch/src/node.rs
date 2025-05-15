@@ -14,8 +14,8 @@ use zksync_node_framework::{
 };
 use zksync_types::L2ChainId;
 use zksync_web3_decl::{
-    client::{DynClient, Network},
-    node::{EthInterfaceResource, SettlementLayerClient, SettlementModeResource},
+    client::{DynClient, Network, L1},
+    node::{SettlementLayerClient, SettlementModeResource},
 };
 
 use crate::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
@@ -36,7 +36,7 @@ pub struct Input {
     pub sl_contracts: SettlementLayerContractsResource,
     pub l1_ecosystem_contracts: L1EcosystemContractsResource,
     pub master_pool: PoolResource<MasterPool>,
-    pub eth_client: EthInterfaceResource,
+    pub eth_client: Box<DynClient<L1>>,
     pub client: SettlementLayerClient,
     pub settlement_mode: SettlementModeResource,
 }
@@ -90,7 +90,6 @@ impl WiringLayer for EthWatchLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
-        let client = input.eth_client.0;
 
         tracing::info!(
             "Diamond proxy address settlement_layer: {:#?}",
@@ -102,7 +101,7 @@ impl WiringLayer for EthWatchLayer {
         );
 
         let l1_client = self.create_client(
-            client,
+            input.eth_client,
             &input.l1_contracts.0,
             &input.l1_ecosystem_contracts.0,
         );

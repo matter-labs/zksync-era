@@ -1,10 +1,7 @@
 pub use self::{
     main_node_client::MainNodeClientLayer,
     query_eth_client::QueryEthClientLayer,
-    resources::{
-        EthInterfaceResource, L2InterfaceResource, MainNodeClientResource, SettlementLayerClient,
-        SettlementModeResource,
-    },
+    resources::{MainNodeClientResource, SettlementLayerClient, SettlementModeResource},
     settlement_layer_client::SettlementLayerClientLayer,
 };
 

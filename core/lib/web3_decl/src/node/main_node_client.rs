@@ -26,12 +26,12 @@ pub struct MainNodeClientLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: AppHealthCheckResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub main_node_client: MainNodeClientResource,
+    main_node_client: MainNodeClientResource,
 }
 
 impl MainNodeClientLayer {

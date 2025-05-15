@@ -9,10 +9,10 @@ use zksync_node_framework::{
 use zksync_types::{L1ChainId, L2ChainId};
 use zksync_vlog::node::SigintHandlerLayer;
 use zksync_web3_decl::{
-    client::{MockClient, L1, L2},
+    client::{DynClient, MockClient, L1, L2},
     node::{
-        EthInterfaceResource, MainNodeClientLayer, MainNodeClientResource, QueryEthClientLayer,
-        SettlementLayerClient, SettlementLayerClientLayer,
+        MainNodeClientLayer, MainNodeClientResource, QueryEthClientLayer, SettlementLayerClient,
+        SettlementLayerClientLayer,
     },
 };
 
@@ -122,15 +122,15 @@ struct MockL1ClientLayer {
 #[async_trait::async_trait]
 impl WiringLayer for MockL1ClientLayer {
     type Input = ();
-    type Output = EthInterfaceResource;
+    type Output = Box<DynClient<L1>>;
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
         QueryEthClientLayer::new(L1ChainId(1), "https://example.com".parse().unwrap()).layer_name()
     }
 
-    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(EthInterfaceResource(Box::new(self.client)))
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(Box::new(self.client))
     }
 }
 

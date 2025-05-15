@@ -4,9 +4,10 @@ use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::{
     node::{
         contracts::SettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
-        BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
+        BoundEthInterfaceForL2Resource, SenderConfigResource,
     },
     web3_decl::node::SettlementModeResource,
+    BoundEthInterface,
 };
 use zksync_health_check::node::AppHealthCheckResource;
 use zksync_node_framework::{
@@ -48,7 +49,7 @@ pub struct EthTxAggregatorLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
-    pub eth_client: Option<BoundEthInterfaceResource>,
+    pub eth_client: Option<Box<dyn BoundEthInterface>>,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
@@ -118,7 +119,7 @@ impl WiringLayer for EthTxAggregatorLayer {
                 .context("eth_client_gateway missing")?
                 .0
         } else {
-            input.eth_client.context("eth_client missing")?.0
+            input.eth_client.context("eth_client missing")?
         };
 
         let master_pool = input.master_pool.get().await?;

@@ -10,6 +10,7 @@ use zksync_node_framework::{
 
 use crate::{CircuitBreakerChecker, CircuitBreakers};
 
+// FIXME(node): remove
 /// A resource that provides [`CircuitBreakers`] to the service.
 #[derive(Debug, Clone, Default)]
 pub struct CircuitBreakersResource {
@@ -33,13 +34,13 @@ pub struct CircuitBreakerCheckerLayer(pub CircuitBreakerConfig);
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub circuit_breakers: CircuitBreakersResource,
+    circuit_breakers: CircuitBreakersResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub circuit_breaker_checker: CircuitBreakerChecker,
+    circuit_breaker_checker: CircuitBreakerChecker,
 }
 
 #[async_trait::async_trait]
