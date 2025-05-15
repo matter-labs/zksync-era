@@ -292,16 +292,6 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         let is_returndata_page_static =
             last_callstack_this == CODE_ORACLE_ADDRESS && returndata_fat_pointer.length > 0;
 
-        for &page in current_observable_pages {
-            // If the page's number is greater than or equal to the `base_page`,
-            // it means that it was created by the internal calls of this contract.
-            // We need to add this check as the calldata pointer is also part of the
-            // observable pages.
-            if page >= base_page.0 && page != returndata_page {
-                self.memory.clear_page(page as usize, timestamp);
-            }
-        }
-
         self.observable_pages.clear_frame(timestamp);
         self.observable_pages.merge_frame(timestamp);
 
