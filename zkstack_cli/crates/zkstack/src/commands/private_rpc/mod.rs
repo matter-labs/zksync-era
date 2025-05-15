@@ -29,7 +29,6 @@ use crate::{
     },
 };
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct PrivateRpcCommandInitArgs {
     #[clap(long)]
