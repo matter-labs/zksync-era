@@ -57,6 +57,7 @@ impl Resource for Box<DynClient<L2>> {
     }
 }
 
+// FIXME(node): consider removal?
 /// A resource that provides L2 interface object to the service.
 #[derive(Debug, Clone)]
 pub struct MainNodeClientResource(pub Box<DynClient<L2>>);

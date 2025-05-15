@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_config::configs::{
     chain::{MempoolConfig, StateKeeperConfig},
@@ -14,8 +15,9 @@ use zksync_node_framework::{
 use zksync_shared_resources::contracts::{L2ContractsResource, SettlementLayerContractsResource};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
-use super::resources::{ConditionalSealerResource, StateKeeperIOResource};
+use super::resources::{StateKeeperIOResource};
 use crate::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
+use crate::seal_criteria::ConditionalSealer;
 
 /// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
 ///
@@ -52,7 +54,7 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     pub state_keeper_io: StateKeeperIOResource,
-    pub conditional_sealer: ConditionalSealerResource,
+    pub conditional_sealer: Arc<dyn ConditionalSealer>,
     #[context(task)]
     pub mempool_fetcher: MempoolFetcher,
 }
@@ -140,7 +142,7 @@ impl WiringLayer for MempoolIOLayer {
 
         Ok(Output {
             state_keeper_io: io.into(),
-            conditional_sealer: sealer.into(),
+            conditional_sealer: Arc::new(sealer),
             mempool_fetcher,
         })
     }

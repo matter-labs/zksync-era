@@ -12,9 +12,10 @@ use zksync_storage::RocksDB;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use super::resources::{
-    BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource, StateKeeperIOResource,
+    BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource,
 };
 use crate::{AsyncRocksdbCache, ZkSyncStateKeeper};
+use crate::seal_criteria::ConditionalSealer;
 
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
@@ -28,7 +29,7 @@ pub struct Input {
     pub state_keeper_io: StateKeeperIOResource,
     pub batch_executor: BatchExecutorResource,
     pub output_handler: OutputHandlerResource,
-    pub conditional_sealer: ConditionalSealerResource,
+    pub conditional_sealer: Arc<dyn ConditionalSealer>,
     pub master_pool: PoolResource<MasterPool>,
     pub replica_pool: PoolResource<ReplicaPool>,
     pub shared_allow_list: Option<SharedAllowList>,
@@ -79,7 +80,7 @@ impl WiringLayer for StateKeeperLayer {
             .0
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
-        let sealer = input.conditional_sealer.0;
+        let sealer = input.conditional_sealer;
         let master_pool = input.master_pool;
 
         let (storage_factory, mut rocksdb_catchup) = AsyncRocksdbCache::new(

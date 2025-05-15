@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_external_price_api::{NoOpPriceAPIClient, PriceAPIClient};
 use zksync_node_framework::resource::Resource;
 
+// FIXME(node): try removing (default)
 /// A resource that provides [`PriceAPIClient`] implementation to the service.
 #[derive(Debug, Clone)]
 pub struct PriceAPIClientResource(pub Arc<dyn PriceAPIClient>);

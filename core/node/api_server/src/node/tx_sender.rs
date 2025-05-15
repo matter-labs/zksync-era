@@ -14,7 +14,7 @@ use zksync_node_framework::{
 use zksync_object_store::ObjectStore;
 use zksync_shared_resources::contracts::L2ContractsResource;
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_state_keeper::node::ConditionalSealerResource;
+use zksync_state_keeper::seal_criteria::ConditionalSealer;
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -75,7 +75,7 @@ pub struct Input {
     replica_pool: PoolResource<ReplicaPool>,
     fee_input: ApiFeeInputResource,
     main_node_client: Option<MainNodeClientResource>,
-    sealer: Option<ConditionalSealerResource>,
+    sealer: Option<Arc<dyn ConditionalSealer>>,
     l2_contracts: L2ContractsResource,
     core_object_store: Option<Arc<dyn ObjectStore>>,
 }
@@ -137,7 +137,7 @@ impl WiringLayer for TxSenderLayer {
         // Get required resources.
         let tx_sink = input.tx_sink;
         let replica_pool = input.replica_pool.get().await?;
-        let sealer = input.sealer.map(|s| s.0);
+        let sealer = input.sealer;
         let fee_input = input.fee_input.0;
 
         let config = match input.l2_contracts.0.timestamp_asserter_addr {
