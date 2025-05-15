@@ -5,6 +5,8 @@ use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{block::build_bloom, BloomInput, L2BlockNumber};
 
+pub mod node;
+
 #[derive(Debug)]
 pub struct LogsBloomBackfill {
     connection_pool: ConnectionPool<Core>,
