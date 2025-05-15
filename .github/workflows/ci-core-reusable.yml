@@ -524,30 +524,6 @@ jobs:
               'era:--evm' 'validium:--evm'
           done
 
-      - name: Init external nodes
-        run: |
-          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
-          
-          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain era
-          ci_run zkstack external-node init --ignore-prerequisites --chain era
-
-          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain validium
-          ci_run zkstack external-node init --ignore-prerequisites --chain validium
-
-          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain custom_token
-          ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
-
-          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
-          ci_run zkstack external-node init --ignore-prerequisites --chain consensus
-          
-          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_da_migration --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain da_migration
-          ci_run zkstack external-node init --ignore-prerequisites --chain da_migration
-
       - name: DA migration tests
         run: |
           echo "Reducing L1 batch seal timeout and restarting server"
@@ -636,6 +612,30 @@ jobs:
             'era:--evm' 'validium:--evm'
 
           echo "Integration tests completed"
+
+      - name: Init external nodes
+        run: |
+          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
+          
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain era
+          ci_run zkstack external-node init --ignore-prerequisites --chain era
+
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain validium
+          ci_run zkstack external-node init --ignore-prerequisites --chain validium
+
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain custom_token
+          ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
+
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
+          ci_run zkstack external-node init --ignore-prerequisites --chain consensus
+          
+          ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --db-name=zksync_en_localhost_era_da_migration --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain da_migration
+          ci_run zkstack external-node init --ignore-prerequisites --chain da_migration
 
       - name: Run recovery tests (from snapshot)
         run: |
