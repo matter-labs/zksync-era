@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{
-    cmd::Cmd, db, docker, logger, Prompt,
-};
+use zkstack_cli_common::{cmd::Cmd, db, docker, logger, Prompt};
 use zkstack_cli_config::{
     docker_compose::{DockerComposeConfig, DockerComposeService},
     private_proxy_compose::{create_private_rpc_service, get_private_rpc_docker_compose_path},
