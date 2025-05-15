@@ -10,6 +10,7 @@ mod api_decl;
 mod api_impl;
 mod cache;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 
