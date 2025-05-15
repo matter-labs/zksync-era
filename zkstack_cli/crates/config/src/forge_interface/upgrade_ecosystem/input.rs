@@ -90,7 +90,10 @@ impl EcosystemUpgradeInput {
                 governance_security_council_address: Address::zero(),
                 latest_protocol_version: new_genesis_input.protocol_version.pack(),
                 evm_emulator_hash: new_genesis_input.evm_emulator_hash.unwrap_or_default(),
-                l1_bytecodes_supplier_addr: Address::zero(),
+                l1_bytecodes_supplier_addr: current_contracts_config
+                    .ecosystem_contracts
+                    .l1_bytecodes_supplier_addr
+                    .expect("l1_bytecodes_supplier_addr is not set"),
                 protocol_upgrade_handler_proxy_address: Address::zero(),
                 rollup_da_manager: Address::zero(),
             },
