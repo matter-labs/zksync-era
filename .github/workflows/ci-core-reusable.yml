@@ -83,7 +83,6 @@ jobs:
       # - name: Check contracts hashes
       #   working-directory: contracts
       #   run: |
-      #     yarn build:foundry
       #     yarn calculate-hashes:check
 
       - name: Download compilers for contract verifier tests

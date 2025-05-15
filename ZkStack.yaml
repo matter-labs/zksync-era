@@ -7,4 +7,3 @@ default_chain: era
 era_chain_id: 270
 prover_version: NoProofs
 wallet_creation: Localhost
-fast_compilation: true

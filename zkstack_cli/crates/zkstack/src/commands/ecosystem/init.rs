@@ -114,13 +114,9 @@ async fn init_ecosystem(
     if !init_args.skip_contract_compilation_override {
         install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
         build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-        build_l1_contracts(
-            shell.clone(),
-            ecosystem_config.link_to_code.clone(),
-            Some(ecosystem_config.fast_compilation),
-        )?;
-        build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone(), None)?;
-        build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone(), None)?;
+        build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+        build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+        build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     }
     spinner.finish();
 

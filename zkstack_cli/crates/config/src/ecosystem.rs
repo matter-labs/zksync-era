@@ -39,7 +39,6 @@ struct EcosystemConfigInternal {
     pub era_chain_id: L2ChainId,
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
-    pub fast_compilation: bool,
 }
 
 /// Ecosystem configuration file. This file is created in the chain
@@ -57,7 +56,6 @@ pub struct EcosystemConfig {
     pub prover_version: ProverMode,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
-    pub fast_compilation: bool,
 }
 
 impl Serialize for EcosystemConfig {
@@ -88,7 +86,6 @@ impl ReadConfig for EcosystemConfig {
             prover_version: config.prover_version,
             wallet_creation: config.wallet_creation,
             shell: Default::default(),
-            fast_compilation: config.fast_compilation,
         })
     }
 }
@@ -272,7 +269,6 @@ impl EcosystemConfig {
             era_chain_id: self.era_chain_id,
             prover_version: self.prover_version,
             wallet_creation: self.wallet_creation,
-            fast_compilation: self.fast_compilation,
         }
     }
 }

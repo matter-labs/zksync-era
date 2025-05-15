@@ -10,8 +10,8 @@ use crate::{
     commands::chain::args::{genesis::GenesisArgs, init::da_configs::ValidiumTypeArgs},
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_BUILD_FAST_COMPILATION_HELP, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT,
-        MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
         MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
     },
@@ -113,8 +113,6 @@ pub struct EcosystemInitArgs {
     pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
-    #[clap(long, help = MSG_BUILD_FAST_COMPILATION_HELP, default_missing_value = "false", num_args = 0..=1)]
-    pub fast_compilation: Option<bool>,
 }
 
 impl EcosystemInitArgs {
@@ -148,15 +146,11 @@ impl EcosystemInitArgs {
                     .ask()
             })
         };
-        let mut forge_args = self.forge_args.clone();
-        if self.fast_compilation.unwrap_or(false) {
-            forge_args.fast_compilation = true;
-        }
 
         EcosystemInitArgsFinal {
             deploy_erc20,
             ecosystem,
-            forge_args,
+            forge_args: self.forge_args.clone(),
             dev: self.dev,
             observability,
             ecosystem_only: self.ecosystem_only,
@@ -166,7 +160,6 @@ impl EcosystemInitArgs {
             support_l2_legacy_shared_bridge_test: self
                 .support_l2_legacy_shared_bridge_test
                 .unwrap_or_default(),
-            fast_compilation: self.fast_compilation,
         }
     }
 }
@@ -183,5 +176,4 @@ pub struct EcosystemInitArgsFinal {
     pub skip_contract_compilation_override: bool,
     pub validium_args: ValidiumTypeArgs,
     pub support_l2_legacy_shared_bridge_test: bool,
-    pub fast_compilation: Option<bool>,
 }

@@ -72,10 +72,9 @@ pub enum ContractType {
 }
 
 struct ContractBuilder {
-    cmd: Box<dyn FnOnce(Shell, PathBuf, Option<bool>) -> anyhow::Result<()>>,
+    cmd: Box<dyn FnOnce(Shell, PathBuf) -> anyhow::Result<()>>,
     msg: String,
     link_to_code: PathBuf,
-    fast: Option<bool>,
 }
 
 impl ContractBuilder {
@@ -85,32 +84,28 @@ impl ContractBuilder {
                 cmd: Box::new(build_l1_contracts),
                 msg: MSG_BUILDING_L1_CONTRACTS_SPINNER.to_string(),
                 link_to_code: ecosystem.link_to_code.clone(),
-                fast: Some(ecosystem.fast_compilation),
             },
             ContractType::L1DA => Self {
                 cmd: Box::new(build_l1_da_contracts),
                 msg: MSG_BUILDING_L1_DA_CONTRACTS_SPINNER.to_string(),
                 link_to_code: ecosystem.link_to_code.clone(),
-                fast: None,
             },
             ContractType::L2 => Self {
                 cmd: Box::new(build_l2_contracts),
                 msg: MSG_BUILDING_L2_CONTRACTS_SPINNER.to_string(),
                 link_to_code: ecosystem.link_to_code.clone(),
-                fast: None,
             },
             ContractType::SystemContracts => Self {
                 cmd: Box::new(build_system_contracts),
                 msg: MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER.to_string(),
                 link_to_code: ecosystem.link_to_code.clone(),
-                fast: None,
             },
         }
     }
 
     fn build(self, shell: Shell) -> anyhow::Result<()> {
         let spinner = Spinner::new(&self.msg);
-        (self.cmd)(shell, self.link_to_code.clone(), self.fast)?;
+        (self.cmd)(shell, self.link_to_code.clone())?;
         spinner.finish();
         Ok(())
     }

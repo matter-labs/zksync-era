@@ -120,7 +120,7 @@ async fn build_and_deploy(
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
     with_broadcast: bool,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone(), None)?;
+    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     call_forge(
         shell,
         chain_config,
