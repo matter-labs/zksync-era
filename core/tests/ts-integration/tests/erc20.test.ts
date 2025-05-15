@@ -244,13 +244,7 @@ describe('L1 ERC20 contract checks', () => {
 
     test('Can check withdrawal hash from L2-B', async () => {
         // We extract the L2-B RPC URL from the corresponding yaml file to define the L2-B provider
-        const pathToHome = path.join(__dirname, '../../../..');
-        const config = loadConfig({
-            pathToHome,
-            chain: 'second',
-            config: 'general.yaml'
-        });
-        const url = config.api.web3_json_rpc.http_url;
+        const url = getL2bUrl(testMaster.environment().l2NodeUrl);
         let l2b_provider = new RetryProvider({ url, timeout: 1200 * 1000 }, undefined, testMaster.reporter);
 
         const bridgehub = new ethers.Contract(
@@ -274,7 +268,7 @@ describe('L1 ERC20 contract checks', () => {
         // Manually fund the L2-B account with some ETH, and wait for the balance to be updated
         let aliceL2b = new zksync.Wallet(alice.privateKey, l2b_provider, testMaster.mainAccount().providerL1);
         const l1Balance = await aliceL2b.getBalanceL1();
-        await aliceL2b.connectToL1(testMaster.mainAccount().providerL1!).deposit({
+        await aliceL2b.deposit({
             token: ETH_ADDRESS,
             amount: l1Balance / 20n
         });
@@ -332,6 +326,27 @@ describe('L1 ERC20 contract checks', () => {
             count++;
         }
         console.log('Interop root is non-zero', currentRoot);
+    }
+
+    // Gets the L2-B provider URL based on the L2-A provider URL: validium (L2-B) for era (L2-A), or era (L2-B) for validium (L2-A)
+    function getL2bUrl(l2aUrl: string) {
+        const pathToHome = path.join(__dirname, '../../../..');
+        const validiumConfig = loadConfig({
+            pathToHome,
+            chain: 'validium',
+            config: 'general.yaml'
+        });
+        const validiumUrl = validiumConfig.api.web3_json_rpc.http_url;
+        if (validiumUrl !== l2aUrl) return validiumUrl;
+
+        const eraConfig = loadConfig({
+            pathToHome,
+            chain: 'era',
+            config: 'general.yaml'
+        });
+        const eraUrl = eraConfig.api.web3_json_rpc.http_url;
+        if (eraUrl !== l2aUrl) return eraUrl;
+        throw new Error('No valid L2-B provider found');
     }
 
     test('Should claim failed deposit', async () => {
