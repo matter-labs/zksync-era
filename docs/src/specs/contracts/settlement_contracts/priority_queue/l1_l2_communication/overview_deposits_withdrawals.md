@@ -12,4 +12,4 @@ In particular, deposits and withdrawals of ether also use the above methods. For
 with empty calldata, the recipients address and the deposited value. When withdrawing, an L2->L1 message is sent. This
 is then processed by the smart contract holding the ether on L1, which releases the funds.
 
-The details are covered in the [interop center](../../../bridging/interop/interop_center/overview.md) section.
+The details are covered in the [interop center](../../../interop/interop_center/overview.md) section.

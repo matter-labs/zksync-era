@@ -8,7 +8,7 @@ In other words, in the current release base assets can only be transferred throu
 
 ## L1→L2 communication via `Bridgehub.requestL2TransactionDirect`
 
-L1→L2 communication allows users on L1 to create a request for a transaction to happen on L2. This is the primary censorship resistance mechanism. If you are interested, you can read more on L1→L2 communications [here](../../../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md), but for now just understanding that L1→L2 communication allows to request transactions to happen on L2 is enough.
+L1→L2 communication allows users on L1 to create a request for a transaction to happen on L2. This is the primary censorship resistance mechanism. If you are interested, you can read more on L1→L2 communications [here](../../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md), but for now just understanding that L1→L2 communication allows to request transactions to happen on L2 is enough.
 
 The L1→L2 communication is also the only way to mint a base asset at the moment. Fees to the operator as well as `msg.value` will be minted on `L2BaseToken` after the corresponding L1→L2 tx has been processed.
 
@@ -118,7 +118,7 @@ Most of the params are self-explanatory & replicate the logic of ZKsync Era. The
 
 Here is a quick guide on how this transaction is routed through the bridgehub.
 
-1. The bridgehub retrieves the `baseTokenAssetId` of the chain with the corresponding `chainId` and calls `L1AssetRouter.bridgehubDepositBaseToken` method. The `L1AssetRouter` will then use standard token depositing mechanism to burn/escrow the respective amount of the `baseTokenAssetId`. You can read more about it in [the asset router doc](../../asset_router_and_ntv/asset_router.md). This step ensures that the baseToken will be backed 1-1 on L1.
+1. The bridgehub retrieves the `baseTokenAssetId` of the chain with the corresponding `chainId` and calls `L1AssetRouter.bridgehubDepositBaseToken` method. The `L1AssetRouter` will then use standard token depositing mechanism to burn/escrow the respective amount of the `baseTokenAssetId`. You can read more about it in [the asset router doc](../../bridging/asset_router_and_ntv/asset_router.md). This step ensures that the baseToken will be backed 1-1 on L1.
 
 2. After that, it just routes the corresponding call to the ZKChain with the corresponding `chainId` . It is now the responsibility of the ZKChain to validate that the transaction is correct and can be accepted by it. This validation includes, but not limited to:
 
@@ -132,10 +132,10 @@ If the transaction is successful, the `request.l2Value` will be minted on the `r
 
 **_Diagram of the L1→L2 transaction flow on L1 for direct user calls, the baseToken can be ETH or an ERC20:_**
 
-![requestL2TransactionDirect (ETH) (2).png](../../img/requestL2TransactionDirect.png)
+![requestL2TransactionDirect (ETH) (2).png](../../bridging/img/requestL2TransactionDirect.png)
 
 **_Diagram of the L1→L2 transaction flow on L2 (it is the same regardless of the baseToken):_**
 
-![requestL2TransactionTwoBridges](../../img/requestL2TransactionTwoBridges_token.png)
+![requestL2TransactionTwoBridges](../../bridging/img/requestL2TransactionTwoBridges_token.png)
 
-![L1-_L2 tx processing on L2.png](../../img/L1_L2_tx_processing_on_L2.png)
+![L1-_L2 tx processing on L2.png](../../bridging/img/L1_L2_tx_processing_on_L2.png)
