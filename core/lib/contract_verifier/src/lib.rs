@@ -416,9 +416,9 @@ impl ContractVerifier {
                     }
                     Err(err) => {
                         tracing::warn!(
-                    request_id = request.id,
-                    "Failed to compile with the compiler versions from the metadata: {err}. Falling back to the original request."
-                );
+                            request_id = request.id,
+                            "Failed to compile with the compiler versions from the metadata: {err}. Falling back to the original request."
+                        );
                         // Fallback to the original request
                         self.compile(request.req.clone(), *bytecode_marker).await
                     }
