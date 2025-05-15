@@ -34,6 +34,7 @@ use crate::helpers::create_readonly_db;
 pub mod api_server;
 mod helpers;
 mod metrics;
+pub mod node;
 mod pruning;
 mod recovery;
 mod repair;

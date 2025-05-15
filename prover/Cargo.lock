@@ -9049,6 +9049,7 @@ name = "zksync_dal"
 version = "28.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "chrono",
@@ -9115,7 +9116,9 @@ dependencies = [
  "async-trait",
  "jsonrpsee",
  "rlp",
+ "serde_json",
  "thiserror 2.0.12",
+ "tokio",
  "tracing",
  "vise",
  "zksync_config",
@@ -9671,6 +9674,7 @@ name = "zksync_vlog"
 version = "28.2.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "opentelemetry",
  "opentelemetry-appender-tracing",

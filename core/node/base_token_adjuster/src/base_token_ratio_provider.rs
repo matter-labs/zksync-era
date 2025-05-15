@@ -1,6 +1,5 @@
 use std::{
     fmt::Debug,
-    num::NonZeroU64,
     sync::{Arc, RwLock},
 };
 
@@ -96,35 +95,5 @@ impl DBBaseTokenRatioProvider {
 impl BaseTokenRatioProvider for DBBaseTokenRatioProvider {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
         self.get_latest_ratio()
-    }
-}
-
-// Struct for a no-op BaseTokenRatioProvider (conversion ratio is either always 1:1 or a forced ratio).
-#[derive(Debug, Clone)]
-pub struct NoOpRatioProvider {
-    pub latest_ratio: BaseTokenConversionRatio,
-}
-
-impl NoOpRatioProvider {
-    pub fn new(latest_ratio: BaseTokenConversionRatio) -> Self {
-        Self { latest_ratio }
-    }
-}
-
-impl Default for NoOpRatioProvider {
-    fn default() -> Self {
-        Self {
-            latest_ratio: BaseTokenConversionRatio {
-                numerator: NonZeroU64::new(1).unwrap(),
-                denominator: NonZeroU64::new(1).unwrap(),
-            },
-        }
-    }
-}
-
-#[async_trait]
-impl BaseTokenRatioProvider for NoOpRatioProvider {
-    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
-        self.latest_ratio
     }
 }
