@@ -47,6 +47,7 @@ pub async fn load_settlement_layer_contracts(
         get_diamond_proxy_contract(sl_client, bridgehub_address, l2_chain_id).await?;
 
     if diamond_proxy.is_zero() {
+        tracing::warn!("Diamond proxy is zero!");
         return Ok(None);
     }
 
@@ -57,6 +58,7 @@ pub async fn load_settlement_layer_contracts(
     .minor
     .is_post_fflonk()
     {
+        tracing::warn!("Can't unpack protocol version!");
         return Ok(None);
     }
 
