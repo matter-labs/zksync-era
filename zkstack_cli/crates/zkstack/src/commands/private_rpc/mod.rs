@@ -33,7 +33,7 @@ use crate::{
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
 pub struct PrivateRpcCommandInitArgs {
     #[clap(long)]
-    pub use_default: bool
+    pub use_default: bool,
 }
 #[derive(Subcommand, Debug)]
 pub enum PrivateRpcCommands {
