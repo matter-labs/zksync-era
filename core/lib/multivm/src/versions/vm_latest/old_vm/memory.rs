@@ -278,13 +278,13 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
 
     fn finish_global_frame(
         &mut self,
-        base_page: MemoryPage,
+        _base_page: MemoryPage,
         last_callstack_this: Address,
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
         // Safe to unwrap here, since `finish_global_frame` is never called with empty stack
-        let current_observable_pages = self.observable_pages.inner().current_frame();
+        let _current_observable_pages = self.observable_pages.inner().current_frame();
         let returndata_page = returndata_fat_pointer.memory_page;
 
         // This is code oracle and some preimage has been decommitted into its memory.
