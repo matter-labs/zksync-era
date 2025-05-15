@@ -4,11 +4,8 @@ use zksync_types::{
     InteropRoot, ProtocolVersionId,
 };
 
-use crate::{
-    i_executor::structures::{
-        StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
-    },
-    Tokenizable,
+use crate::i_executor::structures::{
+    StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
 };
 
 /// Input required to encode `executeBatches` call.

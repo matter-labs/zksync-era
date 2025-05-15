@@ -5,17 +5,14 @@ use std::sync::Arc;
 use anyhow::Context;
 use chrono::Utc;
 use ethers::{
-    middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Filter, TransactionReceipt, TransactionRequest},
+    types::{Filter, TransactionReceipt},
 };
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
     forge::ForgeScriptArgs,
     logger,
-    spinner::Spinner,
 };
 use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::{Address, H256, U256, U64};

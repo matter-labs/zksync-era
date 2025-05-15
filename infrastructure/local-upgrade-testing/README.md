@@ -11,8 +11,10 @@ We clone the two repos. We switch between them by copying them into zksync-worki
 
 ## Setup
 
-``cp infrastructure/local-upgrade-testing/era-cacher/prepare.sh <YOUR_PATH>`` into your appropriate folder where you want to the upgrade testing folder to be created.
+`cp infrastructure/local-upgrade-testing/era-cacher/prepare.sh <YOUR_PATH>` into your appropriate folder where you want
+to the upgrade testing folder to be created.
 
-``run prepare.sh`` . This creates upgrade testing folder, clones two zksync-era s into it. Initialiaes both. Copies era-cacher into upgrade-testing.
+`run prepare.sh` . This creates upgrade testing folder, clones two zksync-era s into it. Initialiaes both. Copies
+era-cacher into upgrade-testing.
 
-``sh ./era-cacher/do-upgrade.sh``
+`sh ./era-cacher/do-upgrade.sh`

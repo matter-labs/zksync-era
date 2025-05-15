@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;

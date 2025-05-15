@@ -9,7 +9,6 @@ use ethers::{
     abi::{parse_abi, Address},
     contract::BaseContract,
     providers::{Http, Provider},
-    types::TransactionReceipt,
     utils::hex,
 };
 use lazy_static::lazy_static;
