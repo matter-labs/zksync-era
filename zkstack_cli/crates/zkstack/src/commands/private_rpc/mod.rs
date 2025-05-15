@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use slugify_rs::slugify;
 use url::Url;
 use xshell::{cmd, Shell};
