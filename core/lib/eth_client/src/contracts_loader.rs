@@ -46,7 +46,7 @@ pub async fn load_settlement_layer_contracts(
     tracing::info!(
         "Getting diamond proxy for chain {} address {}",
         l2_chain_id,
-        hex::encode(bridgehub_address)
+        bridgehub_address
     );
 
     let diamond_proxy =
