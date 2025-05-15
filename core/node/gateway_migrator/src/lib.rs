@@ -87,7 +87,6 @@ impl GatewayMigrator {
                 }
                 Err(err) => {
                     tracing::error!("Failed to fetch data from SL: {err}");
-                    return Err(err.into());
                 }
             }
 
