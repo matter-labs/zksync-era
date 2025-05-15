@@ -275,7 +275,6 @@ impl RawAvailClient {
         client: &Client,
         extrinsic: &str,
     ) -> anyhow::Result<String> {
-        println!("extrinsic: {:?}", extrinsic);
         let ext_hash: serde_json::Value = client
             .request("author_submitExtrinsic", rpc_params![extrinsic])
             .await?;
