@@ -276,6 +276,7 @@ impl ContractVerifier {
                 &mut request,
                 deployed_identifier.detected_metadata.as_ref(),
                 &bytecode_marker,
+                &deployed_code,
             )
             .await?;
 
@@ -371,6 +372,7 @@ impl ContractVerifier {
         request: &mut VerificationRequest,
         detected_metadata: Option<&DetectedMetadata>,
         bytecode_marker: &BytecodeMarker,
+        deployed_code: &[u8],
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         match detected_metadata {
             Some(DetectedMetadata::Cbor {
@@ -386,7 +388,7 @@ impl ContractVerifier {
                     .compile(updated_request.clone(), *bytecode_marker)
                     .await
                 {
-                    Ok(artifacts) => {
+                    Ok(artifacts) if artifacts.match_bytecode(bytecode_marker, deployed_code) => {
                         tracing::warn!(
                             request_id = request.id,
                             request_compiler = request.req.compiler_versions.compiler_version(),
@@ -414,10 +416,10 @@ impl ContractVerifier {
 
                         Ok(artifacts)
                     }
-                    Err(err) => {
+                    _ => {
                         tracing::warn!(
                             request_id = request.id,
-                            "Failed to compile with the compiler versions from the metadata: {err}. Falling back to the original request."
+                            "Failed to compile with the compiler versions from the metadata or the compiled bytecode doesn't match. Falling back to the original request."
                         );
                         // Fallback to the original request
                         self.compile(request.req.clone(), *bytecode_marker).await
