@@ -1,6 +1,7 @@
 { pkgs
 , system
 , lib
+, stdenv
 , ...
 }:
 let
@@ -47,5 +48,11 @@ pkgs.stdenv.mkDerivation {
     cd $out/bin
     tar xvzf $src
     chmod +x *
+  '';
+
+  prePatch = lib.optionalString stdenv.isDarwin ''
+    set -x
+    install_name_tool -change /opt/homebrew/opt/libusb/lib/libusb-1.0.0.dylib "${pkgs.libusb1}/lib/libusb-1.0.0.dylib" "$out/bin/forge"
+    install_name_tool -change /opt/homebrew/opt/libusb/lib/libusb-1.0.0.dylib "${pkgs.libusb1}/lib/libusb-1.0.0.dylib" "$out/bin/cast"
   '';
 }
