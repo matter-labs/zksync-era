@@ -1,11 +1,13 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use zksync_config::configs::ExperimentalVmPlaygroundConfig;
 use zksync_dal::node::{PoolResource, ReplicaPool};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
-use zksync_object_store::node::ObjectStoreResource;
+use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
 use crate::{
@@ -37,9 +39,9 @@ impl VmPlaygroundLayer {
 pub struct Input {
     // We use a replica pool because VM playground doesn't write anything to the DB by design.
     pub replica_pool: PoolResource<ReplicaPool>,
-    pub dumps_object_store: Option<ObjectStoreResource>,
+    pub dumps_object_store: Option<Arc<dyn ObjectStore>>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -95,7 +97,7 @@ impl WiringLayer for VmPlaygroundLayer {
         };
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
-            dumps_object_store.map(|resource| resource.0),
+            dumps_object_store,
             self.config.fast_vm_mode,
             storage,
             self.zksync_network_id,
@@ -104,7 +106,6 @@ impl WiringLayer for VmPlaygroundLayer {
         .await?;
 
         app_health
-            .0
             .insert_component(playground.health_check())
             .map_err(WiringError::internal)?;
 

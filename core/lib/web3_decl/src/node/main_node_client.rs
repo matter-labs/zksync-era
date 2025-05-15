@@ -2,7 +2,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_health_check::{node::AppHealthCheckResource, CheckHealth, Health, HealthStatus};
+use zksync_health_check::{AppHealthCheck, CheckHealth, Health, HealthStatus};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -26,7 +26,7 @@ pub struct MainNodeClientLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -65,7 +65,6 @@ impl WiringLayer for MainNodeClientLayer {
         // Insert healthcheck
         input
             .app_health
-            .0
             .insert_custom_component(Arc::new(MainNodeHealthCheck::from(client.clone())))
             .map_err(WiringError::internal)?;
 

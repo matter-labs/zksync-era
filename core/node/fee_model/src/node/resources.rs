@@ -7,6 +7,7 @@ use crate::{
     BaseTokenRatioProvider, BatchFeeModelInputProvider, NoOpRatioProvider,
 };
 
+// FIXME(node): try removing (default)
 /// A resource that provides [`BaseTokenRatioProvider`] implementation to the service.
 #[derive(Debug, Clone)]
 pub struct BaseTokenRatioProviderResource(pub Arc<dyn BaseTokenRatioProvider>);
@@ -61,34 +62,14 @@ impl<T: BatchFeeModelInputProvider> From<Arc<T>> for ApiFeeInputResource {
     }
 }
 
-/// A resource that provides [`GasAdjuster`] to the service.
-#[derive(Debug, Clone)]
-pub struct GasAdjusterResource(pub Arc<GasAdjuster>);
-
-impl Resource for GasAdjusterResource {
+impl Resource for GasAdjuster {
     fn name() -> String {
         "common/gas_adjuster".into()
     }
 }
 
-impl From<Arc<GasAdjuster>> for GasAdjusterResource {
-    fn from(gas_adjuster: Arc<GasAdjuster>) -> Self {
-        Self(gas_adjuster)
-    }
-}
-
-/// A resource that provides [`TxParamsProvider`] implementation to the service.
-#[derive(Debug, Clone)]
-pub struct TxParamsResource(pub Arc<dyn TxParamsProvider>);
-
-impl Resource for TxParamsResource {
+impl Resource for dyn TxParamsProvider {
     fn name() -> String {
         "common/tx_params".into()
-    }
-}
-
-impl<T: TxParamsProvider> From<Arc<T>> for TxParamsResource {
-    fn from(provider: Arc<T>) -> Self {
-        Self(provider)
     }
 }

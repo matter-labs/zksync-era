@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -12,16 +14,16 @@ use crate::batch_status_updater::BatchStatusUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub pool: PoolResource<MasterPool>,
-    pub client: MainNodeClientResource,
+    pool: PoolResource<MasterPool>,
+    client: MainNodeClientResource,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub updater: BatchStatusUpdater,
+    updater: BatchStatusUpdater,
 }
 
 /// Wiring layer for `BatchStatusUpdater`, part of the external node.
@@ -48,7 +50,6 @@ impl WiringLayer for BatchStatusUpdaterLayer {
 
         // Insert healthcheck
         app_health
-            .0
             .insert_component(updater.health_check())
             .map_err(WiringError::internal)?;
 

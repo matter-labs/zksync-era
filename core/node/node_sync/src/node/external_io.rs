@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -26,7 +26,7 @@ pub struct ExternalIOLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
     pub pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
 }
@@ -57,8 +57,8 @@ impl WiringLayer for ExternalIOLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Create `SyncState` resource.
         let sync_state = SyncState::default();
-        let app_health = &input.app_health.0;
-        app_health
+        input
+            .app_health
             .insert_custom_component(Arc::new(sync_state.clone()))
             .map_err(WiringError::internal)?;
 

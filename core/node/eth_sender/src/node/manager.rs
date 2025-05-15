@@ -1,4 +1,6 @@
-use zksync_circuit_breaker::{l1_txs::FailedL1TransactionChecker, node::CircuitBreakersResource};
+use std::sync::Arc;
+
+use zksync_circuit_breaker::{l1_txs::FailedL1TransactionChecker, CircuitBreakers};
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::{
     node::{
@@ -6,8 +8,8 @@ use zksync_eth_client::{
     },
     BoundEthInterface,
 };
-use zksync_health_check::node::AppHealthCheckResource;
-use zksync_node_fee_model::node::GasAdjusterResource;
+use zksync_health_check::AppHealthCheck;
+use zksync_node_fee_model::l1_gas_price::GasAdjuster;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -44,12 +46,12 @@ pub struct Input {
     pub eth_client: Box<dyn BoundEthInterface>,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
-    pub gas_adjuster: GasAdjusterResource,
+    pub gas_adjuster: Arc<GasAdjuster>,
     pub sender_config: SenderConfigResource,
     #[context(default)]
-    pub circuit_breakers: CircuitBreakersResource,
+    pub circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -75,12 +77,11 @@ impl WiringLayer for EthTxManagerLayer {
         let eth_client = input.eth_client;
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let l2_client = input.eth_client_gateway.map(|c| c.0);
-        let gas_adjuster = input.gas_adjuster.0;
 
         let eth_tx_manager = EthTxManager::new(
             master_pool,
             input.sender_config.0,
-            gas_adjuster,
+            input.gas_adjuster,
             Some(eth_client),
             eth_client_blobs,
             l2_client,
@@ -89,13 +90,11 @@ impl WiringLayer for EthTxManagerLayer {
         // Insert circuit breaker.
         input
             .circuit_breakers
-            .breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
 
         input
             .app_health
-            .0
             .insert_component(eth_tx_manager.health_check())
             .map_err(WiringError::internal)?;
 

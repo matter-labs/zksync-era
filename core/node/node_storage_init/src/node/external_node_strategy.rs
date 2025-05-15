@@ -2,7 +2,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use zksync_block_reverter::node::BlockReverterResource;
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -30,7 +30,7 @@ pub struct Input {
     pub main_node_client: MainNodeClientResource,
     pub block_reverter: Option<BlockReverterResource>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -50,7 +50,6 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         let MainNodeClientResource(client) = input.main_node_client;
-        let AppHealthCheckResource(app_health) = input.app_health;
         let block_reverter = match input.block_reverter {
             Some(reverter) => {
                 // If reverter was provided, we intend to be its sole consumer.
@@ -80,7 +79,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
                     pool: recovery_pool,
                     max_concurrency: self.max_postgres_concurrency,
                     recovery_config,
-                    app_health,
+                    app_health: input.app_health,
                 });
                 Some(recovery)
             }

@@ -1,7 +1,7 @@
-use std::num::NonZero;
+use std::{num::NonZero, sync::Arc};
 
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -23,7 +23,7 @@ pub struct CommitmentGeneratorLayer {
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -62,7 +62,6 @@ impl WiringLayer for CommitmentGeneratorLayer {
 
         input
             .app_health
-            .0
             .insert_component(commitment_generator.health_check())
             .map_err(WiringError::internal)?;
 

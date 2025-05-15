@@ -11,7 +11,6 @@ use zksync_node_framework::{
 use zksync_shared_resources::PubdataSendingModeResource;
 use zksync_web3_decl::node::SettlementLayerClient;
 
-use super::resources::GasAdjusterResource;
 use crate::l1_gas_price::GasAdjuster;
 
 /// Wiring layer for sequencer L1 gas interfaces.
@@ -24,16 +23,16 @@ pub struct GasAdjusterLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub client: SettlementLayerClient,
-    pub pubdata_sending_mode: PubdataSendingModeResource,
+    client: SettlementLayerClient,
+    pubdata_sending_mode: PubdataSendingModeResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub gas_adjuster: GasAdjusterResource,
+    gas_adjuster: Arc<GasAdjuster>,
     /// Only runs if someone uses the resources listed above.
     #[context(task)]
-    pub gas_adjuster_task: GasAdjusterTask,
+    gas_adjuster_task: GasAdjusterTask,
 }
 
 impl GasAdjusterLayer {
@@ -71,7 +70,7 @@ impl WiringLayer for GasAdjusterLayer {
         let gas_adjuster = Arc::new(adjuster);
 
         Ok(Output {
-            gas_adjuster: gas_adjuster.clone().into(),
+            gas_adjuster: gas_adjuster.clone(),
             gas_adjuster_task: GasAdjusterTask { gas_adjuster },
         })
     }

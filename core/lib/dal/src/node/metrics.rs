@@ -6,7 +6,7 @@ use std::{
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::RwLock;
-use zksync_health_check::{node::AppHealthCheckResource, CheckHealth, Health, HealthStatus};
+use zksync_health_check::{AppHealthCheck, CheckHealth, Health, HealthStatus};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
@@ -30,7 +30,7 @@ pub struct PostgresMetricsLayer;
 pub struct Input {
     replica_pool: PoolResource<ReplicaPool>,
     #[context(default)]
-    app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -54,8 +54,8 @@ impl WiringLayer for PostgresMetricsLayer {
             pool_for_metrics: pool.clone(),
         };
 
-        let app_health = input.app_health.0;
-        app_health
+        input
+            .app_health
             .insert_custom_component(Arc::new(DatabaseHealthCheck {
                 polling_interval: TASK_EXECUTION_INTERVAL,
                 pool,

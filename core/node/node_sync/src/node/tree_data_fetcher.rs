@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{node::contracts::SettlementLayerContractsResource, EthInterface};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -22,7 +24,7 @@ pub struct Input {
     pub gateway_client: SettlementLayerClient,
     pub settlement_layer_contracts_resource: SettlementLayerContractsResource,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -66,7 +68,6 @@ impl WiringLayer for TreeDataFetcherLayer {
         // Insert healthcheck
         input
             .app_health
-            .0
             .insert_component(task.health_check())
             .map_err(WiringError::internal)?;
 

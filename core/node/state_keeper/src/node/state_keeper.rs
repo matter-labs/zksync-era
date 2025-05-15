@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
-use zksync_health_check::{node::AppHealthCheckResource, ReactiveHealthCheck};
+use zksync_health_check::{AppHealthCheck, ReactiveHealthCheck};
 use zksync_node_framework::{
     service::ShutdownHook, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
     WiringError, WiringLayer,
@@ -33,7 +33,7 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub shared_allow_list: Option<SharedAllowList>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -104,7 +104,6 @@ impl WiringLayer for StateKeeperLayer {
 
         input
             .app_health
-            .0
             .insert_component(state_keeper.health_check())
             .map_err(WiringError::internal)?;
 

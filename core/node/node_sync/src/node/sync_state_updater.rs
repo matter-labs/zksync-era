@@ -6,7 +6,7 @@ use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core, CoreDal,
 };
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -30,7 +30,7 @@ pub struct SyncStateUpdaterLayer;
 pub struct Input {
     /// Fetched to check whether the `SyncState` was already provided by another layer.
     pub sync_state: Option<SyncState>,
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
     pub master_pool: PoolResource<MasterPool>,
     pub main_node_client: MainNodeClientResource,
 }
@@ -71,8 +71,8 @@ impl WiringLayer for SyncStateUpdaterLayer {
         let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let sync_state = SyncState::default();
-        let app_health = &input.app_health.0;
-        app_health
+        input
+            .app_health
             .insert_custom_component(Arc::new(sync_state.clone()))
             .map_err(WiringError::internal)?;
 

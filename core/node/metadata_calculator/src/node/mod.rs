@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use zksync_node_framework::Resource;
 
 pub use self::{
@@ -12,18 +10,8 @@ mod calculator;
 mod tree_api_client;
 mod tree_api_server;
 
-/// A resource that provides [`TreeApiClient`] implementation to the service.
-#[derive(Debug, Clone)]
-pub struct TreeApiClientResource(pub Arc<dyn TreeApiClient>);
-
-impl Resource for TreeApiClientResource {
+impl Resource for dyn TreeApiClient {
     fn name() -> String {
         "api/tree_api_client".into()
-    }
-}
-
-impl<T: TreeApiClient> From<Arc<T>> for TreeApiClientResource {
-    fn from(client: Arc<T>) -> Self {
-        Self(client)
     }
 }

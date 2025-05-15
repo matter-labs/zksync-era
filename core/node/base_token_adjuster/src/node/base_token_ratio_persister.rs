@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use zksync_config::configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets};
 use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_dal::node::{MasterPool, PoolResource};
@@ -6,7 +8,7 @@ use zksync_eth_client::{
     node::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
     web3_decl::client::{DynClient, L1},
 };
-use zksync_node_fee_model::node::TxParamsResource;
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -35,7 +37,7 @@ pub struct Input {
     #[context(default)]
     pub price_api_client: PriceAPIClientResource,
     pub eth_client: Box<DynClient<L1>>,
-    pub tx_params: TxParamsResource,
+    pub tx_params: Arc<dyn TxParamsProvider>,
     pub l1_contracts: L1ChainContractsResource,
     pub l1_ecosystem_contracts: L1EcosystemContractsResource,
 }
@@ -97,7 +99,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                 BaseTokenL1Behaviour::UpdateOnL1 {
                     params: UpdateOnL1Params {
                         eth_client: Box::new(signing_client),
-                        gas_adjuster: input.tx_params.0,
+                        gas_adjuster: input.tx_params,
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),

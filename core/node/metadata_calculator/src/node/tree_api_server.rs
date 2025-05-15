@@ -9,7 +9,7 @@ use zksync_node_framework::{
 };
 
 use crate::{
-    node::TreeApiClientResource, LazyAsyncTreeReader, MerkleTreeReaderConfig, TreeReaderTask,
+    api_server::TreeApiClient, LazyAsyncTreeReader, MerkleTreeReaderConfig, TreeReaderTask,
 };
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ impl TreeApiServerLayer {
 
 #[derive(Debug, IntoContext)]
 pub struct TreeApiServerOutput {
-    tree_api_client: TreeApiClientResource,
+    tree_api_client: Arc<dyn TreeApiClient>,
     #[context(task)]
     tree_reader_task: TreeReaderTask,
     #[context(task)]
@@ -76,7 +76,7 @@ impl WiringLayer for TreeApiServerLayer {
             tree_reader: tree_reader_task.tree_reader(),
         };
         Ok(TreeApiServerOutput {
-            tree_api_client: TreeApiClientResource(Arc::new(tree_reader_task.tree_reader())),
+            tree_api_client: Arc::new(tree_reader_task.tree_reader()),
             tree_api_task,
             tree_reader_task,
         })

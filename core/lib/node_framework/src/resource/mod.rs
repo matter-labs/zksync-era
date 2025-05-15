@@ -1,4 +1,4 @@
-use std::{any::TypeId, fmt};
+use std::{any::TypeId, fmt, sync::Arc};
 
 pub use self::{resource_id::ResourceId, unique::Unique};
 
@@ -36,14 +36,15 @@ mod unique;
 /// }
 /// ```
 pub trait Resource: 'static + Send + Sync + std::any::Any {
-    /// Invoked after the wiring phase of the service is done.
-    /// Can be used to perform additional resource preparation, knowing that the resource
-    /// is guaranteed to be requested by all the tasks that need it.
-    fn on_resource_wired(&mut self) {}
-
     /// Returns the name of the resource.
     /// Used for logging purposes.
     fn name() -> String;
+}
+
+impl<T: Resource + ?Sized> Resource for Arc<T> {
+    fn name() -> String {
+        T::name()
+    }
 }
 
 /// Internal, object-safe version of [`Resource`].
@@ -54,9 +55,6 @@ pub trait Resource: 'static + Send + Sync + std::any::Any {
 pub(crate) trait StoredResource: 'static + std::any::Any + Send + Sync {
     /// An object-safe version of [`Resource::name`].
     fn stored_resource_id(&self) -> ResourceId;
-
-    /// An object-safe version of [`Resource::on_resource_wired`].
-    fn stored_resource_wired(&mut self);
 }
 
 impl fmt::Debug for dyn StoredResource {
@@ -70,10 +68,6 @@ impl fmt::Debug for dyn StoredResource {
 impl<T: Resource> StoredResource for T {
     fn stored_resource_id(&self) -> ResourceId {
         ResourceId::of::<T>()
-    }
-
-    fn stored_resource_wired(&mut self) {
-        Resource::on_resource_wired(self);
     }
 }
 

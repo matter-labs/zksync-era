@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use zksync_health_check::{node::AppHealthCheckResource, AppHealthCheck};
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::ServiceContext, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
     WiringError, WiringLayer,
@@ -96,7 +96,7 @@ struct AppHealthHijackLayer {
 #[derive(Debug, FromContext)]
 struct AppHealthHijackInput {
     #[context(default)]
-    app_health_check: AppHealthCheckResource,
+    app_health_check: Arc<AppHealthCheck>,
 }
 
 #[async_trait::async_trait]
@@ -109,7 +109,7 @@ impl WiringLayer for AppHealthHijackLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        self.sender.send(input.app_health_check.0).unwrap();
+        self.sender.send(input.app_health_check).unwrap();
         Ok(())
     }
 }
@@ -174,7 +174,7 @@ impl WiringLayer for MockSettlementLayerClientLayer {
         SettlementLayerClientLayer::new("https://example.com".parse().unwrap(), None).layer_name()
     }
 
-    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
         Ok(SettlementLayerClient::L1(Box::new(self.client)))
     }
 }

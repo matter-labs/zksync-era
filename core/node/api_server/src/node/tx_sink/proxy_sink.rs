@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
@@ -7,9 +9,9 @@ use zksync_node_framework::{
 };
 use zksync_web3_decl::node::MainNodeClientResource;
 
-use crate::{
-    node::TxSinkResource,
-    tx_sender::proxy::{AccountNonceSweeperTask, TxProxy},
+use crate::tx_sender::{
+    proxy::{AccountNonceSweeperTask, TxProxy},
+    tx_sink::TxSink,
 };
 
 /// Wiring layer for [`TxProxy`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
@@ -24,7 +26,7 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub tx_sink: TxSinkResource,
+    pub tx_sink: Arc<dyn TxSink>,
     #[context(task)]
     pub account_nonce_sweeper_task: AccountNonceSweeperTask,
 }
@@ -46,7 +48,7 @@ impl WiringLayer for ProxySinkLayer {
         let task = proxy.account_nonce_sweeper_task(pool);
 
         Ok(Output {
-            tx_sink: proxy.into(),
+            tx_sink: Arc::new(proxy),
             account_nonce_sweeper_task: task,
         })
     }

@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -21,7 +23,7 @@ pub struct Input {
     main_node_client: MainNodeClientResource,
     da_client: Box<dyn DataAvailabilityClient>,
     #[context(default)]
-    app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -49,7 +51,6 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
         // Insert healthcheck
         input
             .app_health
-            .0
             .insert_component(task.health_check())
             .map_err(WiringError::internal)?;
 
