@@ -115,7 +115,9 @@ impl ArtifactsManager for LeafAggregation {
                 protocol_version_id,
                 batch_sealed_at,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert prover jobs: {}", e))?;
+
         tracing::info!(
             "Updating node aggregation jobs url for job_id {}, block {} with circuit id {}",
             job_id,
@@ -131,7 +133,9 @@ impl ArtifactsManager for LeafAggregation {
                 0,
                 blob_urls.aggregation_urls,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to update node aggregation jobs url: {}", e))?;
+
         tracing::info!(
             "Marking leaf aggregation job as successful for job id {}, block {} with circuit id {}",
             job_id,
@@ -145,7 +149,10 @@ impl ArtifactsManager for LeafAggregation {
                 job_id.chain_id(),
                 started_at.elapsed(),
             )
-            .await;
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to mark leaf aggregation job as successful: {}", e)
+            })?;
 
         tracing::info!(
             "Committing transaction for job_id {}, block {} with circuit id {}",

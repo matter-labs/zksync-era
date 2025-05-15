@@ -171,7 +171,8 @@ async fn insert_prover_job(
             ProtocolSemanticVersion::default(),
             DateTime::<Utc>::default(),
         )
-        .await;
+        .await
+        .unwrap();
     connection
         .cli_test_dal()
         .update_prover_job(
@@ -237,7 +238,8 @@ async fn insert_bwg_job(
     connection
         .fri_basic_witness_generator_dal()
         .set_status_for_basic_witness_job(status, L1BatchId::new(L2ChainId::zero(), batch_number))
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn insert_lwg_job(
