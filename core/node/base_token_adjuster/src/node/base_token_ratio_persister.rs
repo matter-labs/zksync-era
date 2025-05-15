@@ -8,6 +8,7 @@ use zksync_eth_client::{
     node::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
     web3_decl::client::{DynClient, L1},
 };
+use zksync_external_price_api::{NoOpPriceApiClient, PriceApiClient};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -17,7 +18,6 @@ use zksync_node_framework::{
 };
 use zksync_types::L1ChainId;
 
-use super::resources::PriceAPIClientResource;
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 
 /// Wiring layer for `BaseTokenRatioPersister`
@@ -34,8 +34,7 @@ pub struct BaseTokenRatioPersisterLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
-    #[context(default)]
-    pub price_api_client: PriceAPIClientResource,
+    pub price_api_client: Option<Arc<dyn PriceApiClient>>,
     pub eth_client: Box<DynClient<L1>>,
     pub tx_params: Arc<dyn TxParamsProvider>,
     pub l1_contracts: L1ChainContractsResource,
@@ -74,7 +73,9 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool.get().await?;
 
-        let price_api_client = input.price_api_client;
+        let price_api_client = input
+            .price_api_client
+            .unwrap_or_else(|| Arc::new(NoOpPriceApiClient));
         let base_token_addr = input.l1_ecosystem_contracts.0.base_token_address;
 
         let l1_behaviour = self
@@ -116,7 +117,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             master_pool,
             self.config,
             base_token_addr,
-            price_api_client.0,
+            price_api_client,
             l1_behaviour,
         );
 

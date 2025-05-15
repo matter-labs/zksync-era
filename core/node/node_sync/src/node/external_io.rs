@@ -9,10 +9,9 @@ use zksync_node_framework::{
 };
 use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
-    node::{StateKeeperIOResource},
-    seal_criteria::NoopSealer,
+    node::StateKeeperIOResource,
+    seal_criteria::{ConditionalSealer, NoopSealer},
 };
-use zksync_state_keeper::seal_criteria::ConditionalSealer;
 use zksync_types::L2ChainId;
 use zksync_web3_decl::node::MainNodeClientResource;
 

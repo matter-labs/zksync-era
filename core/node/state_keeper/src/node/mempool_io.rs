@@ -1,4 +1,5 @@
 use std::sync::Arc;
+
 use anyhow::Context as _;
 use zksync_config::configs::{
     chain::{MempoolConfig, StateKeeperConfig},
@@ -15,9 +16,10 @@ use zksync_node_framework::{
 use zksync_shared_resources::contracts::{L2ContractsResource, SettlementLayerContractsResource};
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
-use super::resources::{StateKeeperIOResource};
-use crate::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
-use crate::seal_criteria::ConditionalSealer;
+use super::resources::StateKeeperIOResource;
+use crate::{
+    seal_criteria::ConditionalSealer, MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
+};
 
 /// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
 ///

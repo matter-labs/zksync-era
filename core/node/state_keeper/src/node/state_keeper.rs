@@ -11,11 +11,8 @@ use zksync_state::{AsyncCatchupTask, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
-use super::resources::{
-    BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource,
-};
-use crate::{AsyncRocksdbCache, ZkSyncStateKeeper};
-use crate::seal_criteria::ConditionalSealer;
+use super::resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource};
+use crate::{seal_criteria::ConditionalSealer, AsyncRocksdbCache, ZkSyncStateKeeper};
 
 /// Wiring layer for the state keeper.
 #[derive(Debug)]

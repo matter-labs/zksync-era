@@ -6,14 +6,14 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::fee_model::{FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2};
-
-use super::resources::{
-    ApiFeeInputResource, BaseTokenRatioProviderResource, SequencerFeeInputResource,
+use zksync_types::fee_model::{
+    BaseTokenConversionRatio, FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2,
 };
+
+use super::resources::{ApiFeeInputResource, SequencerFeeInputResource};
 use crate::{
     l1_gas_price::{GasAdjuster, TxParamsProvider},
-    ApiFeeInputProvider, MainNodeFeeInputProvider,
+    ApiFeeInputProvider, BaseTokenRatioProvider, MainNodeFeeInputProvider,
 };
 
 /// Wiring layer for L1 gas interfaces.
@@ -28,8 +28,7 @@ pub struct Input {
     gas_adjuster: Arc<GasAdjuster>,
     replica_pool: PoolResource<ReplicaPool>,
     /// If not provided, the base token assumed to be ETH, and the ratio will be constant.
-    #[context(default)]
-    base_token_ratio_provider: BaseTokenRatioProviderResource,
+    base_token_ratio_provider: Option<Arc<dyn BaseTokenRatioProvider>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -73,11 +72,13 @@ impl WiringLayer for L1GasLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let ratio_provider = input.base_token_ratio_provider;
+        let ratio_provider = input
+            .base_token_ratio_provider
+            .unwrap_or_else(|| Arc::<BaseTokenConversionRatio>::default());
 
         let main_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             input.gas_adjuster.clone(),
-            ratio_provider.0,
+            ratio_provider,
             self.fee_model_config,
         ));
 

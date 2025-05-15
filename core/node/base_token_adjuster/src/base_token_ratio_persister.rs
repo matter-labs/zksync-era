@@ -4,8 +4,8 @@ use anyhow::Context as _;
 use tokio::{sync::watch, time::sleep};
 use zksync_config::configs::base_token_adjuster::BaseTokenAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_external_price_api::PriceAPIClient;
-use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
+use zksync_external_price_api::PriceApiClient;
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
 use crate::{
     base_token_l1_behaviour::BaseTokenL1Behaviour,
@@ -17,7 +17,7 @@ pub struct BaseTokenRatioPersister {
     pool: ConnectionPool<Core>,
     config: BaseTokenAdjusterConfig,
     base_token_address: Address,
-    price_api_client: Arc<dyn PriceAPIClient>,
+    price_api_client: Arc<dyn PriceApiClient>,
     l1_behaviour: BaseTokenL1Behaviour,
 }
 
@@ -27,7 +27,7 @@ impl BaseTokenRatioPersister {
         pool: ConnectionPool<Core>,
         config: BaseTokenAdjusterConfig,
         base_token_address: Address,
-        price_api_client: Arc<dyn PriceAPIClient>,
+        price_api_client: Arc<dyn PriceApiClient>,
         l1_behaviour: BaseTokenL1Behaviour,
     ) -> Self {
         Self {
@@ -73,7 +73,7 @@ impl BaseTokenRatioPersister {
         self.l1_behaviour.update_l1(new_ratio).await
     }
 
-    async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
+    async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenApiRatio> {
         let sleep_duration = self.config.price_fetching_sleep_duration();
         let max_retries = self.config.price_fetching_max_attempts;
         let mut last_error = None;
@@ -117,7 +117,7 @@ impl BaseTokenRatioPersister {
             .unwrap_or_else(|| anyhow::anyhow!(error_message)))
     }
 
-    async fn persist_ratio(&self, api_ratio: BaseTokenAPIRatio) -> anyhow::Result<usize> {
+    async fn persist_ratio(&self, api_ratio: BaseTokenApiRatio) -> anyhow::Result<usize> {
         let mut conn = self
             .pool
             .connection_tagged("base_token_ratio_persister")

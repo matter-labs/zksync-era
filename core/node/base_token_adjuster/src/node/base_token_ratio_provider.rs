@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_config::BaseTokenAdjusterConfig;
 use zksync_dal::node::{PoolResource, ReplicaPool};
-use zksync_node_fee_model::node::BaseTokenRatioProviderResource;
+use zksync_node_fee_model::BaseTokenRatioProvider;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -38,7 +38,7 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub ratio_provider: BaseTokenRatioProviderResource,
+    pub ratio_provider: Arc<dyn BaseTokenRatioProvider>,
     #[context(task)]
     pub ratio_provider_task: DBBaseTokenRatioProvider,
 }
@@ -58,7 +58,7 @@ impl WiringLayer for BaseTokenRatioProviderLayer {
         let ratio_provider = DBBaseTokenRatioProvider::new(replica_pool, self.config).await?;
         // Cloning the provided preserves the internal state.
         Ok(Output {
-            ratio_provider: Arc::new(ratio_provider.clone()).into(),
+            ratio_provider: Arc::new(ratio_provider.clone()),
             ratio_provider_task: ratio_provider,
         })
     }

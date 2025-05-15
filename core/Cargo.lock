@@ -12654,6 +12654,7 @@ dependencies = [
  "tracing",
  "url",
  "zksync_config",
+ "zksync_node_framework",
  "zksync_types",
 ]
 
