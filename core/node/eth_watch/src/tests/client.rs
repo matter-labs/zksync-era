@@ -8,6 +8,7 @@ use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
     abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     api::{ChainAggProof, Log},
+    block::BatchOrBlockNumber,
     bytecode::BytecodeHash,
     ethabi::{self, Token},
     l1::L1Tx,
@@ -29,7 +30,7 @@ pub struct FakeEthClientData {
     last_finalized_block_number: u64,
     chain_id: SLChainId,
     processed_priority_transactions_count: u64,
-    chain_log_proofs: HashMap<L1BatchNumber, ChainAggProof>,
+    chain_log_proofs: HashMap<BatchOrBlockNumber, ChainAggProof>,
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
     bytecode_preimages: HashMap<H256, Vec<u8>>,
@@ -99,7 +100,7 @@ impl FakeEthClientData {
         }
     }
 
-    fn add_chain_log_proofs(&mut self, chain_log_proofs: Vec<(L1BatchNumber, ChainAggProof)>) {
+    fn add_chain_log_proofs(&mut self, chain_log_proofs: Vec<(BatchOrBlockNumber, ChainAggProof)>) {
         for (batch, proof) in chain_log_proofs {
             self.chain_log_proofs.insert(batch, proof);
         }
@@ -177,7 +178,7 @@ impl MockEthClient {
 
     pub async fn add_chain_log_proofs(
         &mut self,
-        chain_log_proofs: Vec<(L1BatchNumber, ChainAggProof)>,
+        chain_log_proofs: Vec<(BatchOrBlockNumber, ChainAggProof)>,
     ) {
         self.inner
             .write()
@@ -341,7 +342,7 @@ impl ZkSyncExtentionEthClient for MockEthClient {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         _chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         Ok(self
@@ -349,7 +350,7 @@ impl ZkSyncExtentionEthClient for MockEthClient {
             .read()
             .await
             .chain_log_proofs
-            .get(&l1_batch_number)
+            .get(&batch_or_block_number)
             .cloned())
     }
 

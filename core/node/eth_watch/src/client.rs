@@ -14,6 +14,7 @@ use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
+    block::BatchOrBlockNumber,
     ethabi::{decode, Contract, ParamType},
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
@@ -577,7 +578,7 @@ pub trait ZkSyncExtentionEthClient: EthClient {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>>;
 
@@ -596,7 +597,7 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
 
     async fn get_chain_log_proof(
         &self,
-        _l1_batch_number: L1BatchNumber,
+        _batch_or_block_number: BatchOrBlockNumber,
         _chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         //TODO(EVM-959): Implement it using l1 contracts
@@ -626,11 +627,11 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         self.client
-            .get_chain_log_proof(l1_batch_number, chain_id)
+            .get_chain_log_proof(batch_or_block_number, chain_id)
             .await
             .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))
     }
