@@ -20,7 +20,12 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync", "time"] }
 tracing.workspace = true
+zksync_node_framework = { workspace = true, optional = true }
 
 [dev-dependencies]
 assert_matches.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework"]

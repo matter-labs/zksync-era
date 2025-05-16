@@ -1,5 +1,30 @@
 # Changelog
 
+## [28.2.1](https://github.com/matter-labs/zksync-era/compare/core-v28.2.0...core-v28.2.1) (2025-05-15)
+
+
+### Bug Fixes
+
+* **api:** Add safe status ([#4005](https://github.com/matter-labs/zksync-era/issues/4005)) ([b71c167](https://github.com/matter-labs/zksync-era/commit/b71c167919601a2a1fb06284834abb8ad4cc94e7))
+* **vm:** update deps ([#4019](https://github.com/matter-labs/zksync-era/issues/4019)) ([2b51c6d](https://github.com/matter-labs/zksync-era/commit/2b51c6df08b45cc41fd6b4d930c31670d004a93d))
+
+
+### Performance Improvements
+
+* **db:** Break loading storage logs for recovery into smaller chunks ([#3947](https://github.com/matter-labs/zksync-era/issues/3947)) ([91772a4](https://github.com/matter-labs/zksync-era/commit/91772a48aa48a7fd4d148072f51d8ada4fc8782c))
+
+## [28.2.0](https://github.com/matter-labs/zksync-era/compare/core-v28.1.0...core-v28.2.0) (2025-05-12)
+
+
+### Features
+
+* bump rustc to `nightly-2025-03-19` ([#3985](https://github.com/matter-labs/zksync-era/issues/3985)) ([d27390e](https://github.com/matter-labs/zksync-era/commit/d27390e14a586de7dccb974a0cb54352de3536b3))
+
+
+### Bug Fixes
+
+* **da:** gas relay check_finality ([#3994](https://github.com/matter-labs/zksync-era/issues/3994)) ([a664787](https://github.com/matter-labs/zksync-era/commit/a66478756d96dcd497fabaf62f08aab4ff345342))
+
 ## [28.1.0](https://github.com/matter-labs/zksync-era/compare/core-v28.0.0...core-v28.1.0) (2025-05-08)
 
 

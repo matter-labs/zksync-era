@@ -17,6 +17,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{CheckHealth, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::ObjectStore;
 use zksync_shared_metrics::tree::METRICS;
+use zksync_types::try_stoppable;
 
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth, MerkleTreeHealthCheck},
@@ -33,6 +34,7 @@ use crate::helpers::create_readonly_db;
 pub mod api_server;
 mod helpers;
 mod metrics;
+pub mod node;
 mod pruning;
 mod recovery;
 mod repair;
@@ -232,24 +234,24 @@ impl MetadataCalculator {
 
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let tree = self.create_tree().await?;
-        let tree = tree
-            .ensure_ready(
+        let mut tree = try_stoppable!(
+            tree.ensure_ready(
                 &self.config.recovery,
                 &self.pool,
                 self.recovery_pool,
                 &self.health_updater,
                 &stop_receiver,
             )
-            .await?;
-        let Some(mut tree) = tree else {
-            return Ok(()); // recovery was aborted because a stop signal was received
-        };
+            .await
+        );
         // Set a tree reader before the tree is fully initialized to not wait for the first L1 batch to appear in Postgres.
         let tree_reader = tree.reader();
         self.tree_reader.send_replace(Some(tree_reader));
 
-        tree.ensure_consistency(&self.delayer, &self.pool, &mut stop_receiver)
-            .await?;
+        try_stoppable!(
+            tree.ensure_consistency(&self.delayer, &self.pool, &mut stop_receiver)
+                .await
+        );
         if !self.pruning_handles_sender.is_closed() {
             // Unlike tree reader, we shouldn't initialize pruning (as a task modifying the tree) before the tree is guaranteed
             // to be consistent with Postgres.

@@ -11,11 +11,13 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_dal.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_node_framework.workspace = true
 zksync_types.workspace = true
 
-tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 
 [dev-dependencies]

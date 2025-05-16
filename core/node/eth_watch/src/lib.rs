@@ -30,6 +30,7 @@ use crate::event_processors::{
 mod client;
 mod event_processors;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -187,7 +188,7 @@ impl EthWatch {
             }
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop request received, eth_watch is shutting down");
         Ok(())
     }
 
