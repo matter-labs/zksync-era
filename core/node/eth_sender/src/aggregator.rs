@@ -111,8 +111,6 @@ impl OperationSkippingRestrictions {
             .then_some(AggregatedOperation::L1Batch(op))
     }
 
-    // Unlike other funcitons `filter_commit_op` accepts an already prepared `AggregatedOperation` for
-    // easier compatibility with other interfaces in the file.
     fn filter_precommit_op(
         &self,
         precommit_op: Option<L2BlockAggregatedOperation>,
@@ -120,8 +118,10 @@ impl OperationSkippingRestrictions {
         let precommit_op = precommit_op?;
         if let Some(reason) = self.precommit_restriction {
             tracing::info!(
-                "Skipping sending operation of type {} for {}",
+                "Skipping sending operation of type {} for blocks {}-{} since {}",
                 precommit_op.get_action_type(),
+                precommit_op.l2_blocks_range().start(),
+                precommit_op.l2_blocks_range().end(),
                 reason
             );
             None
@@ -275,15 +275,8 @@ impl Aggregator {
         ) {
             Ok(Some(op))
         } else if let Some(params) = &self.precommit_params {
-            let result = if let Some(op) = restrictions
-                .filter_precommit_op(self.get_precommit_operation(storage, *params).await?)
-            {
-                Ok(Some(op))
-            } else {
-                Ok(None)
-            };
-            self.set_final_precommit_operation(storage).await?;
-            result
+            Ok(restrictions
+                .filter_precommit_op(self.get_precommit_operation(storage, *params).await?))
         } else {
             Ok(None)
         }
@@ -349,7 +342,7 @@ impl Aggregator {
         // before sending the commit tx. If all batches were committed and we have only open batch,
         // we have to start committing the txs from it (last_sealed_l1_batch == last_committed_l1_batch).
         // If we have no committed  batches, we need to precommit the txs from the first batch.
-        let (actual_number, desired_number_for_db) =
+        let (actual_batch_number, desired_batch_number_for_db) =
             match (last_sealed_l1_batch, last_committed_l1_batch) {
                 (None, _) => return Ok(None),
                 (Some(last_sealed_l1_batch), Some(last_committed_l1_batch))
@@ -366,7 +359,7 @@ impl Aggregator {
 
         let txs = storage
             .blocks_dal()
-            .get_ready_rolling_txs_hashes(desired_number_for_db)
+            .get_ready_for_precommit_txs(desired_batch_number_for_db)
             .await
             .unwrap();
 
@@ -374,13 +367,13 @@ impl Aggregator {
             return Ok(None);
         }
 
-        // checked that we have at least one tx
+        // Vec of txs is not empty, so we can unwrap it
         let first_tx = txs.first().unwrap();
         let last_tx = txs.last().unwrap();
 
         // We can skip precommit if we are sending the precommit for not sealed batch and do some batching.
         // If the batch already sealed we have to send it as soon as possible
-        if desired_number_for_db.is_none() {
+        if desired_batch_number_for_db.is_none() {
             // We need to check that the first and last L2 blocks are in the same batch
 
             let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
@@ -393,7 +386,7 @@ impl Aggregator {
         }
 
         Ok(Some(L2BlockAggregatedOperation::Precommit {
-            l1_batch: actual_number,
+            l1_batch: actual_batch_number,
             first_l2_block: first_tx.l2block_number,
             last_l2_block: last_tx.l2block_number,
             txs: txs

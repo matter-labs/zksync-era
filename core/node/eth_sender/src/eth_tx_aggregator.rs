@@ -700,6 +700,12 @@ impl EthTxAggregator {
                 .into(),
             );
         }
+
+        if self.config.precommit_params.is_some() {
+            // If we are using precommit operations,
+            // we need to set the final precommit operation for l1 batches
+            self.set_final_precommit_operation(storage).await?;
+        }
         Ok(())
     }
 
@@ -913,10 +919,11 @@ impl EthTxAggregator {
             .await?;
 
         let eth_tx_predicted_gas = match aggregated_op {
-            AggregatedOperation::L2Block(_) => {
-                // TODO calculate it properly
-                1_000_000
-            }
+            AggregatedOperation::L2Block(op) => match op {
+                L2BlockAggregatedOperation::Precommit { txs, .. } => {
+                    L1GasCriterion::total_precommit_gas_amount(is_gateway, txs.len())
+                }
+            },
             AggregatedOperation::L1Batch(agg_op) => {
                 let l1_batch_number_range = agg_op.l1_batch_range();
                 match agg_op.get_action_type() {

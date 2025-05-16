@@ -581,7 +581,8 @@ impl BlocksDal<'_, '_> {
                 LIMIT 2
             ) miniblocks ON TRUE
             WHERE
-                l1_batches.is_sealed
+                l1_batches.number > 0
+                AND l1_batches.is_sealed
                 AND l1_batches.eth_commit_tx_id IS NULL
                 AND l1_batches.final_precommit_eth_tx_id IS NULL
             ORDER BY l1_batches.number, miniblocks.number DESC;
@@ -602,10 +603,6 @@ impl BlocksDal<'_, '_> {
         }
 
         for (batch_number, miniblocks) in miniblocks_by_batch {
-            if miniblocks.len() < 2 {
-                continue;
-            }
-
             assert_eq!(
                 miniblocks.len(),
                 2,
@@ -883,11 +880,13 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_ready_rolling_txs_hashes(
+    pub async fn get_ready_for_precommit_txs(
         &mut self,
         l1_batch_number: Option<L1BatchNumber>,
     ) -> DalResult<Vec<TxForPrecommit>> {
         let mut tx = self.storage.start_transaction().await?;
+        // Miniblocks belongs to the non sealed batches don't have batch number,
+        // so for the pending batch we use None
 
         let txs = sqlx::query!(
             r#"
@@ -911,7 +910,7 @@ impl BlocksDal<'_, '_> {
             l1_batch_number.map(|l1| i64::from(l1.0)),
             l1_batch_number.is_none(),
         )
-        .instrument("get_ready_rolling_txs_hashes")
+        .instrument("get_ready_for_precommit_txs")
         .report_latency()
         .fetch_all(&mut tx)
         .await?
@@ -2151,11 +2150,9 @@ impl BlocksDal<'_, '_> {
         bootloader_hash: H256,
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
-
         with_da_inclusion_info: bool,
         send_precommit_txs: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        // TODO use send_precommit_txs flag to filter out batches that are not ready for precommit txs
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
             r#"

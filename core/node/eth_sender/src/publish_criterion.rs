@@ -163,6 +163,11 @@ impl L1GasCriterion {
         total
     }
 
+    pub async fn total_precommit_gas_amount(is_gateway: bool, txs_len: usize) -> u64 {
+        let costs = GasConsts::precommit_costs(is_gateway);
+        costs.base + costs.per_tx * txs_len as u64
+    }
+
     pub fn total_proof_gas_amount(is_gateway: bool) -> u64 {
         GasConsts::proof_costs(is_gateway)
     }
@@ -276,6 +281,12 @@ struct ExecuteCosts {
     per_l1_l2_tx: u64,
 }
 
+#[derive(Debug)]
+struct PrecommitCosts {
+    base: u64,
+    per_tx: u64,
+}
+
 impl GasConsts {
     /// Base gas cost of processing aggregated `Execute` operation.
     /// It's applicable iff SL is Ethereum.
@@ -343,6 +354,21 @@ impl GasConsts {
             Self::GATEWAY_BATCH_PROOF_GAS_COST
         } else {
             Self::L1_BATCH_PROOF_GAS_COST_ETHEREUM
+        }
+    }
+
+    fn precommit_costs(is_gateway: bool) -> PrecommitCosts {
+        // TODO calculate it properly
+        if is_gateway {
+            PrecommitCosts {
+                base: 300000,
+                per_tx: 10000,
+            }
+        } else {
+            PrecommitCosts {
+                base: 300000,
+                per_tx: 10000,
+            }
         }
     }
 

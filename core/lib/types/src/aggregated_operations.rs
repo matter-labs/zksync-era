@@ -23,7 +23,7 @@ pub enum AggregatedActionType {
 impl L2BlockAggregatedActionType {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Precommit => "PreCommit",
+            Self::Precommit => "Precommit",
         }
     }
 }
@@ -72,7 +72,7 @@ impl FromStr for L2BlockAggregatedActionType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "PreCommit" => Ok(Self::Precommit),
+            "Precommit" => Ok(Self::Precommit),
             _ => Err(
                 "Incorrect aggregated action type; expected one of `CommitBlocks`, `PublishProofBlocksOnchain`, \
                 `ExecuteBlocks`",
