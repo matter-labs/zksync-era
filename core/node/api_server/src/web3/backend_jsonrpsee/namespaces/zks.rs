@@ -172,6 +172,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    #[allow(deprecated)]
     async fn get_protocol_version(
         &self,
         version_id: Option<u16>,
