@@ -271,7 +271,10 @@ pub struct MigrateToGatewayCalldataArgs {
     pub validator_1: Address,
     #[clap(long)]
     pub validator_2: Address,
-    #[clap(long)]
+    #[clap(
+        long,
+        help = "The minimal expected validator balance. MUST BE HEX-ENCODED"
+    )]
     pub min_validator_balance: U256,
     #[clap(long)]
     pub refund_recipient: Option<Address>,
