@@ -235,10 +235,7 @@ pub struct DeploymentAllowlistDynamic {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{
-        testing::{test, test_complete},
-        Environment, Yaml,
-    };
+    use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
 
@@ -309,7 +306,7 @@ mod tests {
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
             .strip_prefix("CHAIN_STATE_KEEPER_");
-        let config: StateKeeperConfig = test(env).unwrap();
+        let config: StateKeeperConfig = test_complete(env).unwrap();
         assert_eq!(config, expected_state_keeper_config());
     }
 
@@ -347,7 +344,7 @@ mod tests {
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: StateKeeperConfig = test(yaml).unwrap();
+        let config: StateKeeperConfig = test_complete(yaml).unwrap();
         assert_eq!(config, expected_state_keeper_config());
     }
 

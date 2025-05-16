@@ -128,10 +128,7 @@ impl Wallets {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{
-        testing::{test, test_complete},
-        Yaml,
-    };
+    use smart_config::{testing::test_complete, Yaml};
 
     use super::*;
 
@@ -189,7 +186,7 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let err = test::<Wallets>(yaml).unwrap_err();
+        let err = test_complete::<Wallets>(yaml).unwrap_err();
         assert_eq!(err.len(), 1, "{err}");
         let err = err.first().inner().to_string();
         assert!(err.contains("Malformed wallet"), "{err}");

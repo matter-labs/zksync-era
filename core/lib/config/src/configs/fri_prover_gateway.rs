@@ -37,10 +37,7 @@ impl WellKnown for ApiMode {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{
-        testing::{test, test_complete},
-        Environment, Yaml,
-    };
+    use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
 
@@ -81,7 +78,7 @@ mod tests {
           prometheus_listener_port: 3316
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: FriProverGatewayConfig = test(yaml).unwrap();
+        let config: FriProverGatewayConfig = test_complete(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
 }

@@ -8,10 +8,7 @@ pub struct ExternalProofIntegrationApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{
-        testing::{test, test_complete},
-        Environment, Yaml,
-    };
+    use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
 
@@ -38,7 +35,7 @@ mod tests {
           http_port: 3320
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: ExternalProofIntegrationApiConfig = test(yaml).unwrap();
+        let config: ExternalProofIntegrationApiConfig = test_complete(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
 }

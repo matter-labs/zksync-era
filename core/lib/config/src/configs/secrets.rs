@@ -33,7 +33,7 @@ pub struct L1Secrets {
     #[config(alias = "web3_url", secret, with = Optional(Serde![str]))]
     pub l1_rpc_url: Option<SensitiveUrl>,
     /// RPC URL for the gateway layer.
-    #[config(secret, with = Optional(Serde![str]))]
+    #[config(alias = "gateway_web3_url", secret, with = Optional(Serde![str]))]
     pub gateway_rpc_url: Option<SensitiveUrl>,
 }
 
@@ -94,7 +94,7 @@ impl DatabaseSecrets {
 #[cfg(test)]
 mod tests {
     use secrecy::ExposeSecret;
-    use smart_config::{testing::test, Environment, Yaml};
+    use smart_config::{testing::test_complete, Environment, Yaml};
 
     use super::*;
 
@@ -102,6 +102,10 @@ mod tests {
         assert_eq!(
             secrets.database.server_url.unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
+        );
+        assert_eq!(
+            secrets.database.server_replica_url.unwrap().expose_str(),
+            "postgres://postgres:notsecurepassword@localhost/zksync_replica_local"
         );
         assert_eq!(
             secrets.database.prover_url.unwrap().expose_str(),
@@ -112,6 +116,10 @@ mod tests {
             "http://127.0.0.1:8545/"
         );
         assert_eq!(
+            secrets.l1.gateway_rpc_url.unwrap().expose_str(),
+            "http://127.0.0.1:4050/"
+        );
+        assert_eq!(
             secrets.consensus.validator_key.unwrap().expose_secret(),
             "validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866"
         );
@@ -119,6 +127,7 @@ mod tests {
             secrets.consensus.node_key.unwrap().expose_secret(),
             "node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
         );
+
         let DataAvailabilitySecrets::Avail(avail) = secrets.data_availability.unwrap() else {
             panic!("unexpected DA secrets");
         };
@@ -141,16 +150,19 @@ mod tests {
             DATABASE_PROVER_URL=postgres://postgres:notsecurepassword@localhost/prover_local
 
             ETH_CLIENT_WEB3_URL=http://127.0.0.1:8545/
+            ETH_CLIENT_GATEWAY_WEB3_URL=http://127.0.0.1:4050/
 
             DA_CLIENT="Avail"
             DA_SEED_PHRASE="correct horse battery staple"
             DA_GAS_RELAY_API_KEY="SUPER_SECRET"
 
+            CONTRACT_VERIFIER_ETHERSCAN_API_KEY=correct horse battery staple
+
             CONSENSUS_VALIDATOR_KEY="validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866"
             CONSENSUS_NODE_KEY="node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
-        let secrets: Secrets = test(env).unwrap();
+        let secrets: Secrets = test_complete(env).unwrap();
         assert_secrets(secrets);
     }
 
@@ -159,19 +171,23 @@ mod tests {
         let yaml = r#"
             database:
               server_url: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era
+              server_replica_url: postgres://postgres:notsecurepassword@localhost/zksync_replica_local
               prover_url: postgres://postgres:notsecurepassword@localhost/prover_local
             l1:
               l1_rpc_url: http://127.0.0.1:8545/
+              gateway_rpc_url: http://127.0.0.1:4050/
             consensus:
               validator_key: validator:secret:bls12_381:2e78025015c2b4ba44b081d404c5446442dac74d5a20334c90af90a0b9987866
               node_key: node:secret:ed25519:d1aaab7e5bc33cce10418d832a43b6aa00f67f2499d48a62fe79a190f1d6b0a3
+            contract_verifier:
+              etherscan_api_key: null
             da:
               client: Avail
               seed_phrase: 'correct horse battery staple'
               gas_relay_api_key: SUPER_SECRET
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let secrets: Secrets = test(yaml).unwrap();
+        let secrets: Secrets = test_complete(yaml).unwrap();
         assert_secrets(secrets);
     }
 }

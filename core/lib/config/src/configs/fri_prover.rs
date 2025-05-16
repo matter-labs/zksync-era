@@ -21,7 +21,7 @@ pub struct FriProverConfig {
 #[cfg(test)]
 mod tests {
     use smart_config::{
-        testing::{test, Tester},
+        testing::{test_complete, Tester},
         Environment, Yaml,
     };
 
@@ -40,7 +40,7 @@ mod tests {
                     gcs_credential_file_path: "/path/to/credentials1.json".to_owned(),
                 },
                 max_retries: 5,
-                local_mirror_path: None,
+                local_mirror_path: Some("/var/cache".into()),
             },
         }
     }
@@ -56,12 +56,13 @@ mod tests {
             FRI_PROVER_PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
             FRI_PROVER_PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials1.json"
             FRI_PROVER_PROVER_OBJECT_STORE_MAX_RETRIES="5"
+            FRI_PROVER_PROVER_OBJECT_STORE_LOCAL_MIRROR_PATH="/var/cache"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
             .strip_prefix("FRI_PROVER_");
 
-        let config: FriProverConfig = test(env).unwrap();
+        let config: FriProverConfig = test_complete(env).unwrap();
         assert_eq!(config, expected_config());
     }
 
@@ -77,10 +78,13 @@ mod tests {
             bucket_base_url: "/base/url"
             gcs_credential_file_path: /path/to/credentials1.json
             max_retries: 5
-            local_mirror_path: null
+            local_mirror_path: /var/cache
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: FriProverConfig = Tester::default().coerce_variant_names().test(yaml).unwrap();
+        let config: FriProverConfig = Tester::default()
+            .coerce_variant_names()
+            .test_complete(yaml)
+            .unwrap();
         assert_eq!(config, expected_config());
     }
 }

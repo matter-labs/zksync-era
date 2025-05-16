@@ -74,7 +74,10 @@ pub enum ObjectStoreMode {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test, Environment, Yaml};
+    use smart_config::{
+        testing::{test, test_complete},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -102,7 +105,7 @@ mod tests {
             .unwrap()
             .strip_prefix("OBJECT_STORE_");
 
-        let config: ObjectStoreConfig = test(env).unwrap();
+        let config: ObjectStoreConfig = test_complete(env).unwrap();
         assert_eq!(config, expected_gcs_config("/base/url"));
     }
 
@@ -131,12 +134,13 @@ mod tests {
             PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/public_base_url"
             PUBLIC_OBJECT_STORE_MODE="GCSAnonymousReadOnly"
             PUBLIC_OBJECT_STORE_MAX_RETRIES="3"
+            PUBLIC_OBJECT_STORE_LOCAL_MIRROR_PATH=/var/cache
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
             .strip_prefix("PUBLIC_OBJECT_STORE_");
 
-        let config: ObjectStoreConfig = test(env).unwrap();
+        let config: ObjectStoreConfig = test_complete(env).unwrap();
         assert_eq!(config.max_retries, 3);
         assert_eq!(
             config.mode,
@@ -156,9 +160,10 @@ mod tests {
           mode: FileBacked
           file_backed_base_path: ./chains/era/artifacts/
           max_retries: 10
+          local_mirror_path: /var/cache
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config: ObjectStoreConfig = test(yaml).unwrap();
+        let config: ObjectStoreConfig = test_complete(yaml).unwrap();
         assert_eq!(
             config.mode,
             ObjectStoreMode::FileBacked {

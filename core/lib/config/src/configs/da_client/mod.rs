@@ -27,7 +27,10 @@ mod tests {
     use std::time::Duration;
 
     use secrecy::ExposeSecret;
-    use smart_config::{testing::test, ConfigRepository, ConfigSchema, Environment, Yaml};
+    use smart_config::{
+        testing::{test, test_complete},
+        ConfigRepository, ConfigSchema, Environment, Yaml,
+    };
 
     use super::{avail::AvailClientConfig, eigen::PointsSource, *};
     use crate::configs::{object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
@@ -36,7 +39,7 @@ mod tests {
     fn no_da_config_from_yaml() {
         let yaml = "client: NoDA";
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-        let config = test::<DAClientConfig>(yaml).unwrap();
+        let config = test_complete::<DAClientConfig>(yaml).unwrap();
         assert_eq!(config, DAClientConfig::NoDA);
     }
 
@@ -47,12 +50,13 @@ mod tests {
           DA_BUCKET_BASE_URL="some/test/path"
           DA_MODE="GCS"
           DA_MAX_RETRIES="5"
+          DA_LOCAL_MIRROR_PATH="/var/cache"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
             .strip_prefix("DA_");
 
-        let config = test::<DAClientConfig>(env).unwrap();
+        let config = test_complete::<DAClientConfig>(env).unwrap();
         let DAClientConfig::ObjectStore(config) = config else {
             panic!("unexpected config: {config:?}");
         };
@@ -70,10 +74,11 @@ mod tests {
           mode: FileBacked
           file_backed_base_path: ./chains/era/artifacts/
           max_retries: 10
+          local_mirror_path: /var/cache
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = test::<DAClientConfig>(yaml).unwrap();
+        let config = test_complete::<DAClientConfig>(yaml).unwrap();
         let DAClientConfig::ObjectStore(config) = config else {
             panic!("unexpected config: {config:?}");
         };
@@ -119,7 +124,7 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = test::<DAClientConfig>(yaml).unwrap();
+        let config = test_complete::<DAClientConfig>(yaml).unwrap();
         let DAClientConfig::Avail(config) = config else {
             panic!("unexpected config: {config:?}");
         };
@@ -183,13 +188,15 @@ mod tests {
           client: Avail
           bridge_api_url: https://turing-bridge-api.avail.so
           timeout: 20s
+          dispatch_timeout: 5s
+          finality_state: inBlock
           avail_client_type: FullClient
           api_node_url: wss://turing-rpc.avail.so/ws
           app_id: 123456
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = test::<DAClientConfig>(yaml).unwrap();
+        let config = test_complete::<DAClientConfig>(yaml).unwrap();
         let DAClientConfig::Avail(config) = config else {
             panic!("unexpected config: {config:?}");
         };
@@ -220,7 +227,7 @@ mod tests {
             .unwrap()
             .strip_prefix("DA_");
 
-        let config = test::<DAClientConfig>(env).unwrap();
+        let config = test_complete::<DAClientConfig>(env).unwrap();
         let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
@@ -255,10 +262,13 @@ mod tests {
             source: Url
             g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
             g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+          custom_quorum_numbers:
+            - 1
+            - 3
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let config = test::<DAClientConfig>(yaml).unwrap();
+        let config = test_complete::<DAClientConfig>(yaml).unwrap();
         let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
