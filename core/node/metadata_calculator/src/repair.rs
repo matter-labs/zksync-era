@@ -93,7 +93,7 @@ impl StaleKeysRepairTask {
                 }
             }
             _ = stop_receiver.changed() => {
-                tracing::info!("Stop signal received before Merkle tree is initialized; shutting down stale keys repair");
+                tracing::info!("Stop request received before Merkle tree is initialized; shutting down stale keys repair");
                 return Ok(());
             }
         };
@@ -113,7 +113,7 @@ impl StaleKeysRepairTask {
                 res.context("repair task panicked")?
             },
             _ = stop_receiver.changed() => {
-                tracing::info!("Stop signal received, stale keys repair is shutting down");
+                tracing::info!("Stop request received, stale keys repair is shutting down");
                 // This is the only strong reference to the handle, so dropping it should signal the task to stop.
                 drop(handle);
                 task.await.context("stale keys repair task panicked")?

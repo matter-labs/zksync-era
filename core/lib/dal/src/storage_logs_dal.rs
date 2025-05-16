@@ -8,8 +8,9 @@ use zksync_db_connection::{
     write_str, writeln_str,
 };
 use zksync_types::{
-    get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
-    L2BlockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
+    get_code_key, h256_to_u256, snapshots::SnapshotStorageLog, u256_to_h256, AccountTreeId,
+    Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
@@ -722,44 +723,66 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Fetches tree entries for the specified `l2_block_number` and `key_range`. This is used during
-    /// Merkle tree recovery.
+    /// Merkle tree and RocksDB cache recovery.
     pub async fn get_tree_entries_for_l2_block(
         &mut self,
         l2_block_number: L2BlockNumber,
-        key_range: ops::RangeInclusive<H256>,
+        mut key_range: ops::RangeInclusive<H256>,
     ) -> DalResult<Vec<StorageRecoveryLogEntry>> {
-        let rows = sqlx::query!(
-            r#"
-            SELECT
-                storage_logs.hashed_key,
-                storage_logs.value,
-                initial_writes.index
-            FROM
-                storage_logs
-            INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
-            WHERE
-                storage_logs.miniblock_number <= $1
-                AND storage_logs.hashed_key >= $2::bytea
-                AND storage_logs.hashed_key <= $3::bytea
-            ORDER BY
-                storage_logs.hashed_key
-            "#,
-            i64::from(l2_block_number.0),
-            key_range.start().as_bytes(),
-            key_range.end().as_bytes()
-        )
-        .instrument("get_tree_entries_for_l2_block")
-        .with_arg("l2_block_number", &l2_block_number)
-        .with_arg("key_range", &key_range)
-        .fetch_all(self.storage)
-        .await?;
+        const QUERY_LIMIT: usize = 10_000;
 
-        let rows = rows.into_iter().map(|row| StorageRecoveryLogEntry {
-            key: H256::from_slice(&row.hashed_key),
-            value: H256::from_slice(&row.value),
-            leaf_index: row.index as u64,
-        });
-        Ok(rows.collect())
+        // Break fetching from the DB into smaller chunks to make DB load more uniform.
+        let mut entries = vec![];
+        loop {
+            let rows = sqlx::query!(
+                r#"
+                SELECT
+                    storage_logs.hashed_key,
+                    storage_logs.value,
+                    initial_writes.index
+                FROM
+                    storage_logs
+                INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
+                WHERE
+                    storage_logs.miniblock_number <= $1
+                    AND storage_logs.hashed_key >= $2::bytea
+                    AND storage_logs.hashed_key <= $3::bytea
+                ORDER BY
+                    storage_logs.hashed_key
+                LIMIT
+                    $4
+                "#,
+                i64::from(l2_block_number.0),
+                key_range.start().as_bytes(),
+                key_range.end().as_bytes(),
+                QUERY_LIMIT as i32
+            )
+            .instrument("get_tree_entries_for_l2_block")
+            .with_arg("l2_block_number", &l2_block_number)
+            .with_arg("key_range", &key_range)
+            .fetch_all(self.storage)
+            .await?;
+
+            let fetched_count = rows.len();
+            entries.extend(rows.into_iter().map(|row| StorageRecoveryLogEntry {
+                key: H256::from_slice(&row.hashed_key),
+                value: H256::from_slice(&row.value),
+                leaf_index: row.index as u64,
+            }));
+
+            if fetched_count < QUERY_LIMIT {
+                break;
+            }
+            // `unwrap()` is safe: `entries` contains >= QUERY_LIMIT items.
+            let Some(next_key) = h256_to_u256(entries.last().unwrap().key).checked_add(1.into())
+            else {
+                // A marginal case (likely not reproducible in practice): the last hashed key is `H256::repeat_byte(0xff)`.
+                break;
+            };
+            key_range = u256_to_h256(next_key)..=*key_range.end();
+        }
+
+        Ok(entries)
     }
 
     /// Returns `true` if the number of logs at the specified L2 block is greater or equal to `min_count`.

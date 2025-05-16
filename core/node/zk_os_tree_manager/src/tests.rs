@@ -124,7 +124,7 @@ async fn genesis_creation() {
     assert_eq!(tree_info.next_version, 1);
     assert!(tree_info.leaf_count > 10);
 
-    // Check that the manager is responsive to stop signals.
+    // Check that the manager is responsive to stop requests.
     stop_sender.send_replace(true);
     manager_task.await.unwrap().unwrap();
 

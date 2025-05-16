@@ -21,12 +21,14 @@ string_type!(ClusterName);
 string_type!(NamespaceName);
 string_type!(DeploymentName);
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pod {
     pub owner: String,
     pub status: String,
     pub changed: DateTime<Utc>,
+    pub out_of_resources: bool,
 }
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Deployment {
     pub running: usize,

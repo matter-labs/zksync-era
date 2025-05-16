@@ -6,6 +6,7 @@ use zksync_config::{configs::contracts::SettlementLayerSpecificContracts, Genesi
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_node_genesis::GenesisParams;
 use zksync_object_store::bincode;
+use zksync_types::OrStopped;
 use zksync_web3_decl::client::{DynClient, L1};
 
 use crate::traits::InitializeStorage;
@@ -18,14 +19,8 @@ pub struct MainNodeGenesis {
     pub pool: ConnectionPool<Core>,
 }
 
-#[async_trait::async_trait]
-impl InitializeStorage for MainNodeGenesis {
-    /// Will perform genesis initialization if it's required.
-    /// If genesis is already performed, this method will do nothing.
-    async fn initialize_storage(
-        &self,
-        _stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+impl MainNodeGenesis {
+    async fn initialize(&self) -> anyhow::Result<()> {
         let mut storage = self.pool.connection_tagged("genesis").await?;
 
         if !storage.blocks_dal().is_genesis_needed().await? {
@@ -62,8 +57,19 @@ impl InitializeStorage for MainNodeGenesis {
         )
         .await
         .context("Failed to save SetChainId upgrade transaction")?;
-
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl InitializeStorage for MainNodeGenesis {
+    /// Will perform genesis initialization if it's required.
+    /// If genesis is already performed, this method will do nothing.
+    async fn initialize_storage(
+        &self,
+        _stop_receiver: watch::Receiver<bool>,
+    ) -> Result<(), OrStopped> {
+        self.initialize().await.map_err(Into::into)
     }
 
     async fn is_initialized(&self) -> anyhow::Result<bool> {

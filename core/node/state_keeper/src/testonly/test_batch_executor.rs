@@ -28,8 +28,8 @@ use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
-    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    L2ChainId, ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId,
+    OrStopped, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -225,7 +225,7 @@ impl TestScenario {
         );
         let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
-        // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
+        // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
         let hard_timeout = Duration::from_secs(60);
         let poll_interval = Duration::from_millis(50);
@@ -860,8 +860,8 @@ impl ReadStorageFactory<OwnedStorage> for MockReadStorageFactory {
         &self,
         _stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>> {
+    ) -> Result<OwnedStorage, OrStopped> {
         let storage = InMemoryStorage::default();
-        Ok(Some(OwnedStorage::boxed(storage)))
+        Ok(OwnedStorage::boxed(storage))
     }
 }
