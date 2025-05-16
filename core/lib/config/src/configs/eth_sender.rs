@@ -56,6 +56,7 @@ impl EthConfig {
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
+                precommit_params: None,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -152,6 +153,14 @@ pub struct SenderConfig {
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
     #[serde(default = "SenderConfig::default_max_acceptable_base_fee_in_wei")]
     pub max_acceptable_base_fee_in_wei: u64,
+    /// Parameters for precommit operation.
+    pub precommit_params: Option<PrecommitParams>,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct PrecommitParams {
+    pub l2_blocks_to_aggregate: u32,
+    pub deadline: i64,
 }
 
 impl SenderConfig {

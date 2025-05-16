@@ -403,6 +403,16 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             is_verifier_pre_fflonk: self.sample(rng),
             gas_limit_mode: self.sample(rng),
             max_acceptable_base_fee_in_wei: self.sample(rng),
+            precommit_params: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<configs::eth_sender::PrecommitParams> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PrecommitParams {
+        configs::eth_sender::PrecommitParams {
+            deadline: self.sample(rng),
+            l2_blocks_to_aggregate: self.sample(rng),
         }
     }
 }

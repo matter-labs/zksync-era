@@ -143,11 +143,6 @@ impl WiringLayer for EthTxAggregatorLayer {
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
 
-        let send_precommit_txs = match self.finality {
-            Finality::BatchExecution => None,
-            Finality::RollingTxHash(n) => Some(n),
-        };
-
         // Create and add tasks.
         let config = input.sender_config;
         let aggregator = Aggregator::new(
@@ -157,7 +152,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
             input.settlement_mode.settlement_layer(),
-            send_precommit_txs,
+            config.precommit_params,
         )
         .await?;
 

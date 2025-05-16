@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
+use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
@@ -54,7 +54,7 @@ pub struct Aggregator {
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
     settlement_layer: SettlementLayer,
-    send_precommit_tx_freq: Option<usize>,
+    precommit_params: Option<PrecommitParams>,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -139,7 +139,7 @@ impl Aggregator {
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
-        send_precommit_tx_freq: Option<usize>,
+        precommit_params: Option<PrecommitParams>,
     ) -> anyhow::Result<Self> {
         let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
@@ -225,7 +225,7 @@ impl Aggregator {
             priority_merkle_tree: None,
             pool,
             settlement_layer,
-            send_precommit_tx_freq,
+            precommit_params,
         })
     }
 
@@ -274,11 +274,10 @@ impl Aggregator {
             .await,
         ) {
             Ok(Some(op))
-        } else if let Some(number_of_blocks) = self.send_precommit_tx_freq {
-            let result = if let Some(op) = restrictions.filter_precommit_op(
-                self.get_precommit_operation(storage, number_of_blocks)
-                    .await?,
-            ) {
+        } else if let Some(params) = &self.precommit_params {
+            let result = if let Some(op) = restrictions
+                .filter_precommit_op(self.get_precommit_operation(storage, params).await?)
+            {
                 Ok(Some(op))
             } else {
                 Ok(None)
@@ -332,7 +331,7 @@ impl Aggregator {
     async fn get_precommit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        number_of_blocks: usize,
+        precommit_params: &PrecommitParams,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
         let last_committed_l1_batch = storage
             .blocks_dal()
@@ -385,10 +384,9 @@ impl Aggregator {
             // We need to check that the first and last L2 blocks are in the same batch
 
             let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
-            // TODO make special config for it
-
-            if first_l2_block_age < 12
-                && (first_tx.l2block_number.0 - last_tx.l2block_number.0 < number_of_blocks as u32)
+            if first_l2_block_age < precommit_params.deadline
+                && (first_tx.l2block_number.0 - last_tx.l2block_number.0
+                    < precommit_params.l2_blocks_to_aggregate as u32)
             {
                 return Ok(None);
             }
