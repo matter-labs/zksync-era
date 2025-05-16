@@ -556,56 +556,80 @@ impl BlocksDal<'_, '_> {
         Ok(storage_oracle_info.and_then(DbStorageOracleInfo::into_optional_batch_oracle_info))
     }
 
+    /// The server is doing precommits based on the txs.
+    /// That means, that the last fictive l2 block will never be included into precommit txs and it's the only way how the miniblock will have no txs.
+    /// So we have to check if the last 2 rolling txs hashes for miniblocks are equal and if yes, we can set the final precommit tx id for the batch,
+    /// and that will mean we can commit the batch.
     pub async fn set_final_precommit_operation(&mut self) -> DalResult<()> {
-        let l1_batches = sqlx::query!(
+        let rows = sqlx::query!(
             r#"
-            SELECT number FROM l1_batches
+            SELECT
+                l1_batches.number AS l1_batch_number,
+                miniblocks.eth_tx_id,
+                miniblocks.rolling_txs_hash,
+                miniblocks.number AS miniblock_number
+            FROM
+                l1_batches
+            JOIN LATERAL (
+                SELECT
+                    eth_tx_id,
+                    rolling_txs_hash,
+                    number
+                FROM miniblocks
+                WHERE l1_batch_number = l1_batches.number
+                ORDER BY number DESC
+                LIMIT 2
+            ) miniblocks ON TRUE
             WHERE
-                is_sealed AND eth_commit_tx_id IS NULL AND final_precommit_eth_tx_id IS NULL
-            "#,
+                l1_batches.is_sealed
+                AND l1_batches.eth_commit_tx_id IS NULL
+                AND l1_batches.final_precommit_eth_tx_id IS NULL
+            ORDER BY l1_batches.number, miniblocks.number DESC;
+            "#
         )
-        .instrument("set_final_precommit_operation")
+        .instrument("unified_l1_miniblocks_query")
         .report_latency()
         .fetch_all(self.storage)
         .await?;
 
-        for row in l1_batches {
-            let last_2_miniblocks = sqlx::query!(
-                r#"
-                SELECT eth_tx_id, rolling_txs_hash, number FROM miniblocks
-                WHERE l1_batch_number = $1
-                ORDER BY number DESC
-                LIMIT 2
-                "#,
-                row.number as i32,
-            )
-            .instrument("set_final_precommit_operation")
-            .report_latency()
-            .fetch_all(self.storage)
-            .await?;
-            if last_2_miniblocks.len() != 2 {
+        // Group by l1_batch_number
+        let mut miniblocks_by_batch: HashMap<_, Vec<_>> = HashMap::new();
+        for row in rows {
+            miniblocks_by_batch
+                .entry(row.l1_batch_number)
+                .or_default()
+                .push(row);
+        }
+
+        for (batch_number, miniblocks) in miniblocks_by_batch {
+            if miniblocks.len() < 2 {
                 continue;
             }
 
-            if last_2_miniblocks[0].rolling_txs_hash == last_2_miniblocks[1].rolling_txs_hash {
-                if let Some(eth_tx_id) = last_2_miniblocks[1].eth_tx_id {
+            assert_eq!(
+                miniblocks.len(),
+                2,
+                "Expected exactly 2 miniblocks for each batch"
+            );
+            // miniblocks[0] is the newest, [1] is previous (because of DESC order)
+            if miniblocks[0].rolling_txs_hash == miniblocks[1].rolling_txs_hash {
+                if let Some(eth_tx_id) = miniblocks[1].eth_tx_id {
                     sqlx::query!(
                         r#"
                         UPDATE l1_batches
                         SET final_precommit_eth_tx_id = $1
                         WHERE number = $2
                         "#,
-                        eth_tx_id as i32,
-                        row.number as i32,
+                        eth_tx_id,
+                        batch_number,
                     )
-                    .instrument("set_final_precommit_operation")
+                    .instrument("update_final_precommit_eth_tx_id")
                     .report_latency()
                     .execute(self.storage)
                     .await?;
                 }
             }
         }
-
         Ok(())
     }
 
