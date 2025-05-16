@@ -1,3 +1,6 @@
+//! Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
+//! or reporting the VM memory usage.
+
 use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_types::U256;
 
@@ -6,9 +9,6 @@ use crate::{
     vm_1_4_2::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };
-
-/// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
-/// or reporting the VM memory usage.
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Get statistics about TX execution.

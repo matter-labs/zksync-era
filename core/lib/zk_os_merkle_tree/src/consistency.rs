@@ -377,7 +377,7 @@ impl AtomicBitSet {
     const BITS_PER_ATOMIC: usize = 64;
 
     fn new(len: usize) -> Self {
-        let atomic_count = (len + Self::BITS_PER_ATOMIC - 1) / Self::BITS_PER_ATOMIC;
+        let atomic_count = len.div_ceil(Self::BITS_PER_ATOMIC);
         let mut bits = Vec::with_capacity(atomic_count);
         bits.resize_with(atomic_count, AtomicU64::default);
         Self { bits }
