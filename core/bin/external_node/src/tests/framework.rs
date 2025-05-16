@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use zksync_gateway_migrator::node::{ENConfig, SettlementLayerData};
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::ServiceContext, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
@@ -11,7 +10,7 @@ use zksync_types::{L1ChainId, L2ChainId};
 use zksync_vlog::node::SigintHandlerLayer;
 use zksync_web3_decl::{
     client::{DynClient, MockClient, L1, L2},
-    node::{MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClient},
+    node::{MainNodeClientLayer, QueryEthClientLayer},
 };
 
 use super::ExternalNodeBuilder;
@@ -33,8 +32,7 @@ pub(super) fn inject_test_layers(
         .add_layer(MockL1ClientLayer {
             client: l1_client.clone(),
         })
-        .add_layer(MockL2ClientLayer { client: l2_client })
-        .add_layer(MockSettlementLayerClientLayer { client: l1_client });
+        .add_layer(MockL2ClientLayer { client: l2_client });
 }
 
 /// A test layer that would stop the node upon request.
@@ -54,7 +52,7 @@ impl WiringLayer for TestSigintLayer {
         SigintHandlerLayer.layer_name()
     }
 
-    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
         Ok(TestSigintTask(self.receiver))
     }
 }
@@ -154,25 +152,5 @@ impl WiringLayer for MockL2ClientLayer {
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
         Ok(Box::new(self.client))
-    }
-}
-
-#[derive(Debug)]
-struct MockSettlementLayerClientLayer {
-    client: MockClient<L1>,
-}
-
-// FIXME: Does this work?
-#[async_trait::async_trait]
-impl WiringLayer for MockSettlementLayerClientLayer {
-    type Input = ();
-    type Output = SettlementLayerClient;
-
-    fn layer_name(&self) -> &'static str {
-        <SettlementLayerData<ENConfig>>::LAYER_NAME
-    }
-
-    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(SettlementLayerClient::L1(Box::new(self.client)))
     }
 }
