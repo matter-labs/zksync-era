@@ -7,8 +7,7 @@ use serde::{
 };
 use zksync_basic_types::bytecode::BytecodeMarker;
 
-pub use crate::Execute as ExecuteData;
-use crate::{web3::Bytes, Address};
+use crate::{contract_verification::contract_identifier::CborMetadata, web3::Bytes, Address};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "codeFormat", content = "sourceCode")]
@@ -149,6 +148,49 @@ pub struct VerificationIncomingRequest {
     pub force_evmla: bool,
     #[serde(flatten)]
     pub evm_specific: VerificationEvmSettings,
+}
+
+impl VerificationIncomingRequest {
+    fn get_metadata_versions(&self, cbor_metadata: &CborMetadata) -> (String, Option<String>) {
+        let (compiler_version, zk_compiler_version) = cbor_metadata.get_compiler_versions();
+        let request_compiler = self.compiler_versions.compiler_version();
+        let request_zk_compiler = self.compiler_versions.zk_compiler_version();
+
+        // If the metadata doesn't contain the compiler version, we assume that it is the same as in the request.
+        let metadata_compiler = compiler_version.unwrap_or(request_compiler.to_string());
+        let metadata_zk_compiler = zk_compiler_version.or(request_zk_compiler.map(str::to_string));
+
+        (metadata_compiler, metadata_zk_compiler)
+    }
+
+    /// Checks if the compiler versions in the request and metadata match.
+    pub fn compiler_versions_match(&self, cbor_metadata: &CborMetadata) -> bool {
+        let (metadata_compiler, metadata_zk_compiler) = self.get_metadata_versions(cbor_metadata);
+
+        self.compiler_versions.compiler_version() == metadata_compiler
+            && self.compiler_versions.zk_compiler_version() == metadata_zk_compiler.as_deref()
+    }
+
+    /// Updates compiler versions for the request with the versions retrieved from the Cbor metadata.
+    pub fn with_updated_compiler_versions(mut self, cbor_metadata: &CborMetadata) -> Self {
+        let (metadata_compiler, metadata_zk_compiler) = self.get_metadata_versions(cbor_metadata);
+
+        match self.compiler_versions.compiler_type() {
+            CompilerType::Solc => {
+                self.compiler_versions = CompilerVersions::Solc {
+                    compiler_solc_version: metadata_compiler,
+                    compiler_zksolc_version: metadata_zk_compiler,
+                };
+            }
+            CompilerType::Vyper => {
+                self.compiler_versions = CompilerVersions::Vyper {
+                    compiler_vyper_version: metadata_compiler,
+                    compiler_zkvyper_version: metadata_zk_compiler,
+                };
+            }
+        }
+        self
+    }
 }
 
 /// Settings for EVM verification, used only if
@@ -319,7 +361,8 @@ pub struct VerificationRequestStatus {
 mod tests {
     use assert_matches::assert_matches;
 
-    use super::SourceCodeData;
+    use super::*;
+    use crate::contract_verification::contract_identifier::{CborCompilerVersion, CborMetadata};
 
     #[test]
     fn source_code_deserialization() {
@@ -347,5 +390,244 @@ mod tests {
         let type_not_specified_object_result =
             serde_json::from_str::<SourceCodeData>(type_not_specified_object_str);
         assert!(type_not_specified_object_result.is_err());
+    }
+
+    fn create_verification_request(
+        compiler_versions: CompilerVersions,
+    ) -> VerificationIncomingRequest {
+        VerificationIncomingRequest {
+            contract_address: Address::default(),
+            source_code_data: SourceCodeData::SolSingleFile("pragma solidity ^0.8.0;".to_string()),
+            contract_name: "TestContract".to_string(),
+            compiler_versions,
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: vec![].into(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: VerificationEvmSettings::default(),
+        }
+    }
+
+    #[test]
+    fn test_compiler_versions_match() {
+        let test_vector = vec![
+            // Solc
+            (
+                "Solc compiler versions should match",
+                CompilerVersions::Solc {
+                    compiler_solc_version: "0.8.1".to_string(),
+                    compiler_zksolc_version: None,
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::Native(vec![0, 8, 1])),
+                    ..CborMetadata::default()
+                },
+                true,
+            ),
+            (
+                "Solc compiler versions shouldn't match",
+                CompilerVersions::Solc {
+                    compiler_solc_version: "0.8.1".to_string(),
+                    compiler_zksolc_version: None,
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::Native(vec![0, 8, 0])),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+            (
+                "Solc + zksolc compiler versions should match",
+                CompilerVersions::Solc {
+                    compiler_solc_version: "zkVM-0.8.24-1.0.1".to_string(),
+                    compiler_zksolc_version: Some("v1.5.13".to_string()),
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zksolc:1.5.13;solc:0.8.24;llvm:1.0.1".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                true,
+            ),
+            (
+                "Solc + zksolc compiler versions shouldn't match if zk doesn't match",
+                CompilerVersions::Solc {
+                    compiler_solc_version: "zkVM-0.8.24-1.0.1".to_string(),
+                    compiler_zksolc_version: Some("v1.5.12".to_string()),
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zksolc:1.5.13;solc:0.8.24;llvm:1.0.1".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+            (
+                "Solc + zksolc compiler versions shouldn't match if solc doesn't match",
+                CompilerVersions::Solc {
+                    compiler_solc_version: "zkVM-0.8.22-1.0.1".to_string(),
+                    compiler_zksolc_version: Some("v1.5.13".to_string()),
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zksolc:1.5.13;solc:0.8.24;llvm:1.0.1".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+            (
+                "Solc + zksolc compiler versions shouldn't match if both don't match",
+                CompilerVersions::Solc {
+                    compiler_solc_version: "zkVM-0.8.22-1.0.1".to_string(),
+                    compiler_zksolc_version: Some("v1.5.12".to_string()),
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zksolc:1.5.13;solc:0.8.24;llvm:1.0.1".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+            // Vyper
+            (
+                "Vyper compiler versions should match",
+                CompilerVersions::Vyper {
+                    compiler_vyper_version: "0.4.1".to_string(),
+                    compiler_zkvyper_version: None,
+                },
+                CborMetadata {
+                    vyper: Some(CborCompilerVersion::Native(vec![0, 4, 1])),
+                    ..CborMetadata::default()
+                },
+                true,
+            ),
+            (
+                "Vyper compiler versions shouldn't match",
+                CompilerVersions::Vyper {
+                    compiler_vyper_version: "0.4.1".to_string(),
+                    compiler_zkvyper_version: None,
+                },
+                CborMetadata {
+                    vyper: Some(CborCompilerVersion::Native(vec![0, 4, 0])),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+            (
+                "Vyper + zkvyper compiler versions should match",
+                CompilerVersions::Vyper {
+                    compiler_vyper_version: "0.4.1".to_string(),
+                    compiler_zkvyper_version: Some("v1.5.10".to_string()),
+                },
+                CborMetadata {
+                    vyper: Some(CborCompilerVersion::ZKsync(
+                        "zkvyper:1.5.10;vyper:0.4.1".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                true,
+            ),
+            (
+                "Vyper + zkvyper compiler versions shouldn't match if zk doesn't match",
+                CompilerVersions::Vyper {
+                    compiler_vyper_version: "0.4.1".to_string(),
+                    compiler_zkvyper_version: Some("v1.5.10".to_string()),
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zkvyper:1.5.9;vyper:0.4.1".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+            (
+                "Vyper + zkvyper compiler versions shouldn't match if vyper doesn't match",
+                CompilerVersions::Vyper {
+                    compiler_vyper_version: "0.4.1".to_string(),
+                    compiler_zkvyper_version: Some("v1.5.10".to_string()),
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zkvyper:1.5.10;vyper:0.4.0".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+            (
+                "Vyper + zkvyper compiler versions shouldn't match if both don't match",
+                CompilerVersions::Vyper {
+                    compiler_vyper_version: "0.4.1".to_string(),
+                    compiler_zkvyper_version: Some("v1.5.10".to_string()),
+                },
+                CborMetadata {
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zkvyper:1.5.9;vyper:0.4.0".to_string(),
+                    )),
+                    ..CborMetadata::default()
+                },
+                false,
+            ),
+        ];
+
+        for (message, compiler_versions, metadata, expected) in test_vector {
+            let request = create_verification_request(compiler_versions);
+            assert_eq!(
+                request.compiler_versions_match(&metadata),
+                expected,
+                "{}",
+                message
+            );
+        }
+    }
+
+    #[test]
+    fn with_updated_compiler_versions_solc() {
+        let request = create_verification_request(CompilerVersions::Solc {
+            compiler_solc_version: "0.8.0".to_string(),
+            compiler_zksolc_version: Some("1.0.0".to_string()),
+        })
+        .with_updated_compiler_versions(&CborMetadata {
+            solc: Some(CborCompilerVersion::ZKsync(
+                "zksolc:1.5.13;solc:0.8.24;llvm:1.0.1".to_string(),
+            )),
+            ..CborMetadata::default()
+        });
+
+        assert_eq!(
+            request.compiler_versions,
+            CompilerVersions::Solc {
+                compiler_solc_version: "zkVM-0.8.24-1.0.1".to_string(),
+                compiler_zksolc_version: Some("v1.5.13".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn with_updated_compiler_versions_vyper() {
+        let request = create_verification_request(CompilerVersions::Vyper {
+            compiler_vyper_version: "0.3.0".to_string(),
+            compiler_zkvyper_version: Some("1.0.0".to_string()),
+        })
+        .with_updated_compiler_versions(&CborMetadata {
+            vyper: Some(CborCompilerVersion::ZKsync(
+                "zkvyper:1.5.10;vyper:0.4.1".to_string(),
+            )),
+            ..CborMetadata::default()
+        });
+
+        assert_eq!(
+            request.compiler_versions,
+            CompilerVersions::Vyper {
+                compiler_vyper_version: "0.4.1".to_string(),
+                compiler_zkvyper_version: Some("v1.5.10".to_string()),
+            }
+        );
     }
 }
