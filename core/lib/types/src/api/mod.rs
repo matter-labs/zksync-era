@@ -1,3 +1,4 @@
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -800,14 +801,14 @@ impl TryFrom<ProtocolVersion> for ProtocolVersionInfo {
         Ok(ProtocolVersionInfo {
             minor_version: value
                 .minor_version
-                .ok_or(anyhow::anyhow!("missing minor protocol version"))?,
+                .context("missing minor protocol version")?,
             timestamp: value.timestamp,
             bootloader_code_hash: value
                 .bootloader_code_hash
-                .ok_or(anyhow::anyhow!("missing bootloader code hash"))?,
+                .context("missing bootloader code hash")?,
             default_account_code_hash: value
                 .default_account_code_hash
-                .ok_or(anyhow::anyhow!("missing default account code hash"))?,
+                .context("missing default account code hash")?,
             evm_emulator_code_hash: value.evm_emulator_code_hash,
             l2_system_upgrade_tx_hash: value.l2_system_upgrade_tx_hash_new,
         })
