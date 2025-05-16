@@ -304,7 +304,7 @@ jobs:
           --base-token-price-denominator 1 \
           --set-as-default false \
           --ignore-prerequisites \
-          --evm-emulator false
+          --evm-emulator true
 
           ci_run zkstack chain init \
           --deploy-paymaster \
@@ -327,7 +327,7 @@ jobs:
           --base-token-price-denominator 1 \
           --set-as-default false \
           --ignore-prerequisites \
-          --evm-emulator true
+          --evm-emulator false
           
           ci_run zkstack chain init \
           --deploy-paymaster \
