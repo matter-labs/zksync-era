@@ -10,13 +10,7 @@ use zksync_node_framework::{
 
 use crate::{CircuitBreakerChecker, CircuitBreakers};
 
-/// A resource that provides [`CircuitBreakers`] to the service.
-#[derive(Debug, Clone, Default)]
-pub struct CircuitBreakersResource {
-    pub breakers: Arc<CircuitBreakers>,
-}
-
-impl Resource for CircuitBreakersResource {
+impl Resource for CircuitBreakers {
     fn name() -> String {
         "common/circuit_breakers".into()
     }
@@ -33,13 +27,13 @@ pub struct CircuitBreakerCheckerLayer(pub CircuitBreakerConfig);
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub circuit_breakers: CircuitBreakersResource,
+    circuit_breakers: Arc<CircuitBreakers>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub circuit_breaker_checker: CircuitBreakerChecker,
+    circuit_breaker_checker: CircuitBreakerChecker,
 }
 
 #[async_trait::async_trait]
@@ -53,7 +47,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let circuit_breaker_checker =
-            CircuitBreakerChecker::new(input.circuit_breakers.breakers, self.0.sync_interval());
+            CircuitBreakerChecker::new(input.circuit_breakers, self.0.sync_interval());
 
         Ok(Output {
             circuit_breaker_checker,

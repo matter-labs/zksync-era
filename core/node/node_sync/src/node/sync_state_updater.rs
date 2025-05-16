@@ -6,7 +6,7 @@ use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core, CoreDal,
 };
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -18,7 +18,6 @@ use zksync_shared_resources::api::{SyncState, SyncStateData};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::EthNamespaceClient,
-    node::MainNodeClientResource,
 };
 
 /// Wiring layer for [`SyncState`] maintenance.
@@ -29,19 +28,19 @@ pub struct SyncStateUpdaterLayer;
 #[derive(Debug, FromContext)]
 pub struct Input {
     /// Fetched to check whether the `SyncState` was already provided by another layer.
-    pub sync_state: Option<SyncState>,
-    pub app_health: AppHealthCheckResource,
-    pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
+    sync_state: Option<SyncState>,
+    app_health: Arc<AppHealthCheck>,
+    master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
     sync_state_metrics_task: SyncStateMetricsTask,
-    pub sync_state: Option<SyncState>,
+    sync_state: Option<SyncState>,
     #[context(task)]
-    pub sync_state_updater: Option<SyncStateUpdater>,
+    sync_state_updater: Option<SyncStateUpdater>,
 }
 
 #[async_trait::async_trait]
@@ -68,11 +67,10 @@ impl WiringLayer for SyncStateUpdaterLayer {
         }
 
         let connection_pool = input.master_pool.get().await?;
-        let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let sync_state = SyncState::default();
-        let app_health = &input.app_health.0;
-        app_health
+        input
+            .app_health
             .insert_custom_component(Arc::new(sync_state.clone()))
             .map_err(WiringError::internal)?;
 
@@ -82,7 +80,7 @@ impl WiringLayer for SyncStateUpdaterLayer {
             sync_state_updater: Some(SyncStateUpdater {
                 sync_state,
                 connection_pool,
-                main_node_client,
+                main_node_client: input.main_node_client,
             }),
         })
     }

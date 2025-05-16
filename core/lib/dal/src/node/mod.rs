@@ -2,7 +2,7 @@
 
 pub use self::{
     metrics::PostgresMetricsLayer,
-    pools_layer::{PoolsLayer, PoolsLayerBuilder},
+    pools_layer::PoolsLayer,
     resources::{MasterPool, PoolResource, ReplicaPool},
 };
 

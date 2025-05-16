@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use zksync_basic_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 use zksync_config::configs::{
     external_proof_integration_api::ExternalProofIntegrationApiConfig, ProofDataHandlerConfig,
@@ -9,7 +11,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::node::ObjectStoreResource;
+use zksync_object_store::ObjectStore;
 use zksync_proof_data_handler::{Processor, Readonly};
 
 use crate::Api;
@@ -25,14 +27,14 @@ pub struct ExternalProofIntegrationApiLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub object_store: ObjectStoreResource,
+    replica_pool: PoolResource<ReplicaPool>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: Api,
+    task: Api,
 }
 
 impl ExternalProofIntegrationApiLayer {
@@ -62,7 +64,7 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let replica_pool = input.replica_pool.get().await.unwrap();
-        let blob_store = input.object_store.0;
+        let blob_store = input.object_store;
 
         let processor = Processor::<Readonly>::new(
             blob_store,

@@ -66,11 +66,15 @@ async fn merkle_tree_api() {
         .get_proofs(L1BatchNumber(10), vec![])
         .await
         .unwrap_err();
-    let TreeApiError::NoVersion(err) = err else {
+    let TreeApiError::NoVersion {
+        missing_version,
+        version_count,
+    } = err
+    else {
         panic!("Unexpected error: {err:?}");
     };
-    assert_eq!(err.version_count, 6);
-    assert_eq!(err.missing_version, 10);
+    assert_eq!(version_count, 6);
+    assert_eq!(missing_version, 10);
 
     let raw_nodes_response = api_client
         .inner
@@ -209,9 +213,13 @@ async fn local_merkle_tree_client() {
         .get_proofs(L1BatchNumber(10), vec![])
         .await
         .unwrap_err();
-    let TreeApiError::NoVersion(err) = err else {
+    let TreeApiError::NoVersion {
+        missing_version,
+        version_count,
+    } = err
+    else {
         panic!("Unexpected error: {err:?}");
     };
-    assert_eq!(err.version_count, 6);
-    assert_eq!(err.missing_version, 10);
+    assert_eq!(version_count, 6);
+    assert_eq!(missing_version, 10);
 }

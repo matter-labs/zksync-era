@@ -6,7 +6,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use super::resources::{ApiFeeInputResource, SequencerFeeInputResource};
 use crate::l1_gas_price::MainNodeFeeParamsFetcher;
@@ -18,15 +18,15 @@ pub struct MainNodeFeeParamsFetcherLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub main_node_client: MainNodeClientResource,
+    main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub sequencer_fee_input: SequencerFeeInputResource,
-    pub api_fee_input: ApiFeeInputResource,
+    sequencer_fee_input: SequencerFeeInputResource,
+    api_fee_input: ApiFeeInputResource,
     #[context(task)]
-    pub fetcher: MainNodeFeeParamsFetcherTask,
+    fetcher: MainNodeFeeParamsFetcherTask,
 }
 
 #[async_trait::async_trait]
@@ -39,8 +39,7 @@ impl WiringLayer for MainNodeFeeParamsFetcherLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let MainNodeClientResource(main_node_client) = input.main_node_client;
-        let fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client));
+        let fetcher = Arc::new(MainNodeFeeParamsFetcher::new(input.main_node_client));
         Ok(Output {
             sequencer_fee_input: fetcher.clone().into(),
             api_fee_input: fetcher.clone().into(),

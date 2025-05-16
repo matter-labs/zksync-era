@@ -20,7 +20,7 @@ use zksync_multivm::{
 };
 use zksync_node_fee_model::{
     l1_gas_price::{GasAdjuster, GasAdjusterClient},
-    MainNodeFeeInputProvider, NoOpRatioProvider,
+    MainNodeFeeInputProvider,
 };
 use zksync_node_genesis::create_genesis_l1_batch;
 use zksync_node_test_utils::{
@@ -29,7 +29,7 @@ use zksync_node_test_utils::{
 use zksync_types::{
     block::L2BlockHeader,
     commitment::L1BatchCommitmentMode,
-    fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
+    fee_model::{BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
@@ -103,7 +103,7 @@ impl Tester {
 
         MainNodeFeeInputProvider::new(
             gas_adjuster,
-            Arc::new(NoOpRatioProvider::default()),
+            Arc::<BaseTokenConversionRatio>::default(),
             FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
                 compute_overhead_part: 1.0,
@@ -127,7 +127,7 @@ impl Tester {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
-            Arc::new(NoOpRatioProvider::default()),
+            Arc::<BaseTokenConversionRatio>::default(),
             FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
                 compute_overhead_part: 1.0,

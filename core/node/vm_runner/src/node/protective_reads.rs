@@ -22,17 +22,17 @@ pub struct ProtectiveReadsWriterLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub protective_reads_writer: ProtectiveReadsWriter,
+    protective_reads_writer: ProtectiveReadsWriter,
     #[context(task)]
-    pub loader_task: StorageSyncTask<ProtectiveReadsIo>,
+    loader_task: StorageSyncTask<ProtectiveReadsIo>,
     #[context(task)]
-    pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
+    output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
 }
 
 impl ProtectiveReadsWriterLayer {

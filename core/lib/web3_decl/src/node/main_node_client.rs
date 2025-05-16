@@ -2,14 +2,13 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_health_check::{node::AppHealthCheckResource, CheckHealth, Health, HealthStatus};
+use zksync_health_check::{AppHealthCheck, CheckHealth, Health, HealthStatus};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 use zksync_types::{url::SensitiveUrl, L2ChainId};
 
-use super::resources::MainNodeClientResource;
 use crate::{
     client::{Client, DynClient, L2},
     namespaces::EthNamespaceClient,
@@ -26,12 +25,12 @@ pub struct MainNodeClientLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub main_node_client: MainNodeClientResource,
+    main_node_client: Box<DynClient<L2>>,
 }
 
 impl MainNodeClientLayer {
@@ -65,12 +64,11 @@ impl WiringLayer for MainNodeClientLayer {
         // Insert healthcheck
         input
             .app_health
-            .0
             .insert_custom_component(Arc::new(MainNodeHealthCheck::from(client.clone())))
             .map_err(WiringError::internal)?;
 
         Ok(Output {
-            main_node_client: client.into(),
+            main_node_client: client,
         })
     }
 }
