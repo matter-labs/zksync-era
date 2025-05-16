@@ -34,8 +34,8 @@ enum PubdataSendingMode {
 
 
 message PrecommitParams {
-  optional uint32 l2_blocks_to_aggregate = 1; // required; s
-  optional uint64 deadline = 2; // required; s
+  optional uint32 l2_blocks_to_aggregate = 1; // required;
+  optional uint64 deadline_sec = 2; // required;
 }
 
 message Sender {

@@ -410,7 +410,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
 impl Distribution<configs::eth_sender::PrecommitParams> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PrecommitParams {
         configs::eth_sender::PrecommitParams {
-            deadline: self.sample(rng),
+            deadline_sec: self.sample(rng),
             l2_blocks_to_aggregate: self.sample(rng),
         }
     }

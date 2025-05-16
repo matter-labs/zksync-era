@@ -357,18 +357,11 @@ impl GasConsts {
         }
     }
 
-    fn precommit_costs(is_gateway: bool) -> PrecommitCosts {
+    fn precommit_costs(_is_gateway: bool) -> PrecommitCosts {
         // TODO calculate it properly
-        if is_gateway {
-            PrecommitCosts {
-                base: 300000,
-                per_tx: 10000,
-            }
-        } else {
-            PrecommitCosts {
-                base: 300000,
-                per_tx: 10000,
-            }
+        PrecommitCosts {
+            base: 300000,
+            per_tx: 10000,
         }
     }
 

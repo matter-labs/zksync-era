@@ -160,7 +160,7 @@ pub struct SenderConfig {
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
 pub struct PrecommitParams {
     pub l2_blocks_to_aggregate: u32,
-    pub deadline: u64,
+    pub deadline_sec: u64,
 }
 
 impl SenderConfig {

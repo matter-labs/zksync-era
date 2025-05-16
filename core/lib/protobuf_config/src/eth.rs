@@ -144,7 +144,7 @@ impl ProtoRepr for proto::Sender {
             precommit_params: self.precommit_params.as_ref().map(|x| {
                 configs::eth_sender::PrecommitParams {
                     l2_blocks_to_aggregate: *required(&x.l2_blocks_to_aggregate).unwrap(),
-                    deadline: *required(&x.deadline).unwrap(),
+                    deadline_sec: *required(&x.deadline_sec).unwrap(),
                 }
             }),
         })
@@ -183,7 +183,7 @@ impl ProtoRepr for proto::Sender {
                 .as_ref()
                 .map(|x| proto::PrecommitParams {
                     l2_blocks_to_aggregate: Some(x.l2_blocks_to_aggregate),
-                    deadline: Some(x.deadline),
+                    deadline_sec: Some(x.deadline_sec),
                 }),
         }
     }

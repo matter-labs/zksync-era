@@ -365,7 +365,7 @@ impl Aggregator {
             // We need to check that the first and last L2 blocks are in the same batch
 
             let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
-            if first_l2_block_age < precommit_params.deadline as i64
+            if first_l2_block_age < precommit_params.deadline_sec as i64
                 && (first_tx.l2block_number.0 - last_tx.l2block_number.0
                     < precommit_params.l2_blocks_to_aggregate)
             {

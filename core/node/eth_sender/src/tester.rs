@@ -264,7 +264,7 @@ impl EthSenderTester {
             SettlementLayer::L1(chain_id),
             Some(PrecommitParams {
                 l2_blocks_to_aggregate: 1,
-                deadline: 1,
+                deadline_sec: 1,
             }),
         )
         .await
