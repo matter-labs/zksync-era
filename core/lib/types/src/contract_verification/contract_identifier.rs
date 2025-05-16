@@ -216,16 +216,14 @@ impl ContractIdentifier {
         // CBOR takes precedence (since keccak doesn't have direct markers, so it's partially a
         // fallback).
         let (detected_metadata, bytecode_without_metadata_keccak256) =
-            if let Some((full_length, hash, cbor_metadata)) =
+            if let Some((full_length, hash, metadata)) =
                 Self::detect_cbor_metadata(bytecode_marker, bytecode)
             {
-                (
-                    Some(DetectedMetadata::Cbor {
-                        full_length,
-                        metadata: cbor_metadata,
-                    }),
-                    hash,
-                )
+                let detected_metadata = DetectedMetadata::Cbor {
+                    full_length,
+                    metadata,
+                };
+                (Some(detected_metadata), hash)
             } else if let Some(hash) = Self::detect_keccak_metadata(bytecode_marker, bytecode) {
                 (Some(DetectedMetadata::Keccak256), hash)
             } else {

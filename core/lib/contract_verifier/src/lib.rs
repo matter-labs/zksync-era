@@ -272,12 +272,7 @@ impl ContractVerifier {
             ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
 
         let artifacts = self
-            .get_compilation_artifacts(
-                &mut request,
-                deployed_identifier.detected_metadata.as_ref(),
-                &bytecode_marker,
-                &deployed_code,
-            )
+            .get_compilation_artifacts(&mut request, &deployed_identifier)
             .await?;
 
         let mut compiled_code = artifacts.deployed_bytecode().to_vec();
@@ -370,67 +365,73 @@ impl ContractVerifier {
     async fn get_compilation_artifacts(
         &self,
         request: &mut VerificationRequest,
-        detected_metadata: Option<&DetectedMetadata>,
-        bytecode_marker: &BytecodeMarker,
-        deployed_code: &[u8],
+        deployed_identifier: &ContractIdentifier,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        match detected_metadata {
-            Some(DetectedMetadata::Cbor {
-                metadata: cbor_metadata,
-                ..
-            }) if !request.req.compiler_versions_match(cbor_metadata) => {
-                let updated_request = request
+        // If compiler versions from the metadata don't match with the request,
+        // we'll first try to use info from metadata.
+        let alternative_request = match &deployed_identifier.detected_metadata {
+            Some(DetectedMetadata::Cbor { metadata, .. })
+                if !request.req.compiler_versions_match(&metadata) =>
+            {
+                let update_request = request
                     .req
                     .clone()
-                    .with_updated_compiler_versions(cbor_metadata);
+                    .with_updated_compiler_versions(&metadata);
+                Some(update_request)
+            }
+            _ => None,
+        };
 
-                match self
-                    .compile(updated_request.clone(), *bytecode_marker)
-                    .await
-                {
-                    Ok(artifacts) if artifacts.match_bytecode(bytecode_marker, deployed_code) => {
-                        tracing::warn!(
-                            request_id = request.id,
-                            request_compiler = request.req.compiler_versions.compiler_version(),
-                            metadata_compiler =
-                                updated_request.compiler_versions.compiler_version(),
-                            request_zk_compiler =
-                                request.req.compiler_versions.zk_compiler_version(),
-                            metadata_zk_compiler =
-                                updated_request.compiler_versions.zk_compiler_version(),
-                            "Updating request compiler versions in the DB."
-                        );
+        if let Some(alternative_request) = alternative_request {
+            // Compile with the metadata versions
+            let artifacts = self
+                .compile(
+                    alternative_request.clone(),
+                    deployed_identifier.bytecode_marker,
+                )
+                .await;
 
-                        // Since we know the version that should be used for the contract, we override one provided in
-                        // the request, so that if this request is interpreted by anyone else, they can get correct
-                        // compilation results
-                        self.update_request_compiler_versions(
-                            request.id,
-                            updated_request.compiler_versions.compiler_version(),
-                            updated_request.compiler_versions.zk_compiler_version(),
-                        )
-                        .await?;
+            if let Ok(artifacts) = artifacts {
+                let compiled_identifier = ContractIdentifier::from_bytecode(
+                    deployed_identifier.bytecode_marker,
+                    artifacts.deployed_bytecode(),
+                );
+                // Check if the compiled bytecode matches the deployed bytecode
+                if matches!(
+                    compiled_identifier.matches(&deployed_identifier),
+                    Match::Full | Match::Partial
+                ) {
+                    tracing::info!(
+                        request_id = request.id,
+                        request_compiler = request.req.compiler_versions.compiler_version(),
+                        metadata_compiler =
+                            alternative_request.compiler_versions.compiler_version(),
+                        request_zk_compiler = request.req.compiler_versions.zk_compiler_version(),
+                        metadata_zk_compiler =
+                            alternative_request.compiler_versions.zk_compiler_version(),
+                        "Updating request compiler versions in the DB."
+                    );
 
-                        // Update the request for downstream use
-                        request.req = updated_request;
+                    // Since we know the version that should be used for the contract, we override one provided in
+                    // the request, so that if this request is interpreted by anyone else, they can get correct
+                    // compilation results
+                    self.update_request_compiler_versions(
+                        request.id,
+                        alternative_request.compiler_versions.compiler_version(),
+                        alternative_request.compiler_versions.zk_compiler_version(),
+                    )
+                    .await?;
 
-                        Ok(artifacts)
-                    }
-                    _ => {
-                        tracing::warn!(
-                            request_id = request.id,
-                            "Failed to compile with the compiler versions from the metadata or the compiled bytecode doesn't match. Falling back to the original request."
-                        );
-                        // Fallback to the original request
-                        self.compile(request.req.clone(), *bytecode_marker).await
-                    }
+                    // Update the request for downstream use
+                    request.req = alternative_request;
+
+                    return Ok(artifacts);
                 }
             }
-            _ => {
-                // No CBOR metadata — use original request
-                self.compile(request.req.clone(), *bytecode_marker).await
-            }
         }
+        // We either have no alternative request or it didn't succeed
+        self.compile(request.req.clone(), deployed_identifier.bytecode_marker)
+            .await
     }
 
     // Updates request compiler versions in the DB.

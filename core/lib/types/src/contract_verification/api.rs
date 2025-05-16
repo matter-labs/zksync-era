@@ -7,11 +7,7 @@ use serde::{
 };
 use zksync_basic_types::bytecode::BytecodeMarker;
 
-use crate::{
-    contract_verification::contract_identifier::{CborMetadata, ContractIdentifier, Match},
-    web3::Bytes,
-    Address,
-};
+use crate::{contract_verification::contract_identifier::CborMetadata, web3::Bytes, Address};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "codeFormat", content = "sourceCode")]
@@ -315,21 +311,6 @@ impl CompilationArtifacts {
                 }
             }
         }
-    }
-
-    /// Returns true if the provided `deployed_code` matches the compiled code from the artifacts.
-    /// Otherwise, returns false.
-    pub fn match_bytecode(&self, bytecode_marker: &BytecodeMarker, bytecode: &[u8]) -> bool {
-        let compiled_bytecode = self.deployed_bytecode().to_vec();
-        let compiled_identifier =
-            ContractIdentifier::from_bytecode(*bytecode_marker, &compiled_bytecode);
-
-        let identifier_to_compare = ContractIdentifier::from_bytecode(*bytecode_marker, bytecode);
-
-        !matches!(
-            compiled_identifier.matches(&identifier_to_compare),
-            Match::None
-        )
     }
 }
 
@@ -648,39 +629,5 @@ mod tests {
                 compiler_zkvyper_version: Some("v1.5.10".to_string()),
             }
         );
-    }
-
-    #[test]
-    fn test_match_bytecode() {
-        // Mock bytecode for testing
-        let bytecode = vec![0x60, 0x80, 0x60, 0x40, 0x52, 0x00]; // Some simple bytecode
-
-        let artifacts = CompilationArtifacts {
-            bytecode: bytecode.clone(),
-            deployed_bytecode: Some(bytecode.clone()),
-            abi: serde_json::Value::Null,
-            immutable_refs: HashMap::new(),
-        };
-
-        // Same bytecode should match
-        assert!(artifacts.match_bytecode(&BytecodeMarker::Evm, &bytecode));
-
-        // Different bytecode should not match
-        let different_bytecode = vec![0x60, 0x80, 0x60, 0x40, 0x52, 0x01]; // Changed last byte
-        assert!(!artifacts.match_bytecode(&BytecodeMarker::Evm, &different_bytecode));
-
-        let artifacts = CompilationArtifacts {
-            bytecode: bytecode.clone(),
-            deployed_bytecode: None, // For EraVM, deployed_bytecode is None
-            abi: serde_json::Value::Null,
-            immutable_refs: HashMap::new(),
-        };
-
-        // Same bytecode should match
-        assert!(artifacts.match_bytecode(&BytecodeMarker::EraVm, &bytecode));
-
-        // Different bytecode should not match
-        let different_bytecode = vec![0x60, 0x80, 0x60, 0x40, 0x52, 0x01]; // Changed last byte
-        assert!(!artifacts.match_bytecode(&BytecodeMarker::EraVm, &different_bytecode));
     }
 }
