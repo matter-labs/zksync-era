@@ -132,11 +132,11 @@ where
         let (l2_to_l1_log_index, _) = self
             .get_withdrawal_l2_to_l1_log(withdrawal_hash, index)
             .await?;
-        let sender = H160::from_slice(&log.topics[1][12..]);
         let proof = <Self as ZksNamespaceClient>::get_l2_to_l1_log_proof(
             self,
             withdrawal_hash,
             Some(l2_to_l1_log_index as usize),
+            None,
         )
         .await
         .map_err(|e| {
@@ -144,21 +144,27 @@ where
         })?
         .ok_or_else(|| ProviderError::CustomError("Log proof not found!".into()))?;
 
-        let message = ethers::abi::decode(&[ethers::abi::ParamType::Bytes], &log.data.0)
-            .map_err(|e| ProviderError::CustomError(format!("Failed to decode log data: {}", e)))?
-            .remove(0)
-            .into_bytes()
-            .ok_or_else(|| {
-                ProviderError::CustomError("Failed to extract message from decoded data".into())
-            })?;
+        let (sender, message) = get_message_from_log(&log)?;
 
         Ok(FinalizeWithdrawalParams {
             l2_batch_number: log.l1_batch_number.unwrap_or_default(),
             l2_message_index: proof.id.into(),
             l2_tx_number_in_block: l1_batch_tx_id,
-            message: message.into(),
+            message,
             sender,
             proof,
         })
     }
+}
+
+pub fn get_message_from_log(log: &Log) -> Result<(H160, Bytes), ProviderError> {
+    let sender = H160::from_slice(&log.topics[1][12..]);
+    let message = ethers::abi::decode(&[ethers::abi::ParamType::Bytes], &log.data.0)
+        .map_err(|e| ProviderError::CustomError(format!("Failed to decode log data: {}", e)))?
+        .remove(0)
+        .into_bytes()
+        .ok_or_else(|| {
+            ProviderError::CustomError("Failed to extract message from decoded data".into())
+        })?;
+    Ok((sender, message.into()))
 }

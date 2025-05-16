@@ -53,7 +53,7 @@ struct L1SharedBridgeInfo {
 
 impl L1Updater {
     async fn get_shared_bridge_info(&self) -> Result<L1SharedBridgeInfo, ContractCallError> {
-        let l1_shared_bridge_addr: Address = CallFunctionArgs::new("sharedBridge", ())
+        let l1_shared_bridge_addr: Address = CallFunctionArgs::new("assetRouter", ())
             .for_contract(self.bridgehub_addr, &self.bridgehub_abi)
             .call(self.l1_eth_client.as_ref())
             .await?;

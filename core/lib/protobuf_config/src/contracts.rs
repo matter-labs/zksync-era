@@ -45,6 +45,10 @@ impl ProtoRepr for proto::Contracts {
                 .server_notifier_addr
                 .as_ref()
                 .map(|x| parse_h160(x).expect("Invalid address")),
+            message_root_proxy_addr: ecosystem_contracts
+                .message_root_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x).expect("Invalid address")),
             governance_addr: required(&l1.governance_addr)
                 .and_then(|x| parse_h160(x))
                 .context("governance_addr")?,
@@ -159,6 +163,7 @@ impl ProtoRepr for proto::Contracts {
                 .l1_wrapped_base_token_store_addr
                 .map(|x| format!("{:?}", x)),
             server_notifier_addr: this.server_notifier_addr.map(|x| format!("{:?}", x)),
+            message_root_proxy_addr: this.message_root_proxy_addr.map(|x| format!("{:?}", x)),
         };
         Self {
             ecosystem_contracts: Some(ecosystem_contracts),

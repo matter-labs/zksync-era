@@ -12,7 +12,8 @@
 import fs from 'node:fs/promises';
 import { TestContextOwner, TestMaster } from '../src';
 
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForNewL1Batch, anyTransaction } from '../src/helpers';

@@ -246,6 +246,7 @@ impl Distribution<configs::AllContractsConfig> for EncodeDist {
             no_da_validium_l1_validator_addr: self.sample_opt(|| rng.gen()),
             l2_multicall3_addr: self.sample_opt(|| rng.gen()),
             server_notifier_addr: None,
+            message_root_proxy_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }

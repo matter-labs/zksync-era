@@ -45,6 +45,7 @@ fn get_dummy_operation(number: u32) -> AggregatedOperation {
             raw_published_factory_deps: Vec::new(),
         }],
         priority_ops_proofs: Vec::new(),
+        dependency_roots: vec![vec![], vec![]],
     })
 }
 

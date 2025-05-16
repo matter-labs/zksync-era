@@ -1,4 +1,5 @@
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { BigNumberish } from 'ethers';
 
@@ -193,7 +194,7 @@ export class TestContextOwner {
         const chainId = this.env.l2ChainId;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
-        const erc20Bridge = await bridgehub.sharedBridge();
+        const erc20Bridge = await bridgehub.assetRouter();
         const baseToken = await bridgehub.baseToken(chainId);
 
         const erc20Token = this.env.erc20Token.l1Address;
