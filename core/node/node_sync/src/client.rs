@@ -97,10 +97,35 @@ impl MainNodeClient for Box<DynClient<L2>> {
         &self,
         protocol_version: ProtocolVersionId,
     ) -> EnrichedClientResult<Option<api::ProtocolVersionInfo>> {
-        self.get_protocol_version_info(Some(protocol_version as u16))
+        match self
+            .get_protocol_version_info(Some(protocol_version as u16))
             .rpc_context("fetch_protocol_version")
             .with_arg("protocol_version", &protocol_version)
             .await
+        {
+            Ok(result) => Ok(result),
+            Err(err) => {
+                // Presume that `en_getProtocolVersionInfo` is not available on main node yet,
+                // fallback to `zks_getProtocolVersion`
+                tracing::warn!(
+                    %protocol_version,
+                    %err,
+                    "Failed to fetch protocol version from main node using `en_getProtocolVersionInfo`"
+                );
+                #[allow(deprecated)]
+                let Some(protocol_version) = self
+                    .get_protocol_version(Some(protocol_version as u16))
+                    .rpc_context("fetch_protocol_version")
+                    .with_arg("protocol_version", &protocol_version)
+                    .await?
+                else {
+                    return Ok(None);
+                };
+                Ok(Some(protocol_version.try_into().expect(
+                    "legacy protocol version should contain all required fields",
+                )))
+            }
+        }
     }
 
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {

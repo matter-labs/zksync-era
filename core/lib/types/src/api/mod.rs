@@ -793,6 +793,27 @@ pub struct ProtocolVersionInfo {
     pub l2_system_upgrade_tx_hash: Option<H256>,
 }
 
+impl TryFrom<ProtocolVersion> for ProtocolVersionInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(value: ProtocolVersion) -> Result<Self, Self::Error> {
+        Ok(ProtocolVersionInfo {
+            minor_version: value
+                .minor_version
+                .ok_or(anyhow::anyhow!("missing minor protocol version"))?,
+            timestamp: value.timestamp,
+            bootloader_code_hash: value
+                .bootloader_code_hash
+                .ok_or(anyhow::anyhow!("missing bootloader code hash"))?,
+            default_account_code_hash: value
+                .default_account_code_hash
+                .ok_or(anyhow::anyhow!("missing default account code hash"))?,
+            evm_emulator_code_hash: value.evm_emulator_code_hash,
+            l2_system_upgrade_tx_hash: value.l2_system_upgrade_tx_hash_new,
+        })
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum SupportedTracers {
