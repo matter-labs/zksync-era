@@ -1,4 +1,8 @@
-use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
+use zksync_types::{
+    api::{en, ProtocolVersionInfo},
+    tokens::TokenInfo,
+    Address, L2BlockNumber,
+};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::EnNamespaceServer,
@@ -54,6 +58,15 @@ impl EnNamespaceServer for EnNamespace {
 
     async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContractsDto> {
         self.get_l1_ecosystem_contracts_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_protocol_version_info(
+        &self,
+        version_id: Option<u16>,
+    ) -> RpcResult<Option<ProtocolVersionInfo>> {
+        self.get_protocol_version_info_impl(version_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
