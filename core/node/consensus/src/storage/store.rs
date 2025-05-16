@@ -11,6 +11,7 @@ use zksync_dal::{
     consensus_dal::{self, Payload},
 };
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
+use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -50,6 +51,18 @@ fn to_fetched_block(
             .map(FetchedTransaction::new)
             .collect(),
     })
+}
+
+async fn wait_for_local_block(
+    ctx: &ctx::Ctx,
+    sync_state: &SyncState,
+    want: L2BlockNumber,
+) -> ctx::OrCanceled<()> {
+    sync::wait_for(ctx, &mut sync_state.subscribe(), |inner| {
+        inner.local_block() >= Some(want)
+    })
+    .await?;
+    Ok(())
 }
 
 /// Wrapper of `ConnectionPool` implementing `ReplicaStore`, `PayloadManager`,
@@ -452,8 +465,7 @@ impl PayloadManager for Store {
             // processed block is the same as `payload`. It will work correctly
             // with the current implementation of EN, but we should make it more
             // precise when block reverting support is implemented.
-            ctx.wait(payloads.sync_state.wait_for_local_block(n))
-                .await?;
+            wait_for_local_block(ctx, &payloads.sync_state, n).await?;
         } else {
             let want = self.pool.wait_for_payload(ctx, block_number).await?;
             let got = Payload::decode(payload).context("Payload::decode(got)")?;

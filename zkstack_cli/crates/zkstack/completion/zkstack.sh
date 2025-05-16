@@ -474,6 +474,9 @@ _zkstack() {
             zkstack__dev__help__test,fees)
                 cmd="zkstack__dev__help__test__fees"
                 ;;
+            zkstack__dev__help__test,gateway-migration)
+                cmd="zkstack__dev__help__test__gateway__migration"
+                ;;
             zkstack__dev__help__test,integration)
                 cmd="zkstack__dev__help__test__integration"
                 ;;
@@ -555,6 +558,9 @@ _zkstack() {
             zkstack__dev__test,fees)
                 cmd="zkstack__dev__test__fees"
                 ;;
+            zkstack__dev__test,gateway-migration)
+                cmd="zkstack__dev__test__gateway__migration"
+                ;;
             zkstack__dev__test,help)
                 cmd="zkstack__dev__test__help"
                 ;;
@@ -590,6 +596,9 @@ _zkstack() {
                 ;;
             zkstack__dev__test__help,fees)
                 cmd="zkstack__dev__test__help__fees"
+                ;;
+            zkstack__dev__test__help,gateway-migration)
+                cmd="zkstack__dev__test__help__gateway__migration"
                 ;;
             zkstack__dev__test__help,help)
                 cmd="zkstack__dev__test__help__help"
@@ -929,6 +938,9 @@ _zkstack() {
                 ;;
             zkstack__help__dev__test,fees)
                 cmd="zkstack__help__dev__test__fees"
+                ;;
+            zkstack__help__dev__test,gateway-migration)
+                cmd="zkstack__help__dev__test__gateway__migration"
                 ;;
             zkstack__help__dev__test,integration)
                 cmd="zkstack__help__dev__test__integration"
@@ -3884,7 +3896,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__help__test)
-            opts="integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest"
+            opts="integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest gateway-migration"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3912,6 +3924,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__help__test__fees)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__help__test__gateway__migration)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -4438,7 +4464,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest gateway-migration help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4491,8 +4517,34 @@ _zkstack() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        zkstack__dev__test__gateway__migration)
+            opts="-n -g -v -h --no-deps --from-gateway --to-gateway --gateway-chain --verbose --chain --ignore-prerequisites --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --gateway-chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -g)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         zkstack__dev__test__help)
-            opts="integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest help"
+            opts="integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest gateway-migration help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4520,6 +4572,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__help__fees)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__test__help__gateway__migration)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -4674,7 +4740,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__test__integration)
-            opts="-e -n -t -v -h --external-node --no-deps --test-pattern --verbose --chain --ignore-prerequisites --help"
+            opts="-e -n -t -v -h --external-node --no-deps --evm --test-pattern --verbose --chain --ignore-prerequisites --help [SUITE]..."
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6484,7 +6550,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__dev__test)
-            opts="integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest"
+            opts="integration fees revert recovery upgrade build rust l1-contracts prover wallet loadtest gateway-migration"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6512,6 +6578,20 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__dev__test__fees)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__dev__test__gateway__migration)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -7366,26 +7446,18 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__run)
-            opts="-l -h -m -v -h --component --round --threads --max-allocation --light-wvg-count --heavy-wvg-count --max-allocation --mode --docker --tag --verbose --chain --ignore-prerequisites --help"
+            opts="-l -h -m -v -h --component --round --light-wvg-count --heavy-wvg-count --max-allocation --mode --docker --tag --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --component)
-                    COMPREPLY=($(compgen -W "gateway witness-generator witness-vector-generator prover circuit-prover compressor prover-job-monitor" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "gateway witness-generator circuit-prover compressor prover-job-monitor" -- "${cur}"))
                     return 0
                     ;;
                 --round)
                     COMPREPLY=($(compgen -W "all-rounds basic-circuits leaf-aggregation node-aggregation recursion-tip scheduler" -- "${cur}"))
-                    return 0
-                    ;;
-                --threads)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --max-allocation)
-                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --light-wvg-count)
