@@ -21,7 +21,7 @@ use zksync_config::{
         en_config::ENConfig,
         DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
-    DAClientConfig, ObjectStoreConfig,
+    ContractVerifierConfig, DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -1302,6 +1302,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
     pub remote: R,
+    pub contract_verifier: Option<ContractVerifierConfig>,
 }
 
 impl ExternalNodeConfig<()> {
@@ -1329,6 +1330,9 @@ impl ExternalNodeConfig<()> {
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
             remote: (),
+            contract_verifier: envy::prefixed("EN_CONTRACT_VERIFIER_")
+                .from_env::<ContractVerifierConfig>()
+                .ok(),
         })
     }
 
@@ -1384,6 +1388,7 @@ impl ExternalNodeConfig<()> {
             general_config.da_client_config,
             secrets_config.data_availability,
         );
+        let contract_verifier = general_config.contract_verifier.clone();
 
         Ok(Self {
             required,
@@ -1397,6 +1402,7 @@ impl ExternalNodeConfig<()> {
             consensus_secrets,
             data_availability,
             remote: (),
+            contract_verifier,
         })
     }
 
@@ -1433,6 +1439,7 @@ impl ExternalNodeConfig<()> {
             consensus_secrets: self.consensus_secrets,
             data_availability: self.data_availability,
             remote,
+            contract_verifier: self.contract_verifier,
         })
     }
 }
@@ -1454,6 +1461,7 @@ impl ExternalNodeConfig {
             },
             tree_component: TreeComponentConfig { api_port: None },
             data_availability: (None, None),
+            contract_verifier: None,
         }
     }
 
