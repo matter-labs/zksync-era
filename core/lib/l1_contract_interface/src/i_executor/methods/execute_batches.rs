@@ -4,9 +4,8 @@ use zksync_types::{
     InteropRoot, ProtocolVersionId,
 };
 
-use crate::{
-    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
-    Tokenizable,
+use crate::i_executor::structures::{
+    StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
 };
 
 /// Input required to encode `executeBatches` call.
@@ -29,7 +28,10 @@ impl ExecuteBatches {
             vec![Token::Array(
                 self.l1_batches
                     .iter()
-                    .map(|batch| StoredBatchInfo::from(batch).into_token())
+                    .map(|batch| {
+                        StoredBatchInfo::from(batch)
+                            .into_token_with_protocol_version(internal_protocol_version)
+                    })
                     .collect(),
             )]
         } else if internal_protocol_version.is_pre_interop()
@@ -39,7 +41,10 @@ impl ExecuteBatches {
                 Token::Array(
                     self.l1_batches
                         .iter()
-                        .map(|batch| StoredBatchInfo::from(batch).into_token())
+                        .map(|batch| {
+                            StoredBatchInfo::from(batch)
+                                .into_token_with_protocol_version(internal_protocol_version)
+                        })
                         .collect(),
                 ),
                 Token::Array(
@@ -49,7 +54,7 @@ impl ExecuteBatches {
                         .collect(),
                 ),
             ]);
-            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+            let execute_data = [[PRE_INTEROP_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 
@@ -63,7 +68,10 @@ impl ExecuteBatches {
                 Token::Array(
                     self.l1_batches
                         .iter()
-                        .map(|batch| StoredBatchInfo::from(batch).into_token())
+                        .map(|batch| {
+                            StoredBatchInfo::from(batch)
+                                .into_token_with_protocol_version(internal_protocol_version)
+                        })
                         .collect(),
                 ),
                 Token::Array(

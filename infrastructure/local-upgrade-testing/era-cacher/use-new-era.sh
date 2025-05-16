@@ -1,9 +1,9 @@
 #!/bin/bash
 
-OLD_REPO=~/zksync-era
-NEW_REPO=~/zksync-era-private
+OLD_REPO=./zksync-old
+NEW_REPO=./zksync-new
 
-WORKING_DIRECTORY=~/zksync-era-current
+WORKING_DIRECTORY=./zksync-working
 
 # Check if the folder exists
 if [ ! -d "$NEW_REPO" ]; then

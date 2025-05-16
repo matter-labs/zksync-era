@@ -94,6 +94,44 @@ jobs:
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
+  
+  install-zkstack-with-upgrades:
+    runs-on: matterlabs-ci-runner
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
+
+      - name: Start services
+        run: |
+          ci_localnet_up
+
+      - name: Init
+        run: |
+          ci_run run_retried rustup show
+
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local --cargo-features v27_evm_interpreter
+
+      - name: Install v28
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
+          ci_run zkstackup -g --local --cargo-features v28_precompiles
+
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
