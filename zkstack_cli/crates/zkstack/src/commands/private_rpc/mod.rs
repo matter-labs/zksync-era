@@ -112,6 +112,7 @@ fn prompt_db_config(config: &ChainConfig) -> anyhow::Result<Url> {
     let private_rpc_db_name: String = Prompt::new(&msg_private_proxy_db_name_prompt(&chain_name))
         .default(&default_db_name)
         .ask();
+    let private_rpc_db_name = slugify!(&private_rpc_db_name, separator = "_");
     let db_config = db::DatabaseConfig::new(private_rpc_db_url, private_rpc_db_name);
 
     Ok(db_config.full_url())
