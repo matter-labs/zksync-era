@@ -159,6 +159,10 @@ impl TxCache {
             let inner = self.inner.read().await;
             inner.nonces_by_account.keys().copied().collect()
         };
+        if addresses.is_empty() {
+            return Ok(()); // Do not spend time on acquiring a connection and executing a query
+        }
+
         let mut storage = pool.connection_tagged("api").await?;
         let nonces_for_accounts = storage
             .storage_web3_dal()
