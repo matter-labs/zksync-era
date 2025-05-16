@@ -337,12 +337,19 @@ async fn snapshot_applier_recovers_after_stopping() {
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
+    let health_check = task.health_check();
     let (_stop_sender, task_stop_receiver) = watch::channel(false);
     let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     // Wait until the first storage logs chunk is requested (the object store hangs up at this point)
     stop_receiver.wait_for(|&count| count > 1).await.unwrap();
     assert!(!task_handle.is_finished());
+    let health = health_check.check_health().await;
+    let health_details = health.details().unwrap();
+    assert_eq!(health_details["factory_deps_recovered"], true);
+    assert_eq!(health_details["tokens_recovered"], false);
+    assert_eq!(health_details["storage_logs_chunk_count"], 10);
+    assert_eq!(health_details["storage_logs_chunks_left_to_process"], 10);
     task_handle.abort();
 
     assert_eq!(
@@ -374,11 +381,18 @@ async fn snapshot_applier_recovers_after_stopping() {
         Box::new(client.clone()),
         Arc::new(stopping_object_store),
     );
+    let health_check = task.health_check();
     let (_stop_sender, task_stop_receiver) = watch::channel(false);
     let task_handle = tokio::spawn(task.run(task_stop_receiver));
 
     stop_receiver.wait_for(|&count| count > 3).await.unwrap();
     assert!(!task_handle.is_finished());
+    let health = health_check.check_health().await;
+    let health_details = health.details().unwrap();
+    assert_eq!(health_details["factory_deps_recovered"], true);
+    assert_eq!(health_details["tokens_recovered"], false);
+    assert_eq!(health_details["storage_logs_chunk_count"], 10);
+    assert_eq!(health_details["storage_logs_chunks_left_to_process"], 7);
     task_handle.abort();
 
     assert_eq!(

@@ -971,6 +971,7 @@ impl<'a> SnapshotsApplier<'a> {
         let chunks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
         let latency = latency.observe();
         tracing::info!("Saved storage logs for chunk {chunk_id} in {latency:?}, there are {chunks_left} left to process");
+        self.update_health();
 
         Ok(())
     }
