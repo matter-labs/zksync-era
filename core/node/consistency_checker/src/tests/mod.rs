@@ -16,7 +16,7 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     block::L2BlockHeader,
     commitment::{L1BatchWithMetadata, PubdataType},
     protocol_version::ProtocolSemanticVersion,
@@ -364,7 +364,7 @@ impl SaveAction<'_> {
                     .eth_sender_dal()
                     .insert_bogus_confirmed_eth_tx(
                         l1_batch_number,
-                        AggregatedActionType::Commit,
+                        L1BatchAggregatedActionType::Commit,
                         commit_tx_hash,
                         chrono::Utc::now(),
                         chain_id,

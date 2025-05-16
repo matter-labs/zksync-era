@@ -8,7 +8,7 @@ use zksync_multivm::{
 };
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    ProtocolVersionId, Transaction, H256,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -16,6 +16,7 @@ use super::{
     io::{IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
+use crate::updates::l2_block_updates::RollingTxHashUpdates;
 
 pub mod l1_batch_updates;
 pub mod l2_block_updates;
@@ -38,6 +39,7 @@ pub struct UpdatesManager {
     storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
+    pub rolling_tx_hash_updates: RollingTxHashUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
     pubdata_params: PubdataParams,
     next_l2_block_params: Option<L2BlockParams>,
@@ -67,6 +69,9 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
             ),
+            rolling_tx_hash_updates: RollingTxHashUpdates {
+                rolling_hash: H256::zero(),
+            },
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
             pubdata_params,
@@ -129,6 +134,7 @@ impl UpdatesManager {
             l2_legacy_shared_bridge_addr,
             pre_insert_txs,
             pubdata_params: self.pubdata_params,
+            rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
         }
     }
 
@@ -153,6 +159,9 @@ impl UpdatesManager {
             .start();
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
+
+        self.rolling_tx_hash_updates
+            .append_rolling_hash(tx.hash(), !tx_execution_result.result.is_failed());
         self.l2_block.extend_from_executed_transaction(
             tx,
             tx_execution_result,
@@ -258,6 +267,7 @@ pub struct L2BlockSealCommand {
     /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
     pub pubdata_params: PubdataParams,
+    pub rolling_txs_hash: H256,
 }
 
 #[cfg(test)]

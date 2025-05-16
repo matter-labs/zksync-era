@@ -173,6 +173,7 @@ async fn create_l2_block(
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Default::default(),
+        rolling_txs_hash: None,
     };
 
     conn.blocks_dal()

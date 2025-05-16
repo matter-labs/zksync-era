@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batches.number AS l1_batch_number,\n                miniblocks.eth_precommit_tx_id,\n                miniblocks.rolling_txs_hash,\n                miniblocks.number AS miniblock_number\n            FROM\n                l1_batches\n            JOIN LATERAL (\n                SELECT\n                    eth_precommit_tx_id,\n                    rolling_txs_hash,\n                    number\n                FROM miniblocks\n                WHERE l1_batch_number = l1_batches.number\n                ORDER BY number DESC\n                LIMIT 2\n            ) miniblocks ON TRUE\n            WHERE\n                l1_batches.number > 0\n                AND l1_batches.is_sealed\n                AND l1_batches.eth_commit_tx_id IS NULL\n                AND l1_batches.final_precommit_eth_tx_id IS NULL\n            ORDER BY l1_batches.number, miniblocks.number DESC;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "eth_precommit_tx_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "rolling_txs_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4234cdea456f5f612c4d5e155311e5479c9d2749dec5ecd024c6938782ff47a8"
+}

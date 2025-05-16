@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     eth_sender::{EthTx, TxHistory},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
@@ -31,12 +31,13 @@ pub struct StorageEthTx {
     pub blob_sidecar: Option<Vec<u8>>,
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Default)]
 pub struct L1BatchEthSenderStats {
-    pub saved: Vec<(AggregatedActionType, L1BatchNumber)>,
-    pub mined: Vec<(AggregatedActionType, L1BatchNumber)>,
+    pub saved: Vec<(L1BatchAggregatedActionType, L1BatchNumber)>,
+    pub mined: Vec<(L1BatchAggregatedActionType, L1BatchNumber)>,
 }
 
 #[derive(Clone, Debug)]

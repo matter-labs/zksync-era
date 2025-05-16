@@ -6,7 +6,7 @@ use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit,
 };
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
-use zksync_types::aggregated_operations::AggregatedActionType;
+use zksync_types::aggregated_operations::L1BatchAggregatedActionType;
 
 pub mod metadata;
 pub mod tree;
@@ -74,7 +74,7 @@ pub enum BlockStage {
     MetadataCalculated,
     L1 {
         l1_stage: BlockL1Stage,
-        tx_type: AggregatedActionType,
+        tx_type: L1BatchAggregatedActionType,
     },
 }
 

@@ -303,6 +303,30 @@ impl BlocksWeb3Dal<'_, '_> {
                     ) AS number
                     ";
                 ),
+                api::BlockId::Number(api::BlockNumber::Precommitted) => (
+                    // TODO think about the case when we switched off the precommit tx
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE eth_precommit_tx_id IS NOT NULL
+                        ),
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs ON
+                                    l1_batches.eth_commit_tx_id = eth_txs.id
+                                WHERE
+                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
+                ),
+
                 api::BlockId::Number(api::BlockNumber::Finalized) => (
                     "
                     SELECT COALESCE(
@@ -688,6 +712,9 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
                 miniblocks.fair_pubdata_price,
@@ -714,6 +741,11 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    miniblocks.eth_precommit_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
             LEFT JOIN eth_txs AS commit_tx_data
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx_data.id
@@ -728,6 +760,11 @@ impl BlocksWeb3Dal<'_, '_> {
                 ON (
                     l1_batches.eth_execute_tx_id = execute_tx_data.id
                     AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON (
+                    miniblocks.eth_precommit_tx_id = precommit_tx_data.id
+                    AND precommit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 miniblocks.number = $1
@@ -779,6 +816,9 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,
                 mb.fair_pubdata_price,
@@ -803,6 +843,12 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
+            
             LEFT JOIN eth_txs AS commit_tx_data
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx_data.id
@@ -817,6 +863,11 @@ impl BlocksWeb3Dal<'_, '_> {
                 ON (
                     l1_batches.eth_execute_tx_id = execute_tx_data.id
                     AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON (
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx_data.id
+                    AND precommit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 l1_batches.number = $1
@@ -836,7 +887,7 @@ impl BlocksWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        aggregated_operations::AggregatedActionType,
+        aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
         block::{L2BlockHasher, L2BlockHeader},
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
@@ -1044,7 +1095,7 @@ mod tests {
             .save_eth_tx(
                 0,
                 vec![],
-                AggregatedActionType::Commit,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
                 Address::default(),
                 None,
                 None,
@@ -1076,7 +1127,7 @@ mod tests {
             .set_eth_tx_id(
                 l1_batch_header.number..=l1_batch_header.number,
                 mocked_commit_eth_tx.id,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
             )
             .await
             .unwrap();

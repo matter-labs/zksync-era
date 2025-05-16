@@ -141,7 +141,6 @@ impl WiringLayer for EthTxAggregatorLayer {
         let object_store = input.object_store.0;
 
         // Create and add tasks.
-
         let config = input.sender_config;
         let aggregator = Aggregator::new(
             config.clone(),
@@ -150,6 +149,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             self.l1_batch_commit_data_generator_mode,
             replica_pool.clone(),
             input.settlement_mode.settlement_layer(),
+            config.precommit_params,
         )
         .await?;
 

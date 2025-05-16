@@ -135,6 +135,7 @@ pub struct L2BlockHeader {
     pub gas_limit: u64,
     pub logs_bloom: Bloom,
     pub pubdata_params: PubdataParams,
+    pub rolling_txs_hash: Option<H256>,
 }
 
 /// Structure that represents the data is returned by the storage oracle during batch execution.

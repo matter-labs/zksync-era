@@ -106,6 +106,7 @@ enum BlockIdLabel {
     Earliest,
     Pending,
     Number,
+    Precommitted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
@@ -143,6 +144,7 @@ impl From<&MethodMetadata> for MethodLabels {
             api::BlockId::Number(api::BlockNumber::L1Committed) => BlockIdLabel::L1Committed,
             api::BlockId::Number(api::BlockNumber::Earliest) => BlockIdLabel::Earliest,
             api::BlockId::Number(api::BlockNumber::Pending) => BlockIdLabel::Pending,
+            api::BlockId::Number(api::BlockNumber::Precommitted) => BlockIdLabel::Precommitted,
         });
         let block_diff = meta.block_diff.map(|block_diff| match block_diff {
             0..=2 => BlockDiffLabel::Exact(block_diff),

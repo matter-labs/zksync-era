@@ -11,6 +11,7 @@ use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    web3::keccak256_concat,
     L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 
@@ -178,6 +179,24 @@ impl L2BlockUpdates {
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct RollingTxHashUpdates {
+    pub rolling_hash: H256,
+}
+
+impl RollingTxHashUpdates {
+    pub fn append_rolling_hash(&mut self, tx_hash: H256, is_success: bool) {
+        let status_byte = if is_success {
+            H256::from_low_u64_be(1)
+        } else {
+            H256::zero()
+        };
+
+        self.rolling_hash =
+            keccak256_concat(self.rolling_hash, keccak256_concat(tx_hash, status_byte));
     }
 }
 

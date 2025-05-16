@@ -8,7 +8,10 @@ use std::{
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{BlockL1Stage, BlockStage, APP_METRICS};
-use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
+use zksync_types::{
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    eth_sender::EthTx,
+};
 
 use crate::abstract_l1_interface::{L1BlockNumbers, OperatorType};
 
@@ -48,6 +51,12 @@ impl From<AggregatedActionType> for ActionTypeLabel {
     }
 }
 
+impl From<L1BatchAggregatedActionType> for ActionTypeLabel {
+    fn from(action_type: L1BatchAggregatedActionType) -> Self {
+        Self(AggregatedActionType::L1Batch(action_type))
+    }
+}
+
 impl fmt::Display for ActionTypeLabel {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.0.as_str())
@@ -60,8 +69,8 @@ pub(super) struct AggregationReasonLabels {
     op: ActionTypeLabel,
 }
 
-impl From<(AggregatedActionType, &'static str)> for AggregationReasonLabels {
-    fn from((op, r#type): (AggregatedActionType, &'static str)) -> Self {
+impl From<(L1BatchAggregatedActionType, &'static str)> for AggregationReasonLabels {
+    fn from((op, r#type): (L1BatchAggregatedActionType, &'static str)) -> Self {
         Self {
             r#type,
             op: op.into(),
@@ -127,10 +136,14 @@ impl EthSenderMetrics {
         l1_stage: BlockL1Stage,
         tx: &EthTx,
     ) {
+        let AggregatedActionType::L1Batch(action_type) = tx.tx_type else {
+            // skip l2 block based actions
+            return;
+        };
         let metrics_latency = self.metrics_latency.start();
         let stage = BlockStage::L1 {
             l1_stage,
-            tx_type: tx.tx_type,
+            tx_type: action_type,
         };
 
         let l1_batches_statistics = connection
