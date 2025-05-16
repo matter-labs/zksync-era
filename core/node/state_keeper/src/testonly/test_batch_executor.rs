@@ -28,8 +28,8 @@ use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
-    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId,
-    OrStopped, ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
+    L2ChainId, OrStopped, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{

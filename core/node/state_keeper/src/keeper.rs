@@ -20,7 +20,8 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, InteropRoot, L1BatchNumber, OrStopped, StopContext, Transaction,
+    utils::display_timestamp, InteropRoot, L1BatchNumber, L2BlockNumber, OrStopped, StopContext,
+    Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
