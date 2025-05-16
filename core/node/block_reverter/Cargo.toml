@@ -12,8 +12,9 @@ categories.workspace = true
 
 [dependencies]
 zksync_types.workspace = true
-zksync_dal.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_config.workspace = true
+zksync_node_framework.workspace = true
 zksync_contracts.workspace = true
 zksync_object_store.workspace = true
 zksync_storage.workspace = true
@@ -22,6 +23,7 @@ zksync_state.workspace = true
 zksync_merkle_tree.workspace = true
 
 anyhow.workspace = true
+async-trait.workspace = true
 futures.workspace = true
 tokio = { workspace = true, features = ["time", "fs"] }
 serde.workspace = true

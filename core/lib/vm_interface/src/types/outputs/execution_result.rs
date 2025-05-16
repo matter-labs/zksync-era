@@ -177,7 +177,7 @@ impl VmExecutionResultAndLogs {
         // - 32 bytes of encoded length
         let l2_l1_long_messages = VmEvent::extract_long_l2_to_l1_messages(&self.logs.events)
             .iter()
-            .map(|event| (event.len() + 31) / 32 * 32 + 64)
+            .map(|event| event.len().div_ceil(32) * 32 + 64)
             .sum();
 
         let published_bytecode_bytes = VmEvent::extract_published_bytecodes(&self.logs.events)
