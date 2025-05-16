@@ -65,7 +65,7 @@ tracing-subscriber = "0.3"
 tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.3.0"
-smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "444623149bc7ae69300b1b7dfd2639b33138db47" }
+smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
 
 circuit_definitions = "=0.152.3"
 circuit_sequencer_api = "=0.152.3"
