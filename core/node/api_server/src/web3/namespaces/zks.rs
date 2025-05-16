@@ -599,6 +599,8 @@ impl ZksNamespace {
             .get_fee_model_params()
     }
 
+    #[deprecated]
+    #[allow(deprecated)]
     pub async fn get_protocol_version_impl(
         &self,
         version_id: Option<u16>,
