@@ -89,7 +89,7 @@ impl DataAvailabilityClient for EigenDAClient {
             .get_inclusion_data(&dispatch_request_id)
             .await
             .map_err(to_retriable_da_error)?;
-        if let Some(_) = inclusion_data {
+        if inclusion_data.is_some() {
             Ok(Some(FinalityResponse {
                 blob_id: dispatch_request_id,
             }))
