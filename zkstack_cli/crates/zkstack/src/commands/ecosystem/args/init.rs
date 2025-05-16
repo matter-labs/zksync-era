@@ -109,6 +109,8 @@ pub struct EcosystemInitArgs {
     pub validium_args: ValidiumTypeArgs,
     #[clap(long, default_missing_value = "false", num_args = 0..=1)]
     pub support_l2_legacy_shared_bridge_test: Option<bool>,
+    #[clap(long, default_value = "false", num_args = 0..=1)]
+    pub make_permanent_rollup: Option<bool>,
     #[clap(long, default_value_t = false)]
     pub skip_contract_compilation_override: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]

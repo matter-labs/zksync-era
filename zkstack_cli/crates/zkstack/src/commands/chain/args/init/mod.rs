@@ -41,6 +41,8 @@ pub struct InitArgs {
     pub no_port_reallocation: bool,
     #[clap(long)]
     pub update_submodules: Option<bool>,
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub make_permanent_rollup: Option<bool>,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
     #[clap(flatten)]
@@ -110,6 +112,7 @@ impl InitArgs {
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
+            make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
         }
     }
 }
@@ -122,4 +125,5 @@ pub struct InitArgsFinal {
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
+    pub make_permanent_rollup: bool,
 }
