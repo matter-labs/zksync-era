@@ -24,8 +24,10 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_shared_resources::api::{BridgeAddressesHandle, SyncState};
+use zksync_shared_resources::{
+    api::{BridgeAddressesHandle, SyncState},
+    tree::TreeApiClient,
+};
 use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::SettlementLayer,
     transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,

@@ -12,16 +12,18 @@ use axum::{
 };
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::sync::watch;
-use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_merkle_tree::{
     unstable::{NodeKey, RawNode},
     NoVersionError, ValueHash,
 };
+use zksync_shared_resources::tree::{
+    MerkleTreeInfo, TreeApiClient, TreeApiError, TreeEntryWithProof,
+};
 use zksync_types::{u256_to_h256, web3, L1BatchNumber, H256, U256};
 
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};
-use crate::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo};
+use crate::{AsyncTreeReader, LazyAsyncTreeReader};
 
 mod metrics;
 #[cfg(test)]
@@ -38,45 +40,13 @@ struct TreeProofsResponse {
     entries: Vec<TreeEntryWithProof>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TreeEntryWithProof {
-    #[serde(default, skip_serializing_if = "H256::is_zero")]
-    pub value: H256,
-    #[serde(default, skip_serializing_if = "TreeEntryWithProof::is_zero")]
-    pub index: u64,
-    pub merkle_path: Vec<H256>,
-}
-
-impl TreeEntryWithProof {
-    fn is_zero(&value: &u64) -> bool {
-        value == 0
-    }
-}
-
-impl TreeEntryWithProof {
-    fn new(src: zksync_merkle_tree::TreeEntryWithProof) -> Self {
-        let mut merkle_path = src.merkle_path;
-        merkle_path.reverse(); // Use root-to-leaf enumeration direction as in Ethereum
-        Self {
-            value: src.base.value,
-            index: src.base.leaf_index,
-            merkle_path,
-        }
-    }
-
-    /// Verifies the entry.
-    pub fn verify(&self, key: U256, trusted_root_hash: H256) -> anyhow::Result<()> {
-        let mut merkle_path = self.merkle_path.clone();
-        merkle_path.reverse();
-        zksync_merkle_tree::TreeEntryWithProof {
-            base: zksync_merkle_tree::TreeEntry {
-                value: self.value,
-                leaf_index: self.index,
-                key,
-            },
-            merkle_path,
-        }
-        .verify(&Blake2Hasher, trusted_root_hash)
+fn map_entry_with_proof(src: zksync_merkle_tree::TreeEntryWithProof) -> TreeEntryWithProof {
+    let mut merkle_path = src.merkle_path;
+    merkle_path.reverse(); // Use root-to-leaf enumeration direction as in Ethereum
+    TreeEntryWithProof {
+        value: src.base.value,
+        index: src.base.leaf_index,
+        merkle_path,
     }
 }
 
@@ -251,44 +221,14 @@ impl IntoResponse for TreeApiServerError {
     }
 }
 
-/// Client-side tree API error used by [`TreeApiClient`].
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum TreeApiError {
-    #[error(transparent)]
-    NoVersion(NoVersionError),
-    #[error("tree API is temporarily unavailable")]
-    NotReady(#[source] Option<anyhow::Error>),
-    /// Catch-all variant for internal errors.
-    #[error("internal error")]
-    Internal(#[from] anyhow::Error),
-}
-
-impl TreeApiError {
-    fn for_request(err: reqwest::Error, request_description: impl fmt::Display) -> Self {
-        let is_not_ready = err.is_timeout() || err.is_connect();
-        let err =
-            anyhow::Error::new(err).context(format!("failed requesting {request_description}"));
-        if is_not_ready {
-            Self::NotReady(Some(err))
-        } else {
-            Self::Internal(err)
-        }
+fn client_error(err: reqwest::Error, request_description: impl fmt::Display) -> TreeApiError {
+    let is_not_ready = err.is_timeout() || err.is_connect();
+    let err = anyhow::Error::new(err).context(format!("failed requesting {request_description}"));
+    if is_not_ready {
+        TreeApiError::NotReady(Some(err))
+    } else {
+        TreeApiError::Internal(err)
     }
-}
-
-/// Client accessing Merkle tree API.
-#[async_trait]
-pub trait TreeApiClient: 'static + Send + Sync + fmt::Debug {
-    /// Obtains general information about the tree.
-    async fn get_info(&self) -> Result<MerkleTreeInfo, TreeApiError>;
-
-    /// Obtains proofs for the specified `hashed_keys` at the specified tree version (= L1 batch number).
-    async fn get_proofs(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        hashed_keys: Vec<U256>,
-    ) -> Result<Vec<TreeEntryWithProof>, TreeApiError>;
 }
 
 /// In-memory client implementation.
@@ -311,7 +251,10 @@ impl TreeApiClient for LazyAsyncTreeReader {
             reader
                 .get_proofs_inner(l1_batch_number, hashed_keys)
                 .await
-                .map_err(TreeApiError::NoVersion)
+                .map_err(|err| TreeApiError::NoVersion {
+                    missing_version: err.missing_version,
+                    version_count: err.version_count,
+                })
         } else {
             Err(TreeApiError::NotReady(None))
         }
@@ -369,7 +312,7 @@ impl TreeApiClient for TreeApiHttpClient {
             .get(&self.info_url)
             .send()
             .await
-            .map_err(|err| TreeApiError::for_request(err, "tree info"))?;
+            .map_err(|err| client_error(err, "tree info"))?;
         let response = response
             .error_for_status()
             .context("Requesting tree info returned non-OK response")?;
@@ -394,10 +337,7 @@ impl TreeApiClient for TreeApiHttpClient {
             .send()
             .await
             .map_err(|err| {
-                TreeApiError::for_request(
-                    err,
-                    format_args!("proofs for L1 batch #{l1_batch_number}"),
-                )
+                client_error(err, format_args!("proofs for L1 batch #{l1_batch_number}"))
             })?;
 
         let is_problem = response
@@ -410,7 +350,10 @@ impl TreeApiClient for TreeApiHttpClient {
                 .json()
                 .await
                 .context("failed parsing error response")?;
-            return Err(TreeApiError::NoVersion(problem_data.into()));
+            return Err(TreeApiError::NoVersion {
+                missing_version: problem_data.missing_version,
+                version_count: problem_data.version_count,
+            });
         }
 
         let response = response.error_for_status().with_context(|| {
@@ -440,7 +383,7 @@ impl AsyncTreeReader {
             .clone()
             .entries_with_proofs(l1_batch_number, hashed_keys)
             .await?;
-        Ok(proofs.into_iter().map(TreeEntryWithProof::new).collect())
+        Ok(proofs.into_iter().map(map_entry_with_proof).collect())
     }
 
     async fn get_proofs_handler(

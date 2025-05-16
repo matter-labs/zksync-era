@@ -25,7 +25,7 @@ use self::{
     updater::TreeUpdater,
 };
 pub use self::{
-    helpers::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo},
+    helpers::{AsyncTreeReader, LazyAsyncTreeReader},
     pruning::MerkleTreePruningTask,
     repair::StaleKeysRepairTask,
 };

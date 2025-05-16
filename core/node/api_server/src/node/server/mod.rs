@@ -5,7 +5,6 @@ use zksync_circuit_breaker::{replication_lag::ReplicationLagChecker, CircuitBrea
 use zksync_config::configs::api::MaxResponseSize;
 use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_health_check::AppHealthCheck;
-use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -18,6 +17,7 @@ use zksync_shared_resources::{
         L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
         SettlementLayerContractsResource,
     },
+    tree::TreeApiClient,
 };
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},

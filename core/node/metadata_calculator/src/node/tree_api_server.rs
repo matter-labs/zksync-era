@@ -7,10 +7,9 @@ use zksync_config::configs::api::MerkleTreeApiConfig;
 use zksync_node_framework::{
     task::TaskKind, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
+use zksync_shared_resources::tree::TreeApiClient;
 
-use crate::{
-    api_server::TreeApiClient, LazyAsyncTreeReader, MerkleTreeReaderConfig, TreeReaderTask,
-};
+use crate::{LazyAsyncTreeReader, MerkleTreeReaderConfig, TreeReaderTask};
 
 #[derive(Debug)]
 pub struct TreeApiTask {

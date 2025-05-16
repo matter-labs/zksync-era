@@ -9,12 +9,12 @@ use zksync_node_framework::{
     WiringLayer,
 };
 use zksync_object_store::ObjectStore;
+use zksync_shared_resources::tree::TreeApiClient;
 use zksync_storage::RocksDB;
 
 use super::tree_api_server::TreeApiTask;
 use crate::{
-    api_server::TreeApiClient, MerkleTreePruningTask, MetadataCalculator, MetadataCalculatorConfig,
-    StaleKeysRepairTask,
+    MerkleTreePruningTask, MetadataCalculator, MetadataCalculatorConfig, StaleKeysRepairTask,
 };
 
 /// Wiring layer for Metadata calculator and Tree API.

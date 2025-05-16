@@ -5,8 +5,9 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_resources::tree::TreeApiClient;
 
-use crate::api_server::{TreeApiClient, TreeApiHttpClient};
+use crate::api_server::TreeApiHttpClient;
 
 /// Wiring layer that provides the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
 /// other client already inserted.
