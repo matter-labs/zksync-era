@@ -135,8 +135,8 @@ impl InternalApiConfigBase {
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
-            req_entities_limit: web3_config.req_entities_limit(),
-            fee_history_limit: web3_config.fee_history_limit(),
+            req_entities_limit: web3_config.req_entities_limit as usize,
+            fee_history_limit: web3_config.fee_history_limit,
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
         }

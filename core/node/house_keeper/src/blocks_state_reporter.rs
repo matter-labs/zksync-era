@@ -1,4 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -8,14 +8,14 @@ use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
-    reporting_interval_ms: u64,
+    reporting_interval: Duration,
     connection_pool: ConnectionPool<Core>,
 }
 
 impl L1BatchMetricsReporter {
-    pub fn new(reporting_interval_ms: u64, connection_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(reporting_interval: Duration, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
-            reporting_interval_ms,
+            reporting_interval,
             connection_pool,
         }
     }
@@ -135,6 +135,6 @@ impl PeriodicJob for L1BatchMetricsReporter {
     }
 
     fn polling_interval_ms(&self) -> u64 {
-        self.reporting_interval_ms
+        self.reporting_interval.as_millis() as u64
     }
 }

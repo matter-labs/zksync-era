@@ -1,5 +1,4 @@
-import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
-import { promisify } from 'util';
+import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'node:child_process';
 import { assert, expect } from 'chai';
 import { getAllConfigsPath, replaceL1BatchMinAgeBeforeExecuteSeconds } from 'utils/build/file-configs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
@@ -7,6 +6,8 @@ import { Tester } from './tester';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import * as utils from 'utils';
 import fs from 'node:fs/promises';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import * as zksync from 'zksync-ethers';
 
 // executes a command in background and returns a child process handle
@@ -87,14 +88,20 @@ export function runExternalNodeInBackground({
     return runInBackground({ command, components, stdio, cwd, env });
 }
 
-// async executor of shell commands
-// spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
-// returns { stdout, stderr }
-const promisified = promisify(_exec);
-
-export function exec(command: string, options: ProcessEnvOptions) {
+async function exec(command: string, options: ProcessEnvOptions) {
     command = command.replace(/\n/g, ' ');
-    return promisified(command, options);
+    console.log(`Executing command: ${command}`);
+    const childProcess = _spawn(command, { stdio: 'inherit', shell: true, ...options });
+    await new Promise((resolve, reject) => {
+        childProcess.on('exit', (exitCode) => {
+            if (exitCode === 0) {
+                resolve(undefined);
+            } else {
+                reject(new Error(`process exited with non-zero code: ${exitCode}`));
+            }
+        });
+        childProcess.on('error', reject);
+    });
 }
 
 export interface SuggestedValues {
@@ -122,7 +129,7 @@ export function parseSuggestedValues(jsonString: string): SuggestedValues {
     };
 }
 
-async function runBlockReverter(pathToHome: string, chain: string, args: string[]): Promise<string> {
+async function runBlockReverter(pathToHome: string, chain: string, args: string[]) {
     const configPaths = getAllConfigsPath({ pathToHome, chain });
     const fileConfigFlags = `
         --config-path=${configPaths['general.yaml']}
@@ -133,12 +140,11 @@ async function runBlockReverter(pathToHome: string, chain: string, args: string[
         --gateway-chain-path=${configPaths['gateway_chain.yaml']}
     `;
 
-    const cmd = `cd ${pathToHome} && RUST_LOG=off cargo run --manifest-path ./core/Cargo.toml --bin block_reverter --release -- ${args.join(
+    const cmd = `cargo run --manifest-path ./core/Cargo.toml --bin block_reverter --release -- ${args.join(
         ' '
     )} ${fileConfigFlags}`;
 
-    const executedProcess = await exec(cmd, {});
-    return executedProcess.stdout;
+    await exec(cmd, { cwd: pathToHome });
 }
 
 export async function executeRevert(
@@ -148,12 +154,24 @@ export async function executeRevert(
     batchesCommittedBeforeRevert: bigint,
     mainContract: IZkSyncHyperchain
 ) {
-    const suggestedValuesOutput = await runBlockReverter(pathToHome, chain, [
-        'print-suggested-values',
-        '--json',
-        '--operator-address',
-        operatorAddress
-    ]);
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zksync-revert-test-'));
+    const jsonPath = path.join(tmpDir, 'values.json');
+    console.log(`Temporary file for suggested revert values: ${jsonPath}`);
+
+    let suggestedValuesOutput: string;
+    try {
+        await runBlockReverter(pathToHome, chain, [
+            'print-suggested-values',
+            '--json',
+            jsonPath,
+            '--operator-address',
+            operatorAddress
+        ]);
+        suggestedValuesOutput = await fs.readFile(jsonPath, { encoding: 'utf-8' });
+    } finally {
+        await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+
     const values = parseSuggestedValues(suggestedValuesOutput);
     assert(
         values.lastExecutedL1BatchNumber < batchesCommittedBeforeRevert,

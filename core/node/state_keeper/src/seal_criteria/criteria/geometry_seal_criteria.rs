@@ -102,7 +102,7 @@ mod tests {
             close_block_at_geometry_percentage: 0.9,
             reject_tx_at_geometry_percentage: 0.9,
             max_circuits_per_batch: MAX_CIRCUITS_PER_BATCH,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         }
     }
 

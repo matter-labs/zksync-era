@@ -5,14 +5,13 @@ use zksync_config::{
     ContractsConfig, PostgresConfig,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_env_config::FromEnv;
 use zksync_eth_client::{
     clients::{Client, L1},
     CallFunctionArgs, ContractCallError,
 };
 use zksync_prover_dal::{Prover, ProverDal};
 
-use crate::helper;
+use crate::helper::{self, FromEnvButReallyJustExplode};
 
 const FFLONK_VERIFIER_TYPE: i32 = 0;
 
@@ -23,11 +22,12 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let database_secrets = DatabaseSecrets::from_env().context("DatabaseSecrets::from_env()")?;
     let l1_secrets = L1Secrets::from_env().context("L1Secrets::from_env()")?;
-    let query_client = Client::<L1>::http(l1_secrets.l1_rpc_url)?.build();
+    let query_client =
+        Client::<L1>::http(l1_secrets.l1_rpc_url.context("l1_secrets.l1_rpc_url")?)?.build();
 
     let total_batches_committed: U256 = CallFunctionArgs::new("getTotalBatchesCommitted", ())
         .for_contract(
-            contracts_config.diamond_proxy_addr,
+            contracts_config.l1.diamond_proxy_addr,
             &helper::hyperchain_contract(),
         )
         .call(&query_client)
@@ -35,7 +35,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let total_batches_verified: U256 = CallFunctionArgs::new("getTotalBatchesVerified", ())
         .for_contract(
-            contracts_config.diamond_proxy_addr,
+            contracts_config.l1.diamond_proxy_addr,
             &helper::hyperchain_contract(),
         )
         .call(&query_client)
@@ -75,7 +75,10 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     );
 
     let node_verification_key_hash: H256 = CallFunctionArgs::new("verificationKeyHash", ())
-        .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
+        .for_contract(
+            contracts_config.l1.verifier_addr,
+            &helper::verifier_contract(),
+        )
         .call(&query_client)
         .await?;
 
@@ -89,7 +92,10 @@ pub(crate) async fn run() -> anyhow::Result<()> {
 
     let fflonk_verification_key_hash: Option<H256> = if let Some(function) = function {
         CallFunctionArgs::new("verificationKeyHash", U256::from(FFLONK_VERIFIER_TYPE))
-            .for_contract(contracts_config.verifier_addr, &helper::verifier_contract())
+            .for_contract(
+                contracts_config.l1.verifier_addr,
+                &helper::verifier_contract(),
+            )
             .call_with_function(&query_client, function.clone())
             .await
             .ok()

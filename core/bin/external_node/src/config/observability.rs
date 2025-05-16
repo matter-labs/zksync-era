@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_config::configs::GeneralConfig;
 use zksync_vlog::{logs::LogFormat, prometheus::PrometheusExporterConfig};
 
 use super::{ConfigurationSource, Environment};
@@ -35,7 +34,7 @@ impl ObservabilityENConfig {
         10_000
     }
 
-    pub(super) fn from_env() -> envy::Result<Self> {
+    pub(crate) fn from_env() -> envy::Result<Self> {
         Self::new(&Environment)
     }
 
@@ -99,41 +98,5 @@ impl ObservabilityENConfig {
             .with_logs(Some(logs))
             .with_sentry(sentry)
             .try_build()
-    }
-
-    pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
-        let (sentry_url, sentry_environment, log_format, log_directives) =
-            if let Some(observability) = general_config.observability.as_ref() {
-                (
-                    observability.sentry_url.clone(),
-                    observability.sentry_environment.clone(),
-                    observability
-                        .log_format
-                        .parse()
-                        .context("Invalid log format")?,
-                    observability.log_directives.clone(),
-                )
-            } else {
-                (None, None, LogFormat::default(), None)
-            };
-        let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
-            if let Some(prometheus) = general_config.prometheus_config.as_ref() {
-                (
-                    Some(prometheus.listener_port),
-                    prometheus.pushgateway_url.clone(),
-                    prometheus.push_interval_ms.unwrap_or_default(),
-                )
-            } else {
-                (None, None, 0)
-            };
-        Ok(Self {
-            prometheus_port,
-            prometheus_pushgateway_url,
-            prometheus_push_interval_ms,
-            sentry_url,
-            sentry_environment,
-            log_format,
-            log_directives,
-        })
     }
 }

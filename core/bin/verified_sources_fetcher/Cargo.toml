@@ -15,7 +15,6 @@ publish = false
 zksync_dal.workspace = true
 zksync_types = { workspace = true, features = ["contract-verification"] }
 zksync_config.workspace = true
-zksync_env_config.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }

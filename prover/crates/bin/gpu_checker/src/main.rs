@@ -209,11 +209,10 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config = ObservabilityConfig {
-        sentry_url: None,
-        sentry_environment: None,
+        sentry: None,
         opentelemetry: None,
         log_format: "json".to_string(),
-        log_directives: None,
+        ..ObservabilityConfig::default()
     };
     let _observability_guard = observability_config
         .install()
@@ -221,7 +220,7 @@ async fn main() -> anyhow::Result<()> {
 
     let object_store_config = ObjectStoreConfig {
         mode: zksync_config::configs::object_store::ObjectStoreMode::FileBacked {
-            file_backed_base_path: opt.object_store_path.display().to_string(),
+            file_backed_base_path: opt.object_store_path,
         },
         max_retries: 1,
         local_mirror_path: None,

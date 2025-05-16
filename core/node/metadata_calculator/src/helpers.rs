@@ -3,7 +3,6 @@
 use std::{
     collections::{BTreeMap, HashSet},
     future::Future,
-    path::Path,
     sync::Arc,
     time::Duration,
 };
@@ -139,7 +138,6 @@ pub(super) async fn create_db(config: MetadataCalculatorConfig) -> anyhow::Resul
 }
 
 fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWrapper> {
-    let path = Path::new(config.db_path.as_str());
     let &MetadataCalculatorConfig {
         max_open_files,
         block_cache_capacity,
@@ -155,11 +153,11 @@ fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWr
          {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?}), \
          {memtable_capacity}B memtable capacity, \
          {stalled_writes_timeout:?} stalled writes timeout",
-        path = path.display()
+        path = config.db_path.display()
     );
 
     let mut db = RocksDB::with_options(
-        path,
+        &config.db_path,
         RocksDBOptions {
             block_cache_capacity: Some(block_cache_capacity),
             include_indices_and_filters_in_block_cache,
@@ -191,7 +189,7 @@ pub(super) async fn create_readonly_db(
         } = config;
 
         tracing::info!(
-            "Initializing Merkle tree database at `{db_path}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
+            "Initializing Merkle tree database at `{db_path:?}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
              {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?})"
         );
         let mut db = RocksDB::with_options(

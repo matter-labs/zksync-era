@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use tokio::sync::watch;
@@ -24,7 +24,7 @@ impl ProtectiveReadsWriter {
     /// regulates how many batches this component can handle at the same time.
     pub async fn new(
         pool: ConnectionPool<Core>,
-        rocksdb_path: String,
+        rocksdb_path: PathBuf,
         chain_id: L2ChainId,
         first_processed_batch: L1BatchNumber,
         window_size: u32,

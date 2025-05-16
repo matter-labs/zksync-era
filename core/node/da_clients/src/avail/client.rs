@@ -1,12 +1,12 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use http::StatusCode;
 use jsonrpsee::ws_client::WsClientBuilder;
+use reqwest::Url;
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use subxt_signer::ExposeSecret;
-use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
@@ -128,7 +128,7 @@ impl AvailClient {
             AvailClientConfig::GasRelay(conf) => {
                 let gas_relay_api_key = secrets
                     .gas_relay_api_key
-                    .ok_or_else(|| anyhow::anyhow!("Gas relay API key is missing"))?;
+                    .context("Gas relay API key is missing")?;
                 let gas_relay_client = GasRelayClient::new(
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
@@ -143,15 +143,13 @@ impl AvailClient {
                 })
             }
             AvailClientConfig::FullClient(conf) => {
-                let seed_phrase = secrets
-                    .seed_phrase
-                    .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
+                let seed_phrase = secrets.seed_phrase.context("Seed phrase is missing")?;
 
                 let sdk_client = RawAvailClient::new(
                     conf.app_id,
                     seed_phrase.0.expose_secret(),
-                    conf.finality_state()?,
-                    conf.dispatch_timeout(),
+                    conf.finality_state,
+                    conf.dispatch_timeout,
                 )
                 .await?;
 
@@ -256,7 +254,7 @@ impl DataAvailabilityClient for AvailClient {
         let response = self
             .api_client
             .get(url)
-            .timeout(Duration::from_millis(self.config.timeout_ms as u64))
+            .timeout(self.config.timeout)
             .send()
             .await
             .map_err(to_retriable_da_error)?;

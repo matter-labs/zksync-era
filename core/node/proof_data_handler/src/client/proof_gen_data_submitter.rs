@@ -82,10 +82,10 @@ impl ProofGenDataSubmitter {
 
             tracing::info!(
                 "No proof generation was sent, sleeping for {:?}",
-                self.config.proof_gen_data_submit_interval()
+                self.config.proof_gen_data_submit_interval_in_secs
             );
 
-            tokio::time::sleep(self.config.proof_gen_data_submit_interval()).await;
+            tokio::time::sleep(self.config.proof_gen_data_submit_interval_in_secs).await;
         }
 
         Ok(())

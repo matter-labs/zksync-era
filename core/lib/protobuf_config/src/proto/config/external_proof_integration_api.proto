@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package zksync.config.external_proof_integration_api;
-
-message ExternalProofIntegrationApi {
-    optional uint32 http_port = 1;
-}

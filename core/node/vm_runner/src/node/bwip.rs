@@ -71,7 +71,9 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
         // - `window_size` connections for `BasicWitnessInputProducer`
         //   as there can be multiple output handlers holding multi-second connections to process
         //   BWIP data.
-        let connection_pool = master_pool.get_custom(self.config.window_size + 2).await?;
+        let connection_pool = master_pool
+            .get_custom(self.config.window_size.get() + 2)
+            .await?;
 
         // We don't get the executor from the context because it would contain state keeper-specific settings.
         let batch_executor = MainBatchExecutorFactory::<()>::new(false);
@@ -83,7 +85,7 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
             self.config.db_path,
             self.zksync_network_id,
             self.config.first_processed_batch,
-            self.config.window_size,
+            self.config.window_size.get(),
         )
         .await?;
 

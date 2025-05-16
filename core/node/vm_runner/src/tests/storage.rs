@@ -41,7 +41,7 @@ impl StorageTester {
     ) -> anyhow::Result<VmRunnerStorage<Arc<RwLock<IoMock>>>> {
         let (vm_runner_storage, task) = VmRunnerStorage::new(
             self.pool.clone(),
-            self.db_dir.path().to_str().unwrap().to_owned(),
+            self.db_dir.path().to_owned(),
             io_mock,
             L2ChainId::default(),
         )

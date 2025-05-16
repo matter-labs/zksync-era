@@ -53,18 +53,19 @@ impl Server {
         general_path: P,
         secrets_path: P,
         contracts_path: P,
-        mut additional_args: Vec<String>,
+        additional_args: Vec<String>,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
     {
         let _dir_guard = shell.push_dir(&self.code_path);
 
+        let mut inserted_args = vec![];
         if let Some(components) = self.components() {
-            additional_args.push(format!("--components={}", components))
+            inserted_args.push(format!("--components={}", components))
         }
         if let ServerMode::Genesis = server_mode {
-            additional_args.push("--genesis".to_string());
+            inserted_args.push("--genesis".to_string());
         }
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
@@ -107,7 +108,8 @@ impl Server {
                 .arg(secrets_path)
                 .arg("--contracts-config-path")
                 .arg(contracts_path)
-                .args(additional_args)
+                .args(inserted_args)
+                .args(additional_args) // Need to insert the additional args at the end, since they may include positional ones
                 .env_remove("RUSTUP_TOOLCHAIN"),
         );
 

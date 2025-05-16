@@ -71,7 +71,7 @@ async fn run_server(
             chain_config.configs.join(GENERAL_FILE),
             chain_config.configs.join(SECRETS_FILE),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
-            vec![],
+            args.additional_args,
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }

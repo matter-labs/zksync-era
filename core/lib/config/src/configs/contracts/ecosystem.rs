@@ -16,7 +16,7 @@ pub struct L1SpecificContracts {
     pub server_notifier_addr: Option<Address>,
 }
 
-/// Ecosystem contracts that are presented on all Settlement Layers
+/// Ecosystem contracts that are presented on all Settlement Layers.
 #[derive(Debug, Clone)]
 pub struct EcosystemCommonContracts {
     pub bridgehub_proxy_addr: Option<Address>,

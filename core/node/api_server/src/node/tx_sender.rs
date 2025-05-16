@@ -62,7 +62,7 @@ pub struct TxSenderLayer {
     max_vm_concurrency: usize,
     whitelisted_tokens_for_aa_cache: bool,
     vm_mode: FastVmMode,
-    timestamp_asserter_config: Option<TimestampAsserterConfig>,
+    timestamp_asserter_config: TimestampAsserterConfig,
     tx_sender_config: TxSenderConfig,
 }
 
@@ -95,7 +95,7 @@ impl TxSenderLayer {
         postgres_storage_caches_config: PostgresStorageCachesConfig,
         max_vm_concurrency: usize,
         tx_sender_config: TxSenderConfig,
-        timestamp_asserter_config: Option<TimestampAsserterConfig>,
+        timestamp_asserter_config: TimestampAsserterConfig,
     ) -> Self {
         Self {
             postgres_storage_caches_config,
@@ -141,15 +141,11 @@ impl WiringLayer for TxSenderLayer {
 
         let config = match input.l2_contracts.0.timestamp_asserter_addr {
             Some(address) => {
-                let timestamp_asserter_config =
-                    self.timestamp_asserter_config.expect("Should be presented");
-
+                let timestamp_asserter_config = self.timestamp_asserter_config;
                 self.tx_sender_config
                     .with_timestamp_asserter_params(TimestampAsserterParams {
                         address,
-                        min_time_till_end: Duration::from_secs(
-                            timestamp_asserter_config.min_time_till_end_sec.into(),
-                        ),
+                        min_time_till_end: timestamp_asserter_config.min_time_till_end_sec,
                     })
             }
             None => self.tx_sender_config,

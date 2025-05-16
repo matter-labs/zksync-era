@@ -1449,7 +1449,6 @@ mod tests {
                                 name: "circuit-prover-gpu-7c5f8fc747-gmtc2.123456".into(),
                                 time: Utc::now() - chrono::Duration::minutes(3),
                             }],
-                            ..Default::default()
                         },
                     )]
                     .into(),

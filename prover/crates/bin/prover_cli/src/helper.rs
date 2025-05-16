@@ -1,5 +1,9 @@
 use std::{fs::File, path::PathBuf};
 
+use zksync_config::{
+    configs::{DatabaseSecrets, L1Secrets},
+    ContractsConfig, PostgresConfig,
+};
 use zksync_types::ethabi::Contract;
 use zksync_utils::env::Workspace;
 
@@ -37,3 +41,15 @@ fn load_contract_if_present(path: &str) -> Contract {
         }
     }
 }
+
+// FIXME
+pub(crate) trait FromEnvButReallyJustExplode: Sized {
+    fn from_env() -> anyhow::Result<Self> {
+        anyhow::bail!("I thought we got rid of env-based configs, so what's this then?");
+    }
+}
+
+impl FromEnvButReallyJustExplode for PostgresConfig {}
+impl FromEnvButReallyJustExplode for ContractsConfig {}
+impl FromEnvButReallyJustExplode for DatabaseSecrets {}
+impl FromEnvButReallyJustExplode for L1Secrets {}

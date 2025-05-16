@@ -151,8 +151,8 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
 
     BlockReverter::new(NodeRole::External, pool.clone())
         .enable_rolling_back_postgres()
-        .enable_rolling_back_merkle_tree(merkle_tree_path.to_str().unwrap().to_owned())
-        .add_rocksdb_storage_path_to_rollback(sk_cache_path.to_str().unwrap().to_owned())
+        .enable_rolling_back_merkle_tree(merkle_tree_path.clone())
+        .add_rocksdb_storage_path_to_rollback(sk_cache_path.clone())
         .roll_back(L1BatchNumber(5))
         .await
         .unwrap();

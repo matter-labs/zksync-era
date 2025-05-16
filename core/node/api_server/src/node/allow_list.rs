@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use async_trait::async_trait;
 use zksync_config::configs::chain::DeploymentAllowlist;
 use zksync_node_framework::{
@@ -40,10 +38,9 @@ impl WiringLayer for DeploymentAllowListLayer {
                 let shared = allow_list_task.shared();
                 (Some(allow_list_task), shared)
             }
-            DeploymentAllowlist::Static(addresses) => (
-                None,
-                SharedAllowList::new(HashSet::from_iter(addresses.into_iter())),
-            ),
+            DeploymentAllowlist::Static {
+                addresses: allowed_deployers,
+            } => (None, SharedAllowList::new(allowed_deployers)),
         };
 
         Ok(Output {

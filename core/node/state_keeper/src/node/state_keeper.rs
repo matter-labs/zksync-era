@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
@@ -19,7 +19,7 @@ use crate::{AsyncRocksdbCache, ZkSyncStateKeeper};
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
 pub struct StateKeeperLayer {
-    state_keeper_db_path: String,
+    state_keeper_db_path: PathBuf,
     rocksdb_options: RocksdbStorageOptions,
 }
 
@@ -46,7 +46,7 @@ pub struct Output {
 }
 
 impl StateKeeperLayer {
-    pub fn new(state_keeper_db_path: String, rocksdb_options: RocksdbStorageOptions) -> Self {
+    pub fn new(state_keeper_db_path: PathBuf, rocksdb_options: RocksdbStorageOptions) -> Self {
         Self {
             state_keeper_db_path,
             rocksdb_options,
