@@ -1,5 +1,17 @@
 # Changelog
 
+## [21.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.0.0...prover-v21.1.0) (2025-05-16)
+
+
+### Features
+
+* **prover:** Autoscaler detect which pod out of resources and reschedule ([#4008](https://github.com/matter-labs/zksync-era/issues/4008)) ([56658c8](https://github.com/matter-labs/zksync-era/commit/56658c89f83f3d6c188df5c1944ac9f9a7307ef9))
+
+
+### Bug Fixes
+
+* **vm:** update deps ([#4019](https://github.com/matter-labs/zksync-era/issues/4019)) ([2b51c6d](https://github.com/matter-labs/zksync-era/commit/2b51c6df08b45cc41fd6b4d930c31670d004a93d))
+
 ## [21.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.3.1...prover-v21.0.0) (2025-05-13)
 
 
