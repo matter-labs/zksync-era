@@ -25,6 +25,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2ChainId, H160, H256, U256,
 };
 
+pub mod node;
 #[cfg(test)]
 mod tests;
 

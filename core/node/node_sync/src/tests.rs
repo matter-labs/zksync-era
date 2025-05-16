@@ -11,6 +11,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
+use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
@@ -149,6 +150,7 @@ impl StateKeeperHandles {
 
     /// Waits for the given condition.
     pub async fn wait_for_local_block(mut self, want: L2BlockNumber) {
+        let mut sync_state_sub = self.sync_state.subscribe();
         tokio::select! {
             task_result = &mut self.task => {
                 match task_result {
@@ -160,7 +162,7 @@ impl StateKeeperHandles {
             () = tokio::time::sleep(TEST_TIMEOUT) => {
                 panic!("Timed out waiting for L2 block to be sealed");
             }
-            () = self.sync_state.wait_for_local_block(want) => {
+            _ = sync_state_sub.wait_for(|state| state.local_block() >= Some(want)) => {
                 self.stop_sender.send_replace(true);
                 self.task.await.unwrap().unwrap();
             }
@@ -497,8 +499,10 @@ async fn test_external_io_recovery(
     // Check that the state keeper state is restored.
     state_keeper
         .sync_state
-        .wait_for_local_block(snapshot.l2_block_number + 2)
-        .await;
+        .subscribe()
+        .wait_for(|state| state.local_block() >= Some(snapshot.l2_block_number + 2))
+        .await
+        .unwrap();
 
     // Send new actions and wait until the new L2 block is sealed.
     let open_l2_block = SyncAction::L2Block {

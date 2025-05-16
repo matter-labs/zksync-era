@@ -976,9 +976,9 @@ impl OptionalENConfig {
         Duration::from_secs(self.pruning_data_retention_sec)
     }
 
-    pub fn bridge_addresses_refresh_interval(&self) -> Option<Duration> {
+    pub fn bridge_addresses_refresh_interval(&self) -> Duration {
         self.bridge_addresses_refresh_interval_sec
-            .map(|n| Duration::from_secs(n.get()))
+            .map_or_else(|| Duration::from_secs(30), |n| Duration::from_secs(n.get()))
     }
 
     #[cfg(test)]
