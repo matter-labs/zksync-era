@@ -9,7 +9,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::try_stoppable;
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::ReorgDetector;
 
@@ -22,7 +22,7 @@ pub struct ReorgDetectorLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    main_node_client: MainNodeClientResource,
+    main_node_client: Box<DynClient<L2>>,
     master_pool: PoolResource<MasterPool>,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
@@ -44,10 +44,8 @@ impl WiringLayer for ReorgDetectorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let MainNodeClientResource(main_node_client) = input.main_node_client;
         let pool = input.master_pool.get().await?;
-
-        let reorg_detector = ReorgDetector::new(main_node_client, pool);
+        let reorg_detector = ReorgDetector::new(input.main_node_client, pool);
 
         input
             .app_health

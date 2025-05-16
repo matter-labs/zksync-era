@@ -13,7 +13,7 @@ use zksync_state_keeper::{
     seal_criteria::{ConditionalSealer, NoopSealer},
 };
 use zksync_types::L2ChainId;
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use super::resources::ActionQueueSenderResource;
 use crate::{ActionQueue, ExternalIO};
@@ -28,7 +28,7 @@ pub struct ExternalIOLayer {
 pub struct Input {
     pub app_health: Arc<AppHealthCheck>,
     pub pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
+    pub main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -70,7 +70,7 @@ impl WiringLayer for ExternalIOLayer {
         let io = ExternalIO::new(
             io_pool,
             action_queue,
-            Box::new(input.main_node_client.0.for_component("external_io")),
+            Box::new(input.main_node_client.for_component("external_io")),
             self.chain_id,
         )
         .context("Failed initializing I/O for external node state keeper")?;

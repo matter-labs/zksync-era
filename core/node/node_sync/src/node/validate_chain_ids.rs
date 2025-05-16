@@ -5,10 +5,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::{L1ChainId, L2ChainId};
-use zksync_web3_decl::{
-    client::{DynClient, L1},
-    node::MainNodeClientResource,
-};
+use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use crate::validate_chain_ids_task::ValidateChainIdsTask;
 
@@ -33,7 +30,7 @@ pub struct ValidateChainIdsLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub l1_client: Box<DynClient<L1>>,
-    pub main_node_client: MainNodeClientResource,
+    pub main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -61,15 +58,12 @@ impl WiringLayer for ValidateChainIdsLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let MainNodeClientResource(main_node_client) = input.main_node_client;
-
         let task = ValidateChainIdsTask::new(
             self.l1_chain_id,
             self.l2_chain_id,
             input.l1_client,
-            main_node_client,
+            input.main_node_client,
         );
-
         Ok(Output { task })
     }
 }

@@ -8,14 +8,14 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::batch_status_updater::BatchStatusUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     pool: PoolResource<MasterPool>,
-    client: MainNodeClientResource,
+    main_node_client: Box<DynClient<L2>>,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
 }
@@ -42,11 +42,11 @@ impl WiringLayer for BatchStatusUpdaterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let Input {
             pool,
-            client,
+            main_node_client,
             app_health,
         } = input;
 
-        let updater = BatchStatusUpdater::new(client.0, pool.get().await?);
+        let updater = BatchStatusUpdater::new(main_node_client, pool.get().await?);
 
         // Insert healthcheck
         app_health

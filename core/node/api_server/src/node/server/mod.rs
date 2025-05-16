@@ -20,8 +20,8 @@ use zksync_shared_resources::{
     },
 };
 use zksync_web3_decl::{
-    client::{DynClient, L1},
-    node::{MainNodeClientResource, SettlementModeResource},
+    client::{DynClient, L1, L2},
+    node::SettlementModeResource,
 };
 
 use self::sealed_l2_block::SealedL2BlockUpdaterTask;
@@ -132,7 +132,7 @@ pub struct Input {
     pub circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
     pub app_health: Arc<AppHealthCheck>,
-    pub main_node_client: Option<MainNodeClientResource>,
+    pub main_node_client: Option<Box<DynClient<L2>>>,
     pub l1_client: Box<DynClient<L1>>,
     pub sl_contracts: SettlementLayerContractsResource,
     pub l1_contracts: L1ChainContractsResource,
@@ -244,7 +244,7 @@ impl WiringLayer for Web3ServerLayer {
             api_builder = api_builder.with_sync_state(sync_state);
         }
         if let Some(main_node_client) = input.main_node_client {
-            api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client.0)
+            api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client);
         }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);

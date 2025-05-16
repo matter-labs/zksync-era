@@ -9,7 +9,6 @@ use zksync_node_framework::{
 };
 use zksync_types::{url::SensitiveUrl, L2ChainId};
 
-use super::resources::MainNodeClientResource;
 use crate::{
     client::{Client, DynClient, L2},
     namespaces::EthNamespaceClient,
@@ -31,7 +30,7 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    main_node_client: MainNodeClientResource,
+    main_node_client: Box<DynClient<L2>>,
 }
 
 impl MainNodeClientLayer {
@@ -69,7 +68,7 @@ impl WiringLayer for MainNodeClientLayer {
             .map_err(WiringError::internal)?;
 
         Ok(Output {
-            main_node_client: client.into(),
+            main_node_client: client,
         })
     }
 }

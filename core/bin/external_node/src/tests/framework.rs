@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
+use zksync_gateway_migrator::node::{ENConfig, SettlementLayerData};
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::ServiceContext, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
@@ -10,10 +11,7 @@ use zksync_types::{L1ChainId, L2ChainId};
 use zksync_vlog::node::SigintHandlerLayer;
 use zksync_web3_decl::{
     client::{DynClient, MockClient, L1, L2},
-    node::{
-        MainNodeClientLayer, MainNodeClientResource, QueryEthClientLayer, SettlementLayerClient,
-        SettlementLayerClientLayer,
-    },
+    node::{MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClient},
 };
 
 use super::ExternalNodeBuilder;
@@ -142,7 +140,7 @@ struct MockL2ClientLayer {
 #[async_trait::async_trait]
 impl WiringLayer for MockL2ClientLayer {
     type Input = ();
-    type Output = MainNodeClientResource;
+    type Output = Box<DynClient<L2>>;
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
@@ -155,7 +153,7 @@ impl WiringLayer for MockL2ClientLayer {
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(MainNodeClientResource(Box::new(self.client)))
+        Ok(Box::new(self.client))
     }
 }
 
@@ -164,14 +162,14 @@ struct MockSettlementLayerClientLayer {
     client: MockClient<L1>,
 }
 
+// FIXME: Does this work?
 #[async_trait::async_trait]
 impl WiringLayer for MockSettlementLayerClientLayer {
     type Input = ();
     type Output = SettlementLayerClient;
 
     fn layer_name(&self) -> &'static str {
-        // We don't care about values, we just want to hijack the layer name.
-        SettlementLayerClientLayer::new("https://example.com".parse().unwrap(), None).layer_name()
+        <SettlementLayerData<ENConfig>>::LAYER_NAME
     }
 
     async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {

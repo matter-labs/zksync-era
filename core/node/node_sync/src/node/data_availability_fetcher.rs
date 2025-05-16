@@ -9,7 +9,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::data_availability_fetcher::DataAvailabilityFetcher;
 
@@ -20,7 +20,7 @@ pub struct DataAvailabilityFetcherLayer;
 #[derive(Debug, FromContext)]
 pub struct Input {
     master_pool: PoolResource<MasterPool>,
-    main_node_client: MainNodeClientResource,
+    main_node_client: Box<DynClient<L2>>,
     da_client: Box<dyn DataAvailabilityClient>,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
@@ -43,10 +43,9 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
-        let MainNodeClientResource(client) = input.main_node_client;
 
         tracing::info!("Running data availability fetcher.");
-        let task = DataAvailabilityFetcher::new(client, pool, input.da_client);
+        let task = DataAvailabilityFetcher::new(input.main_node_client, pool, input.da_client);
 
         // Insert healthcheck
         input

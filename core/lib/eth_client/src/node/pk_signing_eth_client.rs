@@ -92,7 +92,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         });
 
         let signing_client_for_gateway = match input.gateway_client {
-            SettlementLayerClient::L2(gateway_client) => {
+            SettlementLayerClient::Gateway(gateway_client) => {
                 let private_key = self.wallets.operator.private_key();
                 let l2_chain_id = gateway_client
                     .fetch_chain_id()

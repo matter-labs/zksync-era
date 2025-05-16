@@ -8,7 +8,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::L2ChainId;
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use super::NodeInitializationStrategyResource;
 use crate::{
@@ -27,7 +27,7 @@ pub struct ExternalNodeInitStrategyLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
+    pub main_node_client: Box<DynClient<L2>>,
     pub block_reverter: Option<BlockReverterResource>,
     #[context(default)]
     pub app_health: Arc<AppHealthCheck>,
@@ -49,7 +49,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
-        let MainNodeClientResource(client) = input.main_node_client;
+        let client = input.main_node_client;
         let block_reverter = match input.block_reverter {
             Some(reverter) => {
                 // If reverter was provided, we intend to be its sole consumer.

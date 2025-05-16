@@ -11,7 +11,6 @@ use zksync_types::{ethabi::Contract, Address, L2_ASSET_ROUTER_ADDRESS};
 use zksync_web3_decl::{
     client::{DynClient, L1, L2},
     namespaces::ZksNamespaceClient,
-    node::MainNodeClientResource,
 };
 
 use crate::{CallFunctionArgs, ContractCallError, EthInterface};
@@ -147,7 +146,7 @@ impl Task for BridgeAddressesUpdaterTask {
 pub struct Input {
     #[context(default)]
     bridge_addresses: BridgeAddressesHandle,
-    main_node_client: Option<MainNodeClientResource>,
+    main_node_client: Option<Box<DynClient<L2>>>,
     l1_client: Box<DynClient<L1>>,
     l1_contracts: L1ChainContractsResource,
 }
@@ -176,7 +175,7 @@ impl WiringLayer for BridgeAddressesUpdaterLayer {
         let updater_task = if let Some(main_node_client) = input.main_node_client {
             BridgeAddressesUpdaterTask::MainNodeUpdater(MainNodeUpdater {
                 bridge_addresses: input.bridge_addresses,
-                main_node_client: main_node_client.0,
+                main_node_client,
                 update_interval: self.refresh_interval,
             })
         } else {

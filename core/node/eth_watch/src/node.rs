@@ -112,7 +112,7 @@ impl WiringLayer for EthWatchLayer {
                 &input.sl_contracts.0,
                 &input.l1_ecosystem_contracts.0,
             )),
-            SettlementLayerClient::L2(client) => Box::new(self.create_client(
+            SettlementLayerClient::Gateway(client) => Box::new(self.create_client(
                 client,
                 &input.sl_contracts.0,
                 &input.l1_ecosystem_contracts.0,

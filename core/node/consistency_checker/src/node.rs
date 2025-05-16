@@ -60,7 +60,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let settlement_layer_client: Box<dyn EthInterface> = match input.settlement_layer_client {
             SettlementLayerClient::L1(client) => Box::new(client),
-            SettlementLayerClient::L2(client) => Box::new(client),
+            SettlementLayerClient::Gateway(client) => Box::new(client),
         };
 
         let singleton_pool = input.master_pool.get_singleton().await?;

@@ -56,7 +56,7 @@ impl WiringLayer for GasAdjusterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let client = match input.client {
             SettlementLayerClient::L1(client) => client.into(),
-            SettlementLayerClient::L2(client) => client.into(),
+            SettlementLayerClient::Gateway(client) => client.into(),
         };
 
         let adjuster = GasAdjuster::new(

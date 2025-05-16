@@ -18,7 +18,6 @@ use zksync_shared_resources::api::{SyncState, SyncStateData};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::EthNamespaceClient,
-    node::MainNodeClientResource,
 };
 
 /// Wiring layer for [`SyncState`] maintenance.
@@ -32,7 +31,7 @@ pub struct Input {
     pub sync_state: Option<SyncState>,
     pub app_health: Arc<AppHealthCheck>,
     pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
+    pub main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -68,7 +67,6 @@ impl WiringLayer for SyncStateUpdaterLayer {
         }
 
         let connection_pool = input.master_pool.get().await?;
-        let MainNodeClientResource(main_node_client) = input.main_node_client;
 
         let sync_state = SyncState::default();
         input
@@ -82,7 +80,7 @@ impl WiringLayer for SyncStateUpdaterLayer {
             sync_state_updater: Some(SyncStateUpdater {
                 sync_state,
                 connection_pool,
-                main_node_client,
+                main_node_client: input.main_node_client,
             }),
         })
     }

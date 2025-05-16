@@ -38,7 +38,7 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, DynClient, L1, L2},
     namespaces::ZksNamespaceClient,
-    node::SettlementModeResource,
+    node::{SettlementLayerClient, SettlementModeResource},
 };
 
 use crate::current_settlement_layer;
@@ -75,11 +75,11 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
+    sl_client: SettlementLayerClient,
     contracts: SettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: L1ChainContractsResource,
     l2_contracts: L2ContractsResource,
-    l2_eth_client: Option<Box<DynClient<L2>>>,
     eth_sender_config: Option<SenderConfigResource>,
     pubdata_sending_mode: Option<PubdataSendingModeResource>,
 }
@@ -125,7 +125,6 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         }
 
         let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
-
         let final_settlement_mode = current_settlement_layer(
             &input.eth_client,
             l2_eth_client
@@ -136,19 +135,27 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             &getters_facet_contract(),
         )
         .await
-        .context("Error occured while getting current SL mode")?;
+        .context("error getting current SL mode")?;
 
-        let sl_chain_contracts = match final_settlement_mode.settlement_layer() {
-            SettlementLayer::L1(_) => sl_l1_contracts.clone(),
+        let sl_client = match final_settlement_mode.settlement_layer() {
+            SettlementLayer::L1(_) => SettlementLayerClient::L1(input.eth_client),
             SettlementLayer::Gateway(_) => {
-                let client = l2_eth_client.clone().unwrap();
+                // `unwrap()` is safe: `l2_eth_client` is always initialized when `config.gateway_rpc_url` is set,
+                // which is required for `SettlementLayer::Gateway`.
+                SettlementLayerClient::Gateway(l2_eth_client.unwrap())
+            }
+        };
+
+        let sl_chain_contracts = match &sl_client {
+            SettlementLayerClient::L1(_) => sl_l1_contracts.clone(),
+            SettlementLayerClient::Gateway(client) => {
                 let l2_multicall3 = client
                     .get_l2_multicall3()
                     .await
                     .context("Failed to fecth multicall3")?;
 
                 load_settlement_layer_contracts(
-                    &client,
+                    client,
                     L2_BRIDGEHUB_ADDRESS,
                     self.config.l2_chain_id,
                     l2_multicall3,
@@ -170,11 +177,11 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             l1_ecosystem_contracts: L1EcosystemContractsResource(l1_specific_contracts),
             l1_contracts: L1ChainContractsResource(sl_l1_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
-            l2_eth_client,
             pubdata_sending_mode: Some(PubdataSendingModeResource(
                 eth_sender_config.pubdata_sending_mode,
             )),
             eth_sender_config: Some(SenderConfigResource(eth_sender_config)),
+            sl_client,
         })
     }
 }
@@ -188,13 +195,17 @@ pub struct ENConfig {
     pub gateway_rpc_url: Option<SensitiveUrl>,
 }
 
+impl SettlementLayerData<ENConfig> {
+    pub const LAYER_NAME: &'static str = "settlement_layer_en";
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for SettlementLayerData<ENConfig> {
     type Input = Input;
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "settlement_layer_en"
+        Self::LAYER_NAME
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
@@ -264,14 +275,22 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         };
 
         let sl = WorkingSettlementLayer::new(initial_sl_mode);
+        let sl_client = match sl.settlement_layer() {
+            SettlementLayer::L1(_) => SettlementLayerClient::L1(input.eth_client),
+            SettlementLayer::Gateway(_) => {
+                // `unwrap()` is safe: `l2_eth_client` is always initialized when `config.gateway_rpc_url` is set,
+                // which is required for `SettlementLayer::Gateway`.
+                SettlementLayerClient::Gateway(l2_eth_client.unwrap())
+            }
+        };
 
         Ok(Output {
             initial_settlement_mode: SettlementModeResource::new(sl),
+            sl_client,
             contracts: SettlementLayerContractsResource(contracts),
             l1_contracts: L1ChainContractsResource(self.config.l1_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
-            l2_eth_client,
             eth_sender_config: None,
             pubdata_sending_mode: None,
         })

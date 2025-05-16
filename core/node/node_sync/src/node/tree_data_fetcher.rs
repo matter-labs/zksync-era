@@ -9,7 +9,10 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::{MainNodeClientResource, SettlementLayerClient};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    node::SettlementLayerClient,
+};
 
 use crate::tree_data_fetcher::TreeDataFetcher;
 
@@ -20,7 +23,7 @@ pub struct TreeDataFetcherLayer;
 #[derive(Debug, FromContext)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
+    pub main_node_client: Box<DynClient<L2>>,
     pub gateway_client: SettlementLayerClient,
     pub settlement_layer_contracts_resource: SettlementLayerContractsResource,
     #[context(default)]
@@ -44,17 +47,16 @@ impl WiringLayer for TreeDataFetcherLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
-        let MainNodeClientResource(client) = input.main_node_client;
         let sl_client: Box<dyn EthInterface> = match input.gateway_client {
             SettlementLayerClient::L1(client) => Box::new(client),
-            SettlementLayerClient::L2(client) => Box::new(client),
+            SettlementLayerClient::Gateway(client) => Box::new(client),
         };
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let task = TreeDataFetcher::new(client, pool)
+        let task = TreeDataFetcher::new(input.main_node_client, pool)
             .with_sl_data(
                 sl_client,
                 input

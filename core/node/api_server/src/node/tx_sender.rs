@@ -20,7 +20,6 @@ use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient as _,
-    node::MainNodeClientResource,
 };
 
 use crate::{
@@ -74,7 +73,7 @@ pub struct Input {
     tx_sink: Arc<dyn TxSink>,
     replica_pool: PoolResource<ReplicaPool>,
     fee_input: ApiFeeInputResource,
-    main_node_client: Option<MainNodeClientResource>,
+    main_node_client: Option<Box<DynClient<L2>>>,
     sealer: Option<Arc<dyn ConditionalSealer>>,
     l2_contracts: L2ContractsResource,
     core_object_store: Option<Arc<dyn ObjectStore>>,
@@ -203,13 +202,11 @@ impl WiringLayer for TxSenderLayer {
 
         // Add the task for updating the whitelisted tokens for the AA cache.
         let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
-            let MainNodeClientResource(main_node_client) =
-                input.main_node_client.ok_or_else(|| {
-                    WiringError::Configuration(
-                        "Main node client is required for the whitelisted tokens for AA cache"
-                            .into(),
-                    )
-                })?;
+            let main_node_client = input.main_node_client.ok_or_else(|| {
+                WiringError::Configuration(
+                    "Main node client is required for the whitelisted tokens for AA cache".into(),
+                )
+            })?;
             let whitelisted_tokens = Arc::new(RwLock::new(Default::default()));
             tx_sender = tx_sender.with_whitelisted_tokens_for_aa(whitelisted_tokens.clone());
             Some(WhitelistedTokensForAaUpdateTask {
