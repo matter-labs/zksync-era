@@ -291,11 +291,17 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.refunded_gas,
                 commit_tx.tx_hash AS "eth_commit_tx_hash?",
                 prove_tx.tx_hash AS "eth_prove_tx_hash?",
-                execute_tx.tx_hash AS "eth_execute_tx_hash?"
+                execute_tx.tx_hash AS "eth_execute_tx_hash?",
+                precommit_tx.tx_hash AS "eth_precommit_tx_hash?"
             FROM
                 transactions
             LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    miniblocks.eth_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
             LEFT JOIN eth_txs_history AS commit_tx
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id

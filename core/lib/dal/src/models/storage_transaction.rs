@@ -440,6 +440,7 @@ pub(crate) struct StorageTransactionDetails {
     pub eth_commit_tx_hash: Option<String>,
     pub eth_prove_tx_hash: Option<String>,
     pub eth_execute_tx_hash: Option<String>,
+    pub eth_precommit_tx_hash: Option<String>,
 }
 
 impl StorageTransactionDetails {
@@ -487,6 +488,10 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             .eth_execute_tx_hash
             .map(|hash| H256::from_str(&hash).unwrap());
 
+        let eth_precommit_tx_hash = tx_details
+            .eth_precommit_tx_hash
+            .map(|hash| H256::from_str(&hash).unwrap());
+
         TransactionDetails {
             is_l1_originated: tx_details.is_priority,
             status,
@@ -497,6 +502,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             eth_commit_tx_hash,
             eth_prove_tx_hash,
             eth_execute_tx_hash,
+            eth_precommit_tx_hash,
         }
     }
 }

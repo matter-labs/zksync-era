@@ -688,6 +688,9 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommited_at?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
                 miniblocks.fair_pubdata_price,
@@ -714,6 +717,11 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    miniblocks.eth_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
             LEFT JOIN eth_txs AS commit_tx_data
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx_data.id
@@ -728,6 +736,11 @@ impl BlocksWeb3Dal<'_, '_> {
                 ON (
                     l1_batches.eth_execute_tx_id = execute_tx_data.id
                     AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON (
+                    miniblocks.eth_tx_id = precommit_tx_data.id
+                    AND precommit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 miniblocks.number = $1
@@ -779,6 +792,9 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
+                precommit_tx.tx_hash AS "precommit_tx_hash?",
+                precommit_tx.confirmed_at AS "precommited_at?",
+                precommit_tx_data.chain_id AS "precommit_chain_id?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,
                 mb.fair_pubdata_price,
@@ -803,6 +819,12 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
+            LEFT JOIN eth_txs_history AS precommit_tx
+                ON (
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx.eth_tx_id
+                    AND precommit_tx.confirmed_at IS NOT NULL
+                )
+            
             LEFT JOIN eth_txs AS commit_tx_data
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx_data.id
@@ -817,6 +839,11 @@ impl BlocksWeb3Dal<'_, '_> {
                 ON (
                     l1_batches.eth_execute_tx_id = execute_tx_data.id
                     AND execute_tx_data.confirmed_eth_tx_history_id IS NOT NULL
+                )
+            LEFT JOIN eth_txs AS precommit_tx_data
+                ON (
+                    l1_batches.final_precommit_eth_tx_id = precommit_tx_data.id
+                    AND precommit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE
                 l1_batches.number = $1

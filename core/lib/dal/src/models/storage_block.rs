@@ -383,6 +383,9 @@ pub(crate) struct StorageBlockDetails {
     pub execute_tx_hash: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
+    pub precommit_tx_hash: Option<String>,
+    pub precommited_at: Option<NaiveDateTime>,
+    pub precommit_chain_id: Option<i64>,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
@@ -434,6 +437,14 @@ impl From<StorageBlockDetails> for api::BlockDetails {
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             execute_chain_id: details.execute_chain_id.map(|id| SLChainId(id as u64)),
+            precommit_tx_hash: details
+                .precommit_tx_hash
+                .as_deref()
+                .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
+            precommitted_at: details.precommited_at.map(|precommited_at| {
+                DateTime::<Utc>::from_naive_utc_and_offset(precommited_at, Utc)
+            }),
+            precommit_chain_id: details.precommit_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),
@@ -471,6 +482,9 @@ pub(crate) struct StorageL1BatchDetails {
     pub execute_tx_hash: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
+    pub precommit_tx_hash: Option<String>,
+    pub precommited_at: Option<NaiveDateTime>,
+    pub precommit_chain_id: Option<i64>,
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
@@ -517,6 +531,14 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             execute_chain_id: details.execute_chain_id.map(|id| SLChainId(id as u64)),
+            precommit_tx_hash: details
+                .precommit_tx_hash
+                .as_deref()
+                .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
+            precommitted_at: details.precommited_at.map(|precommited_at| {
+                DateTime::<Utc>::from_naive_utc_and_offset(precommited_at, Utc)
+            }),
+            precommit_chain_id: details.precommit_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             fair_pubdata_price: details.fair_pubdata_price.map(|x| x as u64),

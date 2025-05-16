@@ -638,6 +638,7 @@ pub struct TransactionDetails {
     pub eth_commit_tx_hash: Option<H256>,
     pub eth_prove_tx_hash: Option<H256>,
     pub eth_execute_tx_hash: Option<H256>,
+    pub eth_precommit_tx_hash: Option<H256>,
 }
 
 #[derive(Debug, Clone)]
@@ -877,6 +878,9 @@ pub struct BlockDetailsBase {
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
     pub execute_chain_id: Option<SLChainId>,
+    pub precommit_tx_hash: Option<H256>,
+    pub precommitted_at: Option<DateTime<Utc>>,
+    pub precommit_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte (in wei).
