@@ -1,5 +1,12 @@
 # Changelog
 
+## [28.3.0](https://github.com/matter-labs/zksync-era/compare/core-v28.2.1...core-v28.3.0) (2025-05-16)
+
+
+### Features
+
+* add `en_getProtocolVersionInfo`, fix `eth_protocolVersion` ([#3988](https://github.com/matter-labs/zksync-era/issues/3988)) ([5adb640](https://github.com/matter-labs/zksync-era/commit/5adb64042c7f1d0699c4be50435fc96ee367fa13))
+
 ## [28.2.1](https://github.com/matter-labs/zksync-era/compare/core-v28.2.0...core-v28.2.1) (2025-05-15)
 
 
