@@ -12,15 +12,17 @@ categories.workspace = true
 
 [dependencies]
 zksync_config.workspace = true
-zksync_dal.workspace = true
-zksync_health_check.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_node_framework.workspace = true
 zksync_node_sync.workspace = true
 zksync_node_genesis.workspace = true
 zksync_object_store.workspace = true
+zksync_shared_resources.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_snapshots_applier.workspace = true
 zksync_types.workspace = true
-zksync_web3_decl.workspace = true
+zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 zksync_reorg_detector.workspace = true
 zksync_block_reverter.workspace = true
 

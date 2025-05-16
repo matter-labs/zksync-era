@@ -81,7 +81,7 @@ impl MerkleTreePruningTask {
                 }
             }
             _ = stop_receiver.changed() => {
-                tracing::info!("Stop signal received before Merkle tree is initialized; shutting down tree pruning");
+                tracing::info!("Stop request received before Merkle tree is initialized; shutting down tree pruning");
                 return Ok(());
             }
         }
@@ -134,7 +134,7 @@ impl MerkleTreePruningTask {
 
         self.health_updater
             .update(MerkleTreePruningTaskHealth::ShuttingDown.into());
-        tracing::info!("Stop signal received, Merkle tree pruning is shutting down");
+        tracing::info!("Stop request received, Merkle tree pruning is shutting down");
         drop(pruner_handle);
         pruner_task_handle
             .await

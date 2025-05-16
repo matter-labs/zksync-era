@@ -1,27 +1,20 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use zksync_health_check::AppHealthCheck;
+use zksync_health_check::{node::AppHealthCheckResource, AppHealthCheck};
 use zksync_node_framework::{
-    implementations::{
-        layers::{
-            main_node_client::MainNodeClientLayer, query_eth_client::QueryEthClientLayer,
-            settlement_layer_client::SettlementLayerClientLayer, sigint::SigintHandlerLayer,
-        },
-        resources::{
-            eth_interface::{
-                EthInterfaceResource, SettlementLayerClient, SettlementLayerClientResource,
-            },
-            healthcheck::AppHealthCheckResource,
-            main_node_client::MainNodeClientResource,
-        },
-    },
-    service::ServiceContext,
-    task::TaskKind,
-    FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
+    service::ServiceContext, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
+    WiringError, WiringLayer,
 };
 use zksync_types::{L1ChainId, L2ChainId};
-use zksync_web3_decl::client::{MockClient, L1, L2};
+use zksync_vlog::node::SigintHandlerLayer;
+use zksync_web3_decl::{
+    client::{MockClient, L1, L2},
+    node::{
+        EthInterfaceResource, MainNodeClientLayer, MainNodeClientResource, QueryEthClientLayer,
+        SettlementLayerClient, SettlementLayerClientLayer,
+    },
+};
 
 use super::ExternalNodeBuilder;
 
@@ -174,7 +167,7 @@ struct MockSettlementLayerClientLayer {
 #[async_trait::async_trait]
 impl WiringLayer for MockSettlementLayerClientLayer {
     type Input = ();
-    type Output = SettlementLayerClientResource;
+    type Output = SettlementLayerClient;
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
@@ -182,8 +175,6 @@ impl WiringLayer for MockSettlementLayerClientLayer {
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(SettlementLayerClientResource(SettlementLayerClient::L1(
-            Box::new(self.client),
-        )))
+        Ok(SettlementLayerClient::L1(Box::new(self.client)))
     }
 }

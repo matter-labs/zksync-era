@@ -668,9 +668,7 @@ impl OptionalENConfig {
             merkle_tree_repair_stale_keys: general_config
                 .db_config
                 .as_ref()
-                .map_or(false, |config| {
-                    config.experimental.merkle_tree_repair_stale_keys
-                }),
+                .is_some_and(|config| config.experimental.merkle_tree_repair_stale_keys),
             database_long_connection_threshold_ms: load_config!(
                 general_config.postgres_config,
                 long_connection_threshold_ms
@@ -983,9 +981,9 @@ impl OptionalENConfig {
         Duration::from_secs(self.pruning_data_retention_sec)
     }
 
-    pub fn bridge_addresses_refresh_interval(&self) -> Option<Duration> {
+    pub fn bridge_addresses_refresh_interval(&self) -> Duration {
         self.bridge_addresses_refresh_interval_sec
-            .map(|n| Duration::from_secs(n.get()))
+            .map_or_else(|| Duration::from_secs(30), |n| Duration::from_secs(n.get()))
     }
 
     #[cfg(test)]
@@ -1213,7 +1211,7 @@ impl ExperimentalENConfig {
             snapshots_recovery_drop_storage_key_preimages: general_config
                 .snapshot_recovery
                 .as_ref()
-                .map_or(false, |config| config.drop_storage_key_preimages),
+                .is_some_and(|config| config.drop_storage_key_preimages),
             commitment_generator_max_parallelism: general_config
                 .commitment_generator
                 .as_ref()

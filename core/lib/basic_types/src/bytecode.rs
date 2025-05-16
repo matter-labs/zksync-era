@@ -223,7 +223,7 @@ pub fn pad_evm_bytecode(deployed_bytecode: &[u8]) -> Vec<u8> {
 
     // Pad to the 32-byte word boundary.
     if padded.len() % 32 != 0 {
-        padded.extend(iter::repeat(0).take(32 - padded.len() % 32));
+        padded.extend(iter::repeat_n(0, 32 - padded.len() % 32));
     }
     assert_eq!(padded.len() % 32, 0);
 
