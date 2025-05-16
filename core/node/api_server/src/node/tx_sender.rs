@@ -14,8 +14,8 @@ use zksync_node_framework::{
 use zksync_object_store::ObjectStore;
 use zksync_shared_resources::contracts::L2ContractsResource;
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_state_keeper::seal_criteria::ConditionalSealer;
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
+use zksync_vm_executor::node::ApiTransactionFilter;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,
@@ -74,7 +74,7 @@ pub struct Input {
     replica_pool: PoolResource<ReplicaPool>,
     fee_input: ApiFeeInputResource,
     main_node_client: Option<Box<DynClient<L2>>>,
-    sealer: Option<Arc<dyn ConditionalSealer>>,
+    transaction_filter: Option<ApiTransactionFilter>,
     l2_contracts: L2ContractsResource,
     core_object_store: Option<Arc<dyn ObjectStore>>,
 }
@@ -136,7 +136,7 @@ impl WiringLayer for TxSenderLayer {
         // Get required resources.
         let tx_sink = input.tx_sink;
         let replica_pool = input.replica_pool.get().await?;
-        let sealer = input.sealer;
+        let transaction_filter = input.transaction_filter.map(|filter| filter.0);
         let fee_input = input.fee_input.0;
 
         let config = match input.l2_contracts.0.timestamp_asserter_addr {
@@ -196,8 +196,8 @@ impl WiringLayer for TxSenderLayer {
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(config, replica_pool, tx_sink);
-        if let Some(sealer) = sealer {
-            tx_sender = tx_sender.with_sealer(sealer);
+        if let Some(transaction_filter) = transaction_filter {
+            tx_sender = tx_sender.with_transaction_filter(transaction_filter);
         }
 
         // Add the task for updating the whitelisted tokens for the AA cache.

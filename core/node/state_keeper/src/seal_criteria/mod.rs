@@ -171,9 +171,9 @@ pub struct SealData {
 impl SealData {
     /// Creates sealing data based on the execution of a `transaction`. Assumes that all writes
     /// performed by the transaction are initial.
-    pub fn for_transaction(
+    pub(crate) fn for_transaction(
         transaction: &Transaction,
-        tx_metrics: TransactionExecutionMetrics,
+        tx_metrics: &TransactionExecutionMetrics,
     ) -> Self {
         Self {
             execution_metrics: tx_metrics.vm,

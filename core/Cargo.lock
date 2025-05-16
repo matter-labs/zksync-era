@@ -12977,7 +12977,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_shared_resources",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_test_contracts",
  "zksync_types",

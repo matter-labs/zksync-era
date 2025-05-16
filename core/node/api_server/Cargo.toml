@@ -21,7 +21,6 @@ zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_health_check = { workspace = true, features = ["node_framework"] }
 zksync_node_fee_model.workspace = true
 zksync_object_store = { workspace = true, features = ["node_framework"] }
-zksync_state_keeper.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_state.workspace = true
 zksync_system_constants.workspace = true

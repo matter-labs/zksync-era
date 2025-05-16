@@ -23,15 +23,15 @@ pub struct StateKeeperLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub state_keeper_io: StateKeeperIOResource,
-    pub batch_executor: BatchExecutorResource,
-    pub output_handler: OutputHandlerResource,
-    pub conditional_sealer: Arc<dyn ConditionalSealer>,
-    pub master_pool: PoolResource<MasterPool>,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub shared_allow_list: Option<SharedAllowList>,
+    state_keeper_io: StateKeeperIOResource,
+    batch_executor: BatchExecutorResource,
+    output_handler: OutputHandlerResource,
+    conditional_sealer: Arc<dyn ConditionalSealer>,
+    master_pool: PoolResource<MasterPool>,
+    replica_pool: PoolResource<ReplicaPool>,
+    shared_allow_list: Option<SharedAllowList>,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
