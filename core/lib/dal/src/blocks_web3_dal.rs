@@ -719,7 +719,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 )
             LEFT JOIN eth_txs_history AS precommit_tx
                 ON (
-                    miniblocks.eth_tx_id = precommit_tx.eth_tx_id
+                    miniblocks.eth_precommit_tx_id = precommit_tx.eth_tx_id
                     AND precommit_tx.confirmed_at IS NOT NULL
                 )
             LEFT JOIN eth_txs AS commit_tx_data
@@ -739,7 +739,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 )
             LEFT JOIN eth_txs AS precommit_tx_data
                 ON (
-                    miniblocks.eth_tx_id = precommit_tx_data.id
+                    miniblocks.eth_precommit_tx_id = precommit_tx_data.id
                     AND precommit_tx_data.confirmed_eth_tx_history_id IS NOT NULL
                 )
             WHERE

@@ -85,11 +85,6 @@
       },
       {
         "ordinal": 16,
-        "name": "finality_id",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 17,
         "name": "status",
         "type_info": "Text"
       }
@@ -115,7 +110,6 @@
       true,
       true,
       false,
-      true,
       true,
       true
     ]

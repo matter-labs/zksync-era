@@ -565,14 +565,14 @@ impl BlocksDal<'_, '_> {
             r#"
             SELECT
                 l1_batches.number AS l1_batch_number,
-                miniblocks.eth_tx_id,
+                miniblocks.eth_precommit_tx_id,
                 miniblocks.rolling_txs_hash,
                 miniblocks.number AS miniblock_number
             FROM
                 l1_batches
             JOIN LATERAL (
                 SELECT
-                    eth_tx_id,
+                    eth_precommit_tx_id,
                     rolling_txs_hash,
                     number
                 FROM miniblocks
@@ -613,7 +613,7 @@ impl BlocksDal<'_, '_> {
             );
             // miniblocks[0] is the newest, [1] is previous (because of DESC order)
             if miniblocks[0].rolling_txs_hash == miniblocks[1].rolling_txs_hash {
-                if let Some(eth_tx_id) = miniblocks[1].eth_tx_id {
+                if let Some(eth_tx_id) = miniblocks[1].eth_precommit_tx_id {
                     sqlx::query!(
                         r#"
                         UPDATE l1_batches
@@ -649,11 +649,11 @@ impl BlocksDal<'_, '_> {
                     r#"
                     UPDATE miniblocks
                     SET
-                        eth_tx_id = $1,
+                        eth_precommit_tx_id = $1,
                         updated_at = NOW()
                     WHERE
                         number BETWEEN $2 AND $3
-                        AND eth_tx_id IS NULL
+                        AND eth_precommit_tx_id IS NULL
                     "#,
                     eth_tx_id as i32,
                     i64::from(number_range.start().0),
@@ -905,7 +905,7 @@ impl BlocksDal<'_, '_> {
                 AND
                 miniblocks.rolling_txs_hash IS NOT NULL
                 AND
-                miniblocks.eth_tx_id IS NULL
+                miniblocks.eth_precommit_tx_id IS NULL
             ORDER BY miniblock_number, index_in_block
             "#,
             l1_batch_number.map(|l1| i64::from(l1.0)),
