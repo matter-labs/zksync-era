@@ -4,6 +4,8 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use zksync_shared_resources::api::SyncState;
+use zksync_types::L2BlockNumber;
 
 use crate::{io::IoCursor, updates::UpdatesManager};
 
@@ -24,6 +26,30 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
         &mut self,
         _updates_manager: Arc<UpdatesManager>,
     ) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl StateKeeperOutputHandler for SyncState {
+    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
+        let sealed_block_number = cursor.next_l2_block.saturating_sub(1);
+        self.set_local_block(L2BlockNumber(sealed_block_number));
+        Ok(())
+    }
+
+    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.l2_block.number;
+        self.set_local_block(sealed_block_number);
+        Ok(())
+    }
+
+    async fn handle_l1_batch(
+        &mut self,
+        updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.l2_block.number;
+        self.set_local_block(sealed_block_number);
         Ok(())
     }
 }
