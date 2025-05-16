@@ -28,7 +28,7 @@ Upgrade information is composed in the form of a [DiamondCutData](https://github
 1. [BaseZkSyncUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/BaseZkSyncUpgrade.sol) - Generic template with function that can be useful for upgrades
 2. [DefaultUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/DefaultUpgrade.sol) - Default implementation of the `BaseZkSyncUpgrade`, contract that is most often planned to be used as diamond initialization when doing upgrades.
 
-> Note, that the Gateway upgrade (v26) was more complex than the usual ones and so a similar, but separate [process][TODO] was used for it. It also used its own custom implementation of the `BaseZkSyncUpgrade`: [GatewayUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/GatewayUpgrade.sol).
+> Note, that the Gateway upgrade (v26) was more complex than the usual ones and so a similar, but separate [process](../../upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md) was used for it. It also used its own custom implementation of the `BaseZkSyncUpgrade`: [GatewayUpgrade](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/upgrades/GatewayUpgrade.sol).
 
 ### Protocol version
 
@@ -38,7 +38,7 @@ In the [BaseZkSyncUpgrade](https://github.com/matter-labs/era-contracts/blob/82
 
 ## Protocol upgrade transaction
 
-During upgrade, we typically need not only update the L1 contracts, but also the L2 ones. This is achieved by creating an upgrade transactions. More details on how those are processed inside the system can be read [here][(../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md)].
+During upgrade, we typically need not only update the L1 contracts, but also the L2 ones. This is achieved by creating an upgrade transactions. More details on how those are processed inside the system can be read [here](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 ## Whitelisting and executing upgrade
 
