@@ -222,7 +222,6 @@ impl TestScenario {
             Arc::new(sealer),
             Arc::new(MockReadStorageFactory),
             None,
-            None,
         );
         let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 

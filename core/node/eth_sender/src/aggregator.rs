@@ -269,14 +269,14 @@ impl Aggregator {
                 last_sealed_l1_batch_number,
                 base_system_contracts_hashes,
                 protocol_version_id,
-                self.send_precommit_tx_freq.is_some(),
+                self.precommit_params.is_some(),
             )
             .await,
         ) {
             Ok(Some(op))
         } else if let Some(params) = &self.precommit_params {
             let result = if let Some(op) = restrictions
-                .filter_precommit_op(self.get_precommit_operation(storage, params).await?)
+                .filter_precommit_op(self.get_precommit_operation(storage, *params).await?)
             {
                 Ok(Some(op))
             } else {
@@ -331,7 +331,7 @@ impl Aggregator {
     async fn get_precommit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        precommit_params: &PrecommitParams,
+        precommit_params: PrecommitParams,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
         let last_committed_l1_batch = storage
             .blocks_dal()
@@ -384,9 +384,9 @@ impl Aggregator {
             // We need to check that the first and last L2 blocks are in the same batch
 
             let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
-            if first_l2_block_age < precommit_params.deadline
+            if first_l2_block_age < precommit_params.deadline as i64
                 && (first_tx.l2block_number.0 - last_tx.l2block_number.0
-                    < precommit_params.l2_blocks_to_aggregate as u32)
+                    < precommit_params.l2_blocks_to_aggregate)
             {
                 return Ok(None);
             }

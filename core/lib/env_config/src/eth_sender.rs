@@ -78,6 +78,7 @@ mod tests {
                     is_verifier_pre_fflonk: true,
                     gas_limit_mode: Default::default(),
                     max_acceptable_base_fee_in_wei: 100_000_000_000,
+                    precommit_params: None,
                 }),
                 Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,

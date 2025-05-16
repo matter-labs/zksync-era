@@ -138,7 +138,6 @@ impl StateKeeperHandles {
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
             None,
-            None,
         );
 
         Self {

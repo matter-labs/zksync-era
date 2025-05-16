@@ -61,7 +61,6 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
         },
         pubdata_params: Default::default(),
         pending_l2_blocks,
-        last_l2_block_with_rolling_txs_hash: None,
     }
 }
 
@@ -312,7 +311,6 @@ async fn load_upgrade_tx() {
         output_handler,
         Arc::new(sealer),
         Arc::new(MockReadStorageFactory),
-        None,
         None,
     );
 

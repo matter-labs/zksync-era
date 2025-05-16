@@ -301,11 +301,8 @@ impl MainNodeBuilder {
                 .state_keeper_db_block_cache_capacity(),
             max_open_files: db_config.experimental.state_keeper_db_max_open_files,
         };
-        let state_keeper_layer = StateKeeperLayer::new(
-            db_config.state_keeper_db_path,
-            rocksdb_options,
-            sk_config.finality,
-        );
+        let state_keeper_layer =
+            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
         self.node
             .add_layer(persistence_layer)
             .add_layer(mempool_io_layer)
@@ -550,12 +547,9 @@ impl MainNodeBuilder {
     }
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
-        let state_keeper = try_load_config!(self.configs.state_keeper_config);
-
         self.node.add_layer(EthTxAggregatorLayer::new(
             self.genesis_config.l2_chain_id,
             self.genesis_config.l1_batch_commit_data_generator_mode,
-            state_keeper.finality,
         ));
 
         Ok(self)

@@ -159,6 +159,7 @@ mod tests {
             gas_limit: 0,
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
+            rolling_txs_hash: Some(H256::zero()),
         };
 
         conn.blocks_dal()

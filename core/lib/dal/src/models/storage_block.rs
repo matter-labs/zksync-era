@@ -605,10 +605,7 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
                 pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
             },
-            rolling_txs_hash: row
-                .rolling_txs_hash
-                .as_deref()
-                .map(|hash| H256::from_slice(hash)),
+            rolling_txs_hash: row.rolling_txs_hash.as_deref().map(H256::from_slice),
         }
     }
 }

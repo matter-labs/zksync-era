@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{chain::Finality, eth_sender::SenderConfig};
+use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
@@ -45,7 +45,6 @@ use crate::{
 pub struct EthTxAggregatorLayer {
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-    finality: Finality,
 }
 
 #[derive(Debug, FromContext)]
@@ -77,12 +76,10 @@ impl EthTxAggregatorLayer {
     pub fn new(
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
-        finality: Finality,
     ) -> Self {
         Self {
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
-            finality,
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, SenderConfig},
+    configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -262,8 +262,10 @@ impl EthSenderTester {
             commitment_mode,
             connection_pool.clone(),
             SettlementLayer::L1(chain_id),
-            // TODO check the tests, now it behaves as it used to behave
-            false,
+            Some(PrecommitParams {
+                l2_blocks_to_aggregate: 1,
+                deadline: 1,
+            }),
         )
         .await
         .unwrap();

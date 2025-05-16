@@ -85,7 +85,6 @@ impl ZkSyncStateKeeper {
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
         deployment_tx_filter: Option<DeploymentTxFilter>,
-        n_l2_blocks_to_seal_rolling_hash: Option<usize>,
     ) -> Self {
         Self {
             io: sequencer,

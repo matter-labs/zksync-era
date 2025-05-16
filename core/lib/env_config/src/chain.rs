@@ -79,7 +79,6 @@ mod tests {
             max_circuits_per_batch: 24100,
             protective_reads_persistence_enabled: true,
             deployment_allowlist: None,
-            finality: Default::default(),
         }
     }
 

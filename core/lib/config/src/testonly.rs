@@ -166,7 +166,6 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             default_aa_hash: None,
             evm_emulator_hash: None,
             l1_batch_commit_data_generator_mode: Default::default(),
-            finality: Default::default(),
             deployment_allowlist: None,
         }
     }

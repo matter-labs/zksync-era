@@ -579,7 +579,6 @@ impl StateKeeperRunner {
                         Arc::new(NoopSealer),
                         Arc::new(async_cache),
                         None,
-                        None,
                     )
                     .run(stop_recv)
                     .await
@@ -665,7 +664,6 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
                         Arc::new(MockReadStorageFactory),
-                        None,
                         None,
                     )
                     .run(stop_recv)

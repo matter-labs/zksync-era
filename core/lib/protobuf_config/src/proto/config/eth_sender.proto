@@ -33,6 +33,11 @@ enum PubdataSendingMode {
 }
 
 
+message PrecommitParams {
+  optional uint32 l2_blocks_to_aggregate = 1; // required; s
+  optional uint64 deadline = 2; // required; s
+}
+
 message Sender {
   reserved 1; reserved "aggregated_proof_sizes";
   optional uint64 wait_confirmations = 2; // optional
@@ -59,6 +64,7 @@ message Sender {
   optional bool is_verifier_pre_fflonk = 24; // optional
   optional GasLimitMode gas_limit_mode = 25; // optional
   optional uint64 max_acceptable_base_fee_in_wei = 26; // optional; wei
+  optional PrecommitParams precommit_params = 27; // optional
 }
 
 message GasAdjuster {

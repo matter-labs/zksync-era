@@ -141,6 +141,12 @@ impl ProtoRepr for proto::Sender {
             max_acceptable_base_fee_in_wei: self
                 .max_acceptable_base_fee_in_wei
                 .unwrap_or(Self::Type::default_max_acceptable_base_fee_in_wei()),
+            precommit_params: self.precommit_params.as_ref().map(|x| {
+                configs::eth_sender::PrecommitParams {
+                    l2_blocks_to_aggregate: *required(&x.l2_blocks_to_aggregate).unwrap(),
+                    deadline: *required(&x.deadline).unwrap(),
+                }
+            }),
         })
     }
 
@@ -172,6 +178,13 @@ impl ProtoRepr for proto::Sender {
             is_verifier_pre_fflonk: Some(this.is_verifier_pre_fflonk),
             gas_limit_mode: Some(proto::GasLimitMode::new(&this.gas_limit_mode).into()),
             max_acceptable_base_fee_in_wei: Some(this.max_acceptable_base_fee_in_wei),
+            precommit_params: this
+                .precommit_params
+                .as_ref()
+                .map(|x| proto::PrecommitParams {
+                    l2_blocks_to_aggregate: Some(x.l2_blocks_to_aggregate),
+                    deadline: Some(x.deadline),
+                }),
         }
     }
 }
