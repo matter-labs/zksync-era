@@ -371,12 +371,9 @@ impl ContractVerifier {
         // we'll first try to use info from metadata.
         let alternative_request = match &deployed_identifier.detected_metadata {
             Some(DetectedMetadata::Cbor { metadata, .. })
-                if !request.req.compiler_versions_match(&metadata) =>
+                if !request.req.compiler_versions_match(metadata) =>
             {
-                let update_request = request
-                    .req
-                    .clone()
-                    .with_updated_compiler_versions(&metadata);
+                let update_request = request.req.clone().with_updated_compiler_versions(metadata);
                 Some(update_request)
             }
             _ => None,
@@ -398,7 +395,7 @@ impl ContractVerifier {
                 );
                 // Check if the compiled bytecode matches the deployed bytecode
                 if matches!(
-                    compiled_identifier.matches(&deployed_identifier),
+                    compiled_identifier.matches(deployed_identifier),
                     Match::Full | Match::Partial
                 ) {
                     tracing::info!(
