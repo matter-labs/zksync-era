@@ -13,14 +13,11 @@ use zksync_node_framework::{
 };
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
-    contracts::{
-        L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-        SettlementLayerContractsResource,
-    },
+    contracts::{L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource},
     tree::TreeApiClient,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{DynClient, L2},
     node::SettlementModeResource,
 };
 
@@ -122,33 +119,31 @@ pub struct Web3ServerLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub bridge_addresses: BridgeAddressesHandle,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub tx_sender: TxSender,
-    pub sync_state: Option<SyncState>,
-    pub tree_api_client: Option<Arc<dyn TreeApiClient>>,
-    pub mempool_cache: MempoolCache,
+    bridge_addresses: BridgeAddressesHandle,
+    replica_pool: PoolResource<ReplicaPool>,
+    tx_sender: TxSender,
+    sync_state: Option<SyncState>,
+    tree_api_client: Option<Arc<dyn TreeApiClient>>,
+    mempool_cache: MempoolCache,
     #[context(default)]
-    pub circuit_breakers: Arc<CircuitBreakers>,
+    circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
-    pub main_node_client: Option<Box<DynClient<L2>>>,
-    pub l1_client: Box<DynClient<L1>>,
-    pub sl_contracts: SettlementLayerContractsResource,
-    pub l1_contracts: L1ChainContractsResource,
-    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
-    pub l2_contracts: L2ContractsResource,
-    pub initial_settlement_mode: SettlementModeResource,
+    app_health: Arc<AppHealthCheck>,
+    main_node_client: Option<Box<DynClient<L2>>>,
+    l1_contracts: L1ChainContractsResource,
+    l1_ecosystem_contracts: L1EcosystemContractsResource,
+    l2_contracts: L2ContractsResource,
+    initial_settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub web3_api_task: Web3ApiTask,
+    web3_api_task: Web3ApiTask,
     #[context(task)]
-    pub garbage_collector_task: ApiTaskGarbageCollector,
+    garbage_collector_task: ApiTaskGarbageCollector,
     #[context(task)]
-    pub sealed_l2_block_updater_task: SealedL2BlockUpdaterTask,
+    sealed_l2_block_updater_task: SealedL2BlockUpdaterTask,
 }
 
 impl Web3ServerLayer {

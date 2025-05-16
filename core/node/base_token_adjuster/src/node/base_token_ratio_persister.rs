@@ -33,18 +33,18 @@ pub struct BaseTokenRatioPersisterLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub price_api_client: Option<Arc<dyn PriceApiClient>>,
-    pub eth_client: Box<DynClient<L1>>,
-    pub tx_params: Arc<dyn TxParamsProvider>,
-    pub l1_contracts: L1ChainContractsResource,
-    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    price_api_client: Option<Arc<dyn PriceApiClient>>,
+    eth_client: Box<DynClient<L1>>,
+    tx_params: Arc<dyn TxParamsProvider>,
+    l1_contracts: L1ChainContractsResource,
+    l1_ecosystem_contracts: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub persister: BaseTokenRatioPersister,
+    persister: BaseTokenRatioPersister,
 }
 
 impl BaseTokenRatioPersisterLayer {

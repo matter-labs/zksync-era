@@ -49,19 +49,19 @@ pub struct EthTxAggregatorLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub eth_client: Option<Box<dyn BoundEthInterface>>,
-    pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
-    pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
-    pub object_store: Arc<dyn ObjectStore>,
-    pub settlement_mode: SettlementModeResource,
-    pub sender_config: SenderConfigResource,
+    master_pool: PoolResource<MasterPool>,
+    replica_pool: PoolResource<ReplicaPool>,
+    eth_client: Option<Box<dyn BoundEthInterface>>,
+    eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
+    object_store: Arc<dyn ObjectStore>,
+    settlement_mode: SettlementModeResource,
+    sender_config: SenderConfigResource,
     #[context(default)]
-    pub circuit_breakers: Arc<CircuitBreakers>,
+    circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
-    pub sl_contracts: SettlementLayerContractsResource,
+    app_health: Arc<AppHealthCheck>,
+    sl_contracts: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]

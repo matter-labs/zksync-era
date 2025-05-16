@@ -50,7 +50,7 @@ impl TreeApiServerLayer {
 }
 
 #[derive(Debug, IntoContext)]
-pub struct TreeApiServerOutput {
+pub struct Output {
     tree_api_client: Arc<dyn TreeApiClient>,
     #[context(task)]
     tree_reader_task: TreeReaderTask,
@@ -61,7 +61,7 @@ pub struct TreeApiServerOutput {
 #[async_trait::async_trait]
 impl WiringLayer for TreeApiServerLayer {
     type Input = ();
-    type Output = TreeApiServerOutput;
+    type Output = Output;
 
     fn layer_name(&self) -> &'static str {
         "tree_api_server"
@@ -74,7 +74,7 @@ impl WiringLayer for TreeApiServerLayer {
             bind_addr,
             tree_reader: tree_reader_task.tree_reader(),
         };
-        Ok(TreeApiServerOutput {
+        Ok(Output {
             tree_api_client: Arc::new(tree_reader_task.tree_reader()),
             tree_api_task,
             tree_reader_task,

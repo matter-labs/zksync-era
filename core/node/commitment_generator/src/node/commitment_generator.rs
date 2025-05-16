@@ -21,15 +21,15 @@ pub struct CommitmentGeneratorLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
+    master_pool: PoolResource<MasterPool>,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub commitment_generator: CommitmentGenerator,
+    commitment_generator: CommitmentGenerator,
 }
 
 impl CommitmentGeneratorLayer {

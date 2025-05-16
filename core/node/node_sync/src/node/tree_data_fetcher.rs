@@ -22,18 +22,18 @@ pub struct TreeDataFetcherLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: Box<DynClient<L2>>,
-    pub gateway_client: SettlementLayerClient,
-    pub settlement_layer_contracts_resource: SettlementLayerContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
+    gateway_client: SettlementLayerClient,
+    settlement_layer_contracts_resource: SettlementLayerContractsResource,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: TreeDataFetcher,
+    task: TreeDataFetcher,
 }
 
 #[async_trait::async_trait]

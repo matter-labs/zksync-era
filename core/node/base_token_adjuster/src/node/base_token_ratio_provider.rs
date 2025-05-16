@@ -33,14 +33,14 @@ impl BaseTokenRatioProviderLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub replica_pool: PoolResource<ReplicaPool>,
+    replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub ratio_provider: Arc<dyn BaseTokenRatioProvider>,
+    ratio_provider: Arc<dyn BaseTokenRatioProvider>,
     #[context(task)]
-    pub ratio_provider_task: DBBaseTokenRatioProvider,
+    ratio_provider_task: DBBaseTokenRatioProvider,
 }
 
 #[async_trait::async_trait]

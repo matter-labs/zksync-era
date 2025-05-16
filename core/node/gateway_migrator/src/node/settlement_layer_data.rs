@@ -68,8 +68,8 @@ impl<T> SettlementLayerData<T> {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub eth_client: Box<DynClient<L1>>,
-    pub pool: PoolResource<MasterPool>,
+    eth_client: Box<DynClient<L1>>,
+    pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]

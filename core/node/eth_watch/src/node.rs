@@ -32,19 +32,19 @@ pub struct EthWatchLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub l1_contracts: L1ChainContractsResource,
-    pub sl_contracts: SettlementLayerContractsResource,
-    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
-    pub master_pool: PoolResource<MasterPool>,
-    pub eth_client: Box<DynClient<L1>>,
-    pub client: SettlementLayerClient,
-    pub settlement_mode: SettlementModeResource,
+    l1_contracts: L1ChainContractsResource,
+    sl_contracts: SettlementLayerContractsResource,
+    l1_ecosystem_contracts: L1EcosystemContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    eth_client: Box<DynClient<L1>>,
+    client: SettlementLayerClient,
+    settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub eth_watch: EthWatch,
+    eth_watch: EthWatch,
 }
 
 impl EthWatchLayer {

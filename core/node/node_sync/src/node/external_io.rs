@@ -26,9 +26,9 @@ pub struct ExternalIOLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub app_health: Arc<AppHealthCheck>,
-    pub pool: PoolResource<MasterPool>,
-    pub main_node_client: Box<DynClient<L2>>,
+    app_health: Arc<AppHealthCheck>,
+    pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]

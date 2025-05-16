@@ -5,12 +5,11 @@ use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+    FromContext,
 };
 use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{DynClient, L2};
 
-use super::NodeInitializationStrategyResource;
 use crate::{
     external_node::{ExternalNodeGenesis, ExternalNodeReverter, ExternalNodeSnapshotRecovery},
     InitializeStorage, NodeInitializationStrategy, RevertStorage, SnapshotRecoveryConfig,
@@ -26,22 +25,17 @@ pub struct ExternalNodeInitStrategyLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: Box<DynClient<L2>>,
-    pub block_reverter: Option<BlockReverterResource>,
+    master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
+    block_reverter: Option<BlockReverterResource>,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
-}
-
-#[derive(Debug, IntoContext)]
-pub struct Output {
-    pub strategy: NodeInitializationStrategyResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[async_trait::async_trait]
 impl WiringLayer for ExternalNodeInitStrategyLayer {
     type Input = Input;
-    type Output = Output;
+    type Output = NodeInitializationStrategy;
 
     fn layer_name(&self) -> &'static str {
         "external_node_role_layer"
@@ -86,19 +80,17 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             None => None,
         };
         // We always want to detect reorgs, even if we can't roll them back.
-        let block_reverter = Some(Arc::new(ExternalNodeReverter {
+        let block_reverter = ExternalNodeReverter {
             client,
-            pool: pool.clone(),
+            pool,
             reverter: block_reverter,
-        }) as Arc<dyn RevertStorage>);
-        let strategy = NodeInitializationStrategy {
+        };
+        let block_reverter = Some(Arc::new(block_reverter) as Arc<dyn RevertStorage>);
+
+        Ok(NodeInitializationStrategy {
             genesis,
             snapshot_recovery,
             block_reverter,
-        };
-
-        Ok(Output {
-            strategy: strategy.into(),
         })
     }
 }

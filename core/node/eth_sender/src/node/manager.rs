@@ -41,23 +41,23 @@ pub struct EthTxManagerLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub eth_client: Box<dyn BoundEthInterface>,
-    pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
-    pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
-    pub gas_adjuster: Arc<GasAdjuster>,
-    pub sender_config: SenderConfigResource,
+    master_pool: PoolResource<MasterPool>,
+    replica_pool: PoolResource<ReplicaPool>,
+    eth_client: Box<dyn BoundEthInterface>,
+    eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
+    gas_adjuster: Arc<GasAdjuster>,
+    sender_config: SenderConfigResource,
     #[context(default)]
-    pub circuit_breakers: Arc<CircuitBreakers>,
+    circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub eth_tx_manager: EthTxManager,
+    eth_tx_manager: EthTxManager,
 }
 
 #[async_trait::async_trait]

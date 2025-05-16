@@ -29,14 +29,14 @@ pub struct ValidateChainIdsLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub l1_client: Box<DynClient<L1>>,
-    pub main_node_client: Box<DynClient<L2>>,
+    l1_client: Box<DynClient<L1>>,
+    main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: ValidateChainIdsTask,
+    task: ValidateChainIdsTask,
 }
 
 impl ValidateChainIdsLayer {

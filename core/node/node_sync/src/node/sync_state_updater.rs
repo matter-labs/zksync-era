@@ -28,19 +28,19 @@ pub struct SyncStateUpdaterLayer;
 #[derive(Debug, FromContext)]
 pub struct Input {
     /// Fetched to check whether the `SyncState` was already provided by another layer.
-    pub sync_state: Option<SyncState>,
-    pub app_health: Arc<AppHealthCheck>,
-    pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: Box<DynClient<L2>>,
+    sync_state: Option<SyncState>,
+    app_health: Arc<AppHealthCheck>,
+    master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
     sync_state_metrics_task: SyncStateMetricsTask,
-    pub sync_state: Option<SyncState>,
+    sync_state: Option<SyncState>,
     #[context(task)]
-    pub sync_state_updater: Option<SyncStateUpdater>,
+    sync_state_updater: Option<SyncStateUpdater>,
 }
 
 #[async_trait::async_trait]

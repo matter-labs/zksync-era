@@ -38,20 +38,20 @@ impl VmPlaygroundLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     // We use a replica pool because VM playground doesn't write anything to the DB by design.
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub dumps_object_store: Option<Arc<dyn ObjectStore>>,
+    replica_pool: PoolResource<ReplicaPool>,
+    dumps_object_store: Option<Arc<dyn ObjectStore>>,
     #[context(default)]
-    pub app_health: Arc<AppHealthCheck>,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
+    output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
     #[context(task)]
-    pub loader_task: Option<VmPlaygroundLoaderTask>,
+    loader_task: Option<VmPlaygroundLoaderTask>,
     #[context(task)]
-    pub playground: VmPlayground,
+    playground: VmPlayground,
 }
 
 #[async_trait]
