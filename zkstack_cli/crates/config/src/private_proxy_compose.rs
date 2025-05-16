@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde_json::json;
 use url::Url;
 
 use crate::{
@@ -55,6 +56,6 @@ pub async fn create_private_rpc_service(
             ),
         ])),
         extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
-        other: serde_json::Value::Null,
+        other: json!({"network_mode": "host"}),
     })
 }
