@@ -133,7 +133,6 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 
     let db_config = if args.dev {
         let private_rpc_db_name: String = generate_private_rpc_db_name(&chain_config);
-        let private_rpc_db_name = slugify!(&private_rpc_db_name, separator = "_");
         db::DatabaseConfig::new(DATABASE_PRIVATE_RPC_URL.clone(), private_rpc_db_name).full_url()
     } else {
         prompt_db_config(&chain_config)?
