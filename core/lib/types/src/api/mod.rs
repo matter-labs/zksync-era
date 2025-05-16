@@ -34,6 +34,8 @@ pub enum BlockNumber {
     Finalized,
     /// Latest sealed block
     Latest,
+    /// Precommitted
+    Precommitted,
     /// Last block that was committed on L1
     L1Committed,
     /// Earliest block (genesis)
@@ -63,6 +65,7 @@ impl Serialize for BlockNumber {
             BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
+            BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
         }
     }
 }
@@ -86,6 +89,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
                     "pending" => BlockNumber::Pending,
+                    "precommitted" => BlockNumber::Precommitted,
                     num => {
                         let number =
                             U64::deserialize(de::value::BorrowedStrDeserializer::new(num))?;
@@ -622,6 +626,7 @@ pub struct Transaction {
 pub enum TransactionStatus {
     Pending,
     Included,
+    Precommitted,
     Verified,
     Failed,
 }

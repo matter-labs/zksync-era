@@ -163,7 +163,7 @@ impl L1GasCriterion {
         total
     }
 
-    pub async fn total_precommit_gas_amount(is_gateway: bool, txs_len: usize) -> u64 {
+    pub fn total_precommit_gas_amount(is_gateway: bool, txs_len: usize) -> u64 {
         let costs = GasConsts::precommit_costs(is_gateway);
         costs.base + costs.per_tx * txs_len as u64
     }

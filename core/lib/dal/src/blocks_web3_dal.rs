@@ -303,6 +303,30 @@ impl BlocksWeb3Dal<'_, '_> {
                     ) AS number
                     ";
                 ),
+                api::BlockId::Number(api::BlockNumber::Precommitted) => (
+                    // TODO think about the case when we switched off the precommit tx
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE eth_precommit_tx_id IS NOT NULL
+                        ),
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs ON
+                                    l1_batches.eth_commit_tx_id = eth_txs.id
+                                WHERE
+                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
+                ),
+
                 api::BlockId::Number(api::BlockNumber::Finalized) => (
                     "
                     SELECT COALESCE(
@@ -689,7 +713,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
                 precommit_tx.tx_hash AS "precommit_tx_hash?",
-                precommit_tx.confirmed_at AS "precommited_at?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
                 precommit_tx_data.chain_id AS "precommit_chain_id?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
@@ -793,7 +817,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
                 precommit_tx.tx_hash AS "precommit_tx_hash?",
-                precommit_tx.confirmed_at AS "precommited_at?",
+                precommit_tx.confirmed_at AS "precommitted_at?",
                 precommit_tx_data.chain_id AS "precommit_chain_id?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,

@@ -384,7 +384,7 @@ pub(crate) struct StorageBlockDetails {
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
     pub precommit_tx_hash: Option<String>,
-    pub precommited_at: Option<NaiveDateTime>,
+    pub precommitted_at: Option<NaiveDateTime>,
     pub precommit_chain_id: Option<i64>,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
@@ -441,8 +441,8 @@ impl From<StorageBlockDetails> for api::BlockDetails {
                 .precommit_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
-            precommitted_at: details.precommited_at.map(|precommited_at| {
-                DateTime::<Utc>::from_naive_utc_and_offset(precommited_at, Utc)
+            precommitted_at: details.precommitted_at.map(|precommitted_at| {
+                DateTime::<Utc>::from_naive_utc_and_offset(precommitted_at, Utc)
             }),
             precommit_chain_id: details.precommit_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,
@@ -483,7 +483,7 @@ pub(crate) struct StorageL1BatchDetails {
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
     pub precommit_tx_hash: Option<String>,
-    pub precommited_at: Option<NaiveDateTime>,
+    pub precommitted_at: Option<NaiveDateTime>,
     pub precommit_chain_id: Option<i64>,
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
@@ -535,8 +535,8 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .precommit_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
-            precommitted_at: details.precommited_at.map(|precommited_at| {
-                DateTime::<Utc>::from_naive_utc_and_offset(precommited_at, Utc)
+            precommitted_at: details.precommitted_at.map(|precommitted_at| {
+                DateTime::<Utc>::from_naive_utc_and_offset(precommitted_at, Utc)
             }),
             precommit_chain_id: details.precommit_chain_id.map(|id| SLChainId(id as u64)),
             l1_gas_price: details.l1_gas_price as u64,

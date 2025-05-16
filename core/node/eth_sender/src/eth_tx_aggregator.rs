@@ -704,7 +704,11 @@ impl EthTxAggregator {
         if self.config.precommit_params.is_some() {
             // If we are using precommit operations,
             // we need to set the final precommit operation for l1 batches
-            self.set_final_precommit_operation(storage).await?;
+            storage
+                .blocks_dal()
+                .set_final_precommit_operation()
+                .await
+                .unwrap();
         }
         Ok(())
     }

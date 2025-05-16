@@ -309,18 +309,6 @@ impl Aggregator {
         self.priority_merkle_tree.as_mut().unwrap()
     }
 
-    async fn set_final_precommit_operation(
-        &mut self,
-        storage: &mut Connection<'_, Core>,
-    ) -> Result<(), EthSenderError> {
-        storage
-            .blocks_dal()
-            .set_final_precommit_operation()
-            .await
-            .unwrap();
-        Ok(())
-    }
-
     async fn get_precommit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,

@@ -451,6 +451,8 @@ impl StorageTransactionDetails {
             TransactionStatus::Verified
         } else if self.miniblock_number.is_some() {
             TransactionStatus::Included
+        } else if self.eth_precommit_tx_hash.is_some() {
+            TransactionStatus::Precommitted
         } else {
             TransactionStatus::Pending
         }
