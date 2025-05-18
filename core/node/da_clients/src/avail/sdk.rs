@@ -496,6 +496,11 @@ impl GasRelayClient {
                 .send()
                 .await?;
 
+            tracing::debug!(
+                "Received status response, status code: {}, content length: {:?}",
+                status_response.status(),
+                status_response.content_length()
+            );
             let status_response_bytes = status_response
                 .bytes()
                 .await
