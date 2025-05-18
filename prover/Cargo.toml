@@ -66,18 +66,18 @@ tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.3.0"
 
-circuit_definitions = "=0.151.7"
-circuit_sequencer_api = "=0.151.7"
-zkevm_test_harness = "=0.151.7"
+circuit_definitions = "=0.151.8"
+circuit_sequencer_api = "=0.151.8"
+zkevm_test_harness = "=0.151.8"
 fflonk = "=0.31.0"
 franklin-crypto = "=0.31.0"
 
 # GPU proving dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.153.4" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.4" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.4" }
-shivini = "=0.153.4"
-boojum-cuda = "=0.153.4"
+proof-compression-gpu = { package = "proof-compression", version = "=0.153.5" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.5" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.5" }
+shivini = "=0.153.5"
+boojum-cuda = "=0.153.5"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
@@ -114,3 +114,8 @@ zksync_prover_job_monitor = { version = "=20.3.1", path = "crates/bin/prover_job
 [profile.perf]
 inherits = "release"
 debug = true
+
+#[patch.crates-io]
+#circuit_definitions = { version = "=0.151.7", path = "/home/evl/code/zksync-protocol/crates" } # /circuit_encodings" }
+#circuit_sequencer_api = { version = "=0.151.7", path = "/home/evl/code/zksync-protocol/crates" } # /circuit_sequencer_api" }
+#zkevm_test_harness = { version = "=0.151.7", path = "/home/evl/code/zksync-protocol/crates/" } # zkevm_test_harness" }
