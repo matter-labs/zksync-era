@@ -233,7 +233,7 @@ experimental_vm:
   state_keeper_fast_vm_mode: OLD
   playground:
     db_path: "./db/main/vm_playground"
-    fast_vm_mode: SHADOW
+    fast_vm_mode: OLD
     first_processed_batch: 0
     window_size: 1
 
