@@ -12,7 +12,7 @@ use super::MainNodeClient;
 pub struct MockMainNodeClient {
     pub l2_blocks: Vec<api::en::SyncBlock>,
     pub block_number_offset: u32,
-    pub protocol_versions: HashMap<u16, api::ProtocolVersion>,
+    pub protocol_versions: HashMap<u16, api::ProtocolVersionInfo>,
     pub system_contracts: HashMap<H256, Vec<u8>>,
 }
 
@@ -38,7 +38,7 @@ impl MainNodeClient for MockMainNodeClient {
     async fn fetch_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
-    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
+    ) -> EnrichedClientResult<Option<api::ProtocolVersionInfo>> {
         let protocol_version = protocol_version as u16;
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }

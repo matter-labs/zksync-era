@@ -506,6 +506,13 @@ impl GasRelayClient {
                 .await
                 .context("Failed to read response body")?;
 
+            if is_empty_json(&status_response_bytes) {
+                tracing::warn!("Empty response from gas relay");
+
+                tokio::time::sleep(Self::RETRY_DELAY).await;
+                continue;
+            }
+
             let status_response =
                 match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
                     Ok(response) => {
@@ -532,4 +539,8 @@ impl GasRelayClient {
 
         Ok(None)
     }
+}
+
+fn is_empty_json(bytes: &[u8]) -> bool {
+    bytes.is_empty() || bytes == b"{}"
 }

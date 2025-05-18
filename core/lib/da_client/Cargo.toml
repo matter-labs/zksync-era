@@ -12,8 +12,13 @@ categories.workspace = true
 
 [dependencies]
 zksync_types.workspace = true
+zksync_node_framework = { workspace = true, optional = true }
 
 serde = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework"]
