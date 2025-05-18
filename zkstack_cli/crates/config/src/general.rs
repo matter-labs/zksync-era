@@ -189,11 +189,9 @@ impl GeneralConfigPatch {
         self.0
             .insert("consensus.genesis_spec.chain_id", specs.chain_id.as_u64())?;
         self.0
-            .insert("consensus.genesis_spec.protocol_version", 1_u64)?;
+            .insert("consensus.genesis_spec.protocol_version", 1u64)?;
         self.0
             .insert_yaml("consensus.genesis_spec.validators", specs.validators)?;
-        self.0
-            .insert_yaml("consensus.genesis_spec.attesters", specs.attesters)?;
         self.0
             .insert("consensus.genesis_spec.leader", specs.leader)?;
         Ok(())

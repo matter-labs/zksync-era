@@ -281,12 +281,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         let already_paid = self.prepaid_for_write(&storage_key);
 
-        if base_cost <= already_paid {
-            // Some other transaction has already paid for this slot, no need to pay anything
-            0u32
-        } else {
-            base_cost - already_paid
-        }
+        // No need to pay anything if some other transaction has already paid for this slot
+        base_cost.saturating_sub(already_paid)
     }
 
     /// Returns storage log queries from current frame where `log.log_query.timestamp >= from_timestamp`.

@@ -321,7 +321,7 @@ describe('L1 ERC20 contract checks', () => {
             });
             await tx.wait();
 
-            currentRoot = await l2InteropRootStorage.msgRoots(parseInt(chainId.toString()), l1BatchNumber);
+            currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
             console.log('currentRoot', currentRoot, count);
             count++;
         }
