@@ -51,7 +51,7 @@ impl Cli {
 }
 
 fn main() -> anyhow::Result<()> {
-    let config_sources = ConfigFilePaths::default().into_config_sources("")?;
+    let config_sources = ConfigFilePaths::default().into_config_sources("ZKSYNC_")?;
     let _observability_guard = config_sources.observability()?.install()?;
 
     let schema = full_config_schema(false);
