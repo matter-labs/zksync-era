@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, time::Duration};
 
 use rand::{distributions::Distribution, Rng};
 use zksync_basic_types::{
@@ -996,6 +996,14 @@ impl Distribution<configs::external_price_api_client::ExternalPriceApiClientConf
     }
 }
 
+impl Distribution<configs::GatewayMigratorConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::GatewayMigratorConfig {
+        configs::GatewayMigratorConfig {
+            eth_node_poll_interval: Duration::from_millis(self.sample(rng)),
+        }
+    }
+}
+
 impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(
         &self,
@@ -1058,6 +1066,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             experimental_vm_config: self.sample(rng),
             prover_job_monitor_config: self.sample(rng),
             timestamp_asserter_config: self.sample(rng),
+            gateway_migrator_config: self.sample(rng),
         }
     }
 }

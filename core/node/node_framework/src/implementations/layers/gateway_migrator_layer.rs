@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use zksync_config::configs::GatewayMigratorConfig;
 use zksync_eth_client::EthInterface;
 use zksync_gateway_migrator::GatewayMigrator;
 use zksync_types::L2ChainId;
@@ -18,6 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct GatewayMigratorLayer {
     pub l2_chain_id: L2ChainId,
+    pub gateway_migrator_config: GatewayMigratorConfig,
 }
 
 #[derive(Debug, FromContext)]
@@ -56,6 +58,7 @@ impl WiringLayer for GatewayMigratorLayer {
             self.l2_chain_id,
             input.pool.get().await?,
             input.contracts.0,
+            self.gateway_migrator_config.eth_node_poll_interval,
         );
 
         Ok(Output {
