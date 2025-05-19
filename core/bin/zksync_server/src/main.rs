@@ -91,7 +91,7 @@ fn main() -> anyhow::Result<()> {
         wallets: opt.wallets_path,
         ..ConfigFilePaths::default()
     };
-    let config_sources = config_file_paths.into_config_sources("")?;
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
     let runtime = Runtime::new().context("failed creating Tokio runtime")?;
     let observability_guard = {

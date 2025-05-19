@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
         secrets: opt.secrets_path,
         ..ConfigFilePaths::default()
     };
-    let config_sources = config_file_paths.into_config_sources("")?;
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
     let _observability_guard = config_sources.observability()?.install()?;
 
