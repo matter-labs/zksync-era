@@ -269,7 +269,7 @@ impl RawAvailClient {
         encoded
     }
 
-    /// Submits an extrinsic. Doesn't wait for it to be included, simply returns the hash of the extrinsic
+    /// Submits an extrinsic. Doesn't wait for it to be included, simply returns its hash
     pub(crate) async fn submit_extrinsic(
         &self,
         client: &Client,
