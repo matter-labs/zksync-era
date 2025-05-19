@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
         ..ConfigFilePaths::default()
     };
     let config_sources =
-        tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("")).await??;
+        tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("ZKSYNC_")).await??;
 
     let schema = full_config_schema(false);
     let repo = config_sources.build_repository(&schema);
