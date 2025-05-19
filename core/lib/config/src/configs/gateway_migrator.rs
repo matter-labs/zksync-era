@@ -7,6 +7,6 @@ use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 #[config(derive(Default))]
 pub struct GatewayMigratorConfig {
     /// How often we want to poll the Ethereum node.
-    #[config(default_t = Duration::from_secs(12), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_secs(12), with = TimeUnit::Millis, rename = "eth_node_poll_interval_ms")]
     pub eth_node_poll_interval: Duration,
 }
