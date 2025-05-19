@@ -153,9 +153,13 @@ impl BlockReverter {
     }
 
     /// Rolls back previously enabled DBs (Postgres + RocksDB) and the snapshot object store to a previous state.
+    #[tracing::instrument(skip(self), err)]
     pub async fn roll_back(&self, last_l1_batch_to_keep: L1BatchNumber) -> anyhow::Result<()> {
         if !self.allow_rolling_back_executed_batches {
-            let mut storage = self.connection_pool.connection().await?;
+            let mut storage = self
+                .connection_pool
+                .connection_tagged("block_reverter")
+                .await?;
             let last_executed_l1_batch = storage
                 .blocks_dal()
                 .get_number_of_last_l1_batch_executed_on_eth()
@@ -192,14 +196,26 @@ impl BlockReverter {
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
         if let Some(merkle_tree_path) = &self.merkle_tree_path {
-            let storage_root_hash = self
+            let mut connection = self
                 .connection_pool
-                .connection()
-                .await?
+                .connection_tagged("block_reverter")
+                .await?;
+            let storage_root_hash = connection
                 .blocks_dal()
                 .get_l1_batch_state_root(last_l1_batch_to_keep)
-                .await?
-                .context("no state root hash for target L1 batch")?;
+                .await?;
+            let Some(storage_root_hash) = storage_root_hash else {
+                let latest_l1_batch = connection.blocks_dal().get_sealed_l1_batch_number().await?;
+                let earliest_l1_batch = connection
+                    .blocks_dal()
+                    .get_earliest_l1_batch_number()
+                    .await?;
+                anyhow::bail!(
+                    "no state root hash for target L1 batch #{last_l1_batch_to_keep}; \
+                     Postgres contains batches from {earliest_l1_batch:?} to {latest_l1_batch:?} (both inclusive)"
+                );
+            };
+            drop(connection);
 
             let merkle_tree_path = Path::new(merkle_tree_path);
             let merkle_tree_exists = fs::try_exists(merkle_tree_path).await.with_context(|| {
@@ -290,7 +306,10 @@ impl BlockReverter {
         };
 
         if sk_cache.next_l1_batch_number().await > last_l1_batch_to_keep + 1 {
-            let mut storage = self.connection_pool.connection().await?;
+            let mut storage = self
+                .connection_pool
+                .connection_tagged("block_reverter")
+                .await?;
             tracing::info!("Rolling back storage cache");
             sk_cache
                 .roll_back(&mut storage, last_l1_batch_to_keep)
@@ -309,7 +328,10 @@ impl BlockReverter {
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<Vec<SnapshotMetadata>> {
         tracing::info!("Rolling back Postgres data");
-        let mut storage = self.connection_pool.connection().await?;
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("block_reverter")
+            .await?;
         let mut transaction = storage.start_transaction().await?;
 
         let (_, last_l2_block_to_keep) = transaction
@@ -632,7 +654,7 @@ impl BlockReverter {
     pub async fn clear_failed_l1_transactions(&self) -> anyhow::Result<()> {
         tracing::info!("Clearing failed L1 transactions");
         self.connection_pool
-            .connection()
+            .connection_tagged("block_reverter")
             .await?
             .eth_sender_dal()
             .clear_failed_transactions()
