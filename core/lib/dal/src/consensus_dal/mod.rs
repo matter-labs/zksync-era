@@ -139,7 +139,10 @@ impl ConsensusDal<'_, '_> {
         let s = zksync_protobuf::serde::Serialize;
         let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
         let state = s
-            .proto_fmt(&validator::ReplicaState::default(), serde_json::value::Serializer)
+            .proto_fmt(
+                &validator::ReplicaState::default(),
+                serde_json::value::Serializer,
+            )
             .unwrap();
         sqlx::query!(
             r#"
