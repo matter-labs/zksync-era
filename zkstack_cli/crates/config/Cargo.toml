@@ -24,9 +24,9 @@ tokio.workspace = true
 url.workspace = true
 xshell.workspace = true
 
-zksync_protobuf.workspace = true
-zksync_config.workspace = true
 zksync_basic_types.workspace = true
 zksync_system_constants.workspace = true
 zkstack_cli_common.workspace = true
 zkstack_cli_types.workspace = true
+zksync_consensus_roles.workspace = true
+zksync_consensus_crypto.workspace = true

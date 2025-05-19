@@ -107,6 +107,7 @@ const SOLC_VERSIONS: &[(&str, &str)] = &[
     ("0.8.26", "0.8.26+commit.8a97fa7a"),
     ("0.8.27", "0.8.27+commit.40a35a09"),
     ("0.8.28", "0.8.28+commit.7893614a"),
+    ("0.8.29", "0.8.29+commit.ab55807c"),
 ];
 
 /// Fetches solc long versions from the official solc-bin repository. Long build versions are required for verifying
@@ -198,14 +199,14 @@ mod tests {
     #[test]
     fn test_solc_builds_fetcher_has_predefined_versions() {
         let fetcher = SolcVersionsFetcher::new();
-        assert_eq!(fetcher.solc_long_versions.len(), 83);
+        assert_eq!(fetcher.solc_long_versions.len(), 84);
         assert_eq!(
             fetcher.get_solc_long_version("0.4.11"),
             Some("0.4.11+commit.68ef5810".to_string())
         );
         assert_eq!(
-            fetcher.get_solc_long_version("0.8.28"),
-            Some("0.8.28+commit.7893614a".to_string())
+            fetcher.get_solc_long_version("0.8.29"),
+            Some("0.8.29+commit.ab55807c".to_string())
         );
     }
 }

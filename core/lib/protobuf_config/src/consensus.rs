@@ -2,8 +2,8 @@ use anyhow::Context as _;
 use zksync_basic_types::L2ChainId;
 use zksync_concurrency::time;
 use zksync_config::configs::consensus::{
-    AttesterPublicKey, ConsensusConfig, GenesisSpec, Host, NodePublicKey, ProtocolVersion,
-    RpcConfig, ValidatorPublicKey, WeightedAttester, WeightedValidator,
+    ConsensusConfig, GenesisSpec, Host, NodePublicKey, ProtocolVersion, RpcConfig,
+    ValidatorPublicKey, WeightedValidator,
 };
 use zksync_protobuf::{kB, read_optional, repr::ProtoRepr, required, ProtoFmt};
 
@@ -14,22 +14,6 @@ impl ProtoRepr for proto::WeightedValidator {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             key: ValidatorPublicKey(required(&self.key).context("key")?.clone()),
-            weight: *required(&self.weight).context("weight")?,
-        })
-    }
-    fn build(this: &Self::Type) -> Self {
-        Self {
-            key: Some(this.key.0.clone()),
-            weight: Some(this.weight),
-        }
-    }
-}
-
-impl ProtoRepr for proto::WeightedAttester {
-    type Type = WeightedAttester;
-    fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            key: AttesterPublicKey(required(&self.key).context("key")?.clone()),
             weight: *required(&self.weight).context("weight")?,
         })
     }
@@ -58,13 +42,6 @@ impl ProtoRepr for proto::GenesisSpec {
                 .map(|(i, x)| x.read().context(i))
                 .collect::<Result<_, _>>()
                 .context("validators")?,
-            attesters: self
-                .attesters
-                .iter()
-                .enumerate()
-                .map(|(i, x)| x.read().context(i))
-                .collect::<Result<_, _>>()
-                .context("attesters")?,
             leader: ValidatorPublicKey(required(&self.leader).context("leader")?.clone()),
             registry_address: self
                 .registry_address
@@ -86,7 +63,6 @@ impl ProtoRepr for proto::GenesisSpec {
             chain_id: Some(this.chain_id.as_u64()),
             protocol_version: Some(this.protocol_version.0),
             validators: this.validators.iter().map(ProtoRepr::build).collect(),
-            attesters: this.attesters.iter().map(ProtoRepr::build).collect(),
             leader: Some(this.leader.0.clone()),
             registry_address: this.registry_address.map(|a| format!("{:?}", a)),
             seed_peers: this

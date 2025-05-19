@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use crate::consts::L1_CONTRACTS_FOUNDRY;
-
 #[derive(PartialEq, Debug, Clone)]
 pub struct ForgeScriptParams {
     input: &'static str,
@@ -11,13 +9,13 @@ pub struct ForgeScriptParams {
 
 impl ForgeScriptParams {
     // Path to the input file for forge script
-    pub fn input(&self, link_to_code: &Path) -> PathBuf {
-        link_to_code.join(L1_CONTRACTS_FOUNDRY).join(self.input)
+    pub fn input(&self, path_to_l1_foundry: &Path) -> PathBuf {
+        path_to_l1_foundry.join(self.input)
     }
 
     // Path to the output file for forge script
-    pub fn output(&self, link_to_code: &Path) -> PathBuf {
-        link_to_code.join(L1_CONTRACTS_FOUNDRY).join(self.output)
+    pub fn output(&self, path_to_l1_foundry: &Path) -> PathBuf {
+        path_to_l1_foundry.join(self.output)
     }
 
     // Path to the script
@@ -57,9 +55,9 @@ pub const DEPLOY_PAYMASTER_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
 };
 
 pub const ACCEPT_GOVERNANCE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-accept-admin.toml",
-    output: "script-out/output-accept-admin.toml",
-    script_path: "deploy-scripts/AcceptAdmin.s.sol",
+    input: "script-config/config-admin-functions.toml",
+    output: "script-out/output-admin-functions.toml",
+    script_path: "deploy-scripts/AdminFunctions.s.sol",
 };
 
 pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
@@ -74,31 +72,39 @@ pub const ENABLE_EVM_EMULATOR_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/EnableEvmEmulator.s.sol",
 };
 
-pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-deploy-gateway-ctm.toml",
-    output: "script-out/output-deploy-gateway-ctm.toml",
-    script_path: "deploy-scripts/GatewayCTMFromL1.s.sol",
+pub const GATEWAY_UTILS_SCRIPT_PATH: &str = "deploy-scripts/gateway/GatewayUtils.s.sol";
+
+pub const DEPLOY_GATEWAY_TX_FILTERER: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/deploy-gateway-tx-filterer.toml",
+    output: "script-out/deploy-gateway-tx-filterer.toml",
+    script_path: "deploy-scripts/gateway/DeployGatewayTransactionFilterer.s.sol",
 };
 
 pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/gateway-preparation-l1.toml",
-    output: "script-out/output-gateway-preparation-l1.toml",
-    script_path: "deploy-scripts/GatewayPreparation.s.sol",
+    input: "script-config/gateway-preparation.toml",
+    output: "script-out/gateway-preparation.toml",
+    script_path: "deploy-scripts/gateway/GatewayPreparation.s.sol",
+};
+
+pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-vote-preparation.toml",
+    output: "script-out/gateway-vote-preparation.toml",
+    script_path: "deploy-scripts/gateway/GatewayVotePreparation.s.sol",
 };
 
 pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
     "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
 
-pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/gateway-upgrade-ecosystem.toml",
-    output: "script-out/gateway-upgrade-ecosystem.toml",
-    script_path: "deploy-scripts/upgrade/EcosystemUpgrade.s.sol",
+pub const V29_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/v29-upgrade-ecosystem.toml",
+    output: "script-out/v29-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade_v29.s.sol",
 };
 
-pub const GATEWAY_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/gateway-upgrade-chain.toml",
-    output: "script-out/gateway-upgrade-chain.toml",
-    script_path: "deploy-scripts/upgrade/ChainUpgrade.s.sol",
+pub const V29_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/v29-upgrade-chain.toml",
+    output: "script-out/v29-upgrade-chain.toml",
+    script_path: "deploy-scripts/upgrade/ChainUpgrade_v29.s.sol",
 };
 
 pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {

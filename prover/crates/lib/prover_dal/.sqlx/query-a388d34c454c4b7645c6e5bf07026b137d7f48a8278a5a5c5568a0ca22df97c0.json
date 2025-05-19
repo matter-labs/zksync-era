@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE node_aggregation_witness_jobs_fri\n            SET\n                status = 'successful',\n                updated_at = NOW(),\n                time_taken = $1\n            WHERE\n                id = $2\n                AND chain_id = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Time",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a388d34c454c4b7645c6e5bf07026b137d7f48a8278a5a5c5568a0ca22df97c0"
+}

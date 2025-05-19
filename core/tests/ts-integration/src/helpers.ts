@@ -232,6 +232,16 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     }
 }
 
+export async function getDeploymentNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getDeploymentNonce(address);
+}
+
+export async function getAccountNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getMinNonce(address);
+}
+
 /**
  * Returns an increased gas price to decrease chances of L1 transactions being stuck
  *
@@ -279,4 +289,22 @@ export function bigIntMax(...args: bigint[]) {
 
 export function isLocalHost(network: string): boolean {
     return network.toLowerCase() == 'localhost';
+}
+
+export function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
+    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
+    // using binary search.
+    const overhead = getOverheadForTransaction(
+        // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
+        // will be greater than `overheadForLength` for a typical transacction
+        0n
+    );
+    return maxGasBodyLimit + overhead;
+}
+
+export function getOverheadForTransaction(encodingLength: bigint): bigint {
+    const TX_SLOT_OVERHEAD_GAS = 10_000n;
+    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
+
+    return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
 }

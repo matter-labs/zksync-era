@@ -1,4 +1,10 @@
-use serde::{Deserialize, Serialize};
+use std::fmt;
+
+use serde::{
+    de::{self, MapAccess, Visitor},
+    ser::SerializeStruct,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use zksync_basic_types::{commitment::PubdataParams, Address, Bloom, BloomInput, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
@@ -11,7 +17,6 @@ use crate::{
     AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
-/// Represents a successfully deployed smart contract.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeployedContract {
     pub account_id: AccountTreeId,
@@ -304,6 +309,87 @@ pub fn build_bloom<'a, I: IntoIterator<Item = BloomInput<'a>>>(items: I) -> Bloo
     }
 
     bloom
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BatchOrBlockNumber {
+    BatchNumber(L1BatchNumber),
+    BlockNumber(L2BlockNumber),
+}
+
+impl Serialize for BatchOrBlockNumber {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            BatchOrBlockNumber::BatchNumber(val) => val.serialize(serializer),
+            BatchOrBlockNumber::BlockNumber(val) => {
+                let mut state = serializer.serialize_struct("BlockObject", 1)?;
+                state.serialize_field("block", val)?;
+                state.end()
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for BatchOrBlockNumber {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct BatchOrBlockNumberVisitor;
+
+        impl<'de> Visitor<'de> for BatchOrBlockNumberVisitor {
+            type Value = BatchOrBlockNumber;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a JSON number (for L1BatchNumber) or a JSON object like {\"block\": number} (for L2BlockNumber)")
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let num = u32::try_from(value).map_err(|_| {
+                    E::invalid_value(de::Unexpected::Unsigned(value), &"a u32 number")
+                })?;
+                Ok(BatchOrBlockNumber::BatchNumber(L1BatchNumber(num)))
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                if value < 0 {
+                    return Err(E::invalid_value(
+                        de::Unexpected::Signed(value),
+                        &"a non-negative u32 number",
+                    ));
+                }
+                let num = u32::try_from(value).map_err(|_| {
+                    E::invalid_value(de::Unexpected::Signed(value), &"a u32 number")
+                })?;
+                Ok(BatchOrBlockNumber::BatchNumber(L1BatchNumber(num)))
+            }
+
+            fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                struct BlockWrapper {
+                    block: L2BlockNumber,
+                }
+
+                let wrapper: BlockWrapper =
+                    Deserialize::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                Ok(BatchOrBlockNumber::BlockNumber(wrapper.block))
+            }
+        }
+
+        deserializer.deserialize_any(BatchOrBlockNumberVisitor)
+    }
 }
 
 #[cfg(test)]

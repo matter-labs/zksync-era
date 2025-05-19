@@ -1072,7 +1072,17 @@ mod tests {
             .unwrap();
         let tx_hash = H256::random();
         conn.eth_sender_dal()
-            .insert_tx_history(mocked_commit_eth_tx.id, 0, 0, None, None, tx_hash, &[], 0)
+            .insert_tx_history(
+                mocked_commit_eth_tx.id,
+                0,
+                0,
+                None,
+                None,
+                tx_hash,
+                &[],
+                0,
+                None,
+            )
             .await
             .unwrap();
         conn.eth_sender_dal()

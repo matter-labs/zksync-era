@@ -143,6 +143,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     let sk_cache_path = temp_dir.path().join("sk_cache");
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();
     let (_stop_sender, stop_receiver) = watch::channel(false);
+    let (sk_cache, _) = sk_cache.ensure_ready(&pool, &stop_receiver).await.unwrap();
     sk_cache
         .synchronize(&mut storage, &stop_receiver, None)
         .await
@@ -195,11 +196,11 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(6));
 
     let sk_cache = RocksdbStorage::builder(&sk_cache_path).await.unwrap();
+    let sk_cache = sk_cache.get().await.unwrap();
     let mut sk_cache = sk_cache
         .synchronize(&mut storage, &stop_receiver, None)
         .await
-        .unwrap()
-        .expect("sk_cache syncing unexpectedly stopped");
+        .unwrap();
     for (i, log) in storage_logs.iter().enumerate() {
         let expected_value = if i <= 5 { log.value } else { H256::zero() };
         assert_eq!(sk_cache.read_value(&log.key), expected_value);

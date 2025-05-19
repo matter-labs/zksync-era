@@ -51,13 +51,16 @@ pub async fn setup_legacy_bridge(
         create2factory_addr: contracts_config.create2_factory_addr,
     };
     let foundry_contracts_path = chain_config.path_to_l1_foundry();
-    input.save(shell, SETUP_LEGACY_BRIDGE.input(&chain_config.link_to_code))?;
+    input.save(
+        shell,
+        SETUP_LEGACY_BRIDGE.input(&chain_config.path_to_l1_foundry()),
+    )?;
     let secrets = chain_config.get_secrets_config().await?;
 
     let mut forge = Forge::new(&foundry_contracts_path)
         .script(&SETUP_LEGACY_BRIDGE.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(secrets.get("l1.l1_rpc_url")?)
+        .with_rpc_url(secrets.l1_rpc_url()?)
         .with_broadcast();
 
     forge = fill_forge_private_key(

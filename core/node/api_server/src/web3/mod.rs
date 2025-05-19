@@ -13,8 +13,8 @@ use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_node_sync::SyncState;
-use zksync_types::L2BlockNumber;
+use zksync_shared_resources::api::{BridgeAddressesHandle, SyncState};
+use zksync_types::{try_stoppable, L2BlockNumber, StopContext};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee::{
@@ -48,7 +48,7 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
-    web3::state::BridgeAddressesHandle,
+    utils::AccountTypesCache,
 };
 
 pub mod backend_jsonrpsee;
@@ -386,6 +386,7 @@ impl ApiServer {
             api_config: self.config,
             start_info,
             mempool_cache: self.optional.mempool_cache,
+            account_types_cache: AccountTypesCache::default(),
             last_sealed_l2_block: self.sealed_l2_block_handle,
             bridge_addresses_handle: self.bridge_addresses_handle,
             tree_api: self.optional.tree_api,
@@ -613,16 +614,11 @@ impl ApiServer {
         // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
         // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
         let earliest_l1_batch_number =
-            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver)
-                .await
-                .context("error while waiting for L1 batch in Postgres")?;
-
-        if let Some(number) = earliest_l1_batch_number {
-            tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{number}");
-        } else {
-            tracing::info!("Received shutdown signal before {transport_str} API server is started; shutting down");
-            return Ok(());
-        }
+            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver).await;
+        let earliest_l1_batch_number =
+            try_stoppable!(earliest_l1_batch_number
+                .stop_context("error while waiting for L1 batch in Postgres"));
+        tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{earliest_l1_batch_number}");
 
         let batch_request_config = self
             .optional
@@ -752,7 +748,7 @@ impl ApiServer {
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
-                    "Stop signal sender for {transport_str} JSON-RPC server was dropped \
+                    "Stop request sender for {transport_str} JSON-RPC server was dropped \
                      without sending a signal"
                 );
             }
@@ -760,7 +756,7 @@ impl ApiServer {
                 health_updater.update(HealthStatus::ShuttingDown.into());
             }
             tracing::info!(
-                "Stop signal received, {transport_str} JSON-RPC server is shutting down"
+                "Stop request received, {transport_str} JSON-RPC server is shutting down"
             );
 
             // Wait some time until the traffic to the server stops. This may be necessary if the API server

@@ -4,11 +4,10 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
 use zkstack_cli_config::{
-    create_local_configs_dir, create_wallets, raw::RawConfig, traits::SaveConfigWithBasePath,
-    ChainConfig, EcosystemConfig, GENESIS_FILE,
+    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
+    EcosystemConfig, GenesisConfig, GENESIS_FILE,
 };
 use zksync_basic_types::L2ChainId;
-use zksync_types::H256;
 
 use crate::{
     commands::chain::args::create::{ChainCreateArgs, ChainCreateArgsFinal},
@@ -79,7 +78,8 @@ pub(crate) async fn create_chain_inner(
         .list_of_chains()
         .iter()
         .position(|x| *x == args.chain_name)
-        .unwrap() as u32;
+        .unwrap() as u32
+        + 1;
     println!(
         "ecosystem_config.list_of_chains(): {:?}",
         ecosystem_config.list_of_chains()
@@ -92,10 +92,8 @@ pub(crate) async fn create_chain_inner(
     )?;
     let genesis_config_path =
         EcosystemConfig::default_configs_path(&link_to_code).join(GENESIS_FILE);
-    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
-    let has_evm_emulation_support = default_genesis_config
-        .get_opt::<H256>("evm_emulator_hash")?
-        .is_some();
+    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
+    let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     if args.evm_emulator && !has_evm_emulation_support {
         anyhow::bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
     }

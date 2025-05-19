@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
 
+use anyhow::Context;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{api::Log, ethabi, L1BatchNumber, L2ChainId, SLChainId, H256};
@@ -134,12 +135,17 @@ impl EventProcessor for InteropRootProcessor {
 
             println!("block_number in global {:?}", block_number);
             println!("chain_id in global {:?}", chain_id);
+            let timestamp = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .context("incorrect system time")?
+                .as_secs();
             transaction
                 .interop_root_dal()
                 .set_interop_root(
                     SLChainId(chain_id),
                     L1BatchNumber(block_number as u32),
                     &root,
+                    timestamp,
                 )
                 .await
                 .map_err(DalError::generalize)?;

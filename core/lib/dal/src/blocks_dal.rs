@@ -19,7 +19,7 @@ use zksync_types::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
-    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
@@ -32,7 +32,7 @@ use crate::{
         parse_protocol_version,
         storage_block::{
             CommonStorageL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
-            UnsealedStorageL1Batch,
+            StoragePubdataParams, UnsealedStorageL1Batch,
         },
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
@@ -190,6 +190,42 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_earliest_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
+    /// Returns the first validium batch with a number higher than the provided one.
+    /// The query might look inefficient, but it is slow only when there is a large range of
+    /// "Rollup" batches, i.e. during the first lookup of Rollup->Validium transition, otherwise it
+    /// is only 2 index scans.
+    pub async fn get_first_validium_l1_batch_number(
+        &mut self,
+        last_processed_batch: L1BatchNumber,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                is_sealed
+                AND number > $1
+                AND (
+                    SELECT pubdata_type
+                    FROM miniblocks
+                    WHERE l1_batch_number = l1_batches.number
+                    ORDER BY miniblocks.number
+                    LIMIT 1
+                ) != 'Rollup'
+            "#,
+            last_processed_batch.0 as i32
+        )
+        .instrument("get_earliest_l1_batch_number")
+        .with_arg("last_processed_batch", &last_processed_batch)
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -1686,6 +1722,14 @@ impl BlocksDal<'_, '_> {
         &mut self,
         batch_number: L1BatchNumber,
     ) -> DalResult<Option<usize>> {
+        let Some((from_l2_block, to_l2_block)) = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_block_range_of_l1_batch(batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
         let row = sqlx::query!(
             r#"
             SELECT
@@ -1693,10 +1737,11 @@ impl BlocksDal<'_, '_> {
             FROM
                 transactions
             WHERE
-                l1_batch_number = $1
+                miniblock_number BETWEEN $1 AND $2
                 AND is_priority = TRUE
             "#,
-            i64::from(batch_number.0),
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_batch_first_priority_op_id")
         .with_arg("batch_number", &batch_number)
@@ -2160,6 +2205,62 @@ impl BlocksDal<'_, '_> {
         ))
     }
 
+    pub async fn get_gw_interop_batch_chain_merkle_path(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<BatchAndChainMerklePath>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                gw_interop_batch_chain_merkle_path
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_gw_interop_batch_chain_merkle_path")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(gw_interop_batch_chain_merkle_path) = row.gw_interop_batch_chain_merkle_path
+        else {
+            return Ok(None);
+        };
+        Ok(Some(
+            bincode::deserialize(&gw_interop_batch_chain_merkle_path).unwrap(),
+        ))
+    }
+
+    pub async fn get_l1_batch_pubdata_params(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<PubdataParams>> {
+        Ok(sqlx::query_as!(
+            StoragePubdataParams,
+            r#"
+            SELECT
+                l2_da_validator_address, pubdata_type
+            FROM
+                miniblocks
+            WHERE
+                l1_batch_number = $1
+            ORDER BY number ASC
+            LIMIT 1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_pubdata_params")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.into()))
+    }
+
     pub async fn get_executed_batch_roots_on_sl(
         &mut self,
         sl_chain_id: SLChainId,
@@ -2211,6 +2312,32 @@ impl BlocksDal<'_, '_> {
             &proof_bin
         )
         .instrument("set_batch_chain_merkle_path")
+        .with_arg("number", &number)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn set_gw_interop_batch_chain_merkle_path(
+        &mut self,
+        number: L1BatchNumber,
+        proof: BatchAndChainMerklePath,
+    ) -> DalResult<()> {
+        let proof_bin = bincode::serialize(&proof).unwrap();
+        sqlx::query!(
+            r#"
+            UPDATE
+            l1_batches
+            SET
+                gw_interop_batch_chain_merkle_path = $2
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0),
+            &proof_bin
+        )
+        .instrument("set_gw_interop_batch_chain_merkle_path")
         .with_arg("number", &number)
         .execute(self.storage)
         .await?;
@@ -2342,6 +2469,15 @@ impl BlocksDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<HashMap<H256, Vec<u8>>> {
+        let Some((from_l2_block, to_l2_block)) = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(Default::default());
+        };
+
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -2349,11 +2485,11 @@ impl BlocksDal<'_, '_> {
                 bytecode
             FROM
                 factory_deps
-            INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
             WHERE
-                miniblocks.l1_batch_number = $1
+                miniblock_number BETWEEN $1 AND $2
             "#,
-            i64::from(l1_batch_number.0)
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_l1_batch_factory_deps")
         .with_arg("l1_batch_number", &l1_batch_number)
@@ -2851,6 +2987,14 @@ impl BlocksDal<'_, '_> {
     where
         L: From<StorageL2ToL1Log>,
     {
+        let Some((from_l2_block, to_l2_block)) = self
+            .storage
+            .blocks_web3_dal()
+            .get_l2_block_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
         let results = sqlx::query_as!(
             StorageL2ToL1Log,
             r#"
@@ -2859,7 +3003,7 @@ impl BlocksDal<'_, '_> {
                 log_index_in_miniblock,
                 log_index_in_tx,
                 tx_hash,
-                l1_batch_number,
+                miniblocks.l1_batch_number,
                 shard_id,
                 is_service,
                 tx_index_in_miniblock,
@@ -2871,12 +3015,13 @@ impl BlocksDal<'_, '_> {
                 l2_to_l1_logs
             JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
             WHERE
-                l1_batch_number = $1
+                miniblock_number BETWEEN $1 AND $2
             ORDER BY
                 miniblock_number,
                 log_index_in_miniblock
             "#,
-            i64::from(l1_batch_number.0)
+            i64::from(from_l2_block.0),
+            i64::from(to_l2_block.0),
         )
         .instrument("get_l2_to_l1_logs_by_number")
         .with_arg("l1_batch_number", &l1_batch_number)

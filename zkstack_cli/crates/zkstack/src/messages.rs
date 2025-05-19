@@ -1,11 +1,15 @@
-use std::{fmt, path::Path, time::Duration};
+use std::{
+    fmt,
+    path::{Display, Path},
+    time::Duration,
+};
 
 use ethers::{
     types::{Address, H160, U256},
     utils::format_ether,
 };
 use url::Url;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 
 use crate::utils::forge::WalletOwner;
 
@@ -295,8 +299,8 @@ pub(super) const MSG_BUILDING_SERVER: &str = "Building server";
 pub(super) const MSG_FAILED_TO_BUILD_SERVER_ERR: &str = "Failed to build server";
 pub(super) const MSG_WAITING_FOR_SERVER: &str = "Waiting for server to start";
 
-pub(super) fn msg_waiting_for_server_success(health_check_port: u16) -> String {
-    format!("Server is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_server_success(health_check_url: &str) -> String {
+    format!("Server is alive with health check server on {health_check_url}")
 }
 
 /// Portal related messages
@@ -311,6 +315,39 @@ pub(super) fn msg_portal_running_with_config(path: &Path) -> String {
 pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
 }
+
+/// Private proxy related messages
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run private proxy container";
+
+pub(super) fn msg_private_rpc_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database url for chain {chain_name}")
+}
+
+pub(super) fn msg_private_rpc_initializing_database_for(chain: &str) -> String {
+    format!("Initializing private proxy database for {chain} chain")
+}
+
+pub(super) fn msg_private_rpc_docker_image_being_built() -> String {
+    "Building private-proxy docker image, it may take a while...".to_string()
+}
+pub(super) fn msg_private_rpc_docker_compose_file_generated(path: Display) -> String {
+    format!("Generated private proxy docker-compose file and stored it at {path}")
+}
+pub(super) fn msg_private_rpc_permissions_file_generated(path: Display) -> String {
+    format!("Created example permissions config and stored it at {path}")
+}
+
+pub(super) fn msg_private_rpc_chain_not_initialized(chain: &str) -> String {
+    format!("Chain {chain} is not initialized for private-proxy: run `zkstack private-proxy init --chain {chain}` first")
+}
+
+pub(super) fn msg_private_proxy_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database name for chain {chain_name}")
+}
+
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
+    "Failed to drop private proxy database";
 
 /// Explorer related messages
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
@@ -375,8 +412,8 @@ pub(super) const MSG_FAILED_TO_BUILD_EN_ERR: &str = "Failed to build external no
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 pub(super) const MSG_WAITING_FOR_EN: &str = "Waiting for external node to start";
 
-pub(super) fn msg_waiting_for_en_success(health_check_port: u16) -> String {
-    format!("External node is alive with health check server on :{health_check_port}")
+pub(super) fn msg_waiting_for_en_success(health_check_url: &str) -> String {
+    format!("External node is alive with health check server on {health_check_url}")
 }
 
 /// Prover related messages
@@ -479,7 +516,7 @@ pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> Strin
     format!("Downloading {} {} binary", name, version)
 }
 
-/// Update related messages
+// Update related messages
 
 pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
 pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZKsync";
@@ -553,16 +590,14 @@ pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
 pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
 pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
     "consensus registry address not configured";
-pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
-    "consensus.genesis_spec.attesters missing in general.yaml";
 pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
 pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
 
-pub(super) fn msg_setting_attester_committee_failed(
-    got: &attester::Committee,
-    want: &attester::Committee,
+pub(super) fn msg_setting_validator_committee_failed(
+    got: &validator::Committee,
+    want: &validator::Committee,
 ) -> String {
-    format!("setting attester committee failed: got {got:?}, want {want:?}")
+    format!("setting validator committee failed: got {got:?}, want {want:?}")
 }
 
 pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {

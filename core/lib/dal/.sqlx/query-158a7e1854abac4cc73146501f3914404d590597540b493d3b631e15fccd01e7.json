@@ -22,6 +22,11 @@
         "ordinal": 3,
         "name": "interop_root_sides",
         "type_info": "ByteaArray"
+      },
+      {
+        "ordinal": 4,
+        "name": "received_timestamp",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -33,6 +38,7 @@
       false,
       false,
       true,
+      false,
       false
     ]
   },

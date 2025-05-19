@@ -12,14 +12,6 @@ pub struct ValidatorPublicKey(pub String);
 #[derive(Debug, Clone)]
 pub struct ValidatorSecretKey(pub SecretString);
 
-/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::PublicKey`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AttesterPublicKey(pub String);
-
-/// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::attester::SecretKey`.
-#[derive(Debug, Clone)]
-pub struct AttesterSecretKey(pub SecretString);
-
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodePublicKey(pub String);
@@ -29,12 +21,6 @@ pub struct NodePublicKey(pub String);
 pub struct NodeSecretKey(pub SecretString);
 
 impl PartialEq for ValidatorSecretKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.expose_secret().eq(other.0.expose_secret())
-    }
-}
-
-impl PartialEq for AttesterSecretKey {
     fn eq(&self, other: &Self) -> bool {
         self.0.expose_secret().eq(other.0.expose_secret())
     }
@@ -52,15 +38,6 @@ pub struct WeightedValidator {
     /// Validator key
     pub key: ValidatorPublicKey,
     /// Validator weight inside the Committee.
-    pub weight: u64,
-}
-
-/// Copy-paste of `zksync_consensus_roles::attester::WeightedAttester`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WeightedAttester {
-    /// Attester key
-    pub key: AttesterPublicKey,
-    /// Attester weight inside the Committee.
     pub weight: u64,
 }
 
@@ -84,8 +61,6 @@ pub struct GenesisSpec {
     pub protocol_version: ProtocolVersion,
     /// The validator committee. Represents `zksync_consensus_roles::validator::Committee`.
     pub validators: Vec<WeightedValidator>,
-    /// The attester committee. Represents `zksync_consensus_roles::attester::Committee`.
-    pub attesters: Vec<WeightedAttester>,
     /// Leader of the committee. Represents
     /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
     pub leader: ValidatorPublicKey,
@@ -170,6 +145,5 @@ impl ConsensusConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConsensusSecrets {
     pub validator_key: Option<ValidatorSecretKey>,
-    pub attester_key: Option<AttesterSecretKey>,
     pub node_key: Option<NodeSecretKey>,
 }

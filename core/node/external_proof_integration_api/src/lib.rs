@@ -1,9 +1,3 @@
-mod error;
-mod metrics;
-mod middleware;
-mod processor;
-mod types;
-
 use std::net::SocketAddr;
 
 use anyhow::Context;
@@ -13,13 +7,18 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use error::ProcessorError;
 use tokio::sync::watch;
 use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
+use zksync_proof_data_handler::{Processor, ProcessorError, Readonly};
 
-pub use crate::processor::Processor;
 use crate::{metrics::Method, middleware::MetricsMiddleware};
+
+mod error;
+mod metrics;
+mod middleware;
+pub mod node;
+mod types;
 
 /// External API implementation.
 #[derive(Debug)]
@@ -29,7 +28,7 @@ pub struct Api {
 }
 
 impl Api {
-    pub fn new(processor: Processor, port: u16) -> Self {
+    pub fn new(processor: Processor<Readonly>, port: u16) -> Self {
         let middleware_factory = |method: Method| {
             axum::middleware::from_fn(move |req: Request, next: Next| async move {
                 let middleware = MetricsMiddleware::new(method);
@@ -71,9 +70,9 @@ impl Api {
         axum::serve(listener, self.router)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for external prover API server was dropped without sending a signal");
+                tracing::warn!("Stop request sender for external prover API server was dropped without sending a signal");
             }
-            tracing::info!("Stop signal received, external prover API server is shutting down");
+            tracing::info!("Stop request received, external prover API server is shutting down");
         })
         .await
         .context("External prover API server failed")?;
@@ -82,27 +81,34 @@ impl Api {
     }
 
     async fn latest_generation_data(
-        State(processor): State<Processor>,
+        State(processor): State<Processor<Readonly>>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        processor.get_proof_generation_data().await
+        let data = processor.get_proof_generation_data().await?;
+        Ok(ProofGenerationDataResponse(data))
     }
 
     async fn generation_data_for_existing_batch(
-        State(processor): State<Processor>,
+        State(processor): State<Processor<Readonly>>,
         Path(l1_batch_number): Path<u32>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        processor
+        let data = processor
             .proof_generation_data_for_existing_batch(L1BatchNumber(l1_batch_number))
-            .await
+            .await?;
+
+        Ok(ProofGenerationDataResponse(data))
     }
 
     async fn verify_proof(
-        State(processor): State<Processor>,
+        State(processor): State<Processor<Readonly>>,
         Path(l1_batch_number): Path<u32>,
         proof: ExternalProof,
     ) -> Result<(), ProcessorError> {
         processor
-            .verify_proof(L1BatchNumber(l1_batch_number), proof)
+            .verify_proof(
+                L1BatchNumber(l1_batch_number),
+                proof.raw(),
+                proof.protocol_version(),
+            )
             .await
     }
 }

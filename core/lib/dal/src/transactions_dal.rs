@@ -2138,6 +2138,7 @@ impl TransactionsDal<'_, '_> {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,
+                received_timestamp: rec.received_timestamp as u64,
             }
         })
         .collect();
@@ -2151,7 +2152,7 @@ impl TransactionsDal<'_, '_> {
     ) -> DalResult<Vec<L2BlockExecutionData>> {
         let mut transactions_by_l2_block: Vec<(L2BlockNumber, Vec<Transaction>)> = transactions
             .into_iter()
-            .group_by(|tx| tx.miniblock_number.unwrap())
+            .chunk_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
             .map(|(l2_block_number, txs)| {
                 (

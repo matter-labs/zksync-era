@@ -4,7 +4,7 @@ use std::{
 };
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::eth_sender::{GasLimitMode, SenderConfig};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, ExecutedTxStatus, RawTransactionBytes,
@@ -12,7 +12,11 @@ use zksync_eth_client::{
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
-use zksync_types::{eth_sender::EthTx, Address, L1BlockNumber, H256, U256};
+use zksync_types::{
+    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
+    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
+    L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
+};
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
@@ -55,7 +59,7 @@ impl EthTxManager {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
             time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
-            max_gas_limit: config.max_aggregated_tx_gas as u64,
+            max_acceptable_base_fee_in_wei: config.max_acceptable_base_fee_in_wei,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_client,
@@ -125,23 +129,33 @@ impl EthTxManager {
     ) -> Result<H256, EthSenderError> {
         let previous_sent_tx = storage
             .eth_sender_dal()
-            .get_last_sent_eth_tx(tx.id)
+            .get_last_sent_successfully_eth_tx(tx.id)
             .await
             .unwrap();
 
+        let operator_type = self.operator_type(tx);
         let EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
             blob_base_fee_per_gas,
             max_gas_per_pubdata_price,
-            gas_limit,
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             time_in_mempool_in_l1_blocks,
-            self.operator_type(tx),
+            operator_type,
         )?;
 
-        let operator_type = self.operator_type(tx);
+        let blob_gas_price = if tx.blob_sidecar.is_some() {
+            Some(
+                blob_base_fee_per_gas
+                    .expect("always ready to query blob gas price for blob transactions; qed")
+                    .into(),
+            )
+        } else {
+            None
+        };
+
+        let gas_limit = self.gas_limit(tx, max_gas_per_pubdata_price);
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             METRICS.transaction_resent.inc();
@@ -157,13 +171,14 @@ impl EthTxManager {
                 priority_fee_per_gas {:?}, \
                 blob_fee_per_gas {:?}, \
                 max_gas_per_pubdata_price {:?}, \
+                gas_limit {gas_limit:?}, \
                 ",
                 tx.id,
                 tx.nonce,
                 previous_sent_tx.base_fee_per_gas,
                 previous_sent_tx.priority_fee_per_gas,
                 previous_sent_tx.blob_base_fee_per_gas,
-                previous_sent_tx.max_gas_per_pubdata
+                previous_sent_tx.max_gas_per_pubdata,
             );
         } else {
             tracing::info!(
@@ -171,7 +186,10 @@ impl EthTxManager {
                 at block {current_block} with \
                 base_fee_per_gas {base_fee_per_gas:?}, \
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
-                blob_fee_per_gas {blob_base_fee_per_gas:?}",
+                blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                max_gas_per_pubdata_price {max_gas_per_pubdata_price:?},\
+                gas_limit {gas_limit:?}, \
+                ",
                 tx.id,
                 tx.nonce
             );
@@ -187,16 +205,6 @@ impl EthTxManager {
                 .observe(priority_fee_per_gas);
         }
 
-        let blob_gas_price = if tx.blob_sidecar.is_some() {
-            Some(
-                blob_base_fee_per_gas
-                    .expect("always ready to query blob gas price for blob transactions; qed")
-                    .into(),
-            )
-        } else {
-            None
-        };
-
         let mut signed_tx = self
             .l1_interface
             .sign_tx(
@@ -204,7 +212,7 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 blob_gas_price,
-                gas_limit.into(),
+                gas_limit,
                 operator_type,
                 max_gas_per_pubdata_price.map(Into::into),
             )
@@ -217,7 +225,7 @@ impl EthTxManager {
             ));
         }
 
-        if let Some(tx_history_id) = storage
+        let inserted_tx_history_id = storage
             .eth_sender_dal()
             .insert_tx_history(
                 tx.id,
@@ -228,61 +236,119 @@ impl EthTxManager {
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
                 current_block.0,
+                Some(gas_limit.as_u64()),
             )
             .await
-            .unwrap()
-        {
-            if let Err(error) = self
-                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, operator_type)
+            .unwrap();
+
+        let tx_history_id = if let Some(tx_history_id) = inserted_tx_history_id {
+            tx_history_id
+        } else {
+            // Insertion failed, it means such tx was already sent but presumably
+            // we didn't confirm that node has received it.
+            storage
+                .eth_sender_dal()
+                .tx_history_by_hash(tx.id, signed_tx.hash)
                 .await
-            {
-                tracing::warn!(
-                    "Error Sending {operator_type:?} tx {} (nonce {}) at block {current_block} with \
-                    base_fee_per_gas {base_fee_per_gas:?}, \
-                    priority_fee_per_gas {priority_fee_per_gas:?}, \
-                    blob_fee_per_gas {blob_base_fee_per_gas:?},\
-                    error {error}",
-                    tx.id,
-                    tx.nonce,
-                );
-            }
+                .unwrap()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Could not insert not select tx with hash {:#?} and eth_tx_id {}",
+                        signed_tx.hash, tx.id
+                    )
+                })
+        };
+
+        let send_result = self
+            .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, operator_type)
+            .await;
+        if let Err(error) = send_result {
+            tracing::warn!(
+                "Error Sending {operator_type:?} tx {} (nonce {}) at block {current_block} with \
+                base_fee_per_gas {base_fee_per_gas:?}, \
+                priority_fee_per_gas {priority_fee_per_gas:?}, \
+                blob_fee_per_gas {blob_base_fee_per_gas:?},\
+                gas_limit {gas_limit:?},
+                error {error}",
+                tx.id,
+                tx.nonce,
+            );
+            return Err(error);
         }
         Ok(signed_tx.hash)
     }
 
+    fn gas_limit(&self, tx: &EthTx, max_gas_per_pubdata_price: Option<u64>) -> U256 {
+        if self.config.gas_limit_mode == GasLimitMode::Maximum {
+            return self.config.max_aggregated_tx_gas.into();
+        }
+
+        let operator_type = self.operator_type(tx);
+
+        // Gas limit saved in predicted gas_cost, doesn't include gas_limit for pubdata usage.
+        let Some(gas_without_pubdata) = tx.predicted_gas_cost else {
+            return self.config.max_aggregated_tx_gas.into();
+        };
+
+        // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
+        if tx.tx_type == AggregatedActionType::Commit {
+            match operator_type {
+                OperatorType::Blob | OperatorType::NonBlob => {
+                    // Settlement mode is L1.
+                    (gas_without_pubdata
+                        + ((L1_GAS_PER_PUBDATA_BYTE + L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS)
+                            * tx.raw_tx.len() as u32) as u64)
+                        .into()
+                }
+                OperatorType::Gateway => {
+                    // Settlement mode is Gateway.
+                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+                        (gas_without_pubdata
+                            + ((max_gas_per_pubdata_price
+                                + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
+                                * tx.raw_tx.len() as u64))
+                            .into()
+                    } else {
+                        self.config.max_aggregated_tx_gas.into()
+                    }
+                }
+            }
+        } else {
+            gas_without_pubdata.into()
+        }
+    }
+
     async fn send_raw_transaction(
         &self,
-        storage: &mut Connection<'_, Core>,
+        connection: &mut Connection<'_, Core>,
         tx_history_id: u32,
         raw_tx: RawTransactionBytes,
         operator_type: OperatorType,
     ) -> Result<(), EthSenderError> {
         match self.l1_interface.send_raw_tx(raw_tx, operator_type).await {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                // Node has accepted tx and we mark tx as such.
+                // It will be used for fee calculation on resent attempt (if needed).
+                connection
+                    .eth_sender_dal()
+                    .set_sent_success(tx_history_id)
+                    .await
+                    .unwrap();
+                Ok(())
+            }
             Err(error) => {
-                // In retriable errors, server may have received the transaction
-                // we don't want to loose record about it in case that happens
-                if !error.is_retriable() {
-                    storage
-                        .eth_sender_dal()
-                        .remove_tx_history(tx_history_id)
-                        .await
-                        .unwrap();
-                } else {
-                    METRICS.l1_transient_errors.inc();
-                }
+                // Error does not guarantee that node hasn't accepted tx.
+                // We do not remove tx from DB so we will monitor tx status anyway
+                // but will not use it for fee calculation on resent attempt.
                 Err(error.into())
             }
         }
     }
 
-    pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Option<Address> {
-        if operator_type == OperatorType::Blob {
-            self.l1_interface.get_blobs_operator_account()
-        } else {
-            None
-        }
+    pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Address {
+        self.l1_interface.get_operator_account(operator_type)
     }
+
     // Monitors the in-flight transactions, marks mined ones as confirmed,
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions_single_operator(
@@ -301,6 +367,7 @@ impl EthTxManager {
                 .eth_sender_dal()
                 .get_inflight_txs(
                     self.operator_address(operator_type),
+                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
@@ -454,10 +521,15 @@ impl EthTxManager {
     fn operator_type(&self, tx: &EthTx) -> OperatorType {
         if tx.is_gateway {
             OperatorType::Gateway
-        } else if tx.from_addr.is_none() {
-            OperatorType::NonBlob
         } else {
-            OperatorType::Blob
+            match tx.from_addr {
+                Some(a) if a == self.operator_address(OperatorType::NonBlob) => {
+                    OperatorType::NonBlob
+                }
+                Some(a) if a == self.operator_address(OperatorType::Blob) => OperatorType::Blob,
+                Some(a) => panic!("Cannot infer operator type for {a:#?}"),
+                None => OperatorType::NonBlob,
+            }
         }
     }
 
@@ -509,15 +581,6 @@ impl EthTxManager {
             .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
             .await;
 
-        if let Some(predicted_gas_cost) = tx.predicted_gas_cost {
-            if gas_used > U256::from(predicted_gas_cost) {
-                tracing::error!(
-                    "Predicted gas {predicted_gas_cost} lower than used gas {gas_used} for tx {:?} {}",
-                    tx.tx_type,
-                    tx.id
-                );
-            }
-        }
         tracing::info!(
             "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
             tx.id,
@@ -554,7 +617,7 @@ impl EthTxManager {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_manager is shutting down");
+                tracing::info!("Stop request received, eth_tx_manager is shutting down");
                 break;
             }
             let operator_to_track = self.l1_interface.supported_operator_types()[0];
@@ -590,6 +653,7 @@ impl EthTxManager {
             .eth_sender_dal()
             .get_inflight_txs(
                 self.operator_address(operator_type),
+                operator_type != OperatorType::Blob,
                 operator_type == OperatorType::Gateway,
             )
             .await
@@ -606,7 +670,8 @@ impl EthTxManager {
                 .eth_sender_dal()
                 .get_new_eth_txs(
                     number_of_available_slots_for_eth_txs,
-                    &self.operator_address(operator_type),
+                    self.operator_address(operator_type),
+                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
@@ -622,9 +687,10 @@ impl EthTxManager {
             }
             for tx in new_eth_tx {
                 let result = self.send_eth_tx(storage, &tx, 0, current_block).await;
-                // If one of the transactions doesn't succeed, this means we should return
-                // as new transactions have increasing nonces, so they will also result in an error
-                // about gapped nonces
+                // If sending didn't succeed, we do not try to send next transactions
+                // as we rely on `sent_successfully` being set sequentially.
+                // Also, it doesn't make much sense to try anyway since we will get an error most likely
+                // (nonce-too-high for blob transactions is guaranteed).
                 if result.is_err() {
                     tracing::info!("Skipping sending rest of new transactions because of error");
                     break;
@@ -646,17 +712,13 @@ impl EthTxManager {
             // New gas price depends on the time this tx spent in mempool.
             let time_in_mempool_in_l1_blocks = l1_block_numbers.latest.0 - sent_at_block;
 
-            // We don't want to return early in case resend does not succeed -
-            // the error is logged anyway, but early returns will prevent
-            // sending new operations.
-            let _ = self
-                .send_eth_tx(
-                    storage,
-                    &tx,
-                    time_in_mempool_in_l1_blocks,
-                    l1_block_numbers.latest,
-                )
-                .await?;
+            self.send_eth_tx(
+                storage,
+                &tx,
+                time_in_mempool_in_l1_blocks,
+                l1_block_numbers.latest,
+            )
+            .await?;
         }
         Ok(())
     }

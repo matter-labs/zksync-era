@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{logger, spinner::Spinner};
-use zkstack_cli_config::{get_link_to_prover, raw::PatchedConfig, EcosystemConfig};
+use zkstack_cli_config::{get_link_to_prover, EcosystemConfig, GeneralConfigPatch};
 
 use super::args::compressor_keys::CompressorKeysArgs;
 use crate::messages::{
@@ -30,16 +30,12 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
 
 pub(crate) fn download_compressor_key(
     shell: &Shell,
-    general_config: &mut PatchedConfig,
+    general_config: &mut GeneralConfigPatch,
     path: &Path,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
-
-    general_config.insert_path("proof_compressor.universal_setup_path", path)?;
-
-    let url = general_config
-        .base()
-        .get::<String>("proof_compressor.universal_setup_download_url")?;
+    general_config.set_proof_compressor_setup_path(path)?;
+    let url = general_config.proof_compressor_setup_download_url()?;
     logger::info(format!("Downloading setup key by URL: {url}"));
 
     let client = reqwest::blocking::Client::builder()

@@ -11,7 +11,7 @@ export const L2_ASSET_ROUTER_ADDRESS = '0x00000000000000000000000000000000000100
 export const L2_NATIVE_TOKEN_VAULT_ADDRESS = '0x0000000000000000000000000000000000010004';
 export const L2_MESSAGE_ROOT_ADDRESS = '0x0000000000000000000000000000000000010005';
 // export const L2_NULLIFIER_ADDRESS = '0x0000000000000000000000000000000000010008';
-export const L2_MESSAGE_ROOT_STORAGE_ADDRESS = '0x0000000000000000000000000000000000010008';
+export const L2_INTEROP_ROOT_STORAGE_ADDRESS = '0x0000000000000000000000000000000000010008';
 export const L2_MESSAGE_VERIFICATION_ADDRESS = '0x0000000000000000000000000000000000010009';
 export const L2_INTEROP_CENTER_ADDRESS = '0x000000000000000000000000000000000001000A';
 export const L2_INTEROP_HANDLER_ADDRESS = '0x000000000000000000000000000000000001000B';
@@ -27,8 +27,8 @@ export const BRIDGEHUB_L2_TRANSACTION_REQUEST_ABI =
     'tuple(address sender, address contractL2, uint256 mintValue, uint256 l2Value, bytes l2Calldata, uint256 l2GasLimit, uint256 l2GasPerPubdataByteLimit, bytes[] factoryDeps, address refundRecipient)';
 export const L2_LOG_STRING =
     'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
-export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out/';
-export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout/';
+export const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
+export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout';
 
 export const INTEROP_TRIGGER_ABI =
     'tuple(uint256 destinationChainId, address from, address recipient,bytes32 feeBundleHash, bytes32 executionBundleHash, tuple(uint256 gasLimit, uint256 gasPerPubdataByteLimit, address refundRecipient, address paymaster, bytes paymasterInput) gasFields)';
@@ -48,9 +48,9 @@ function readContract(path: string, fileName: string, contractName?: string) {
 export const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}`, 'Bridgehub');
 export const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}`, 'InteropCenter');
 export const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}`, 'InteropHandler');
-export const ArtifactMessageRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2MessageRootStorage');
+export const ArtifactL2InteropRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2InteropRootStorage');
 export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, 'L2MessageVerification');
 export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
-export const ArtifactMintableERC20 = readContract('../../../contracts/l1-contracts/zkout/', 'TestnetERC20Token');
+export const ArtifactMintableERC20 = readContract('../../../contracts/l1-contracts/zkout', 'TestnetERC20Token');
 export const ArtifactL1AssetRouter = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter');
 export const ArtifactAssetTracker = readContract(`${ARTIFACTS_PATH}`, 'AssetTracker');

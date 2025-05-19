@@ -48,6 +48,8 @@ pub mod helpers;
 pub mod interop_roots_dal;
 pub mod metrics;
 mod models;
+#[cfg(feature = "node_framework")]
+pub mod node;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;

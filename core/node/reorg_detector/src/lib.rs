@@ -1,4 +1,4 @@
-use std::{fmt, future::Future, time::Duration};
+use std::{convert::Infallible, fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -6,13 +6,14 @@ use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
-use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{L1BatchNumber, L2BlockNumber, OrStopped, H256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -72,7 +73,7 @@ pub enum Error {
 impl HashMatchError {
     pub fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_retriable(),
+            Self::Rpc(err) => err.is_retryable(),
             Self::MissingData(_) => true,
             Self::Internal(_) => false,
         }
@@ -442,36 +443,43 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    /// Runs this detector *once* checking whether there is a reorg. This method will return:
+    /// Runs this detector *once* checking whether there is a reorg.
     ///
-    /// - `Ok(())` if there is no reorg, or if a stop signal is received.
-    /// - `Err(ReorgDetected(_))` if a reorg was detected.
-    /// - `Err(_)` for fatal errors.
-    ///
-    /// Retriable errors are retried indefinitely accounting for a stop signal.
-    pub async fn run_once(&mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    /// Only fatal errors are returned (incl. detected reorgs). Retriable errors are retried indefinitely accounting for a stop request.
+    pub async fn run_once(
+        &mut self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Result<(), OrStopped<Error>> {
         self.run_inner(true, stop_receiver).await
     }
 
     /// Runs this detector continuously checking for a reorg until a fatal error occurs (including if a reorg is detected),
-    /// or a stop signal is received.
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
+    /// or a stop request is received.
+    pub async fn run(
+        mut self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Result<Infallible, OrStopped<Error>> {
         self.event_handler.initialize();
-        self.run_inner(false, stop_receiver).await?;
-        self.event_handler.start_shutting_down();
-        tracing::info!("Shutting down reorg detector");
-        Ok(())
+        // `unwrap_err()` is safe: `run_inner()` can only return `Ok(())` if `stop_after_success` is set.
+        let err = self.run_inner(false, stop_receiver).await.unwrap_err();
+        if matches!(&err, OrStopped::Stopped) {
+            self.event_handler.start_shutting_down();
+            tracing::info!("Shutting down reorg detector");
+        }
+        Err(err)
     }
 
     async fn run_inner(
         &mut self,
         stop_after_success: bool,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), OrStopped<Error>> {
         while !*stop_receiver.borrow_and_update() {
             let sleep_interval = match self.check_consistency().await {
-                Err(Error::HashMatch(err)) => self.handle_hash_err(err)?,
-                Err(err) => return Err(err),
+                Err(Error::HashMatch(err)) => {
+                    self.handle_hash_err(err).map_err(OrStopped::internal)?
+                }
+                Err(err) => return Err(err.into()),
                 Ok(()) if stop_after_success => return Ok(()),
                 Ok(()) => self.sleep_interval,
             };
@@ -485,7 +493,7 @@ impl ReorgDetector {
                 break;
             }
         }
-        Ok(())
+        Err(OrStopped::Stopped)
     }
 
     /// Returns the sleep interval if the error is transient.
@@ -507,14 +515,14 @@ impl ReorgDetector {
     /// Checks whether a reorg is present. Unlike [`Self::run_once()`], this method doesn't pinpoint the first diverged L1 batch;
     /// it just checks whether diverged batches / blocks exist in general.
     ///
-    /// Internally retries transient errors. Returns `Ok(false)` if a stop signal is received.
+    /// Internally retries transient errors.
     pub async fn check_reorg_presence(
         &mut self,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<bool> {
+    ) -> Result<bool, OrStopped> {
         while !*stop_receiver.borrow_and_update() {
             let sleep_interval = match self.find_last_diverged_batch().await {
-                Err(err) => self.handle_hash_err(err)?,
+                Err(err) => self.handle_hash_err(err).map_err(OrStopped::internal)?,
                 Ok(maybe_diverged_batch) => return Ok(maybe_diverged_batch.is_some()),
             };
 
@@ -522,7 +530,7 @@ impl ReorgDetector {
                 .await
                 .is_ok()
             {
-                break;
+                return Err(OrStopped::Stopped);
             }
         }
         Ok(false)

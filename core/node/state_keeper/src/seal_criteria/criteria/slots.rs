@@ -11,7 +11,6 @@ impl SealCriterion for SlotsCriterion {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
-        _block_open_timestamp_ms: u128,
         tx_count: usize,
         _l1_tx_count: usize,
         _block_data: &SealData,
@@ -30,6 +29,17 @@ impl SealCriterion for SlotsCriterion {
         } else {
             SealResolution::NoSeal
         }
+    }
+
+    fn capacity_filled(
+        &self,
+        config: &StateKeeperConfig,
+        tx_count: usize,
+        _l1_tx_count: usize,
+        _block_data: &SealData,
+        _protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        Some((tx_count as f64) / (config.transaction_slots as f64))
     }
 
     fn prom_criterion_name(&self) -> &'static str {
@@ -53,7 +63,6 @@ mod tests {
 
         let almost_full_block_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             config.transaction_slots - 1,
             0,
             &SealData::default(),
@@ -64,7 +73,6 @@ mod tests {
 
         let full_block_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             config.transaction_slots,
             0,
             &SealData::default(),

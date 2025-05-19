@@ -1,7 +1,7 @@
 services:
   reth:
     restart: always
-    image: "ghcr.io/paradigmxyz/reth:v1.0.6"
+    image: "ghcr.io/paradigmxyz/reth:v1.3.7"
     ports:
       - 127.0.0.1:8545:8545
     volumes:
@@ -14,7 +14,6 @@ services:
 
     command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 300ms --chain /chaindata/reth_config
 
-  
   postgres:
     image: "postgres:14"
     command: postgres -c 'max_connections=1000'

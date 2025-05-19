@@ -1,3 +1,4 @@
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -5,6 +6,7 @@ use serde_json::Value;
 use serde_with::{hex::Hex, serde_as};
 use zksync_basic_types::{
     commitment::PubdataType,
+    settlement::SettlementLayer,
     web3::{AccessList, Bytes, Index},
     Bloom, L1BatchNumber, SLChainId, H160, H256, H64, U256, U64,
 };
@@ -16,6 +18,7 @@ pub use crate::transaction_request::{
 use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
     protocol_version::L1VerifierConfig,
+    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
     tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
@@ -83,6 +86,8 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "latest" => BlockNumber::Latest,
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
+                    // For zksync safe is finalized, but for compatibility with ethereum it's required to introduce it.
+                    "safe" => BlockNumber::Finalized,
                     "pending" => BlockNumber::Pending,
                     num => {
                         let number =
@@ -728,8 +733,7 @@ pub struct DebugCall {
     pub calls: Vec<DebugCall>,
 }
 
-// TODO (PLA-965): remove deprecated fields from the struct. It is currently in a "migration" phase
-// to keep compatibility between old and new versions.
+// TODO: remove in favour of `ProtocolVersionInfo` once all ENs have been upgraded.
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 pub struct ProtocolVersion {
     /// Minor version of the protocol
@@ -815,6 +819,48 @@ impl ProtocolVersion {
     pub fn l2_system_upgrade_tx_hash(&self) -> Option<H256> {
         self.l2_system_upgrade_tx_hash_new
             .or(self.l2_system_upgrade_tx_hash)
+    }
+}
+
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+pub struct ProtocolVersionInfo {
+    /// Minor version of the protocol
+    #[serde(rename = "minorVersion")]
+    pub minor_version: u16,
+    /// Timestamp at which upgrade should be performed
+    pub timestamp: u64,
+    /// Bootloader code hash
+    #[serde(rename = "bootloaderCodeHash")]
+    pub bootloader_code_hash: H256,
+    /// Default account code hash
+    #[serde(rename = "defaultAccountCodeHash")]
+    pub default_account_code_hash: H256,
+    /// EVM emulator code hash
+    #[serde(rename = "evmEmulatorCodeHash")]
+    pub evm_emulator_code_hash: Option<H256>,
+    /// L2 Upgrade transaction hash
+    #[serde(rename = "l2SystemUpgradeTxHash")]
+    pub l2_system_upgrade_tx_hash: Option<H256>,
+}
+
+impl TryFrom<ProtocolVersion> for ProtocolVersionInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(value: ProtocolVersion) -> Result<Self, Self::Error> {
+        Ok(ProtocolVersionInfo {
+            minor_version: value
+                .minor_version
+                .context("missing minor protocol version")?,
+            timestamp: value.timestamp,
+            bootloader_code_hash: value
+                .bootloader_code_hash
+                .context("missing bootloader code hash")?,
+            default_account_code_hash: value
+                .default_account_code_hash
+                .context("missing default account code hash")?,
+            evm_emulator_code_hash: value.evm_emulator_code_hash,
+            l2_system_upgrade_tx_hash: value.l2_system_upgrade_tx_hash_new,
+        })
     }
 }
 
@@ -1035,6 +1081,14 @@ pub struct DataAvailabilityDetails {
 pub struct L1ToL2TxsStatus {
     pub l1_to_l2_txs_in_mempool: usize,
     pub l1_to_l2_txs_paused: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayMigrationStatus {
+    pub latest_notification: Option<GatewayMigrationNotification>,
+    pub state: GatewayMigrationState,
+    pub settlement_layer: Option<SettlementLayer>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

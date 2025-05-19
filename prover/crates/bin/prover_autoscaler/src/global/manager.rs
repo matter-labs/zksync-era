@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use zksync_prover_task::Task;
+
 use super::{
     queuer,
     scaler::{Scaler, ScalerConfig, ScalerTrait},
@@ -11,7 +13,6 @@ use crate::{
     config::{ProverAutoscalerScalerConfig, QueueReportFields, ScalerTargetType},
     key::{GpuKey, NoKey},
     metrics::AUTOSCALER_METRICS,
-    task_wiring::Task,
 };
 
 pub struct Manager {
@@ -50,9 +51,6 @@ impl Manager {
             scale_errors_duration: chrono::Duration::seconds(
                 config.scale_errors_duration.as_secs() as i64,
             ),
-            need_to_move_duration: chrono::Duration::seconds(
-                config.need_to_move_duration.as_secs() as i64,
-            ),
         });
 
         for c in &config.scaler_targets {
@@ -68,6 +66,7 @@ impl Manager {
                         .collect(),
                     c.speed.into_map_gpukey(),
                     scaler_config.clone(),
+                    c.priority.clone(),
                 ))),
                 ScalerTargetType::Simple => scalers.push(Box::new(Scaler::<NoKey>::new(
                     c.queue_report_field,
@@ -79,6 +78,7 @@ impl Manager {
                         .collect(),
                     c.speed.into_map_nokey(),
                     scaler_config.clone(),
+                    c.priority.clone(),
                 ))),
             };
         }

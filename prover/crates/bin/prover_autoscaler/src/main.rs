@@ -13,8 +13,8 @@ use zksync_prover_autoscaler::{
     global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
-    task_wiring::TaskRunner,
 };
+use zksync_prover_task::TaskRunner;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -93,10 +93,11 @@ async fn main() -> anyhow::Result<()> {
                 client.clone(),
                 opt.cluster_name,
                 agent_config.namespaces,
+                agent_config.pod_check_interval,
             )
             .await;
             let scaler = Scaler::new(client, agent_config.dry_run);
-            tasks.push(tokio::spawn(watcher.clone().run()));
+            tasks.push(tokio::spawn(watcher.clone().run(stop_receiver.clone())));
             tasks.push(tokio::spawn(agent::run_server(
                 agent_config.http_port,
                 watcher,
@@ -126,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            tracing::info!("Stop request received, shutting down");
         }
     }
     stop_sender.send(true).ok();

@@ -30,6 +30,7 @@ use crate::event_processors::{
 mod client;
 mod event_processors;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -57,7 +58,7 @@ impl EthWatch {
     pub async fn new(
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn ZkSyncExtentionEthClient>,
-        sl_layer: SettlementLayer,
+        sl_layer: Option<SettlementLayer>,
         dependency_l2_chain_clients: Option<Vec<Box<dyn ZkSyncExtentionEthClient>>>, //
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
@@ -115,7 +116,7 @@ impl EthWatch {
             // Box::new(batch_root_processor), // kl todo,
         ];
 
-        if sl_layer.is_gateway() {
+        if let Some(SettlementLayer::Gateway(_)) = sl_layer {
             let batch_root_processor = BatchRootProcessor::new(
                 state.chain_batch_root_number_lower_bound,
                 state.batch_merkle_tree,
@@ -211,7 +212,7 @@ impl EthWatch {
             }
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop request received, eth_watch is shutting down");
         Ok(())
     }
 

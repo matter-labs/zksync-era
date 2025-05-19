@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                chain_id\n            FROM\n                proof_compression_jobs_fri\n            WHERE\n                status <> 'successful'\n                AND status <> 'sent_to_server'\n            ORDER BY\n                batch_sealed_at DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "chain_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a5f1c0eee59d3717f383a1110dfe70a23990fab3f8e059901d43d020769372b0"
+}

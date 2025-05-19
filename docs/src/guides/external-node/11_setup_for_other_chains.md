@@ -40,11 +40,11 @@ is too slow. It can be disabled by changing `EN_SNAPSHOTS_RECOVERY_ENABLED` to `
 If you want to keep this feature enabled for a Node, ask the company hosting the chain for the bucket name where the
 snapshots are stored and update the value of `EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL`
 
-## 4. Disable consensus
+## 5. (Validium chains only) Enable and configure DA fetcher
 
-Chains other than ZKsync Era aren't currently running consensus(as of December 2024). You need to disable it by removing
-`--enable-consensus` flag from `entrypoint.sh` invocation in docker-compose
+For Validium ENs to function properly, the Data Availability fetcher must be enabled and configured. It has to be added
+to the components list, e.g. for a standard list of components and DA fetcher it would be `--components=all,da_fetcher`.
 
-## 5. (Validium chains only) Set `EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE`
-
-For validium chains, you need to set `EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: "Validium"`
+To configure the DA fetcher, you need to add the `da_client` config if the file-based config is used or configure in via
+the environment variables, they need to have an `EN_` prefix. If the DA client in use needs a secret to be configured -
+you need to set it in your secrets config or a corresponding environment variable.

@@ -141,6 +141,6 @@ fn run_binary_component(
 
 async fn update_setup_data_path(chain: &ChainConfig, path: &str) -> anyhow::Result<()> {
     let mut general_config = chain.get_general_config().await?.patched();
-    general_config.insert_path("prover.setup_data_path", path.as_ref())?;
+    general_config.set_prover_setup_path(path.as_ref())?;
     general_config.save().await
 }

@@ -5,11 +5,11 @@
 
 pub mod impls;
 mod io;
+mod metrics;
+pub mod node;
 mod output_handler;
 mod process;
 mod storage;
-
-mod metrics;
 #[cfg(test)]
 mod tests;
 

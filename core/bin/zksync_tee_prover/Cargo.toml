@@ -17,9 +17,9 @@ async-trait.workspace = true
 envy.workspace = true
 reqwest = { workspace = true, features = ["zstd"] }
 secp256k1 = { workspace = true, features = [
-    "global-context",
-    "recovery",
-    "serde",
+  "global-context",
+  "recovery",
+  "serde",
 ] }
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
@@ -32,9 +32,9 @@ zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_crypto_primitives.workspace = true
 zksync_env_config.workspace = true
 zksync_node_framework.workspace = true
-zksync_prover_interface.workspace = true
+zksync_tee_prover_interface.workspace = true
 zksync_tee_verifier.workspace = true
-zksync_vlog.workspace = true
+zksync_vlog = { workspace = true, features = ["node_framework"] }
 
 [dev-dependencies]
 hex.workspace = true

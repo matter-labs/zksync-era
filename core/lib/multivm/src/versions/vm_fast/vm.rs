@@ -576,10 +576,26 @@ where
                 }
                 VmHook::FinalBatchInfo => {
                     // set fictive l2 block
+                    let preexisting_interop_roots_number =
+                        self.bootloader_state.get_preexisting_interop_roots_number();
+                    let preexisting_blocks_number =
+                        self.bootloader_state.get_preexisting_blocks_number();
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
-                    apply_l2_block(&mut memory, l2_block, txs_index, self.vm_version.into());
+                    println!(
+                        "applying l2 block in final batch info {:?}",
+                        l2_block.number
+                    );
+                    apply_l2_block(
+                        &mut memory,
+                        l2_block,
+                        txs_index,
+                        self.vm_version.into(),
+                        true,
+                        preexisting_interop_roots_number,
+                        preexisting_blocks_number,
+                    );
                     self.write_to_bootloader_heap(memory);
                 }
                 VmHook::PubdataRequested => {

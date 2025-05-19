@@ -2,8 +2,6 @@ pub mod clean;
 pub mod config_writer;
 pub mod contracts;
 pub mod database;
-#[cfg(feature = "gateway")]
-pub(crate) mod events_gatherer;
 pub mod fmt;
 pub mod genesis;
 pub mod lint;
@@ -14,7 +12,22 @@ pub mod snapshot;
 pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
-#[cfg(feature = "gateway")]
+pub mod track_priority_txs;
+#[cfg(any(
+    feature = "v27_evm_interpreter",
+    feature = "v28_precompiles",
+    feature = "v29"
+))]
 pub mod upgrade_utils;
 #[cfg(feature = "v27_evm_interpreter")]
 pub mod v27_evm_eq;
+#[cfg(feature = "v28_precompiles")]
+pub mod v28_precompiles;
+#[cfg(feature = "v29")]
+pub mod v29_chain_args;
+#[cfg(feature = "v29")]
+pub mod v29_chain_upgrade;
+#[cfg(feature = "v29")]
+pub mod v29_ecosystem_args;
+#[cfg(feature = "v29")]
+pub mod v29_ecosystem_upgrade;

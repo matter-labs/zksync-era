@@ -1,14 +1,15 @@
 #![doc = include_str!("../doc/FriProofCompressorDal.md")]
 use std::{collections::HashMap, str::FromStr, time::Duration};
 
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_basic_types::{
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
     prover_dal::{
         JobCountStatistics, ProofCompressionJobInfo, ProofCompressionJobStatus, StuckJobs,
     },
-    L1BatchNumber,
+    L1BatchId, L2ChainId,
 };
-use zksync_db_connection::connection::Connection;
+use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
@@ -20,31 +21,35 @@ pub struct FriProofCompressorDal<'a, 'c> {
 impl FriProofCompressorDal<'_, '_> {
     pub async fn insert_proof_compression_job(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_id: L1BatchId,
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
+        batch_sealed_at: DateTime<Utc>,
     ) {
         sqlx::query!(
             r#"
             INSERT INTO
             proof_compression_jobs_fri (
                 l1_batch_number,
+                chain_id,
                 fri_proof_blob_url,
                 status,
                 created_at,
                 updated_at,
                 protocol_version,
-                protocol_version_patch
+                protocol_version_patch,
+                batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW(), $4, $5)
-            ON CONFLICT (l1_batch_number) DO NOTHING
+            ($1, $2, $3, 'queued', NOW(), NOW(), $4, $5, $6)
+            ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
             "#,
-            i64::from(block_number.0),
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             fri_proof_blob_url,
-            ProofCompressionJobStatus::Queued.to_string(),
             protocol_version.minor as i32,
-            protocol_version.patch.0 as i32
+            protocol_version.patch.0 as i32,
+            batch_sealed_at.naive_utc(),
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -55,7 +60,7 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         picked_by: &str,
         protocol_version: ProtocolSemanticVersion,
-    ) -> Option<L1BatchNumber> {
+    ) -> Option<L1BatchId> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -66,9 +71,10 @@ impl FriProofCompressorDal<'_, '_> {
                 processing_started_at = NOW(),
                 picked_by = $3
             WHERE
-                l1_batch_number = (
+                (l1_batch_number, chain_id) IN (
                     SELECT
-                        l1_batch_number
+                        l1_batch_number,
+                        chain_id
                     FROM
                         proof_compression_jobs_fri
                     WHERE
@@ -76,14 +82,16 @@ impl FriProofCompressorDal<'_, '_> {
                         AND protocol_version = $4
                         AND protocol_version_patch = $5
                     ORDER BY
-                        l1_batch_number ASC
+                        priority DESC,
+                        batch_sealed_at ASC
                     LIMIT
                         1
                     FOR UPDATE
                     SKIP LOCKED
                 )
             RETURNING
-            proof_compression_jobs_fri.l1_batch_number
+            proof_compression_jobs_fri.l1_batch_number,
+            proof_compression_jobs_fri.chain_id
             "#,
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
@@ -94,12 +102,12 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+        .map(|row| L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32))
     }
 
     pub async fn get_proof_compression_job_attempts(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        batch_id: L1BatchId,
     ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
@@ -109,8 +117,10 @@ impl FriProofCompressorDal<'_, '_> {
                 proof_compression_jobs_fri
             WHERE
                 l1_batch_number = $1
+                AND chain_id = $2
             "#,
-            i64::from(l1_batch_number.0)
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -121,7 +131,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn mark_proof_compression_job_successful(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_id: L1BatchId,
         time_taken: Duration,
         l1_proof_blob_url: &str,
     ) {
@@ -135,22 +145,20 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_proof_blob_url = $3
             WHERE
                 l1_batch_number = $4
+                AND chain_id = $5
             "#,
             ProofCompressionJobStatus::Successful.to_string(),
             duration_to_naive_time(time_taken),
             l1_proof_blob_url,
-            i64::from(block_number.0)
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
         .unwrap();
     }
 
-    pub async fn mark_proof_compression_job_failed(
-        &mut self,
-        error: &str,
-        block_number: L1BatchNumber,
-    ) {
+    pub async fn mark_proof_compression_job_failed(&mut self, error: &str, batch_id: L1BatchId) {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -160,12 +168,14 @@ impl FriProofCompressorDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $3
-                AND status != $4
+                AND chain_id = $4
                 AND status != $5
+                AND status != $6
             "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
-            i64::from(block_number.0),
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::SentToServer.to_string(),
         )
@@ -174,10 +184,11 @@ impl FriProofCompressorDal<'_, '_> {
         .unwrap();
     }
 
+    // todo: this should be grouped by chain_id
     pub async fn get_least_proven_block_not_sent_to_server(
         &mut self,
     ) -> Option<(
-        L1BatchNumber,
+        L1BatchId,
         ProtocolSemanticVersion,
         ProofCompressionJobStatus,
     )> {
@@ -185,21 +196,18 @@ impl FriProofCompressorDal<'_, '_> {
             r#"
             SELECT
                 l1_batch_number,
+                chain_id,
                 status,
                 protocol_version,
                 protocol_version_patch
             FROM
                 proof_compression_jobs_fri
             WHERE
-                l1_batch_number = (
-                    SELECT
-                        MIN(l1_batch_number)
-                    FROM
-                        proof_compression_jobs_fri
-                    WHERE
-                        status = $1
-                        OR status = $2
-                )
+                status IN ($1, $2)
+            ORDER BY
+                batch_sealed_at ASC
+            LIMIT
+                1
             "#,
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::Skipped.to_string()
@@ -209,7 +217,7 @@ impl FriProofCompressorDal<'_, '_> {
         .ok()?;
         match row {
             Some(row) => Some((
-                L1BatchNumber(row.l1_batch_number as u32),
+                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
                 ProtocolSemanticVersion::new(
                     ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
                     VersionPatch(row.protocol_version_patch as u32),
@@ -220,7 +228,7 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
+    pub async fn mark_proof_sent_to_server(&mut self, batch_id: L1BatchId) -> Result<(), DalError> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -229,13 +237,17 @@ impl FriProofCompressorDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
+                AND chain_id = $3
             "#,
             ProofCompressionJobStatus::SentToServer.to_string(),
-            i64::from(block_number.0)
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_sent_to_server")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_jobs_stats(&mut self) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
@@ -279,18 +291,19 @@ impl FriProofCompressorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchNumber> {
-        let result: Option<L1BatchNumber> = sqlx::query!(
+    pub async fn get_oldest_not_compressed_batch(&mut self) -> Option<L1BatchId> {
+        let result: Option<L1BatchId> = sqlx::query!(
             r#"
             SELECT
-                l1_batch_number
+                l1_batch_number,
+                chain_id
             FROM
                 proof_compression_jobs_fri
             WHERE
                 status <> 'successful'
                 AND status <> 'sent_to_server'
             ORDER BY
-                l1_batch_number ASC
+                batch_sealed_at DESC
             LIMIT
                 1
             "#,
@@ -298,7 +311,7 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        .map(|row| L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32));
 
         result
     }
@@ -316,7 +329,8 @@ impl FriProofCompressorDal<'_, '_> {
                 SET
                     status = 'queued',
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     (
                         status = 'in_progress'
@@ -329,6 +343,7 @@ impl FriProofCompressorDal<'_, '_> {
                     )
                 RETURNING
                 l1_batch_number,
+                chain_id,
                 status,
                 attempts,
                 error,
@@ -343,6 +358,7 @@ impl FriProofCompressorDal<'_, '_> {
             .into_iter()
             .map(|row| StuckJobs {
                 id: row.l1_batch_number as u64,
+                chain_id: L2ChainId::new(row.chain_id as u64).unwrap(),
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: None,
@@ -355,7 +371,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_proof_compression_job_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_id: L1BatchId,
     ) -> Option<ProofCompressionJobInfo> {
         sqlx::query!(
             r#"
@@ -365,14 +381,16 @@ impl FriProofCompressorDal<'_, '_> {
                 proof_compression_jobs_fri
             WHERE
                 l1_batch_number = $1
+                AND chain_id = $2
             "#,
-            i64::from(block_number.0)
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| ProofCompressionJobInfo {
-            l1_batch_number: block_number,
+            batch_id,
             attempts: row.attempts as u32,
             status: ProofCompressionJobStatus::from_str(&row.status).unwrap(),
             fri_proof_blob_url: row.fri_proof_blob_url,
@@ -388,20 +406,23 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn delete_batch_data(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_id: L1BatchId,
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
             DELETE FROM proof_compression_jobs_fri
             WHERE
                 l1_batch_number = $1
+                AND chain_id = $2
             "#,
-            i64::from(block_number.0)
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
         )
         .execute(self.storage.conn())
         .await
     }
 
+    // todo: THIS LOOK VERY BAD
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
@@ -414,7 +435,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn requeue_stuck_jobs_for_batch(
         &mut self,
-        block_number: L1BatchNumber,
+        batch_id: L1BatchId,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
         {
@@ -426,10 +447,12 @@ impl FriProofCompressorDal<'_, '_> {
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
-                    processing_started_at = NOW()
+                    processing_started_at = NOW(),
+                    priority = priority + 1
                 WHERE
                     l1_batch_number = $1
-                    AND attempts >= $2
+                    AND chain_id = $2
+                    AND attempts >= $3
                     AND (
                         status = 'in_progress'
                         OR status = 'failed'
@@ -440,7 +463,8 @@ impl FriProofCompressorDal<'_, '_> {
                 error,
                 picked_by
                 "#,
-                i64::from(block_number.0),
+                batch_id.batch_number().0 as i64,
+                batch_id.chain_id().inner() as i64,
                 max_attempts as i32,
             )
             .fetch_all(self.storage.conn())
@@ -448,7 +472,8 @@ impl FriProofCompressorDal<'_, '_> {
             .unwrap()
             .into_iter()
             .map(|row| StuckJobs {
-                id: block_number.0 as u64,
+                id: batch_id.batch_number().0 as u64,
+                chain_id: batch_id.chain_id(),
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: None,

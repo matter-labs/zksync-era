@@ -71,7 +71,6 @@ mod storage;
 mod tracing_execution_error;
 mod transfer;
 mod upgrade;
-mod v26_upgrade_utils;
 
 type TestedLatestVm = Vm<StorageView<InMemoryStorage>, HistoryEnabled>;
 
@@ -217,7 +216,7 @@ impl TestedVmForValidation for TestedLatestVm {
 
         let tracer = ValidationTracer::<HistoryEnabled>::new(
             validation_params,
-            VmVersion::VmEcPrecompiles,
+            VmVersion::latest(),
             timestamp,
         );
         let mut failures = tracer.get_result();

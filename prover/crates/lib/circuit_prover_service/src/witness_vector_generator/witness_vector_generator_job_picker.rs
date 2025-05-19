@@ -6,14 +6,14 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{
     circuit_definitions::boojum::cs::implementations::setup::FinalizationHintsForProver,
-    CircuitWrapper, ProverServiceDataKey,
+    ProverServiceDataKey,
 };
 use zksync_prover_job_processor::JobPicker;
 use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::{
     metrics::WITNESS_VECTOR_GENERATOR_METRICS,
-    types::{circuit::Circuit, witness_vector_generator_payload::WitnessVectorGeneratorPayload},
+    types::witness_vector_generator_payload::WitnessVectorGeneratorPayload,
     witness_vector_generator::{
         witness_vector_generator_metadata_loader::WitnessVectorMetadataLoader,
         WitnessVectorGeneratorExecutor,
@@ -69,10 +69,6 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             .get(metadata.into())
             .await
             .context("failed to get circuit_wrapper from object store")?;
-        let circuit = match circuit_wrapper {
-            CircuitWrapper::Base(circuit) => Circuit::Base(circuit),
-            CircuitWrapper::Recursive(circuit) => Circuit::Recursive(circuit),
-        };
 
         let key = ProverServiceDataKey {
             circuit_id: metadata.circuit_id,
@@ -86,13 +82,13 @@ impl<ML: WitnessVectorMetadataLoader> JobPicker for WitnessVectorGeneratorJobPic
             .clone();
 
         let payload = WitnessVectorGeneratorPayload {
-            circuit,
+            circuit_wrapper,
             finalization_hints,
         };
         tracing::info!(
             "Finished picking witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()

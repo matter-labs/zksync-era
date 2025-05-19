@@ -17,8 +17,11 @@ tracing.workspace = true
 thiserror.workspace = true
 zksync_prover_interface.workspace = true
 zksync_basic_types.workspace = true
-zksync_object_store.workspace = true
-zksync_dal.workspace = true
+zksync_config.workspace = true
+zksync_node_framework.workspace = true
+zksync_object_store = { workspace = true, features = ["node_framework"] }
+zksync_proof_data_handler.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 tokio.workspace = true
 bincode.workspace = true
 anyhow.workspace = true

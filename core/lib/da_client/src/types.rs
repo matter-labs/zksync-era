@@ -1,6 +1,7 @@
 use std::{error, fmt::Display};
 
 use serde::Serialize;
+use zksync_types::commitment::PubdataType;
 
 /// `DAError` is the error type returned by the DA clients.
 #[derive(Debug)]
@@ -60,4 +61,16 @@ pub enum ClientType {
     Celestia,
     Eigen,
     ObjectStore,
+}
+
+impl ClientType {
+    pub fn into_pubdata_type(self) -> PubdataType {
+        match self {
+            ClientType::NoDA => PubdataType::NoDA,
+            ClientType::Avail => PubdataType::Avail,
+            ClientType::Celestia => PubdataType::Celestia,
+            ClientType::Eigen => PubdataType::Eigen,
+            ClientType::ObjectStore => PubdataType::ObjectStore,
+        }
+    }
 }

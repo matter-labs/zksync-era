@@ -41,7 +41,7 @@ api:
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [en, eth, net, web3, zks, pubsub, debug, unstable]
+    api_namespaces: [ en, eth, net, web3, zks, pubsub, debug, unstable ]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
@@ -105,6 +105,8 @@ eth:
     max_acceptable_priority_fee_in_gwei: 100000000000 # typo: value is in wei (100 gwei)
     pubdata_sending_mode: BLOBS
     is_verifier_pre_fflonk: true
+    gas_limit_mode: CALCULATED
+    max_acceptable_base_fee_in_wei: 100000000000
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100
@@ -143,15 +145,18 @@ witness_generator:
 data_handler:
   http_port: 3320
   proof_generation_timeout_in_secs: 18000
-  tee_proof_generation_timeout_in_secs: 60
-  tee_batch_permanently_ignored_timeout_in_hours: 240
-  tee_support: true
+  gateway_api_url: http://127.0.0.1:3322
+tee_proof_data_handler:
+  http_port: 4320
+  proof_generation_timeout_in_secs: 60
+  batch_permanently_ignored_timeout_in_hours: 240
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 15
   prometheus_listener_port: 3310
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
+  port: 3322
 proof_compressor:
   compression_mode: 5
   prometheus_listener_port: 3321
@@ -201,7 +206,7 @@ prometheus:
 observability:
   log_format: plain
   # zksync_multivm=trace,
-  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=debug,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug,zksync_external_proof_integration_api=info"
+  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=debug,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_tee_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug,zksync_external_proof_integration_api=info"
   # Uncomment only if needed
   # sentry:
   #   url: unset

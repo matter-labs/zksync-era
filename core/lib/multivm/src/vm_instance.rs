@@ -24,6 +24,7 @@ use crate::{
 /// Methods with a tracer arg take the provided tracer, replacing it with the default value. Legacy tracers
 /// are adapted for this workflow (previously, tracers were passed by value), so they provide means to extract state after execution
 /// if necessary (e.g., using `Arc<OnceCell<_>>`).
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
     VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
@@ -226,11 +227,11 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 Self::Vm1_5_2(vm)
             }
             VmVersion::VmEcPrecompiles => {
-                let vm = vm_latest::Vm::new_with_subversion(
+                let vm = crate::vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::EcPrecompiles,
+                    crate::vm_latest::MultiVmSubversion::EcPrecompiles,
                 );
                 Self::Vm1_5_2(vm)
             }
@@ -239,7 +240,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::EvmEmulator,
+                    vm_latest::MultiVmSubversion::Interop,
                 );
                 Self::Vm1_5_2(vm)
             }
@@ -269,6 +270,7 @@ pub type ShadowedFastVm<S, Tr, Val> = ShadowVm<
 >;
 
 /// Fast VM variants.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FastVmInstance<S: ReadStorage, Tr = (), Val = FastValidationTracer> {
     /// Fast VM running in isolation.

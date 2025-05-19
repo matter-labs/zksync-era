@@ -1,7 +1,16 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
+use std::time::Duration;
+
 use anyhow::{bail, Context};
+use zksync_base_token_adjuster::node::{
+    BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
+};
+use zksync_circuit_breaker::node::CircuitBreakerCheckerLayer;
+use zksync_commitment_generator::node::{
+    CommitmentGeneratorLayer, L1BatchCommitmentModeValidationLayer,
+};
 use zksync_config::{
     configs::{
         contracts::{
@@ -14,75 +23,62 @@ use zksync_config::{
     },
     GenesisConfig,
 };
+use zksync_contract_verification_server::node::ContractVerificationApiLayer;
 use zksync_core_leftovers::Component;
-use zksync_metadata_calculator::MetadataCalculatorConfig;
+use zksync_da_clients::node::{
+    AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
+    ObjectStorageClientWiringLayer,
+};
+use zksync_da_dispatcher::node::DataAvailabilityDispatcherLayer;
+use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_eth_client::{
+    node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
+    web3_decl::node::{QueryEthClientLayer, SettlementLayerClientLayer},
+};
+use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
+use zksync_eth_watch::node::EthWatchLayer;
+use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
+use zksync_gateway_migrator::node::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
+use zksync_house_keeper::node::HouseKeeperLayer;
+use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
+use zksync_metadata_calculator::{
+    node::{MetadataCalculatorLayer, TreeApiClientLayer},
+    MetadataCalculatorConfig,
+};
 use zksync_node_api_server::{
+    node::{
+        DeploymentAllowListLayer, HealthCheckLayer, MasterPoolSinkLayer, MempoolCacheLayer,
+        PostgresStorageCachesConfig, TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
+        WhitelistedMasterPoolSinkLayer,
+    },
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfigBase, Namespace},
 };
-use zksync_node_framework::{
-    implementations::layers::{
-        base_token::{
-            base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-            base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
-        },
-        circuit_breaker_checker::CircuitBreakerCheckerLayer,
-        commitment_generator::CommitmentGeneratorLayer,
-        consensus::MainNodeConsensusLayer,
-        contract_verification_api::ContractVerificationApiLayer,
-        da_clients::{
-            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
-        },
-        da_dispatcher::DataAvailabilityDispatcherLayer,
-        eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
-        eth_watch::EthWatchLayer,
-        external_proof_integration_api::ExternalProofIntegrationApiLayer,
-        gas_adjuster::GasAdjusterLayer,
-        gateway_migrator_layer::GatewayMigratorLayer,
-        healtcheck_server::HealthCheckLayer,
-        house_keeper::HouseKeeperLayer,
-        l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
-        l1_gas::L1GasLayer,
-        logs_bloom_backfill::LogsBloomBackfillLayer,
-        metadata_calculator::MetadataCalculatorLayer,
-        node_storage_init::{
-            main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
-        },
-        object_store::ObjectStoreLayer,
-        pk_signing_eth_client::PKSigningEthClientLayer,
-        pools_layer::PoolsLayerBuilder,
-        postgres::PostgresLayer,
-        prometheus_exporter::PrometheusExporterLayer,
-        proof_data_handler::ProofDataHandlerLayer,
-        query_eth_client::QueryEthClientLayer,
-        settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data::{MainNodeConfig, SettlementLayerData},
-        sigint::SigintHandlerLayer,
-        state_keeper::{
-            main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
-        },
-        vm_runner::{
-            bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
-            protective_reads::ProtectiveReadsWriterLayer,
-        },
-        web3_api::{
-            caches::MempoolCacheLayer,
-            server::{Web3ServerLayer, Web3ServerOptionalConfig},
-            tree_api_client::TreeApiClientLayer,
-            tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::MasterPoolSinkLayer,
-        },
-    },
-    service::{ZkStackService, ZkStackServiceBuilder},
+use zksync_node_consensus::node::MainNodeConsensusLayer;
+use zksync_node_fee_model::node::{GasAdjusterLayer, L1GasLayer};
+use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
+use zksync_node_storage_init::node::{
+    main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
 };
+use zksync_object_store::node::ObjectStoreLayer;
+use zksync_proof_data_handler::node::ProofDataHandlerLayer;
+use zksync_state::RocksdbStorageOptions;
+use zksync_state_keeper::node::{
+    MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
+};
+use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
     Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
 };
-use zksync_vlog::prometheus::PrometheusExporterConfig;
+use zksync_vlog::{
+    node::{PrometheusExporterLayer, SigintHandlerLayer},
+    prometheus::PrometheusExporterConfig,
+};
+use zksync_vm_runner::node::{
+    BasicWitnessInputProducerLayer, ProtectiveReadsWriterLayer, VmPlaygroundLayer,
+};
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -177,7 +173,7 @@ impl MainNodeBuilder {
     }
 
     fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(PostgresLayer);
+        self.node.add_layer(PostgresMetricsLayer);
         Ok(self)
     }
 
@@ -347,8 +343,19 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        let gateway_config = try_load_config!(self.configs.prover_gateway);
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
+            self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
+            gateway_config.api_mode,
+        ));
+        Ok(self)
+    }
+
+    fn add_tee_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(TeeProofDataHandlerLayer::new(
+            try_load_config!(self.configs.tee_proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.genesis_config.l2_chain_id,
         ));
@@ -361,9 +368,28 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_allow_list_task_layer(mut self) -> anyhow::Result<Self> {
+        let allow_list = try_load_config!(self.configs.state_keeper_config).deployment_allowlist;
+
+        if let Some(allow_list) = allow_list {
+            self.node.add_layer(DeploymentAllowListLayer {
+                deployment_allowlist: allow_list,
+            });
+        }
+        Ok(self)
+    }
+
+    fn add_bridge_addresses_updater_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(BridgeAddressesUpdaterLayer {
+            refresh_interval: Duration::from_secs(30),
+        });
+        Ok(self)
+    }
+
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
+        let deployment_allowlist = sk_config.deployment_allowlist.clone();
 
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
@@ -378,7 +404,11 @@ impl MainNodeBuilder {
             .unwrap_or_default();
 
         // On main node we always use master pool sink.
-        self.node.add_layer(MasterPoolSinkLayer);
+        if deployment_allowlist.is_some() {
+            self.node.add_layer(WhitelistedMasterPoolSinkLayer);
+        } else {
+            self.node.add_layer(MasterPoolSinkLayer);
+        }
 
         let layer = TxSenderLayer::new(
             postgres_storage_caches_config,
@@ -536,9 +566,7 @@ impl MainNodeBuilder {
     }
 
     fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(CommitmentGeneratorLayer::new(
-            self.genesis_config.l1_batch_commit_data_generator_mode,
-        ));
+        self.node.add_layer(CommitmentGeneratorLayer::default());
 
         Ok(self)
     }
@@ -706,9 +734,12 @@ impl MainNodeBuilder {
 
     fn add_external_proof_integration_api_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_proof_integration_api_config);
+        let proof_data_handler_config = try_load_config!(self.configs.proof_data_handler_config);
         self.node.add_layer(ExternalProofIntegrationApiLayer::new(
             config,
+            proof_data_handler_config,
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
 
         Ok(self)
@@ -716,7 +747,6 @@ impl MainNodeBuilder {
 
     fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(LogsBloomBackfillLayer);
-
         Ok(self)
     }
 
@@ -784,6 +814,12 @@ impl MainNodeBuilder {
             _ => 0,
         });
 
+        if components.contains(&Component::EthTxAggregator)
+            | components.contains(&Component::EthTxManager)
+        {
+            self = self.add_pk_signing_client_layer()?;
+        }
+
         // Add "component-specific" layers.
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
@@ -792,6 +828,7 @@ impl MainNodeBuilder {
                     // State keeper is the core component of the sequencer,
                     // which is why we consider it to be responsible for the storage initialization.
                     self = self
+                        .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
                         .add_state_keeper_layer()?
@@ -799,6 +836,8 @@ impl MainNodeBuilder {
                 }
                 Component::HttpApi => {
                     self = self
+                        .add_allow_list_task_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
@@ -807,6 +846,8 @@ impl MainNodeBuilder {
                 }
                 Component::WsApi => {
                     self = self
+                        .add_allow_list_task_layer()?
+                        .add_bridge_addresses_updater_layer()?
                         .add_l1_gas_layer()?
                         .add_tx_sender_layer()?
                         .add_tree_api_client_layer()?
@@ -831,9 +872,7 @@ impl MainNodeBuilder {
                     self = self.add_eth_watch_layer()?;
                 }
                 Component::EthTxAggregator => {
-                    self = self
-                        .add_pk_signing_client_layer()?
-                        .add_eth_tx_aggregator_layer()?;
+                    self = self.add_eth_tx_aggregator_layer()?;
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
@@ -843,6 +882,9 @@ impl MainNodeBuilder {
                 }
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
+                }
+                Component::TeeProofDataHandler => {
+                    self = self.add_tee_proof_data_handler_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;

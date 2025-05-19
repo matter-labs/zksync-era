@@ -82,7 +82,7 @@ impl ValidateChainIdsTask {
                     );
                     return Ok(());
                 }
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     tracing::warn!(
                         "Retriable error getting L1 chain ID from main node client, will retry in {:?}: {err}",
                         Self::BACKOFF_INTERVAL
@@ -118,7 +118,7 @@ impl ValidateChainIdsTask {
                     );
                     return Ok(());
                 }
-                Err(err) if err.is_retriable() => {
+                Err(err) if err.is_retryable() => {
                     tracing::warn!(
                         "Transient error getting L2 chain ID from main node client, will retry in {:?}: {err}",
                         Self::BACKOFF_INTERVAL
@@ -133,7 +133,7 @@ impl ValidateChainIdsTask {
         }
     }
 
-    /// Runs the task once, exiting either when all the checks are performed or when the stop signal is received.
+    /// Runs the task once, exiting either when all the checks are performed or when the stop request is received.
     pub async fn run_once(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let l1_client_check = Self::check_client(self.l1_client, self.l1_chain_id.0.into());
         let main_node_l1_check =
@@ -150,10 +150,10 @@ impl ValidateChainIdsTask {
         }
     }
 
-    /// Runs the task until the stop signal is received.
+    /// Runs the task until the stop request is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         // Since check futures are fused, they are safe to poll after getting resolved; they will never resolve again,
-        // so we'll just wait for another check or a stop signal.
+        // so we'll just wait for another check or a stop request.
         let l1_client_check = Self::check_client(self.l1_client, self.l1_chain_id.0.into()).fuse();
         let main_node_l1_check =
             Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.l1_chain_id)

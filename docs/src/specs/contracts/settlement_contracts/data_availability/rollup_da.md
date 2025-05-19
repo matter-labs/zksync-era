@@ -1,51 +1,50 @@
 # Rollup DA
 
-FIXME: run a spellchecker
-
 ## Prerequisites
 
-Before reading this document, it is better to understand how [custom DA](./custom_da.md) in general works.
+Before reading this document, it is recommended to understand how the [custom DA](./custom_da.md) works in general.
 
-## EIP4844 support
+## EIP-4844 Support
 
-EIP-4844, commonly known as Proto-Danksharding, is an upgrade to the ethereum protocol that introduces a new data availability solution embedded in layer 1. More information about it can be found [here](https://ethereum.org/en/roadmap/danksharding/).
+EIP-4844, commonly known as Proto-Danksharding, is an upgrade to the Ethereum protocol that introduces a new data availability solution embedded in layer 1. More information about it can be found [here](https://ethereum.org/en/roadmap/danksharding/).
 
-To facilitate EIP4844 blob support, our circuits allow providing two arrays in our public input to the circuit:
+To facilitate EIP-4844 blob support, our circuits allow providing two arrays in our public input to the circuit:
 
-- `blobCommitments` -- this is the commitment that helps to check the correctness of the blob content. The formula on how it is computed will be explained below in the document.
+- `blobCommitments` -- the commitment that helps to check the correctness of the blob content. The formula on how it is computed will be explained below in the document.
 - `blobHash` -- the `keccak256` hash of the inner contents of the blob.
 
-Note, that our circuits require that each blob contains exactly `4096 * 31` bytes. The maximal number of blobs that are supported by our proving system is 16, but the system contracts support only 6 blobs at most for now.
+Note that our circuits require that each blob contains exactly `4096 * 31` bytes. The maximal number of blobs that are supported by our proving system is 16, but the system contracts support only 6 blobs at most for now.
 
-When committing a batch, the L1DAValidator is called with the data provided by the operator and it should return the two arrays described above. These arrays be put inside the batch commitment and then the correctness of the commitments will be verified at the proving stage.
+When committing a batch, the `L1DAValidator` is called with the data provided by the operator and it should return the two arrays described above. These arrays are put inside the batch commitment and then the correctness of the commitments will be verified at the proving stage.
 
-Note, that the `Executor.sol` (and the contract itself) is not responsible for checking that the provided `blobHash` and `blobCommitments` in any way correspond to the pubdata inside the batch as it is the job of the DA Validator pair.
+Note that the `Executor.sol` (and the contract itself) is not responsible for checking that the provided `blobHash` and `blobCommitments` in any way correspond to the pubdata inside the batch as it is the job of the DA Validation in corresponding contracts on L1 (`L1DAValidator`) and L2 (`L2DAValidator` library).
 
 ## Publishing pubdata to L1
 
 Let's see an example of how the approach above works in rollup DA validators.
 
-### RollupL2DAValidator
+### Rollup use case of L2DAValidator library
 
-![RollupL2DAValidator.png](./img/Rollup_DA.png)
+![RollupUsecaseL2DAValidator.png](./img/custom_da.png)
 
-`RollupL2DAValidator` accepts the preimages for the data to publishes as well as their compressed format. After verifying the compression, it forms the `_totalPubdata` bytes array, which represents the entire blob of data that should be published to L1.
+Let's consider `BLOBS_AND_PUBDATA_KECCAK256` commitment scheme. This is the one that's being used in default `RollupL1DAValidator`. In this case, the following will happen:
+
+`L2DAValidator` library accepts the preimages for the data to publish as well as their compressed format. After verifying the compression, it forms the `_totalPubdata` bytes array, which represents the entire blob of data that should be published to L1.
 
 It calls the `PubdataChunkPublisher` system contract to split this pubdata into multiple "chunks" of size `4096 * 31` bytes and return the `keccak256` hash of those, These will be the `blobHash` of from the section before.
 
 To give the flexibility of checking different DA, we send the following data to L1:
 
-- State diff hash. As it will be used on L1 to confirm the correctness of the provided uncompressed storage diifs.
-- The hash of the `_totalPubdata`. In case the size of pubdata is small, it will allow the operator also use just standard Ethereum calldata for the DA.
-- Send the `blobHash` array.
+- `l2DAValidatorOutputHash` that was returned by `L2DAValidator` library. This hash includes `uncompressedStateDiffHash`, `pubdata`, the number of blobs, and `blobLinearHashes`. This hash, alongside the `_operatorDAInput` will be provided to `L1DAValidator` (`RollupL1DAValidator.sol` is the one that accepts `BLOBS_AND_PUBDATA_KECCAK256`, for example).
+- `_l2DACommitmentScheme` that denotes the commitment scheme that was used. In the case we're looking into, it's the `BLOBS_AND_PUBDATA_KECCAK256`.
 
 ### RollupL1DAValidator
 
-When committing the batch, the operator will provide the preimage of the fields that the RollupL2DAValidator has sent before, and also some `l1DaInput` along with it. This `l1DaInput` will be used to prove that the pubdata was indeed provided in this batch.
+When committing the batch, the operator will provide the `_operatorDAInput` and `_l2DAValidatorOutputHash`. Using these values, `RollupL1DAValidator` parses the input that the L2 DA validator has provided to it into `stateDiffHash`, `fullPubdataHash`, `blobsLinearHashes`, `blobsProvided`, `l1DaInput`. This `l1DaInput` will be used to prove that the pubdata was indeed provided in this batch.
 
-The first byte of the `l1DaInput` denotes which way of pubdata publishing was used: Calldata or Blobs.
+The first byte of the `l1DaInput` denotes which way of pubdata publishing was used: calldata or blobs.
 
-In case it is Calldata it will be just checked that the provided calldata matches the hash of the `_totalPubdata` that was sent by the L2 counterpart. Note, that Calldata may still contain the blob information as we typically start generating proves before we know which way of calldata will be used. Note, that in case the Calldata is used for DA, we do not verify the `blobCommitments` as the presence of the correct pubdata has been verified already.
+In case it is calldata it will be just checked that the provided calldata matches the hash of the `fullPubdataHash` that was sent by the L2 counterpart. Note that calldata may still contain the blob information as we typically start generating proofs before we know which way of calldata will be used. Note that in case the calldata is used for DA, we do not verify the `blobCommitments` as the presence of the correct pubdata has been verified already.
 
 In case it is blobs, we need to construct the `blobCommitment`s correctly for each of the blob of data.
 
@@ -61,7 +60,7 @@ opening_point = bytes32(pubdata_commitments[:16])
 versioned_hash <- from BLOBHASH opcode
 
 // Given that we needed to pad the opening point for the precompile, append the data after.
-point_eval_input = versioned_hash || opening_point || pubdataCommitments[16: PUBDATA_COMMITMENT_SIZE]
+point_eval_input = versioned_hash || opening_point || pubdata_commitments[16: PUBDATA_COMMITMENT_SIZE]
 
 // this part handles the following:
 // verify versioned_hash == hash(commitment)
@@ -75,4 +74,4 @@ The final `blobCommitment` is calculated as the hash between the `blobVersionedH
 
 ## Structure of the pubdata
 
-Rollups maintain the same structure of pubdata and apply the same rules for compresison as those that were used in the previous versions of the system. These can be read [here](./state_diff_compression_v1_spec.md).
+Rollups maintain the same structure of pubdata and apply the same rules for compression as those that were used in the previous versions of the system. These can be read [here](./state_diff_compression_v1_spec.md).

@@ -11,17 +11,20 @@ import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { RetryableWallet } from '../src/retry-provider';
 
 import {
     L2_MESSAGE_VERIFICATION_ADDRESS,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
     ArtifactL2MessageVerification,
-    ETH_ADDRESS_IN_CONTRACTS,
+    ArtifactL2InteropRootStorage,
     ArtifactBridgeHub
 } from '../src/constants';
+import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
 
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let baseTokenAddress: string;
@@ -65,8 +68,8 @@ describe('L1 ERC20 contract checks', () => {
             { wallet: alice, change: amount }
         ]);
         const feeCheck = await shouldOnlyTakeFee(alice, true);
-        await expect(
-            alice.deposit({
+        await alice.retryableDepositCheck(
+            {
                 token: tokenDetails.l1Address,
                 amount,
                 approveERC20: true,
@@ -77,8 +80,9 @@ describe('L1 ERC20 contract checks', () => {
                 overrides: {
                     gasPrice
                 }
-            })
-        ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+            },
+            (deposit) => expect(deposit).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck])
+        );
     });
 
     test('Can perform a transfer', async () => {
@@ -223,18 +227,8 @@ describe('L1 ERC20 contract checks', () => {
         const params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await delay(10000);
-        await (
-            await alice.deposit({
-                token: ETH_ADDRESS_IN_CONTRACTS,
-                to: alice.address,
-                amount: 1
-            })
-        ).wait();
-        await delay(5000);
-
-        // sma TODO hacky workaround for now to rewrite the much needed block number--remove when available!
-        // sma TODO end of hacky workaround
+        let GW_CHAIN_ID = 506n;
+        await waitForInteropRootNonZero(alice, GW_CHAIN_ID, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -246,8 +240,31 @@ describe('L1 ERC20 contract checks', () => {
         expect(included).toBe(true);
     });
 
-    function delay(ms: number) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
+    function getGWBlockNumber(params: FinalizeWithdrawalParams): number {
+        /// see hashProof in MessageHashing.sol for this logic.
+        let gwProofIndex =
+            1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+        console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
+        return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
+    }
+
+    async function waitForInteropRootNonZero(alice: zksync.Wallet, chainId: bigint, l1BatchNumber: number) {
+        const l2InteropRootStorage = new zksync.Contract(
+            L2_INTEROP_ROOT_STORAGE_ADDRESS,
+            ArtifactL2InteropRootStorage.abi,
+            alice.provider
+        );
+        let currentRoot = ethers.ZeroHash;
+        let count = 0;
+        while (currentRoot === ethers.ZeroHash) {
+            /// we need a transfer to load the message root
+            await aliceErc20.transfer(alice.address, 1);
+
+            currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
+            console.log('currentRoot', currentRoot, count);
+            count++;
+        }
+        console.log('Interop root is non-zero', currentRoot);
     }
 
     test('Should claim failed deposit', async () => {

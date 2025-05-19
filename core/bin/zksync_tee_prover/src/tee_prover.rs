@@ -9,7 +9,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
-use zksync_prover_interface::inputs::TeeVerifierInput;
+use zksync_tee_prover_interface::inputs::TeeVerifierInput;
 use zksync_tee_verifier::Verify;
 
 use crate::{
@@ -151,7 +151,7 @@ impl Task for TeeProver {
 
         loop {
             if *stop_receiver.0.borrow() {
-                tracing::info!("Stop signal received, shutting down TEE Prover component");
+                tracing::info!("Stop request received, shutting down TEE Prover component");
                 return Ok(());
             }
             let result = self.step(&public_key).await;

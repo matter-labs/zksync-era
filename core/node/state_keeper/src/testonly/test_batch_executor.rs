@@ -29,7 +29,7 @@ use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
     protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    L2ChainId, ProtocolVersionId, Transaction, H256,
+    L2ChainId, OrStopped, ProtocolVersionId, Transaction, H256,
 };
 
 use crate::{
@@ -221,10 +221,11 @@ impl TestScenario {
             output_handler,
             Arc::new(sealer),
             Arc::new(MockReadStorageFactory),
+            None,
         );
         let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
 
-        // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
+        // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
         let hard_timeout = Duration::from_secs(60);
         let poll_interval = Duration::from_millis(50);
@@ -672,9 +673,13 @@ impl TestIO {
     }
 }
 
+#[async_trait]
 impl IoSealCriteria for TestIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        (self.l1_batch_seal_fn)(manager)
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
+        Ok((self.l1_batch_seal_fn)(manager))
     }
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
@@ -855,8 +860,8 @@ impl ReadStorageFactory<OwnedStorage> for MockReadStorageFactory {
         &self,
         _stop_receiver: &watch::Receiver<bool>,
         _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>> {
+    ) -> Result<OwnedStorage, OrStopped> {
         let storage = InMemoryStorage::default();
-        Ok(Some(OwnedStorage::boxed(storage)))
+        Ok(OwnedStorage::boxed(storage))
     }
 }

@@ -274,6 +274,12 @@ impl UpdatesManager {
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
         tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
     }
+
+    pub fn clear_interop_roots(&mut self) {
+        println!("clearing for l2 block {:?}", self.l2_block.number);
+        println!("clearing interop roots {:?}", self.l2_block.interop_roots);
+        self.l2_block.interop_roots.clear();
+    }
 }
 
 #[derive(Debug)]
@@ -414,6 +420,10 @@ impl L2BlockSealCommand {
                 self.l2_block.executed_transactions.is_empty(),
                 "fictive L2 block must not have transactions"
             );
+            anyhow::ensure!(
+                self.l2_block.interop_roots.is_empty(),
+                "fictive L2 block must not have interop roots"
+            );
         } else {
             anyhow::ensure!(
                 !self.l2_block.executed_transactions.is_empty(),
@@ -463,7 +473,7 @@ impl L2BlockSealCommand {
         is_fictive: bool,
         tx_location: impl Fn(&T) -> u32,
     ) -> Vec<(IncludedTxLocation, Vec<&'a T>)> {
-        let grouped_entries = entries.iter().group_by(|&entry| tx_location(entry));
+        let grouped_entries = entries.iter().chunk_by(|&entry| tx_location(entry));
         let grouped_entries = grouped_entries.into_iter().map(|(tx_index, entries)| {
             let tx_hash = if is_fictive {
                 assert_eq!(tx_index as usize, self.first_tx_index);

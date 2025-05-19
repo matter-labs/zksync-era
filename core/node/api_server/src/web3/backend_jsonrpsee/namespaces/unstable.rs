@@ -1,7 +1,9 @@
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        TransactionExecutionInfo,
     },
+    block::BatchOrBlockNumber,
     tee_types::TeeType,
     L1BatchNumber, L2ChainId, H256,
 };
@@ -35,10 +37,10 @@ impl UnstableNamespaceServer for UnstableNamespace {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>> {
-        self.get_chain_log_proof_impl(l1_batch_number, chain_id)
+        self.get_chain_log_proof_impl(batch_or_block_number, chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -64,6 +66,12 @@ impl UnstableNamespaceServer for UnstableNamespace {
 
     async fn l1_to_l2_txs_status(&self) -> RpcResult<L1ToL2TxsStatus> {
         self.l1_to_l2_txs_status_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn gateway_migration_status(&self) -> RpcResult<GatewayMigrationStatus> {
+        self.gateway_migration_status_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

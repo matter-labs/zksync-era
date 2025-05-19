@@ -54,7 +54,9 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
-        Ok(self.get_bridge_contracts_impl().await)
+        self.get_bridge_contracts_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>> {
@@ -93,27 +95,6 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_l2_to_l1_log_proof(
-        &self,
-        tx_hash: H256,
-        index: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None, None)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_l2_to_l1_log_proof_precommit(
-        &self,
-        tx_hash: H256,
-        index: Option<usize>,
-        l2_message_index: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None, l2_message_index)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    } //
-
-    async fn get_l2_to_l1_log_proof_until_target(
         &self,
         tx_hash: H256,
         index: Option<usize>,
@@ -193,6 +174,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    #[allow(deprecated)]
     async fn get_protocol_version(
         &self,
         version_id: Option<u16>,

@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{h256_to_u256, InteropRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256};
 
@@ -14,6 +15,7 @@ impl InteropRootDal<'_, '_> {
         chain_id: SLChainId,
         number: L1BatchNumber,
         interop_root: &[H256],
+        timestamp: u64,
         // proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
         println!(
@@ -27,20 +29,22 @@ impl InteropRootDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO interop_roots (
-                chain_id, dependency_block_number, interop_root_sides
+                chain_id, dependency_block_number, interop_root_sides, received_timestamp
             )
-            VALUES ($1, $2, $3)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (chain_id, dependency_block_number)
             DO UPDATE SET interop_root_sides = excluded.interop_root_sides;
             "#,
             chain_id.0 as i64,
             i64::from(number.0),
-            &sides
+            &sides,
+            timestamp as i64
         )
         .instrument("set_interop_root")
         .with_arg("chain_id", &chain_id)
         .with_arg("number", &number)
         .with_arg("interop_root", &interop_root)
+        .with_arg("timestamp", &timestamp)
         .execute(self.storage)
         .await?;
 
@@ -53,7 +57,8 @@ impl InteropRootDal<'_, '_> {
             r#"
             SELECT *
             FROM interop_roots
-            WHERE processed_block_number IS NULL;
+            WHERE processed_block_number IS NULL
+            ORDER BY received_timestamp;
             "#,
         )
         .instrument("get_new_interop_roots")
@@ -71,6 +76,7 @@ impl InteropRootDal<'_, '_> {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,
+                received_timestamp: rec.received_timestamp as u64,
             }
         })
         .collect();
@@ -131,6 +137,7 @@ impl InteropRootDal<'_, '_> {
             SELECT *
             FROM interop_roots
             WHERE processed_block_number = $1
+            ORDER BY received_timestamp;
             "#,
             l2block_number.0 as i32
         )
@@ -149,6 +156,7 @@ impl InteropRootDal<'_, '_> {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,
+                received_timestamp: rec.received_timestamp as u64,
             }
         })
         .collect();
@@ -185,9 +193,12 @@ impl InteropRootDal<'_, '_> {
                 chain_id: rec.chain_id as u32,
                 block_number: rec.dependency_block_number as u32,
                 sides,
+                received_timestamp: rec.received_timestamp as u64,
             }
         })
+        .sorted_by_key(|root| root.received_timestamp)
         .collect();
+
         Ok(roots)
     }
 }
