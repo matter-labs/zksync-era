@@ -113,11 +113,14 @@ impl CborCompilerVersion {
                 // For ZKsync compilers, the value consists of semicolon-separated pairs of colon-separated compiler names
                 // and versions. For example: "zksolc:1.5.13", "zkvyper:1.5.10;vyper:0.4.1" or
                 // "zksolc:1.5.13;solc:0.8.29;llvm:1.0.2".
+                // It can also contain a pre-release compiler version as a string, but we intentionally return None in such cases,
+                // as we don't support verification for such contracts.
                 let compilers_parts: Vec<&str> = compiler_versions
                     .split(';')
                     .filter_map(|part| part.split_once(':').map(|(_, value)| value))
                     .collect();
 
+                // Prerelease compiler version is not supported for verification so None is returned.
                 if compilers_parts.is_empty() {
                     return (None, None);
                 }
@@ -576,6 +579,45 @@ mod tests {
     }
 
     #[test]
+    fn evm_cbor_prerelease_version() {
+        // Sample contract compiled with a prerelease solc verion 0.8.0-develop.2020.10.26+commit.b605ca50.Darwin.appleclang;
+        let data = hex::decode("608060405234801561001057600080fd5b506040516105013803806105018339818101604052602081101561003357600080fd5b810190808051604051939291908464010000000082111561005357600080fd5b8382019150602082018581111561006957600080fd5b825186600182028301116401000000008211171561008657600080fd5b8083526020830192505050908051906020019080838360005b838110156100ba57808201518184015260208101905061009f565b50505050905090810190601f1680156100e75780820380516001836020036101000a031916815260200191505b50604052505050806000908051906020019061010492919061010b565b50506101b6565b828054600181600116156101000203166002900490600052602060002090601f0160209004810192826101415760008555610188565b82601f1061015a57805160ff1916838001178555610188565b82800160010185558215610188579182015b8281111561018757825182559160200191906001019061016c565b5b5090506101959190610199565b5090565b5b808211156101b257600081600090555060010161019a565b5090565b61033c806101c56000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c8063a41368621461003b578063cfae3217146100f6575b600080fd5b6100f46004803603602081101561005157600080fd5b810190808035906020019064010000000081111561006e57600080fd5b82018360208201111561008057600080fd5b803590602001918460018302840111640100000000831117156100a257600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600081840152601f19601f820116905080830192505050505050509192919290505050610179565b005b6100fe610193565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561013e578082015181840152602081019050610123565b50505050905090810190601f16801561016b5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b806000908051906020019061018f929190610235565b5050565b606060008054600181600116156101000203166002900480601f01602080910402602001604051908101604052809291908181526020018280546001816001161561010002031660029004801561022b5780601f106102005761010080835404028352916020019161022b565b820191906000526020600020905b81548152906001019060200180831161020e57829003601f168201915b5050505050905090565b828054600181600116156101000203166002900490600052602060002090601f01602090048101928261026b57600085556102b2565b82601f1061028457805160ff19168380011785556102b2565b828001600101855582156102b2579182015b828111156102b1578251825591602001919060010190610296565b5b5090506102bf91906102c3565b5090565b5b808211156102dc5760008160009055506001016102c4565b509056fea264697066735822122028f6d87164fbb30ea203e1c7e5320753e079c9b875724efdb7965b7a4739a10464736f6c637828302e382e302d646576656c6f702e323032302e31302e32362b636f6d6d69742e62363035636135300059").unwrap();
+        let bytecode_keccak256 = H256(keccak256(&data));
+        let bytecode_without_metadata_keccak256 = H256(keccak256(&data[..data.len() - 91]));
+
+        let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
+        assert_eq!(
+            identifier.bytecode_keccak256, bytecode_keccak256,
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Cbor {
+                full_length: 91,
+                metadata: CborMetadata {
+                    ipfs: Some(vec![
+                        18, 32, 40, 246, 216, 113, 100, 251, 179, 14, 162, 3, 225, 199, 229, 50, 7,
+                        83, 224, 121, 201, 184, 117, 114, 78, 253, 183, 150, 91, 122, 71, 57, 161,
+                        4
+                    ]),
+                    bzzr1: None,
+                    bzzr0: None,
+                    experimental: None,
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "0.8.0-develop.2020.10.26+commit.b605ca50".to_string()
+                    )),
+                    vyper: None
+                }
+            }),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
     fn evm_cbor() {
         // ./etc/solc-bin/0.8.28/solc test.sol --bin --metadata-hash ipfs
         let ipfs_bytecode = "6080604052348015600e575f5ffd5b5060af80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80636d4ce63c14602a575b5f5ffd5b60306044565b604051603b91906062565b60405180910390f35b5f5f54905090565b5f819050919050565b605c81604c565b82525050565b5f60208201905060735f8301846055565b9291505056fea2646970667358221220bca846db362b62d2eb9891565b12433410e0f6a634657d2c7d1e7469447e8ab564736f6c634300081c0033";
@@ -853,6 +895,22 @@ mod tests {
         };
         let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
         assert_eq!(compiler_version, Some("0.8.28".to_string()));
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_metadata_get_compiler_versions_solc_prerelease() {
+        let metadata = CborMetadata {
+            solc: Some(CborCompilerVersion::ZKsync(
+                "0.8.0-develop.2020.10.26+commit.b605ca50".to_string(),
+            )),
+            vyper: None,
+            ..Default::default()
+        };
+        let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
+        // Prerelease versions are expected to return None so we can use the default value which is the
+        // version from the verification request.
+        assert_eq!(compiler_version, None);
         assert_eq!(zk_compiler_version, None);
     }
 
