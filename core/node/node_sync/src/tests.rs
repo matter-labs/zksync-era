@@ -79,13 +79,13 @@ impl MockMainNodeClient {
         }
     }
 
-    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
+    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersionInfo) {
         self.system_contracts
-            .insert(version.bootloader_code_hash.unwrap(), vec![]);
+            .insert(version.bootloader_code_hash, vec![]);
         self.system_contracts
-            .insert(version.default_account_code_hash.unwrap(), vec![]);
+            .insert(version.default_account_code_hash, vec![]);
         self.protocol_versions
-            .insert(version.minor_version.unwrap(), version);
+            .insert(version.minor_version, version);
     }
 }
 
@@ -307,13 +307,13 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
-    let next_protocol_version = api::ProtocolVersion {
-        minor_version: Some(ProtocolVersionId::next() as u16),
+    let next_protocol_version = api::ProtocolVersionInfo {
+        minor_version: ProtocolVersionId::next() as u16,
         timestamp: snapshot.l2_block_timestamp + 1,
-        bootloader_code_hash: Some(H256::repeat_byte(1)),
-        default_account_code_hash: Some(H256::repeat_byte(1)),
+        bootloader_code_hash: H256::repeat_byte(1),
+        default_account_code_hash: H256::repeat_byte(1),
         evm_emulator_code_hash: Some(H256::repeat_byte(1)),
-        ..api::ProtocolVersion::default()
+        l2_system_upgrade_tx_hash: None,
     };
     client.insert_protocol_version(next_protocol_version.clone());
 
@@ -345,13 +345,13 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         persisted_protocol_version
             .base_system_contracts_hashes
             .bootloader,
-        next_protocol_version.bootloader_code_hash.unwrap()
+        next_protocol_version.bootloader_code_hash
     );
     assert_eq!(
         persisted_protocol_version
             .base_system_contracts_hashes
             .default_aa,
-        next_protocol_version.default_account_code_hash.unwrap()
+        next_protocol_version.default_account_code_hash
     );
 
     assert_eq!(
