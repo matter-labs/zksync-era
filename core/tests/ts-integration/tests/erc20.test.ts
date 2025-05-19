@@ -25,6 +25,7 @@ import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/ty
 import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
 import { loadConfig } from 'utils/src/file-configs';
 
+const GW_CHAIN_ID = 506n;
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
@@ -206,16 +207,20 @@ describe('L1 ERC20 contract checks', () => {
     });
 
     let params: FinalizeWithdrawalParams;
+    let bridgehub: ethers.Contract;
+    let skipInteropTest = false;
     test('Can check withdrawal hash in L2-A', async () => {
-        const bridgehub = new ethers.Contract(
+        bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
             ArtifactBridgeHub.abi,
             alice.providerL1
         );
+
         if (
             (await bridgehub.settlementLayer((await alice.provider.getNetwork()).chainId)) ==
             (await alice.providerL1!.getNetwork()).chainId
         ) {
+            skipInteropTest = true;
             return;
         }
 
@@ -229,7 +234,6 @@ describe('L1 ERC20 contract checks', () => {
         params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        let GW_CHAIN_ID = 506n;
         await waitForInteropRootNonZero(alice.provider, alice, GW_CHAIN_ID, getGWBlockNumber(params));
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
@@ -247,15 +251,7 @@ describe('L1 ERC20 contract checks', () => {
         const url = getL2bUrl(testMaster.environment().l2NodeUrl);
         let l2b_provider = new RetryProvider({ url, timeout: 1200 * 1000 }, undefined, testMaster.reporter);
 
-        const bridgehub = new ethers.Contract(
-            await alice.provider.getBridgehubContractAddress(),
-            ArtifactBridgeHub.abi,
-            alice.providerL1
-        );
-        if (
-            (await bridgehub.settlementLayer((await alice.provider.getNetwork()).chainId)) ==
-            (await alice.providerL1!.getNetwork()).chainId
-        ) {
+        if (skipInteropTest) {
             return;
         }
 
@@ -278,7 +274,6 @@ describe('L1 ERC20 contract checks', () => {
         }
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        let GW_CHAIN_ID = 506n;
         await waitForInteropRootNonZero(l2b_provider, aliceL2b, GW_CHAIN_ID, getGWBlockNumber(params));
 
         // We use the same proof that was verified in L2-A
