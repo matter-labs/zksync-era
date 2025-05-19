@@ -4,9 +4,8 @@ use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
 use zksync_eth_client::Options;
 use zksync_eth_signer::PrivateKeySigner;
-use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
-    api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
+    api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce, MAX_L1_TRANSACTION_GAS_LIMIT,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 

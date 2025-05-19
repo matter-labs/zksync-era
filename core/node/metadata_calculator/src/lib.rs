@@ -3,6 +3,7 @@
 
 use std::{
     num::{NonZeroU32, NonZeroUsize},
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -70,7 +71,7 @@ impl Default for MetadataCalculatorRecoveryConfig {
 #[derive(Debug, Clone)]
 pub struct MetadataCalculatorConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
-    pub db_path: String,
+    pub db_path: PathBuf,
     /// Maximum number of files concurrently opened by RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the tree.
     pub max_open_files: Option<NonZeroU32>,
@@ -110,13 +111,13 @@ impl MetadataCalculatorConfig {
             db_path: merkle_tree_config.path.clone(),
             max_open_files: None,
             mode: merkle_tree_config.mode,
-            delay_interval: operation_config.delay_interval(),
+            delay_interval: operation_config.delay_interval,
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
-            block_cache_capacity: merkle_tree_config.block_cache_size(),
+            block_cache_capacity: merkle_tree_config.block_cache_size_mb.0 as usize,
             include_indices_and_filters_in_block_cache: false,
-            memtable_capacity: merkle_tree_config.memtable_capacity(),
-            stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout(),
+            memtable_capacity: merkle_tree_config.memtable_capacity_mb.0 as usize,
+            stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout_sec,
             sealed_batches_have_protective_reads: state_keeper_config
                 .protective_reads_persistence_enabled,
             // The main node isn't supposed to be recovered yet, so this value doesn't matter much
@@ -279,7 +280,7 @@ impl MetadataCalculator {
 #[derive(Debug, Clone)]
 pub struct MerkleTreeReaderConfig {
     /// Filesystem path to the RocksDB instance that stores the tree.
-    pub db_path: String,
+    pub db_path: PathBuf,
     /// Maximum number of files concurrently opened by RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the tree.
     pub max_open_files: Option<NonZeroU32>,
