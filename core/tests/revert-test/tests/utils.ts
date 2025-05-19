@@ -15,36 +15,32 @@ import * as zksync from 'zksync-ethers';
 export function background({
     command,
     stdio = 'inherit',
-    cwd,
-    env
+    cwd
 }: {
     command: string;
     stdio: any;
     cwd?: ProcessEnvOptions['cwd'];
-    env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
     console.log(`Run command ${command}`);
-    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
+    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd });
 }
 
 export function runInBackground({
     command,
     components,
     stdio,
-    cwd,
-    env
+    cwd
 }: {
     command: string;
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
 }): ChildProcessWithoutNullStreams {
     if (components && components.length > 0) {
         command += ` --components=${components.join(',')}`;
     }
-    return background({ command, stdio, cwd, env });
+    return background({ command, stdio, cwd });
 }
 
 function runServerInBackground({
@@ -63,29 +59,16 @@ function runServerInBackground({
 }
 
 export function runExternalNodeInBackground({
-    components,
     stdio,
     cwd,
-    env,
-    useZkStack,
     chain
 }: {
-    components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
-    useZkStack?: boolean;
-    chain?: string;
+    chain: string;
 }): ChildProcessWithoutNullStreams {
-    let command = '';
-    if (useZkStack) {
-        command = 'zkstack external-node run';
-        command += chain ? ` --chain ${chain}` : '';
-    } else {
-        command = 'zk external-node';
-    }
-
-    return runInBackground({ command, components, stdio, cwd, env });
+    const command = `zkstack external-node run --chain ${chain}`;
+    return runInBackground({ command, stdio, cwd });
 }
 
 async function exec(command: string, options: ProcessEnvOptions) {
@@ -147,13 +130,18 @@ async function runBlockReverter(pathToHome: string, chain: string, args: string[
     await exec(cmd, { cwd: pathToHome });
 }
 
+export async function revertExternalNode(chain: string, l1Batch: bigint) {
+    const command = `zkstack external-node run --chain ${chain} -- revert ${l1Batch}`;
+    await utils.spawn(command);
+}
+
 export async function executeRevert(
     pathToHome: string,
     chain: string,
     operatorAddress: string,
     batchesCommittedBeforeRevert: bigint,
     mainContract: IZkSyncHyperchain
-) {
+): Promise<bigint> {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zksync-revert-test-'));
     const jsonPath = path.join(tmpDir, 'values.json');
     console.log(`Temporary file for suggested revert values: ${jsonPath}`);
@@ -204,6 +192,7 @@ export async function executeRevert(
 
     const blocksCommitted = await mainContract.getTotalBatchesCommitted();
     assert(blocksCommitted === values.lastExecutedL1BatchNumber, 'Revert on contract was unsuccessful');
+    return values.lastExecutedL1BatchNumber;
 }
 
 export interface MainNodeSpawnOptions {
@@ -339,7 +328,6 @@ export class NodeSpawner {
         let proc = runExternalNodeInBackground({
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkStack: true,
             chain: chainName
         });
 
