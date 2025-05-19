@@ -1,6 +1,5 @@
 use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 
-use crate::configs::GatewayMigratorConfig;
 use crate::{
     configs::{
         base_token_adjuster::BaseTokenAdjusterConfig,
@@ -19,8 +18,9 @@ use crate::{
         wallets::Wallets,
         CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, Secrets, TeeProofDataHandlerConfig,
+        FriWitnessGeneratorConfig, GatewayMigratorConfig, GenesisConfigWrapper,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
+        TeeProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
