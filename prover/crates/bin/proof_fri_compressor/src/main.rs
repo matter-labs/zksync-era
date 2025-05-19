@@ -6,9 +6,12 @@ use std::time::Duration;
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::sync::{oneshot, watch};
-use zksync_config::configs::FriProofCompressorConfig;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_env_config::object_store::ProverObjectStoreConfig;
+use zksync_config::{
+    configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepositoryExt,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -43,17 +46,20 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-
     let is_fflonk = opt.fflonk.unwrap_or(false);
+    let schema = full_config_schema(false);
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("")?;
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let observability_config = general_config
-        .observability
-        .expect("observability config")
-        .clone();
-    let _observability_guard = observability_config.install()?;
+    let repo = config_sources.build_repository(&schema);
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config
@@ -62,25 +68,16 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await
         .context("failed to build a connection pool")?;
-    let object_store_config = ProverObjectStoreConfig(
-        general_config
-            .prover_config
-            .clone()
-            .expect("ProverConfig")
-            .prover_object_store
-            .context("ProverObjectStoreConfig")?,
-    );
-    let blob_store = ObjectStoreFactory::new(object_store_config.0)
-        .create_store()
-        .await?;
-
-    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let prover_config = general_config
         .prover_config
-        .expect("ProverConfig doesn't exist");
-    let keystore =
-        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+        .context("ProverConfig doesn't exist")?;
+    let object_store_config = prover_config.prover_object_store;
+    let blob_store = ObjectStoreFactory::new(object_store_config)
+        .create_store()
+        .await?;
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
+    let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
     let l1_verifier_config = pool
         .connection()
@@ -119,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
 
     let prometheus_config = PrometheusExporterConfig::push(
         config.prometheus_pushgateway_url,
-        Duration::from_millis(config.prometheus_push_interval_ms.unwrap_or(100)),
+        config.prometheus_push_interval_ms,
     );
     let tasks = vec![
         tokio::spawn(prometheus_config.run(stop_receiver.clone())),
