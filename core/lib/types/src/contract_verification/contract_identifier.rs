@@ -61,13 +61,13 @@ pub enum DetectedMetadata {
 
 impl DetectedMetadata {
     /// Returns full length (in bytes) of metadata in the bytecode.
-    pub fn length(self) -> usize {
+    pub fn length(&self) -> usize {
         match self {
             DetectedMetadata::Keccak256 => 32,
             DetectedMetadata::Cbor {
                 full_length,
                 metadata: _,
-            } => full_length,
+            } => *full_length,
         }
     }
 }
@@ -345,6 +345,7 @@ impl ContractIdentifier {
     pub fn metadata_length(&self) -> usize {
         self.detected_metadata
             .clone()
+            .as_ref()
             .map_or(0, DetectedMetadata::length)
     }
 }
