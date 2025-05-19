@@ -1,5 +1,6 @@
 use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 
+use crate::configs::GatewayMigratorConfig;
 use crate::{
     configs::{
         base_token_adjuster::BaseTokenAdjusterConfig,
@@ -95,6 +96,8 @@ pub struct GeneralConfig {
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     #[config(nest, rename = "timestamp_asserter")]
     pub timestamp_asserter_config: TimestampAsserterConfig,
+    #[config(nest, rename = "gateway_migrator")]
+    pub gateway_migrator_config: GatewayMigratorConfig,
 }
 
 pub fn full_config_schema(for_en: bool) -> ConfigSchema {
