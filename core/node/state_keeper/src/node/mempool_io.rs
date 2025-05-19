@@ -37,7 +37,7 @@ pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
-    wallets: wallets::StateKeeper,
+    fee_account: wallets::AddressWallet,
     pubdata_type: PubdataType,
 }
 
@@ -62,14 +62,14 @@ impl MempoolIOLayer {
         zksync_network_id: L2ChainId,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
-        wallets: wallets::StateKeeper,
+        fee_account: wallets::AddressWallet,
         pubdata_type: PubdataType,
     ) -> Self {
         Self {
             zksync_network_id,
             state_keeper_config,
             mempool_config,
-            wallets,
+            fee_account,
             pubdata_type,
         }
     }
@@ -128,8 +128,8 @@ impl WiringLayer for MempoolIOLayer {
             batch_fee_input_provider,
             mempool_db_pool,
             &self.state_keeper_config,
-            self.wallets.fee_account.address(),
-            self.mempool_config.delay_interval(),
+            self.fee_account.address(),
+            self.mempool_config.delay_interval,
             self.zksync_network_id,
             input.l2_contracts.0.da_validator_addr,
             self.pubdata_type,

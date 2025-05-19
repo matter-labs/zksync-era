@@ -4,6 +4,7 @@ macro_rules! string_type {
         #[derive(
             Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord
         )]
+        #[serde(transparent)]
         pub struct $name(String);
 
         impl From<&str> for $name {
