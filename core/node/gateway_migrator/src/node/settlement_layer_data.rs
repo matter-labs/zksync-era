@@ -233,6 +233,8 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .context("Error occured while getting current SL mode")?
         };
 
+        tracing::info!("Gateway RPC URL {:?}", self.config.gateway_rpc_url);
+        
         let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
 
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
