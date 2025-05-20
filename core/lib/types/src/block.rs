@@ -29,14 +29,14 @@ impl DeployedContract {
 
 /// Holder for l1 batches or l2 blocks data.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CommnonBlockStatistics {
+pub struct CommonBlockStatistics {
     pub number: u32,
     pub timestamp: u64,
     pub l2_tx_count: u32,
     pub l1_tx_count: u32,
 }
 
-impl From<L1BatchHeader> for CommnonBlockStatistics {
+impl From<L1BatchHeader> for CommonBlockStatistics {
     fn from(header: L1BatchHeader) -> Self {
         Self {
             number: header.number.0,
@@ -47,7 +47,7 @@ impl From<L1BatchHeader> for CommnonBlockStatistics {
     }
 }
 
-impl From<L2BlockHeader> for CommnonBlockStatistics {
+impl From<L2BlockHeader> for CommonBlockStatistics {
     fn from(header: L2BlockHeader) -> Self {
         Self {
             number: header.number.0,

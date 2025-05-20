@@ -7,6 +7,7 @@ use zksync_types::{aggregated_operations::AggregatedActionType, L2BlockNumber};
 
 use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 
+/// Reports l2 blocks and l1 batches metrics to the prometheus.
 #[derive(Debug)]
 pub struct BlockMetricsReporter {
     reporting_interval_ms: u64,

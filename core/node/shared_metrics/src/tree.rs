@@ -6,7 +6,7 @@ use vise::{
     Buckets, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Info,
     LatencyObserver, Metrics, Unit,
 };
-use zksync_types::block::CommnonBlockStatistics;
+use zksync_types::block::CommonBlockStatistics;
 
 use crate::{BlockStage, APP_METRICS};
 
@@ -156,7 +156,7 @@ impl MetadataCalculatorMetrics {
 pub static METRICS: vise::Global<MetadataCalculatorMetrics> = vise::Global::new();
 
 pub fn update_tree_metrics(
-    batch_stats: &[CommnonBlockStatistics],
+    batch_stats: &[CommonBlockStatistics],
     total_logs: usize,
     start: Instant,
 ) {

@@ -16,7 +16,7 @@ use zksync_db_connection::{
 use zksync_types::{
     aggregated_operations::{L1BatchAggregatedActionType, L2BlockAggregatedActionType},
     block::{
-        CommnonBlockStatistics, CommonL1BatchHeader, L1BatchHeader, L1BatchTreeData, L2BlockHeader,
+        CommonBlockStatistics, CommonL1BatchHeader, L1BatchHeader, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
@@ -355,7 +355,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l2_blocks_statistics_for_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
-    ) -> DalResult<Vec<CommnonBlockStatistics>> {
+    ) -> DalResult<Vec<CommonBlockStatistics>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -375,7 +375,7 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| CommnonBlockStatistics {
+        .map(|row| CommonBlockStatistics {
             number: row.number as u32,
             timestamp: row.timestamp as u64,
             l2_tx_count: row.l2_tx_count as u32,
@@ -387,7 +387,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batches_statistics_for_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
-    ) -> DalResult<Vec<CommnonBlockStatistics>> {
+    ) -> DalResult<Vec<CommonBlockStatistics>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -409,7 +409,7 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| CommnonBlockStatistics {
+        .map(|row| CommonBlockStatistics {
             number: row.number as u32,
             timestamp: row.timestamp as u64,
             l2_tx_count: row.l2_tx_count as u32,

@@ -11,7 +11,7 @@ use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_shared_metrics::tree::{update_tree_metrics, TreeUpdateStage, METRICS};
 use zksync_types::{
-    block::{CommnonBlockStatistics, L1BatchTreeData},
+    block::{CommonBlockStatistics, L1BatchTreeData},
     L1BatchNumber,
 };
 
@@ -43,7 +43,7 @@ impl TreeUpdater {
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
-    ) -> anyhow::Result<(CommnonBlockStatistics, TreeMetadata, Option<String>)> {
+    ) -> anyhow::Result<(CommonBlockStatistics, TreeMetadata, Option<String>)> {
         let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
         let l1_batch_stats = l1_batch.stats;
         let l1_batch_number = l1_batch_stats.number;

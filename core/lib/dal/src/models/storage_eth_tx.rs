@@ -34,6 +34,7 @@ pub struct StorageEthTx {
     pub status: Option<String>,
 }
 
+// Common struct for l2 blocks and l1 batches eth sender stats.
 #[derive(Debug, Default)]
 pub struct BlocksEthSenderStats {
     pub saved: Vec<(AggregatedActionType, u32)>,
