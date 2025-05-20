@@ -34,7 +34,7 @@ mod tests {
 
     use super::{avail::AvailClientConfig, eigenda::PointsSource, *};
     use crate::configs::{
-        da_client::eigenda::{PolynomialForm, VersionSpecificConfig},
+        da_client::eigenda::{ClientTypeConfig, PolynomialForm},
         object_store::ObjectStoreMode,
         DataAvailabilitySecrets, Secrets,
     };
@@ -220,13 +220,13 @@ mod tests {
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
           DA_AUTHENTICATED=false
-          DA_VERSION_SPECIFIC_VERSION=V1
-          DA_VERSION_SPECIFIC_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
-          DA_VERSION_SPECIFIC_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-          DA_VERSION_SPECIFIC_WAIT_FOR_FINALIZATION=true
-          DA_VERSION_SPECIFIC_POINTS_SOURCE_SOURCE="Path"
-          DA_VERSION_SPECIFIC_POINTS_SOURCE_PATH="./resources"
-          DA_VERSION_SPECIFIC_CUSTOM_QUORUM_NUMBERS="2,3"
+          DA_CLIENT_TYPE_VERSION=V1
+          DA_CLIENT_TYPE_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+          DA_CLIENT_TYPE_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
+          DA_CLIENT_TYPE_WAIT_FOR_FINALIZATION=true
+          DA_CLIENT_TYPE_POINTS_SOURCE="Path"
+          DA_CLIENT_TYPE_POINTS_PATH="./resources"
+          DA_CLIENT_TYPE_CUSTOM_QUORUM_NUMBERS="2,3"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -243,22 +243,19 @@ mod tests {
             "http://localhost:8545/"
         );
         assert!(!config.authenticated);
-        let version_specific_config = match config.version_specific {
-            VersionSpecificConfig::V1(config) => config,
-            VersionSpecificConfig::V2(_) => panic!("V1 config expected"),
+        let client_type_config = match config.client_type {
+            ClientTypeConfig::V1(config) => config,
+            ClientTypeConfig::V2(_) => panic!("V1 config expected"),
         };
-        assert_eq!(
-            version_specific_config.settlement_layer_confirmation_depth,
-            0
-        );
+        assert_eq!(client_type_config.settlement_layer_confirmation_depth, 0);
 
-        assert!(version_specific_config.wait_for_finalization);
+        assert!(client_type_config.wait_for_finalization);
 
-        let PointsSource::Path { path } = &version_specific_config.points_source else {
-            panic!("Unexpected config: {version_specific_config:?}");
+        let PointsSource::Path { path } = &client_type_config.points else {
+            panic!("Unexpected config: {client_type_config:?}");
         };
         assert_eq!(path, "./resources");
-        assert_eq!(version_specific_config.custom_quorum_numbers, [2, 3]);
+        assert_eq!(client_type_config.custom_quorum_numbers, [2, 3]);
     }
 
     #[test]
@@ -268,10 +265,10 @@ mod tests {
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
           DA_AUTHENTICATED=false
-          DA_VERSION_SPECIFIC_VERSION=V2
-          DA_VERSION_SPECIFIC_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000000123"
-          DA_VERSION_SPECIFIC_BLOB_VERSION="0"
-          DA_VERSION_SPECIFIC_POLYNOMIAL_FORM="coeff"
+          DA_CLIENT_TYPE_VERSION=V2
+          DA_CLIENT_TYPE_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000000123"
+          DA_CLIENT_TYPE_BLOB_VERSION="0"
+          DA_CLIENT_TYPE_POLYNOMIAL_FORM="coeff"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -289,21 +286,18 @@ mod tests {
         );
         assert!(!config.authenticated);
 
-        let version_specific_config = match config.version_specific {
-            VersionSpecificConfig::V1(_) => panic!("V2 config expected"),
-            VersionSpecificConfig::V2(config) => config,
+        let client_type_config = match config.client_type {
+            ClientTypeConfig::V1(_) => panic!("V2 config expected"),
+            ClientTypeConfig::V2(config) => config,
         };
-        assert_eq!(version_specific_config.blob_version, 0);
+        assert_eq!(client_type_config.blob_version, 0);
         assert_eq!(
-            version_specific_config.cert_verifier_addr,
+            client_type_config.cert_verifier_addr,
             "0x0000000000000000000000000000000000000123"
                 .parse()
                 .unwrap()
         );
-        assert_eq!(
-            version_specific_config.polynomial_form,
-            PolynomialForm::Coeff
-        );
+        assert_eq!(client_type_config.polynomial_form, PolynomialForm::Coeff);
     }
 
     #[test]
@@ -313,12 +307,12 @@ mod tests {
           disperser_rpc: https://disperser-holesky.eigenda.xyz:443
           eigenda_eth_rpc: https://holesky.infura.io/
           authenticated: true
-          version_specific:
+          client_type:
             version: V1
             settlement_layer_confirmation_depth: 1
             eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
             wait_for_finalization: true
-            points_source:
+            points:
                 source: Url
                 g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
                 g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
@@ -343,26 +337,23 @@ mod tests {
         );
         assert!(config.authenticated);
 
-        let version_specific_config = match config.version_specific {
-            VersionSpecificConfig::V1(config) => config,
-            VersionSpecificConfig::V2(_) => panic!("V1 config expected"),
+        let client_type_config = match config.client_type {
+            ClientTypeConfig::V1(config) => config,
+            ClientTypeConfig::V2(_) => panic!("V1 config expected"),
         };
-        assert_eq!(
-            version_specific_config.settlement_layer_confirmation_depth,
-            1
-        );
+        assert_eq!(client_type_config.settlement_layer_confirmation_depth, 1);
 
-        assert!(version_specific_config.wait_for_finalization);
+        assert!(client_type_config.wait_for_finalization);
 
-        assert_eq!(version_specific_config.custom_quorum_numbers, [1, 3]);
+        assert_eq!(client_type_config.custom_quorum_numbers, [1, 3]);
         assert_eq!(
-            version_specific_config.eigenda_svc_manager_address,
+            client_type_config.eigenda_svc_manager_address,
             "0xD4A7E1Bd8015057293f0D0A557088c286942e84b"
                 .parse()
                 .unwrap()
         );
-        let PointsSource::Url { g1_url, g2_url } = &version_specific_config.points_source else {
-            panic!("Unexpected config: {version_specific_config:?}");
+        let PointsSource::Url { g1_url, g2_url } = &client_type_config.points else {
+            panic!("Unexpected config: {client_type_config:?}");
         };
         assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");
         assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");
@@ -375,7 +366,7 @@ mod tests {
           disperser_rpc: https://disperser-holesky.eigenda.xyz:443
           eigenda_eth_rpc: https://holesky.infura.io/
           authenticated: true
-          version_specific:
+          client_type:
             version: V2
             cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
             blob_version: 0
@@ -398,20 +389,17 @@ mod tests {
         );
         assert!(config.authenticated);
 
-        let version_specific_config = match config.version_specific {
-            VersionSpecificConfig::V1(_) => panic!("V2 config expected"),
-            VersionSpecificConfig::V2(config) => config,
+        let client_type_config = match config.client_type {
+            ClientTypeConfig::V1(_) => panic!("V2 config expected"),
+            ClientTypeConfig::V2(config) => config,
         };
-        assert_eq!(version_specific_config.blob_version, 0);
+        assert_eq!(client_type_config.blob_version, 0);
         assert_eq!(
-            version_specific_config.cert_verifier_addr,
+            client_type_config.cert_verifier_addr,
             "0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162"
                 .parse()
                 .unwrap()
         );
-        assert_eq!(
-            version_specific_config.polynomial_form,
-            PolynomialForm::Coeff
-        );
+        assert_eq!(client_type_config.polynomial_form, PolynomialForm::Coeff);
     }
 }

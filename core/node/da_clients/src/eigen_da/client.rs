@@ -15,9 +15,7 @@ use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigenda::{
-        EigenDASecrets, PointsSource, PolynomialForm, VersionSpecificConfig,
-    },
+    configs::da_client::eigenda::{ClientTypeConfig, EigenDASecrets, PointsSource, PolynomialForm},
     EigenDAConfig,
 };
 use zksync_da_client::{
@@ -55,9 +53,9 @@ impl EigenDAClient {
 
         let private_key = secrets.private_key.0.expose_secret();
 
-        let client = match config.version_specific {
-            VersionSpecificConfig::V1(v1_config) => {
-                let srs_points_source = match v1_config.points_source {
+        let client = match config.client_type {
+            ClientTypeConfig::V1(v1_config) => {
+                let srs_points_source = match v1_config.points {
                     PointsSource::Path { path } => SrsPointsSource::Path(path),
                     PointsSource::Url { g1_url, g2_url } => SrsPointsSource::Url((g1_url, g2_url)),
                 };
@@ -81,7 +79,7 @@ impl EigenDAClient {
                     .map_err(|e| anyhow::anyhow!("EigenDA client Error: {:?}", e))?;
                 InnerClient::V1(client)
             }
-            VersionSpecificConfig::V2(v2_config) => {
+            ClientTypeConfig::V2(v2_config) => {
                 let payload_form = match v2_config.polynomial_form {
                     PolynomialForm::Coeff => PayloadForm::Coeff,
                     PolynomialForm::Eval => PayloadForm::Eval,

@@ -50,14 +50,14 @@ Now continue with the configuration with v1 or v2 specifics:
 
 ### V1 Specific client configuration
 
-A V1 client is configured by adding the `version_specific: v1` field to the `da_client`, these are the fields that can
-be modified:
+A V1 client is configured by adding the `client_type: v1` field to the `da_client`, these are the fields that can be
+modified:
 
 - `settlement_layer_confirmation_depth` (unsigned number): Block height needed to reach in order to consider the blob
   finalized. A value less or equal to 0 means that the disperser will not wait for finalization.
 - `eigenda_svc_manager_address` (string): Address of the service manager contract.
 - `wait_for_finalization` (boolean): Wait for the blob to be finalized before returning the response.
-- `points_source`
+- `points`
   - `source`: `Url` or `Path`
   - if `Url`
     - `g1_url`: (string): URLs of the g1 point source file.
@@ -78,12 +78,12 @@ da_client:
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
   authenticated: true
-  version_specific:
+  client_type:
     version: V1
     settlement_layer_confirmation_depth: 0
     eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
     wait_for_finalization: false
-    points_source:
+    points:
       source: Url
       g1_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point
       g2_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2
@@ -94,8 +94,8 @@ da_client:
 
 ### V2 specific client configuration
 
-A V2 client is configured by adding the `version_specific: v2` field to the `da_client`, these are the fields that can
-be modified:
+A V2 client is configured by adding the `client_type: v2` field to the `da_client`, these are the fields that can be
+modified:
 
 - `cert_verifier_addr` Address of the eigenDA cert verifier contract
 - `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
@@ -111,7 +111,7 @@ da_client:
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
   authenticated: true
-  version_specific:
+  client_type:
     version: V2
     cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
     blob_version: 0

@@ -49,7 +49,7 @@ pub enum PointsSource {
 /// This enum is used to differentiate between the two versions.
 #[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
 #[config(tag = "version")]
-pub enum VersionSpecificConfig {
+pub enum ClientTypeConfig {
     /// The EigenDA V1 client
     V1(V1Config),
     /// The EigenDA V2 client
@@ -70,7 +70,7 @@ pub struct V1Config {
     pub wait_for_finalization: bool,
     /// Points source
     #[config(nest)]
-    pub points_source: PointsSource,
+    pub points: PointsSource,
     /// Custom quorum numbers
     #[config(default, with = Delimited(","))]
     pub custom_quorum_numbers: Vec<u8>,
@@ -105,7 +105,7 @@ pub struct EigenDAConfig {
     pub authenticated: bool,
     /// Config specific to each version
     #[config(nest)]
-    pub version_specific: VersionSpecificConfig,
+    pub client_type: ClientTypeConfig,
 }
 
 /// Configuration for the EigenDA secrets.
