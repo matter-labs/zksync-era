@@ -57,7 +57,7 @@ pub struct GeneralConfig {
     pub prometheus_config: PrometheusConfig,
     #[config(nest, rename = "data_handler")]
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
-    #[config(nest, rename = "tee_data_handler")]
+    #[config(nest, rename = "tee_proof_data_handler")]
     pub tee_proof_data_handler_config: Option<TeeProofDataHandlerConfig>,
     #[config(nest, rename = "db", alias = "database")]
     pub db_config: DBConfig,
