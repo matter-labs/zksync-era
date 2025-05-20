@@ -51,7 +51,6 @@ members = [
   "lib/contracts",
   "lib/circuit_breaker",
   "lib/dal",
-  "lib/env_config",
   "lib/da_client",
   "lib/eth_client",
   "lib/eth_signer",
@@ -70,7 +69,6 @@ members = [
   "lib/tee_prover_interface",
   "lib/tee_verifier",
   "lib/types",
-  "lib/protobuf_config",
   "lib/utils",
   "lib/vlog",
   "lib/multivm",
@@ -217,6 +215,8 @@ trybuild = "1.0"
 # "Internal" dependencies
 vise = "0.3.0"
 vise-exporter = "0.3.0"
+smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
+smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies
@@ -289,7 +289,6 @@ zksync_contracts = { version = "28.2.1-non-semver-compat", path = "lib/contracts
 zksync_core_leftovers = { version = "28.2.1-non-semver-compat", path = "lib/zksync_core_leftovers" }
 zksync_dal = { version = "28.2.1-non-semver-compat", path = "lib/dal" }
 zksync_db_connection = { version = "28.2.1-non-semver-compat", path = "lib/db_connection" }
-zksync_env_config = { version = "28.2.1-non-semver-compat", path = "lib/env_config" }
 zksync_eth_client = { version = "28.2.1-non-semver-compat", path = "lib/eth_client" }
 zksync_da_client = { version = "28.2.1-non-semver-compat", path = "lib/da_client" }
 zksync_eth_signer = { version = "28.2.1-non-semver-compat", path = "lib/eth_signer" }
@@ -299,7 +298,6 @@ zksync_mempool = { version = "28.2.1-non-semver-compat", path = "lib/mempool" }
 zksync_merkle_tree = { version = "28.2.1-non-semver-compat", path = "lib/merkle_tree" }
 zksync_mini_merkle_tree = { version = "28.2.1-non-semver-compat", path = "lib/mini_merkle_tree" }
 zksync_object_store = { version = "28.2.1-non-semver-compat", path = "lib/object_store" }
-zksync_protobuf_config = { version = "28.2.1-non-semver-compat", path = "lib/protobuf_config" }
 zksync_prover_interface = { version = "28.2.1-non-semver-compat", path = "lib/prover_interface" }
 zksync_queued_job_processor = { version = "28.2.1-non-semver-compat", path = "lib/queued_job_processor" }
 zksync_snapshots_applier = { version = "28.2.1-non-semver-compat", path = "lib/snapshots_applier" }
