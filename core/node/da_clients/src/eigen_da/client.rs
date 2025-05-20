@@ -58,8 +58,8 @@ impl EigenDAClient {
         let client = match config.version_specific {
             VersionSpecificConfig::V1(v1_config) => {
                 let srs_points_source = match v1_config.points_source {
-                    PointsSource::Path{path} => SrsPointsSource::Path(path),
-                    PointsSource::Url{ g1_url, g2_url } => SrsPointsSource::Url((g1_url, g2_url)),
+                    PointsSource::Path { path } => SrsPointsSource::Path(path),
+                    PointsSource::Url { g1_url, g2_url } => SrsPointsSource::Url((g1_url, g2_url)),
                 };
 
                 let eigen_config = rust_eigenda_client::config::EigenConfig::new(

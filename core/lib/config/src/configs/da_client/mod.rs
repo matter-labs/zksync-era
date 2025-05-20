@@ -33,7 +33,11 @@ mod tests {
     };
 
     use super::{avail::AvailClientConfig, eigenda::PointsSource, *};
-    use crate::configs::{da_client::eigenda::{PolynomialForm, VersionSpecificConfig}, object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
+    use crate::configs::{
+        da_client::eigenda::{PolynomialForm, VersionSpecificConfig},
+        object_store::ObjectStoreMode,
+        DataAvailabilitySecrets, Secrets,
+    };
 
     #[test]
     fn no_da_config_from_yaml() {
@@ -244,7 +248,7 @@ mod tests {
             VersionSpecificConfig::V2(_) => panic!("V1 config expected")
         };
         assert_eq!(version_specific_config.settlement_layer_confirmation_depth, 0);
-        
+
         assert!(version_specific_config.wait_for_finalization);
 
         let PointsSource::Path { path } = &version_specific_config.points_source else {
@@ -290,13 +294,16 @@ mod tests {
             "https://holesky.infura.io/"
         );
         assert!(config.authenticated);
-        
+
         let version_specific_config = match config.version_specific {
             VersionSpecificConfig::V1(config) => config,
-            VersionSpecificConfig::V2(_) => panic!("V1 config expected")
+            VersionSpecificConfig::V2(_) => panic!("V1 config expected"),
         };
-        assert_eq!(version_specific_config.settlement_layer_confirmation_depth, 1);
-        
+        assert_eq!(
+            version_specific_config.settlement_layer_confirmation_depth,
+            1
+        );
+
         assert!(version_specific_config.wait_for_finalization);
 
         assert_eq!(version_specific_config.custom_quorum_numbers, [1, 3]);
@@ -342,10 +349,10 @@ mod tests {
             "https://holesky.infura.io/"
         );
         assert!(config.authenticated);
-        
+
         let version_specific_config = match config.version_specific {
             VersionSpecificConfig::V1(_) => panic!("V2 config expected"),
-            VersionSpecificConfig::V2(config) => config
+            VersionSpecificConfig::V2(config) => config,
         };
         assert_eq!(version_specific_config.blob_version, 0);
         assert_eq!(
@@ -354,6 +361,9 @@ mod tests {
                 .parse()
                 .unwrap()
         );
-        assert_eq!(version_specific_config.polynomial_form, PolynomialForm::Coeff);
+        assert_eq!(
+            version_specific_config.polynomial_form,
+            PolynomialForm::Coeff
+        );
     }
 }

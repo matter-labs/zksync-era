@@ -1,10 +1,9 @@
-use serde::Deserialize;
-use serde::Serialize;
-use zksync_basic_types::{secrets::PrivateKey, url::SensitiveUrl, Address};
+use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Delimited, FromSecretString, Optional, Serde, WellKnown},
     DescribeConfig, DeserializeConfig,
 };
+use zksync_basic_types::{secrets::PrivateKey, url::SensitiveUrl, Address};
 
 /// Describes the different ways a polynomial may be represented
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default, Serialize)]

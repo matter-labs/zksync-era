@@ -50,8 +50,8 @@ Now continue with the configuration with v1 or v2 specifics:
 
 ### V1 Specific client configuration
 
-A V1 client is configured by adding the `version_specific: v1` field to the `da_client`, these are the fields that can be
-modified:
+A V1 client is configured by adding the `version_specific: v1` field to the `da_client`, these are the fields that can
+be modified:
 
 - `settlement_layer_confirmation_depth` (unsigned number): Block height needed to reach in order to consider the blob
   finalized. A value less or equal to 0 means that the disperser will not wait for finalization.
@@ -94,8 +94,8 @@ da_client:
 
 ### V2 specific client configuration
 
-A V2 client is configured by adding the `version_specific: v2` field to the `da_client`, these are the fields that can be
-modified:
+A V2 client is configured by adding the `version_specific: v2` field to the `da_client`, these are the fields that can
+be modified:
 
 - `cert_verifier_addr` Address of the eigenDA cert verifier contract
 - `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported

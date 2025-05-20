@@ -64,58 +64,61 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 Err(_) => None,
             },
             authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
-            version_specific: match env::var(format!(
-                "{}EIGENDA_VERSION_SPECIFIC",
-                prefix
-            ))?.as_str() {
-                "V1" => {
-                    VersionSpecificConfig::V1(V1Config{
-                        settlement_layer_confirmation_depth: env::var(format!(
-                            "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
-                            prefix
-                        ))?
+            version_specific: match env::var(format!("{}EIGENDA_VERSION_SPECIFIC", prefix))?
+                .as_str()
+            {
+                "V1" => VersionSpecificConfig::V1(V1Config {
+                    settlement_layer_confirmation_depth: env::var(format!(
+                        "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
+                        prefix
+                    ))?
+                    .parse()?,
+                    eigenda_svc_manager_address: Address::from_str(&env::var(format!(
+                        "{}EIGENDA_SVC_MANAGER_ADDRESS",
+                        prefix
+                    ))?)?,
+                    wait_for_finalization: env::var(format!("{}WAIT_FOR_FINALIZATION", prefix))?
                         .parse()?,
-                        eigenda_svc_manager_address: Address::from_str(&env::var(format!(
-                            "{}EIGENDA_SVC_MANAGER_ADDRESS",
-                            prefix
-                        ))?)?,
-                        wait_for_finalization: env::var(format!("{}WAIT_FOR_FINALIZATION", prefix))?.parse()?,
-                        points_source: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
-                            "Path" => zksync_config::configs::da_client::eigenda::PointsSource::Path {
-                                path: env::var(format!("{}POINTS_PATH", prefix))?,
-                            },
-                            "Url" => zksync_config::configs::da_client::eigenda::PointsSource::Url {
-                                g1_url: env::var(format!("{}POINTS_LINK_G1", prefix))?,
-                                g2_url: env::var(format!("{}POINTS_LINK_G2", prefix))?,
-                            },
-                            _ => anyhow::bail!("Unknown Eigen points type"),
+                    points_source: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
+                        "Path" => zksync_config::configs::da_client::eigenda::PointsSource::Path {
+                            path: env::var(format!("{}POINTS_PATH", prefix))?,
                         },
-                        custom_quorum_numbers: match env::var(format!("{}CUSTOM_QUORUM_NUMBERS", prefix)) {
-                            Ok(numbers) => numbers
-                                .split(',')
-                                .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
-                                .collect::<anyhow::Result<Vec<_>>>()?,
-                            Err(_) => vec![],
-                        }})
-                    }
-                "V2" => {
-                    VersionSpecificConfig::V2(V2Config{
-                        cert_verifier_addr: Address::from_str(&env::var(format!(
-                            "{}EIGENDA_CERT_VERIFIER_ADDRESS",
-                            prefix
-                        ))?)?,
-                        blob_version: env::var(format!("{}BLOB_VERSION", prefix))?
-                            .parse()
-                            .context("EigenDA blob version not found")?,
-                        polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
-                            "Coeff" => zksync_config::configs::da_client::eigenda::PolynomialForm::Coeff,
-                            "Eval" => zksync_config::configs::da_client::eigenda::PolynomialForm::Eval,
-                            _ => anyhow::bail!("Unknown Eigen polynomial form"),
+                        "Url" => zksync_config::configs::da_client::eigenda::PointsSource::Url {
+                            g1_url: env::var(format!("{}POINTS_LINK_G1", prefix))?,
+                            g2_url: env::var(format!("{}POINTS_LINK_G2", prefix))?,
                         },
-                    })
-                }
+                        _ => anyhow::bail!("Unknown Eigen points type"),
+                    },
+                    custom_quorum_numbers: match env::var(format!(
+                        "{}CUSTOM_QUORUM_NUMBERS",
+                        prefix
+                    )) {
+                        Ok(numbers) => numbers
+                            .split(',')
+                            .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
+                            .collect::<anyhow::Result<Vec<_>>>()?,
+                        Err(_) => vec![],
+                    },
+                }),
+                "V2" => VersionSpecificConfig::V2(V2Config {
+                    cert_verifier_addr: Address::from_str(&env::var(format!(
+                        "{}EIGENDA_CERT_VERIFIER_ADDRESS",
+                        prefix
+                    ))?)?,
+                    blob_version: env::var(format!("{}BLOB_VERSION", prefix))?
+                        .parse()
+                        .context("EigenDA blob version not found")?,
+                    polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str()
+                    {
+                        "Coeff" => {
+                            zksync_config::configs::da_client::eigenda::PolynomialForm::Coeff
+                        }
+                        "Eval" => zksync_config::configs::da_client::eigenda::PolynomialForm::Eval,
+                        _ => anyhow::bail!("Unknown Eigen polynomial form"),
+                    },
+                }),
                 _ => anyhow::bail!("Unknown EigenDA version"),
-            }
+            },
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
             DAClientConfig::ObjectStore(envy_load("da_object_store", prefix)?)
