@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS gpu_prover_queue_fri (
     zone                        TEXT,
     created_at                  TIMESTAMP NOT NULL,
     updated_at                  TIMESTAMP NOT NULL,
-    processing_started_at       TIMESTAMP
+    processing_started_at       TIMESTAMP,
     protocol_version            INT,
     protocol_version_patch      INT NOT NULL DEFAULT 0
 );
