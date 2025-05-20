@@ -213,20 +213,20 @@ mod tests {
         assert_eq!(client.app_id, 123_456);
     }
 
-    /*#[test]
+    #[test]
     fn eigenda_v1_config_from_env() {
         let env = r#"
           DA_CLIENT="EigenDA"
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
           DA_AUTHENTICATED=false
-          DA_EIGENDA_VERSION_SPECIFIC_CONFIG=V1
-          DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
-          DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-          DA_WAIT_FOR_FINALIZATION=true
-          DA_POINTS_SOURCE="Path"
-          DA_POINTS_PATH="./resources"
-          DA_CUSTOM_QUORUM_NUMBERS="2,3"
+          DA_VERSION_SPECIFIC_VERSION=V1
+          DA_VERSION_SPECIFIC_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
+          DA_VERSION_SPECIFIC_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
+          DA_VERSION_SPECIFIC_WAIT_FOR_FINALIZATION=true
+          DA_VERSION_SPECIFIC_POINTS_SOURCE_SOURCE="Path"
+          DA_VERSION_SPECIFIC_POINTS_SOURCE_PATH="./resources"
+          DA_VERSION_SPECIFIC_CUSTOM_QUORUM_NUMBERS="2,3"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -245,9 +245,12 @@ mod tests {
         assert!(!config.authenticated);
         let version_specific_config = match config.version_specific {
             VersionSpecificConfig::V1(config) => config,
-            VersionSpecificConfig::V2(_) => panic!("V1 config expected")
+            VersionSpecificConfig::V2(_) => panic!("V1 config expected"),
         };
-        assert_eq!(version_specific_config.settlement_layer_confirmation_depth, 0);
+        assert_eq!(
+            version_specific_config.settlement_layer_confirmation_depth,
+            0
+        );
 
         assert!(version_specific_config.wait_for_finalization);
 
@@ -256,7 +259,52 @@ mod tests {
         };
         assert_eq!(path, "./resources");
         assert_eq!(version_specific_config.custom_quorum_numbers, [2, 3]);
-    }*/
+    }
+
+    #[test]
+    fn eigenda_v2_config_from_env() {
+        let env = r#"
+          DA_CLIENT="EigenDA"
+          DA_DISPERSER_RPC="http://localhost:8080"
+          DA_EIGENDA_ETH_RPC="http://localhost:8545"
+          DA_AUTHENTICATED=false
+          DA_VERSION_SPECIFIC_VERSION=V2
+          DA_VERSION_SPECIFIC_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000000123"
+          DA_VERSION_SPECIFIC_BLOB_VERSION="0"
+          DA_VERSION_SPECIFIC_POLYNOMIAL_FORM="coeff"
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DA_");
+
+        let config = test_complete::<DAClientConfig>(env).unwrap();
+        let DAClientConfig::EigenDA(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+
+        assert_eq!(config.disperser_rpc, "http://localhost:8080");
+        assert_eq!(
+            config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
+            "http://localhost:8545/"
+        );
+        assert!(!config.authenticated);
+
+        let version_specific_config = match config.version_specific {
+            VersionSpecificConfig::V1(_) => panic!("V2 config expected"),
+            VersionSpecificConfig::V2(config) => config,
+        };
+        assert_eq!(version_specific_config.blob_version, 0);
+        assert_eq!(
+            version_specific_config.cert_verifier_addr,
+            "0x0000000000000000000000000000000000000123"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            version_specific_config.polynomial_form,
+            PolynomialForm::Coeff
+        );
+    }
 
     #[test]
     fn eigenda_v1_config_from_yaml() {
