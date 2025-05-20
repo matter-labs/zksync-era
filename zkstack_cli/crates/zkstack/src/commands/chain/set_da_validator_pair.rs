@@ -62,8 +62,8 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, get_ethers_provider(&gateway_url)?);
         let chain_diamond_proxy_on_gateway = gw_bridgehub.get_zk_chain(chain_id.into()).await?;
 
-        if chain_diamond_proxy_on_gateway == Address::zero() {
-            anyhow::bail!("The chain does not settle on GW yet, the address is known");
+        if chain_diamond_proxy_on_gateway.is_zero() {
+            anyhow::bail!("The chain does not settle on GW yet, the address is unknown");
         }
         logger::note(
             MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
