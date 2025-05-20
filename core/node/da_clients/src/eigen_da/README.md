@@ -107,13 +107,13 @@ So, for example, a client setup that uses the holesky EigenDA V2 client would lo
 da_dispatcher:
   use_dummy_inclusion_data: true
 da_client:
-  eigenda:
-    disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
-    eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
-    authenticated: true
-    version_specific:
-      version: V2
-      cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
-      blob_version: 0
-      polynomial_form: coeff
+  client: EigenDA
+  disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
+  eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
+  authenticated: true
+  version_specific:
+    version: V2
+    cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+    blob_version: 0
+    polynomial_form: coeff
 ```
