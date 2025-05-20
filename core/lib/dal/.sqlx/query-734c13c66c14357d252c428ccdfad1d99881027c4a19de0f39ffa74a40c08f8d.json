@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO tee_dcap_collateral\n            (kind, sha256, not_after, updated, update_guard_expires)\n            VALUES ($1, $2, $3, transaction_timestamp(), NULL)\n            ON CONFLICT (kind)\n            DO UPDATE SET\n            sha256 = $2,\n            not_after = $3,\n            updated = transaction_timestamp(),\n            update_guard_expires = NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_kind",
+            "kind": {
+              "Enum": [
+                "root_crl",
+                "pck_crl",
+                "sgx_tcb_info_json",
+                "tdx_tcb_info_json",
+                "sgx_qe_identity_json",
+                "tdx_qe_identity_json"
+              ]
+            }
+          }
+        },
+        "Bytea",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "734c13c66c14357d252c428ccdfad1d99881027c4a19de0f39ffa74a40c08f8d"
+}
