@@ -97,10 +97,12 @@ pub struct PostgresConfig {
     /// Maximum size of the connection pool to master DB.
     #[config(alias = "pool_size_master")]
     pub max_connections_master: Option<u32>,
-    /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
-    /// before acquire methods will return an error.
+    /// Acquire timeout in seconds for a single connection attempt.
     #[config(default_t = Duration::from_secs(30), with = TimeUnit::Seconds)]
     pub acquire_timeout_sec: Duration,
+    /// Number of retries to acquire a connection on a timeout. 0 corresponds to a single connection attempt etc.
+    #[config(default_t = 2)]
+    pub acquire_retries: usize,
     /// Statement timeout in seconds for Postgres connections. Applies only to the replica
     /// connection pool used by the API servers.
     #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]
