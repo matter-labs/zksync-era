@@ -80,7 +80,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             .settlement_layer(chain_id.into())
             .await?
             .as_u64();
-
+        let refund_recipient = chain_config.get_wallets_config()?.governor.address;
         set_da_validator_pair_via_gateway(
             shell,
             &args.forge_args.clone(),
@@ -95,7 +95,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             args.l1_da_validator,
             l2_da_validator_address,
             chain_diamond_proxy_on_gateway,
-            Address::zero(),
+            refund_recipient,
             l1_rpc_url,
         )
         .await?;
