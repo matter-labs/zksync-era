@@ -109,7 +109,7 @@ pub struct EigenDAConfig {
 }
 
 /// Configuration for the EigenDA secrets.
-#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 pub struct EigenDASecrets {
     /// Private key used for dispersing the blobs
     #[config(with = FromSecretString)]

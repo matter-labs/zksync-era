@@ -1,47 +1,16 @@
 use std::{error::Error, sync::Arc};
 
-<<<<<<<< HEAD:core/node/da_clients/src/node/eigenda.rs
 use zksync_config::{configs::da_client::eigenda::EigenDASecrets, EigenDAConfig};
-use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::eigen_da::{BlobProvider, EigenDAClient};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_node_framework_derive::FromContext;
-
-use crate::{
-    implementations::resources::{
-        da_client::DAClientResource,
-        pools::{MasterPool, PoolResource},
-    },
-    wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
-|||||||| 4905261f00:core/node/node_framework/src/implementations/layers/da_clients/eigen.rs
-use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
-use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::eigen::{BlobProvider, EigenDAClient};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_node_framework_derive::FromContext;
-
-use crate::{
-    implementations::resources::{
-        da_client::DAClientResource,
-        pools::{MasterPool, PoolResource},
-    },
-    wiring_layer::{WiringError, WiringLayer},
-    IntoContext,
-========
-use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::{node::DAClientResource, DataAvailabilityClient};
+use crate::eigen_da::{BlobProvider, EigenDAClient};
 use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core, CoreDal,
->>>>>>>> main:core/node/da_clients/src/node/eigen.rs
 };
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-
-use crate::eigen::{BlobProvider, EigenDAClient};
 
 #[derive(Debug)]
 pub struct EigenWiringLayer {
