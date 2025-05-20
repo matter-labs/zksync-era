@@ -612,7 +612,7 @@ jobs:
 
       - name: Init external nodes
         run: |
-          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3550' || '' }}"
+          GATEWAY_RPC_URL="${{ matrix.use_gateway_chain == 'WITH_GATEWAY' && '--gateway-rpc-url=http://localhost:3650' || '' }}"
           
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_rollup --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain era
