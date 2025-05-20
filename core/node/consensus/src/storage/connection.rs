@@ -226,7 +226,6 @@ impl<'a> Connection<'a> {
                 protocol_version: spec.protocol_version,
                 validators_schedule: spec.validators_schedule.clone(),
             }
-            }
             .with_hash(),
             registry_address: spec.registry_address,
             seed_peers: spec.seed_peers.clone(),
