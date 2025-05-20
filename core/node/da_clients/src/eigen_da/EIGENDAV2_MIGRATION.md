@@ -12,7 +12,6 @@ da_client:
   authenticated: true
   settlement_layer_confirmation_depth: 0
   eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-  authenticated: false
   wait_for_finalization: false
   points:
     source: Url
@@ -67,5 +66,23 @@ Check the [README.md](./README.md) for more details on the new fields.
 
 ### Note
 
-- If you have a private key set on `chains/<YOUR_CHAIN>/configs/secrets.yaml`, be sure that it has the needed
+You should also change your `chains/<YOUR_CHAIN>/configs/secrets.yaml` from:
+
+```yaml
+da_client:
+  client: Eigen
+  private_key: <your_private_key>
+```
+
+To
+
+```yaml
+da_client:
+  client: EigenDA
+  private_key: <your_private_key>
+```
+
+- Be sure that your private key has the needed
   permissions set on the V2 client.
+
+- Remember to run `zkstackup --local` before running the new server after this changes
