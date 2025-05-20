@@ -22,6 +22,7 @@ pub use crate::{
 mod client;
 mod errors;
 mod metrics;
+pub mod node;
 mod processor;
 
 pub async fn run_server(

@@ -1,8 +1,3 @@
-mod error;
-mod metrics;
-mod middleware;
-mod types;
-
 use std::net::SocketAddr;
 
 use anyhow::Context;
@@ -18,6 +13,12 @@ use zksync_basic_types::L1BatchNumber;
 use zksync_proof_data_handler::{Processor, ProcessorError, Readonly};
 
 use crate::{metrics::Method, middleware::MetricsMiddleware};
+
+mod error;
+mod metrics;
+mod middleware;
+pub mod node;
+mod types;
 
 /// External API implementation.
 #[derive(Debug)]

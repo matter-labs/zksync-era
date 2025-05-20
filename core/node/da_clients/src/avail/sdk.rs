@@ -15,6 +15,7 @@ use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
 use subxt_signer::sr25519::{Keypair, Signature};
 use tokio::time::{timeout, Duration};
+use zksync_config::configs::da_client::avail::AvailFinalityState;
 use zksync_types::H256;
 
 use crate::utils::to_non_retriable_da_error;
@@ -26,7 +27,7 @@ const DISPATCH_POLLING_SLEEP_DURATION: Duration = Duration::from_millis(100);
 pub(crate) struct RawAvailClient {
     app_id: u32,
     keypair: Keypair,
-    finality_state: String,
+    finality_state: AvailFinalityState,
     dispatch_timeout: Duration,
 }
 
@@ -48,7 +49,7 @@ impl RawAvailClient {
     pub(crate) async fn new(
         app_id: u32,
         seed: &str,
-        finality_state: String,
+        finality_state: AvailFinalityState,
         dispatch_timeout: Duration,
     ) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
@@ -285,18 +286,19 @@ impl RawAvailClient {
 
     async fn wait_for_response(
         sub: &mut Subscription<serde_json::Value>,
-        finality_state: String,
+        finality_state: &str,
     ) -> anyhow::Result<String> {
         Ok(loop {
             let status = sub.next().await.transpose()?;
+            let status = status.filter(serde_json::Value::is_object);
 
-            if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get(finality_state.as_str()) {
+            if let Some(status) = status {
+                if let Some(block_hash) = status.get(finality_state) {
                     break block_hash
                         .as_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
+                        .context("Invalid block hash")?
                         .strip_prefix("0x")
-                        .ok_or_else(|| anyhow::anyhow!("Block hash doesn't have 0x prefix"))?
+                        .context("Block hash doesn't have 0x prefix")?
                         .to_string();
                 }
             }
@@ -322,7 +324,7 @@ impl RawAvailClient {
 
         let block_hash = timeout(
             self.dispatch_timeout,
-            RawAvailClient::wait_for_response(&mut sub, self.finality_state.clone()),
+            RawAvailClient::wait_for_response(&mut sub, self.finality_state.as_str()),
         )
         .await
         .map_err(|_| anyhow::anyhow!("Timeout waiting for block hash"))??;
@@ -511,6 +513,13 @@ impl GasRelayClient {
                 .await
                 .context("Failed to read response body")?;
 
+            if is_empty_json(&status_response_bytes) {
+                tracing::warn!("Empty response from gas relay");
+
+                tokio::time::sleep(Self::RETRY_DELAY).await;
+                continue;
+            }
+
             let status_response =
                 match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
                     Ok(response) => {
@@ -537,4 +546,8 @@ impl GasRelayClient {
 
         Ok(None)
     }
+}
+
+fn is_empty_json(bytes: &[u8]) -> bool {
+    bytes.is_empty() || bytes == b"{}"
 }

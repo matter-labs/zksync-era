@@ -24,7 +24,7 @@ fn read_secret_text<T: TextFmt>(text: Option<&SecretString>) -> anyhow::Result<O
 pub(super) fn validator_key(
     secrets: &ConsensusSecrets,
 ) -> anyhow::Result<Option<validator::SecretKey>> {
-    read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
+    read_secret_text(secrets.validator_key.as_ref())
 }
 
 /// Consensus genesis specification.
@@ -56,10 +56,10 @@ impl GenesisSpec {
             .validators
             .iter()
             .enumerate()
-            .map(|(i, v)| {
+            .map(|(i, (key, weight))| {
                 Ok(validator::WeightedValidator {
-                    key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                    weight: v.weight,
+                    key: Text::new(&key.0).decode().context("key").context(i)?,
+                    weight: *weight,
                 })
             })
             .collect::<anyhow::Result<_>>()
@@ -91,7 +91,7 @@ impl GenesisSpec {
 }
 
 pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
-    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
+    read_secret_text(secrets.node_key.as_ref())
 }
 
 pub(super) fn executor(
@@ -136,7 +136,7 @@ pub(super) fn executor(
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,
-        view_timeout: cfg.view_timeout(),
+        view_timeout: cfg.view_timeout.try_into().context("view_timeout")?,
         node_key: node_key(secrets)
             .context("node_key")?
             .context("missing node_key")?,

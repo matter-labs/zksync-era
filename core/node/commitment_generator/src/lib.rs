@@ -27,6 +27,7 @@ use crate::{
 };
 
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 mod utils;

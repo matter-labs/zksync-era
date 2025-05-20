@@ -14,6 +14,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 mod errors;
 mod metrics;
+pub mod node;
 mod tee_request_processor;
 #[cfg(test)]
 mod tests;
