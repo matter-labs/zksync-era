@@ -175,6 +175,7 @@ pub struct SenderConfig {
     #[config(default_t = u64::MAX)]
     pub max_acceptable_base_fee_in_wei: u64,
     /// Cap for `b ^ time_in_mempool` used for price calculations.
+    #[config(default)]
     pub time_in_mempool_multiplier_cap: Option<u32>,
 }
 
