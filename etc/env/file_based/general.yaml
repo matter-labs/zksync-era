@@ -280,4 +280,4 @@ consensus:
   gossip_dynamic_inbound_limit: 100
 
 gateway_migrator:
-  eth_node_poll_interval_ms: 300
+  eth_node_poll_interval: 300 ms
