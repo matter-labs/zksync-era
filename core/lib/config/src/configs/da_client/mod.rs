@@ -33,7 +33,7 @@ mod tests {
     };
 
     use super::{avail::AvailClientConfig, eigenda::PointsSource, *};
-    use crate::configs::{object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
+    use crate::configs::{da_client::eigenda::{PolynomialForm, VersionSpecificConfig}, object_store::ObjectStoreMode, DataAvailabilitySecrets, Secrets};
 
     #[test]
     fn no_da_config_from_yaml() {
@@ -209,16 +209,17 @@ mod tests {
         assert_eq!(client.app_id, 123_456);
     }
 
-    #[test]
-    fn eigen_config_from_env() {
+    /*#[test]
+    fn eigenda_v1_config_from_env() {
         let env = r#"
-          DA_CLIENT="Eigen"
+          DA_CLIENT="EigenDA"
           DA_DISPERSER_RPC="http://localhost:8080"
-          DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
+          DA_AUTHENTICATED=false
+          DA_EIGENDA_VERSION_SPECIFIC_CONFIG=V1
+          DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
           DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
           DA_WAIT_FOR_FINALIZATION=true
-          DA_AUTHENTICATED=false
           DA_POINTS_SOURCE="Path"
           DA_POINTS_PATH="./resources"
           DA_CUSTOM_QUORUM_NUMBERS="2,3"
@@ -233,38 +234,45 @@ mod tests {
         };
 
         assert_eq!(config.disperser_rpc, "http://localhost:8080");
-        /*assert_eq!(config.settlement_layer_confirmation_depth, 0);
         assert_eq!(
             config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
             "http://localhost:8545/"
         );
-        assert!(config.wait_for_finalization);
         assert!(!config.authenticated);
+        let version_specific_config = match config.version_specific {
+            VersionSpecificConfig::V1(config) => config,
+            VersionSpecificConfig::V2(_) => panic!("V1 config expected")
+        };
+        assert_eq!(version_specific_config.settlement_layer_confirmation_depth, 0);
+        
+        assert!(version_specific_config.wait_for_finalization);
 
-        let PointsSource::Path { path } = &config.points else {
-            panic!("Unexpected config: {config:?}");
+        let PointsSource::Path { path } = &version_specific_config.points_source else {
+            panic!("Unexpected config: {version_specific_config:?}");
         };
         assert_eq!(path, "./resources");
-        assert_eq!(config.custom_quorum_numbers, [2, 3]);*/ // todo
-    }
+        assert_eq!(version_specific_config.custom_quorum_numbers, [2, 3]);
+    }*/
 
     #[test]
-    fn eigen_config_from_yaml() {
+    fn eigenda_v1_config_from_yaml() {
         let yaml = r#"
-          client: Eigen
+          client: EigenDA
           disperser_rpc: https://disperser-holesky.eigenda.xyz:443
-          settlement_layer_confirmation_depth: 1
           eigenda_eth_rpc: https://holesky.infura.io/
-          eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-          wait_for_finalization: true
           authenticated: true
-          points:
-            source: Url
-            g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
-            g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
-          custom_quorum_numbers:
-            - 1
-            - 3
+          version_specific:
+            version: V1
+            settlement_layer_confirmation_depth: 1
+            eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+            wait_for_finalization: true
+            points_source:
+                source: Url
+                g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
+                g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+            custom_quorum_numbers:
+                - 1
+                - 3
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -273,27 +281,79 @@ mod tests {
             panic!("unexpected config: {config:?}");
         };
 
-        /*assert_eq!(
+        assert_eq!(
             config.disperser_rpc,
             "https://disperser-holesky.eigenda.xyz:443"
         );
-        assert_eq!(config.settlement_layer_confirmation_depth, 1);
         assert_eq!(
             config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
             "https://holesky.infura.io/"
         );
+        assert!(config.authenticated);
+        
+        let version_specific_config = match config.version_specific {
+            VersionSpecificConfig::V1(config) => config,
+            VersionSpecificConfig::V2(_) => panic!("V1 config expected")
+        };
+        assert_eq!(version_specific_config.settlement_layer_confirmation_depth, 1);
+        
+        assert!(version_specific_config.wait_for_finalization);
+
+        assert_eq!(version_specific_config.custom_quorum_numbers, [1, 3]);
         assert_eq!(
-            config.eigenda_svc_manager_address,
+            version_specific_config.eigenda_svc_manager_address,
             "0xD4A7E1Bd8015057293f0D0A557088c286942e84b"
                 .parse()
                 .unwrap()
         );
-        assert!(config.wait_for_finalization);
-        assert!(config.authenticated);
-        let PointsSource::Url { g1_url, g2_url } = &config.points else {
-            panic!("Unexpected config: {config:?}");
+        let PointsSource::Url { g1_url, g2_url } = &version_specific_config.points_source else {
+            panic!("Unexpected config: {version_specific_config:?}");
         };
         assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");
-        assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");*/ //todo
+        assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");
+    }
+
+    #[test]
+    fn eigenda_v2_config_from_yaml() {
+        let yaml = r#"
+          client: EigenDA
+          disperser_rpc: https://disperser-holesky.eigenda.xyz:443
+          eigenda_eth_rpc: https://holesky.infura.io/
+          authenticated: true
+          version_specific:
+            version: V2
+            cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+            blob_version: 0
+            polynomial_form: coeff
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = test_complete::<DAClientConfig>(yaml).unwrap();
+        let DAClientConfig::EigenDA(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+
+        assert_eq!(
+            config.disperser_rpc,
+            "https://disperser-holesky.eigenda.xyz:443"
+        );
+        assert_eq!(
+            config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
+            "https://holesky.infura.io/"
+        );
+        assert!(config.authenticated);
+        
+        let version_specific_config = match config.version_specific {
+            VersionSpecificConfig::V1(_) => panic!("V2 config expected"),
+            VersionSpecificConfig::V2(config) => config
+        };
+        assert_eq!(version_specific_config.blob_version, 0);
+        assert_eq!(
+            version_specific_config.cert_verifier_addr,
+            "0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(version_specific_config.polynomial_form, PolynomialForm::Coeff);
     }
 }

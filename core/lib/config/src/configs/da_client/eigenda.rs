@@ -73,6 +73,7 @@ pub struct V1Config {
     #[config(nest)]
     pub points_source: PointsSource,
     /// Custom quorum numbers
+    #[config(default, with = Delimited(","))]
     pub custom_quorum_numbers: Vec<u8>,
 }
 
