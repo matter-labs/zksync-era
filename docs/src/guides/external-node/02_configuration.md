@@ -68,6 +68,31 @@ There are 7 total supported API namespaces: `eth`, `net`, `web3`, `debug` - stan
 enable using `EN_API_NAMESPACES` and specifying namespace names in a comma-separated list. By default, all but the
 `debug` namespace are enabled.
 
+## Optimizing RAM consumption
+
+With the default config options, a node may consume large amounts of RAM (order of 32–64 GB for larger networks). This
+consumption can be reduced with a moderate performance tradeoff as follows.
+
+For large networks in terms of the state (both the current state size and history), the main component consuming RAM is
+the Merkle tree (specifically, its RocksDB). Thus, enabling [pruning](08_pruning.md) and/or using
+[snapshot recovery](07_snapshots_recovery.md) is an effective way to reduce RAM consumption. For example, an Era mainnet
+node with [a 6-month pruning target](08_pruning.md#configuration) should consume about 10 GB RAM (vs ~60 GB for an
+archive node).
+
+For archive nodes, RAM consumption by the Merkle tree may be reduced by setting the following 2 options:
+
+```shell
+# Disables pinning indices and filters for the Merkle tree in RAM, which can occupy a large amount of it;
+# e.g., they are ~30 GB on the Era mainnet for an archive node as of May 2025.
+EN_MERKLE_TREE_INCLUDE_INDICES_AND_FILTERS_IN_BLOCK_CACHE=true
+# **MUST** be used together with the previous option to set the RocksDB cache size. 4–8 GB provides a reasonable performance tradeoff
+# on the Era mainnet as of May 2025. On smaller networks, acceptable values may be smaller.
+EN_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=4096
+```
+
+These options can be used together with pruning / snapshot recovery as well, but their _additional_ impact on RAM
+consumption is expected to be fairly small.
+
 ## Logging and observability
 
 - `MISC_LOG_FORMAT` defines the format in which logs are shown: `plain` corresponds to the human-readable format, while
