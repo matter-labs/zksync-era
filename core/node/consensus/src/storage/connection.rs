@@ -226,7 +226,7 @@ impl<'a> Connection<'a> {
                 }),
                 first_block: txn.next_block(ctx).await.context("next_block()")?,
                 protocol_version: spec.protocol_version,
-                validators_schedule: spec.validators_schedule.clone(),
+                validators_schedule: spec.validators.clone(),
             }
             .with_hash(),
             registry_address: spec.registry_address,

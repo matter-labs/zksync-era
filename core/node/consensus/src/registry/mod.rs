@@ -28,16 +28,17 @@ fn decode_validator_pop(
     ByteFmt::decode(&bytes).context("decode proof of possession")
 }
 
-fn decode_weighted_validator(v: &abi::Validator) -> anyhow::Result<validator::WeightedValidator> {
+fn decode_weighted_validator(v: &abi::Validator) -> anyhow::Result<validator::ValidatorInfo> {
     let key = decode_validator_key(&v.pub_key).context("key")?;
 
     let pop = decode_validator_pop(&v.proof_of_possession).context("proof of possession")?;
 
     pop.verify(&key).context("verify proof of possession")?;
 
-    Ok(validator::WeightedValidator {
+    Ok(validator::ValidatorInfo {
         weight: v.weight.into(),
         key,
+        leader: v.leader,
     })
 }
 

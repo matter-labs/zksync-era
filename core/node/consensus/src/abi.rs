@@ -100,6 +100,13 @@ pub(crate) fn into_uint<I: TryFrom<ethabi::Uint>>(t: Token) -> anyhow::Result<I>
     }
 }
 
+pub(crate) fn into_bool(t: Token) -> anyhow::Result<bool> {
+    match t {
+        Token::Bool(b) => Ok(b),
+        bad => anyhow::bail!("want bool, got {bad:?}"),
+    }
+}
+
 #[cfg(test)]
 fn example(t: &ethabi::ParamType) -> Token {
     use ethabi::ParamType as T;

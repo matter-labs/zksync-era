@@ -147,10 +147,15 @@ impl ConnectionPool {
         for block in &blocks {
             match block {
                 validator::Block::FinalV1(block) => {
-                    block.verify(&cfg.genesis).context(block.number())?;
+                    block
+                        .verify(
+                            cfg.genesis.hash(),
+                            &cfg.genesis.validators_schedule.unwrap(),
+                        )
+                        .context(block.number())?;
                 }
                 validator::Block::FinalV2(block) => {
-                    block.verify(&cfg.genesis).context(block.number())?;
+                    block.verify(cfg.genesis.hash()).context(block.number())?;
                 }
                 validator::Block::PreGenesis(_) => {}
             }

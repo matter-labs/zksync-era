@@ -208,16 +208,18 @@ pub(crate) struct Validator {
     pub(crate) weight: u32,
     pub(crate) pub_key: BLS12_381PublicKey,
     pub(crate) proof_of_possession: BLS12_381Signature,
+    pub(crate) leader: bool,
 }
 
 impl Validator {
     fn from_token(token: Token) -> anyhow::Result<Self> {
-        let [weight, pub_key, proof_of_possession] = abi::into_tuple(token)?;
+        let [weight, pub_key, proof_of_possession, leader] = abi::into_tuple(token)?;
         Ok(Self {
             weight: abi::into_uint(weight).context("weight")?,
             pub_key: BLS12_381PublicKey::from_token(pub_key).context("pub_key")?,
             proof_of_possession: BLS12_381Signature::from_token(proof_of_possession)
                 .context("proof_of_possession")?,
+            leader: abi::into_bool(leader).context("leader")?,
         })
     }
 }

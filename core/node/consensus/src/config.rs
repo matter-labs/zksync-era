@@ -57,21 +57,34 @@ impl GenesisSpec {
             .iter()
             .enumerate()
             .map(|(i, (key, weight))| {
-                Ok(validator::WeightedValidator {
+                Ok(validator::ValidatorInfo {
                     key: Text::new(&key.0).decode().context("key").context(i)?,
                     weight: *weight,
+                    leader: key == &x.leader,
                 })
             })
             .collect::<anyhow::Result<_>>()
             .context("validators")?;
 
+        let schedule = if validators.is_empty() {
+            None
+        } else {
+            Some(
+                validator::Schedule::new(
+                    validators,
+                    validator::LeaderSelection {
+                        frequency: 1,
+                        mode: validator::LeaderSelectionMode::RoundRobin,
+                    },
+                )
+                .context("schedule")?,
+            )
+        };
+
         Ok(Self {
             chain_id: validator::ChainId(x.chain_id.as_u64()),
             protocol_version: validator::ProtocolVersion(x.protocol_version.0),
-            leader_selection: validator::v1::LeaderSelectionMode::Sticky(
-                Text::new(&x.leader.0).decode().context("leader")?,
-            ),
-            validators: validator::Committee::new(validators).context("validators")?,
+            validators: schedule,
             registry_address: x.registry_address,
             seed_peers: x
                 .seed_peers
@@ -125,11 +138,9 @@ pub(super) fn executor(
     let mut rpc = executor::RpcConfig::default();
     rpc.get_block_rate = cfg.rpc().get_block_rate();
 
-    let debug_page = cfg.debug_page_addr.map(|addr| network::debug_page::Config {
-        addr,
-        credentials: None,
-        tls: None,
-    });
+    let debug_page = cfg
+        .debug_page_addr
+        .map(|addr| network::debug_page::Config { addr });
 
     Ok(executor::Config {
         build_version,
@@ -140,6 +151,7 @@ pub(super) fn executor(
         node_key: node_key(secrets)
             .context("node_key")?
             .context("missing node_key")?,
+        validator_key: validator_key(secrets).context("validator_key")?,
         gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip_static_inbound
