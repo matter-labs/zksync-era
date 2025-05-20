@@ -37,6 +37,10 @@ abigen!(
 abigen!(
     ValidatorTimelockAbi,
     r"[
-    function validators(uint256 _chainId, address _validator)(bool)
-]"
+    function hasRole(uint256 _chainId, bytes32 _role, address _account)(bool)
+    function PRECOMMITTER_ROLE()(bytes32)
+    function COMMITTER_ROLE()(bytes32)
+    function PROVER_ROLE()(bytes32)
+    function EXECUTOR_ROLE()(bytes32)
+    ]"
 );

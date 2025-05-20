@@ -1,17 +1,18 @@
 // src/commands/chain/migrate_to_gateway_calldata.rs
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
     abi::{encode, Token},
+    prelude::Http,
     providers::{Middleware, Provider},
 };
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
-use zksync_basic_types::{Address, H256, U256};
+use zksync_basic_types::{web3::keccak256, Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
@@ -195,27 +196,27 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     // 4. If validators are not yet present, please include.
     for validator in [params.validator_1, params.validator_2] {
-        if !gw_validator_timelock
-            .validators(params.l2_chain_id.into(), validator)
-            .await?
-        {
-            let enable_validator_calls = enable_validator_via_gateway(
-                shell,
-                forge_args,
-                foundry_contracts_path,
-                crate::admin_functions::AdminScriptMode::OnlySave,
-                params.l1_bridgehub_addr,
-                params.max_l1_gas_price.into(),
-                params.l2_chain_id,
-                params.gateway_chain_id,
-                validator,
-                gw_validator_timelock_addr,
-                refund_recipient,
-                params.l1_rpc_url.clone(),
-            )
-            .await?;
-            result.extend(enable_validator_calls.calls);
-        }
+        // if !gw_validator_timelock
+        //     .validators(params.l2_chain_id.into(), validator)
+        //     .await?
+        // {
+        //     let enable_validator_calls = enable_validator_via_gateway(
+        //         shell,
+        //         forge_args,
+        //         foundry_contracts_path,
+        //         crate::admin_functions::AdminScriptMode::OnlySave,
+        //         params.l1_bridgehub_addr,
+        //         params.max_l1_gas_price.into(),
+        //         params.l2_chain_id,
+        //         params.gateway_chain_id,
+        //         validator,
+        //         gw_validator_timelock_addr,
+        //         refund_recipient,
+        //         params.l1_rpc_url.clone(),
+        //     )
+        //     .await?;
+        //     result.extend(enable_validator_calls.calls);
+        // }
 
         let current_validator_balance = gw_provider.get_balance(validator, None).await?;
         logger::info(format!(
