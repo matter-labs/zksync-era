@@ -74,7 +74,7 @@ zkstack server --ignore-prerequisites --chain era &> ./era.log &
 zkstack server --ignore-prerequisites --chain validium &> ./validium.log & 
 
 
-# bing testing
+# Runs interop integration test between era-validium in parallel
 mkdir -p zlogs
 ./bin/run_on_all_chains.sh "zkstack dev test integration -t 'L1 ERC20' --verbose" \
             "era,validium" zlogs/ \
