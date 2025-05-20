@@ -55,6 +55,7 @@ export const allHandlers = [
     forbiddenMethod('eth_accounts'),
     forbiddenMethod('eth_getStorageAt'),
     forbiddenMethod('eth_getTransactionByBlockHashAndIndex'),
+    forbiddenMethod('eth_getTransactionByBlockNumberAndIndex'),
     forbiddenMethod('eth_newFilter'),
     forbiddenMethod('eth_newPendingTransactionFilter'),
     forbiddenMethod('zks_getProof'),
