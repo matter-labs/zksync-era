@@ -39,7 +39,7 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     pub client: SettlementLayerClient,
     pub settlement_mode: SettlementModeResource,
-    pub dependency_chain_clients: Option<SettlementLayerClientResource>, //
+    pub dependency_chain_clients: Option<SettlementLayerClient>, //
 }
 
 #[derive(Debug, IntoContext)]
