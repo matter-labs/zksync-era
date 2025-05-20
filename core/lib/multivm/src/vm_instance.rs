@@ -249,7 +249,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    vm_latest::MultiVmSubversion::EvmEmulator,
+                    vm_latest::MultiVmSubversion::Interop,
                 );
                 Self::Vm1_5_2(vm)
             }

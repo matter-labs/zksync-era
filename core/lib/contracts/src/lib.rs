@@ -609,7 +609,7 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
-    pub fn playground_full_interop() -> Self {
+    pub fn playground_medium_interop() -> Self {
         let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
         // kl todo once contracts are stabilized move to etc/multivm
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
@@ -711,7 +711,7 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
-    pub fn estimate_gas_full_interop() -> Self {
+    pub fn estimate_gas_medium_interop() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
