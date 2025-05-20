@@ -82,7 +82,6 @@ da_client:
   private_key: <your_private_key>
 ```
 
-- Be sure that your private key has the needed
-  permissions set on the V2 client.
+- Be sure that your private key has the needed permissions set on the V2 client.
 
 - Remember to run `zkstackup --local` before running the new server after this changes
