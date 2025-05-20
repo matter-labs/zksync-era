@@ -1,51 +1,57 @@
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use smart_config::{
+    de::{FromSecretString, Optional},
+    metadata::TimeUnit,
+    DescribeConfig, DeserializeConfig,
+};
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
-pub const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
-pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
-pub const DEFAULT_DISPATCH_TIMEOUT_MS: u64 = 180_000; // 3 minutes
+// TODO: remove `#[derive(Deserialize)]` once env-based config in EN is reworked
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "avail_client")]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(tag = "avail_client_type")]
 pub enum AvailClientConfig {
     FullClient(AvailDefaultConfig),
     GasRelay(AvailGasRelayConfig),
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct AvailConfig {
     pub bridge_api_url: String,
-    pub timeout_ms: usize,
-    #[serde(flatten)]
+    #[config(default_t = Duration::from_secs(30))]
+    pub timeout: Duration,
+    #[config(flatten)]
     pub config: AvailClientConfig,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
-    pub dispatch_timeout_ms: Option<u64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct AvailGasRelayConfig {
-    pub gas_relay_api_url: String,
-    pub max_retries: usize,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct AvailSecrets {
-    pub seed_phrase: Option<SeedPhrase>,
-    pub gas_relay_api_key: Option<APIKey>,
+    #[config(default_t = 3 * TimeUnit::Minutes)]
+    #[serde(default = "AvailDefaultConfig::default_dispatch_timeout")]
+    pub dispatch_timeout: Duration,
 }
 
 impl AvailDefaultConfig {
-    pub fn dispatch_timeout(&self) -> Duration {
-        Duration::from_millis(
-            self.dispatch_timeout_ms
-                .unwrap_or(DEFAULT_DISPATCH_TIMEOUT_MS),
-        )
+    const fn default_dispatch_timeout() -> Duration {
+        Duration::from_secs(180)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
+pub struct AvailGasRelayConfig {
+    pub gas_relay_api_url: String,
+    #[config(default_t = 5)]
+    pub max_retries: usize,
+}
+
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
+pub struct AvailSecrets {
+    #[config(with = Optional(FromSecretString))]
+    pub seed_phrase: Option<SeedPhrase>,
+    #[config(with = Optional(FromSecretString))]
+    pub gas_relay_api_key: Option<APIKey>,
 }

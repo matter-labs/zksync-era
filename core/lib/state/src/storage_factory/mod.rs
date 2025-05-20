@@ -382,8 +382,7 @@ mod tests {
         drop(conn);
 
         let temp_dir = TempDir::new().unwrap();
-        let (task, rocksdb_cell) =
-            AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_str().unwrap().to_owned());
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_owned());
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let task_handle = tokio::spawn(task.run(stop_receiver));
         task_handle.await.unwrap().unwrap();

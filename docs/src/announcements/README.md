@@ -4,3 +4,5 @@ This directory will contain announcements that don't necessarily serve as docume
 information to be stored long-term.
 
 Current announcements:
+
+- Apr 30, 2025 - [Changes in the configuration format](./config_format_changes.md)

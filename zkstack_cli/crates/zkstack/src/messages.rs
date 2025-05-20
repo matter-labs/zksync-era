@@ -613,7 +613,6 @@ pub(super) const MSG_AVAIL_CLIENT_TYPE_PROMPT: &str = "Avail client type";
 pub(super) const MSG_AVAIL_API_TIMEOUT_MS: &str = "Avail API timeout in milliseconds";
 pub(super) const MSG_AVAIL_API_NODE_URL_PROMPT: &str = "Avail API node URL";
 pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
-pub(super) const MSG_AVAIL_FINALITY_STATE_PROMPT: &str = "Avail finality state";
 pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
 pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
 pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";

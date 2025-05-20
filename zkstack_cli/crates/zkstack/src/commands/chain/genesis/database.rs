@@ -79,6 +79,7 @@ pub async fn update_configs(
     args: GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
+    override_validium_config: bool,
 ) -> anyhow::Result<()> {
     shell.create_dir(&config.rocks_db_path)?;
 
@@ -104,7 +105,9 @@ pub async fn update_configs(
             config,
         )?;
     }
-    if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
+    if override_validium_config
+        && config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium
+    {
         override_config(
             shell,
             link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),

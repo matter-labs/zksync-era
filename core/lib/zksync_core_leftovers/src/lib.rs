@@ -3,7 +3,6 @@
 use std::str::FromStr;
 
 use tokio::sync::oneshot;
-pub mod temp_config_store;
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
 /// is received.
