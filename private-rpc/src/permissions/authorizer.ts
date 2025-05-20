@@ -1,6 +1,5 @@
 import { Address, Hex } from 'viem';
 import { AccessDeniedRule, AccessRule } from '@/permissions/access-rules';
-import YAML from 'yaml';
 import { YamlParser } from '@/permissions/yaml-parser';
 import { extractSelector } from '@/rpc/methods';
 import { ResponseFilter } from '@/permissions/filter-response';

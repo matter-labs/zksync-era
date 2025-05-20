@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Group } from '@/permissions/group';
 import { Authorizer } from '@/permissions/authorizer';
 import { addressSchema } from '@/schemas/address';
-import { toHex, Abi, AbiFunction, Address, Hex, parseAbi, toFunctionSelector } from 'viem';
+import { Abi, AbiFunction, Address, Hex, parseAbi, toFunctionSelector } from 'viem';
 import {
     AccessDeniedRule,
     AccessRule,
