@@ -49,6 +49,7 @@ use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
     utils::AccountTypesCache,
+    web3::backend_jsonrpsee::ServerTimeoutMiddleware,
 };
 
 pub mod backend_jsonrpsee;
@@ -688,6 +689,8 @@ impl ApiServer {
         let traffic_tracker = TrafficTracker::default();
         let traffic_tracker_for_middleware = traffic_tracker.clone();
 
+        let server_request_timeout = Some(Duration::from_secs(5)); // FIXME: make configurable
+
         // **Important.** The ordering of layers matters! Layers added first will receive the request earlier
         // (i.e., are outermost in the call chain).
         let rpc_middleware = RpcServiceBuilder::new()
@@ -699,6 +702,9 @@ impl ApiServer {
                 extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
             )
             .layer(metadata_layer)
+            .option_layer(server_request_timeout.map(|timeout| {
+                tower::layer::layer_fn(move |svc| ServerTimeoutMiddleware::new(svc, timeout))
+            }))
             // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
