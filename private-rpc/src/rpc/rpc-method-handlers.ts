@@ -31,8 +31,8 @@ export const allHandlers = [
     forbiddenMethod('en_getProtocolVersionInfo'),
 
     // Filter out snapshot_* methods
-    forbiddenMethod('snapshot_getAllSnapshots'),
-    forbiddenMethod('snapshot_getSnapshot'),
+    forbiddenMethod('snapshots_getAllSnapshots'),
+    forbiddenMethod('snapshots_getSnapshot'),
 
     // Filter out unstable_* methods
     forbiddenMethod('unstable_getTransactionExecutionInfo'),
