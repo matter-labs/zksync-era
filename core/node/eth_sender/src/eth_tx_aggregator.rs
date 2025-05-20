@@ -14,7 +14,7 @@ use zksync_l1_contract_interface::{
     multicall3::{Multicall3Call, Multicall3Result},
     Tokenizable, Tokenize,
 };
-use zksync_shared_metrics::BlockL1Stage;
+use zksync_shared_metrics::L1Stage;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     commitment::{L1BatchWithMetadata, SerializeCommitment},
@@ -747,16 +747,21 @@ impl EthTxAggregator {
                 METRICS.block_range_size[&aggregated_op.get_action_type().into()]
                     .observe(range_size.into());
                 METRICS
-                    .track_eth_tx_metrics(storage, BlockL1Stage::Saved, tx)
+                    .track_eth_tx_metrics(storage, L1Stage::Saved, tx)
                     .await;
             }
             AggregatedOperation::L2Block(op) => {
+                let l2_block_number_range = op.l2_blocks_range();
                 tracing::info!(
-                    "eth_tx with ID {} for op {} was saved for L2 block {:?}",
+                    "eth_tx with ID {} for op {} was saved for L2 block {l2_block_number_range:?}",
                     tx.id,
                     op.get_action_caption(),
-                    op.l2_blocks_range()
                 );
+
+                let range_size =
+                    l2_block_number_range.end().0 - l2_block_number_range.start().0 + 1;
+                METRICS.l2_blocks_range_size[&op.get_action_type().into()]
+                    .observe(range_size.into());
             }
         }
     }

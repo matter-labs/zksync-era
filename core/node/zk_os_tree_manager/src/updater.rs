@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use zksync_dal::{helpers::wait_for_l1_batch, Connection, ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::tree::{update_tree_metrics, TreeUpdateStage, METRICS};
 use zksync_types::{
-    block::{L1BatchStatistics, L1BatchTreeData},
+    block::{CommnonBlockStatistics, L1BatchTreeData},
     L1BatchNumber,
 };
 
@@ -27,7 +27,7 @@ impl TreeUpdater {
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
-    ) -> anyhow::Result<(L1BatchStatistics, L1BatchTreeData)> {
+    ) -> anyhow::Result<(CommnonBlockStatistics, L1BatchTreeData)> {
         let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
         let batch_stats = l1_batch.stats;
         let metadata = self.tree.process_l1_batch(l1_batch).await?;

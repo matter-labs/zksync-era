@@ -16,7 +16,7 @@ use zksync_db_connection::{
 use zksync_types::{
     aggregated_operations::{L1BatchAggregatedActionType, L2BlockAggregatedActionType},
     block::{
-        CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
+        CommnonBlockStatistics, CommonL1BatchHeader, L1BatchHeader, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
@@ -352,10 +352,42 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    pub async fn get_l2_blocks_statistics_for_eth_tx_id(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> DalResult<Vec<CommnonBlockStatistics>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp
+            FROM
+                miniblocks
+            WHERE
+                eth_precommit_tx_id = $1
+            "#,
+            eth_tx_id as i32
+        )
+        .instrument("get_l1_batch_statistics_for_eth_tx_id")
+        .with_arg("eth_tx_id", &eth_tx_id)
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|row| CommnonBlockStatistics {
+            number: row.number as u32,
+            timestamp: row.timestamp as u64,
+            l2_tx_count: row.l2_tx_count as u32,
+            l1_tx_count: row.l1_tx_count as u32,
+        })
+        .collect())
+    }
+
     pub async fn get_l1_batches_statistics_for_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
-    ) -> DalResult<Vec<L1BatchStatistics>> {
+    ) -> DalResult<Vec<CommnonBlockStatistics>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -377,8 +409,8 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| L1BatchStatistics {
-            number: L1BatchNumber(row.number as u32),
+        .map(|row| CommnonBlockStatistics {
+            number: row.number as u32,
             timestamp: row.timestamp as u64,
             l2_tx_count: row.l2_tx_count as u32,
             l1_tx_count: row.l1_tx_count as u32,

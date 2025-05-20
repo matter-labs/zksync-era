@@ -5,7 +5,7 @@ use zk_os_merkle_tree::TreeEntry;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::tree::{LoadChangesStage, TreeUpdateStage, METRICS};
 use zksync_types::{
-    block::{L1BatchStatistics, L1BatchTreeData},
+    block::{CommnonBlockStatistics, L1BatchTreeData},
     writes::TreeWrite,
     AccountTreeId, L1BatchNumber, StorageKey,
 };
@@ -14,7 +14,7 @@ use crate::helpers::AsyncMerkleTree;
 
 #[derive(Debug)]
 pub(crate) struct L1BatchWithLogs {
-    pub(crate) stats: L1BatchStatistics,
+    pub(crate) stats: CommnonBlockStatistics,
     /// Updated / inserted tree entries. Insertions must be sorted to align with index assignment.
     pub(crate) tree_logs: Vec<(u64, TreeEntry)>,
 }

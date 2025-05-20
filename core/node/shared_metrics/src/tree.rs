@@ -6,7 +6,7 @@ use vise::{
     Buckets, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Info,
     LatencyObserver, Metrics, Unit,
 };
-use zksync_types::block::L1BatchStatistics;
+use zksync_types::block::CommnonBlockStatistics;
 
 use crate::{BlockStage, APP_METRICS};
 
@@ -155,7 +155,11 @@ impl MetadataCalculatorMetrics {
 #[vise::register]
 pub static METRICS: vise::Global<MetadataCalculatorMetrics> = vise::Global::new();
 
-pub fn update_tree_metrics(batch_stats: &[L1BatchStatistics], total_logs: usize, start: Instant) {
+pub fn update_tree_metrics(
+    batch_stats: &[CommnonBlockStatistics],
+    total_logs: usize,
+    start: Instant,
+) {
     let (Some(first_header), Some(last_header)) = (batch_stats.first(), batch_stats.last()) else {
         return;
     };
@@ -181,8 +185,8 @@ pub fn update_tree_metrics(batch_stats: &[L1BatchStatistics], total_logs: usize,
     METRICS.log_batch.observe(total_logs);
     METRICS.blocks_batch.observe(batch_stats.len());
 
-    let first_batch_number = first_header.number.0;
-    let last_batch_number = last_header.number.0;
+    let first_batch_number = first_header.number;
+    let last_batch_number = last_header.number;
     tracing::info!(
         "L1 batches #{:?} processed in tree",
         first_batch_number..=last_batch_number

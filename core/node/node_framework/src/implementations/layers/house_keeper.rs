@@ -1,7 +1,5 @@
 use zksync_config::configs::house_keeper::HouseKeeperConfig;
-use zksync_house_keeper::{
-    blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob,
-};
+use zksync_house_keeper::{blocks_state_reporter::BlockMetricsReporter, periodic_job::PeriodicJob};
 
 use crate::{
     implementations::resources::pools::{PoolResource, ReplicaPool},
@@ -28,7 +26,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub l1_batch_metrics_reporter: L1BatchMetricsReporter,
+    pub l1_batch_metrics_reporter: BlockMetricsReporter,
 }
 
 impl HouseKeeperLayer {
@@ -53,7 +51,7 @@ impl WiringLayer for HouseKeeperLayer {
         let replica_pool = input.replica_pool.get().await?;
 
         // Initialize and add tasks
-        let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
+        let l1_batch_metrics_reporter = BlockMetricsReporter::new(
             self.house_keeper_config
                 .l1_batch_metrics_reporting_interval_ms,
             replica_pool,
@@ -66,7 +64,7 @@ impl WiringLayer for HouseKeeperLayer {
 }
 
 #[async_trait::async_trait]
-impl Task for L1BatchMetricsReporter {
+impl Task for BlockMetricsReporter {
     fn id(&self) -> TaskId {
         "l1_batch_metrics_reporter".into()
     }
