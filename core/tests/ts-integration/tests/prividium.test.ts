@@ -12,6 +12,7 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 import { Token } from '../src/types';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
+import {logsTestPath} from "utils/build/logs";
 
 const chainName = shouldLoadConfigFromFile().chain;
 
@@ -49,6 +50,10 @@ describe('Tests for the private rpc', () => {
         }
     }
 
+    async function logsPath(name: string): Promise<string> {
+        return await logsTestPath(chainName, 'logs/prividium/', name);
+    }
+
     async function waitForHealth(baseUrl: string, timeoutMs = 15_000, intervalMs = 250): Promise<void> {
         const deadline = Date.now() + timeoutMs;
         const url = `${baseUrl}/health`;
@@ -67,8 +72,8 @@ describe('Tests for the private rpc', () => {
         const initCommand = `zkstack private-rpc init --verbose --dev`;
         const runCommand = `zkstack private-rpc run`;
 
-        await executeCommandWithLogs(initCommand, 'private-rpc-init.log');
-        executeCommandWithLogs(runCommand, 'private-rpc-run.log');
+        await executeCommandWithLogs(initCommand, await logsPath('private-rpc-init.log'));
+        executeCommandWithLogs(runCommand, await logsPath('private-rpc-run.log'));
 
         await waitForHealth(rpcUrl());
         testMaster = TestMaster.getInstance(__filename);
@@ -103,7 +108,7 @@ describe('Tests for the private rpc', () => {
 
     test('User can read his own balance and unable to read others', async () => {
         const testAddress = '0x4f9133d1d3f50011a6859807c837bdcb31aaab13';
-        const otherTestAddress = '0xaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbccccccccc';
+        const otherTestAddress = '0xaaaaaaaaaaaaabbbb/bbbbbbbbbbbbbbccccccccc';
         const provider = await testMaster.privateRpcProvider(rpcUrl(), testAddress);
         const balance = await provider.getBalance(testAddress);
 
