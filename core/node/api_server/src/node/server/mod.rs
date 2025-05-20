@@ -43,6 +43,7 @@ pub struct Web3ServerOptionalConfig {
     pub batch_request_size_limit: Option<usize>,
     pub response_body_size_limit: Option<MaxResponseSize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    pub request_timeout: Option<Duration>,
     pub with_extended_tracing: bool,
     // Used by circuit breaker.
     pub replication_lag_limit: Option<Duration>,
@@ -73,6 +74,9 @@ impl Web3ServerOptionalConfig {
         {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+        }
+        if let Some(request_timeout) = self.request_timeout {
+            api_builder = api_builder.with_request_timeout(request_timeout);
         }
         if let Some(polling_interval) = self.polling_interval {
             api_builder = api_builder.with_polling_interval(polling_interval);

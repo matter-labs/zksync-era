@@ -217,6 +217,9 @@ pub struct Web3JsonRpcConfig {
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
     #[config(default_t = NonZeroU32::new(6_000).unwrap())]
     pub websocket_requests_per_minute_limit: NonZeroU32,
+    /// Server-side request timeout. A request will be dropped with a 503 error code if its execution exceeds this limit.
+    /// If not specified, no server-side request timeout is enforced.
+    pub request_timeout: Option<Duration>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
@@ -369,6 +372,7 @@ mod tests {
                 .into_iter()
                 .collect(),
                 websocket_requests_per_minute_limit: NonZeroU32::new(10).unwrap(),
+                request_timeout: Some(Duration::from_secs(20)),
                 tree_api_url: Some("http://tree/".into()),
                 mempool_cache_update_interval: Duration::from_millis(50),
                 mempool_cache_size: 10000,
@@ -411,6 +415,7 @@ mod tests {
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
             API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
             API_WEB3_JSON_RPC_VM_CONCURRENCY_LIMIT=512
+            API_WEB3_JSON_RPC_REQUEST_TIMEOUT="20 sec"
             API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128
             API_WEB3_JSON_RPC_INITIAL_WRITES_CACHE_SIZE_MB=32
             API_WEB3_JSON_RPC_LATEST_VALUES_CACHE_SIZE_MB=256
@@ -482,6 +487,7 @@ mod tests {
             - "0x0000000000000000000000000000000000000002"
             extended_api_tracing: true
             estimate_gas_optimize_search: true
+            request_timeout_sec: 20
             tree_api_url: "http://tree/"
           prometheus:
             listener_port: 3312

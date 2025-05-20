@@ -135,6 +135,7 @@ struct OptionalApiParams {
     batch_request_size_limit: Option<usize>,
     response_body_size_limit: Option<MaxResponseSize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    request_timeout: Option<Duration>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
@@ -244,6 +245,11 @@ impl ApiBuilder {
     ) -> Self {
         self.optional.websocket_requests_per_minute_limit =
             Some(websocket_requests_per_minute_limit);
+        self
+    }
+
+    pub fn with_request_timeout(mut self, timeout: Duration) -> Self {
+        self.optional.request_timeout = Some(timeout);
         self
     }
 
@@ -635,6 +641,7 @@ impl ApiServer {
             };
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
+        let server_request_timeout = self.optional.request_timeout;
         let vm_barrier = self.optional.vm_barrier.clone();
         let health_updater = self.health_updater.clone();
         let method_tracer = self.method_tracer.clone();
@@ -688,8 +695,6 @@ impl ApiServer {
         };
         let traffic_tracker = TrafficTracker::default();
         let traffic_tracker_for_middleware = traffic_tracker.clone();
-
-        let server_request_timeout = Some(Duration::from_secs(5)); // FIXME: make configurable
 
         // **Important.** The ordering of layers matters! Layers added first will receive the request earlier
         // (i.e., are outermost in the call chain).

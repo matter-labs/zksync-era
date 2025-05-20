@@ -457,6 +457,7 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
@@ -502,6 +503,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit,
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit_sec,
+            request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
