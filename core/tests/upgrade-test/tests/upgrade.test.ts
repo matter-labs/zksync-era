@@ -258,7 +258,8 @@ describe('Upgrade test', function () {
             // Different versions of foundry have different versions of the artifacts' paths
             [
                 'contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json',
-                'contracts/system-contracts/zkout/playground_batch.yul/playground_batch.json'
+                'contracts/system-contracts/zkout/playground_batch.yul/playground_batch.json',
+                'contracts/system-contracts/zkout/playground_batch.yul/Bootloader.json'
             ],
             'contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin'
         );
@@ -487,7 +488,7 @@ describe('Upgrade test', function () {
                 [],
                 l1AdminGovWallet.provider!,
                 // It does not matter who is the refund recipient in this test
-                gatewayInfo.l2ChainAdmin
+                call.target
             );
         }
 
@@ -574,7 +575,8 @@ function readCode(newPaths: string[], legacyPath?: string): string {
         if (path.endsWith('.zbin')) {
             return ethers.hexlify(readFileSync(path));
         } else {
-            return require(path).bytecode;
+            const legacyContent = require(path);
+            return '0x'.concat(legacyContent.bytecode?.object || legacyContent.bytecode);
         }
     } else {
         throw new Error(`Cannot read contract at ${newPaths.join(',')}`);
@@ -822,7 +824,7 @@ async function prepareGovernanceCalldata(
             factoryDeps,
             l1Provider,
             // It does not matter who is the refund recipient in this test
-            gatewayInfo.l2ChainAdmin
+            to
         );
     } else {
         call = {

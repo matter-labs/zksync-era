@@ -76,7 +76,7 @@ impl ReadStorage for StorageSnapshot {
         let entry = self.storage.get(&key.hashed_key()).unwrap_or_else(|| {
             panic!("attempted to check initialness for unknown storage slot: {key:?}")
         });
-        entry.map_or(true, |(_, idx)| idx == 0)
+        entry.is_none_or(|(_, idx)| idx == 0)
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {

@@ -164,8 +164,12 @@ impl ZksNamespace {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
-    pub async fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
-        self.state.bridge_addresses_handle.read().await
+    pub async fn get_bridge_contracts_impl(&self) -> Result<BridgeAddresses, Web3Error> {
+        self.state
+            .bridge_addresses_handle
+            .read()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("bridge addresses are not initialized").into())
     }
 
     pub fn get_timestamp_asserter_impl(&self) -> Option<Address> {
@@ -595,6 +599,8 @@ impl ZksNamespace {
             .get_fee_model_params()
     }
 
+    #[deprecated]
+    #[allow(deprecated)]
     pub async fn get_protocol_version_impl(
         &self,
         version_id: Option<u16>,

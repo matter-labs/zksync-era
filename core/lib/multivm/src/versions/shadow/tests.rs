@@ -583,6 +583,31 @@ mod precompiles {
     fn ecrecover() {
         test_ecrecover::<super::ShadowedFastVm>();
     }
+
+    #[test]
+    fn ecadd() {
+        test_ecadd::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecmul() {
+        test_ecmul::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn ecpairing() {
+        test_ecpairing::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn modexp() {
+        test_modexp::<super::ShadowedFastVm>();
+    }
+
+    #[test]
+    fn v28_precompiles_disabled() {
+        test_v28_precompiles_disabled::<super::ShadowedFastVm>();
+    }
 }
 
 mod refunds {

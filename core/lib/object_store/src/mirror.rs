@@ -1,5 +1,7 @@
 //! Mirroring object store.
 
+use std::path::PathBuf;
+
 use async_trait::async_trait;
 
 use crate::{file::FileBackedObjectStore, raw::ObjectStore, Bucket, ObjectStoreError};
@@ -11,8 +13,11 @@ pub(crate) struct MirroringObjectStore<S> {
 }
 
 impl<S: ObjectStore> MirroringObjectStore<S> {
-    pub async fn new(inner: S, mirror_path: String) -> Result<Self, ObjectStoreError> {
-        tracing::info!("Initializing mirroring for store {inner:?} at `{mirror_path}`");
+    pub async fn new(inner: S, mirror_path: PathBuf) -> Result<Self, ObjectStoreError> {
+        tracing::info!(
+            "Initializing mirroring for store {inner:?} at `{}`",
+            mirror_path.display()
+        );
         let mirror_store = FileBackedObjectStore::new(mirror_path).await?;
         Ok(Self {
             inner,
@@ -101,7 +106,7 @@ mod tests {
     #[tokio::test]
     async fn mirroring_basics() {
         let dir = TempDir::new().unwrap();
-        let path = dir.into_path().into_os_string().into_string().unwrap();
+        let path = dir.path().to_owned();
 
         let mock_store = MockObjectStore::default();
         mock_store

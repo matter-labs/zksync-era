@@ -29,6 +29,8 @@ mod gcs;
 mod metrics;
 mod mirror;
 mod mock;
+#[cfg(feature = "node_framework")]
+pub mod node;
 mod objects;
 mod raw;
 mod retries;

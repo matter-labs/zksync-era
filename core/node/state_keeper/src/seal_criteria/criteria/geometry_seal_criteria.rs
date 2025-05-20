@@ -26,25 +26,30 @@ impl SealCriterion for CircuitsCriterion {
     ) -> SealResolution {
         let max_allowed_base_layer_circuits =
             get_max_batch_base_layer_circuits(protocol_version.into());
-        assert!(
-            config.max_circuits_per_batch <= max_allowed_base_layer_circuits,
-            "Configured max_circuits_per_batch ({}) must be lower than the constant MAX_BASE_LAYER_CIRCUITS={} for protocol version {}",
-            config.max_circuits_per_batch, max_allowed_base_layer_circuits, protocol_version as u16
-        );
+        if config.max_circuits_per_batch > max_allowed_base_layer_circuits {
+            tracing::warn!(
+                "Configured max_circuits_per_batch ({}) is greater than the constant MAX_BASE_LAYER_CIRCUITS={} for protocol version {}. \
+                 Configured value has no effect, MAX_BASE_LAYER_CIRCUITS is used as a limit for seal criteria. Consider updating configured value.",
+                config.max_circuits_per_batch, max_allowed_base_layer_circuits, protocol_version as u16
+            );
+        }
+
+        let effective_max_circuits_per_batch =
+            max_allowed_base_layer_circuits.min(config.max_circuits_per_batch);
 
         let batch_tip_circuit_overhead =
             circuit_statistics_bootloader_batch_tip_overhead(protocol_version.into());
 
         // Double checking that it is possible to seal batches
         assert!(
-            batch_tip_circuit_overhead < config.max_circuits_per_batch,
+            batch_tip_circuit_overhead < effective_max_circuits_per_batch,
             "Invalid circuit criteria"
         );
 
-        let reject_bound = (config.max_circuits_per_batch as f64
+        let reject_bound = (effective_max_circuits_per_batch as f64
             * config.reject_tx_at_geometry_percentage)
             .round() as usize;
-        let include_and_seal_bound = (config.max_circuits_per_batch as f64
+        let include_and_seal_bound = (effective_max_circuits_per_batch as f64
             * config.close_block_at_geometry_percentage)
             .round() as usize;
 
@@ -53,7 +58,8 @@ impl SealCriterion for CircuitsCriterion {
 
         if used_circuits_tx + batch_tip_circuit_overhead >= reject_bound {
             UnexecutableReason::ProofWillFail.into()
-        } else if used_circuits_batch + batch_tip_circuit_overhead >= config.max_circuits_per_batch
+        } else if used_circuits_batch + batch_tip_circuit_overhead
+            >= effective_max_circuits_per_batch
         {
             SealResolution::ExcludeAndSeal
         } else if used_circuits_batch + batch_tip_circuit_overhead >= include_and_seal_bound {
@@ -89,14 +95,14 @@ mod tests {
 
     use super::*;
 
-    const MAX_CIRCUITS_PER_BATCH: usize = 30_000;
+    const MAX_CIRCUITS_PER_BATCH: usize = 27_000;
 
     fn get_config() -> StateKeeperConfig {
         StateKeeperConfig {
             close_block_at_geometry_percentage: 0.9,
             reject_tx_at_geometry_percentage: 0.9,
             max_circuits_per_batch: MAX_CIRCUITS_PER_BATCH,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         }
     }
 

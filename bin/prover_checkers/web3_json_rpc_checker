@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Configuration
+# URL - web3_json_rpc to check readiness for
+# INTERVAL - Time interval for polling in seconds
+# TIMEOUT - Timeout of script in seconds
+
+# Start timer
+START_TIME=$(date +%s)
+
+# Loop to query periodically
+while true; do
+    # Calculate the elapsed time
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+    # Check if the timeout has been reached
+    if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+        echo "Timeout reached. web3_json_rpc in not ready. Failing CI..."
+        exit 1  # Exit with non-zero status to fail CI
+    fi
+
+    if curl -s -o /dev/null $URL -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","id":1}'; then
+        echo "web3_json_rpc is ready"
+        exit 0
+    else
+        echo "Waiting for web3_json_rpc to become ready. Retrying in $INTERVAL seconds..."
+    fi
+
+    # Wait for the next interval
+    sleep $INTERVAL
+done

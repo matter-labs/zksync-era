@@ -12,7 +12,8 @@ categories.workspace = true
 
 [dependencies]
 vise.workspace = true
-zksync_dal.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_node_framework.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_types.workspace = true
 zksync_config.workspace = true

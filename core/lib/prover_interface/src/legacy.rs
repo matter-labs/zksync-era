@@ -212,14 +212,14 @@ impl StoredObject for WitnessInputData<Bincode> {
 
     fn fallback_key(key: Self::Key<'_>) -> Option<String> {
         Some(format!(
-            "witness_input_data_{batch_number}.bin",
+            "witness_inputs_{batch_number}.bin",
             batch_number = key.batch_number().0
         ))
     }
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!(
-            "witness_input_data_{batch_number}_{chain_id}.bin",
+            "witness_inputs_{batch_number}_{chain_id}.bin",
             batch_number = key.batch_number().0,
             chain_id = key.chain_id().inner()
         )
@@ -259,7 +259,6 @@ impl StoredObject for WitnessInputMerklePaths<Bincode> {
                 zksync_object_store::bincode::deserialize::<WitnessInputMerklePaths<Bincode>>(
                     &bytes,
                 )
-                .map(Into::into)
                 .map_err(Into::into)
             })
     }

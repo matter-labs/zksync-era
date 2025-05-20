@@ -1,12 +1,13 @@
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, time::Duration};
 
 use reqwest::Client;
 use serde::Deserialize;
-use tokio::sync::{watch, RwLock};
-use zksync_config::configs::api::DeploymentAllowlist;
+use tokio::sync::watch;
+use zksync_config::configs::chain::DeploymentAllowlistDynamic;
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
-use zksync_multivm::interface::{tracer::ValidationTraces, VmEvent};
-use zksync_types::{h256_to_address, l2::L2Tx, Address, CONTRACT_DEPLOYER_ADDRESS};
+use zksync_multivm::interface::tracer::ValidationTraces;
+use zksync_types::{l2::L2Tx, Address};
+use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use crate::{
     execution_sandbox::SandboxExecutionOutput,
@@ -18,14 +19,14 @@ use crate::{
 #[derive(Debug)]
 pub struct WhitelistedDeployPoolSink {
     master_pool_sink: MasterPoolSink,
-    shared_allow_list: SharedAllowList,
+    tx_filter: DeploymentTxFilter,
 }
 
 impl WhitelistedDeployPoolSink {
-    pub fn new(master_pool_sink: MasterPoolSink, shared_allow_list: SharedAllowList) -> Self {
+    pub fn new(master_pool_sink: MasterPoolSink, tx_filter: DeploymentTxFilter) -> Self {
         Self {
             master_pool_sink,
-            shared_allow_list,
+            tx_filter,
         }
     }
 
@@ -36,45 +37,15 @@ impl WhitelistedDeployPoolSink {
         tx: &L2Tx,
         execution_output: &SandboxExecutionOutput,
     ) -> Result<(), SubmitTxError> {
-        // Check if the transaction initiator is allowlisted
-        let initiator = tx.initiator_account();
-        if self.shared_allow_list.is_address_allowed(&initiator).await {
-            // If initiator is allowlisted, permit all deployments in this transaction
-            return Ok(());
+        if let Some(not_allowed_deployer) = self
+            .tx_filter
+            .find_not_allowed_deployer(tx.initiator_account(), &execution_output.events)
+            .await
+        {
+            Err(SubmitTxError::DeployerNotInAllowList(not_allowed_deployer))
+        } else {
+            Ok(())
         }
-
-        // If initiator is not allowlisted, enforce the deployment allowlist by scanning for ContractDeployed events.
-        // Each such event should follow this format:
-        //   event ContractDeployed(address indexed deployerAddress, bytes32 indexed bytecodeHash, address indexed contractAddress);
-        // We extract the deployer address from topic[1] and verify it is whitelisted.
-
-        let deployer_addresses = execution_output.events.iter().filter_map(|event| {
-            let is_contract_deployed = event.address == CONTRACT_DEPLOYER_ADDRESS
-                && event.indexed_topics.first() == Some(&VmEvent::DEPLOY_EVENT_SIGNATURE);
-            if is_contract_deployed {
-                event.indexed_topics.get(1).map(h256_to_address)
-            } else {
-                None
-            }
-        });
-
-        for deployer_address in deployer_addresses {
-            if !self
-                .shared_allow_list
-                .is_address_allowed(&deployer_address)
-                .await
-            {
-                tracing::info!(
-                    "Blocking contract deployment in tx {:?}: deployer_address {:?} not whitelisted",
-                    tx.hash(),
-                    deployer_address
-                );
-                return Err(SubmitTxError::DeployerNotInAllowList(deployer_address));
-            }
-        }
-
-        // All checks passed, deployment is allowed
-        Ok(())
     }
 }
 
@@ -101,21 +72,6 @@ struct WhitelistResponse {
     addresses: Vec<Address>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct SharedAllowList {
-    inner: Arc<RwLock<HashSet<Address>>>,
-}
-
-impl SharedAllowList {
-    fn writer(&self) -> &Arc<RwLock<HashSet<Address>>> {
-        &self.inner
-    }
-
-    async fn is_address_allowed(&self, address: &Address) -> bool {
-        self.inner.read().await.contains(address)
-    }
-}
-
 /// Task that periodically fetches and updates the allowlist from a remote HTTP source.
 #[derive(Debug, Clone)]
 pub struct AllowListTask {
@@ -127,13 +83,11 @@ pub struct AllowListTask {
 
 impl AllowListTask {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-    pub fn from_config(deployment_allowlist: DeploymentAllowlist) -> Self {
+
+    pub fn from_config(deployment_allowlist: DeploymentAllowlistDynamic) -> Self {
         Self {
-            url: deployment_allowlist
-                .http_file_url()
-                .expect("DeploymentAllowlist must contain a URL")
-                .to_string(),
-            refresh_interval: deployment_allowlist.refresh_interval(),
+            url: deployment_allowlist.http_file_url,
+            refresh_interval: deployment_allowlist.refresh_interval,
             allowlist: SharedAllowList::default(),
             client: Client::new(),
         }
@@ -202,7 +156,7 @@ impl AllowListTask {
             let _ = tokio::time::timeout(self.refresh_interval(), stop_receiver.changed()).await;
         }
 
-        tracing::info!("received a stop signal; allow list task is shut down");
+        tracing::info!("received a stop request; allow list task is shut down");
 
         Ok(())
     }

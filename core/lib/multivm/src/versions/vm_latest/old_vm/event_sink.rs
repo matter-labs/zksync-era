@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
     reference_impls::event_sink::EventMessage,

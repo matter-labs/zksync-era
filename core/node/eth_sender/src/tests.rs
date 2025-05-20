@@ -87,6 +87,8 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .unwrap()
         .short_signature();
 
+    let get_da_validator_pair_selector = functions.get_da_validator_pair.short_signature();
+
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
         let call = call.unwrap();
@@ -126,6 +128,12 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
                 H256::from_low_u64_be(ProtocolVersionId::default() as u64)
                     .0
                     .to_vec()
+            }
+            selector if selector == get_da_validator_pair_selector => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
+                let non_zero_address = vec![6u8; 32];
+
+                [non_zero_address.clone(), non_zero_address].concat()
             }
             _ => panic!("unexpected call: {call:?}"),
         };
@@ -765,6 +773,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             ),
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
     ];
     if with_evm_emulator {
         mock_response.insert(

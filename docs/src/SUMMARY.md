@@ -75,6 +75,17 @@
       - [L2→L1 communication](specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)
       - [Overview - Deposits and Withdrawals](specs/contracts/settlement_contracts/priority_queue/l1_l2_communication/overview_deposits_withdrawals.md)
       - [Priority queue](specs/contracts/settlement_contracts/priority_queue/priority-queue.md)
+    - [Data availability](specs/contracts/settlement_contracts/data_availability/README.md)
+      - [Pubdata](specs/contracts/settlement_contracts/data_availability/pubdata.md)
+      - [Compression](specs/contracts/settlement_contracts/data_availability/compression.md)
+      - [Reconstruction](specs/contracts/settlement_contracts/data_availability/reconstruction.md)
+      - [Validium and zkPorter](specs/contracts/settlement_contracts/data_availability/validium_zk_porter.md)
+      - [Custom DA support](specs/contracts/settlement_contracts/data_availability/custom_da.md)
+      - [Rollup DA support](specs/contracts/settlement_contracts/data_availability/rollup_da.md)
+      - [Standard pubdata format](specs/contracts/settlement_contracts/data_availability/standard_pubdata_format.md)
+      - [State diff compression v1 spec](specs/contracts/settlement_contracts/data_availability/state_diff_compression_v1_spec.md)
+  - [Consensus](specs/contracts/consensus/README.md)
+    - [Consensus Registry](specs/contracts/consensus/consensus-registry.md)
 - [Prover](specs/prover/overview.md)
   - [Getting Started](specs/prover/getting_started.md)
   - [ZK Terminology](specs/prover/zk_terminology.md)
@@ -88,4 +99,4 @@
 # Announcements
 
 - [Announcements](announcements/README.md)
-  - [Attester Committee](announcements/attester_commitee.md)
+  - [Configuration Format Changes](announcements/config_format_changes.md)

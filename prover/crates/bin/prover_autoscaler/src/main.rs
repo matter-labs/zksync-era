@@ -1,15 +1,17 @@
 use std::time::Duration;
 
 use anyhow::Context;
+use smart_config::{ConfigSchema, DescribeConfig};
 use structopt::StructOpt;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use zksync_config::{sources::ConfigSources, ConfigRepositoryExt};
 use zksync_prover_autoscaler::{
     agent,
     cluster_types::ClusterName,
-    config::{config_from_yaml, ProverAutoscalerConfig},
+    config::ProverAutoscalerConfig,
     global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
@@ -56,12 +58,13 @@ struct Opt {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
-    let general_config =
-        config_from_yaml::<ProverAutoscalerConfig>(&opt.config_path).context("general config")?;
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
+
+    let config_sources = ConfigSources::default().with_yaml(&opt.config_path)?;
+    let _observability_guard = config_sources.observability()?.install()?;
+
+    let full_config_schema = ConfigSchema::new(&ProverAutoscalerConfig::DESCRIPTION, "");
+    let config_repo = config_sources.build_repository(&full_config_schema);
+    let general_config: ProverAutoscalerConfig = config_repo.parse()?;
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -93,10 +96,11 @@ async fn main() -> anyhow::Result<()> {
                 client.clone(),
                 opt.cluster_name,
                 agent_config.namespaces,
+                agent_config.pod_check_interval,
             )
             .await;
             let scaler = Scaler::new(client, agent_config.dry_run);
-            tasks.push(tokio::spawn(watcher.clone().run()));
+            tasks.push(tokio::spawn(watcher.clone().run(stop_receiver.clone())));
             tasks.push(tokio::spawn(agent::run_server(
                 agent_config.http_port,
                 watcher,
@@ -126,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            tracing::info!("Stop request received, shutting down");
         }
     }
     stop_sender.send(true).ok();

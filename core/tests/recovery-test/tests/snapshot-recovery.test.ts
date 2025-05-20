@@ -109,11 +109,13 @@ describe('snapshot recovery', () => {
     let ethRpcUrl: string;
     let externalNodeUrl: string;
     let extNodeHealthUrl: string;
+    let deploymentMode: string;
     const reverseConfigPatches: ReverseConfigPatch[] = [];
 
     before('prepare environment', async () => {
         const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
         const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
+        const genesisConfig = loadConfig({ pathToHome, chain: chainName, config: 'genesis.yaml' });
         const externalNodeGeneralConfig = loadConfig({
             pathToHome,
             chain: chainName,
@@ -125,6 +127,7 @@ describe('snapshot recovery', () => {
         apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
         externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
         extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
+        deploymentMode = genesisConfig.l1_batch_commit_data_generator_mode;
 
         reverseConfigPatches.push(
             setSnapshotRecovery(pathToHome, chainName),
@@ -285,7 +288,8 @@ describe('snapshot recovery', () => {
             await logsPath(chainName, 'external_node.log'),
             pathToHome,
             NodeComponents.STANDARD,
-            chainName
+            chainName,
+            deploymentMode
         );
 
         let recoveryFinished = false;
@@ -408,7 +412,13 @@ describe('snapshot recovery', () => {
         reverseConfigPatches.push(setPruning(pathToHome, chainName, pruningParams));
 
         console.log('Starting EN with pruning params', pruningParams);
-        externalNodeProcess = await NodeProcess.spawn(externalNodeProcess.logs, pathToHome, components, chainName);
+        externalNodeProcess = await NodeProcess.spawn(
+            externalNodeProcess.logs,
+            pathToHome,
+            components,
+            chainName,
+            deploymentMode
+        );
 
         let isDbPrunerReady = false;
         let isTreePrunerReady = disableTreeDuringPruning; // skip health checks if we don't run the tree
