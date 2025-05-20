@@ -8,10 +8,7 @@ use zksync_basic_types::{
 };
 use zksync_config::configs::{
     consensus::{ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::{
-        avail::AvailSecrets, celestia::CelestiaSecrets, eigenv1m0::EigenSecretsV1M0,
-        eigenv2m0::EigenSecretsV2M0,
-    },
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigenda::EigenDASecrets},
     secrets::{DataAvailabilitySecrets, Secrets},
     ContractVerifierSecrets, DatabaseSecrets, L1Secrets,
 };
@@ -144,16 +141,9 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                         .as_str(),
                 ),
             }),
-            DaSecrets::Eigenv1m0(eigen) => DataAvailabilitySecrets::EigenV1M0(EigenSecretsV1M0 {
+            DaSecrets::Eigenda(eigen_da) => DataAvailabilitySecrets::EigenDA(EigenDASecrets {
                 private_key: PrivateKey::from(
-                    required(&eigen.private_key)
-                        .context("private_key")?
-                        .as_str(),
-                ),
-            }),
-            DaSecrets::Eigenv2m0(eigen) => DataAvailabilitySecrets::EigenV2M0(EigenSecretsV2M0 {
-                private_key: PrivateKey::from(
-                    required(&eigen.private_key)
+                    required(&eigen_da.private_key)
                         .context("private_key")?
                         .as_str(),
                 ),
@@ -204,13 +194,8 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
-            DataAvailabilitySecrets::EigenV1M0(config) => {
-                Some(DaSecrets::Eigenv1m0(proto::EigenSecretV1m0 {
-                    private_key: Some(config.private_key.0.expose_secret().to_string()),
-                }))
-            }
-            DataAvailabilitySecrets::EigenV2M0(config) => {
-                Some(DaSecrets::Eigenv2m0(proto::EigenSecretV2m0 {
+            DataAvailabilitySecrets::EigenDA(config) => {
+                Some(DaSecrets::Eigenda(proto::EigenDaSecret {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }

@@ -55,7 +55,7 @@ ripemd.workspace = true
 tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
 pbjson-types.workspace = true
 
-# Eigen dependencies
+# EigenDA dependencies
 rust-eigenda-v2-client.workspace = true
 rust-eigenda-v2-common.workspace = true
 rust-eigenda-client.workspace = true

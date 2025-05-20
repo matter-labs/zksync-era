@@ -7,11 +7,11 @@ use zksync_config::{
         da_client::{
             avail::{AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig},
             celestia::CelestiaConfig,
-            eigenv2m0::EigenConfigV2M0,
-            DAClientConfig::{Avail, Celestia, EigenV1M0, EigenV2M0, NoDA, ObjectStore},
+            eigenda::{V1Config, V2Config, VersionSpecificConfig},
+            DAClientConfig::{Avail, Celestia, EigenDA, NoDA, ObjectStore},
         },
     },
-    EigenConfigV1M0,
+    EigenDAConfig,
 };
 use zksync_protobuf::{required, ProtoRepr};
 use zksync_types::url::SensitiveUrl;
@@ -65,81 +65,88 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 chain_id: required(&conf.chain_id).context("chain_id")?.clone(),
                 timeout_ms: *required(&conf.timeout_ms).context("timeout_ms")?,
             }),
-            proto::data_availability_client::Config::Eigenv1m0(conf) => {
-                EigenV1M0(EigenConfigV1M0 {
-                    disperser_rpc: required(&conf.disperser_rpc)
-                        .context("disperser_rpc")?
-                        .clone(),
-                    settlement_layer_confirmation_depth: *required(
-                        &conf.settlement_layer_confirmation_depth,
-                    )
-                    .context("settlement_layer_confirmation_depth")?,
-                    eigenda_eth_rpc: conf
-                        .eigenda_eth_rpc
-                        .clone()
-                        .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
-                        .transpose()
-                        .context("eigenda_eth_rpc")?,
-                    eigenda_svc_manager_address: required(&conf.eigenda_svc_manager_address)
-                        .and_then(|x| parse_h160(x))
-                        .context("eigenda_svc_manager_address")?,
-                    wait_for_finalization: *required(&conf.wait_for_finalization)
-                        .context("wait_for_finalization")?,
-                    authenticated: *required(&conf.authenticated).context("authenticated")?,
-                    points_source: match conf.points_source.clone() {
-                        Some(proto::eigen_config_v1m0::PointsSource::PointsSourcePath(
-                            points_source_path,
-                        )) => zksync_config::configs::da_client::eigenv1m0::PointsSource::Path(
-                            points_source_path,
-                        ),
-                        Some(proto::eigen_config_v1m0::PointsSource::PointsSourceUrl(
-                            points_source_url,
-                        )) => {
-                            let g1_url = required(&points_source_url.g1_url).context("g1_url")?;
-                            let g2_url = required(&points_source_url.g2_url).context("g2_url")?;
-                            zksync_config::configs::da_client::eigenv1m0::PointsSource::Url((
-                                g1_url.to_owned(),
-                                g2_url.to_owned(),
-                            ))
-                        }
-                        None => return Err(anyhow::anyhow!("Invalid Eigen DA configuration")),
-                    },
-                    custom_quorum_numbers: conf
-                        .custom_quorum_numbers
-                        .iter()
-                        .map(|x| u8::try_from(*x).context("custom_quorum_numbers"))
-                        .collect::<anyhow::Result<Vec<u8>>>()?,
-                })
-            }
-            proto::data_availability_client::Config::Eigenv2m0(conf) => {
-                EigenV2M0(EigenConfigV2M0 {
-                    disperser_rpc: required(&conf.disperser_rpc)
-                        .context("disperser_rpc")?
-                        .clone(),
-                    eigenda_eth_rpc: conf
-                        .eigenda_eth_rpc
-                        .clone()
-                        .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
-                        .transpose()
-                        .context("eigenda_eth_rpc")?,
-                    authenticated: *required(&conf.authenticated).context("authenticated")?,
-                    cert_verifier_addr: required(&conf.cert_verifier_addr)
-                        .and_then(|x| parse_h160(x))
-                        .context("eigenda_cert_and_blob_verifier_addr")?,
-                    blob_version: *required(&conf.blob_version).context("blob_version")? as u16,
-                    polynomial_form: match required(&conf.polynomial_form)
-                        .and_then(|x| Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?))
-                        .context("polynomial_form")?
-                    {
-                        crate::proto::da_client::PolynomialForm::Coeff => {
-                            configs::da_client::eigenv2m0::PolynomialForm::Coeff
-                        }
-                        crate::proto::da_client::PolynomialForm::Eval => {
-                            configs::da_client::eigenv2m0::PolynomialForm::Eval
-                        }
-                    },
-                })
-            }
+            proto::data_availability_client::Config::Eigenda(conf) => EigenDA(EigenDAConfig {
+                disperser_rpc: required(&conf.disperser_rpc)
+                    .context("disperser_rpc")?
+                    .clone(),
+                eigenda_eth_rpc: conf
+                    .eigenda_eth_rpc
+                    .clone()
+                    .map(|x| SensitiveUrl::from_str(&x).context("eigenda_eth_rpc"))
+                    .transpose()
+                    .context("eigenda_eth_rpc")?,
+                authenticated: *required(&conf.authenticated).context("authenticated")?,
+                version_specific: match conf.client_version.clone() {
+                    Some(proto::eigen_da_config::ClientVersion::V1(v1_conf)) => {
+                        VersionSpecificConfig::V1(V1Config {
+                            custom_quorum_numbers: v1_conf
+                                .custom_quorum_numbers
+                                .iter()
+                                .map(|x| u8::try_from(*x).context("custom_quorum_numbers"))
+                                .collect::<anyhow::Result<Vec<u8>>>()?,
+                            eigenda_svc_manager_address: required(
+                                &v1_conf.eigenda_svc_manager_address,
+                            )
+                            .and_then(|x| parse_h160(x))
+                            .context("eigenda_svc_manager_address")?,
+                            wait_for_finalization: *required(&v1_conf.wait_for_finalization)
+                                .context("wait_for_finalization")?,
+                            settlement_layer_confirmation_depth: *required(
+                                &v1_conf.settlement_layer_confirmation_depth,
+                            )
+                            .context("settlement_layer_confirmation_depth")?,
+                            points_source: match v1_conf.points_source.clone() {
+                                Some(proto::v1::PointsSource::PointsSourcePath(
+                                    points_source_path,
+                                )) => {
+                                    zksync_config::configs::da_client::eigenda::PointsSource::Path(
+                                        points_source_path,
+                                    )
+                                }
+                                Some(proto::v1::PointsSource::PointsSourceUrl(
+                                    points_source_url,
+                                )) => {
+                                    let g1_url =
+                                        required(&points_source_url.g1_url).context("g1_url")?;
+                                    let g2_url =
+                                        required(&points_source_url.g2_url).context("g2_url")?;
+                                    zksync_config::configs::da_client::eigenda::PointsSource::Url((
+                                        g1_url.to_owned(),
+                                        g2_url.to_owned(),
+                                    ))
+                                }
+                                None => {
+                                    return Err(anyhow::anyhow!("Invalid EigenDA configuration"))
+                                }
+                            },
+                        })
+                    }
+                    Some(proto::eigen_da_config::ClientVersion::V2(v2_conf)) => {
+                        VersionSpecificConfig::V2(V2Config {
+                            cert_verifier_addr: required(&v2_conf.cert_verifier_addr)
+                                .and_then(|x| parse_h160(x))
+                                .context("eigenda_cert_and_blob_verifier_addr")?,
+                            blob_version: *required(&v2_conf.blob_version)
+                                .context("blob_version")?
+                                as u16,
+                            polynomial_form: match required(&v2_conf.polynomial_form)
+                                .and_then(|x| {
+                                    Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?)
+                                })
+                                .context("polynomial_form")?
+                            {
+                                crate::proto::da_client::PolynomialForm::Coeff => {
+                                    configs::da_client::eigenda::PolynomialForm::Coeff
+                                }
+                                crate::proto::da_client::PolynomialForm::Eval => {
+                                    configs::da_client::eigenda::PolynomialForm::Eval
+                                }
+                            },
+                        })
+                    }
+                    None => return Err(anyhow::anyhow!("Invalid EigenDA configuration")),
+                },
+            }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
@@ -179,59 +186,58 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     timeout_ms: Some(config.timeout_ms),
                 })
             }
-            EigenV1M0(config) => {
-                proto::data_availability_client::Config::Eigenv1m0(proto::EigenConfigV1m0 {
+            EigenDA(config) => {
+                proto::data_availability_client::Config::Eigenda(proto::EigenDaConfig {
                     disperser_rpc: Some(config.disperser_rpc.clone()),
-                    settlement_layer_confirmation_depth: Some(
-                        config.settlement_layer_confirmation_depth,
-                    ),
                     eigenda_eth_rpc: config
                         .eigenda_eth_rpc
                         .as_ref()
                         .map(|a| a.expose_str().to_string()),
-                    eigenda_svc_manager_address: Some(format!(
-                        "{:?}",
-                        config.eigenda_svc_manager_address
-                    )),
-                    wait_for_finalization: Some(config.wait_for_finalization),
                     authenticated: Some(config.authenticated),
-                    points_source: Some(match &config.points_source {
-                        zksync_config::configs::da_client::eigenv1m0::PointsSource::Path(path) => {
-                            proto::eigen_config_v1m0::PointsSource::PointsSourcePath(path.clone())
-                        }
-                        zksync_config::configs::da_client::eigenv1m0::PointsSource::Url((
-                            g1_url,
-                            g2_url,
-                        )) => proto::eigen_config_v1m0::PointsSource::PointsSourceUrl(proto::Url {
-                            g1_url: Some(g1_url.clone()),
-                            g2_url: Some(g2_url.clone()),
+                    client_version: Some(match &config.version_specific {
+                        zksync_config::configs::da_client::eigenda::VersionSpecificConfig::V1(
+                            v1_conf,
+                        ) => proto::eigen_da_config::ClientVersion::V1(proto::V1 {
+                            settlement_layer_confirmation_depth: Some(
+                                v1_conf.settlement_layer_confirmation_depth,
+                            ),
+                            eigenda_svc_manager_address: Some(format!(
+                                "{:?}",
+                                v1_conf.eigenda_svc_manager_address
+                            )),
+                            wait_for_finalization: Some(v1_conf.wait_for_finalization),
+                            points_source: Some(match &v1_conf.points_source {
+                                zksync_config::configs::da_client::eigenda::PointsSource::Path(
+                                    path,
+                                ) => proto::v1::PointsSource::PointsSourcePath(path.clone()),
+                                zksync_config::configs::da_client::eigenda::PointsSource::Url(
+                                    (g1_url, g2_url),
+                                ) => proto::v1::PointsSource::PointsSourceUrl(proto::Url {
+                                    g1_url: Some(g1_url.clone()),
+                                    g2_url: Some(g2_url.clone()),
+                                }),
+                            }),
+                            // We need to cast as u32 because proto doesn't support u8
+                            custom_quorum_numbers: v1_conf
+                                .custom_quorum_numbers
+                                .iter()
+                                .map(|x| *x as u32)
+                                .collect(),
                         }),
-                    }),
-                    // We need to cast as u32 because proto doesn't support u8
-                    custom_quorum_numbers: config
-                        .custom_quorum_numbers
-                        .iter()
-                        .map(|x| *x as u32)
-                        .collect(),
-                })
-            }
-            EigenV2M0(config) => {
-                proto::data_availability_client::Config::Eigenv2m0(proto::EigenConfigV2m0 {
-                    disperser_rpc: Some(config.disperser_rpc.clone()),
-                    eigenda_eth_rpc: config
-                        .eigenda_eth_rpc
-                        .as_ref()
-                        .map(|a| a.expose_str().to_string()),
-                    authenticated: Some(config.authenticated),
-                    cert_verifier_addr: Some(format!("{:?}", config.cert_verifier_addr)),
-                    blob_version: Some(config.blob_version as u32),
-                    polynomial_form: Some(match config.polynomial_form {
-                        configs::da_client::eigenv2m0::PolynomialForm::Coeff => {
-                            crate::proto::da_client::PolynomialForm::Coeff.into()
-                        }
-                        configs::da_client::eigenv2m0::PolynomialForm::Eval => {
-                            crate::proto::da_client::PolynomialForm::Eval.into()
-                        }
+                        zksync_config::configs::da_client::eigenda::VersionSpecificConfig::V2(
+                            v2_conf,
+                        ) => proto::eigen_da_config::ClientVersion::V2(proto::V2 {
+                            cert_verifier_addr: Some(format!("{:?}", v2_conf.cert_verifier_addr)),
+                            blob_version: Some(v2_conf.blob_version as u32),
+                            polynomial_form: Some(match v2_conf.polynomial_form {
+                                configs::da_client::eigenda::PolynomialForm::Coeff => {
+                                    crate::proto::da_client::PolynomialForm::Coeff.into()
+                                }
+                                configs::da_client::eigenda::PolynomialForm::Eval => {
+                                    crate::proto::da_client::PolynomialForm::Eval.into()
+                                }
+                            }),
+                        }),
                     }),
                 })
             }

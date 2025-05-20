@@ -43,36 +43,36 @@ enum PolynomialForm {
   EVAL = 1;
 }
 
-message EigenConfigV2M0 {
-  optional string disperser_rpc = 3;
-  optional string eigenda_eth_rpc = 5;
-  optional bool authenticated = 8;
-  optional string cert_verifier_addr = 12;
-  optional uint32 blob_version = 13;
-  optional PolynomialForm polynomial_form = 14; 
-  reserved 1,2,4,6,7,9,10,11;
-  reserved "rpc_node_url","inclusion_polling_interval_ms", "settlement_layer_confirmation_depth", "eigenda_svc_manager_address","wait_for_finalization", "points_source_path", "points_source_url","custom_quorum_numbers";
-}
-
 message Url {
   optional string g1_url = 1;
   optional string g2_url = 2;
 }
 
-message EigenConfigV1M0 {
-  optional string disperser_rpc = 3;
-  optional uint32 settlement_layer_confirmation_depth = 4;
-  optional string eigenda_eth_rpc = 5;
-  optional string eigenda_svc_manager_address = 6;
-  optional bool wait_for_finalization = 7;
-  optional bool authenticated = 8;
-  oneof points_source {
-    string points_source_path = 9;
-    Url points_source_url = 10;
-  }
-  repeated uint32 custom_quorum_numbers = 11;
-  reserved 1,2;
-  reserved "rpc_node_url","inclusion_polling_interval_ms";
+message V1 {
+    optional uint32 settlement_layer_confirmation_depth = 6;
+    optional string eigenda_svc_manager_address = 7;
+    optional bool wait_for_finalization = 8;
+    oneof points_source {
+      string points_source_path = 9;
+      Url points_source_url = 10;
+    }
+    repeated uint32 custom_quorum_numbers = 11;
+}
+
+message V2 {
+    optional string cert_verifier_addr = 12;
+    optional uint32 blob_version = 13;
+    optional PolynomialForm polynomial_form = 14;
+}
+
+message EigenDAConfig {
+    optional string disperser_rpc = 1;
+    optional string eigenda_eth_rpc = 2;
+    optional bool authenticated = 3;
+    oneof client_version {
+        V1 v1 = 4;
+        V2 v2 = 5;
+    }
 }
 
 message NoDAConfig {}
@@ -83,8 +83,7 @@ message DataAvailabilityClient {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
     CelestiaConfig celestia = 3;
-    EigenConfigV1M0 eigenv1m0 = 4;
+    EigenDAConfig eigenda = 4;
     NoDAConfig no_da = 5;
-    EigenConfigV2M0 eigenv2m0 = 6;
   }
 }
