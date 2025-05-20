@@ -4,6 +4,7 @@ import YAML from 'yaml';
 import { YamlParser } from '@/permissions/yaml-parser';
 import { extractSelector } from '@/rpc/methods';
 import { ResponseFilter } from '@/permissions/filter-response';
+import { env } from '@/env';
 
 export class Authorizer {
     permissions: Map<string, AccessRule>;
@@ -45,8 +46,11 @@ export class Authorizer {
         return this.postReadFilters.get(`${address}:${method}`) || null;
     }
 
-    static fromBuffer(buf: Buffer): Authorizer {
-        const raw = YAML.parse(buf.toString());
-        return new YamlParser(raw).parse();
+    reloadFromEnv(): Authorizer {
+        const filePath = env.PERMISSIONS_YAML_PATH;
+        this.permissions = new Map();
+        this.postReadFilters = new Map();
+        new YamlParser(filePath).load_rules(this);
+        return this;
     }
 }

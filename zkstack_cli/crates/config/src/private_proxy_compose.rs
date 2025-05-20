@@ -50,6 +50,7 @@ pub async fn create_private_rpc_service(
                 "CORS_ORIGIN".to_string(),
                 "http://localhost:3010".to_string(),
             ),
+            ("PERMISSIONS_HOT_RELOAD".to_string(), "true".to_string()),
             (
                 "CREATE_TOKEN_SECRET".to_string(),
                 create_token_secret.to_string(),
