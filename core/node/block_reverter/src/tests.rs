@@ -69,7 +69,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             gas_limit: 0,
             logs_bloom: Default::default(),
             pubdata_params: Default::default(),
-            rolling_txs_hash: None,
+            rolling_txs_hash: H256::zero(),
         };
         storage
             .blocks_dal()

@@ -440,7 +440,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
             precommit_tx_hash: details
                 .precommit_tx_hash
                 .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
+                .map(|hash| H256::from_str(hash).expect("Incorrect precommit_tx hash")),
             precommitted_at: details.precommitted_at.map(|precommitted_at| {
                 DateTime::<Utc>::from_naive_utc_and_offset(precommitted_at, Utc)
             }),
@@ -534,7 +534,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             precommit_tx_hash: details
                 .precommit_tx_hash
                 .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
+                .map(|hash| H256::from_str(hash).expect("Incorrect precommit_tx hash")),
             precommitted_at: details.precommitted_at.map(|precommitted_at| {
                 DateTime::<Utc>::from_naive_utc_and_offset(precommitted_at, Utc)
             }),

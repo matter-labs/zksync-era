@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT GREATEST(\n                       (\n                           SELECT MAX(number)\n                           FROM miniblocks\n                           WHERE eth_precommit_tx_id IS NOT NULL\n                       ),\n                       (\n                           SELECT MAX(number)\n                           FROM miniblocks\n                           WHERE l1_batch_number =\n                            (\n                                 SELECT number\n                                 FROM l1_batches\n                                          JOIN eth_txs ON l1_batches.eth_commit_tx_id = eth_txs.id\n                                 WHERE eth_txs.confirmed_eth_tx_history_id IS NOT NULL\n                                 ORDER BY number DESC\n                                 LIMIT 1\n                            )\n                       ),\n                        0\n                    ) AS number",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7758ddfb0a0ed75825a570a4f4df97c2916e929204cd4bb14fc8cc48e3f135b7"
+}

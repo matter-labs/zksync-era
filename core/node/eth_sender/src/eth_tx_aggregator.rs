@@ -635,6 +635,7 @@ impl EthTxAggregator {
             )
             .await
             .then_some("there is a pending gateway upgrade"),
+            // For precommit operations, we could safely use the commit restriction.
             precommit_restriction: commit_restriction,
         };
 
@@ -751,9 +752,10 @@ impl EthTxAggregator {
             }
             AggregatedOperation::L2Block(op) => {
                 tracing::info!(
-                    "eth_tx with ID {} for op {} was saved",
+                    "eth_tx with ID {} for op {} was saved for L2 block {:?}",
                     tx.id,
-                    op.get_action_caption()
+                    op.get_action_caption(),
+                    op.l2_blocks_range()
                 );
             }
         }

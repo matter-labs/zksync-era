@@ -304,27 +304,31 @@ impl BlocksWeb3Dal<'_, '_> {
                     ";
                 ),
                 api::BlockId::Number(api::BlockNumber::Precommitted) => (
-                    // TODO think about the case when we switched off the precommit tx
+                    // This query is used to get the latest precommitted miniblock number.
+                    // If feature is not enabled, return the latest committed miniblock number.
+                    // GREATEST in postgress ignore nulls.
                     "
-                    SELECT COALESCE(
-                        (
-                            SELECT MAX(number) FROM miniblocks
-                            WHERE eth_precommit_tx_id IS NOT NULL
-                        ),
-                        (
-                            SELECT MAX(number) FROM miniblocks
-                            WHERE l1_batch_number = (
-                                SELECT number FROM l1_batches
-                                JOIN eth_txs ON
-                                    l1_batches.eth_commit_tx_id = eth_txs.id
-                                WHERE
-                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
-                                ORDER BY number DESC LIMIT 1
+                    SELECT GREATEST(
+                       (
+                           SELECT MAX(number)
+                           FROM miniblocks
+                           WHERE eth_precommit_tx_id IS NOT NULL
+                       ),
+                       (
+                           SELECT MAX(number)
+                           FROM miniblocks
+                           WHERE l1_batch_number =
+                            (
+                                 SELECT number
+                                 FROM l1_batches
+                                          JOIN eth_txs ON l1_batches.eth_commit_tx_id = eth_txs.id
+                                 WHERE eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                 ORDER BY number DESC
+                                 LIMIT 1
                             )
-                        ),
+                       ),
                         0
-                    ) AS number
-                    ";
+                    ) AS number";
                 ),
 
                 api::BlockId::Number(api::BlockNumber::Finalized) => (

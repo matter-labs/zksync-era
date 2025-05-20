@@ -14,7 +14,7 @@ pub struct L1BatchUpdates {
     pub txs_encoding_size: usize,
     pub l1_tx_count: usize,
     pub finished: Option<FinishedL1Batch>,
-    pub rolling_txs_hash: Option<H256>,
+    pub rolling_txs_hash: H256,
 }
 
 impl L1BatchUpdates {
@@ -27,7 +27,7 @@ impl L1BatchUpdates {
             txs_encoding_size: 0,
             l1_tx_count: 0,
             finished: None,
-            rolling_txs_hash: None,
+            rolling_txs_hash: H256::zero(),
         }
     }
 

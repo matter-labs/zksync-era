@@ -585,6 +585,7 @@ impl BlocksDal<'_, '_> {
                 AND l1_batches.is_sealed
                 AND l1_batches.eth_commit_tx_id IS NULL
                 AND l1_batches.final_precommit_eth_tx_id IS NULL
+                AND miniblocks.rolling_txs_hash IS NOT NULL
             ORDER BY l1_batches.number, miniblocks.number DESC;
             "#
         )
@@ -1167,7 +1168,7 @@ impl BlocksDal<'_, '_> {
             l2_block_header.pubdata_params.pubdata_type.to_string(),
             l2_block_header
                 .rolling_txs_hash
-                .map(|h| h.as_bytes().to_vec()),
+                .map(|h| h.as_bytes().to_vec())
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -2200,24 +2201,24 @@ impl BlocksDal<'_, '_> {
                 ON data_availability.l1_batch_number = l1_batches.number
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
-                eth_commit_tx_id IS null
+                eth_commit_tx_id IS NULL
                 AND number != 0
                 AND protocol_versions.bootloader_code_hash = $1
                 AND protocol_versions.default_account_code_hash = $2
-                AND commitment IS NOT null
+                AND commitment IS NOT NULL
                 AND (
                     protocol_versions.id = $3
-                    OR protocol_versions.upgrade_tx_hash IS null
+                    OR protocol_versions.upgrade_tx_hash IS NULL
                 )
-                AND events_queue_commitment IS NOT null
-                AND bootloader_initial_content_commitment IS NOT null
+                AND events_queue_commitment IS NOT NULL
+                AND bootloader_initial_content_commitment IS NOT NULL
                 AND (
-                    data_availability.inclusion_data IS NOT null
-                    OR $4 IS false
+                    data_availability.inclusion_data IS NOT NULL
+                    OR $4 IS FALSE
                 )
                 AND (
-                    final_precommit_eth_tx_id IS NOT null
-                    OR $5 IS false
+                    final_precommit_eth_tx_id IS NOT NULL
+                    OR $5 IS FALSE
                 )
             ORDER BY
                 number

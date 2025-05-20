@@ -342,7 +342,7 @@ impl Aggregator {
                     committed_l1_batch_number + 1,
                     Some(committed_l1_batch_number + 1),
                 ),
-                (Some(sealed), None) => (sealed, Some(sealed)),
+                (Some(_), None) => (1.into(), Some(1.into())),
             };
 
         let txs = storage
