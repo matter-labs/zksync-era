@@ -208,11 +208,6 @@ impl SenderConfig {
         blocks_per_hour * 6
     }
 
-    // pub const fn default_time_in_mempool_multiplier_cap() -> u32 {
-    //     // by default we cap exponential price formula at roughly median * 10
-    //     10
-    // }
-
     pub const fn default_max_acceptable_base_fee_in_wei() -> u64 {
         u64::MAX
     }
