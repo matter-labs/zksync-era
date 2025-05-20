@@ -107,11 +107,12 @@ eth:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100
     pricing_formula_parameter_a: 1.5
-    pricing_formula_parameter_b: 1.001
+    pricing_formula_parameter_b: 1.01
     internal_l1_pricing_multiplier: 0.8
     num_samples_for_blob_base_fee_estimate: 10
     internal_pubdata_pricing_multiplier: 1.0
     poll_period: 5
+    time_in_mempool_multiplier_cap: 10
   watcher:
     confirmations_for_eth_event: 0
     eth_node_poll_interval: 300
