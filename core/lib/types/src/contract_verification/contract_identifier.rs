@@ -1,4 +1,9 @@
-use serde::{Deserialize, Serialize};
+use std::fmt;
+
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Serialize,
+};
 
 use crate::{bytecode::BytecodeMarker, web3::keccak256, H256};
 
@@ -16,7 +21,7 @@ use crate::{bytecode::BytecodeMarker, web3::keccak256, H256};
 // that differ in creation bytecode and/or constructor arguments (for partial match). This is
 // less relevant for ZKsync, since there is no concept of creation bytecode there; although
 // this may become needed if we will extend the EVM support.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ContractIdentifier {
     /// Marker of the bytecode of the contract.
     pub bytecode_marker: BytecodeMarker,
@@ -42,7 +47,7 @@ pub enum Match {
 }
 
 /// Metadata detected in the contract bytecode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DetectedMetadata {
     /// keccak256 metadata (only for EraVM)
     Keccak256,
@@ -50,36 +55,159 @@ pub enum DetectedMetadata {
     Cbor {
         /// Length of metadata in the bytecode, including encoded length of CBOR and padding.
         full_length: usize,
+        metadata: CborMetadata,
     },
 }
 
 impl DetectedMetadata {
     /// Returns full length (in bytes) of metadata in the bytecode.
-    pub fn length(self) -> usize {
+    pub fn length(&self) -> usize {
         match self {
             DetectedMetadata::Keccak256 => 32,
-            DetectedMetadata::Cbor { full_length } => full_length,
+            DetectedMetadata::Cbor {
+                full_length,
+                metadata: _,
+            } => *full_length,
+        }
+    }
+}
+
+/// Represents the compiler version in the Cbor metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum CborCompilerVersion {
+    /// For native solidity and vyper compilers, it is a 3 byte encoding of the compiler version: one byte each for major,
+    /// minor and patch version number. For example, 0.8.28 is encoded as [0, 8, 28].
+    /// More details can be found here:
+    /// https://docs.soliditylang.org/en/latest/metadata.html#encoding-of-the-metadata-hash-in-the-bytecode
+    Native(Vec<u8>),
+    /// For ZKsync solidity compiler, the value consists of semicolon-separated pairs of colon-separated
+    /// compiler names and versions. For example: "zksolc:<version>" or "zksolc:<version>;solc:<version>;llvm:<version>".
+    /// More details can be found here:
+    /// https://matter-labs.github.io/era-compiler-solidity/latest/02-command-line-interface.html#--metadata-hash
+    ///
+    /// For ZKsync vyper compiler, it's "zkvyper:<version>" or "zkvyper:<version>;vyper:<version>".
+    /// More details can be found here:
+    /// https://matter-labs.github.io/era-compiler-vyper/latest/02-command-line-interface.html#--metadata-hash
+    ZKsync(String),
+}
+
+impl CborCompilerVersion {
+    /// Returns the compiler versions from the metadata in a tuple (compiler_version, zk_compiler_version).
+    pub fn get_compiler_versions(&self) -> (Option<String>, Option<String>) {
+        match self {
+            CborCompilerVersion::Native(compiler_version) => {
+                // For native Solc and Vyper compilers, CBOR is a 3 byte encoding of the compiler version: one byte each
+                // for major, minor and patch version number. For example, 0.8.28 is encoded as [0, 8, 28].
+                if compiler_version.len() == 3 {
+                    let version_str = format!(
+                        "{}.{}.{}",
+                        compiler_version[0], compiler_version[1], compiler_version[2]
+                    );
+                    (Some(version_str), None)
+                } else {
+                    (None, None)
+                }
+            }
+            CborCompilerVersion::ZKsync(compiler_versions) => {
+                // For ZKsync compilers, the value consists of semicolon-separated pairs of colon-separated compiler names
+                // and versions. For example: "zksolc:1.5.13", "zkvyper:1.5.10;vyper:0.4.1" or
+                // "zksolc:1.5.13;solc:0.8.29;llvm:1.0.2".
+                // It can also contain a pre-release compiler version as a string, but we intentionally return None in such cases,
+                // as we don't support verification for such contracts.
+                let compilers_parts: Vec<&str> = compiler_versions
+                    .split(';')
+                    .filter_map(|part| part.split_once(':').map(|(_, value)| value))
+                    .collect();
+
+                // Prerelease compiler version is not supported for verification so None is returned.
+                if compilers_parts.is_empty() {
+                    return (None, None);
+                }
+                let mut compiler_version = None;
+                // Extract zk compiler version
+                let zk_compiler_version = Some(format!("v{}", compilers_parts[0]));
+
+                // Processing "zkvyper:<version>;vyper:<version>" version
+                if compilers_parts.len() == 2 {
+                    compiler_version = Some(compilers_parts[1].to_string());
+                } else if compilers_parts.len() == 3 {
+                    // Processing "zksolc:<version>;solc:<version>;llvm:<version>" version.
+                    compiler_version = Some(format!(
+                        "zkVM-{}-{}",
+                        compilers_parts[1], compilers_parts[2]
+                    ));
+                }
+
+                (compiler_version, zk_compiler_version)
+            }
         }
     }
 }
 
 /// Possible values for the metadata hashes structure.
 /// Details can be found here: https://docs.soliditylang.org/en/latest/metadata.html
-///
-/// We're not really interested in the values here, we just want to make sure that we
-/// can deserialize the metadata.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct CborMetadata {
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct CborMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
-    ipfs: Option<Vec<u8>>,
+    pub ipfs: Option<Vec<u8>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    bzzr1: Option<Vec<u8>>,
+    pub bzzr1: Option<Vec<u8>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    bzzr0: Option<Vec<u8>>,
+    pub bzzr0: Option<Vec<u8>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    experimental: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    solc: Option<Vec<u8>>,
+    pub experimental: Option<bool>,
+    // CborMetadata is deserialized with ciborium which doesn't properly deserialize CborCompilerVersion
+    // with it's variants. That's why we need a custom deserializer.
+    #[serde(default, deserialize_with = "deserialize_cbor_compiler")]
+    pub solc: Option<CborCompilerVersion>,
+    #[serde(default, deserialize_with = "deserialize_cbor_compiler")]
+    pub vyper: Option<CborCompilerVersion>,
+}
+
+impl CborMetadata {
+    /// Returns the compiler versions from the metadata in a tuple (compiler_version, zk_compiler_version)
+    /// for both solc and vyper.
+    pub fn get_compiler_versions(&self) -> (Option<String>, Option<String>) {
+        let compiler_version = self.solc.as_ref().or(self.vyper.as_ref());
+        match compiler_version {
+            Some(compiler_version) => compiler_version.get_compiler_versions(),
+            None => (None, None),
+        }
+    }
+}
+
+struct CborCompilerVersionVisitor;
+impl<'de> Visitor<'de> for CborCompilerVersionVisitor {
+    type Value = Option<CborCompilerVersion>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a byte array or a string")
+    }
+
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Some(CborCompilerVersion::Native(value.to_vec())))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Some(CborCompilerVersion::ZKsync(value.to_string())))
+    }
+}
+
+/// Custom deserializer for CborCompilerVersion so it's properly deserialized with ciborium.
+fn deserialize_cbor_compiler<'de, D>(
+    deserializer: D,
+) -> Result<Option<CborCompilerVersion>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    deserializer.deserialize_any(CborCompilerVersionVisitor)
 }
 
 impl ContractIdentifier {
@@ -90,19 +218,21 @@ impl ContractIdentifier {
         // Try to detect metadata.
         // CBOR takes precedence (since keccak doesn't have direct markers, so it's partially a
         // fallback).
-        let (detected_metadata, bytecode_without_metadata_keccak256) = if let Some((
-            full_length,
-            hash,
-        )) =
-            Self::detect_cbor_metadata(bytecode_marker, bytecode)
-        {
-            (Some(DetectedMetadata::Cbor { full_length }), hash)
-        } else if let Some(hash) = Self::detect_keccak_metadata(bytecode_marker, bytecode) {
-            (Some(DetectedMetadata::Keccak256), hash)
-        } else {
-            // Fallback
-            (None, bytecode_keccak256)
-        };
+        let (detected_metadata, bytecode_without_metadata_keccak256) =
+            if let Some((full_length, hash, metadata)) =
+                Self::detect_cbor_metadata(bytecode_marker, bytecode)
+            {
+                let detected_metadata = DetectedMetadata::Cbor {
+                    full_length,
+                    metadata,
+                };
+                (Some(detected_metadata), hash)
+            } else if let Some(hash) = Self::detect_keccak_metadata(bytecode_marker, bytecode) {
+                (Some(DetectedMetadata::Keccak256), hash)
+            } else {
+                // Fallback
+                (None, bytecode_keccak256)
+            };
 
         Self {
             bytecode_marker,
@@ -131,7 +261,7 @@ impl ContractIdentifier {
     fn detect_cbor_metadata(
         bytecode_marker: BytecodeMarker,
         bytecode: &[u8],
-    ) -> Option<(usize, H256)> {
+    ) -> Option<(usize, H256, CborMetadata)> {
         let length = bytecode.len();
 
         // Last two bytes is the length of the metadata in big endian.
@@ -149,7 +279,7 @@ impl ContractIdentifier {
         }
         let raw_metadata = &bytecode[length - full_metadata_length..length - 2];
         // Try decoding. We are not interested in the actual value.
-        let _metadata: CborMetadata = match ciborium::from_reader(raw_metadata) {
+        let metadata: CborMetadata = match ciborium::from_reader(raw_metadata) {
             Ok(metadata) => metadata,
             Err(_) => return None,
         };
@@ -169,7 +299,7 @@ impl ContractIdentifier {
             }
         };
         let hash = H256(keccak256(bytecode_without_metadata));
-        Some((full_metadata_length, hash))
+        Some((full_metadata_length, hash, metadata))
     }
 
     /// Adds one word to the metadata length and check if it's a padding word.
@@ -213,7 +343,10 @@ impl ContractIdentifier {
 
     /// Returns the length of the metadata in the bytecode.
     pub fn metadata_length(&self) -> usize {
-        self.detected_metadata.map_or(0, DetectedMetadata::length)
+        self.detected_metadata
+            .clone()
+            .as_ref()
+            .map_or(0, DetectedMetadata::length)
     }
 }
 
@@ -239,7 +372,21 @@ mod tests {
         );
         assert_eq!(
             identifier.detected_metadata,
-            Some(DetectedMetadata::Cbor { full_length: 44 }),
+            Some(DetectedMetadata::Cbor {
+                full_length: 44,
+                metadata: CborMetadata {
+                    ipfs: Some(vec![
+                        18, 32, 138, 207, 4, 133, 112, 220, 193, 195, 255, 65, 191, 143, 32, 55,
+                        96, 73, 164, 42, 232, 164, 113, 242, 178, 174, 140, 20, 216, 179, 86, 216,
+                        109, 121
+                    ]),
+                    bzzr1: None,
+                    bzzr0: None,
+                    experimental: None,
+                    solc: None,
+                    vyper: None
+                }
+            }),
             "Incorrect detected metadata"
         );
         assert_eq!(
@@ -264,7 +411,65 @@ mod tests {
         );
         assert_eq!(
             identifier.detected_metadata,
-            Some(DetectedMetadata::Cbor { full_length: 44 }),
+            Some(DetectedMetadata::Cbor {
+                full_length: 44,
+                metadata: CborMetadata {
+                    ipfs: Some(vec![
+                        18, 32, 213, 190, 77, 165, 16, 176, 137, 187, 88, 250, 108, 101, 240, 163,
+                        135, 238, 249, 102, 188, 244, 134, 113, 162, 79, 178, 177, 188, 113, 144,
+                        132, 41, 120
+                    ]),
+                    bzzr1: None,
+                    bzzr0: None,
+                    experimental: None,
+                    solc: None,
+                    vyper: None
+                }
+            }),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
+    fn eravm_cbor_with_solc() {
+        // Sample contract with no methods, compiled from the root of monorepo with:
+        // ./etc/zksolc-bin/v1.5.13/zksolc --solc ./etc/solc-bin/zkVM-0.8.24-1.0.1/solc --metadata-hash ipfs --codegen yul test.sol --bin
+        // (Use `zkstack contract-verifier init` to download compilers)
+        let data = hex::decode("00000001002001900000000c0000613d0000008001000039000000400010043f0000000001000416000000000001004b0000000c0000c13d00000020010000390000010000100443000001200000044300000005010000410000000f0001042e000000000100001900000010000104300000000e000004320000000f0001042e00000010000104300000000000000000000000000000000000000000000000000000000200000000000000000000000000000040000001000000000000000000000000000000000000a2646970667358221220322e344eb39f1d3acd2828278227de91da931750c529a47087ef31c8f3510cbb64736f6c6378247a6b736f6c633a312e352e31333b736f6c633a302e382e32343b6c6c766d3a312e302e310055").unwrap();
+        let bytecode_keccak256 = H256(keccak256(&data));
+        let full_metadata_len = 96; // (CBOR metadata + len bytes)
+        let bytecode_without_metadata_keccak256 =
+            H256(keccak256(&data[..data.len() - full_metadata_len]));
+
+        let identifier: ContractIdentifier =
+            ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
+        assert_eq!(
+            identifier.bytecode_keccak256, bytecode_keccak256,
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Cbor {
+                full_length: 87,
+                metadata: CborMetadata {
+                    ipfs: Some(vec![
+                        18, 32, 50, 46, 52, 78, 179, 159, 29, 58, 205, 40, 40, 39, 130, 39, 222,
+                        145, 218, 147, 23, 80, 197, 41, 164, 112, 135, 239, 49, 200, 243, 81, 12,
+                        187
+                    ]),
+                    bzzr1: None,
+                    bzzr0: None,
+                    experimental: None,
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "zksolc:1.5.13;solc:0.8.24;llvm:1.0.1".to_string()
+                    )),
+                    vyper: None
+                }
+            }),
             "Incorrect detected metadata"
         );
         assert_eq!(
@@ -375,6 +580,45 @@ mod tests {
     }
 
     #[test]
+    fn evm_cbor_prerelease_version() {
+        // Sample contract compiled with a prerelease solc verion 0.8.0-develop.2020.10.26+commit.b605ca50.Darwin.appleclang;
+        let data = hex::decode("608060405234801561001057600080fd5b506040516105013803806105018339818101604052602081101561003357600080fd5b810190808051604051939291908464010000000082111561005357600080fd5b8382019150602082018581111561006957600080fd5b825186600182028301116401000000008211171561008657600080fd5b8083526020830192505050908051906020019080838360005b838110156100ba57808201518184015260208101905061009f565b50505050905090810190601f1680156100e75780820380516001836020036101000a031916815260200191505b50604052505050806000908051906020019061010492919061010b565b50506101b6565b828054600181600116156101000203166002900490600052602060002090601f0160209004810192826101415760008555610188565b82601f1061015a57805160ff1916838001178555610188565b82800160010185558215610188579182015b8281111561018757825182559160200191906001019061016c565b5b5090506101959190610199565b5090565b5b808211156101b257600081600090555060010161019a565b5090565b61033c806101c56000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c8063a41368621461003b578063cfae3217146100f6575b600080fd5b6100f46004803603602081101561005157600080fd5b810190808035906020019064010000000081111561006e57600080fd5b82018360208201111561008057600080fd5b803590602001918460018302840111640100000000831117156100a257600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600081840152601f19601f820116905080830192505050505050509192919290505050610179565b005b6100fe610193565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561013e578082015181840152602081019050610123565b50505050905090810190601f16801561016b5780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b806000908051906020019061018f929190610235565b5050565b606060008054600181600116156101000203166002900480601f01602080910402602001604051908101604052809291908181526020018280546001816001161561010002031660029004801561022b5780601f106102005761010080835404028352916020019161022b565b820191906000526020600020905b81548152906001019060200180831161020e57829003601f168201915b5050505050905090565b828054600181600116156101000203166002900490600052602060002090601f01602090048101928261026b57600085556102b2565b82601f1061028457805160ff19168380011785556102b2565b828001600101855582156102b2579182015b828111156102b1578251825591602001919060010190610296565b5b5090506102bf91906102c3565b5090565b5b808211156102dc5760008160009055506001016102c4565b509056fea264697066735822122028f6d87164fbb30ea203e1c7e5320753e079c9b875724efdb7965b7a4739a10464736f6c637828302e382e302d646576656c6f702e323032302e31302e32362b636f6d6d69742e62363035636135300059").unwrap();
+        let bytecode_keccak256 = H256(keccak256(&data));
+        let bytecode_without_metadata_keccak256 = H256(keccak256(&data[..data.len() - 91]));
+
+        let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
+        assert_eq!(
+            identifier.bytecode_keccak256, bytecode_keccak256,
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Cbor {
+                full_length: 91,
+                metadata: CborMetadata {
+                    ipfs: Some(vec![
+                        18, 32, 40, 246, 216, 113, 100, 251, 179, 14, 162, 3, 225, 199, 229, 50, 7,
+                        83, 224, 121, 201, 184, 117, 114, 78, 253, 183, 150, 91, 122, 71, 57, 161,
+                        4
+                    ]),
+                    bzzr1: None,
+                    bzzr0: None,
+                    experimental: None,
+                    solc: Some(CborCompilerVersion::ZKsync(
+                        "0.8.0-develop.2020.10.26+commit.b605ca50".to_string()
+                    )),
+                    vyper: None
+                }
+            }),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
     fn evm_cbor() {
         // ./etc/solc-bin/0.8.28/solc test.sol --bin --metadata-hash ipfs
         let ipfs_bytecode = "6080604052348015600e575f5ffd5b5060af80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80636d4ce63c14602a575b5f5ffd5b60306044565b604051603b91906062565b60405180910390f35b5f5f54905090565b5f819050919050565b605c81604c565b82525050565b5f60208201905060735f8301846055565b9291505056fea2646970667358221220bca846db362b62d2eb9891565b12433410e0f6a634657d2c7d1e7469447e8ab564736f6c634300081c0033";
@@ -385,15 +629,68 @@ mod tests {
         let swarm_bytecode = "6080604052348015600e575f5ffd5b5060ae80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c80636d4ce63c14602a575b5f5ffd5b60306044565b604051603b91906062565b60405180910390f35b5f5f54905090565b5f819050919050565b605c81604c565b82525050565b5f60208201905060735f8301846055565b9291505056fea265627a7a72315820c0def30c57166e97d6a58290213f3b0d1f83532e7a0371c8e2b6dba826bae46164736f6c634300081c0032";
 
         // Different variations of the same contract, compiled with different metadata options.
-        // Tuples of (label, bytecode, size of metadata (including length)).
+        // Tuples of (label, bytecode, size of metadata (including length), detected metadata).
         // Size of metadata can be found using https://playground.sourcify.dev/
         let test_vector = [
-            ("ipfs", ipfs_bytecode, 51usize + 2),
-            ("none", none_bytecode, 10 + 2),
-            ("swarm", swarm_bytecode, 50 + 2),
+            (
+                "ipfs",
+                ipfs_bytecode,
+                51usize + 2,
+                Some(DetectedMetadata::Cbor {
+                    full_length: 53,
+                    metadata: CborMetadata {
+                        ipfs: Some(vec![
+                            18, 32, 188, 168, 70, 219, 54, 43, 98, 210, 235, 152, 145, 86, 91, 18,
+                            67, 52, 16, 224, 246, 166, 52, 101, 125, 44, 125, 30, 116, 105, 68,
+                            126, 138, 181,
+                        ]),
+                        bzzr1: None,
+                        bzzr0: None,
+                        experimental: None,
+                        solc: Some(CborCompilerVersion::Native(vec![0, 8, 28])),
+                        vyper: None,
+                    },
+                }),
+            ),
+            (
+                "none",
+                none_bytecode,
+                10 + 2,
+                Some(DetectedMetadata::Cbor {
+                    full_length: 12,
+                    metadata: CborMetadata {
+                        ipfs: None,
+                        bzzr1: None,
+                        bzzr0: None,
+                        experimental: None,
+                        solc: Some(CborCompilerVersion::Native(vec![0, 8, 28])),
+                        vyper: None,
+                    },
+                }),
+            ),
+            (
+                "swarm",
+                swarm_bytecode,
+                50 + 2,
+                Some(DetectedMetadata::Cbor {
+                    full_length: 52,
+                    metadata: CborMetadata {
+                        ipfs: None,
+                        bzzr1: Some(vec![
+                            192, 222, 243, 12, 87, 22, 110, 151, 214, 165, 130, 144, 33, 63, 59,
+                            13, 31, 131, 83, 46, 122, 3, 113, 200, 226, 182, 219, 168, 38, 186,
+                            228, 97,
+                        ]),
+                        bzzr0: None,
+                        experimental: None,
+                        solc: Some(CborCompilerVersion::Native(vec![0, 8, 28])),
+                        vyper: None,
+                    },
+                }),
+            ),
         ];
 
-        for (label, bytecode, full_metadata_len) in test_vector {
+        for (label, bytecode, full_metadata_len, metadata) in test_vector {
             let data = hex::decode(bytecode).unwrap();
             let bytecode_keccak256 = H256(keccak256(&data));
             let bytecode_without_metadata_keccak256 =
@@ -405,10 +702,7 @@ mod tests {
                 "{label}: Incorrect bytecode hash"
             );
             assert_eq!(
-                identifier.detected_metadata,
-                Some(DetectedMetadata::Cbor {
-                    full_length: full_metadata_len
-                }),
+                identifier.detected_metadata, metadata,
                 "{label}: Incorrect detected metadata"
             );
             assert_eq!(
@@ -416,5 +710,258 @@ mod tests {
                 "{label}: Incorrect bytecode without metadata hash"
             );
         }
+    }
+
+    #[test]
+    fn vyper_none() {
+        // Sample contract with no methods, compiled from the root of monorepo with:
+        // ./etc/vyper-bin/0.3.10/vyper test.vy --no-bytecode-metadata
+        // (Use `zkstack contract-verifier init` to download compilers)
+        let data = hex::decode("61002761000f6000396100276000f35f3560e01c6398716725811861001f5734610023575f5460405260206040f35b5f5ffd5b5f80fd").unwrap();
+        let bytecode_keccak256 = H256(keccak256(&data));
+
+        let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
+        assert_eq!(
+            identifier.bytecode_keccak256, bytecode_keccak256,
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.detected_metadata, None,
+            "Incorrect detected metadata"
+        );
+        // When no metadata is detected, `bytecode_without_metadata_keccak256` is equal to
+        // `bytecode_keccak256`.
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_keccak256,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
+    fn vyper_keccak_without_padding() {
+        // Sample contract with no methods, compiled from the root of monorepo with:
+        // ./etc/zkvyper-bin/v1.5.4/zkvyper --vyper ./etc/vyper-bin/0.3.10/vyper test.vy
+        // (Use `zkstack contract-verifier init` to download compilers)
+        let data = hex::decode("0000000100200190000000100000c13d00000000020100190000000800200198000000150000613d000000000101043b00000009011001970000000a0010009c000000150000c13d0000000001000416000000000001004b000000150000c13d000000000100041a000000400010043f0000000b01000041000000180001042e0000002001000039000001000010044300000120000004430000000701000041000000180001042e000000000100001900000019000104300000001700000432000000180001042e000000190001043000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff0000000000000000000000000000000000000000000000000000000098716725000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000400000000000000000e80a9cfd35cba3f2346174b8eda3178b883727aff1778ac11ca8411a8e6fbae4").unwrap();
+        let bytecode_keccak256 = H256(keccak256(&data));
+        let full_metadata_len = 32; // (keccak only)
+        let bytecode_without_metadata_keccak256 =
+            H256(keccak256(&data[..data.len() - full_metadata_len]));
+
+        let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &data);
+        assert_eq!(
+            identifier.bytecode_keccak256, bytecode_keccak256,
+            "Incorrect bytecode hash"
+        );
+        assert_eq!(
+            identifier.detected_metadata,
+            Some(DetectedMetadata::Keccak256),
+            "Incorrect detected metadata"
+        );
+        assert_eq!(
+            identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
+            "Incorrect bytecode without metadata hash"
+        );
+    }
+
+    #[test]
+    fn zkvyper_cbor() {
+        // ./etc/zkvyper-bin/v1.5.10/zkvyper --vyper ./etc/vyper-bin/0.3.10/vyper --metadata-hash none test.vy
+        let none_bytecode = "00000001002001900000000f0000c13d0000000800100198000000140000613d000000000101043b00000009011001970000000a0010009c000000140000c13d0000000001000416000000000001004b000000140000c13d000000000100041a000000400010043f0000000b01000041000000170001042e0000002001000039000001000010044300000120000004430000000701000041000000170001042e000000000100001900000018000104300000001600000432000000170001042e0000001800010430000000000000000000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff000000000000000000000000000000000000000000000000000000009871672500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a1657679706572781b7a6b76797065723a312e352e31303b76797065723a302e332e31300024";
+
+        // ./etc/zkvyper-bin/v1.5.10/zkvyper --vyper ./etc/vyper-bin/0.3.10/vyper --metadata-hash ipfs test.vy
+        let ipfs_bytecode = "00000001002001900000000f0000c13d0000000800100198000000140000613d000000000101043b00000009011001970000000a0010009c000000140000c13d0000000001000416000000000001004b000000140000c13d000000000100041a000000400010043f0000000b01000041000000170001042e0000002001000039000001000010044300000120000004430000000701000041000000170001042e000000000100001900000018000104300000001600000432000000170001042e0000001800010430000000000000000000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff00000000000000000000000000000000000000000000000000000000987167250000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000004000000000000000000000000000000000000000000000000000a264697066735822122027a39f09f1e84c0633aef5d8768191da6ec0ad423dd55c63e107bb831bbab1e4657679706572781b7a6b76797065723a312e352e31303b76797065723a302e332e3130004d";
+
+        // // Different variations of the same contract, compiled with different metadata options.
+        let test_vector = [
+            (
+                "none",
+                none_bytecode,
+                36usize + 2,
+                Some(DetectedMetadata::Cbor {
+                    full_length: 38,
+                    metadata: CborMetadata {
+                        ipfs: None,
+                        bzzr1: None,
+                        bzzr0: None,
+                        experimental: None,
+                        solc: None,
+                        vyper: Some(CborCompilerVersion::ZKsync(
+                            "zkvyper:1.5.10;vyper:0.3.10".to_string(),
+                        )),
+                    },
+                }),
+            ),
+            (
+                "ipfs",
+                ipfs_bytecode,
+                77usize + 2,
+                Some(DetectedMetadata::Cbor {
+                    full_length: 79,
+                    metadata: CborMetadata {
+                        ipfs: Some(vec![
+                            18, 32, 39, 163, 159, 9, 241, 232, 76, 6, 51, 174, 245, 216, 118, 129,
+                            145, 218, 110, 192, 173, 66, 61, 213, 92, 99, 225, 7, 187, 131, 27,
+                            186, 177, 228,
+                        ]),
+                        bzzr1: None,
+                        bzzr0: None,
+                        experimental: None,
+                        solc: None,
+                        vyper: Some(CborCompilerVersion::ZKsync(
+                            "zkvyper:1.5.10;vyper:0.3.10".to_string(),
+                        )),
+                    },
+                }),
+            ),
+        ];
+
+        for (label, bytecode, full_metadata_len, metadata) in test_vector {
+            let data = hex::decode(bytecode).unwrap();
+            let bytecode_keccak256 = H256(keccak256(&data));
+            let bytecode_without_metadata_keccak256 =
+                H256(keccak256(&data[..data.len() - full_metadata_len]));
+
+            let identifier = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &data);
+            assert_eq!(
+                identifier.bytecode_keccak256, bytecode_keccak256,
+                "{label}: Incorrect bytecode hash"
+            );
+            assert_eq!(
+                identifier.detected_metadata, metadata,
+                "{label}: Incorrect detected metadata"
+            );
+            assert_eq!(
+                identifier.bytecode_without_metadata_keccak256, bytecode_without_metadata_keccak256,
+                "{label}: Incorrect bytecode without metadata hash"
+            );
+        }
+    }
+
+    #[test]
+    fn cbor_compiler_version_native_compiler_version_valid() {
+        let version = CborCompilerVersion::Native(vec![0, 8, 28]);
+        let (compiler_version, zk_compiler_version) = version.get_compiler_versions();
+        assert_eq!(compiler_version, Some("0.8.28".to_string()));
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_compiler_version_native_compiler_version_invalid() {
+        let version = CborCompilerVersion::Native(vec![0, 8]);
+        let (compiler_version, zk_compiler_version) = version.get_compiler_versions();
+        assert_eq!(compiler_version, None);
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_compiler_version_zksync_compiler_version_single() {
+        let version = CborCompilerVersion::ZKsync("zksolc:1.5.13".to_string());
+        let (compiler_version, zk_compiler_version) = version.get_compiler_versions();
+        assert_eq!(compiler_version, None);
+        assert_eq!(zk_compiler_version, Some("v1.5.13".to_string()));
+    }
+
+    #[test]
+    fn cbor_compiler_version_zksync_compiler_version_dual() {
+        let version = CborCompilerVersion::ZKsync("zkvyper:1.5.10;vyper:0.4.1".to_string());
+        let (compiler_version, zk_compiler_version) = version.get_compiler_versions();
+        assert_eq!(compiler_version, Some("0.4.1".to_string()));
+        assert_eq!(zk_compiler_version, Some("v1.5.10".to_string()));
+    }
+
+    #[test]
+    fn cbor_compiler_version_zksync_compiler_version_triple() {
+        let version =
+            CborCompilerVersion::ZKsync("zksolc:1.5.13;solc:0.8.29;llvm:1.0.2".to_string());
+        let (compiler_version, zk_compiler_version) = version.get_compiler_versions();
+        assert_eq!(compiler_version, Some("zkVM-0.8.29-1.0.2".to_string()));
+        assert_eq!(zk_compiler_version, Some("v1.5.13".to_string()));
+    }
+
+    #[test]
+    fn cbor_compiler_version_zksync_compiler_version_invalid() {
+        let version = CborCompilerVersion::ZKsync("invalid_format".to_string());
+        let (compiler_version, zk_compiler_version) = version.get_compiler_versions();
+        assert_eq!(compiler_version, None);
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_metadata_get_compiler_versions_solc() {
+        let metadata = CborMetadata {
+            solc: Some(CborCompilerVersion::Native(vec![0, 8, 28])),
+            vyper: None,
+            ..Default::default()
+        };
+        let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
+        assert_eq!(compiler_version, Some("0.8.28".to_string()));
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_metadata_get_compiler_versions_solc_prerelease() {
+        let metadata = CborMetadata {
+            solc: Some(CborCompilerVersion::ZKsync(
+                "0.8.0-develop.2020.10.26+commit.b605ca50".to_string(),
+            )),
+            vyper: None,
+            ..Default::default()
+        };
+        let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
+        // Prerelease versions are expected to return None so we can use the default value which is the
+        // version from the verification request.
+        assert_eq!(compiler_version, None);
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_metadata_get_compiler_versions_vyper() {
+        let metadata = CborMetadata {
+            solc: None,
+            vyper: Some(CborCompilerVersion::ZKsync(
+                "zkvyper:1.5.10;vyper:0.4.1".to_string(),
+            )),
+            ..Default::default()
+        };
+        let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
+        assert_eq!(compiler_version, Some("0.4.1".to_string()));
+        assert_eq!(zk_compiler_version, Some("v1.5.10".to_string()));
+    }
+
+    #[test]
+    fn cbor_metadata_get_compiler_versions_none_present() {
+        let metadata = CborMetadata {
+            solc: None,
+            vyper: None,
+            ..Default::default()
+        };
+        let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
+        assert_eq!(compiler_version, None);
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_metadata_get_compiler_versions_invalid_solc() {
+        let metadata = CborMetadata {
+            solc: Some(CborCompilerVersion::Native(vec![0, 8])),
+            vyper: None,
+            ..Default::default()
+        };
+        let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
+        assert_eq!(compiler_version, None);
+        assert_eq!(zk_compiler_version, None);
+    }
+
+    #[test]
+    fn cbor_metadata_get_compiler_versions_invalid_vyper() {
+        let metadata = CborMetadata {
+            solc: None,
+            vyper: Some(CborCompilerVersion::ZKsync("invalid_format".to_string())),
+            ..Default::default()
+        };
+        let (compiler_version, zk_compiler_version) = metadata.get_compiler_versions();
+        assert_eq!(compiler_version, None);
+        assert_eq!(zk_compiler_version, None);
     }
 }
