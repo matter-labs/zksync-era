@@ -335,6 +335,12 @@ impl GasConsts {
     /// It's applicable iff SL is Ethereum.
     const L1_OPERATION_EXECUTE_COST: u64 = 12_500;
 
+    /// Base gas cost of processing `Precommit` operation.
+    const PRECOMMIT_BASE_COST: u64 = 100_000;
+
+    /// Additional gas cost of processing `Precommit` operation per tx.
+    const PRECOMMIT_PER_TX_COST: u64 = 5_000;
+
     fn commit_costs(is_gateway: bool) -> CommitGasConsts {
         if is_gateway {
             CommitGasConsts {
@@ -357,12 +363,16 @@ impl GasConsts {
         }
     }
 
-    fn precommit_costs(_is_gateway: bool) -> PrecommitCosts {
-        // TODO calculate it properly
-        PrecommitCosts {
-            base: 300000,
-            per_tx: 10000,
+    fn precommit_costs(is_gateway: bool) -> PrecommitCosts {
+        let mut costs = PrecommitCosts {
+            base: Self::PRECOMMIT_BASE_COST,
+            per_tx: Self::PRECOMMIT_PER_TX_COST,
+        };
+        if is_gateway {
+            costs.base = costs.base * 2;
+            costs.per_tx = costs.per_tx * 2;
         }
+        costs
     }
 
     fn execute_costs(is_gateway: bool) -> ExecuteCosts {
