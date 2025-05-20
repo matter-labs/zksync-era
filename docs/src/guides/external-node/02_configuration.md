@@ -91,7 +91,8 @@ EN_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=4096
 ```
 
 These options can be used together with pruning / snapshot recovery as well, but their _additional_ impact on RAM
-consumption is expected to be fairly small.
+consumption is expected to be fairly small. The options can be changed or removed at any time; they do not require a
+long-term commitment or irreversible decisions, unlike enabling pruning for a node.
 
 ## Logging and observability
 
