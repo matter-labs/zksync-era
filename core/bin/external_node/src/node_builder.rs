@@ -16,6 +16,7 @@ use zksync_config::{
     DAClientConfig, PostgresConfig,
 };
 use zksync_consistency_checker::node::ConsistencyCheckerLayer;
+use zksync_contract_verification_server::node::ContractVerificationApiLayer;
 use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
@@ -28,53 +29,10 @@ use zksync_metadata_calculator::{
     node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
     MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
-use zksync_node_api_server::web3::{state::InternalApiConfigBase, Namespace};
-use zksync_node_framework::{
-    implementations::layers::{
-        batch_status_updater::BatchStatusUpdaterLayer,
-        block_reverter::BlockReverterLayer,
-        commitment_generator::CommitmentGeneratorLayer,
-        consensus::ExternalNodeConsensusLayer,
-        consistency_checker::ConsistencyCheckerLayer,
-        contract_verification_api::ContractVerificationApiLayer,
-        da_clients::{
-            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, eigen::EigenWiringLayer,
-            no_da::NoDAClientWiringLayer, object_store::ObjectStorageClientWiringLayer,
-        },
-        data_availability_fetcher::DataAvailabilityFetcherLayer,
-        healtcheck_server::HealthCheckLayer,
-        logs_bloom_backfill::LogsBloomBackfillLayer,
-        main_node_client::MainNodeClientLayer,
-        main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
-        metadata_calculator::{MetadataCalculatorLayer, TreeApiServerLayer},
-        node_storage_init::{
-            external_node_strategy::{ExternalNodeInitStrategyLayer, SnapshotRecoveryConfig},
-            NodeStorageInitializerLayer,
-        },
-        pools_layer::PoolsLayerBuilder,
-        postgres::PostgresLayer,
-        prometheus_exporter::PrometheusExporterLayer,
-        pruning::PruningLayer,
-        query_eth_client::QueryEthClientLayer,
-        reorg_detector::ReorgDetectorLayer,
-        settlement_layer_client::SettlementLayerClientLayer,
-        settlement_layer_data,
-        settlement_layer_data::SettlementLayerData,
-        sigint::SigintHandlerLayer,
-        state_keeper::{
-            external_io::ExternalIOLayer, main_batch_executor::MainBatchExecutorLayer,
-            output_handler::OutputHandlerLayer, StateKeeperLayer,
-        },
-        sync_state_updater::SyncStateUpdaterLayer,
-        tree_data_fetcher::TreeDataFetcherLayer,
-        validate_chain_ids::ValidateChainIdsLayer,
-        web3_api::{
-            caches::MempoolCacheLayer,
-            server::{Web3ServerLayer, Web3ServerOptionalConfig},
-            tree_api_client::TreeApiClientLayer,
-            tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
-            tx_sink::ProxySinkLayer,
-        },
+use zksync_node_api_server::{
+    node::{
+        HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
+        TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
     web3::{state::InternalApiConfigBase, Namespace},
 };
@@ -403,7 +361,7 @@ impl ExternalNodeBuilder {
             self.node
                 .add_layer(ContractVerificationApiLayer(contract_verifier_config));
         } else {
-            tracing::warn!("Contract verifier configuration is missing, skipping contract verification API layer");
+            tracing::info!("Contract verifier configuration is missing, skipping contract verification API layer");
         }
         Ok(self)
     }

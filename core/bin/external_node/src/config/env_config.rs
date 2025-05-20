@@ -13,7 +13,7 @@ use zksync_config::{
         },
         DataAvailabilitySecrets,
     },
-    AvailConfig, DAClientConfig, EigenConfig,
+    AvailConfig, ContractVerifierConfig, DAClientConfig, EigenConfig,
 };
 use zksync_types::{
     secrets::{APIKey, PrivateKey, SeedPhrase},
@@ -139,4 +139,28 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
     };
 
     Ok(secrets)
+}
+
+pub fn cv_config_from_env(prefix: &str) -> anyhow::Result<ContractVerifierConfig> {
+    let compilation_timeout = env::var(format!("{}COMPILATION_TIMEOUT", prefix))
+        .context("Failed to parse compilation timeout")?
+        .parse::<u64>()
+        .context("Failed to parse compilation timeout as u64")?;
+    let compilation_timeout = Duration::from_secs(compilation_timeout);
+    let prometheus_port = env::var(format!("{}PROMETHEUS_PORT", prefix))
+        .context("Failed to load prometheus config")?
+        .parse::<u16>()
+        .context("Failed to parse prometheus port as u16")?;
+    let port = env::var(format!("{}PORT", prefix))?
+        .parse()
+        .context("Failed to parse port")?;
+    let etherscan_api_url = env::var(format!("{}ETHERSCAN_API_URL", prefix)).ok();
+    let contract_verifier_config = ContractVerifierConfig {
+        compilation_timeout,
+        prometheus_port,
+        port,
+        etherscan_api_url: etherscan_api_url,
+    };
+
+    Ok(contract_verifier_config)
 }

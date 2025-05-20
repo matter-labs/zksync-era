@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
+use env_config::cv_config_from_env;
 use serde::{de, Deserialize, Deserializer};
 use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
@@ -1228,9 +1229,7 @@ impl ExternalNodeConfig<()> {
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
             remote: (),
-            contract_verifier: envy::prefixed("EN_CONTRACT_VERIFIER_")
-                .from_env::<ContractVerifierConfig>()
-                .ok(),
+            contract_verifier: cv_config_from_env("EN_CONTRACT_VERIFIER_").ok(),
         })
     }
 
@@ -1272,7 +1271,7 @@ impl ExternalNodeConfig<()> {
             general_config.da_client_config,
             secrets_config.data_availability,
         );
-        let contract_verifier = general_config.contract_verifier.clone();
+        let contract_verifier = Some(general_config.contract_verifier.clone());
 
         Ok(Self {
             required,
