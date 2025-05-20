@@ -156,7 +156,7 @@ pub struct SenderConfig {
     /// Parameters for precommit operation.
     pub precommit_params: Option<PrecommitParams>,
 }
-
+/// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
 pub struct PrecommitParams {
     pub l2_blocks_to_aggregate: u32,
