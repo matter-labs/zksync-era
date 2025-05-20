@@ -290,7 +290,7 @@ impl EthTxManager {
             return self.config.max_aggregated_tx_gas.into();
         };
 
-        // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
+        // Adjust gas limit based on pubdata cost for pubdata intensive parts.
         if tx.tx_type == AggregatedActionType::Commit {
             match operator_type {
                 OperatorType::Blob | OperatorType::NonBlob => {
@@ -312,6 +312,19 @@ impl EthTxManager {
                         self.config.max_aggregated_tx_gas.into()
                     }
                 }
+            }
+        } else if tx.tx_type == AggregatedActionType::Execute
+            && operator_type == OperatorType::Gateway
+        {
+            // Execute tx on Gateway can become pubdata intensive due to interop
+            if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+                (gas_without_pubdata
+                    + ((max_gas_per_pubdata_price
+                        + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
+                        * tx.raw_tx.len() as u64))
+                    .into()
+            } else {
+                self.config.max_aggregated_tx_gas.into()
             }
         } else {
             gas_without_pubdata.into()
