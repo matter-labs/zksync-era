@@ -46,6 +46,7 @@ impl ProtoRepr for proto::GeneralConfig {
             experimental_vm_config: read_optional_repr(&self.experimental_vm),
             prover_job_monitor_config: read_optional_repr(&self.prover_job_monitor),
             timestamp_asserter_config: read_optional_repr(&self.timestamp_asserter),
+            gateway_migrator_config: read_optional_repr(&self.gateway_migrator).unwrap_or_default(),
         })
     }
 
@@ -112,6 +113,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 .timestamp_asserter_config
                 .as_ref()
                 .map(ProtoRepr::build),
+            gateway_migrator: Some(ProtoRepr::build(&this.gateway_migrator_config)),
         }
     }
 }

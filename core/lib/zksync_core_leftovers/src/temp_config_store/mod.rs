@@ -121,6 +121,7 @@ impl TempConfigStore {
             experimental_vm_config: self.experimental_vm_config.clone(),
             prover_job_monitor_config: self.prover_job_monitor_config.clone(),
             timestamp_asserter_config: self.timestamp_asserter_config.clone(),
+            gateway_migrator_config: Default::default(),
         }
     }
 

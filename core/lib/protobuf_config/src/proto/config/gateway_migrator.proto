@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package zksync.config.gateway_migrator;
+
+message GatewayMigratorConfig {
+  optional uint64 eth_node_poll_interval_ms = 1;
+}

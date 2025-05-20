@@ -8,6 +8,7 @@ use crate::{
         consensus::ConsensusConfig,
         da_client::DAClientConfig,
         da_dispatcher::DADispatcherConfig,
+        gateway_migrator::GatewayMigratorConfig,
         house_keeper::HouseKeeperConfig,
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
@@ -58,4 +59,5 @@ pub struct GeneralConfig {
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     pub timestamp_asserter_config: Option<TimestampAsserterConfig>,
+    pub gateway_migrator_config: GatewayMigratorConfig,
 }
