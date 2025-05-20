@@ -18,3 +18,34 @@ pub struct TeeProofDataHandlerConfig {
     #[config(default_t = 10 * TimeUnit::Days, with = TimeUnit::Hours)]
     pub batch_permanently_ignored_timeout_in_hours: Duration,
 }
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> TeeProofDataHandlerConfig {
+        TeeProofDataHandlerConfig {
+            http_port: 4320,
+            first_processed_batch: L1BatchNumber(123),
+            proof_generation_timeout_in_secs: Duration::from_secs(90),
+            batch_permanently_ignored_timeout_in_hours: 5 * TimeUnit::Days,
+        }
+    }
+
+    #[test]
+    fn tee_proof_data_handler_config_from_yaml() {
+        let yaml = r#"
+          http_port: 4320
+          first_processed_batch: 123
+          proof_generation_timeout_in_secs: 90
+          batch_permanently_ignored_timeout_in_hours: 120
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: TeeProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+}
