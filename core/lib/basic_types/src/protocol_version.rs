@@ -131,10 +131,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmFullInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version31 => VmVersion::VmFullInterop,
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
         }
     }
 
@@ -320,9 +320,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
-            ProtocolVersionId::Version30 => VmVersion::VmFullInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version31 => VmVersion::VmFullInterop,
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
         }
     }
 }
