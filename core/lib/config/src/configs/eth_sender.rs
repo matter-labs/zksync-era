@@ -289,7 +289,7 @@ mod tests {
                 is_verifier_pre_fflonk: false,
                 gas_limit_mode: GasLimitMode::Calculated,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
-                time_in_mempool_multiplier_cap: None,
+                time_in_mempool_multiplier_cap: Some(10),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -350,6 +350,7 @@ mod tests {
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
+            ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -385,6 +386,7 @@ mod tests {
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
+            time_in_mempool_multiplier_cap: 10
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
