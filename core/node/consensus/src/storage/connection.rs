@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
+use zksync_consensus_engine::BlockStoreState;
 use zksync_consensus_roles::validator;
 use zksync_dal::{
     consensus::BlockCertificate,
@@ -134,7 +135,7 @@ impl<'a> Connection<'a> {
     pub(crate) async fn block_store_state(
         &mut self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<storage::BlockStoreState> {
+    ) -> ctx::Result<BlockStoreState> {
         Ok(ctx
             .wait(self.0.consensus_dal().block_store_state())
             .await??)

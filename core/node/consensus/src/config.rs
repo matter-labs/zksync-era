@@ -35,8 +35,7 @@ pub(super) fn validator_key(
 pub(super) struct GenesisSpec {
     pub(super) chain_id: validator::ChainId,
     pub(super) protocol_version: validator::ProtocolVersion,
-    pub(super) validators: validator::Committee,
-    pub(super) leader_selection: validator::v1::LeaderSelectionMode,
+    pub(super) validators: Option<validator::Schedule>,
     pub(super) registry_address: Option<ethabi::Address>,
     pub(super) seed_peers: BTreeMap<node::PublicKey, net::Host>,
 }
@@ -46,8 +45,7 @@ impl GenesisSpec {
         Self {
             chain_id: cfg.genesis.chain_id,
             protocol_version: cfg.genesis.protocol_version,
-            validators: cfg.genesis.validators.clone(),
-            leader_selection: cfg.genesis.leader_selection.clone(),
+            validators: cfg.genesis.validators_schedule.clone(),
             registry_address: cfg.registry_address,
             seed_peers: cfg.seed_peers.clone(),
         }
