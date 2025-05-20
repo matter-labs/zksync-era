@@ -19,7 +19,7 @@ pub async fn get_diamond_proxy_contract(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
 ) -> Result<Address, ContractCallError> {
-    CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
+    CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
         .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
         .await
@@ -43,17 +43,10 @@ pub async fn load_settlement_layer_contracts(
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
 ) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
-    tracing::info!(
-        "Getting diamond proxy for chain {} address {}",
-        l2_chain_id,
-        bridgehub_address
-    );
-
     let diamond_proxy =
         get_diamond_proxy_contract(sl_client, bridgehub_address, l2_chain_id).await?;
 
     if diamond_proxy.is_zero() {
-        tracing::warn!("Diamond proxy is zero!");
         return Ok(None);
     }
 
@@ -64,7 +57,6 @@ pub async fn load_settlement_layer_contracts(
     .minor
     .is_post_fflonk()
     {
-        tracing::warn!("Can't unpack protocol version!");
         return Ok(None);
     }
 
