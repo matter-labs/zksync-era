@@ -538,7 +538,7 @@ jobs:
           sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/da_migration/configs/genesis.yaml
           sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/da_migration/ZkStack.yaml
           sudo yq -i '.state_keeper.l1_batch_commit_data_generator_mode = "Validium"' ./chains/da_migration/configs/general.yaml
-          sudo yq -i '.da_client.no_da = {}' ./chains/da_migration/configs/general.yaml
+          sudo yq -i '.da_client.client = "NoDA"' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/da_migration/configs/general.yaml
           echo "Deploying L2 DA validator and restarting server"
@@ -587,12 +587,12 @@ jobs:
           
           echo "Updating DA validator addresses on L1 and restarting the server"
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
-            L1_DA_VALIDATOR_ADDR=$(yq '.validium_da_validator' "./chains/gateway/configs/gateway.yaml")
+            L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.validium_da_validator' "./chains/gateway/configs/gateway.yaml")
           else
-            L1_DA_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/da_migration/configs/contracts.yaml")
+            L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/da_migration/configs/contracts.yaml")
           fi
           
-          ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_VALIDATOR_ADDR 50000000000
+          ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000
           
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/da_migration/configs/general.yaml
@@ -609,7 +609,6 @@ jobs:
             "da_migration" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
           echo "Integration tests completed"
-          unset L1_DA_VALIDATOR_ADDR
 
       - name: Init external nodes
         run: |
