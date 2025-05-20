@@ -288,7 +288,7 @@ impl RawAvailClient {
         Ok(ext_hash.to_string())
     }
 
-    /// Monitors latest Avail blocks to find the
+    /// Monitors latest Avail blocks to find the extrinsic with a certain hash
     pub(crate) async fn search_for_ext_in_latest_block(
         &self,
         client: &Client,
