@@ -1,8 +1,4 @@
-use std::{
-    any::{Any, TypeId},
-    fmt,
-    sync::Arc,
-};
+use std::{any::TypeId, fmt, sync::Arc};
 
 pub use self::{resource_id::ResourceId, unique::Unique};
 use crate::sealed::Sealed;
@@ -85,7 +81,7 @@ impl<T: Resource<Boxed> + ?Sized> Resource for Box<T> {
 ///
 /// This trait is implemented for any type that implements [`Resource`], so there is no need to
 /// implement it manually.
-pub(crate) trait StoredResource: 'static + Send + Sync {
+pub(crate) trait StoredResource: 'static + Send + Sync + std::any::Any {
     /// An object-safe version of [`Resource::name`].
     fn stored_resource_id(&self) -> ResourceId;
 }
