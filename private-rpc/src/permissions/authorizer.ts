@@ -47,6 +47,7 @@ export class Authorizer {
 
     reloadFromEnv(): Authorizer {
         const filePath = env.PERMISSIONS_YAML_PATH;
+        console.log(`loading permissions from ${filePath}`);
         this.permissions = new Map();
         this.postReadFilters = new Map();
         new YamlParser(filePath).load_rules(this);

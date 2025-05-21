@@ -12,7 +12,7 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 import { Token } from '../src/types';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
-import {logsTestPath} from "utils/build/logs";
+import { logsTestPath } from 'utils/build/logs';
 
 const chainName = shouldLoadConfigFromFile().chain;
 
