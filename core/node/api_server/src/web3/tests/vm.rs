@@ -10,23 +10,19 @@ use std::{
 
 use api::state_override::{OverrideAccount, StateOverride};
 use test_casing::test_casing;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::{
     ExecutionResult, OneshotEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{
     api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants,
-    transaction_request::CallRequest, u256_to_h256, vm::FastVmMode, K256PrivateKey, L2ChainId,
-    PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
+    transaction_request::CallRequest, u256_to_h256, K256PrivateKey, L2ChainId, PackedEthSignature,
+    StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
-use zksync_vm_executor::oneshot::{
-    BaseSystemContractsProvider, ContractsKind, MockOneshotExecutor, OneshotEnvParameters,
-    ResolvedBlockInfo,
-};
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
-use crate::execution_sandbox::SANDBOX_METRICS;
 
 #[derive(Debug, Clone)]
 struct ExpectedFeeInput(Arc<Mutex<BatchFeeInput>>);
@@ -62,53 +58,6 @@ impl ExpectedFeeInput {
             actual.into_pubdata_independent(),
             expected.into_pubdata_independent()
         );
-    }
-}
-
-/// Mock base contracts provider. Necessary to use with EVM emulator because bytecode of the real emulator is not available yet.
-#[derive(Debug)]
-struct BaseContractsWithMockEvmEmulator(BaseSystemContracts);
-
-impl Default for BaseContractsWithMockEvmEmulator {
-    fn default() -> Self {
-        let mut contracts = BaseSystemContracts::load_from_disk();
-        contracts.evm_emulator = Some(contracts.default_aa.clone());
-        Self(contracts)
-    }
-}
-
-#[async_trait]
-impl<C: ContractsKind> BaseSystemContractsProvider<C> for BaseContractsWithMockEvmEmulator {
-    async fn base_system_contracts(
-        &self,
-        block_info: &ResolvedBlockInfo,
-    ) -> anyhow::Result<BaseSystemContracts> {
-        assert!(block_info.use_evm_emulator());
-        Ok(self.0.clone())
-    }
-}
-
-// FIXME: remove? (there's real emulator bytecode now)
-fn executor_options_with_evm_emulator() -> SandboxExecutorOptions {
-    let base_contracts = Arc::<BaseContractsWithMockEvmEmulator>::default();
-    SandboxExecutorOptions {
-        fast_vm_mode: FastVmMode::Old,
-        vm_dump_store: None,
-        estimate_gas: OneshotEnvParameters::new(
-            base_contracts.clone(),
-            L2ChainId::default(),
-            AccountTreeId::default(),
-            u32::MAX,
-        ),
-        eth_call: OneshotEnvParameters::new(
-            base_contracts,
-            L2ChainId::default(),
-            AccountTreeId::default(),
-            u32::MAX,
-        ),
-        interrupted_execution_latency_histogram: &SANDBOX_METRICS
-            .sandbox_interrupted_execution_latency,
-        storage_delay: None,
     }
 }
 
@@ -309,10 +258,6 @@ impl HttpTest for CallTestWithEvmEmulator {
         let mut executor = MockOneshotExecutor::default();
         executor.set_call_responses(evm_emulator_responses);
         executor
-    }
-
-    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
-        Some(executor_options_with_evm_emulator())
     }
 
     async fn test(
@@ -567,10 +512,6 @@ impl HttpTest for SendRawTransactionTestWithEvmEmulator {
         let mut executor = MockOneshotExecutor::default();
         executor.set_tx_responses(evm_emulator_responses);
         executor
-    }
-
-    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
-        Some(executor_options_with_evm_emulator())
     }
 
     async fn test(
@@ -943,10 +884,6 @@ impl HttpTest for TraceCallTestWithEvmEmulator {
         executor
     }
 
-    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
-        Some(executor_options_with_evm_emulator())
-    }
-
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -1244,10 +1181,6 @@ impl HttpTest for EstimateGasTestWithEvmEmulator {
         let mut executor = MockOneshotExecutor::default();
         executor.set_tx_responses(evm_emulator_responses);
         executor
-    }
-
-    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
-        Some(executor_options_with_evm_emulator())
     }
 
     async fn test(
