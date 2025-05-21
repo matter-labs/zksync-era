@@ -69,8 +69,8 @@ describe('Tests for the private rpc', () => {
     }
 
     beforeAll(async () => {
-        const initCommand = `zkstack private-rpc init --verbose --dev`;
-        const runCommand = `zkstack private-rpc run`;
+        const initCommand = `zkstack private-rpc init --verbose --dev --chain ${chainName}`;
+        const runCommand = `zkstack private-rpc run --chain ${chainName}`;
 
         await executeCommandWithLogs(initCommand, await logsPath('private-rpc-init.log'));
         executeCommandWithLogs(runCommand, await logsPath('private-rpc-run.log'));
