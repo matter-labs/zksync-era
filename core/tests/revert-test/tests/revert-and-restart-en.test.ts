@@ -89,14 +89,14 @@ describe('Block reverting test', function () {
 
         const pathToMainLogs = await logsPath('server.log');
         const mainLogs = await fs.open(pathToMainLogs, 'a');
-        console.log(`Writing main node logs to ${pathToMainLogs}`);
+        utils.log(`Writing main node logs to ${pathToMainLogs}`);
 
         const pathToEnLogs = await logsPath('external_node.log');
         const extLogs = await fs.open(pathToEnLogs, 'a');
-        console.log(`Writing EN logs to ${pathToEnLogs}`);
+        utils.log(`Writing EN logs to ${pathToEnLogs}`);
 
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        console.log(`enableConsensus = ${enableConsensus}`);
+        utils.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
 
         const mainNodeSpawnOptions = {
@@ -163,7 +163,7 @@ describe('Block reverting test', function () {
 
     step('check wallet balance', async () => {
         balanceBeforeRevert = await alice.getBalance();
-        console.log(`Balance before revert: ${balanceBeforeRevert}`);
+        utils.log(`Balance before revert: ${balanceBeforeRevert}`);
         assert(balanceBeforeRevert === depositAmount * 2n, 'Incorrect balance after deposits');
     });
 
@@ -202,7 +202,7 @@ describe('Block reverting test', function () {
             let balance;
             let tryCount = 0;
             while ((balance = await alice.getBalance()) !== balanceBeforeRevert && tryCount < 30) {
-                console.log(`Balance after revert: ${balance} (expecting: ${balanceBeforeRevert})`);
+                utils.log(`Balance after revert: ${balance} (expecting: ${balanceBeforeRevert})`);
                 tryCount++;
                 await utils.sleep(1);
             }
@@ -212,13 +212,13 @@ describe('Block reverting test', function () {
         step('execute transaction after revert', async () => {
             await executeDepositAfterRevert(extNode.tester, alice, depositAmount);
             const balanceAfter = await alice.getBalance();
-            console.log(`Balance after another deposit: ${balanceAfter}`);
+            utils.log(`Balance after another deposit: ${balanceAfter}`);
             assert(balanceAfter === balanceBeforeRevert + depositAmount, 'Incorrect balance after another deposit');
         });
 
         step('check random transfer', async () => {
             balanceBeforeRevert = await checkRandomTransfer(alice, 1n);
-            console.log('Balance after transfer', balanceBeforeRevert);
+            utils.log('Balance after transfer', balanceBeforeRevert);
         });
 
         if (stepIndex === 0) {
