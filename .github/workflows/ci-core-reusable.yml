@@ -114,18 +114,16 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
 
-      - name: Setup Rust  
-        uses: actions/setup-rust@v1  
-        with:  
-          rust-version: stable
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.12.0 
 
-      - name: Build project (release)  
+      - name: Build project (release)
         run: cargo build --release --workspace
 
-      - name: Verify builds with upgrade features  
-        run: |  
-          cargo build -p zkstack_cli --release --features v27_evm_interpreter  
-          cargo build -p zkstack_cli --release --features v28_precompiles  
+      - name: Verify builds with upgrade features
+        run: |
+          cargo build -p zkstack_cli --release --features v27_evm_interpreter
+          cargo build -p zkstack_cli --release --features v28_precompiles 
 
 
   loadtest:
