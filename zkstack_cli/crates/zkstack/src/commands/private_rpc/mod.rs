@@ -130,7 +130,11 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     let _dir_guard = shell.push_dir(chain_config.link_to_code.join("private-rpc"));
 
     logger::info(msg_private_rpc_docker_image_being_built());
-    Cmd::new(cmd!(shell, "docker build -t private-rpc .")).run()?;
+    Cmd::new(cmd!(
+        shell,
+        "docker build --platform linux/amd64 -t private-rpc ."
+    ))
+    .run()?;
 
     let db_config = if args.dev {
         let private_rpc_db_name: String = generate_private_rpc_db_name(&chain_config);
@@ -163,10 +167,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     ));
     config.save(shell, docker_compose_path)?;
 
-    let src_permissions_path = chain_config
-        .link_to_code
-        .join("private-rpc")
-        .join("example-permissions.yaml");
+    let src_permissions_path = "example-permissions.yaml";
     let dst_permissions_path = ecosystem_path
         .join("chains")
         .join(chain_name.clone())
@@ -174,6 +175,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         .join("private-rpc-permissions.yaml");
 
     if !dst_permissions_path.exists() {
+        Cmd::new(cmd!(shell, "file {src_permissions_path}")).run()?;
         Cmd::new(cmd!(
             shell,
             "cp {src_permissions_path} {dst_permissions_path}"
