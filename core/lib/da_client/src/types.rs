@@ -69,7 +69,7 @@ impl ClientType {
             ClientType::NoDA => PubdataType::NoDA,
             ClientType::Avail => PubdataType::Avail,
             ClientType::Celestia => PubdataType::Celestia,
-            ClientType::EigenDA => PubdataType::EigenDA,
+            ClientType::EigenDA => PubdataType::Eigen,
             ClientType::ObjectStore => PubdataType::ObjectStore,
         }
     }

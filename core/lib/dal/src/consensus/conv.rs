@@ -581,7 +581,7 @@ impl proto::PubdataType {
             Self::NoDa => PubdataType::NoDA,
             Self::Avail => PubdataType::Avail,
             Self::Celestia => PubdataType::Celestia,
-            Self::EigenDa => PubdataType::EigenDA,
+            Self::EigenDa => PubdataType::Eigen,
             Self::ObjectStore => PubdataType::ObjectStore,
         }
     }

@@ -141,7 +141,7 @@ impl MainNodeBuilder {
             Some(da_client_config) => Ok(match da_client_config {
                 DAClientConfig::Avail(_) => PubdataType::Avail,
                 DAClientConfig::Celestia(_) => PubdataType::Celestia,
-                DAClientConfig::EigenDA(_) => PubdataType::EigenDA,
+                DAClientConfig::EigenDA(_) => PubdataType::Eigen,
                 DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
                 DAClientConfig::NoDA => PubdataType::NoDA,
             }),
