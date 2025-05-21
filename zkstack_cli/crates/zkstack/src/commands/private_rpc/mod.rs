@@ -151,7 +151,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 
     services.insert(
         "private-proxy".to_string(),
-        create_private_rpc_service(db_config, 4041, "sososecret", l2_rpc_url).await?,
+        create_private_rpc_service(db_config, 4041, "sososecret", l2_rpc_url, &ecosystem_path, &chain_name).await?,
     );
 
     let config = DockerComposeConfig {
@@ -200,12 +200,6 @@ pub async fn run_proxy(shell: &Shell) -> anyhow::Result<()> {
     if !backend_config_path.exists() {
         anyhow::bail!(msg_private_rpc_chain_not_initialized(&chain_config.name));
     }
-    let permissions_path = ecosystem_path
-        .join("chains")
-        .join(&chain_config.name)
-        .join("configs")
-        .join("private-rpc-permissions.yaml");
-    Cmd::new(cmd!(shell, "cat {permissions_path}")).run()?;
     if let Some(docker_compose_file) = backend_config_path.to_str() {
         docker::up(shell, docker_compose_file, false)
             .context(MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR)?;

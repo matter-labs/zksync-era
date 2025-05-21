@@ -28,13 +28,22 @@ pub async fn create_private_rpc_service(
     port: u16,
     create_token_secret: &str,
     l2_rpc_url: Url,
+    ecosystem_path: &PathBuf,
+    chain_name: &str,
 ) -> anyhow::Result<DockerComposeService> {
+
+    let permissions_path = ecosystem_path
+        .join("chains")
+        .join(chain_name.clone())
+        .join("configs")
+        .join("private-rpc-permissions.yaml");
+
     Ok(DockerComposeService {
         image: "private-rpc".to_string(),
         platform: Some("linux/amd64".to_string()),
         ports: Some(vec![format!("{}:{}", port, port)]),
         volumes: Some(vec![
-            "./private-rpc-permissions.yaml:/app/private-rpc-permissions.yaml:ro".to_string(),
+            format!("{}:/app/private-rpc-permissions.yaml:ro", permissions_path.display()),
         ]),
         depends_on: None,
         restart: None,
