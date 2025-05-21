@@ -150,6 +150,8 @@ pub(super) struct EthSenderMetrics {
     #[metrics(buckets = GAS_BUCKETS)]
     pub l1_gas_used: Family<ActionTypeLabel, Histogram<f64>>,
     #[metrics(buckets = Buckets::LATENCIES)]
+    pub l1_tx_fast_finalized_latency: Family<ActionTypeLabel, Histogram<Duration>>,
+    #[metrics(buckets = Buckets::LATENCIES)]
     pub l1_tx_mined_latency: Family<ActionTypeLabel, Histogram<Duration>>,
     #[metrics(buckets = & [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0, 50.0])]
     pub l1_blocks_waited_in_mempool: Family<ActionTypeLabel, Histogram<u64>>,

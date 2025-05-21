@@ -307,7 +307,6 @@ impl BlocksWeb3Dal<'_, '_> {
                     // This query is used to get the latest precommitted miniblock number.
                     // If feature is not enabled, return the latest committed miniblock number.
                     // GREATEST in postgress ignore nulls.
-                    // TODO  check the finality for
                     "
                     SELECT GREATEST(
                        (

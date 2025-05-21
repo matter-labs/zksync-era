@@ -615,7 +615,7 @@ impl EthTxManager {
             duration_since_epoch.saturating_sub(Duration::from_secs(tx.created_at_timestamp));
         match eth_tx_finality_status {
             EthTxFinalityStatus::FastFinalized => {
-                // TODO add metrics for fast finalized txs
+                METRICS.l1_tx_fast_finalized_latency[&tx_type_label].observe(tx_latency);
             }
             EthTxFinalityStatus::Finalized => {
                 METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);

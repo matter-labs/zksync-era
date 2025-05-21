@@ -350,10 +350,11 @@ impl EthSenderTester {
             .unwrap()
             .latest;
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
+        let fast_finality = finalized + 1;
         L1BlockNumbers {
             finalized,
             latest,
-            fast_finality: finalized,
+            fast_finality,
         }
     }
     async fn insert_l1_batch(&self, number: L1BatchNumber) -> L1BatchHeader {
