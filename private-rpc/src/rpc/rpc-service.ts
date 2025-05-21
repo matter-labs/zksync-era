@@ -6,7 +6,7 @@ import { delegateCall } from './delegate-call';
 import { errorResponse, invalidRequest } from './json-rpc';
 
 const rpcReqSchema = z.object({
-    id: z.union([z.number(), z.string()]).optional(),
+    id: z.union([z.number(), z.string()]),
     jsonrpc: z.literal('2.0'),
     method: z.string(),
     params: z.array(z.any()).optional()
