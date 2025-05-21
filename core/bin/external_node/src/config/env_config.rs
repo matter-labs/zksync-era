@@ -9,7 +9,7 @@ use zksync_config::{
         da_client::{
             avail::{AvailClientConfig, AvailSecrets},
             celestia::CelestiaSecrets,
-            eigenda::{EigenDASecrets, V1Config, V2Config, VersionSpecificConfig},
+            eigenda::{ClientTypeConfig, EigenDASecrets, V1Config, V2Config},
         },
         DataAvailabilitySecrets,
     },
@@ -64,10 +64,8 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 Err(_) => None,
             },
             authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
-            version_specific: match env::var(format!("{}EIGENDA_VERSION_SPECIFIC", prefix))?
-                .as_str()
-            {
-                "V1" => VersionSpecificConfig::V1(V1Config {
+            client_type: match env::var(format!("{}EIGENDA_CLIENT_TYPE", prefix))?.as_str() {
+                "V1" => ClientTypeConfig::V1(V1Config {
                     settlement_layer_confirmation_depth: env::var(format!(
                         "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
                         prefix
@@ -79,7 +77,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                     ))?)?,
                     wait_for_finalization: env::var(format!("{}WAIT_FOR_FINALIZATION", prefix))?
                         .parse()?,
-                    points_source: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
+                    points: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
                         "Path" => zksync_config::configs::da_client::eigenda::PointsSource::Path {
                             path: env::var(format!("{}POINTS_PATH", prefix))?,
                         },
@@ -100,7 +98,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                         Err(_) => vec![],
                     },
                 }),
-                "V2" => VersionSpecificConfig::V2(V2Config {
+                "V2" => ClientTypeConfig::V2(V2Config {
                     cert_verifier_addr: Address::from_str(&env::var(format!(
                         "{}EIGENDA_CERT_VERIFIER_ADDRESS",
                         prefix
