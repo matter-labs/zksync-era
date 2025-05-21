@@ -200,11 +200,12 @@ pub async fn run_proxy(shell: &Shell) -> anyhow::Result<()> {
     if !backend_config_path.exists() {
         anyhow::bail!(msg_private_rpc_chain_not_initialized(&chain_config.name));
     }
-    let configs_path = ecosystem_path
+    let permissions_path = ecosystem_path
         .join("chains")
         .join(&chain_config.name)
-        .join("configs");
-    Cmd::new(cmd!(shell, "ls {configs_path}")).run()?;
+        .join("configs")
+        .join("private-rpc-permissions.yaml");
+    Cmd::new(cmd!(shell, "cat {permissions_path}")).run()?;
     if let Some(docker_compose_file) = backend_config_path.to_str() {
         docker::up(shell, docker_compose_file, false)
             .context(MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR)?;

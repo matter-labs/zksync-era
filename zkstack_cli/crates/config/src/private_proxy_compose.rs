@@ -43,7 +43,7 @@ pub async fn create_private_rpc_service(
             ("PORT".to_string(), port.to_string()),
             (
                 "PERMISSIONS_YAML_PATH".to_string(),
-                "./private-rpc-permissions.yaml".to_string(),
+                "/app/private-rpc-permissions.yaml".to_string(),
             ),
             ("TARGET_RPC".to_string(), l2_rpc_url.to_string()),
             (
