@@ -31,7 +31,7 @@ pub(crate) async fn create_test_tx_sender(
     let tx_sender_config = TxSenderConfig::new(
         &state_keeper_config,
         &web3_config,
-        wallets.state_keeper.unwrap().fee_account.address(),
+        wallets.fee_account.unwrap().address(),
         l2_chain_id,
     );
 

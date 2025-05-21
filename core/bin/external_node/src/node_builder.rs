@@ -1,6 +1,8 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
+use std::time::Duration;
+
 use anyhow::{bail, Context as _};
 use zksync_block_reverter::{node::BlockReverterLayer, NodeRole};
 use zksync_commitment_generator::node::CommitmentGeneratorLayer;
@@ -86,21 +88,21 @@ impl ExternalNodeBuilder {
         // so we reuse the master configuration for that purpose.
         // Settings unconditionally set to `None` are either not supported by the EN configuration layer
         // or are not used in the context of the external node.
+        let default_config = PostgresConfig::default();
         let config = PostgresConfig {
             max_connections: Some(self.config.postgres.max_connections),
             max_connections_master: Some(self.config.postgres.max_connections),
-            acquire_timeout_sec: None,
-            statement_timeout_sec: None,
             long_connection_threshold_ms: self
                 .config
                 .optional
                 .long_connection_threshold()
-                .map(|d| d.as_millis() as u64),
+                .unwrap_or(default_config.long_connection_threshold_ms),
             slow_query_threshold_ms: self
                 .config
                 .optional
                 .slow_query_threshold()
-                .map(|d| d.as_millis() as u64),
+                .unwrap_or(default_config.slow_query_threshold_ms),
+            ..default_config
         };
         let secrets = DatabaseSecrets {
             server_url: Some(self.config.postgres.database_url()),
@@ -159,23 +161,15 @@ impl ExternalNodeBuilder {
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = HealthCheckConfig {
             port: self.config.required.healthcheck_port,
-            slow_time_limit_ms: self
-                .config
-                .optional
-                .healthcheck_slow_time_limit()
-                .map(|d| d.as_millis() as u64),
-            hard_time_limit_ms: self
-                .config
-                .optional
-                .healthcheck_hard_time_limit()
-                .map(|d| d.as_millis() as u64),
+            slow_time_limit_ms: self.config.optional.healthcheck_slow_time_limit(),
+            hard_time_limit_ms: self.config.optional.healthcheck_hard_time_limit(),
         };
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)
     }
 
     fn add_prometheus_exporter_layer(mut self) -> anyhow::Result<Self> {
-        if let Some(prom_config) = self.config.observability.prometheus() {
+        if let Some(prom_config) = self.config.prometheus.clone() {
             self.node.add_layer(PrometheusExporterLayer(prom_config));
         } else {
             tracing::info!("No configuration for prometheus exporter, skipping");
@@ -244,7 +238,7 @@ impl ExternalNodeBuilder {
                 .parse()
                 .context("CRATE_VERSION.parse()")?,
             config,
-            secrets,
+            secrets: Some(secrets),
         };
         self.node.add_layer(layer);
         Ok(self)
@@ -441,12 +435,14 @@ impl ExternalNodeBuilder {
             postgres_storage_config,
             max_vm_concurrency,
             (&self.config).into(),
-            Some(TimestampAsserterConfig {
-                min_time_till_end_sec: self
-                    .config
-                    .optional
-                    .timestamp_asserter_min_time_till_end_sec,
-            }),
+            TimestampAsserterConfig {
+                min_time_till_end_sec: Duration::from_secs(
+                    self.config
+                        .optional
+                        .timestamp_asserter_min_time_till_end_sec
+                        .into(),
+                ),
+            },
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 

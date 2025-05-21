@@ -18,7 +18,8 @@ use crate::{clients::PKSigningClient, BoundEthInterface, EthInterface};
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
     gas_adjuster_config: GasAdjusterConfig,
-    wallets: wallets::EthSender,
+    operator: wallets::Wallet,
+    blob_operator: Option<wallets::Wallet>,
 }
 
 #[derive(Debug, FromContext)]
@@ -38,10 +39,15 @@ pub struct Output {
 }
 
 impl PKSigningEthClientLayer {
-    pub fn new(gas_adjuster_config: GasAdjusterConfig, wallets: wallets::EthSender) -> Self {
+    pub fn new(
+        gas_adjuster_config: GasAdjusterConfig,
+        operator: wallets::Wallet,
+        blob_operator: Option<wallets::Wallet>,
+    ) -> Self {
         Self {
             gas_adjuster_config,
-            wallets,
+            operator,
+            blob_operator,
         }
     }
 }
@@ -56,7 +62,7 @@ impl WiringLayer for PKSigningEthClientLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let private_key = self.wallets.operator.private_key();
+        let private_key = self.operator.private_key();
         let gas_adjuster_config = &self.gas_adjuster_config;
         let query_client = input.eth_client;
 
@@ -79,7 +85,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         );
         let signing_client = Box::new(signing_client);
 
-        let signing_client_for_blobs = self.wallets.blob_operator.map(|blob_operator| {
+        let signing_client_for_blobs = self.blob_operator.map(|blob_operator| {
             let private_key = blob_operator.private_key();
             let signing_client_for_blobs = PKSigningClient::new_raw(
                 private_key.clone(),
@@ -93,7 +99,7 @@ impl WiringLayer for PKSigningEthClientLayer {
 
         let signing_client_for_gateway = match input.gateway_client {
             SettlementLayerClient::Gateway(gateway_client) => {
-                let private_key = self.wallets.operator.private_key();
+                let private_key = self.operator.private_key();
                 let l2_chain_id = gateway_client
                     .fetch_chain_id()
                     .await

@@ -75,7 +75,7 @@ pub async fn build_tx_sender(
         Arc::new(master_pool_sink),
     );
 
-    let max_concurrency = web3_json_config.vm_concurrency_limit();
+    let max_concurrency = web3_json_config.vm_concurrency_limit;
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
     let batch_fee_input_provider =

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_node_framework::{FromContext, WiringError, WiringLayer};
 
@@ -11,8 +13,8 @@ pub struct BlockReverterLayer {
     node_role: NodeRole,
     allow_rolling_back_executed_batches: bool,
     should_roll_back_postgres: bool,
-    state_keeper_cache_path: Option<String>,
-    merkle_tree_path: Option<String>,
+    state_keeper_cache_path: Option<PathBuf>,
+    merkle_tree_path: Option<PathBuf>,
 }
 
 impl BlockReverterLayer {
@@ -36,12 +38,12 @@ impl BlockReverterLayer {
         self
     }
 
-    pub fn enable_rolling_back_merkle_tree(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_merkle_tree(&mut self, path: PathBuf) -> &mut Self {
         self.merkle_tree_path = Some(path);
         self
     }
 
-    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: PathBuf) -> &mut Self {
         self.state_keeper_cache_path = Some(path);
         self
     }

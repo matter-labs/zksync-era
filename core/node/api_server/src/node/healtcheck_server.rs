@@ -51,7 +51,7 @@ impl WiringLayer for HealthCheckLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let app_health_check = input.app_health_check;
-        app_health_check.override_limits(self.0.slow_time_limit(), self.0.hard_time_limit());
+        app_health_check.override_limits(self.0.slow_time_limit_ms, self.0.hard_time_limit_ms);
 
         let health_check_task = HealthCheckTask {
             config: self.0,
