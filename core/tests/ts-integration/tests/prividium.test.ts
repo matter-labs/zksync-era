@@ -70,11 +70,11 @@ describe('Tests for the private rpc', () => {
     }
 
     beforeAll(async () => {
-        // const initCommand = `zkstack private-rpc init --verbose --dev --chain ${chainName}`;
-        // const runCommand = `zkstack private-rpc run --verbose --chain ${chainName}`;
-        //
-        // await executeCommandWithLogs(initCommand, await logsPath('private-rpc-init.log'));
-        // executeCommandWithLogs(runCommand, await logsPath('private-rpc-run.log'));
+        const initCommand = `zkstack private-rpc init --verbose --dev --chain ${chainName}`;
+        const runCommand = `zkstack private-rpc run --verbose --chain ${chainName}`;
+
+        await executeCommandWithLogs(initCommand, await logsPath('private-rpc-init.log'));
+        executeCommandWithLogs(runCommand, await logsPath('private-rpc-run.log'));
 
         await waitForHealth(rpcUrl());
         testMaster = TestMaster.getInstance(__filename);
@@ -95,23 +95,6 @@ describe('Tests for the private rpc', () => {
         const permissionsPath = path.join(pathToHome, `chains/${chainName}/configs/private-rpc-permissions.yaml`);
         return injectPermissionsToFile(permissionsPath, contractAddress, methodSignature);
     }
-
-    test("Contracts can be deployed", async () => {
-
-        const l1ContractsPath = 'artifacts-zk/contracts/';
-
-        const artefact = readContract(l1ContractsPath, 'Counter');
-        const factory = new ethers.ContractFactory(
-            artefact.abi,
-            artefact.bytecode,
-            alice
-        );
-
-        const counter = await factory.deploy();
-        await counter.waitForDeployment();          // same as tx.wait() in ethers
-
-        console.log(`🎉 Counter deployed to: ${await counter.getAddress()}`);
-    });
 
     test('Creating access tokens works and tokens are unique', async () => {
         const testAddress = '0x4f9133d1d3f50011a6859807c837bdcb31aaab13';
