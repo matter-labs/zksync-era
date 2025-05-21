@@ -30,7 +30,7 @@ export const allHandlers = [
     forbiddenMethod('en_getEcosystemContracts'),
     forbiddenMethod('en_getProtocolVersionInfo'),
 
-    // Filter out snapshot_* methods
+    // Filter out snapshots_* methods
     forbiddenMethod('snapshots_getAllSnapshots'),
     forbiddenMethod('snapshots_getSnapshot'),
 
