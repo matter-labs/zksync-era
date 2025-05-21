@@ -108,27 +108,21 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
-
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1.12.0 
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1
+        with:
+          toolchain: nightly-2024-09-01
 
       - name: Build zkstack cli
-        run: cargo build --release
+        run: cargo build --bin zkstack --release
 
-      - name: Verify builds with upgrade features
+      - name: Verify builds with v27 upgrade features
         run: |
-          cargo build --release --features v27_evm_interpreter
-          cargo build --release --features v28_precompiles
+          cargo build --bin zkstack --release --features v27_evm_interpreter
+
+      - name: Verify builds with v28 upgrade features
+        run: |
+          cargo build --bin zkstack --release --features v28_precompiles
 
 
   loadtest:
