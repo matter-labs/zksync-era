@@ -16,7 +16,7 @@ use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
-        storage::StorageWithOverrides,
+        storage::{ReadStorage, StorageWithOverrides},
         tracer::TimestampAsserterParams,
         utils::{DivergenceHandler, VmDump},
         Call, DeduplicatedWritesMetrics, ExecutionResult, OneshotEnv, OneshotTracingParams,
@@ -33,6 +33,8 @@ use zksync_types::{
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};
+#[cfg(test)]
+use crate::execution_sandbox::testonly;
 use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
@@ -110,16 +112,16 @@ impl SandboxExecutionOutput {
     }
 }
 
-type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
+pub(super) type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
 
 /// Higher-level wrapper around a oneshot VM executor used in the API server.
 #[async_trait]
-pub(crate) trait SandboxExecutorEngine:
-    Send + Sync + fmt::Debug + TransactionValidator<SandboxStorage>
+pub(crate) trait SandboxExecutorEngine<S: ReadStorage = SandboxStorage>:
+    Send + Sync + fmt::Debug + TransactionValidator<S>
 {
     async fn execute_in_sandbox(
         &self,
-        storage: SandboxStorage,
+        storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
@@ -127,17 +129,14 @@ pub(crate) trait SandboxExecutorEngine:
 }
 
 #[async_trait]
-impl<T> SandboxExecutorEngine for T
+impl<S, T> SandboxExecutorEngine<S> for T
 where
-    T: OneshotExecutor<SandboxStorage>
-        + TransactionValidator<SandboxStorage>
-        + Send
-        + Sync
-        + fmt::Debug,
+    S: ReadStorage + Send + 'static,
+    T: OneshotExecutor<S> + TransactionValidator<S> + Send + Sync + fmt::Debug,
 {
     async fn execute_in_sandbox(
         &self,
-        storage: SandboxStorage,
+        storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
@@ -217,8 +216,18 @@ impl SandboxExecutor {
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
 
+        #[cfg(test)]
+        let engine: Box<dyn SandboxExecutorEngine> =
+            if let Some(storage_delay) = options.storage_delay {
+                Box::new(testonly::SlowExecutor::new(executor, storage_delay))
+            } else {
+                Box::new(executor)
+            };
+        #[cfg(not(test))]
+        let engine = Box::new(executor);
+
         Self {
-            engine: Box::new(executor),
+            engine,
             options,
             storage_caches: Some(caches),
             timestamp_asserter_params,

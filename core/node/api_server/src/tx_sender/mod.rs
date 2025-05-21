@@ -110,6 +110,8 @@ pub struct SandboxExecutorOptions {
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
     pub(crate) eth_call: OneshotEnvParameters<CallOrExecute>,
+    #[cfg(test)]
+    pub(crate) storage_delay: Option<Duration>,
 }
 
 impl SandboxExecutorOptions {
@@ -145,6 +147,8 @@ impl SandboxExecutorOptions {
                 operator_account,
                 validation_computational_gas_limit,
             ),
+            #[cfg(test)]
+            storage_delay: None,
         })
     }
 

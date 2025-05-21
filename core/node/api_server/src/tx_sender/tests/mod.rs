@@ -140,13 +140,14 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 }
 
 async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
-    create_real_tx_sender_with_options(pool, FastVmMode::Shadow, usize::MAX).await
+    create_real_tx_sender_with_options(pool, FastVmMode::Shadow, usize::MAX, None).await
 }
 
 async fn create_real_tx_sender_with_options(
     pool: ConnectionPool<Core>,
     vm_mode: FastVmMode,
     storage_invocations_limit: usize,
+    storage_delay: Option<Duration>,
 ) -> TxSender {
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -164,6 +165,7 @@ async fn create_real_tx_sender_with_options(
     .await
     .unwrap();
     executor_options.set_fast_vm_mode(vm_mode);
+    executor_options.storage_delay = storage_delay;
 
     let pg_caches = PostgresStorageCaches::new(1, 1);
     let tx_executor =

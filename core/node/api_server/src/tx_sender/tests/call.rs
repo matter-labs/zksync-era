@@ -267,12 +267,34 @@ async fn limiting_storage_access_during_call(vm_mode: FastVmMode) {
 
     let tx = alice.create_expensive_tx(1_000);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100).await;
+    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100, None).await;
 
     let err = test_call(&tx_sender, state_override, tx.into())
         .await
         .unwrap_err();
     assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.contains("limit reached"));
+}
+
+#[test_casing(3, ALL_VM_MODES)]
+#[tokio::test]
+async fn interrupting_vm_during_call(vm_mode: FastVmMode) {
+    let mut alice = Account::random();
+    let state_override = StateBuilder::default().with_expensive_contract().build();
+
+    let tx = alice.create_expensive_tx(1_000);
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    // Artificially delay storage accesses so that the VM doesn't finish execution in a reasonable timeframe.
+    let storage_delay = Duration::from_secs(1);
+    let tx_sender =
+        create_real_tx_sender_with_options(pool, vm_mode, usize::MAX, Some(storage_delay)).await;
+
+    tokio::time::timeout(
+        storage_delay,
+        test_call(&tx_sender, state_override, tx.into()),
+    )
+    .await
+    .unwrap_err();
+    // FIXME: test that VM was interrupted (via metrics?)
 }
 
 #[tokio::test]

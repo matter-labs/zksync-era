@@ -528,7 +528,7 @@ async fn limiting_storage_access_during_gas_estimation(vm_mode: FastVmMode) {
 
     let tx = alice.create_expensive_tx(1_000);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100).await;
+    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100, None).await;
     let block_args = pending_block_args(&tx_sender).await;
 
     let fee_scale_factor = 1.0;

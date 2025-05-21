@@ -104,6 +104,7 @@ fn executor_options_with_evm_emulator() -> SandboxExecutorOptions {
             AccountTreeId::default(),
             u32::MAX,
         ),
+        storage_delay: None,
     }
 }
 
