@@ -1,7 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
 use rust_eigenda_client::{
-    client::BlobProvider, config::SrsPointsSource, rust_eigenda_signers::{signers::private_key::Signer, SecretKey}, EigenClient
+    client::BlobProvider,
+    config::SrsPointsSource,
+    rust_eigenda_signers::{signers::private_key::Signer, SecretKey},
+    EigenClient,
 };
 use subxt_signer::ExposeSecret;
 use url::Url;
@@ -52,9 +55,10 @@ impl EigenDAClient {
             srs_points_source,
             config.custom_quorum_numbers,
         )?;
-        let signer = Signer::new(SecretKey::from_str(secrets.private_key.0.expose_secret()).map_err(|_| {
-            anyhow::anyhow!("Invalid private key")
-        })?);
+        let signer = Signer::new(
+            SecretKey::from_str(secrets.private_key.0.expose_secret())
+                .map_err(|_| anyhow::anyhow!("Invalid private key"))?,
+        );
 
         let client = EigenClient::new(eigen_config, signer, blob_provider)
             .await
