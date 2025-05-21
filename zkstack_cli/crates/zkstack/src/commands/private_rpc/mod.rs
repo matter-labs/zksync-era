@@ -214,7 +214,7 @@ pub async fn run_proxy(shell: &Shell) -> anyhow::Result<()> {
     Cmd::new(cmd!(shell, "cat {backend_config_path}")).run()?;
     Cmd::new(cmd!(shell, "ls -l /usr/src/zksync/chains/{chain_name}/configs/private-rpc/private-rpc-permissions.yaml")).run()?;
     let command_inside_docker = "ls -l /app/permissions";
-    Cmd::new(cmd!(shell, "docker run --rm -it   -v /usr/src/zksync/chains/{chain_name}/configs/private-rpc:/app/permissions:ro alpine sh -c {command_inside_docker} ")).run()?;
+    Cmd::new(cmd!(shell, "docker run --rm -i   -v /usr/src/zksync/chains/{chain_name}/configs/private-rpc:/app/permissions:ro alpine sh -c {command_inside_docker} ")).run()?;
 
     if let Some(docker_compose_file) = backend_config_path.to_str() {
         docker::up(shell, docker_compose_file, false)
