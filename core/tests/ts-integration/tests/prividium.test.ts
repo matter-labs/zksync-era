@@ -25,6 +25,7 @@ describe('Tests for the private rpc', () => {
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
 
+    let isETHBasedChain: boolean;
     let baseTokenAddress: string;
 
     function waitForProcess(childProcess: ChildProcess): Promise<void> {
@@ -85,6 +86,7 @@ describe('Tests for the private rpc', () => {
         bob = await testMaster.privateRpcNewEmptyAccount(rpcUrl());
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
         baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
     });
 
     function rpcUrl() {
@@ -174,7 +176,10 @@ describe('Tests for the private rpc', () => {
         ]);
     });
 
-    test('Base token can be transferred', async () => {
+    test('Eth base token can be transferred', async () => {
+        if (isETHBasedChain) {
+            return;
+        }
         const value = 200n;
 
         // Transfer funds from Alice to Bob
