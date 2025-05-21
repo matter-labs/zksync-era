@@ -97,6 +97,11 @@ jobs:
   
   install-zkstack-with-upgrades:
     runs-on: [ubuntu-24.04-github-hosted-16core]
+
+    defaults:
+      run:
+        working-directory: zkstack_cli
+
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -117,13 +122,13 @@ jobs:
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1.12.0 
 
-      - name: Build project (release)
-        run: cargo build --release --workspace
+      - name: Build zkstack cli
+        run: cargo build --release
 
       - name: Verify builds with upgrade features
         run: |
-          cargo build -p zkstack_cli --release --features v27_evm_interpreter
-          cargo build -p zkstack_cli --release --features v28_precompiles 
+          cargo build --release --features v27_evm_interpreter
+          cargo build --release --features v28_precompiles
 
 
   loadtest:
