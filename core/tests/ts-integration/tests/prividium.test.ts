@@ -13,6 +13,8 @@ import { Token } from '../src/types';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 import { logsTestPath } from 'utils/build/logs';
+import {readFileSync} from "node:fs";
+import YAML from 'yaml';
 
 const chainName = shouldLoadConfigFromFile().chain;
 
@@ -86,7 +88,13 @@ describe('Tests for the private rpc', () => {
     });
 
     function rpcUrl() {
-        return 'http://localhost:4041';
+        const pathToHome = path.join(__dirname, '../../../..');
+        const dockerPath = path.join(
+            pathToHome,
+            `chains/${chainName}/configs//private-proxy-docker-compose.yml`
+        );
+        const port = YAML.parse(readFileSync(dockerPath, 'utf8')).services['private-proxy'].environment.PORT
+        return `http://localhost:${port}`;
     }
 
     function addPermission(contractAddress: string, methodSignature: string): Promise<void> {
