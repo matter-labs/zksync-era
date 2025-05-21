@@ -175,15 +175,11 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         .join("private-rpc-permissions.yaml");
 
     if !dst_permissions_path.exists() {
-        Cmd::new(cmd!(shell, "pwd")).run()?;
-        Cmd::new(cmd!(shell, "ls")).run()?;
-        Cmd::new(cmd!(shell, "file {src_permissions_path}")).run()?;
         Cmd::new(cmd!(
             shell,
             "cp {src_permissions_path} {dst_permissions_path}"
         ))
         .run()?;
-        Cmd::new(cmd!(shell, "file {dst_permissions_path}")).run()?;
         logger::info(msg_private_rpc_permissions_file_generated(
             dst_permissions_path.display(),
         ));
@@ -204,7 +200,11 @@ pub async fn run_proxy(shell: &Shell) -> anyhow::Result<()> {
     if !backend_config_path.exists() {
         anyhow::bail!(msg_private_rpc_chain_not_initialized(&chain_config.name));
     }
-
+    let configs_path = ecosystem_path
+        .join("chains")
+        .join(&chain_config.name)
+        .join("configs");
+    Cmd::new(cmd!(shell, "ls {configs_path}")).run()?;
     if let Some(docker_compose_file) = backend_config_path.to_str() {
         docker::up(shell, docker_compose_file, false)
             .context(MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR)?;
