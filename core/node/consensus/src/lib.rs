@@ -11,6 +11,7 @@ mod en;
 pub mod era;
 mod metrics;
 mod mn;
+pub mod node;
 mod registry;
 mod storage;
 #[cfg(test)]

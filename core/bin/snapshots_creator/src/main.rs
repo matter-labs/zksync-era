@@ -12,11 +12,14 @@
 use anyhow::Context as _;
 use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::configs::PrometheusConfig;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
+use zksync_config::{
+    configs::{DatabaseSecrets, PrometheusConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepositoryExt, SnapshotsCreatorConfig,
+};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::creator::SnapshotCreator;
 
@@ -25,22 +28,17 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-async fn maybe_enable_prometheus_metrics(
-    prometheus_config: Option<PrometheusConfig>,
+fn maybe_enable_prometheus_metrics(
+    config: &PrometheusConfig,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
-    match prometheus_config.map(|c| (c.gateway_endpoint(), c.push_interval())) {
-        Some((Some(gateway_endpoint), push_interval)) => {
-            tracing::info!("Starting prometheus exporter with gateway {gateway_endpoint:?} and push_interval {push_interval:?}");
-            let exporter_config = PrometheusExporterConfig::push(gateway_endpoint, push_interval);
-
-            let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
-            Ok(Some(prometheus_exporter_task))
-        }
-        _ => {
-            tracing::info!("Starting without prometheus exporter");
-            Ok(None)
-        }
+) -> Option<JoinHandle<anyhow::Result<()>>> {
+    if let Some(exporter_config) = config.to_exporter_config() {
+        tracing::info!("Starting Prometheus exporter with config {config:?}");
+        let prometheus_exporter_task = tokio::spawn(exporter_config.run(stop_receiver));
+        Some(prometheus_exporter_task)
+    } else {
+        tracing::info!("Starting without prometheus exporter");
+        None
     }
 }
 
@@ -64,26 +62,27 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let opt = Opt::from_args();
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources =
+        tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("ZKSYNC_")).await??;
 
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
+    let _observability_guard = config_sources.observability()?.install()?;
+
+    let schema = full_config_schema(false);
+    let repo = config_sources.build_repository(&schema);
+    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let creator_config: SnapshotsCreatorConfig = repo.parse()?;
+    let prometheus_config: PrometheusConfig = repo.parse()?;
+
     let prometheus_exporter_task =
-        maybe_enable_prometheus_metrics(general_config.prometheus_config, stop_receiver).await?;
+        maybe_enable_prometheus_metrics(&prometheus_config, stop_receiver);
     tracing::info!("Starting snapshots creator");
 
-    let creator_config = general_config
-        .snapshot_creator
-        .context("snapshot creator config")?;
-
-    let object_store_config = creator_config
-        .clone()
-        .object_store
-        .context("snapshot creator object storage config")?;
-
+    let object_store_config = creator_config.object_store.clone();
     let blob_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await?;

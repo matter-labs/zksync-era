@@ -1,5 +1,53 @@
 # Changelog
 
+## [28.2.1](https://github.com/matter-labs/zksync-era/compare/core-v28.2.0...core-v28.2.1) (2025-05-15)
+
+
+### Bug Fixes
+
+* **api:** Add safe status ([#4005](https://github.com/matter-labs/zksync-era/issues/4005)) ([b71c167](https://github.com/matter-labs/zksync-era/commit/b71c167919601a2a1fb06284834abb8ad4cc94e7))
+* **vm:** update deps ([#4019](https://github.com/matter-labs/zksync-era/issues/4019)) ([2b51c6d](https://github.com/matter-labs/zksync-era/commit/2b51c6df08b45cc41fd6b4d930c31670d004a93d))
+
+
+### Performance Improvements
+
+* **db:** Break loading storage logs for recovery into smaller chunks ([#3947](https://github.com/matter-labs/zksync-era/issues/3947)) ([91772a4](https://github.com/matter-labs/zksync-era/commit/91772a48aa48a7fd4d148072f51d8ada4fc8782c))
+
+## [28.2.0](https://github.com/matter-labs/zksync-era/compare/core-v28.1.0...core-v28.2.0) (2025-05-12)
+
+
+### Features
+
+* bump rustc to `nightly-2025-03-19` ([#3985](https://github.com/matter-labs/zksync-era/issues/3985)) ([d27390e](https://github.com/matter-labs/zksync-era/commit/d27390e14a586de7dccb974a0cb54352de3536b3))
+
+
+### Bug Fixes
+
+* **da:** gas relay check_finality ([#3994](https://github.com/matter-labs/zksync-era/issues/3994)) ([a664787](https://github.com/matter-labs/zksync-era/commit/a66478756d96dcd497fabaf62f08aab4ff345342))
+
+## [28.1.0](https://github.com/matter-labs/zksync-era/compare/core-v28.0.0...core-v28.1.0) (2025-05-08)
+
+
+### Features
+
+* **contract_verifier:** add etherscan verification request support to the verifier api ([#3956](https://github.com/matter-labs/zksync-era/issues/3956)) ([87938b3](https://github.com/matter-labs/zksync-era/commit/87938b3b94688ff32bbdd0e35396558c7ab5bb88))
+* **en:** remove dependency on pubdata commitment mode ([#3826](https://github.com/matter-labs/zksync-era/issues/3826)) ([a0c78c0](https://github.com/matter-labs/zksync-era/commit/a0c78c022460d6441345b205fa00ac447b0910c8))
+* **zkstack_cli:** finish enabling migrating chain from Gateway + remove the gateway feature flag ([#3924](https://github.com/matter-labs/zksync-era/issues/3924)) ([d091c90](https://github.com/matter-labs/zksync-era/commit/d091c90f61b95e9dea4be486d85fd520a706133a))
+* **zksync-server:** add support for tee_proof_data_handler component ([#3957](https://github.com/matter-labs/zksync-era/issues/3957)) ([7c573fc](https://github.com/matter-labs/zksync-era/commit/7c573fcce7b1d48f6db431a23abd96dea1d60274))
+
+
+### Bug Fixes
+
+* Changes to zkstack after testing migration from GW ([#3969](https://github.com/matter-labs/zksync-era/issues/3969)) ([b63e607](https://github.com/matter-labs/zksync-era/commit/b63e60734ff4e2f4fd00c15920c9d3c84ed7c4fd))
+* **eth-sender:** fix issues for operator rotation ([#3972](https://github.com/matter-labs/zksync-era/issues/3972)) ([69d3cec](https://github.com/matter-labs/zksync-era/commit/69d3cec83bc98600d4a98f60d2a31181d8c65066))
+* **gateway-migrator:** Properly handle unknown settlement layer ([#3961](https://github.com/matter-labs/zksync-era/issues/3961)) ([b43e315](https://github.com/matter-labs/zksync-era/commit/b43e3159b89a4808925ba62616ea5e85fb2d63e3))
+* **tee_proof_data_handler:** handle fallback deserialization for blob store data ([#3971](https://github.com/matter-labs/zksync-era/issues/3971)) ([a785fe9](https://github.com/matter-labs/zksync-era/commit/a785fe99311905fae3164d316c3ae5fb14c5de16))
+
+
+### Performance Improvements
+
+* **state-keeper:** Parallelize loading storage log chunks when recovering SK cache ([#3941](https://github.com/matter-labs/zksync-era/issues/3941)) ([72dda97](https://github.com/matter-labs/zksync-era/commit/72dda979672551c8798ec40edbc4ae69c467407f))
+
 ## [28.0.0](https://github.com/matter-labs/zksync-era/compare/core-v27.5.2...core-v28.0.0) (2025-05-05)
 
 

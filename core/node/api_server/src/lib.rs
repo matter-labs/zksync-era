@@ -4,6 +4,7 @@
 mod utils;
 pub mod execution_sandbox;
 pub mod healthcheck;
+pub mod node;
 #[cfg(test)]
 mod testonly;
 pub mod tx_sender;
