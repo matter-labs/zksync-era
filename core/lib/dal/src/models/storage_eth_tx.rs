@@ -6,6 +6,7 @@ use zksync_types::{
     eth_sender::{EthTx, TxHistory},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
+use zksync_types::eth_sender::EthTxFinalityStatus;
 
 #[derive(Debug, Clone)]
 pub struct StorageEthTx {
@@ -31,6 +32,7 @@ pub struct StorageEthTx {
     pub blob_sidecar: Option<Vec<u8>>,
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
+    pub finality_status: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -83,6 +85,12 @@ impl From<StorageEthTx> for EthTx {
             chain_id: tx
                 .chain_id
                 .map(|chain_id| SLChainId(chain_id.try_into().unwrap())),
+            finality_status: tx
+                .finality_status
+                .as_deref()
+                .map(EthTxFinalityStatus::from_str)
+                .transpose()
+                .unwrap(),
         }
     }
 }
