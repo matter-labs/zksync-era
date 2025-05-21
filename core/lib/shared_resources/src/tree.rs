@@ -5,7 +5,7 @@ use std::fmt;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_node_framework::Resource;
+use zksync_node_framework::{resource, Resource};
 use zksync_types::{L1BatchNumber, H256, U256};
 
 /// General information about the Merkle tree.
@@ -67,7 +67,7 @@ pub trait TreeApiClient: 'static + Send + Sync + fmt::Debug {
     ) -> Result<Vec<TreeEntryWithProof>, TreeApiError>;
 }
 
-impl Resource for dyn TreeApiClient {
+impl Resource<resource::Shared> for dyn TreeApiClient {
     fn name() -> String {
         "api/tree_api_client".into()
     }

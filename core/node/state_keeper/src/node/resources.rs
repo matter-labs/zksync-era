@@ -1,4 +1,7 @@
-use zksync_node_framework::resource::{Resource, Unique};
+use zksync_node_framework::{
+    resource,
+    resource::{Resource, Unique},
+};
 use zksync_state::OwnedStorage;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 
@@ -58,7 +61,7 @@ impl From<OutputHandler> for OutputHandlerResource {
     }
 }
 
-impl Resource for dyn ConditionalSealer {
+impl Resource<resource::Shared> for dyn ConditionalSealer {
     fn name() -> String {
         "state_keeper/conditional_sealer".into()
     }

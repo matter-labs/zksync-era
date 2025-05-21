@@ -1,4 +1,4 @@
-use zksync_node_framework::resource::Resource;
+use zksync_node_framework::resource::{self, Resource};
 use zksync_types::settlement::{SettlementLayer, WorkingSettlementLayer};
 
 use crate::client::{DynClient, L1, L2};
@@ -28,7 +28,7 @@ impl SettlementModeResource {
     }
 }
 
-impl Resource for Box<DynClient<L1>> {
+impl Resource<resource::Boxed> for DynClient<L1> {
     fn name() -> String {
         "common/eth_interface".into()
     }
@@ -47,7 +47,7 @@ impl Resource for SettlementLayerClient {
 }
 
 /// Provides L2 interface object to the service.
-impl Resource for Box<DynClient<L2>> {
+impl Resource<resource::Boxed> for DynClient<L2> {
     fn name() -> String {
         "external_node/main_node_client".into()
     }

@@ -1,4 +1,4 @@
-use zksync_node_framework::resource::Resource;
+use zksync_node_framework::{resource, resource::Resource};
 
 use crate::{
     tx_sender::{tx_sink::TxSink, TxSender},
@@ -11,7 +11,7 @@ impl Resource for TxSender {
     }
 }
 
-impl Resource for dyn TxSink {
+impl Resource<resource::Shared> for dyn TxSink {
     fn name() -> String {
         "api/tx_sink".into()
     }

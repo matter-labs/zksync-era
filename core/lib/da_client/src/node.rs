@@ -1,8 +1,8 @@
-use zksync_node_framework::resource::Resource;
+use zksync_node_framework::resource::{self, Resource};
 
 use crate::DataAvailabilityClient;
 
-impl Resource for Box<dyn DataAvailabilityClient> {
+impl Resource<resource::Boxed> for dyn DataAvailabilityClient {
     fn name() -> String {
         "common/da_client".into()
     }

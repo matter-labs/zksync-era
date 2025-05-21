@@ -3,11 +3,14 @@
 use std::sync::Arc;
 
 use zksync_config::ObjectStoreConfig;
-use zksync_node_framework::{resource::Resource, WiringError, WiringLayer};
+use zksync_node_framework::{
+    resource::{self, Resource},
+    WiringError, WiringLayer,
+};
 
 use crate::{ObjectStore, ObjectStoreFactory};
 
-impl Resource for dyn ObjectStore {
+impl Resource<resource::Shared> for dyn ObjectStore {
     fn name() -> String {
         "common/object_store".into()
     }

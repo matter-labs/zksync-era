@@ -1,5 +1,5 @@
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_node_framework::resource::Resource;
+use zksync_node_framework::resource::{self, Resource};
 
 use crate::BoundEthInterface;
 
@@ -13,7 +13,7 @@ impl Resource for SenderConfigResource {
     }
 }
 
-impl Resource for Box<dyn BoundEthInterface> {
+impl Resource<resource::Boxed> for dyn BoundEthInterface {
     fn name() -> String {
         "common/bound_eth_interface".into()
     }

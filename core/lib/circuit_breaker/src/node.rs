@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use zksync_config::configs::chain::CircuitBreakerConfig;
 use zksync_node_framework::{
-    task::TaskKind, FromContext, IntoContext, Resource, StopReceiver, Task, TaskId, WiringError,
-    WiringLayer,
+    resource, task::TaskKind, FromContext, IntoContext, Resource, StopReceiver, Task, TaskId,
+    WiringError, WiringLayer,
 };
 
 use crate::{CircuitBreakerChecker, CircuitBreakers};
 
-impl Resource for CircuitBreakers {
+impl Resource<resource::Shared> for CircuitBreakers {
     fn name() -> String {
         "common/circuit_breakers".into()
     }

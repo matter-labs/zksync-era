@@ -1,8 +1,8 @@
-use zksync_node_framework::Resource;
+use zksync_node_framework::{resource, Resource};
 
 use crate::PriceApiClient;
 
-impl Resource for dyn PriceApiClient {
+impl Resource<resource::Shared> for dyn PriceApiClient {
     fn name() -> String {
         "common/price_api_client".into()
     }

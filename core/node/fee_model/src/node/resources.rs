@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use zksync_node_framework::resource::Resource;
+use zksync_node_framework::resource::{self, Resource};
 
 use crate::{
     l1_gas_price::{GasAdjuster, TxParamsProvider},
     BaseTokenRatioProvider, BatchFeeModelInputProvider,
 };
 
-impl Resource for dyn BaseTokenRatioProvider {
+impl Resource<resource::Shared> for dyn BaseTokenRatioProvider {
     fn name() -> String {
         "common/base_token_ratio_provider".into()
     }
@@ -45,13 +45,13 @@ impl<T: BatchFeeModelInputProvider> From<Arc<T>> for ApiFeeInputResource {
     }
 }
 
-impl Resource for GasAdjuster {
+impl Resource<resource::Shared> for GasAdjuster {
     fn name() -> String {
         "common/gas_adjuster".into()
     }
 }
 
-impl Resource for dyn TxParamsProvider {
+impl Resource<resource::Shared> for dyn TxParamsProvider {
     fn name() -> String {
         "common/tx_params".into()
     }
