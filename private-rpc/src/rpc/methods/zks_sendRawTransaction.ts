@@ -20,7 +20,7 @@ function decodeTx(raw: `0x${string}`) {
 export const zks_sendRawTransactionWithDetailedOutput: MethodHandler = {
     name: 'zks_sendRawTransactionWithDetailedOutput',
     async handle(context, method, params, id) {
-        if (env.PERMISSIONS_HOT_RELOAD == 'true') {
+        if (env.PERMISSIONS_HOT_RELOAD === 'true') {
             authorizer.reloadFromEnv();
         }
         const rawTx = hexSchema.parse(params[0]);

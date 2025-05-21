@@ -27,7 +27,7 @@ const callResponseSchema = z.object({
 export const eth_call: MethodHandler = {
     name: 'eth_call',
     async handle(context, method, params, id) {
-        if (env.PERMISSIONS_HOT_RELOAD == 'true') {
+        if (env.PERMISSIONS_HOT_RELOAD === 'true') {
             authorizer.reloadFromEnv();
         }
         const call = callReqSchema.parse(params[0]);

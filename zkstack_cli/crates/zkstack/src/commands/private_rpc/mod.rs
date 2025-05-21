@@ -210,6 +210,7 @@ pub async fn run_proxy(shell: &Shell) -> anyhow::Result<()> {
     if !backend_config_path.exists() {
         anyhow::bail!(msg_private_rpc_chain_not_initialized(&chain_config.name));
     }
+    Cmd::new(cmd!(shell, "cat {backend_config_path}")).run()?;
     if let Some(docker_compose_file) = backend_config_path.to_str() {
         docker::up(shell, docker_compose_file, false)
             .context(MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR)?;
