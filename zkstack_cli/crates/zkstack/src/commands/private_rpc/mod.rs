@@ -175,6 +175,8 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         .join("private-rpc-permissions.yaml");
 
     if !dst_permissions_path.exists() {
+        Cmd::new(cmd!(shell, "pwd")).run()?;
+        Cmd::new(cmd!(shell, "ls")).run()?;
         Cmd::new(cmd!(shell, "file {src_permissions_path}")).run()?;
         Cmd::new(cmd!(
             shell,
