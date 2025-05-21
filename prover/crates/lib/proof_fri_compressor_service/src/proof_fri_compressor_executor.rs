@@ -10,7 +10,6 @@ use zksync_prover_interface::{
     CBOR,
 };
 use zksync_prover_job_processor::Executor;
-use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 use crate::{
@@ -23,19 +22,13 @@ use crate::{
 /// Compress the final proof with SNARK wrapper.
 pub struct ProofFriCompressorExecutor {
     is_fflonk: bool,
-    keystore: Keystore,
     protocol_version: ProtocolSemanticVersion,
 }
 
 impl ProofFriCompressorExecutor {
-    pub fn new(
-        is_fflonk: bool,
-        keystore: Keystore,
-        protocol_version: ProtocolSemanticVersion,
-    ) -> Self {
+    pub fn new(is_fflonk: bool, protocol_version: ProtocolSemanticVersion) -> Self {
         Self {
             is_fflonk,
-            keystore,
             protocol_version,
         }
     }
@@ -91,9 +84,13 @@ impl Executor for ProofFriCompressorExecutor {
             SnarkWrapper::Plonk
         };
 
+        let setup_data_cache = input.setup_data_cache;
+        // let setup_data_cache = Arc::try_unwrap(input.setup_data_cache.clone())
+        //     .map_err(|_| anyhow::anyhow!("Failed to unwrap setup data cache"))?;
+
         let proof_wrapper = run_proof_chain(
             snark_wrapper_mode,
-            &self.keystore,
+            &setup_data_cache,
             input.scheduler_proof.into_inner(),
         );
 

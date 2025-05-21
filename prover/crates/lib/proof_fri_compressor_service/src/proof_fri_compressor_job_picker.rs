@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
+use proof_compression_gpu::SnarkWrapperSetup;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper};
@@ -16,11 +17,12 @@ use crate::{
 
 /// ProofFriCompressor job picker implementation.
 /// Checking FFLONK verification hash, picks job from database and gets data from object store.
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct ProofFriCompressorJobPicker {
     pool: ConnectionPool<Prover>,
     blob_store: Arc<dyn ObjectStore>,
     protocol_version: ProtocolSemanticVersion,
+    setup_data_cache: Arc<SnarkWrapperSetup>,
 }
 
 impl ProofFriCompressorJobPicker {
@@ -28,11 +30,13 @@ impl ProofFriCompressorJobPicker {
         pool: ConnectionPool<Prover>,
         blob_store: Arc<dyn ObjectStore>,
         protocol_version: ProtocolSemanticVersion,
+        setup_data_cache: Arc<SnarkWrapperSetup>,
     ) -> Self {
         Self {
             pool,
             blob_store,
             protocol_version,
+            setup_data_cache,
         }
     }
 }
@@ -85,6 +89,9 @@ impl JobPicker for ProofFriCompressorJobPicker {
             .await
             .context("Failed to get aggregation result coords from blob store")?;
 
+        // let setup_data_cache = Arc::try_unwrap(self.setup_data_cache.clone())
+        //     .map_err(|_| anyhow::anyhow!("Failed to unwrap setup data cache"))?;
+        let setup_data_cache = self.setup_data_cache.clone();
         let payload = ProofFriCompressorPayload {
             scheduler_proof: match fri_proof {
                 FriProofWrapper::Base(_) => {
@@ -93,6 +100,7 @@ impl JobPicker for ProofFriCompressorJobPicker {
                 FriProofWrapper::Recursive(proof) => proof,
             },
             aux_output_witness_wrapper,
+            setup_data_cache,
         };
 
         let metadata = ProofFriCompressorMetadata::new(l1_batch_id, l1_verifier_config);
