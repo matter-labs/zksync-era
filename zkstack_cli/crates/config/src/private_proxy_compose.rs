@@ -7,6 +7,7 @@ use serde_json::json;
 use url::Url;
 use xshell::{cmd, Shell};
 use zkstack_cli_common::docker::adjust_localhost_for_docker;
+use zkstack_cli_common::logger;
 
 use crate::{
     consts::{LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
@@ -46,11 +47,21 @@ pub async fn create_private_rpc_service(
     ecosystem_path: &Path,
     chain_name: &str,
 ) -> anyhow::Result<DockerComposeService> {
-    let permissions_path = ecosystem_path
+    let mut permissions_path = ecosystem_path
         .join("chains")
         .join(chain_name)
         .join("configs")
         .join("private-rpc");
+
+    // A special override for CI, where we're already running inside a docker container
+    if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
+        permissions_path = docker_root
+            .join("chains")
+            .join(chain_name)
+            .join("configs")
+            .join("private-rpc");
+        logger::info(format!("running inside docker, using {permissions_path:?}"));
+    };
 
     let host_os = detect_host_os()?;
     let other_settings = match host_os {
