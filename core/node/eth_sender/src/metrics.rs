@@ -118,7 +118,8 @@ impl EthSenderMetrics {
             .set(l1_block_numbers.latest.0 as usize);
         self.last_known_l1_block[&BlockNumberVariant::Finalized]
             .set(l1_block_numbers.finalized.0 as usize);
-        self.last_known_l1_block[&BlockNumberVariant::Safe].set(l1_block_numbers.safe.0 as usize);
+        self.last_known_l1_block[&BlockNumberVariant::Safe]
+            .set(l1_block_numbers.fast_finality.0 as usize);
     }
 
     pub async fn track_eth_tx_metrics(

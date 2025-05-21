@@ -42,7 +42,6 @@ impl EthSenderDal<'_, '_> {
                     OR
                     (from_addr IS NULL AND $2)
                 )
-                AND confirmed_eth_tx_history_id IS NULL
                 AND is_gateway = $3
                 AND id <= COALESCE(
                     (SELECT
@@ -52,6 +51,7 @@ impl EthSenderDal<'_, '_> {
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
+                        AND finality_status != 'finalized'
                         AND (
                             from_addr = $1
                             OR
@@ -445,6 +445,7 @@ impl EthSenderDal<'_, '_> {
             SET
                 updated_at = NOW(),
                 confirmed_at = NOW(),
+                finality_status = $2,
                 sent_successfully = TRUE
             WHERE
                 tx_hash = $1
@@ -453,6 +454,7 @@ impl EthSenderDal<'_, '_> {
             eth_tx_id
             "#,
             tx_hash,
+            eth_tx_finality_status.to_string(),
         )
         .fetch_one(transaction.conn())
         .await?;
@@ -462,14 +464,12 @@ impl EthSenderDal<'_, '_> {
             UPDATE eth_txs
             SET
                 gas_used = $1,
-                confirmed_eth_tx_history_id = $2,
-                finality_status = $3
+                confirmed_eth_tx_history_id = $2
             WHERE
-                id = $4
+                id = $3
             "#,
             gas_used,
             ids.id,
-            eth_tx_finality_status.to_string(),
             ids.eth_tx_id
         )
         .execute(transaction.conn())
@@ -616,11 +616,12 @@ impl EthSenderDal<'_, '_> {
             .fetch_one(transaction.conn())
             .await?;
 
+            // TODO mark finality status correspondingly
             // Insert a "sent transaction".
             let eth_history_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
-                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE) \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE, 'finalized') \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,
@@ -628,7 +629,6 @@ impl EthSenderDal<'_, '_> {
             )
             .fetch_one(transaction.conn())
             .await?;
-
             // Mark general entry as confirmed.
             sqlx::query!(
                 r#"

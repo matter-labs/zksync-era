@@ -292,10 +292,10 @@ impl BlocksWeb3Dal<'_, '_> {
                             SELECT MAX(number) FROM miniblocks
                             WHERE l1_batch_number = (
                                 SELECT number FROM l1_batches
-                                JOIN eth_txs ON
-                                    l1_batches.eth_commit_tx_id = eth_txs.id
+                                JOIN eth_txs_history ON
+                                    l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
                                 WHERE
-                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                    finality_status = 'finalized'
                                 ORDER BY number DESC LIMIT 1
                             )
                         ),
@@ -303,6 +303,25 @@ impl BlocksWeb3Dal<'_, '_> {
                     ) AS number
                     ";
                 ),
+                api::BlockId::Number(api::BlockNumber::FastFinalized) => (
+                    "
+                    SELECT COALESCE(
+                        (
+                            SELECT MAX(number) FROM miniblocks
+                            WHERE l1_batch_number = (
+                                SELECT number FROM l1_batches
+                                JOIN eth_txs_history ON
+                                    l1_batches.eth_execute_tx_id = eth_txs_history.eth_tx_id
+                                WHERE
+                                    eth_txs_history.finality_status = 'fast_finalized'
+                                ORDER BY number DESC LIMIT 1
+                            )
+                        ),
+                        0
+                    ) AS number
+                    ";
+                ),
+
                 api::BlockId::Number(api::BlockNumber::Finalized) => (
                     "
                     SELECT COALESCE(
@@ -310,10 +329,10 @@ impl BlocksWeb3Dal<'_, '_> {
                             SELECT MAX(number) FROM miniblocks
                             WHERE l1_batch_number = (
                                 SELECT number FROM l1_batches
-                                JOIN eth_txs ON
-                                    l1_batches.eth_execute_tx_id = eth_txs.id
+                                JOIN eth_txs_history ON
+                                    l1_batches.eth_execute_tx_id = eth_txs_history.eth_tx_id
                                 WHERE
-                                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                    eth_txs_history.finality_status = 'finalized'
                                 ORDER BY number DESC LIMIT 1
                             )
                         ),
@@ -681,11 +700,14 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
                 commit_tx.confirmed_at AS "committed_at?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
                 commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
                 prove_tx.confirmed_at AS "proven_at?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
                 prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
                 miniblocks.l1_gas_price,
@@ -771,12 +793,15 @@ impl BlocksWeb3Dal<'_, '_> {
                 l1_batches.l2_tx_count,
                 l1_batches.hash AS "root_hash?",
                 commit_tx.tx_hash AS "commit_tx_hash?",
+                commit_tx.finality_status AS "commit_tx_finality_status?",
                 commit_tx.confirmed_at AS "committed_at?",
                 commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
+                prove_tx.finality_status AS "prove_tx_finality_status?",
                 prove_tx.confirmed_at AS "proven_at?",
                 prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
+                execute_tx.finality_status AS "execute_tx_finality_status?",
                 execute_tx.confirmed_at AS "executed_at?",
                 execute_tx_data.chain_id AS "execute_chain_id?",
                 mb.l1_gas_price,

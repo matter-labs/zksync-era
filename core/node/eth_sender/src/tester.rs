@@ -349,7 +349,7 @@ impl EthSenderTester {
         L1BlockNumbers {
             finalized,
             latest,
-            safe: finalized,
+            fast_finality: finalized,
         }
     }
     async fn insert_l1_batch(&self, number: L1BatchNumber) -> L1BatchHeader {
