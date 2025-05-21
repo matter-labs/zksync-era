@@ -893,6 +893,7 @@ mod tests {
     use zksync_types::{
         aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
         block::{L2BlockHasher, L2BlockHeader},
+        eth_sender::EthTxFinalityStatus,
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
@@ -1124,7 +1125,7 @@ mod tests {
             .await
             .unwrap();
         conn.eth_sender_dal()
-            .confirm_tx(tx_hash, U256::zero())
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
             .await
             .unwrap();
         conn.blocks_dal()

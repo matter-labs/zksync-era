@@ -14,7 +14,7 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::L1Stage;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
-    eth_sender::EthTx,
+    eth_sender::{EthTx, EthTxFinalityStatus},
     Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
@@ -25,7 +25,6 @@ use crate::{
         AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
     },
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
-    health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,
 };
 
@@ -397,12 +396,14 @@ impl EthTxManager {
     ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
         tracing::trace!(
             "Going through not confirmed txs. \
-             Block numbers: latest {}, finalized {}, \
-             operator's nonce: latest {}, finalized {}",
+             Block numbers: latest {}, safe {}, finalized {}, \
+             operator's nonce: latest {}, safe {}, finalized {}",
             l1_block_numbers.latest,
+            l1_block_numbers.safe,
             l1_block_numbers.finalized,
             operator_nonce.latest,
             operator_nonce.finalized,
+            operator_nonce.safe,
         );
 
         // Not confirmed transactions, ordered by nonce
@@ -440,11 +441,11 @@ impl EthTxManager {
                 )));
             }
 
-            // If on finalized block sender's nonce was > tx.nonce,
+            // If on safe block sender's nonce was > tx.nonce,
             // then `tx` is mined and confirmed (either successful or reverted).
             // Only then we will check the history to find the receipt.
             // Otherwise, `tx` is mined but not confirmed, so we skip to the next one.
-            if operator_nonce.finalized <= tx.nonce {
+            if operator_nonce.safe <= tx.nonce {
                 continue;
             }
 
@@ -463,7 +464,7 @@ impl EthTxManager {
             );
             match self.check_all_sending_attempts(storage, &tx).await {
                 Ok(Some(tx_status)) => {
-                    self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers.finalized)
+                    self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers)
                         .await;
                 }
                 Ok(None) => {
@@ -493,29 +494,45 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
-        finalized_block: L1BlockNumber,
+        blocks: L1BlockNumbers,
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
-        if receipt_block_number <= finalized_block.0 {
-            self.health_updater.update(
-                EthTxManagerHealthDetails {
-                    last_mined_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
-                    finalized_block,
-                }
-                .into(),
-            );
-
-            if tx_status.success {
-                self.confirm_tx(storage, tx, tx_status).await;
-            } else {
-                self.fail_tx(storage, tx, tx_status).await;
-            }
+        let finality_status = if blocks.finalized.0 > receipt_block_number {
+            EthTxFinalityStatus::Finalized
+        } else if blocks.safe.0 > receipt_block_number {
+            EthTxFinalityStatus::FastFinalized
         } else {
             tracing::trace!(
-                "Transaction {} with id {} is not yet finalized: block in receipt {receipt_block_number}, finalized block {finalized_block}",
+                "Transaction {} with id {} is not finalized: block in receipt {receipt_block_number}, finalized block {}",
                 tx_status.tx_hash,
                 tx.id,
+                blocks.finalized.0
             );
+            return;
+        };
+
+        tracing::trace!(
+                "Transaction {} with id {} is {:?}: block in receipt {receipt_block_number}, safe block {}, finalized block {}",
+                tx_status.tx_hash,
+                tx.id,
+                finality_status,
+                blocks.safe.0,
+                blocks.finalized.0
+            );
+        // TODO set correct values for health updater
+        // self.health_updater.update(
+        //     EthTxManagerHealthDetails {
+        //         last_finalized_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
+        //         finalized_block,
+        //     }
+        //     .into(),
+        // );
+
+        if tx_status.success {
+            self.confirm_tx(storage, tx, finality_status, tx_status)
+                .await;
+        } else {
+            self.fail_tx(storage, tx, tx_status).await;
         }
     }
 
@@ -563,6 +580,7 @@ impl EthTxManager {
         &self,
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
+        eth_tx_finality_status: EthTxFinalityStatus,
         tx_status: ExecutedTxStatus,
     ) {
         let tx_hash = tx_status.receipt.transaction_hash;
@@ -573,7 +591,7 @@ impl EthTxManager {
 
         storage
             .eth_sender_dal()
-            .confirm_tx(tx_status.tx_hash, gas_used)
+            .confirm_tx(tx_status.tx_hash, eth_tx_finality_status, gas_used)
             .await
             .unwrap();
 
@@ -582,9 +600,10 @@ impl EthTxManager {
             .await;
 
         tracing::info!(
-            "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
+            "eth_tx {} with hash {tx_hash:?} for {} is {:?}. Gas spent: {gas_used:?}",
             tx.id,
-            tx.tx_type
+            tx.tx_type,
+            eth_tx_finality_status,
         );
         let tx_type_label = tx.tx_type.into();
         METRICS.l1_gas_used[&tx_type_label].observe(gas_used.low_u128() as f64);
@@ -594,7 +613,14 @@ impl EthTxManager {
             .expect("incorrect system time");
         let tx_latency =
             duration_since_epoch.saturating_sub(Duration::from_secs(tx.created_at_timestamp));
-        METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
+        match eth_tx_finality_status {
+            EthTxFinalityStatus::FastFinalized => {
+                // TODO add metrics for fast finalized txs
+            }
+            EthTxFinalityStatus::Finalized => {
+                METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
+            }
+        }
 
         let sent_at_block = storage
             .eth_sender_dal()

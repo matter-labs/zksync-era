@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory},
+    eth_sender::{EthTx, EthTxFinalityStatus, TxHistory},
     Address, Nonce, SLChainId, H256,
 };
 
@@ -32,6 +32,7 @@ pub struct StorageEthTx {
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
     pub status: Option<String>,
+    pub finality_status: Option<String>,
 }
 
 // Common struct for l2 blocks and l1 batches eth sender stats.
@@ -85,6 +86,12 @@ impl From<StorageEthTx> for EthTx {
             chain_id: tx
                 .chain_id
                 .map(|chain_id| SLChainId(chain_id.try_into().unwrap())),
+            finality_status: tx
+                .finality_status
+                .as_deref()
+                .map(EthTxFinalityStatus::from_str)
+                .transpose()
+                .unwrap(),
         }
     }
 }

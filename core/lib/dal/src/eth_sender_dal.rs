@@ -10,7 +10,7 @@ use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
 
@@ -432,7 +432,12 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) -> anyhow::Result<()> {
+    pub async fn confirm_tx(
+        &mut self,
+        tx_hash: H256,
+        eth_tx_finality_status: EthTxFinalityStatus,
+        gas_used: U256,
+    ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
             .start_transaction()
@@ -464,12 +469,14 @@ impl EthSenderDal<'_, '_> {
             UPDATE eth_txs
             SET
                 gas_used = $1,
-                confirmed_eth_tx_history_id = $2
+                confirmed_eth_tx_history_id = $2,
+                finality_status = $3
             WHERE
-                id = $3
+                id = $4
             "#,
             gas_used,
             ids.id,
+            eth_tx_finality_status.to_string(),
             ids.eth_tx_id
         )
         .execute(transaction.conn())

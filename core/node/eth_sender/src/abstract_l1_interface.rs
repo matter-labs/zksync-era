@@ -22,6 +22,8 @@ pub(crate) struct OperatorNonce {
     pub finalized: Nonce,
     // Nonce on latest block
     pub latest: Nonce,
+    // Nonce on safe block
+    pub safe: Nonce,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -200,7 +202,19 @@ impl AbstractL1Interface for RealL1Interface {
             .await?
             .as_u32()
             .into();
-        Ok(Some(OperatorNonce { finalized, latest }))
+
+        let safe = self
+            .bound_query_client(operator_type)
+            .nonce_at(block_numbers.safe.0.into())
+            .await?
+            .as_u32()
+            .into();
+
+        Ok(Some(OperatorNonce {
+            finalized,
+            latest,
+            safe,
+        }))
     }
 
     async fn sign_tx(
