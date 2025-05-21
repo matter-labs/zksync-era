@@ -396,14 +396,14 @@ impl EthTxManager {
     ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
         tracing::trace!(
             "Going through not confirmed txs. \
-             Block numbers: latest {}, safe {}, finalized {}, \
-             operator's nonce: latest {}, safe {}, finalized {}",
+             Block numbers: latest {}, fast_finality {}, finalized {}, \
+             operator's nonce: latest {}, fast_finality {}, finalized {}",
             l1_block_numbers.latest,
-            l1_block_numbers.safe,
+            l1_block_numbers.fast_finality,
             l1_block_numbers.finalized,
             operator_nonce.latest,
+            operator_nonce.fast_finality,
             operator_nonce.finalized,
-            operator_nonce.safe,
         );
 
         // Not confirmed transactions, ordered by nonce
@@ -441,11 +441,11 @@ impl EthTxManager {
                 )));
             }
 
-            // If on safe block sender's nonce was > tx.nonce,
+            // If on fast_finality block sender's nonce was > tx.nonce,
             // then `tx` is mined and confirmed (either successful or reverted).
             // Only then we will check the history to find the receipt.
             // Otherwise, `tx` is mined but not confirmed, so we skip to the next one.
-            if operator_nonce.safe <= tx.nonce {
+            if operator_nonce.fast_finality <= tx.nonce {
                 continue;
             }
 
@@ -499,7 +499,7 @@ impl EthTxManager {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
         let finality_status = if blocks.finalized.0 > receipt_block_number {
             EthTxFinalityStatus::Finalized
-        } else if blocks.safe.0 > receipt_block_number {
+        } else if blocks.fast_finality.0 > receipt_block_number {
             EthTxFinalityStatus::FastFinalized
         } else {
             tracing::trace!(
@@ -516,7 +516,7 @@ impl EthTxManager {
                 tx_status.tx_hash,
                 tx.id,
                 finality_status,
-                blocks.safe.0,
+                blocks.fast_finality.0,
                 blocks.finalized.0
             );
         // TODO set correct values for health updater

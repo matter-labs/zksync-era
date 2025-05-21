@@ -56,7 +56,6 @@ pub struct EthTx {
     pub blob_sidecar: Option<EthTxBlobSidecar>,
     pub is_gateway: bool,
     pub chain_id: Option<SLChainId>,
-    pub finality_status: Option<EthTxFinalityStatus>,
 }
 
 impl std::fmt::Debug for EthTx {
@@ -71,7 +70,6 @@ impl std::fmt::Debug for EthTx {
             .field("predicted_gas_cost", &self.predicted_gas_cost)
             .field("chain_id", &self.chain_id)
             .field("is_gateway", &self.is_gateway)
-            .field("finality_status", &self.finality_status)
             .finish()
     }
 }
@@ -87,10 +85,11 @@ pub struct TxHistory {
     pub signed_raw_tx: Vec<u8>,
     pub sent_at_block: Option<u32>,
     pub max_gas_per_pubdata: Option<u64>,
+    pub eth_tx_finality_status: Option<EthTxFinalityStatus>,
     pub sent_successfully: bool,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum EthTxFinalityStatus {
     FastFinalized,

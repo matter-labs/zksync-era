@@ -32,7 +32,6 @@ pub struct StorageEthTx {
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
     pub status: Option<String>,
-    pub finality_status: Option<String>,
 }
 
 // Common struct for l2 blocks and l1 batches eth sender stats.
@@ -65,6 +64,7 @@ pub struct StorageTxHistory {
     pub max_gas_per_pubdata: Option<i64>,
     pub predicted_gas_limit: Option<i64>,
     pub sent_successfully: bool,
+    pub finality_status: Option<String>,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -86,12 +86,6 @@ impl From<StorageEthTx> for EthTx {
             chain_id: tx
                 .chain_id
                 .map(|chain_id| SLChainId(chain_id.try_into().unwrap())),
-            finality_status: tx
-                .finality_status
-                .as_deref()
-                .map(EthTxFinalityStatus::from_str)
-                .transpose()
-                .unwrap(),
         }
     }
 }
@@ -112,6 +106,10 @@ impl From<StorageTxHistory> for TxHistory {
             sent_at_block: history.sent_at_block.map(|block| block as u32),
             max_gas_per_pubdata: history.max_gas_per_pubdata.map(|v| v as u64),
             sent_successfully: history.sent_successfully,
+            eth_tx_finality_status: history
+                .finality_status
+                .as_deref()
+                .and_then(|s| EthTxFinalityStatus::from_str(s).ok()),
         }
     }
 }

@@ -22,13 +22,13 @@ pub(crate) struct OperatorNonce {
     pub finalized: Nonce,
     // Nonce on latest block
     pub latest: Nonce,
-    // Nonce on safe block
-    pub safe: Nonce,
+    // Nonce on block we consider fast finality.
+    pub fast_finality: Nonce,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct L1BlockNumbers {
-    pub safe: L1BlockNumber,
+    pub fast_finality: L1BlockNumber,
     pub finalized: L1BlockNumber,
     pub latest: L1BlockNumber,
 }
@@ -203,9 +203,9 @@ impl AbstractL1Interface for RealL1Interface {
             .as_u32()
             .into();
 
-        let safe = self
+        let fast_finality = self
             .bound_query_client(operator_type)
-            .nonce_at(block_numbers.safe.0.into())
+            .nonce_at(block_numbers.fast_finality.0.into())
             .await?
             .as_u32()
             .into();
@@ -213,7 +213,7 @@ impl AbstractL1Interface for RealL1Interface {
         Ok(Some(OperatorNonce {
             finalized,
             latest,
-            safe,
+            fast_finality,
         }))
     }
 
@@ -267,7 +267,7 @@ impl AbstractL1Interface for RealL1Interface {
         &self,
         operator_type: OperatorType,
     ) -> Result<L1BlockNumbers, EthSenderError> {
-        let (finalized, safe) = if let Some(confirmations) = self.wait_confirmations {
+        let (finalized, fast_finality) = if let Some(confirmations) = self.wait_confirmations {
             let latest_block_number: u64 = self
                 .query_client(operator_type)
                 .block_number()
@@ -287,7 +287,7 @@ impl AbstractL1Interface for RealL1Interface {
                 .as_u32()
                 .into();
 
-            let safe = self
+            let fast_finality = self
                 .query_client(operator_type)
                 .block(BlockId::Number(BlockNumber::Safe))
                 .await?
@@ -296,7 +296,7 @@ impl AbstractL1Interface for RealL1Interface {
                 .expect("Safe block must contain number")
                 .as_u32()
                 .into();
-            (finalized, safe)
+            (finalized, fast_finality)
         };
 
         let latest = self
@@ -309,7 +309,7 @@ impl AbstractL1Interface for RealL1Interface {
         Ok(L1BlockNumbers {
             finalized,
             latest,
-            safe,
+            fast_finality,
         })
     }
 }

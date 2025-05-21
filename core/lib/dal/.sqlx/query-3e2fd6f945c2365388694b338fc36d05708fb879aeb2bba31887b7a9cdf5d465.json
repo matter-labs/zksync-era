@@ -87,11 +87,6 @@
         "ordinal": 16,
         "name": "status",
         "type_info": "Text"
-      },
-      {
-        "ordinal": 17,
-        "name": "finality_status",
-        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -118,7 +113,6 @@
       true,
       true,
       false,
-      true,
       true,
       true
     ]
