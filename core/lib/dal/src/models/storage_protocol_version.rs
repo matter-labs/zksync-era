@@ -59,8 +59,8 @@ pub struct StorageApiProtocolVersion {
     pub upgrade_tx_hash: Option<Vec<u8>>,
 }
 
+#[allow(deprecated)]
 impl From<StorageApiProtocolVersion> for api::ProtocolVersion {
-    #[allow(deprecated)]
     fn from(storage_protocol_version: StorageApiProtocolVersion) -> Self {
         let l2_system_upgrade_tx_hash = storage_protocol_version
             .upgrade_tx_hash
@@ -77,5 +77,27 @@ impl From<StorageApiProtocolVersion> for api::ProtocolVersion {
                 .map(H256::from_slice),
             l2_system_upgrade_tx_hash,
         )
+    }
+}
+
+impl From<StorageApiProtocolVersion> for api::ProtocolVersionInfo {
+    fn from(storage_protocol_version: StorageApiProtocolVersion) -> Self {
+        let l2_system_upgrade_tx_hash = storage_protocol_version
+            .upgrade_tx_hash
+            .as_ref()
+            .map(|hash| H256::from_slice(hash));
+        api::ProtocolVersionInfo {
+            minor_version: storage_protocol_version.minor as u16,
+            timestamp: storage_protocol_version.timestamp as u64,
+            bootloader_code_hash: H256::from_slice(&storage_protocol_version.bootloader_code_hash),
+            default_account_code_hash: H256::from_slice(
+                &storage_protocol_version.default_account_code_hash,
+            ),
+            evm_emulator_code_hash: storage_protocol_version
+                .evm_emulator_code_hash
+                .as_deref()
+                .map(H256::from_slice),
+            l2_system_upgrade_tx_hash,
+        }
     }
 }

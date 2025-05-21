@@ -209,8 +209,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
     /// will error if called from a transaction; it is a logical error to change transaction settings in the middle of it.
     pub fn transaction_builder(&mut self) -> DalResult<TransactionBuilder<'_, 'a, DB>> {
         if let ConnectionInner::Transaction { tags, .. } = &self.inner {
-            let err = io::Error::new(
-                io::ErrorKind::Other,
+            let err = io::Error::other(
                 "`Connection::transaction_builder()` can only be invoked outside of a transaction",
             );
             return Err(
@@ -241,8 +240,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
                 .await
                 .map_err(|err| DalConnectionError::commit_transaction(err, tags.cloned()).into()),
             ConnectionInner::Pooled(conn) => {
-                let err = io::Error::new(
-                    io::ErrorKind::Other,
+                let err = io::Error::other(
                     "`Connection::commit()` can only be invoked after calling `Connection::begin_transaction()`",
                 );
                 Err(DalConnectionError::commit_transaction(sqlx::Error::Io(err), conn.tags).into())
@@ -262,8 +260,7 @@ impl<'a, DB: DbMarker> Connection<'a, DB> {
                 .await
                 .map_err(|err| DalConnectionError::rollback_transaction(err, tags.cloned()).into()),
             ConnectionInner::Pooled(conn) => {
-                let err = io::Error::new(
-                    io::ErrorKind::Other,
+                let err = io::Error::other(
                     "`Connection::rollback()` can only be invoked after calling `Connection::begin_transaction()`",
                 );
                 Err(
