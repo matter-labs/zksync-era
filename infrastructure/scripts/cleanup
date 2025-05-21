@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+if [[ "$(git remote get-url origin)" != "https://github.com/matter-labs/zksync-era" ]]; then
+  echo "error: current repository is not zksync-era" >&2
+  exit 1
+fi
+
+if [[ "$PWD" != "$(git rev-parse --show-toplevel)" ]]; then
+  echo "error: current directory is not repository root" >&2
+  exit 1
+fi
+
+zkstack dev clean all
+
+yarn --cwd contracts/l1-contracts clean
+yarn --cwd contracts/system-contracts clean
