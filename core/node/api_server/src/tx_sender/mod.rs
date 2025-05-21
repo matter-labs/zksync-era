@@ -110,6 +110,7 @@ pub struct SandboxExecutorOptions {
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
     pub(crate) eth_call: OneshotEnvParameters<CallOrExecute>,
+    pub(crate) interrupted_execution_latency_histogram: &'static vise::Histogram<Duration>,
     #[cfg(test)]
     pub(crate) storage_delay: Option<Duration>,
 }
@@ -147,6 +148,8 @@ impl SandboxExecutorOptions {
                 operator_account,
                 validation_computational_gas_limit,
             ),
+            interrupted_execution_latency_histogram: &SANDBOX_METRICS
+                .sandbox_interrupted_execution_latency,
             #[cfg(test)]
             storage_delay: None,
         })

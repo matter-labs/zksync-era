@@ -69,6 +69,7 @@ pub struct MainOneshotExecutor {
     vm_divergence_handler: DivergenceHandler,
     missed_storage_invocation_limit: usize,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
+    interrupted_execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
 
 impl MainOneshotExecutor {
@@ -82,6 +83,7 @@ impl MainOneshotExecutor {
             }),
             missed_storage_invocation_limit,
             execution_latency_histogram: None,
+            interrupted_execution_latency_histogram: None,
         }
     }
 
@@ -107,6 +109,13 @@ impl MainOneshotExecutor {
         histogram: &'static vise::Histogram<Duration>,
     ) {
         self.execution_latency_histogram = Some(histogram);
+    }
+
+    pub fn set_interrupted_execution_latency_histogram(
+        &mut self,
+        histogram: &'static vise::Histogram<Duration>,
+    ) {
+        self.interrupted_execution_latency_histogram = Some(histogram);
     }
 
     fn select_fast_vm_mode(
@@ -150,6 +159,7 @@ where
             stop_token,
             execution_args: args,
             execution_latency_histogram: self.execution_latency_histogram,
+            interrupted_execution_latency_histogram: self.interrupted_execution_latency_histogram,
         };
 
         let current_span = tracing::Span::current();
@@ -202,6 +212,7 @@ where
             stop_token,
             execution_args: TxExecutionArgs::for_validation(tx),
             execution_latency_histogram: self.execution_latency_histogram,
+            interrupted_execution_latency_histogram: self.interrupted_execution_latency_histogram,
         };
 
         let current_span = tracing::Span::current();
@@ -388,6 +399,7 @@ struct VmSandbox<S> {
     stop_token: StopToken,
     execution_args: TxExecutionArgs,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
+    interrupted_execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
 
 impl<S: ReadStorage> VmSandbox<S> {
@@ -499,10 +511,15 @@ impl<S: ReadStorage> VmSandbox<S> {
         let started_at = Instant::now();
         let result = action(&self.stop_token, &mut vm, transaction);
         let vm_execution_took = started_at.elapsed();
-        let was_stopped = self.stop_token.should_stop();
+        let was_interrupted = self.stop_token.should_stop();
 
         if let Some(histogram) = self.execution_latency_histogram {
-            // FIXME: have a family of histograms for normal / interrupted execution
+            histogram.observe(vm_execution_took);
+        }
+        if let (true, Some(histogram)) = (
+            was_interrupted,
+            self.interrupted_execution_latency_histogram,
+        ) {
             histogram.observe(vm_execution_took);
         }
 
@@ -513,7 +530,7 @@ impl<S: ReadStorage> VmSandbox<S> {
                 metrics::report_vm_memory_metrics(&memory_metrics, &stats);
                 RuntimeContextStorageMetrics::observe(
                     &format!("Tx {tx_id}"),
-                    was_stopped,
+                    was_interrupted,
                     vm_execution_took,
                     &stats,
                 );
@@ -523,7 +540,7 @@ impl<S: ReadStorage> VmSandbox<S> {
                 // only storage-related ones.
                 RuntimeContextStorageMetrics::observe(
                     &format!("Tx {tx_id}"),
-                    was_stopped,
+                    was_interrupted,
                     vm_execution_took,
                     &storage_view.borrow().stats(),
                 );

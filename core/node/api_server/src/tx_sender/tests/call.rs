@@ -267,7 +267,10 @@ async fn limiting_storage_access_during_call(vm_mode: FastVmMode) {
 
     let tx = alice.create_expensive_tx(1_000);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100, None).await;
+    let tx_sender = create_real_tx_sender_with_options(pool, 100, |options| {
+        options.set_fast_vm_mode(vm_mode);
+    })
+    .await;
 
     let err = test_call(&tx_sender, state_override, tx.into())
         .await
@@ -284,17 +287,22 @@ async fn interrupting_vm_during_call(vm_mode: FastVmMode) {
     let tx = alice.create_expensive_tx(1_000);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     // Artificially delay storage accesses so that the VM doesn't finish execution in a reasonable timeframe.
-    let storage_delay = Duration::from_secs(1);
-    let tx_sender =
-        create_real_tx_sender_with_options(pool, vm_mode, usize::MAX, Some(storage_delay)).await;
+    let storage_delay = Duration::from_millis(100);
+    let test_metrics = TestMetrics::leak();
+    let tx_sender = create_real_tx_sender_with_options(pool, usize::MAX, |options| {
+        options.fast_vm_mode = vm_mode;
+        options.storage_delay = Some(storage_delay);
+        options.interrupted_execution_latency_histogram = &test_metrics.interrupted_latency;
+    })
+    .await;
 
-    tokio::time::timeout(
-        storage_delay,
-        test_call(&tx_sender, state_override, tx.into()),
-    )
-    .await
-    .unwrap_err();
-    // FIXME: test that VM was interrupted (via metrics?)
+    let call_future = test_call(&tx_sender, state_override, tx.into());
+    tokio::time::timeout(storage_delay * 10, call_future)
+        .await
+        .unwrap_err();
+
+    // There may be a delay before the VM run is interrupted, but it shouldn't be large.
+    test_metrics.assert_single_interrupt(storage_delay).await;
 }
 
 #[tokio::test]

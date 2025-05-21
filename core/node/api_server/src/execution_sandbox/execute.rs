@@ -215,6 +215,9 @@ impl SandboxExecutor {
 
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+        executor.set_interrupted_execution_latency_histogram(
+            options.interrupted_execution_latency_histogram,
+        );
 
         #[cfg(test)]
         let engine: Box<dyn SandboxExecutorEngine> =

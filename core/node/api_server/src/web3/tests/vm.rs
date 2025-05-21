@@ -26,6 +26,7 @@ use zksync_vm_executor::oneshot::{
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
+use crate::execution_sandbox::SANDBOX_METRICS;
 
 #[derive(Debug, Clone)]
 struct ExpectedFeeInput(Arc<Mutex<BatchFeeInput>>);
@@ -87,6 +88,7 @@ impl<C: ContractsKind> BaseSystemContractsProvider<C> for BaseContractsWithMockE
     }
 }
 
+// FIXME: remove? (there's real emulator bytecode now)
 fn executor_options_with_evm_emulator() -> SandboxExecutorOptions {
     let base_contracts = Arc::<BaseContractsWithMockEvmEmulator>::default();
     SandboxExecutorOptions {
@@ -104,6 +106,8 @@ fn executor_options_with_evm_emulator() -> SandboxExecutorOptions {
             AccountTreeId::default(),
             u32::MAX,
         ),
+        interrupted_execution_latency_histogram: &SANDBOX_METRICS
+            .sandbox_interrupted_execution_latency,
         storage_delay: None,
     }
 }
