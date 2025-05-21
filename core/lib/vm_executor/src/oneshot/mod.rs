@@ -39,7 +39,7 @@ use zksync_types::{
     u256_to_h256,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     vm::FastVmMode,
-    AccountTreeId, Nonce, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
+    AccountTreeId, Nonce, StopGuard, StopToken, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
 };
 
@@ -52,6 +52,7 @@ pub use self::{
     env::OneshotEnvParameters,
     mock::MockOneshotExecutor,
 };
+use crate::shared::RuntimeContextStorageMetrics;
 
 mod block;
 mod contracts;
@@ -140,11 +141,13 @@ where
                 self.missed_storage_invocation_limit
             }
         };
+        let (_stop_guard, stop_token) = StopGuard::new();
         let sandbox = VmSandbox {
             fast_vm_mode: self.select_fast_vm_mode(&env, &tracing_params),
             vm_divergence_handler: self.vm_divergence_handler.clone(),
             storage,
             env,
+            stop_token,
             execution_args: args,
             execution_latency_histogram: self.execution_latency_histogram,
         };
@@ -152,8 +155,9 @@ where
         let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
             let _entered_span = current_span.entered();
-            sandbox.execute_in_vm(|vm, transaction| {
+            sandbox.execute_in_vm(|stop_token, vm, transaction| {
                 vm.inspect_transaction_with_bytecode_compression(
+                    stop_token.clone(),
                     missed_storage_invocation_limit,
                     tracing_params,
                     transaction,
@@ -185,6 +189,7 @@ where
         );
 
         let l1_batch_env = env.l1_batch.clone();
+        let (_stop_guard, stop_token) = StopGuard::new();
         let sandbox = VmSandbox {
             fast_vm_mode: if !is_supported_by_fast_vm(env.system.version) {
                 FastVmMode::Old // the fast VM doesn't support old protocol versions
@@ -194,6 +199,7 @@ where
             vm_divergence_handler: self.vm_divergence_handler.clone(),
             storage,
             env,
+            stop_token,
             execution_args: TxExecutionArgs::for_validation(tx),
             execution_latency_histogram: self.execution_latency_histogram,
         };
@@ -204,7 +210,7 @@ where
             let version = sandbox.env.system.version.into();
             let batch_timestamp = l1_batch_env.timestamp;
 
-            sandbox.execute_in_vm(|vm, transaction| match vm {
+            sandbox.execute_in_vm(|_, vm, transaction| match vm {
                 Vm::Legacy(vm) => {
                     vm.push_transaction(transaction);
                     validate_legacy(vm, version, validation_params, batch_timestamp)
@@ -246,6 +252,7 @@ enum Vm<S: ReadStorage, Tr, Val> {
 impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, FastValidationTracer> {
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
+        stop_token: StopToken,
         missed_storage_invocation_limit: usize,
         params: OneshotTracingParams,
         tx: Transaction,
@@ -255,6 +262,7 @@ impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, FastValidat
         let (compression_result, tx_result) = match self {
             Self::Legacy(vm) => {
                 let mut tracers = Self::create_legacy_tracers(
+                    stop_token,
                     missed_storage_invocation_limit,
                     params.trace_calls.then(|| calls_result.clone()),
                 );
@@ -266,11 +274,13 @@ impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, FastValidat
                     "Call tracing is not supported by fast VM yet"
                 );
                 let legacy_tracers = Self::create_legacy_tracers::<HistoryEnabled>(
+                    stop_token.clone(),
                     missed_storage_invocation_limit,
                     None,
                 );
                 let tracer =
-                    StorageInvocationsTracer::new(storage.clone(), missed_storage_invocation_limit);
+                    StorageInvocationsTracer::new(storage.clone(), missed_storage_invocation_limit)
+                        .with_stop_token(stop_token);
                 let mut full_tracer = (
                     legacy_tracers.into(),
                     (tracer, FastValidationTracer::default()),
@@ -302,6 +312,7 @@ impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, FastValidat
     }
 
     fn create_legacy_tracers<H: HistoryMode>(
+        stop_token: StopToken,
         missed_storage_invocation_limit: usize,
         calls_result: Option<Arc<OnceCell<Vec<Call>>>>,
     ) -> TracerDispatcher<StorageView<S>, H> {
@@ -309,8 +320,9 @@ impl<S: ReadStorage> Vm<S, StorageInvocationsTracer<StorageView<S>>, FastValidat
         if let Some(calls_result) = calls_result {
             tracers.push(CallTracer::new(calls_result).into_tracer_pointer());
         }
-        tracers
-            .push(StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer());
+        let storage_limiter =
+            StorageInvocations::new(missed_storage_invocation_limit).with_stop_token(stop_token);
+        tracers.push(storage_limiter.into_tracer_pointer());
         tracers.into()
     }
 }
@@ -373,6 +385,7 @@ struct VmSandbox<S> {
     vm_divergence_handler: DivergenceHandler,
     storage: StorageWithOverrides<S>,
     env: OneshotEnv,
+    stop_token: StopToken,
     execution_args: TxExecutionArgs,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
@@ -428,7 +441,7 @@ impl<S: ReadStorage> VmSandbox<S> {
 
     fn execute_in_vm<T, Tr, Val>(
         mut self,
-        action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr, Val>, Transaction) -> T,
+        action: impl FnOnce(&StopToken, &mut Vm<StorageWithOverrides<S>, Tr, Val>, Transaction) -> T,
     ) -> T
     where
         Tr: vm_fast::interface::Tracer + Default,
@@ -484,28 +497,33 @@ impl<S: ReadStorage> VmSandbox<S> {
         };
 
         let started_at = Instant::now();
-        let result = action(&mut vm, transaction);
+        let result = action(&self.stop_token, &mut vm, transaction);
         let vm_execution_took = started_at.elapsed();
+        let was_stopped = self.stop_token.should_stop();
 
         if let Some(histogram) = self.execution_latency_histogram {
+            // FIXME: have a family of histograms for normal / interrupted execution
             histogram.observe(vm_execution_took);
         }
 
         match &vm {
             Vm::Legacy(vm) => {
                 let memory_metrics = vm.record_vm_memory_metrics();
-                metrics::report_vm_memory_metrics(
-                    &tx_id,
-                    &memory_metrics,
+                let stats = storage_view.borrow().stats();
+                metrics::report_vm_memory_metrics(&memory_metrics, &stats);
+                RuntimeContextStorageMetrics::observe(
+                    &format!("Tx {tx_id}"),
+                    was_stopped,
                     vm_execution_took,
-                    &storage_view.borrow().stats(),
+                    &stats,
                 );
             }
             Vm::Fast(..) => {
                 // The new VM implementation doesn't have the same memory model as old ones, so it doesn't report memory metrics,
                 // only storage-related ones.
-                metrics::report_vm_storage_metrics(
+                RuntimeContextStorageMetrics::observe(
                     &format!("Tx {tx_id}"),
+                    was_stopped,
                     vm_execution_took,
                     &storage_view.borrow().stats(),
                 );
