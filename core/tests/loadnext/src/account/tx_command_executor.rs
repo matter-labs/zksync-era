@@ -1,10 +1,9 @@
 use std::time::Instant;
 
-use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
     l2::L2Tx,
-    Address, H256, U256,
+    Address, H256, MAX_L1_TRANSACTION_GAS_LIMIT, U256,
 };
 
 use crate::{

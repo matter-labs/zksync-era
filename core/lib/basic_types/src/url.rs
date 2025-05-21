@@ -1,6 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use url::Url;
 
 /// URL with potentially sensitive authentication info (user name and password). Has a specialized
@@ -78,6 +78,12 @@ impl SensitiveUrl {
     /// Exposes the underlying URL string.
     pub fn expose_str(&self) -> &str {
         self.inner.as_str()
+    }
+}
+
+impl Serialize for SensitiveUrl {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.inner.serialize(serializer)
     }
 }
 

@@ -6,10 +6,15 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_config::configs::{
-    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ProverJobMonitorConfig,
+use zksync_config::{
+    configs::{
+        DatabaseSecrets, FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig,
+        GeneralConfig, ProverJobMonitorConfig,
+    },
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepositoryExt,
 };
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_monitor::{
     attempts_reporter::ProverJobAttemptsReporter,
@@ -37,15 +42,19 @@ pub(crate) struct CliOpts {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = CliOpts::parse();
+    let schema = full_config_schema(false);
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
-
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
+    let repo = config_sources.build_repository(&schema);
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
 
     let prover_job_monitor_config = general_config
         .prover_job_monitor_config
@@ -80,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection pool")?;
 
-    let graceful_shutdown_timeout = prover_job_monitor_config.graceful_shutdown_timeout();
+    let graceful_shutdown_timeout = prover_job_monitor_config.graceful_shutdown_timeout;
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver.clone()))];
 
@@ -140,11 +149,11 @@ fn get_tasks(
     // archivers
     let prover_jobs_archiver = ProverJobsArchiver::new(
         connection_pool.clone(),
-        prover_job_monitor_config.archive_prover_jobs_duration(),
+        prover_job_monitor_config.prover_jobs_archiver_archive_jobs_after,
     );
     task_runner.add(
         "ProverJobsArchiver",
-        prover_job_monitor_config.prover_jobs_archiver_run_interval(),
+        prover_job_monitor_config.prover_jobs_archiver_run_interval,
         prover_jobs_archiver,
     );
 
@@ -152,22 +161,22 @@ fn get_tasks(
     let proof_compressor_job_requeuer = ProofCompressorJobRequeuer::new(
         connection_pool.clone(),
         proof_compressor_config.max_attempts,
-        proof_compressor_config.generation_timeout(),
+        proof_compressor_config.generation_timeout_in_secs,
     );
     task_runner.add(
         "ProofCompressorJobRequeuer",
-        prover_job_monitor_config.proof_compressor_job_requeuer_run_interval(),
+        prover_job_monitor_config.proof_compressor_job_requeuer_run_interval,
         proof_compressor_job_requeuer,
     );
 
     let prover_job_requeuer = ProverJobRequeuer::new(
         connection_pool.clone(),
         prover_config.max_attempts,
-        prover_config.proof_generation_timeout(),
+        prover_config.generation_timeout_in_secs,
     );
     task_runner.add(
         "ProverJobRequeuer",
-        prover_job_monitor_config.prover_job_requeuer_run_interval(),
+        prover_job_monitor_config.prover_job_requeuer_run_interval,
         prover_job_requeuer,
     );
 
@@ -178,7 +187,7 @@ fn get_tasks(
     );
     task_runner.add(
         "WitnessGeneratorJobRequeuer",
-        prover_job_monitor_config.witness_generator_job_requeuer_run_interval(),
+        prover_job_monitor_config.witness_generator_job_requeuer_run_interval,
         witness_generator_job_requeuer,
     );
 
@@ -187,14 +196,14 @@ fn get_tasks(
         ProofCompressorQueueReporter::new(connection_pool.clone());
     task_runner.add(
         "ProofCompressorQueueReporter",
-        prover_job_monitor_config.proof_compressor_queue_reporter_run_interval(),
+        prover_job_monitor_config.proof_compressor_queue_reporter_run_interval,
         proof_compressor_queue_reporter,
     );
 
     let prover_queue_reporter = ProverQueueReporter::new(connection_pool.clone());
     task_runner.add(
         "ProverQueueReporter",
-        prover_job_monitor_config.prover_queue_reporter_run_interval(),
+        prover_job_monitor_config.prover_queue_reporter_run_interval,
         prover_queue_reporter,
     );
 
@@ -202,7 +211,7 @@ fn get_tasks(
         WitnessGeneratorQueueReporter::new(connection_pool.clone());
     task_runner.add(
         "WitnessGeneratorQueueReporter",
-        prover_job_monitor_config.witness_generator_queue_reporter_run_interval(),
+        prover_job_monitor_config.witness_generator_queue_reporter_run_interval,
         witness_generator_queue_reporter,
     );
 
@@ -210,7 +219,7 @@ fn get_tasks(
     let witness_job_queuer = WitnessJobQueuer::new(connection_pool.clone());
     task_runner.add(
         "WitnessJobQueuer",
-        prover_job_monitor_config.witness_job_queuer_run_interval(),
+        prover_job_monitor_config.witness_job_queuer_run_interval,
         witness_job_queuer,
     );
 
@@ -223,7 +232,7 @@ fn get_tasks(
     );
     task_runner.add(
         "ProverJobAttemptsReporter",
-        Duration::from_millis(ProverJobMonitorConfig::default_attempts_reporter_run_interval_ms()),
+        Duration::from_secs(10),
         attempts_reporter,
     );
 

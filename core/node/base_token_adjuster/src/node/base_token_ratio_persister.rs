@@ -79,8 +79,8 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             .wallets_config
             .token_multiplier_setter
             .map(|token_multiplier_setter| {
-                let tms_private_key = token_multiplier_setter.wallet.private_key();
-                let tms_address = token_multiplier_setter.wallet.address();
+                let tms_private_key = token_multiplier_setter.private_key();
+                let tms_address = token_multiplier_setter.address();
                 let EthInterfaceResource(query_client) = input.eth_client;
                 let l1_diamond_proxy_addr = input
                     .l1_contracts
