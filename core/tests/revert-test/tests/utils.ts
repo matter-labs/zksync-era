@@ -428,7 +428,8 @@ export async function executeDepositAfterRevert(tester: Tester, wallet: zksync.W
     console.log('New deposit is finalized');
 }
 
-export async function checkRandomTransfer(sender: zksync.Wallet, amount: bigint) {
+/** Returns sender's balance after the transfer is complete. */
+export async function checkRandomTransfer(sender: zksync.Wallet, amount: bigint): Promise<bigint> {
     const senderBalanceBefore = await sender.getBalance();
     console.log(`Sender's balance before transfer: ${senderBalanceBefore}`);
 
@@ -458,4 +459,5 @@ export async function checkRandomTransfer(sender: zksync.Wallet, amount: bigint)
     const spentAmount = txReceipt.gasUsed * transferHandle.gasPrice! + amount;
     console.log(`Expected spent amount: ${spentAmount}`);
     assert(senderBalance + spentAmount >= senderBalanceBefore, 'Failed to update the balance of the sender');
+    return senderBalance;
 }

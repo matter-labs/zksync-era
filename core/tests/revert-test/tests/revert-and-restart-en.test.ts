@@ -60,6 +60,7 @@ describe('Block reverting test', function () {
     let depositL1BatchNumber: number;
     let batchesCommittedBeforeRevert: bigint;
     let targetBatchForRevert: bigint;
+    let balanceBeforeRevert: bigint;
 
     const autoKill: boolean = !process.env.NO_KILL;
 
@@ -161,9 +162,9 @@ describe('Block reverting test', function () {
     });
 
     step('check wallet balance', async () => {
-        const balance = await alice.getBalance();
-        console.log(`Balance before revert: ${balance}`);
-        assert(balance === depositAmount * 2n, 'Incorrect balance after deposits');
+        balanceBeforeRevert = await alice.getBalance();
+        console.log(`Balance before revert: ${balanceBeforeRevert}`);
+        assert(balanceBeforeRevert === depositAmount * 2n, 'Incorrect balance after deposits');
     });
 
     step('wait for the new batch to be committed', async () => {
@@ -198,25 +199,26 @@ describe('Block reverting test', function () {
         });
 
         step('wait until last deposit is re-executed', async () => {
-            let balanceBefore;
+            let balance;
             let tryCount = 0;
-            while ((balanceBefore = await alice.getBalance()) !== 2n * depositAmount && tryCount < 30) {
-                console.log(`Balance after revert: ${balanceBefore}`);
+            while ((balance = await alice.getBalance()) !== balanceBeforeRevert && tryCount < 30) {
+                console.log(`Balance after revert: ${balance} (expecting: ${balanceBeforeRevert})`);
                 tryCount++;
                 await utils.sleep(1);
             }
-            assert(balanceBefore === 2n * depositAmount, 'Incorrect balance after revert');
+            assert(balance === balanceBeforeRevert, 'Incorrect balance after revert');
         });
 
         step('execute transaction after revert', async () => {
             await executeDepositAfterRevert(extNode.tester, alice, depositAmount);
             const balanceAfter = await alice.getBalance();
             console.log(`Balance after another deposit: ${balanceAfter}`);
-            assert(balanceAfter === depositAmount * 3n, 'Incorrect balance after another deposit');
+            assert(balanceAfter === balanceBeforeRevert + depositAmount, 'Incorrect balance after another deposit');
         });
 
         step('check random transfer', async () => {
-            await checkRandomTransfer(alice, 1n);
+            balanceBeforeRevert = await checkRandomTransfer(alice, 1n);
+            console.log('Balance after transfer', balanceBeforeRevert);
         });
 
         if (stepIndex === 0) {
