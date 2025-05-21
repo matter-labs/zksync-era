@@ -244,34 +244,43 @@ impl StorageLogsDal<'_, '_> {
         // this value will equal `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`, so that they can be easily filtered.
         let rows = sqlx::query!(
             r#"
-            SELECT DISTINCT
-            ON (hashed_key)
-                hashed_key,
-                miniblock_number,
-                value
+            SELECT
+                sl.hashed_key,
+                lat.miniblock_number,
+                lat.value
             FROM
-                storage_logs
+                storage_logs sl
+            JOIN LATERAL (
+                SELECT
+                    miniblock_number,
+                    value
+                FROM
+                    storage_logs
+                WHERE
+                    hashed_key = sl.hashed_key
+                    AND miniblock_number <= $2
+                    AND miniblock_number <= COALESCE(
+                        (
+                            SELECT
+                                MAX(number)
+                            FROM
+                                miniblocks
+                        ),
+                        (
+                            SELECT
+                                miniblock_number
+                            FROM
+                                snapshot_recovery
+                        )
+                    )
+                ORDER BY
+                    miniblock_number DESC,
+                    operation_number DESC
+                LIMIT 1
+            ) lat
+                ON TRUE
             WHERE
                 hashed_key = ANY($1)
-                AND miniblock_number <= $2
-                AND miniblock_number <= COALESCE(
-                    (
-                        SELECT
-                            MAX(number)
-                        FROM
-                            miniblocks
-                    ),
-                    (
-                        SELECT
-                            miniblock_number
-                        FROM
-                            snapshot_recovery
-                    )
-                )
-            ORDER BY
-                hashed_key,
-                miniblock_number DESC,
-                operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
             i64::from(max_l2_block_number)
