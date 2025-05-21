@@ -83,13 +83,11 @@ pub struct AllowListTask {
 
 impl AllowListTask {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
     pub fn from_config(deployment_allowlist: DeploymentAllowlistDynamic) -> Self {
         Self {
-            url: deployment_allowlist
-                .http_file_url()
-                .expect("DeploymentAllowlist must contain a URL")
-                .to_string(),
-            refresh_interval: deployment_allowlist.refresh_interval(),
+            url: deployment_allowlist.http_file_url,
+            refresh_interval: deployment_allowlist.refresh_interval,
             allowlist: SharedAllowList::default(),
             client: Client::new(),
         }
@@ -158,7 +156,7 @@ impl AllowListTask {
             let _ = tokio::time::timeout(self.refresh_interval(), stop_receiver.changed()).await;
         }
 
-        tracing::info!("received a stop signal; allow list task is shut down");
+        tracing::info!("received a stop request; allow list task is shut down");
 
         Ok(())
     }

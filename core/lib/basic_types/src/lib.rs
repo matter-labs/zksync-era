@@ -22,8 +22,12 @@ pub use ethabi::{
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
 
-pub use self::conversions::{
-    address_to_h256, address_to_u256, h256_to_address, h256_to_u256, u256_to_address, u256_to_h256,
+pub use self::{
+    conversions::{
+        address_to_h256, address_to_u256, h256_to_address, h256_to_u256, u256_to_address,
+        u256_to_h256,
+    },
+    errors::{OrStopped, StopContext},
 };
 
 #[macro_use]
@@ -32,6 +36,7 @@ pub mod basic_fri_types;
 pub mod bytecode;
 pub mod commitment;
 mod conversions;
+mod errors;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;

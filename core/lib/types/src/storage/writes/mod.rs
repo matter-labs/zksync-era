@@ -120,9 +120,9 @@ impl StateDiffRecord {
 
     /// compression follows the following algorithm:
     /// 1. if repeated write:
-    ///      entry <- enumeration_index || compressed value
+    ///    entry <- enumeration_index || compressed value
     /// 2. if initial write:
-    ///      entry <- blake2(bytes32(address), key) || compressed value
+    ///    entry <- blake2(bytes32(address), key) || compressed value
     ///
     /// size:
     /// - initial:  max of 65 bytes

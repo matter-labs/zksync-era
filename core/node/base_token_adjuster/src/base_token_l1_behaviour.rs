@@ -31,6 +31,7 @@ pub struct UpdateOnL1Params {
     pub config: BaseTokenAdjusterConfig,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum BaseTokenL1Behaviour {
     UpdateOnL1 {
@@ -77,7 +78,7 @@ impl BaseTokenL1Behaviour {
         }
 
         let max_attempts = l1_params.config.l1_tx_sending_max_attempts;
-        let sleep_duration = l1_params.config.l1_tx_sending_sleep_duration();
+        let sleep_duration = l1_params.config.l1_tx_sending_sleep_ms;
         let mut prev_base_fee_per_gas: Option<u64> = None;
         let mut prev_priority_fee_per_gas: Option<u64> = None;
         let mut last_error = None;
@@ -210,7 +211,7 @@ impl BaseTokenL1Behaviour {
             .context("failed sending `setTokenMultiplier` transaction")?;
 
         let max_attempts = l1_params.config.l1_receipt_checking_max_attempts;
-        let sleep_duration = l1_params.config.l1_receipt_checking_sleep_duration();
+        let sleep_duration = l1_params.config.l1_receipt_checking_sleep_ms;
         for _i in 0..max_attempts {
             let maybe_receipt = (*l1_params.eth_client)
                 .as_ref()
