@@ -55,7 +55,7 @@ pub async fn create_private_rpc_service(
 
     // A special override for CI, where we're already running inside a docker container
     if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
-        permissions_path = docker_root
+        permissions_path = PathBuf::from(docker_root)
             .join("chains")
             .join(chain_name)
             .join("configs")
