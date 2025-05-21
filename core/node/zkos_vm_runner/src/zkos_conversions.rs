@@ -1,7 +1,6 @@
 use ruint::aliases::B160;
 use zk_ee::{
     common_structs::derive_flat_storage_key,
-    system::{ExecutionEnvironmentType, EVM_CODE_VERSION},
     utils::Bytes32,
 };
 use zk_os_forward_system::run::{

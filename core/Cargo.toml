@@ -256,10 +256,10 @@ zk_evm_1_5_0 = { package = "zk_evm", git = "https://github.com/matter-labs/zksyn
 fflonk = { package = "fflonk", git = "https://github.com/matter-labs/zksync-crypto", branch = "main" }
 bellman = { package = "zksync_bellman", git = "https://github.com/matter-labs/zksync-crypto", branch = "main" }
 
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zk_ee", branch = "bootloader-skip-verify-batch", features = ["no_print"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zk_ee", branch = "bootloader-skip-verify-batch" }
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zk_ee", branch = "bootloader-skip-verify-batch" }
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zk_ee", branch = "bootloader-skip-verify-batch", features = ["evm-compatibility"] }
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zk_ee", branch = "main", features = ["no_print"] }
+zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zk_ee", branch = "main" }
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zk_ee", branch = "main" }
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zk_ee", branch = "main", features = ["evm-compatibility"] }
 #zk_os_forward_system = { package = "forward_system", path = "../../zk_ee/forward_system", features = ["no_print"] }
 #zk_ee = { package = "zk_ee", path = "../../zk_ee/zk_ee" }
 #zk_os_basic_system = { package = "basic_system", path = "../../zk_ee/basic_system" }

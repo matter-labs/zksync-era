@@ -6,7 +6,7 @@ use tokio::{
     sync::mpsc::{Receiver, Sender},
     task::{spawn_blocking, JoinHandle},
 };
-use zk_ee::{system::system_trait::errors::InternalError, utils::Bytes32};
+use zk_ee::system::errors::InternalError;
 use zk_os_forward_system::run::{
     result_keeper::TxProcessingOutputOwned, run_batch, BatchContext, BatchOutput,
     InvalidTransaction, NextTxResponse, StorageCommitment, TxResultCallback, TxSource,
@@ -60,11 +60,7 @@ pub struct MainBatchExecutor {
 }
 
 impl MainBatchExecutor {
-    pub fn new(context: BatchContext, next_enum_index: u64, storage: ArcOwnedStorage) -> Self {
-        let storage_commitment = StorageCommitment {
-            root: Bytes32::zero(), // TODO: remove from `run_batch`
-            next_free_slot: next_enum_index,
-        };
+    pub fn new(context: BatchContext, storage: ArcOwnedStorage) -> Self {
         let (tx_sender, tx_receiver) = tokio::sync::mpsc::channel(1);
         let (tx_result_sender, tx_result_receiver) = tokio::sync::mpsc::channel(1);
         let tx_source = OnlineTxSource::new(tx_receiver);
@@ -73,7 +69,6 @@ impl MainBatchExecutor {
         let handle = spawn_blocking(move || {
             run_batch(
                 context,
-                storage_commitment,
                 storage.clone(),
                 storage,
                 tx_source,

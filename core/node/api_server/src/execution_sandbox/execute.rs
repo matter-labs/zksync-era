@@ -34,7 +34,6 @@ use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 #[cfg(feature = "zkos")]
 use {
     ruint::aliases::U256,
-    zk_ee::system::system_trait::errors::InternalError,
     zk_os_forward_system::run::{
         output::TxResult, BatchContext, ExecutionOutput, ExecutionResult as ZkOSExecutionResult,
         StorageCommitment, TxOutput,
@@ -330,19 +329,12 @@ impl SandboxExecutor {
             block_hashes: Default::default(),
         };
 
-        // todo: storage commitment shouldn't be needed here
-        let storage_commitment = StorageCommitment {
-            root: Default::default(),
-            next_free_slot: 0,
-        };
-
         let abi = tx_abi_encode(execution_args.transaction);
 
         let result = spawn_blocking(move || {
             let zkos_storage = PostgresStorageForZkOs::new(storage);
             zk_os_forward_system::run::simulate_tx(
                 abi,
-                storage_commitment,
                 context,
                 // we pass the storage source and preimage source separately,
                 // but then need to backed by the same connection
