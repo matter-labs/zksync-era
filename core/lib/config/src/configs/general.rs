@@ -18,8 +18,9 @@ use crate::{
         wallets::Wallets,
         CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
         FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig,
-        ProofDataHandlerConfig, Secrets, TeeProofDataHandlerConfig,
+        FriWitnessGeneratorConfig, GatewayMigratorConfig, GenesisConfigWrapper,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
+        TeeProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -95,6 +96,8 @@ pub struct GeneralConfig {
     pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
     #[config(nest, rename = "timestamp_asserter")]
     pub timestamp_asserter_config: TimestampAsserterConfig,
+    #[config(nest, rename = "gateway_migrator")]
+    pub gateway_migrator_config: GatewayMigratorConfig,
 }
 
 pub fn full_config_schema(for_en: bool) -> ConfigSchema {
