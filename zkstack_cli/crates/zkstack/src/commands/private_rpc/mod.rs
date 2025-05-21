@@ -179,6 +179,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
             "cp {src_permissions_path} {dst_permissions_path}"
         ))
         .run()?;
+        Cmd::new(cmd!(shell, "file {dst_permissions_path}")).run()?;
         logger::info(msg_private_rpc_permissions_file_generated(
             dst_permissions_path.display(),
         ));
