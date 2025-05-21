@@ -229,14 +229,6 @@ basic_witness_input_producer:
   window_size: 3
   first_processed_batch: 0
 
-experimental_vm:
-  state_keeper_fast_vm_mode: OLD
-  playground:
-    db_path: "./db/main/vm_playground"
-    fast_vm_mode: OLD
-    first_processed_batch: 0
-    window_size: 1
-
 snapshot_recovery:
   enabled: false
   object_store:
