@@ -7891,9 +7891,8 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust-eigenda-client"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ef77a51d47c3c1090a03196078ff0663c6087e530cc74266dee321274ba63ec"
+version = "0.1.5"
+source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git?branch=expose-try-get-inclusion-data#af26d5eed882edb9a0243827e94d9deb61fca166"
 dependencies = [
  "ark-bn254",
  "async-trait",
@@ -7908,8 +7907,8 @@ dependencies = [
  "prost 0.12.6",
  "rand 0.8.5",
  "reqwest 0.12.15",
+ "rust-eigenda-signers",
  "rust-kzg-bn254",
- "secp256k1",
  "secrecy 0.8.0",
  "serde",
  "serde_json",
@@ -7921,6 +7920,20 @@ dependencies = [
  "tokio-stream",
  "tonic 0.11.0",
  "url",
+]
+
+[[package]]
+name = "rust-eigenda-signers"
+version = "0.1.5"
+source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git?branch=expose-try-get-inclusion-data#af26d5eed882edb9a0243827e94d9deb61fca166"
+dependencies = [
+ "async-trait",
+ "ethereum-types",
+ "hex",
+ "rand 0.8.5",
+ "secp256k1",
+ "thiserror 1.0.69",
+ "tiny-keccak 2.0.2",
 ]
 
 [[package]]
@@ -8415,6 +8428,7 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
+ "rand 0.8.5",
  "secp256k1-sys",
  "serde",
 ]
