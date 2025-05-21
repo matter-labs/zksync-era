@@ -356,6 +356,49 @@ async fn call_method_after_snapshot_recovery() {
 }
 
 #[derive(Debug)]
+struct CallTestWithSlowVm;
+
+#[async_trait]
+impl HttpTest for CallTestWithSlowVm {
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut tx_executor = MockOneshotExecutor::default();
+        tx_executor.set_vm_delay(Duration::from_secs(3_600));
+        tx_executor.set_call_responses(|_, _| ExecutionResult::Success { output: vec![] });
+        tx_executor
+    }
+
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            request_timeout: Some(Duration::from_secs(3)),
+            ..Web3JsonRpcConfig::for_tests()
+        }
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let err = client
+            .call(CallTest::call_request(b"pending"), None, None)
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = err {
+            assert_eq!(error.code(), 503);
+            assert!(error.message().contains("timed out"), "{error:?}");
+        } else {
+            panic!("Unexpected error: {err:?}");
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn call_method_with_slow_vm() {
+    test_http_server(CallTestWithSlowVm).await;
+}
+
+#[derive(Debug)]
 struct SendRawTransactionTest {
     snapshot_recovery: bool,
 }
