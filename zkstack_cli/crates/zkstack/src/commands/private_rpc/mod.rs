@@ -24,6 +24,7 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR,
         MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR,
     },
+    utils::ports::{ConfigWithChainPorts, EcosystemPortsScanner},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
@@ -42,11 +43,26 @@ pub enum PrivateRpcCommands {
     ResetDB,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PrivateProxyConfig {
-    pub database_url: Url,
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct PrivateProxyPorts {
     pub port: u16,
-    pub create_token_secret: String,
+}
+
+impl ConfigWithChainPorts for PrivateProxyPorts {
+    fn get_default_ports(&self) -> anyhow::Result<HashMap<String, u16>> {
+        let mut ports = HashMap::new();
+        ports.insert("private-proxy".to_string(), 4041);
+        Ok(ports)
+    }
+
+    fn set_ports(&mut self, ports: HashMap<String, u16>) -> anyhow::Result<()> {
+        if let Some(port) = ports.get("private-proxy") {
+            self.port = *port;
+        } else {
+            anyhow::bail!("Private proxy port not found");
+        }
+        Ok(())
+    }
 }
 
 pub(crate) async fn run(shell: &Shell, args: PrivateRpcCommands) -> anyhow::Result<()> {
@@ -149,11 +165,15 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
     let l2_rpc_url = Url::parse(l2_rpc_url.as_str())?;
 
+    let mut scanner = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
+    let mut ports = PrivateProxyPorts::default();
+    scanner.allocate_ports_with_offset_from_defaults(&mut ports, chain_config.id)?;
+
     services.insert(
         "private-proxy".to_string(),
         create_private_rpc_service(
             db_config,
-            4041,
+            ports.port,
             "sososecret",
             l2_rpc_url,
             &ecosystem_path,
