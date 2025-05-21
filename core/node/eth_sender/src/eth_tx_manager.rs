@@ -302,32 +302,41 @@ impl EthTxManager {
                 }
                 OperatorType::Gateway => {
                     // Settlement mode is Gateway.
-                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
-                        (gas_without_pubdata
-                            + ((max_gas_per_pubdata_price
-                                + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
-                                * tx.raw_tx.len() as u64))
-                            .into()
-                    } else {
-                        self.config.max_aggregated_tx_gas.into()
-                    }
+                    self.adjust_gateway_pubdata_gas_limit(
+                        tx,
+                        max_gas_per_pubdata_price,
+                        gas_without_pubdata,
+                    )
                 }
             }
         } else if tx.tx_type == AggregatedActionType::Execute
             && operator_type == OperatorType::Gateway
         {
             // Execute tx on Gateway can become pubdata intensive due to interop
-            if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
-                (gas_without_pubdata
-                    + ((max_gas_per_pubdata_price
-                        + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
-                        * tx.raw_tx.len() as u64))
-                    .into()
-            } else {
-                self.config.max_aggregated_tx_gas.into()
-            }
+            self.adjust_gateway_pubdata_gas_limit(
+                tx,
+                max_gas_per_pubdata_price,
+                gas_without_pubdata,
+            )
         } else {
             gas_without_pubdata.into()
+        }
+    }
+
+    fn adjust_gateway_pubdata_gas_limit(
+        &self,
+        tx: &EthTx,
+        max_gas_per_pubdata_price: Option<u64>,
+        gas_without_pubdata: u64,
+    ) -> U256 {
+        if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+            (gas_without_pubdata
+                + ((max_gas_per_pubdata_price
+                    + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
+                    * tx.raw_tx.len() as u64))
+                .into()
+        } else {
+            self.config.max_aggregated_tx_gas.into()
         }
     }
 
