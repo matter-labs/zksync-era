@@ -6,7 +6,6 @@ use zksync_dal::consensus_dal;
 use zksync_node_sync::{
     fetcher::{FetchedBlock, IoCursorExt as _},
     sync_action::ActionQueueSender,
-    SyncState,
 };
 use zksync_state_keeper::io::common::IoCursor;
 
@@ -15,6 +14,7 @@ mod store;
 
 pub(crate) use connection::*;
 pub(crate) use store::*;
+use zksync_shared_resources::api::SyncState;
 
 #[cfg(test)]
 pub(crate) mod testonly;

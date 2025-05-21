@@ -108,3 +108,4 @@
 # Announcements
 
 - [Announcements](announcements/README.md)
+  - [Configuration Format Changes](announcements/config_format_changes.md)

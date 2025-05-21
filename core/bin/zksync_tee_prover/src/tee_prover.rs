@@ -146,7 +146,7 @@ impl Task for TeeProver {
             .await?;
 
         let mut retries = 1;
-        let mut backoff = config.initial_retry_backoff();
+        let mut backoff = config.initial_retry_backoff;
         let mut observer = METRICS.job_waiting_time.start();
 
         loop {
@@ -158,7 +158,7 @@ impl Task for TeeProver {
             let need_to_sleep = match result {
                 Ok(batch_number) => {
                     retries = 1;
-                    backoff = config.initial_retry_backoff();
+                    backoff = config.initial_retry_backoff;
                     if let Some(batch_number) = batch_number {
                         observer.observe();
                         observer = METRICS.job_waiting_time.start();
@@ -179,7 +179,7 @@ impl Task for TeeProver {
                     retries += 1;
                     backoff = std::cmp::min(
                         backoff.mul_f32(config.retry_backoff_multiplier),
-                        config.max_backoff(),
+                        config.max_backoff,
                     );
                     true
                 }
@@ -195,7 +195,7 @@ impl Task for TeeProver {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{path::PathBuf, time::Duration};
 
     use secp256k1::SecretKey;
     use url::Url;
@@ -220,10 +220,10 @@ mod tests {
             },
             prover_api: TeeProverApiConfig {
                 api_url: Url::parse("http://mock").unwrap(),
-                max_retries: TeeProverApiConfig::default_max_retries(),
-                initial_retry_backoff_sec: TeeProverApiConfig::default_initial_retry_backoff_sec(),
-                retry_backoff_multiplier: TeeProverApiConfig::default_retry_backoff_multiplier(),
-                max_backoff_sec: TeeProverApiConfig::default_max_backoff_sec(),
+                max_retries: 5,
+                initial_retry_backoff: Duration::from_secs(1),
+                retry_backoff_multiplier: 2.0,
+                max_backoff: Duration::from_secs(128),
             },
         };
         let tee_prover = TeeProver {
