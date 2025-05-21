@@ -249,6 +249,7 @@ fn create_block_seal_command(
         l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
         pubdata_params: PubdataParams::default(),
+        rolling_txs_hash: Default::default(),
     }
 }
 
