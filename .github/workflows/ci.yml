@@ -157,7 +157,6 @@ jobs:
     needs:
       [
         ci-for-core-lint,
-        ci-for-common,
         ci-for-core,
         ci-for-prover,
         ci-for-docs,
