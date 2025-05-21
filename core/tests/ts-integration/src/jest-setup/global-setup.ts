@@ -29,6 +29,11 @@ async function performSetup(_globalConfig: any, _projectConfig: any) {
 
     // Store the context object for teardown script, so it can perform, well, the teardown.
     globalThis.__ZKSYNC_TEST_CONTEXT_OWNER__ = testContextOwner;
+
+    // @ts-ignore
+    globalThis.BigInt.prototype.toJSON = function () {
+        return this.toString();
+    }
 }
 
 export default performSetup;

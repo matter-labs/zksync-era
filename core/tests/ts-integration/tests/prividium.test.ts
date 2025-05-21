@@ -71,7 +71,6 @@ describe('Tests for the private rpc', () => {
     }
 
     beforeAll(async () => {
-        (BigInt as any).prototype.toJSON = function () { return this.toString(); };
         const initCommand = `zkstack private-rpc init --verbose --dev --chain ${chainName}`;
         const runCommand = `zkstack private-rpc run --verbose --chain ${chainName}`;
 
