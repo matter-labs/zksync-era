@@ -112,6 +112,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1
         with:
           toolchain: nightly-2024-09-01
+          rustflags: ""
 
       - name: Build zkstack cli
         run: cargo build --bin zkstack --release
