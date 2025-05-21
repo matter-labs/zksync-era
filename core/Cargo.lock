@@ -7891,8 +7891,9 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust-eigenda-client"
-version = "0.1.5"
-source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git?branch=expose-try-get-inclusion-data#af26d5eed882edb9a0243827e94d9deb61fca166"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6354c52471d528bf96031903c2af4b6c7ac0b4ca01dfcd2929c789d2aeb8f3d7"
 dependencies = [
  "ark-bn254",
  "async-trait",
@@ -7925,7 +7926,8 @@ dependencies = [
 [[package]]
 name = "rust-eigenda-signers"
 version = "0.1.5"
-source = "git+https://github.com/Layr-Labs/eigenda-client-rs.git?branch=expose-try-get-inclusion-data#af26d5eed882edb9a0243827e94d9deb61fca166"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e66bd6da7ae667952473228151c829782c2296803e13d59d3770d759e66c9e54"
 dependencies = [
  "async-trait",
  "ethereum-types",
