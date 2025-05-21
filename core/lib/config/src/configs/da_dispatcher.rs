@@ -1,71 +1,75 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 
-/// The default interval between the `da_dispatcher's` iterations.
-pub const DEFAULT_POLLING_INTERVAL_MS: u32 = 5000;
-/// The maximum number of rows to fetch from the database in a single query. The value has to be
-/// not too high to avoid the dispatcher iteration taking too much time.
-pub const DEFAULT_MAX_ROWS_TO_DISPATCH: u32 = 3;
-/// The maximum number of retries for the dispatch of a blob.
-pub const DEFAULT_MAX_RETRIES: u16 = 5;
-/// Use dummy value as inclusion proof instead of getting it from the client.
-pub const DEFAULT_USE_DUMMY_INCLUSION_DATA: bool = false;
-/// The default value for the inclusion_verification_transition_enabled flag.
-pub const DEFAULT_INCLUSION_VERIFICATION_TRANSITION_ENABLED: bool = false;
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct DADispatcherConfig {
     /// The interval between the `da_dispatcher's` iterations.
-    pub polling_interval_ms: Option<u32>,
+    #[config(default_t = Duration::from_secs(5), with = TimeUnit::Millis)]
+    pub polling_interval_ms: Duration,
     /// The maximum number of rows to query from the database in a single query.
-    pub max_rows_to_dispatch: Option<u32>,
+    #[config(default_t = 100)]
+    pub max_rows_to_dispatch: u32,
     /// The maximum number of retries for the dispatch of a blob.
-    pub max_retries: Option<u16>,
+    #[config(default_t = 5)]
+    pub max_retries: u16,
     /// Use dummy value as inclusion proof instead of getting it from the client.
-    pub use_dummy_inclusion_data: Option<bool>,
+    // TODO: run a verification task to check if the L1 contract expects the inclusion proofs to
+    //   avoid the scenario where contracts expect real proofs, and server is using dummy proofs.
+    #[config(default)]
+    pub use_dummy_inclusion_data: bool,
     /// This flag is used to signal that the transition to the full DA validators is in progress.
     /// It will make the dispatcher stop polling for inclusion data and ensure all the old batches
     /// have at least dummy inclusion data.
-    pub inclusion_verification_transition_enabled: Option<bool>,
+    #[config(default)]
+    pub inclusion_verification_transition_enabled: bool,
 }
 
-impl DADispatcherConfig {
-    pub fn for_tests() -> Self {
-        Self {
-            polling_interval_ms: Some(DEFAULT_POLLING_INTERVAL_MS),
-            max_rows_to_dispatch: Some(DEFAULT_MAX_ROWS_TO_DISPATCH),
-            max_retries: Some(DEFAULT_MAX_RETRIES),
-            use_dummy_inclusion_data: Some(DEFAULT_USE_DUMMY_INCLUSION_DATA),
-            inclusion_verification_transition_enabled: Some(
-                DEFAULT_INCLUSION_VERIFICATION_TRANSITION_ENABLED,
-            ),
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Environment, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> DADispatcherConfig {
+        DADispatcherConfig {
+            polling_interval_ms: Duration::from_secs(5),
+            max_rows_to_dispatch: 60,
+            max_retries: 7,
+            use_dummy_inclusion_data: true,
+            inclusion_verification_transition_enabled: false,
         }
     }
 
-    pub fn polling_interval(&self) -> Duration {
-        match self.polling_interval_ms {
-            Some(interval) => Duration::from_millis(interval as u64),
-            None => Duration::from_millis(DEFAULT_POLLING_INTERVAL_MS as u64),
-        }
+    #[test]
+    fn parsing_from_env() {
+        let env = r#"
+            DA_DISPATCHER_POLLING_INTERVAL_MS=5000
+            DA_DISPATCHER_MAX_ROWS_TO_DISPATCH=60
+            DA_DISPATCHER_MAX_RETRIES=7
+            DA_DISPATCHER_USE_DUMMY_INCLUSION_DATA="true"
+            DA_DISPATCHER_INCLUSION_VERIFICATION_TRANSITION_ENABLED="false"
+        "#;
+        let env = Environment::from_dotenv("test.env", env)
+            .unwrap()
+            .strip_prefix("DA_DISPATCHER_");
+
+        let config: DADispatcherConfig = test_complete(env).unwrap();
+        assert_eq!(config, expected_config());
     }
 
-    pub fn max_rows_to_dispatch(&self) -> u32 {
-        self.max_rows_to_dispatch
-            .unwrap_or(DEFAULT_MAX_ROWS_TO_DISPATCH)
-    }
-
-    pub fn max_retries(&self) -> u16 {
-        self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
-    }
-
-    pub fn use_dummy_inclusion_data(&self) -> bool {
-        self.use_dummy_inclusion_data
-            .unwrap_or(DEFAULT_USE_DUMMY_INCLUSION_DATA)
-    }
-
-    pub fn inclusion_verification_transition_enabled(&self) -> bool {
-        self.inclusion_verification_transition_enabled
-            .unwrap_or(DEFAULT_INCLUSION_VERIFICATION_TRANSITION_ENABLED)
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          polling_interval_ms: 5000
+          max_rows_to_dispatch: 60
+          max_retries: 7
+          use_dummy_inclusion_data: true
+          inclusion_verification_transition_enabled: false
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: DADispatcherConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
     }
 }

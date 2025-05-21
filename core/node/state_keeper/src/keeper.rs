@@ -19,8 +19,8 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
+    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -37,24 +37,6 @@ use crate::{
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
 pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
-
-/// Structure used to indicate that task cancellation was requested.
-#[derive(thiserror::Error, Debug)]
-pub(super) enum Error {
-    #[error("canceled")]
-    Canceled,
-    #[error(transparent)]
-    Fatal(#[from] anyhow::Error),
-}
-
-impl Error {
-    fn context(self, msg: &'static str) -> Self {
-        match self {
-            Self::Canceled => Self::Canceled,
-            Self::Fatal(err) => Self::Fatal(err.context(msg)),
-        }
-    }
-}
 
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
 ///
@@ -98,20 +80,15 @@ impl ZkSyncStateKeeper {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        match self.run_inner(stop_receiver).await {
-            Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
-            Err(Error::Canceled) => {
-                tracing::info!("Stop signal received, state keeper is shutting down");
-                Ok(())
-            }
-        }
+        try_stoppable!(self.run_inner(stop_receiver).await);
+        Ok(())
     }
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(
         &mut self,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> Result<Infallible, Error> {
+    ) -> Result<Infallible, OrStopped> {
         let (cursor, pending_batch_params) = self.io.initialize().await?;
         self.output_handler.initialize(&cursor).await?;
         self.health_updater
@@ -146,7 +123,7 @@ impl ZkSyncStateKeeper {
                 let (system_env, l1_batch_env, pubdata_params) = self
                     .wait_for_new_batch_env(&cursor, &mut stop_receiver)
                     .await
-                    .map_err(|e| e.context("wait_for_new_batch_params()"))?;
+                    .stop_context("failed getting new batch params")?;
                 PendingBatchData {
                     l1_batch_env,
                     pending_l2_blocks: Vec::new(),
@@ -253,7 +230,7 @@ impl ZkSyncStateKeeper {
                 None
             };
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     async fn create_batch_executor(
@@ -262,13 +239,12 @@ impl ZkSyncStateKeeper {
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<Box<dyn BatchExecutor<OwnedStorage>>, Error> {
+    ) -> Result<Box<dyn BatchExecutor<OwnedStorage>>, OrStopped> {
         let storage = self
             .storage_factory
             .access_storage(stop_receiver, l1_batch_env.number - 1)
             .await
-            .context("failed creating VM storage")?
-            .ok_or(Error::Canceled)?;
+            .stop_context("failed creating VM storage")?;
         Ok(self
             .batch_executor
             .init_batch(storage, l1_batch_env, system_env, pubdata_params))
@@ -282,7 +258,7 @@ impl ZkSyncStateKeeper {
         pending_l2_blocks: &[L2BlockExecutionData],
         protocol_version: ProtocolVersionId,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<ProtocolUpgradeTx>, Error> {
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         // After the Shared Bridge is integrated,
         // there has to be a GenesisUpgrade upgrade transaction after the chain genesis.
         // It has to be the first transaction of the first batch.
@@ -343,7 +319,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L1BatchParams, Error> {
+    ) -> Result<L1BatchParams, OrStopped> {
         while !is_canceled(stop_receiver) {
             if let Some(params) = self
                 .io
@@ -353,7 +329,7 @@ impl ZkSyncStateKeeper {
                 return Ok(params);
             }
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     #[tracing::instrument(
@@ -366,9 +342,9 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), Error> {
+    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
-        // until we get the rest of parameters from I/O or receive a stop signal.
+        // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
             .wait_for_new_batch_params(cursor, stop_receiver)
             .await?;
@@ -389,7 +365,7 @@ impl ZkSyncStateKeeper {
                 let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
                 Ok(params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash))
             }
-            _ = stop_receiver.changed() => Err(Error::Canceled),
+            _ = stop_receiver.changed() => Err(OrStopped::Stopped),
         }
     }
 
@@ -404,7 +380,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         updates: &UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L2BlockParams, Error> {
+    ) -> Result<L2BlockParams, OrStopped> {
         let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
         let cursor = updates.io_cursor();
         while !is_canceled(stop_receiver) {
@@ -421,7 +397,7 @@ impl ZkSyncStateKeeper {
                 return Ok(params);
             }
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     fn set_l2_block_params(updates_manager: &mut UpdatesManager, l2_block_params: L2BlockParams) {
@@ -496,7 +472,7 @@ impl ZkSyncStateKeeper {
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), OrStopped> {
         if l2_blocks_to_reexecute.is_empty() {
             return Ok(());
         }
@@ -579,7 +555,7 @@ impl ZkSyncStateKeeper {
         let new_l2_block_params = self
             .wait_for_new_l2_block_params(updates_manager, stop_receiver)
             .await
-            .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+            .stop_context("failed getting L2 block params")?;
         Self::set_l2_block_params(updates_manager, new_l2_block_params);
         Ok(())
     }
@@ -594,7 +570,7 @@ impl ZkSyncStateKeeper {
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), OrStopped> {
         if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
                 .await?;
@@ -642,8 +618,7 @@ impl ZkSyncStateKeeper {
                 let next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
-
+                    .stop_context("failed getting L2 block params")?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
@@ -737,7 +712,7 @@ impl ZkSyncStateKeeper {
             }
             full_latency.observe();
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     async fn process_upgrade_tx(

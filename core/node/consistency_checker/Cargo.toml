@@ -12,14 +12,16 @@ categories.workspace = true
 
 [dependencies]
 zksync_contracts.workspace = true
-zksync_dal.workspace = true
-zksync_eth_client.workspace = true
-zksync_health_check.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
 zksync_l1_contract_interface.workspace = true
+zksync_node_framework.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_types.workspace = true
 
 anyhow.workspace = true
+async-trait.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true

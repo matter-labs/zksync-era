@@ -3,7 +3,7 @@ use std::fmt;
 use super::VmRevertReason;
 
 /// Structure for non-contract errors from the Virtual Machine (EVM).
-
+///
 /// Differentiates VM-specific issues from contract-related errors.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Halt {

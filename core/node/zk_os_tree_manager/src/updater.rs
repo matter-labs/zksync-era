@@ -10,7 +10,7 @@ use zksync_dal::{helpers::wait_for_l1_batch, Connection, ConnectionPool, Core, C
 use zksync_shared_metrics::tree::{update_tree_metrics, TreeUpdateStage, METRICS};
 use zksync_types::{
     block::{CommonBlockStatistics, L1BatchTreeData},
-    L1BatchNumber,
+    L1BatchNumber, OrStopped,
 };
 
 use crate::{batch::L1BatchWithLogs, helpers::AsyncMerkleTree};
@@ -175,7 +175,7 @@ impl TreeUpdater {
 
         loop {
             if *stop_receiver.borrow_and_update() {
-                tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                tracing::info!("Stop request received, metadata_calculator is shutting down");
                 break;
             }
 
@@ -202,7 +202,7 @@ impl TreeUpdater {
             // and the stop receiver still allows to be more responsive during shutdown.
             tokio::select! {
                 _ = stop_receiver.changed() => {
-                    tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                    tracing::info!("Stop request received, metadata_calculator is shutting down");
                     break;
                 }
                 () = delay => { /* The delay has passed */ }
@@ -335,12 +335,8 @@ impl AsyncMerkleTree {
         delay_interval: Duration,
         pool: &ConnectionPool<Core>,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        let Some(earliest_l1_batch) =
-            wait_for_l1_batch(pool, delay_interval, stop_receiver).await?
-        else {
-            return Ok(()); // Stop signal received
-        };
+    ) -> Result<(), OrStopped> {
+        let earliest_l1_batch = wait_for_l1_batch(pool, delay_interval, stop_receiver).await?;
         let mut storage = pool.connection_tagged("tree_updater").await?;
 
         self.ensure_genesis(&mut storage, earliest_l1_batch).await?;

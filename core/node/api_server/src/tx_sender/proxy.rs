@@ -13,7 +13,7 @@ use zksync_dal::{
 };
 use zksync_multivm::interface::tracer::ValidationTraces;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{api, l2::L2Tx, Address, Nonce, H256, U256};
+use zksync_types::{api, l2::L2Tx, try_stoppable, Address, Nonce, StopContext, H256, U256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
@@ -159,6 +159,10 @@ impl TxCache {
             let inner = self.inner.read().await;
             inner.nonces_by_account.keys().copied().collect()
         };
+        if addresses.is_empty() {
+            return Ok(()); // Do not spend time on acquiring a connection and executing a query
+        }
+
         let mut storage = pool.connection_tagged("api").await?;
         let nonces_for_accounts = storage
             .storage_web3_dal()
@@ -186,17 +190,12 @@ impl TxCache {
         // Starting the updater before L1 batches are present in Postgres can lead to some invariants the server logic
         // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
         let earliest_l1_batch_number =
-            wait_for_l1_batch(&pool, UPDATE_INTERVAL, &mut stop_receiver)
-                .await
-                .context("error while waiting for L1 batch in Postgres")?;
-        if let Some(number) = earliest_l1_batch_number {
-            tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{number}");
-        } else {
-            tracing::info!(
-                "Received shutdown signal before TxCache::run_updates is started; shutting down"
+            try_stoppable!(
+                wait_for_l1_batch(&pool, UPDATE_INTERVAL, &mut stop_receiver)
+                    .await
+                    .stop_context("error while waiting for L1 batch in Postgres")
             );
-            return Ok(());
-        }
+        tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{earliest_l1_batch_number}");
 
         while !*stop_receiver.borrow() {
             self.step(&pool).await?;

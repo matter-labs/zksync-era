@@ -69,7 +69,7 @@ mod tests {
         let config = StateKeeperConfig {
             reject_tx_at_geometry_percentage: 0.95,
             close_block_at_geometry_percentage: 0.95,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         };
 
         let criterion = TxEncodingSizeCriterion;

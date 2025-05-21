@@ -548,7 +548,7 @@ async fn normal_checker_function(
         }
     }
 
-    // Send the stop signal to the checker and wait for it to stop.
+    // Send a stop request to the checker and wait for it to stop.
     stop_sender.send_replace(true);
     checker_task.await.unwrap().unwrap();
 }
@@ -646,7 +646,7 @@ async fn checker_processes_pre_boojum_batches(
         }
     }
 
-    // Send the stop signal to the checker and wait for it to stop.
+    // Send a stop request to the checker and wait for it to stop.
     stop_sender.send_replace(true);
     checker_task.await.unwrap().unwrap();
 }

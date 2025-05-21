@@ -161,7 +161,7 @@ impl EthTxAggregator {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
+                tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
                 break;
             }
 
@@ -171,7 +171,7 @@ impl EthTxAggregator {
                 tracing::warn!("eth_sender error {err:?}");
             }
 
-            tokio::time::sleep(self.config.aggregate_tx_poll_period()).await;
+            tokio::time::sleep(self.config.aggregate_tx_poll_period).await;
         }
         Ok(())
     }

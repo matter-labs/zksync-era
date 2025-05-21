@@ -438,7 +438,7 @@ impl EtherscanVerifier {
     pub async fn run(mut self) -> anyhow::Result<()> {
         loop {
             if *self.stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down etherscan verifier");
+                tracing::warn!("Stop request received, shutting down etherscan verifier");
                 return Ok(());
             }
 
@@ -448,7 +448,7 @@ impl EtherscanVerifier {
                 tracing::error!("Failed to update solc versions: {}", err);
             }
 
-            // VerifierError::Canceled happens when the stop signal is received. Other errors are handled internally so
+            // VerifierError::Canceled happens when a stop request is received. Other errors are handled internally so
             // it's safe to ignore them to keep the processing loop running.
             if let Err(VerifierError::Canceled) = self.process_next_request().await {
                 continue;

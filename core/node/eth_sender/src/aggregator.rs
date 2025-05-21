@@ -167,7 +167,7 @@ impl Aggregator {
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: L1BatchAggregatedActionType::Execute,
-                    deadline_seconds: config.aggregated_block_execute_deadline,
+                    deadline: config.aggregated_block_execute_deadline,
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
                 Box::from(L1GasCriterion::new(
@@ -188,7 +188,7 @@ impl Aggregator {
                     }),
                     Box::from(TimestampDeadlineCriterion {
                         op: L1BatchAggregatedActionType::Commit,
-                        deadline_seconds: config.aggregated_block_commit_deadline,
+                        deadline: config.aggregated_block_commit_deadline,
                         max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                     }),
                     Box::from(L1GasCriterion::new(
@@ -275,8 +275,10 @@ impl Aggregator {
         ) {
             Ok(Some(op))
         } else if let Some(params) = self.precommit_params() {
-            Ok(restrictions
-                .filter_precommit_op(self.get_precommit_operation(storage, *params).await?))
+            Ok(restrictions.filter_precommit_op(
+                self.get_precommit_operation(storage, params.clone())
+                    .await?,
+            ))
         } else {
             Ok(None)
         }
@@ -372,7 +374,7 @@ impl Aggregator {
             // We need to check that the first and last L2 blocks are in the same batch
 
             let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
-            if first_l2_block_age < precommit_params.deadline_sec as i64
+            if first_l2_block_age < precommit_params.deadline.as_secs() as i64
                 && (first_tx.l2block_number.0 - last_tx.l2block_number.0
                     < precommit_params.l2_blocks_to_aggregate)
             {
@@ -404,7 +406,7 @@ impl Aggregator {
         let max_l1_batch_timestamp_millis = self
             .config
             .l1_batch_min_age_before_execute_seconds
-            .map(|age| unix_timestamp_ms() - age * 1_000);
+            .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)

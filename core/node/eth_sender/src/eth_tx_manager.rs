@@ -613,11 +613,11 @@ impl EthTxManager {
         let pool = self.pool.clone();
 
         loop {
-            tokio::time::sleep(self.config.tx_poll_period()).await;
+            tokio::time::sleep(self.config.tx_poll_period).await;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_manager is shutting down");
+                tracing::info!("Stop request received, eth_tx_manager is shutting down");
                 break;
             }
             let operator_to_track = self.l1_interface.supported_operator_types()[0];

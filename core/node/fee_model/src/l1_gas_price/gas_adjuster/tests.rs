@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::RwLockReadGuard};
+use std::{collections::VecDeque, sync::RwLockReadGuard, time::Duration};
 
 use test_casing::test_casing;
 use zksync_config::GasAdjusterConfig;
@@ -65,11 +65,11 @@ fn test_config() -> GasAdjusterConfig {
         internal_l1_pricing_multiplier: 0.8,
         internal_enforced_l1_gas_price: None,
         internal_enforced_pubdata_price: None,
-        poll_period: 5,
-        max_l1_gas_price: None,
+        poll_period: Duration::from_secs(5),
+        max_l1_gas_price: u64::MAX,
         num_samples_for_blob_base_fee_estimate: 3,
         internal_pubdata_pricing_multiplier: 1.0,
-        max_blob_base_fee: None,
+        max_blob_base_fee: u64::MAX,
     }
 }
 
@@ -102,7 +102,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
     let client: Box<DynClient<L1>> = Box::new(eth_client.clone().into_client());
     let adjuster = GasAdjuster::new(
         GasAdjusterClient::from(client),
-        config,
+        config.clone(),
         PubdataSendingMode::Calldata,
         commitment_mode,
     )
@@ -168,7 +168,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
 
     let adjuster = GasAdjuster::new(
         GasAdjusterClient::from(client),
-        config,
+        config.clone(),
         PubdataSendingMode::RelayedL2Calldata,
         commitment_mode,
     )

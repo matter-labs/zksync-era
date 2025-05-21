@@ -1,18 +1,17 @@
 // src/commands/chain/migrate_to_gateway_calldata.rs
 
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
     abi::{encode, Token},
-    prelude::Http,
     providers::{Middleware, Provider},
 };
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig};
-use zksync_basic_types::{web3::keccak256, Address, H256, U256};
+use zksync_basic_types::{Address, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
@@ -118,7 +117,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
     let gw_validator_timelock_addr = gw_ctm.validator_timelock().await?;
-    let gw_validator_timelock =
+    let _gw_validator_timelock =
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());

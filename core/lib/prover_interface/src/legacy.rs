@@ -259,7 +259,6 @@ impl StoredObject for WitnessInputMerklePaths<Bincode> {
                 zksync_object_store::bincode::deserialize::<WitnessInputMerklePaths<Bincode>>(
                     &bytes,
                 )
-                .map(Into::into)
                 .map_err(Into::into)
             })
     }
