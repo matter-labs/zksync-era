@@ -151,7 +151,15 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 
     services.insert(
         "private-proxy".to_string(),
-        create_private_rpc_service(db_config, 4041, "sososecret", l2_rpc_url, &ecosystem_path, &chain_name).await?,
+        create_private_rpc_service(
+            db_config,
+            4041,
+            "sososecret",
+            l2_rpc_url,
+            &ecosystem_path,
+            &chain_name,
+        )
+        .await?,
     );
 
     let config = DockerComposeConfig {
@@ -168,13 +176,15 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     config.save(shell, docker_compose_path)?;
 
     let src_permissions_path = "example-permissions.yaml";
-    let dst_permissions_path = ecosystem_path
+    let dst_permissions_dir = ecosystem_path
         .join("chains")
         .join(chain_name.clone())
         .join("configs")
-        .join("private-rpc-permissions.yaml");
+        .join("private-rpc");
+    let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
 
     if !dst_permissions_path.exists() {
+        shell.create_dir(dst_permissions_dir)?;
         Cmd::new(cmd!(
             shell,
             "cp {src_permissions_path} {dst_permissions_path}"
