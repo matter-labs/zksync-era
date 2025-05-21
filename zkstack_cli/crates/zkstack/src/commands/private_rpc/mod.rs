@@ -161,6 +161,26 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 
     initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
 
+    let src_permissions_path = "example-permissions.yaml";
+    let dst_permissions_dir = ecosystem_path
+        .join("chains")
+        .join(chain_name.clone())
+        .join("configs")
+        .join("private-rpc");
+    let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
+
+    if !dst_permissions_path.exists() {
+        shell.create_dir(dst_permissions_dir)?;
+        Cmd::new(cmd!(
+            shell,
+            "cp {src_permissions_path} {dst_permissions_path}"
+        ))
+            .run()?;
+        logger::info(msg_private_rpc_permissions_file_generated(
+            dst_permissions_path.display(),
+        ));
+    }
+
     let mut services: HashMap<String, DockerComposeService> = HashMap::new();
     let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
     let l2_rpc_url = Url::parse(l2_rpc_url.as_str())?;
@@ -194,26 +214,6 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         docker_compose_path.display(),
     ));
     config.save(shell, docker_compose_path)?;
-
-    let src_permissions_path = "example-permissions.yaml";
-    let dst_permissions_dir = ecosystem_path
-        .join("chains")
-        .join(chain_name.clone())
-        .join("configs")
-        .join("private-rpc");
-    let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
-
-    if !dst_permissions_path.exists() {
-        shell.create_dir(dst_permissions_dir)?;
-        Cmd::new(cmd!(
-            shell,
-            "cp {src_permissions_path} {dst_permissions_path}"
-        ))
-        .run()?;
-        logger::info(msg_private_rpc_permissions_file_generated(
-            dst_permissions_path.display(),
-        ));
-    }
 
     Ok(())
 }
