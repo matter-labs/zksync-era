@@ -17,7 +17,7 @@ mod tests {
 
     fn expected_config() -> EthWatchConfig {
         EthWatchConfig {
-            confirmations_for_eth_event: Some(0),
+            confirmations_for_eth_event: Some(1),
             eth_node_poll_interval: 300,
         }
     }
@@ -26,7 +26,7 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="1"
             ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
         "#;
         lock.set_env(config);
