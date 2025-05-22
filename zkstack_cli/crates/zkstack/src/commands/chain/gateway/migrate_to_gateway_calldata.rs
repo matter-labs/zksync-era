@@ -272,7 +272,7 @@ pub struct MigrateToGatewayCalldataArgs {
     #[clap(long)]
     pub validator_2: Address,
     #[clap(long)]
-    pub min_validator_balance: U256,
+    pub min_validator_balance: u128,
     #[clap(long)]
     pub refund_recipient: Option<Address>,
 
@@ -303,7 +303,7 @@ impl MigrateToGatewayCalldataArgs {
             new_sl_da_validator: self.new_sl_da_validator,
             validator_1: self.validator_1,
             validator_2: self.validator_2,
-            min_validator_balance: self.min_validator_balance,
+            min_validator_balance: self.min_validator_balance.into(),
             refund_recipient: self.refund_recipient,
         }
     }
