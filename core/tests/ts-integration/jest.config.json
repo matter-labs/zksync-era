@@ -16,8 +16,7 @@
   "globalTeardown": "<rootDir>/src/jest-setup/global-teardown.ts",
   "testEnvironment": "<rootDir>/src/jest-setup/env.ts",
   "setupFilesAfterEnv": [
-    "<rootDir>/src/jest-setup/add-matchers.ts",
-    "<rootDir>/src/jest-setup/fix-big-int.ts"
+    "<rootDir>/src/jest-setup/add-matchers.ts"
   ],
   "slowTestThreshold": 120
 }

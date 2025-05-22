@@ -29,7 +29,7 @@
     "ethereumjs-abi": "^0.6.8",
     "ethers": "^6.13.5",
     "hardhat": "=2.22.2",
-    "jest": "^29.0.3",
+    "jest": "^29.7.0",
     "jest-environment-node": "^29.0.3",
     "jest-matcher-utils": "^29.0.3",
     "node-fetch": "^2.6.1",
