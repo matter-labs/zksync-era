@@ -1,7 +1,6 @@
 use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 
 /// Consensus registry contract operations.
-/// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
 use ethers::{
     abi::Detokenize,
@@ -17,7 +16,7 @@ use zkstack_cli_common::{config::global_config, logger, wallets::Wallet};
 use zkstack_cli_config::EcosystemConfig;
 use zksync_basic_types::L2ChainId;
 use zksync_consensus_crypto::ByteFmt;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 
 use crate::{
     commands::args::WaitArgs,
@@ -30,24 +29,14 @@ mod abi {
     include!(concat!(env!("OUT_DIR"), "/consensus_registry_abi.rs"));
 }
 
-#[derive(clap::Args, Debug)]
-#[group(required = true)]
-pub struct SetValidatorCommitteeCommand {
-    /// Sets the validator committee in the consensus registry contract to
-    /// the committee in the yaml file.
-    /// File format is defined in `SetValidatorCommitteeFile` in this crate.
-    #[clap(long)]
-    from_file: PathBuf,
-}
-
 #[derive(clap::Subcommand, Debug)]
 pub enum Command {
-    /// Sets the validator committee in the consensus registry contract to
-    /// the committee in the yaml file.
-    /// File format is defined in `SetValidatorCommitteeFile` in this crate.
-    SetValidatorCommittee(SetValidatorCommitteeCommand),
-    /// Fetches the validator committee from the consensus registry contract.
-    GetValidatorCommittee,
+    /// Sets the validator schedule in the consensus registry contract to
+    /// the schedule in the yaml file.
+    /// File format is defined in `SetValidatorScheduleFile` in this crate.
+    SetValidatorSchedule(SetValidatorScheduleCommand),
+    /// Fetches the validator schedule from the consensus registry contract.
+    GetValidatorSchedule,
     /// Wait until the consensus registry contract is deployed to L2.
     WaitForRegistry(WaitArgs),
 }
@@ -79,6 +68,14 @@ impl Command {
         }
         Ok(())
     }
+}
+
+#[derive(clap::Args, Debug)]
+#[group(required = true)]
+pub struct SetValidatorScheduleCommand {
+    /// The file to read the validator schedule from.
+    #[clap(long)]
+    pub from_file: PathBuf,
 }
 
 /// Collection of sent transactions.
@@ -489,14 +486,6 @@ impl Setup {
         .await?;
         txs.wait(&provider).await.context("wait()")?;
         Ok(())
-    }
-}
-
-fn encode_attester_key(k: &attester::PublicKey) -> abi::Secp256K1PublicKey {
-    let b: [u8; 33] = ByteFmt::encode(k).try_into().unwrap();
-    abi::Secp256K1PublicKey {
-        tag: b[0..1].try_into().unwrap(),
-        x: b[1..33].try_into().unwrap(),
     }
 }
 

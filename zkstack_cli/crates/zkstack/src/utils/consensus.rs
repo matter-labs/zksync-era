@@ -5,7 +5,7 @@ use zksync_consensus_roles::{node, validator};
 
 pub(crate) fn read_validator_committee_yaml(
     raw_yaml: serde_yaml::Value,
-) -> anyhow::Result<(validator::Committee, Vec<Validator>)> {
+) -> anyhow::Result<(Vec<validator::ValidatorInfo>, validator::LeaderSelection)> {
     let file: SetValidatorCommitteeFile =
         serde_yaml::from_value(raw_yaml).context("invalid validator committee file format")?;
 
@@ -27,7 +27,7 @@ pub(crate) fn read_validator_committee_yaml(
         });
     }
 
-    let committee = validator::Committee::new(committee_validators.into_iter())?;
+    let committee = validator::Schedule::new(committee_validators.into_iter())?;
 
     Ok((committee, validators))
 }
