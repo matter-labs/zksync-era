@@ -1,0 +1,25 @@
+[package]
+name = "zksync_shared_resources"
+description = "Shared resources for ZKsync node framework"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_config.workspace = true
+zksync_health_check.workspace = true
+zksync_node_framework.workspace = true
+
+async-trait.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+assert_matches.workspace = true

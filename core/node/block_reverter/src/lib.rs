@@ -1,4 +1,8 @@
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -25,6 +29,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2ChainId, H160, H256, U256,
 };
 
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -55,11 +60,7 @@ impl BlockReverterEthConfig {
         Ok(Self {
             sl_diamond_proxy_addr,
             sl_validator_timelock_addr,
-            default_priority_fee_per_gas: eth_config
-                .gas_adjuster
-                .as_ref()
-                .context("gas adjuster")?
-                .default_priority_fee_per_gas,
+            default_priority_fee_per_gas: eth_config.gas_adjuster.default_priority_fee_per_gas,
             hyperchain_id,
             settlement_layer,
         })
@@ -100,8 +101,8 @@ pub struct BlockReverter {
     allow_rolling_back_executed_batches: bool,
     connection_pool: ConnectionPool<Core>,
     should_roll_back_postgres: bool,
-    storage_cache_paths: Vec<String>,
-    merkle_tree_path: Option<String>,
+    storage_cache_paths: Vec<PathBuf>,
+    merkle_tree_path: Option<PathBuf>,
     snapshots_object_store: Option<Arc<dyn ObjectStore>>,
 }
 
@@ -133,12 +134,12 @@ impl BlockReverter {
         self
     }
 
-    pub fn enable_rolling_back_merkle_tree(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_merkle_tree(&mut self, path: PathBuf) -> &mut Self {
         self.merkle_tree_path = Some(path);
         self
     }
 
-    pub fn add_rocksdb_storage_path_to_rollback(&mut self, path: String) -> &mut Self {
+    pub fn add_rocksdb_storage_path_to_rollback(&mut self, path: PathBuf) -> &mut Self {
         self.storage_cache_paths.push(path);
         self
     }
@@ -232,11 +233,11 @@ impl BlockReverter {
 
         for storage_cache_path in &self.storage_cache_paths {
             let sk_cache_exists = fs::try_exists(storage_cache_path).await.with_context(|| {
-                format!("cannot check whether storage cache path `{storage_cache_path}` exists")
+                format!("cannot check whether storage cache path `{storage_cache_path:?}` exists")
             })?;
             anyhow::ensure!(
                 sk_cache_exists,
-                "Path with storage cache DB doesn't exist at `{storage_cache_path}`"
+                "Path with storage cache DB doesn't exist at `{storage_cache_path:?}`"
             );
             self.roll_back_storage_cache(last_l1_batch_to_keep, storage_cache_path)
                 .await?;
@@ -275,15 +276,15 @@ impl BlockReverter {
     async fn roll_back_storage_cache(
         &self,
         last_l1_batch_to_keep: L1BatchNumber,
-        storage_cache_path: &str,
+        storage_cache_path: &Path,
     ) -> anyhow::Result<()> {
-        tracing::info!("Opening DB with storage cache at `{storage_cache_path}`");
-        let sk_cache = RocksdbStorage::builder(storage_cache_path.as_ref())
+        tracing::info!("Opening DB with storage cache at `{storage_cache_path:?}`");
+        let sk_cache = RocksdbStorage::builder(storage_cache_path)
             .await
             .context("failed initializing storage cache")?;
         let Some(mut sk_cache) = sk_cache.get().await else {
             tracing::info!(
-                "Storage cache at `{storage_cache_path}` is not initialized; nothing to do"
+                "Storage cache at `{storage_cache_path:?}` is not initialized; nothing to do"
             );
             return Ok(());
         };

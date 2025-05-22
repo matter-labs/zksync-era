@@ -44,6 +44,9 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run zkstack dev fmt --check rustfmt
 
+      - name: Lints
+        run: ci_run zkstack dev lint -t rs --check
+
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
     env:

@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use clap::Subcommand;
+use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{
-    cmd::Cmd, db, docker, docker::adjust_localhost_for_docker, logger, Prompt,
-};
+use zkstack_cli_common::{cmd::Cmd, db, docker, logger, Prompt};
 use zkstack_cli_config::{
     docker_compose::{DockerComposeConfig, DockerComposeService},
     private_proxy_compose::{create_private_rpc_service, get_private_rpc_docker_compose_path},
@@ -26,28 +24,50 @@ use crate::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR,
         MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR,
     },
+    utils::ports::{ConfigWithChainPorts, EcosystemPortsScanner},
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
+pub struct PrivateRpcCommandInitArgs {
+    #[clap(long)]
+    pub dev: bool,
+}
 
 #[derive(Subcommand, Debug)]
 pub enum PrivateRpcCommands {
     /// Initializes private proxy database, builds docker image, runs all migrations and creates docker-compose file
-    Init,
+    Init(PrivateRpcCommandInitArgs),
     /// Run private proxy
     Run,
     /// Resets the private proxy database
     ResetDB,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PrivateProxyConfig {
-    pub database_url: Url,
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct PrivateProxyPorts {
     pub port: u16,
-    pub create_token_secret: String,
+}
+
+impl ConfigWithChainPorts for PrivateProxyPorts {
+    fn get_default_ports(&self) -> anyhow::Result<HashMap<String, u16>> {
+        let mut ports = HashMap::new();
+        ports.insert("private-proxy".to_string(), 4041);
+        Ok(ports)
+    }
+
+    fn set_ports(&mut self, ports: HashMap<String, u16>) -> anyhow::Result<()> {
+        if let Some(port) = ports.get("private-proxy") {
+            self.port = *port;
+        } else {
+            anyhow::bail!("Private proxy port not found");
+        }
+        Ok(())
+    }
 }
 
 pub(crate) async fn run(shell: &Shell, args: PrivateRpcCommands) -> anyhow::Result<()> {
     match args {
-        PrivateRpcCommands::Init => init(shell).await,
+        PrivateRpcCommands::Init(args) => init(shell, args).await,
         PrivateRpcCommands::Run => run_proxy(shell).await,
         PrivateRpcCommands::ResetDB => reset_db(shell).await,
     }
@@ -114,8 +134,9 @@ fn prompt_db_config(config: &ChainConfig) -> anyhow::Result<Url> {
     Ok(db_config.full_url())
 }
 
-pub async fn init(shell: &Shell) -> anyhow::Result<()> {
+pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_path = shell.current_dir();
 
     let chain_config = ecosystem_config
         .load_current_chain()
@@ -125,47 +146,27 @@ pub async fn init(shell: &Shell) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(chain_config.link_to_code.join("private-rpc"));
 
     logger::info(msg_private_rpc_docker_image_being_built());
-    Cmd::new(cmd!(shell, "docker build -t private-rpc .")).run()?;
+    Cmd::new(cmd!(
+        shell,
+        "docker build --platform linux/amd64 -t private-rpc ."
+    ))
+    .run()?;
 
-    let mut db_config = prompt_db_config(&chain_config)?;
-
-    initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
-    db_config = adjust_localhost_for_docker(db_config)?;
-
-    let mut services: HashMap<String, DockerComposeService> = HashMap::new();
-    let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
-    let l2_rpc_url = Url::parse(l2_rpc_url.as_str())?;
-    let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url)?;
-
-    services.insert(
-        "private-proxy".to_string(),
-        create_private_rpc_service(db_config, 4041, "sososecret", l2_rpc_url).await?,
-    );
-
-    let config = DockerComposeConfig {
-        name: Some(format!("{chain_name}-private-proxy")),
-        services,
-        other: serde_json::Value::Null,
+    let db_config = if args.dev {
+        let private_rpc_db_name: String = generate_private_rpc_db_name(&chain_config);
+        db::DatabaseConfig::new(DATABASE_PRIVATE_RPC_URL.clone(), private_rpc_db_name).full_url()
+    } else {
+        prompt_db_config(&chain_config)?
     };
 
-    let _dir_guard = shell.push_dir(&chain_config.link_to_code);
-    let docker_compose_path =
-        get_private_rpc_docker_compose_path(&shell.current_dir(), &chain_config.name);
-    logger::info(msg_private_rpc_docker_compose_file_generated(
-        docker_compose_path.display(),
-    ));
-    config.save(shell, docker_compose_path)?;
+    initialize_private_rpc_database(shell, &chain_config, &db_config).await?;
 
-    let src_permissions_path = chain_config
-        .link_to_code
-        .join("private-rpc")
-        .join("example-permissions.yaml");
-    let dst_permissions_path = chain_config
-        .link_to_code
+    let src_permissions_path = "example-permissions.yaml";
+    let dst_permissions_dir = ecosystem_path
         .join("chains")
         .join(chain_name.clone())
-        .join("configs")
-        .join("private-rpc-permissions.yaml");
+        .join("configs");
+    let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
 
     if !dst_permissions_path.exists() {
         Cmd::new(cmd!(
@@ -177,6 +178,40 @@ pub async fn init(shell: &Shell) -> anyhow::Result<()> {
             dst_permissions_path.display(),
         ));
     }
+
+    let mut services: HashMap<String, DockerComposeService> = HashMap::new();
+    let l2_rpc_url = chain_config.get_general_config().await?.l2_http_url()?;
+    let l2_rpc_url = Url::parse(l2_rpc_url.as_str())?;
+
+    let mut scanner = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
+    let mut ports = PrivateProxyPorts::default();
+    scanner.allocate_ports_with_offset_from_defaults(&mut ports, chain_config.id)?;
+
+    services.insert(
+        "private-proxy".to_string(),
+        create_private_rpc_service(
+            db_config,
+            ports.port,
+            "sososecret",
+            l2_rpc_url,
+            &ecosystem_path,
+            &chain_name,
+        )
+        .await?,
+    );
+
+    let config = DockerComposeConfig {
+        name: Some(format!("{chain_name}-private-proxy")),
+        services,
+        other: serde_json::Value::Null,
+    };
+
+    let docker_compose_path =
+        get_private_rpc_docker_compose_path(&ecosystem_path, &chain_config.name);
+    logger::info(msg_private_rpc_docker_compose_file_generated(
+        docker_compose_path.display(),
+    ));
+    config.save(shell, docker_compose_path)?;
 
     Ok(())
 }

@@ -53,6 +53,10 @@ impl SecretsConfig {
         self.0.get("l1.l1_rpc_url")
     }
 
+    pub fn gateway_rpc_url(&self) -> anyhow::Result<String> {
+        self.0.get("l1.gateway_rpc_url")
+    }
+
     pub fn raw_consensus_node_key(&self) -> anyhow::Result<String> {
         self.0.get("consensus.node_key")
     }
@@ -94,7 +98,8 @@ impl SecretsConfigPatch {
     }
 
     pub fn set_avail_secrets(&mut self, secrets: &AvailSecrets) -> anyhow::Result<()> {
-        self.0.insert_yaml("da.avail", secrets)
+        self.0.insert_yaml("da_client", secrets)?;
+        self.0.insert("da_client.client", "Avail")
     }
 
     pub fn set_consensus_keys(&mut self, consensus_keys: RawConsensusKeys) -> anyhow::Result<()> {

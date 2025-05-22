@@ -4,7 +4,6 @@ use std::fmt;
 
 use async_trait::async_trait;
 use zksync_config::GenesisConfig;
-use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     api::{self, en},
@@ -33,7 +32,7 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
     async fn fetch_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
-    ) -> EnrichedClientResult<Option<api::ProtocolVersion>>;
+    ) -> EnrichedClientResult<Option<api::ProtocolVersionInfo>>;
 
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<L2BlockNumber>;
 
@@ -97,11 +96,36 @@ impl MainNodeClient for Box<DynClient<L2>> {
     async fn fetch_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
-    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
-        self.get_protocol_version(Some(protocol_version as u16))
+    ) -> EnrichedClientResult<Option<api::ProtocolVersionInfo>> {
+        match self
+            .get_protocol_version_info(Some(protocol_version as u16))
             .rpc_context("fetch_protocol_version")
             .with_arg("protocol_version", &protocol_version)
             .await
+        {
+            Ok(result) => Ok(result),
+            Err(err) => {
+                // Presume that `en_getProtocolVersionInfo` is not available on main node yet,
+                // fallback to `zks_getProtocolVersion`
+                tracing::warn!(
+                    %protocol_version,
+                    %err,
+                    "Failed to fetch protocol version from main node using `en_getProtocolVersionInfo`"
+                );
+                #[allow(deprecated)]
+                let Some(protocol_version) = self
+                    .get_protocol_version(Some(protocol_version as u16))
+                    .rpc_context("fetch_protocol_version")
+                    .with_arg("protocol_version", &protocol_version)
+                    .await?
+                else {
+                    return Ok(None);
+                };
+                Ok(Some(protocol_version.try_into().expect(
+                    "legacy protocol version should contain all required fields",
+                )))
+            }
+        }
     }
 
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
@@ -146,33 +170,5 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .with_arg("number", &number)
             .with_arg("with_transactions", &with_transactions)
             .await
-    }
-}
-
-/// Main node health check.
-#[derive(Debug)]
-pub struct MainNodeHealthCheck(Box<DynClient<L2>>);
-
-impl From<Box<DynClient<L2>>> for MainNodeHealthCheck {
-    fn from(client: Box<DynClient<L2>>) -> Self {
-        Self(client.for_component("main_node_health_check"))
-    }
-}
-
-#[async_trait]
-impl CheckHealth for MainNodeHealthCheck {
-    fn name(&self) -> &'static str {
-        "main_node_http_rpc"
-    }
-
-    async fn check_health(&self) -> Health {
-        if let Err(err) = self.0.get_block_number().await {
-            tracing::warn!("Health-check call to main node HTTP RPC failed: {err}");
-            let details = serde_json::json!({
-                "error": err.to_string(),
-            });
-            return Health::from(HealthStatus::NotReady).with_details(details);
-        }
-        HealthStatus::Ready.into()
     }
 }
