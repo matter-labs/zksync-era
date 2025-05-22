@@ -26,15 +26,6 @@ impl ConfigSources {
         // - While logging is not enabled at this point, we use `log_all_errors()` for more intelligent error summarization.
         repo.single().unwrap().parse().map_err(log_all_errors)
     }
-
-    /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
-    /// with the existing file-based configs (e.g., coerce enum variant names).
-    pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
-        let mut repo = ConfigRepository::new(schema);
-        repo.deserializer_options().coerce_variant_names = true;
-        repo.deserializer_options().coerce_serde_enums = true;
-        repo.with_all(self.0)
-    }
 }
 
 impl ObservabilityConfig {
