@@ -52,8 +52,7 @@ impl EthSenderDal<'_, '_> {
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND (
-                            eth_txs_history.finality_status IS NULL
-                            OR eth_txs_history.finality_status != 'finalized'
+                            eth_txs_history.finality_status != 'finalized'
                         )
                         AND (
                             from_addr = $1
@@ -346,10 +345,12 @@ impl EthSenderDal<'_, '_> {
                 predicted_gas_limit,
                 sent_at_block,
                 sent_at,
-                sent_successfully
+                sent_successfully,
+                finality_status
+            
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW(), FALSE)
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW(), FALSE, 'pending')
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
             id

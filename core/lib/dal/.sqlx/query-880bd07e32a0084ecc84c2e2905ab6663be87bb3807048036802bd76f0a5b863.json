@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            eth_txs_history (\n                eth_tx_id,\n                base_fee_per_gas,\n                priority_fee_per_gas,\n                tx_hash,\n                signed_raw_tx,\n                created_at,\n                updated_at,\n                blob_base_fee_per_gas,\n                max_gas_per_pubdata,\n                predicted_gas_limit,\n                sent_at_block,\n                sent_at,\n                sent_successfully,\n                finality_status\n            \n            )\n            VALUES\n            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW(), FALSE, 'pending')\n            ON CONFLICT (tx_hash) DO NOTHING\n            RETURNING\n            id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8",
+        "Int8",
+        "Text",
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "880bd07e32a0084ecc84c2e2905ab6663be87bb3807048036802bd76f0a5b863"
+}

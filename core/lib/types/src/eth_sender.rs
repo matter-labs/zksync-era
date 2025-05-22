@@ -92,6 +92,7 @@ pub struct TxHistory {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum EthTxFinalityStatus {
+    Pending,
     FastFinalized,
     Finalized,
 }
@@ -103,6 +104,7 @@ impl FromStr for EthTxFinalityStatus {
         match s {
             "fast_finalized" => Ok(Self::FastFinalized),
             "finalized" => Ok(Self::Finalized),
+            "pending" => Ok(Self::Pending),
             _ => Err("Incorrect finality status"),
         }
     }
@@ -113,6 +115,7 @@ impl Display for EthTxFinalityStatus {
         match self {
             Self::FastFinalized => write!(f, "fast_finalized"),
             Self::Finalized => write!(f, "finalized"),
+            Self::Pending => write!(f, "pending"),
         }
     }
 }
