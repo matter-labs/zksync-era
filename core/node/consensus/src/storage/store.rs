@@ -18,7 +18,10 @@ use zksync_web3_decl::{
 };
 
 use super::{Connection, PayloadQueue};
-use crate::storage::{ConnectionPool, InsertCertificateError};
+use crate::{
+    registry::Registry,
+    storage::{ConnectionPool, InsertCertificateError},
+};
 
 fn to_fetched_block(
     number: validator::BlockNumber,
@@ -64,8 +67,7 @@ async fn wait_for_local_block(
     Ok(())
 }
 
-/// Wrapper of `ConnectionPool` implementing `ReplicaStore`, `PayloadManager`,
-/// `PersistentBlockStore`.
+/// Wrapper of `ConnectionPool` implementing `EngineInterface`.
 ///
 /// Contains queues to save Quorum Certificates received over gossip to the store
 /// as and when the payload they are over becomes available.
@@ -80,15 +82,8 @@ pub(crate) struct Store {
     blocks_persisted: sync::watch::Receiver<BlockStoreState>,
     /// Main node client. None if this node is the main node.
     client: Option<Box<DynClient<L2>>>,
-}
-
-struct PersistedBlockState(sync::watch::Sender<BlockStoreState>);
-
-/// Background task of the `Store`.
-pub struct StoreRunner {
-    pool: ConnectionPool,
-    blocks_persisted: PersistedBlockState,
-    block_certificates: ctx::channel::UnboundedReceiver<BlockCertificate>,
+    /// Registry contract. Is None if this chain is not configured to fetch the validator schedule from the registry.
+    registry: Arc<Option<Registry>>,
 }
 
 impl Store {
@@ -97,6 +92,7 @@ impl Store {
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
         client: Option<Box<DynClient<L2>>>,
+        registry: Arc<Option<Registry>>,
     ) -> ctx::Result<(Store, StoreRunner)> {
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
 
@@ -114,6 +110,7 @@ impl Store {
                 block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
                 blocks_persisted: blocks_persisted.subscribe(),
                 client,
+                registry,
             },
             StoreRunner {
                 pool,
@@ -151,153 +148,6 @@ impl Store {
     }
 }
 
-impl PersistedBlockState {
-    /// Updates `persisted` to new.
-    /// Ends of the range can only be moved forward.
-    /// If `persisted.first` is moved forward, it means that blocks have been pruned.
-    /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
-    /// persisted.
-    #[tracing::instrument(skip_all, fields(first = %new.first, next = ?new.next()))]
-    fn update(&self, new: BlockStoreState) {
-        self.0.send_if_modified(|p| {
-            if &new == p {
-                return false;
-            }
-            p.first = p.first.max(new.first);
-            if p.next() < new.next() {
-                p.last = new.last;
-            }
-            true
-        });
-    }
-
-    /// Checks if the given certificate should be eventually persisted.
-    /// Only certificates block store state is a range of blocks for which we already have
-    /// certificates and we need certs only for the later ones.
-    fn should_be_persisted(&self, cert: &BlockCertificate) -> bool {
-        self.0.borrow().next() <= cert.number()
-    }
-
-    /// Appends the `cert` to `persisted` range.
-    #[tracing::instrument(skip_all, fields(batch_number = %cert.number()))]
-    fn advance(&self, cert: BlockCertificate) {
-        self.0.send_if_modified(|p| {
-            if p.next() != cert.number() {
-                return false;
-            }
-            p.last = Some(match cert {
-                BlockCertificate::V1(qc) => engine::Last::FinalV1(qc),
-                BlockCertificate::V2(qc) => engine::Last::FinalV2(qc),
-            });
-            true
-        });
-    }
-}
-
-impl StoreRunner {
-    pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        let StoreRunner {
-            pool,
-            blocks_persisted,
-            mut block_certificates,
-        } = self;
-
-        let res = scope::run!(ctx, |ctx, s| async {
-            #[tracing::instrument(skip_all)]
-            async fn update_blocks_persisted_iteration(
-                ctx: &ctx::Ctx,
-                pool: &ConnectionPool,
-                blocks_persisted: &PersistedBlockState,
-            ) -> ctx::Result<()> {
-                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
-
-                let state = pool
-                    .connection(ctx)
-                    .await?
-                    .block_store_state(ctx)
-                    .await
-                    .wrap("block_store_state()")?;
-                blocks_persisted.update(state);
-                ctx.sleep(POLL_INTERVAL).await?;
-
-                Ok(())
-            }
-
-            s.spawn::<()>(async {
-                // Loop updating `blocks_persisted` whenever blocks get pruned.
-                loop {
-                    update_blocks_persisted_iteration(ctx, &pool, &blocks_persisted).await?;
-                }
-            });
-
-            #[tracing::instrument(skip_all)]
-            async fn insert_block_certificates_iteration(
-                ctx: &ctx::Ctx,
-                pool: &ConnectionPool,
-                block_certificates: &mut ctx::channel::UnboundedReceiver<BlockCertificate>,
-                blocks_persisted: &PersistedBlockState,
-            ) -> ctx::Result<()> {
-                const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
-
-                let cert = block_certificates
-                    .recv(ctx)
-                    .instrument(tracing::info_span!("wait_for_block_certificate"))
-                    .await?;
-                // Wait for the block to be persisted, so that we can attach a cert to it.
-                // We may exit this loop without persisting the certificate in case the
-                // corresponding block has been pruned in the meantime.
-                while blocks_persisted.should_be_persisted(&cert) {
-                    use consensus_dal::InsertCertificateError as E;
-                    // Try to insert the cert.
-                    let res = pool
-                        .connection(ctx)
-                        .await?
-                        .insert_block_certificate(ctx, &cert)
-                        .await;
-                    match res {
-                        Ok(()) => {
-                            // Insertion succeeded: update persisted state
-                            // and wait for the next cert.
-                            blocks_persisted.advance(cert);
-                            break;
-                        }
-                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
-                            // the payload is not in storage, it's either not yet persisted
-                            // or already pruned. We will retry after a delay.
-                            ctx.sleep(POLL_INTERVAL)
-                                .instrument(tracing::info_span!("wait_for_block"))
-                                .await?;
-                        }
-                        Err(InsertCertificateError::Canceled(err)) => {
-                            return Err(ctx::Error::Canceled(err))
-                        }
-                        Err(err) => Err(err).context("insert_block_certificate()")?,
-                    }
-                }
-
-                Ok(())
-            }
-
-            // Loop inserting block certs to storage.
-            loop {
-                insert_block_certificates_iteration(
-                    ctx,
-                    &pool,
-                    &mut block_certificates,
-                    &blocks_persisted,
-                )
-                .await?;
-            }
-        })
-        .await;
-
-        match res {
-            Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),
-            Err(ctx::Error::Internal(err)) => Err(err),
-        }
-    }
-}
-
 #[async_trait::async_trait]
 impl EngineInterface for Store {
     async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
@@ -319,7 +169,13 @@ impl EngineInterface for Store {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<(validator::Schedule, validator::BlockNumber)> {
-        todo!()
+        self.registry
+            .as_ref()
+            .as_ref()
+            .context("registry not set")?
+            .get_current_validator_schedule(ctx, number)
+            .await
+            .wrap("get_current_validator_schedule()")
     }
 
     async fn get_pending_validator_schedule(
@@ -327,7 +183,13 @@ impl EngineInterface for Store {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<(validator::Schedule, validator::BlockNumber)>> {
-        todo!()
+        self.registry
+            .as_ref()
+            .as_ref()
+            .context("registry not set")?
+            .get_pending_validator_schedule(ctx, number)
+            .await
+            .wrap("get_pending_validator_schedule()")
     }
 
     async fn get_block(
@@ -485,5 +347,161 @@ impl EngineInterface for Store {
             .set_replica_state(ctx, state)
             .await
             .wrap("set_replica_state()")
+    }
+}
+
+/// Background task of the `Store`.
+pub struct StoreRunner {
+    pool: ConnectionPool,
+    blocks_persisted: PersistedBlockState,
+    block_certificates: ctx::channel::UnboundedReceiver<BlockCertificate>,
+}
+
+impl StoreRunner {
+    pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
+        let StoreRunner {
+            pool,
+            blocks_persisted,
+            mut block_certificates,
+        } = self;
+
+        let res = scope::run!(ctx, |ctx, s| async {
+            #[tracing::instrument(skip_all)]
+            async fn update_blocks_persisted_iteration(
+                ctx: &ctx::Ctx,
+                pool: &ConnectionPool,
+                blocks_persisted: &PersistedBlockState,
+            ) -> ctx::Result<()> {
+                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
+
+                let state = pool
+                    .connection(ctx)
+                    .await?
+                    .block_store_state(ctx)
+                    .await
+                    .wrap("block_store_state()")?;
+                blocks_persisted.update(state);
+                ctx.sleep(POLL_INTERVAL).await?;
+
+                Ok(())
+            }
+
+            s.spawn::<()>(async {
+                // Loop updating `blocks_persisted` whenever blocks get pruned.
+                loop {
+                    update_blocks_persisted_iteration(ctx, &pool, &blocks_persisted).await?;
+                }
+            });
+
+            #[tracing::instrument(skip_all)]
+            async fn insert_block_certificates_iteration(
+                ctx: &ctx::Ctx,
+                pool: &ConnectionPool,
+                block_certificates: &mut ctx::channel::UnboundedReceiver<BlockCertificate>,
+                blocks_persisted: &PersistedBlockState,
+            ) -> ctx::Result<()> {
+                const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
+
+                let cert = block_certificates
+                    .recv(ctx)
+                    .instrument(tracing::info_span!("wait_for_block_certificate"))
+                    .await?;
+                // Wait for the block to be persisted, so that we can attach a cert to it.
+                // We may exit this loop without persisting the certificate in case the
+                // corresponding block has been pruned in the meantime.
+                while blocks_persisted.should_be_persisted(&cert) {
+                    use consensus_dal::InsertCertificateError as E;
+                    // Try to insert the cert.
+                    let res = pool
+                        .connection(ctx)
+                        .await?
+                        .insert_block_certificate(ctx, &cert)
+                        .await;
+                    match res {
+                        Ok(()) => {
+                            // Insertion succeeded: update persisted state
+                            // and wait for the next cert.
+                            blocks_persisted.advance(cert);
+                            break;
+                        }
+                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                            // the payload is not in storage, it's either not yet persisted
+                            // or already pruned. We will retry after a delay.
+                            ctx.sleep(POLL_INTERVAL)
+                                .instrument(tracing::info_span!("wait_for_block"))
+                                .await?;
+                        }
+                        Err(InsertCertificateError::Canceled(err)) => {
+                            return Err(ctx::Error::Canceled(err))
+                        }
+                        Err(err) => Err(err).context("insert_block_certificate()")?,
+                    }
+                }
+
+                Ok(())
+            }
+
+            // Loop inserting block certs to storage.
+            loop {
+                insert_block_certificates_iteration(
+                    ctx,
+                    &pool,
+                    &mut block_certificates,
+                    &blocks_persisted,
+                )
+                .await?;
+            }
+        })
+        .await;
+
+        match res {
+            Err(ctx::Error::Canceled(_)) | Ok(()) => Ok(()),
+            Err(ctx::Error::Internal(err)) => Err(err),
+        }
+    }
+}
+
+struct PersistedBlockState(sync::watch::Sender<BlockStoreState>);
+
+impl PersistedBlockState {
+    /// Updates `persisted` to new.
+    /// Ends of the range can only be moved forward.
+    /// If `persisted.first` is moved forward, it means that blocks have been pruned.
+    /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
+    /// persisted.
+    #[tracing::instrument(skip_all, fields(first = %new.first, next = ?new.next()))]
+    fn update(&self, new: BlockStoreState) {
+        self.0.send_if_modified(|p| {
+            if &new == p {
+                return false;
+            }
+            p.first = p.first.max(new.first);
+            if p.next() < new.next() {
+                p.last = new.last;
+            }
+            true
+        });
+    }
+
+    /// Checks if the given certificate should be eventually persisted.
+    /// Only certificates block store state is a range of blocks for which we already have
+    /// certificates and we need certs only for the later ones.
+    fn should_be_persisted(&self, cert: &BlockCertificate) -> bool {
+        self.0.borrow().next() <= cert.number()
+    }
+
+    /// Appends the `cert` to `persisted` range.
+    #[tracing::instrument(skip_all, fields(batch_number = %cert.number()))]
+    fn advance(&self, cert: BlockCertificate) {
+        self.0.send_if_modified(|p| {
+            if p.next() != cert.number() {
+                return false;
+            }
+            p.last = Some(match cert {
+                BlockCertificate::V1(qc) => engine::Last::FinalV1(qc),
+                BlockCertificate::V2(qc) => engine::Last::FinalV2(qc),
+            });
+            true
+        });
     }
 }
