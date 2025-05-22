@@ -51,7 +51,10 @@ impl EthSenderDal<'_, '_> {
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
-                        AND finality_status != 'finalized'
+                        AND (
+                            eth_txs_history.finality_status IS NULL
+                            OR eth_txs_history.finality_status != 'finalized'
+                        )
                         AND (
                             from_addr = $1
                             OR
@@ -383,29 +386,6 @@ impl EthSenderDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?
         .map(|row| row.id as u32))
-    }
-
-    pub async fn set_sent_at_block(
-        &mut self,
-        eth_txs_history_id: u32,
-        sent_at_block: u32,
-    ) -> sqlx::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE eth_txs_history
-            SET
-                sent_at_block = $2,
-                sent_at = NOW()
-            WHERE
-                id = $1
-                AND sent_at_block IS NULL
-            "#,
-            eth_txs_history_id as i32,
-            sent_at_block as i32
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
     }
 
     pub async fn set_sent_success(&mut self, eth_txs_history_id: u32) -> sqlx::Result<()> {
