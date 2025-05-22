@@ -3,6 +3,7 @@ use ethers::contract::abigen;
 abigen!(
     BridgehubAbi,
     r"[
+    function assetRouter()(address)
     function settlementLayer(uint256)(uint256)
     function getZKChain(uint256)(address)
     function ctmAssetIdToAddress(bytes32)(address)

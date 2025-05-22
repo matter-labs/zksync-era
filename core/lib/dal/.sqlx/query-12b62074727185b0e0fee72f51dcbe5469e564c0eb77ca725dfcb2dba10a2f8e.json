@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    nonce\n                FROM\n                    eth_txs\n                WHERE\n                    from_addr IS NULL\n                    AND is_gateway = $1\n                ORDER BY\n                    id DESC\n                LIMIT\n                    1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nonce",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "12b62074727185b0e0fee72f51dcbe5469e564c0eb77ca725dfcb2dba10a2f8e"
+}

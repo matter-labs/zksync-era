@@ -65,7 +65,7 @@ impl FriProverDal<'_, '_> {
     // We need to split the insert into chunks to avoid hitting this limit.
     // A single row in insert_prover_jobs push_binds 10 parameters, therefore
     // the limit is 65k / 10 ~ 6500 jobs chunk.
-    const INSERT_JOBS_CHUNK_SIZE: usize = 6500;
+    const INSERT_JOBS_CHUNK_SIZE: usize = 5400;
 
     pub async fn insert_prover_jobs(
         &mut self,
@@ -1008,7 +1008,7 @@ mod tests {
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchId::from_raw(1, 1),
-                mock_circuit_ids_and_urls(5000),
+                mock_circuit_ids_and_urls(10000),
                 AggregationRound::Scheduler,
                 1,
                 ProtocolSemanticVersion::default(),

@@ -344,7 +344,7 @@ impl StateKeeperIO for MempoolIO {
                 // goes outside of the allowed range while being in the mempool
                 let matches_range = constraint
                     .timestamp_asserter_range
-                    .map_or(true, |x| x.contains(&l2_block_timestamp));
+                    .is_none_or(|x| x.contains(&l2_block_timestamp));
 
                 if !matches_range {
                     self.reject(

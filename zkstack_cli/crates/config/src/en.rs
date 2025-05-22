@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use xshell::Shell;
-use zksync_basic_types::{commitment::L1BatchCommitmentMode, L1ChainId, L2ChainId, SLChainId};
+use zksync_basic_types::{L1ChainId, L2ChainId, SLChainId};
 
 use crate::raw::PatchedConfig;
 
@@ -25,11 +25,6 @@ impl ExternalNodeConfigPatch {
             self.0.insert("gateway_chain_id", gateway_chain_id.0)?;
         }
         Ok(())
-    }
-
-    pub fn set_batch_commitment_mode(&mut self, mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
-        self.0
-            .insert_yaml("l1_batch_commit_data_generator_mode", mode)
     }
 
     pub fn set_main_node_url(&mut self, url: &str) -> anyhow::Result<()> {

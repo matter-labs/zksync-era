@@ -2,7 +2,8 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig,
+    copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ConsensusGenesisSpecs,
+    ContractsConfig, EcosystemConfig, RawConsensusKeys, Weighted,
 };
 use zksync_basic_types::Address;
 
@@ -22,10 +23,7 @@ use crate::{
         MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
     },
-    utils::{
-        consensus::{generate_consensus_keys, set_consensus_secrets, set_genesis_specs},
-        ports::EcosystemPortsScanner,
-    },
+    utils::ports::EcosystemPortsScanner,
 };
 
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -61,18 +59,30 @@ pub async fn init_configs(
 
     let general_config = chain_config.get_general_config().await?;
     let prover_data_handler_url = general_config.proof_data_handler_url()?;
+    let tee_prover_data_handler_url = general_config.tee_proof_data_handler_url()?;
     let prover_gateway_url = general_config.prover_gateway_url()?;
 
-    let consensus_keys = generate_consensus_keys();
+    let consensus_keys = RawConsensusKeys::generate();
+
     let mut general_config = general_config.patched();
     if let Some(url) = prover_data_handler_url {
         general_config.set_prover_gateway_url(url)?;
+    }
+    if let Some(url) = tee_prover_data_handler_url {
+        general_config.set_tee_prover_gateway_url(url)?;
     }
     if let Some(url) = prover_gateway_url {
         general_config.set_proof_data_handler_url(url)?;
     }
 
-    set_genesis_specs(&mut general_config, chain_config, &consensus_keys)?;
+    general_config.set_consensus_specs(ConsensusGenesisSpecs {
+        chain_id: chain_config.chain_id,
+        validators: vec![Weighted {
+            key: consensus_keys.validator_public.clone(),
+            weight: 1,
+        }],
+        leader: consensus_keys.validator_public.clone(),
+    })?;
 
     match &init_args.validium_config {
         None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => {
@@ -104,7 +114,7 @@ pub async fn init_configs(
     // Initialize secrets config
     let mut secrets = chain_config.get_secrets_config().await?.patched();
     secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone())?;
-    set_consensus_secrets(&mut secrets, &consensus_keys)?;
+    secrets.set_consensus_keys(consensus_keys)?;
     match &init_args.validium_config {
         None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => { /* Do nothing */ }
         Some(ValidiumType::Avail((_, avail_secrets))) => {
@@ -113,7 +123,14 @@ pub async fn init_configs(
     }
     secrets.save().await?;
 
-    genesis::database::update_configs(init_args.genesis_args.clone(), shell, chain_config).await?;
+    let override_validium_config = false; // We've initialized validium params above.
+    genesis::database::update_configs(
+        init_args.genesis_args.clone(),
+        shell,
+        chain_config,
+        override_validium_config,
+    )
+    .await?;
 
     update_portal_config(shell, chain_config)
         .await

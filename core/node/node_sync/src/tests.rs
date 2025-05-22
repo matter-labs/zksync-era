@@ -11,6 +11,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
+use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
@@ -78,13 +79,13 @@ impl MockMainNodeClient {
         }
     }
 
-    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
+    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersionInfo) {
         self.system_contracts
-            .insert(version.bootloader_code_hash.unwrap(), vec![]);
+            .insert(version.bootloader_code_hash, vec![]);
         self.system_contracts
-            .insert(version.default_account_code_hash.unwrap(), vec![]);
+            .insert(version.default_account_code_hash, vec![]);
         self.protocol_versions
-            .insert(version.minor_version.unwrap(), version);
+            .insert(version.minor_version, version);
     }
 }
 
@@ -137,6 +138,7 @@ impl StateKeeperHandles {
             output_handler,
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
+            None,
         );
 
         Self {
@@ -148,6 +150,7 @@ impl StateKeeperHandles {
 
     /// Waits for the given condition.
     pub async fn wait_for_local_block(mut self, want: L2BlockNumber) {
+        let mut sync_state_sub = self.sync_state.subscribe();
         tokio::select! {
             task_result = &mut self.task => {
                 match task_result {
@@ -159,7 +162,7 @@ impl StateKeeperHandles {
             () = tokio::time::sleep(TEST_TIMEOUT) => {
                 panic!("Timed out waiting for L2 block to be sealed");
             }
-            () = self.sync_state.wait_for_local_block(want) => {
+            _ = sync_state_sub.wait_for(|state| state.local_block() >= Some(want)) => {
                 self.stop_sender.send_replace(true);
                 self.task.await.unwrap().unwrap();
             }
@@ -304,13 +307,13 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
-    let next_protocol_version = api::ProtocolVersion {
-        minor_version: Some(ProtocolVersionId::next() as u16),
+    let next_protocol_version = api::ProtocolVersionInfo {
+        minor_version: ProtocolVersionId::next() as u16,
         timestamp: snapshot.l2_block_timestamp + 1,
-        bootloader_code_hash: Some(H256::repeat_byte(1)),
-        default_account_code_hash: Some(H256::repeat_byte(1)),
+        bootloader_code_hash: H256::repeat_byte(1),
+        default_account_code_hash: H256::repeat_byte(1),
         evm_emulator_code_hash: Some(H256::repeat_byte(1)),
-        ..api::ProtocolVersion::default()
+        l2_system_upgrade_tx_hash: None,
     };
     client.insert_protocol_version(next_protocol_version.clone());
 
@@ -342,13 +345,13 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         persisted_protocol_version
             .base_system_contracts_hashes
             .bootloader,
-        next_protocol_version.bootloader_code_hash.unwrap()
+        next_protocol_version.bootloader_code_hash
     );
     assert_eq!(
         persisted_protocol_version
             .base_system_contracts_hashes
             .default_aa,
-        next_protocol_version.default_account_code_hash.unwrap()
+        next_protocol_version.default_account_code_hash
     );
 
     assert_eq!(
@@ -496,8 +499,10 @@ async fn test_external_io_recovery(
     // Check that the state keeper state is restored.
     state_keeper
         .sync_state
-        .wait_for_local_block(snapshot.l2_block_number + 2)
-        .await;
+        .subscribe()
+        .wait_for(|state| state.local_block() >= Some(snapshot.l2_block_number + 2))
+        .await
+        .unwrap();
 
     // Send new actions and wait until the new L2 block is sealed.
     let open_l2_block = SyncAction::L2Block {

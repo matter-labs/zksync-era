@@ -21,8 +21,8 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain deploy-multicall3`↴](#zk_inception-chain-deploy-multicall3)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
 - [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
-- [`zk_inception consensus set-attester-committee`↴](#zk_inception-consensus-set-attester-committee)
-- [`zk_inception consensus get-attester-committee`↴](#zk_inception-consensus-get-attester-committee)
+- [`zk_inception consensus set-validator-committee`↴](#zk_inception-consensus-set-validator-committee)
+- [`zk_inception consensus get-validator-committee`↴](#zk_inception-consensus-get-validator-committee)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover setup-keys`↴](#zk_inception-prover-setup-keys)
@@ -438,37 +438,37 @@ Consensus related commands
 
 ###### **Subcommands:**
 
-- `set-attester-committee` — Set attester committee
-- `get-attester-committee` — Get attester committee
+- `set-validator-committee` — Set validator committee
+- `get-validator-committee` — Get validator committee
 
-## `zk_inception consensus set-attester-committee`
+## `zk_inception consensus set-validator-committee`
 
-Set attester committee in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+Set validator committee in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
 contracts to be deployed.
 
-**Usage:** `zk_inception consensus set-attester-committee [OPTIONS]`
+**Usage:** `zk_inception consensus set-validator-committee [OPTIONS]`
 
 ###### **Options:**
 
-- `--from-genesis` — Set attester committee to `consensus.genesis_spec.attesters` in general.yaml Mutually exclusive
-  with `--from-file`.
-- `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`. Mutually exclusive with
-  `--from-genesis`. File format is specified in `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
+- `--from-file <PATH>` — Set validator committee to committee specified in yaml file at `PATH`. File format is as in
+  this example:
 
   ```yaml
-  attesters:
-    - key: attester:public:secp256k1:0339d4b0cdd9896d3929631a4e5e9a5b4919f52592bec571d70bb0e50a3a824714
-      weight: 1
-    - key: attester:public:secp256k1:024897d8c10d7a57d108cfe2a724d7824c657f219ef5d9f7674810a6746c19fa7b
+  validators:
+    - key: validator:public:bls12_381:????
+      pop: validator:pop:bls12_381:????
+      weight: 3
+    - key: validator:public:bls12_381:????
+      pop: validator:pop:bls12_381:????
       weight: 1
   ```
 
-## `zk_inception consensus get-attester-committee`
+## `zk_inception consensus get-validator-committee`
 
-Requires `consensus_registry` and `multicall3` contracts to be deployed. Fetches attester committee from the consensus
+Requires `consensus_registry` and `multicall3` contracts to be deployed. Fetches validator committee from the consensus
 registry contract and prints it.
 
-**Usage:** `zk_inception consensus get-attester-committee`
+**Usage:** `zk_inception consensus get-validator-committee`
 
 ## `zk_inception prover`
 

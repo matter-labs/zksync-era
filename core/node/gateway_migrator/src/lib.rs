@@ -1,11 +1,14 @@
 use std::time::Duration;
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use tokio::sync::watch;
-use zksync_basic_types::{ethabi::Contract, settlement::SettlementLayer, L2ChainId};
+use zksync_basic_types::{
+    ethabi::Contract,
+    settlement::{SettlementLayer, WorkingSettlementLayer},
+    L2ChainId,
+};
 use zksync_config::configs::contracts::SettlementLayerSpecificContracts;
 use zksync_contracts::getters_facet_contract;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     contracts_loader::{
         get_diamond_proxy_contract, get_settlement_layer_address, get_settlement_layer_from_l1,
@@ -13,6 +16,8 @@ use zksync_eth_client::{
     ContractCallError, EthInterface,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+
+pub mod node;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayMigratorError {
@@ -30,30 +35,30 @@ pub struct GatewayMigrator {
     eth_client: Box<dyn EthInterface>,
     gateway_client: Option<Box<dyn EthInterface>>,
     l1_settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
-    settlement_layer: SettlementLayer,
+    settlement_layer: Option<SettlementLayer>,
     l2_chain_id: L2ChainId,
     getters_facet_abi: Contract,
-    pool: ConnectionPool<Core>,
+    eth_node_poll_interval: Duration,
 }
 
 impl GatewayMigrator {
     pub fn new(
         eth_client: Box<dyn EthInterface>,
         gateway_client: Option<Box<dyn EthInterface>>,
-        initial_settlement_layer: SettlementLayer,
         l2_chain_id: L2ChainId,
-        pool: ConnectionPool<Core>,
+        settlement_layer: Option<SettlementLayer>,
         l1_settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
+        eth_node_poll_interval: Duration,
     ) -> Self {
         let abi = getters_facet_contract();
         Self {
             eth_client,
             gateway_client,
             l1_settlement_layer_specific_contracts,
-            settlement_layer: initial_settlement_layer,
+            settlement_layer,
             l2_chain_id,
             getters_facet_abi: abi,
-            pool,
+            eth_node_poll_interval,
         }
     }
 
@@ -61,7 +66,7 @@ impl GatewayMigrator {
         let gateway_client = self.gateway_client.as_deref();
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, GatewayMigrator is shutting down");
+                tracing::info!("Stop request received, GatewayMigrator is shutting down");
                 return Ok(());
             }
             let current_settlement_layer = current_settlement_layer(
@@ -69,15 +74,20 @@ impl GatewayMigrator {
                 gateway_client,
                 &self.l1_settlement_layer_specific_contracts,
                 self.l2_chain_id,
-                &mut self.pool.connection_tagged("gateway_migrator").await?,
                 &self.getters_facet_abi,
             )
             .await;
 
             match current_settlement_layer {
                 Ok(current_settlement_layer) => {
-                    if self.settlement_layer != current_settlement_layer {
-                        bail!("Settlement layer changed")
+                    if self.settlement_layer
+                        != current_settlement_layer.settlement_layer_for_sending_txs()
+                    {
+                        bail!(
+                            "Settlement layer changed, from {:?} to {:?}",
+                            self.settlement_layer,
+                            current_settlement_layer.settlement_layer_for_sending_txs()
+                        );
                     }
                 }
                 Err(GatewayMigratorError::ContractCall(ContractCallError::EthereumGateway(
@@ -86,12 +96,15 @@ impl GatewayMigrator {
                     tracing::info!("Transient error fetching data from SL: {err}");
                 }
                 Err(err) => {
+                    // If we have an error related to the getting data from the contract,
+                    // it's safe to ignore it and continue the loop. The only real problem
+                    // could be with missconfigured contracts, but in this case,
+                    // other components will fail
                     tracing::error!("Failed to fetch data from SL: {err}");
-                    return Err(err.into());
                 }
             }
 
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(self.eth_node_poll_interval).await;
         }
     }
 }
@@ -102,9 +115,8 @@ pub async fn current_settlement_layer(
     gateway_client: Option<&dyn EthInterface>,
     sl_l1_contracts: &SettlementLayerSpecificContracts,
     l2_chain_id: L2ChainId,
-    storage: &mut Connection<'_, Core>,
     abi: &Contract,
-) -> Result<SettlementLayer, GatewayMigratorError> {
+) -> Result<WorkingSettlementLayer, GatewayMigratorError> {
     let settlement_mode_from_l1 = get_settlement_layer_from_l1(
         l1_client,
         sl_l1_contracts.chain_contracts_config.diamond_proxy_addr,
@@ -112,50 +124,38 @@ pub async fn current_settlement_layer(
     )
     .await?;
 
-    // Check how many transaction from the opposite settlement mode we have.
-    // This function supposed to be used during the start of the server or during the switch.
-    // And we can't start with new settlement mode while we have inflight transactions
-    let inflight_count = storage
-        .eth_sender_dal()
-        .get_inflight_txs_count_for_gateway_migration(!settlement_mode_from_l1.is_gateway())
-        .await
-        .context("Failed to get txs count")?;
+    let (sl_client, bridge_hub_address) = match settlement_mode_from_l1 {
+        SettlementLayer::L1(_) => (
+            l1_client,
+            sl_l1_contracts
+                .ecosystem_contracts
+                .bridgehub_proxy_addr
+                .unwrap(),
+        ),
+        SettlementLayer::Gateway(_) => (gateway_client.unwrap(), L2_BRIDGEHUB_ADDRESS),
+    };
 
-    let use_settlement_mode_from_l1 = if inflight_count != 0 {
-        false
+    // Load chain contracts from sl
+    let diamond_proxy_addr =
+        get_diamond_proxy_contract(sl_client, bridge_hub_address, l2_chain_id).await?;
+    // Deploying contracts on gateway are going through l1->l2 communication,
+    // even though the settlement layer has changed on l1.
+    // Gateway should process l1->l2 transaction.
+    // Even though when we switched from gateway to l1,
+    // we don't need to wait for contracts deployment,
+    // we have to wait for l2->l1 communication to be finalized
+    let use_settlement_mode_from_l1 = if !diamond_proxy_addr.is_zero() {
+        let settlement_layer_address =
+            get_settlement_layer_address(sl_client, diamond_proxy_addr, abi).await?;
+
+        // When we settle to the current chain, settlement mode should zero
+        settlement_layer_address.is_zero()
     } else {
-        let (sl_client, bridge_hub_address) = match settlement_mode_from_l1 {
-            SettlementLayer::L1(_) => (
-                l1_client,
-                sl_l1_contracts
-                    .ecosystem_contracts
-                    .bridgehub_proxy_addr
-                    .unwrap(),
-            ),
-            SettlementLayer::Gateway(_) => (gateway_client.unwrap(), L2_BRIDGEHUB_ADDRESS),
-        };
-
-        // Load chain contracts from sl
-        let diamond_proxy_addr =
-            get_diamond_proxy_contract(sl_client, bridge_hub_address, l2_chain_id).await?;
-        // Deploying contracts on gateway are going through l1->l2 communication,
-        // even though the settlement layer has changed on l1.
-        // Gateway should process l1->l2 transaction.
-        // Even though when we switched from gateway to l1,
-        // we don't need to wait for contracts deployment,
-        // we have to wait for l2->l1 communication to be finalized
-        if !diamond_proxy_addr.is_zero() {
-            let settlement_layer_address =
-                get_settlement_layer_address(sl_client, diamond_proxy_addr, abi).await?;
-            // When we settle to the current chain, settlement mode should zero
-            settlement_layer_address.is_zero()
-        } else {
-            match settlement_mode_from_l1 {
-                // if we want to settle to l1, but no contracts deployed, that means it's pre gateway upgrade and we need to settle to l1
-                SettlementLayer::L1(_) => true,
-                // if we want to settle to gateway, but no contracts deployed, that means the migration has not been completed yet. We need to continue settle to L1
-                SettlementLayer::Gateway(_) => false,
-            }
+        match settlement_mode_from_l1 {
+            // if we want to settle to l1, but no contracts deployed, that means it's pre gateway upgrade and we need to settle to l1
+            SettlementLayer::L1(_) => true,
+            // if we want to settle to gateway, but no contracts deployed, that means the migration has not been completed yet. We need to continue settle to L1
+            SettlementLayer::Gateway(_) => false,
         }
     };
 
@@ -182,5 +182,7 @@ pub async fn current_settlement_layer(
         }
     };
 
-    Ok(final_settlement_mode)
+    let mut layer = WorkingSettlementLayer::new(final_settlement_mode);
+    layer.set_migration_in_progress(!use_settlement_mode_from_l1);
+    Ok(layer)
 }

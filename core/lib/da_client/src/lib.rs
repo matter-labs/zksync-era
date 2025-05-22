@@ -1,11 +1,12 @@
-pub mod types;
-
 use std::fmt;
 
 use async_trait::async_trait;
-use types::{DAError, DispatchResponse, InclusionData};
 
-use crate::types::{ClientType, FinalityResponse};
+use crate::types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData};
+
+#[cfg(feature = "node_framework")]
+pub mod node;
+pub mod types;
 
 /// Trait that defines the interface for the data availability layer clients.
 #[async_trait]

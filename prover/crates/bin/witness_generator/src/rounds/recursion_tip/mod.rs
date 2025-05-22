@@ -180,7 +180,7 @@ impl JobManager for RecursionTip {
             queue_set[index] = take_sponge_like_queue_state_from_simulator(recursion_queue);
         }
 
-        const EXPECTED_RECURSION_TIP_LEAVES: usize = 16;
+        const EXPECTED_RECURSION_TIP_LEAVES: usize = 20;
 
         let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
         assert_eq!(

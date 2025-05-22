@@ -199,7 +199,7 @@ impl GasAdjuster {
     }
 
     fn bound_gas_price(&self, gas_price: u64) -> u64 {
-        let max_l1_gas_price = self.config.max_l1_gas_price();
+        let max_l1_gas_price = self.config.max_l1_gas_price;
         if gas_price > max_l1_gas_price {
             tracing::warn!(
                 "Effective gas price is too high: {gas_price}, using max allowed: {}",
@@ -213,7 +213,7 @@ impl GasAdjuster {
     pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, gas_adjuster is shutting down");
+                tracing::info!("Stop request received, gas_adjuster is shutting down");
                 break;
             }
 
@@ -221,7 +221,7 @@ impl GasAdjuster {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
-            tokio::time::sleep(self.config.poll_period()).await;
+            tokio::time::sleep(self.config.poll_period).await;
         }
         Ok(())
     }
@@ -255,7 +255,7 @@ impl GasAdjuster {
 
                 // Check if blob base fee overflows `u64` before converting. Can happen only in very extreme cases.
                 if blob_base_fee_median > U256::from(u64::MAX) {
-                    let max_allowed = self.config.max_blob_base_fee();
+                    let max_allowed = self.config.max_blob_base_fee;
                     tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
                     return max_allowed;
                 }
@@ -284,7 +284,7 @@ impl GasAdjuster {
 
     fn cap_pubdata_fee(&self, pubdata_fee: f64) -> u64 {
         // We will treat the max blob base fee as the maximal fee that we can take for each byte of pubdata.
-        let max_blob_base_fee = self.config.max_blob_base_fee();
+        let max_blob_base_fee = self.config.max_blob_base_fee;
         match self.commitment_mode {
             L1BatchCommitmentMode::Validium => 0,
             L1BatchCommitmentMode::Rollup => {
