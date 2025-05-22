@@ -153,16 +153,6 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
-    /// Wrapper for `consensus_dal().last_block_certificate_number()`.
-    pub async fn last_block_certificate_number(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<validator::BlockNumber>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().last_block_certificate_number())
-            .await??)
-    }
-
     /// Wrapper for `consensus_dal().insert_block_certificate()`.
     pub async fn insert_block_certificate(
         &mut self,

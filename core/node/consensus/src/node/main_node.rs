@@ -72,7 +72,7 @@ impl Task for MainNodeConsensusTask {
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for a stop request once, and it will be propagated to all child contexts.
         scope::run!(&ctx::root(), |ctx, s| async move {
-            s.spawn_bg(crate::era::run_main_node(
+            s.spawn_bg(crate::run_main_node(
                 ctx,
                 self.config,
                 self.secrets,

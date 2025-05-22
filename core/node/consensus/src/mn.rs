@@ -3,12 +3,12 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
-use zksync_consensus_engine::BlockStore;
-use zksync_consensus_executor::{self as executor, attestation};
-use zksync_consensus_roles::validator;
+use zksync_consensus_engine::EngineManager;
+use zksync_consensus_executor::{self as executor};
 
 use crate::{
     config,
+    registry::{Registry, RegistryAddress},
     storage::{ConnectionPool, Store},
 };
 
@@ -21,10 +21,6 @@ pub async fn run_main_node(
     secrets: ConsensusSecrets,
     pool: ConnectionPool,
 ) -> anyhow::Result<()> {
-    let validator_key = config::validator_key(&secrets)
-        .context("validator_key")?
-        .context("missing validator_key")?;
-
     let res: ctx::Result<()> = scope::run!(&ctx, |ctx, s| async {
         if let Some(spec) = &cfg.genesis_spec {
             let spec = config::GenesisSpec::parse(spec).context("GenesisSpec::parse()")?;
@@ -37,12 +33,7 @@ pub async fn run_main_node(
                 .wrap("adjust_global_config()")?;
         }
 
-        // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
-        let (store, runner) = Store::new(ctx, pool.clone(), None, None)
-            .await
-            .wrap("Store::new()")?;
-        s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });
-
+        // Initialize global config.
         let global_config = pool
             .connection(ctx)
             .await
@@ -51,30 +42,27 @@ pub async fn run_main_node(
             .await
             .wrap("global_config()")?
             .context("global_config() disappeared")?;
-        if global_config.genesis.leader_selection
-            != validator::v1::LeaderSelectionMode::Sticky(validator_key.public())
-        {
-            return Err(anyhow::format_err!(
-                "unsupported leader selection mode - main node has to be the leader"
-            )
-            .into());
-        }
 
-        let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
+        // Initialize registry.
+        let registry = Arc::new(match global_config.registry_address {
+            Some(addr) => Some(Registry::new(pool.clone(), RegistryAddress::new(addr)).await),
+            None => None,
+        });
+
+        // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
+        let (store, runner) = Store::new(ctx, pool.clone(), None, None, registry.clone())
+            .await
+            .wrap("Store::new()")?;
+        s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });
+
+        let (engine_manager, engine_runner) = EngineManager::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BlockStore::new()")?;
-        s.spawn_bg(async { Ok(runner.run(ctx).await.context("BlockStore::run()")?) });
+        s.spawn_bg(async { Ok(engine_runner.run(ctx).await.context("BlockStore::run()")?) });
 
-        let attestation = Arc::new(attestation::Controller::new(None));
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets, &global_config, None)?,
-            block_store,
-            validator: Some(executor::Validator {
-                key: validator_key,
-                replica_store: Box::new(store.clone()),
-                payload_manager: Box::new(store.clone()),
-            }),
-            attestation,
+            engine_manager,
         };
 
         tracing::info!("running the main node executor");
