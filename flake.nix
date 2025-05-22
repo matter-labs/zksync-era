@@ -129,6 +129,7 @@
                 inherit craneLib;
                 inherit coreCommonArgs;
                 inherit zkstackArgs;
+                inherit rustPlatform;
                 inputs = inputs // { src = ./.; };
               });
               directory = ./etc/nix;

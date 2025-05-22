@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use zksync_basic_types::L2ChainId;
+use zksync_config::configs::GatewayMigratorConfig;
 use zksync_eth_client::{node::contracts::L1ChainContractsResource, EthInterface};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
@@ -13,6 +14,7 @@ use crate::GatewayMigrator;
 #[derive(Debug)]
 pub struct GatewayMigratorLayer {
     pub l2_chain_id: L2ChainId,
+    pub gateway_migrator_config: GatewayMigratorConfig,
 }
 
 #[derive(Debug, FromContext)]
@@ -49,6 +51,7 @@ impl WiringLayer for GatewayMigratorLayer {
                 .settlement_mode_resource
                 .settlement_layer_for_sending_txs(),
             input.contracts.0,
+            self.gateway_migrator_config.eth_node_poll_interval,
         );
 
         Ok(Output {
