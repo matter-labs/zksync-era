@@ -3,7 +3,6 @@ import * as ethers from 'ethers';
 import { BytesLike } from 'ethers';
 import {
     L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-    BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI,
     INTEROP_BUNDLE_ABI,
     INTEROP_TRIGGER_ABI,
     MESSAGE_INCLUSION_PROOF_ABI,
@@ -129,7 +128,7 @@ export async function getInteropTriggerData(
     // console.log("decodedCallRequest[0][0]", decodedRequest[0][2])
     let output = {
         destinationChainId: decodedRequest[0][0],
-        from: decodedRequest[0][1],
+        sender: decodedRequest[0][1],
         recipient: decodedRequest[0][2],
         feeBundleHash: decodedRequest[0][3],
         executionBundleHash: decodedRequest[0][4],

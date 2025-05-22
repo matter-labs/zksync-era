@@ -8,6 +8,7 @@ import * as ethers from 'ethers';
 import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
 import { Fee } from '../types';
+import { getL2bUrl } from '../helpers';
 import { IERC20__factory as IERC20Factory } from 'zksync-ethers/build/typechain';
 import {
     ArtifactAssetTracker,
@@ -353,7 +354,7 @@ async function getChainBalance(
 ): Promise<bigint> {
     const provider = l1 ? wallet.providerL1! : wallet.provider;
     // kl todo get from env or something.
-    const gwProvider = new RetryProvider({ url: 'http://localhost:3052', timeout: 1200 * 1000 }, undefined);
+    const gwProvider = new RetryProvider({ url: await getL2bUrl("gateway"), timeout: 1200 * 1000 }, undefined);
     const bridgehub = new ethers.Contract(
         await (await wallet.getBridgehubContract()).getAddress(),
         ArtifactBridgeHub.abi,
@@ -383,6 +384,7 @@ async function getChainBalance(
     const assetId = await nativeTokenVault.assetId(token);
     const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactAssetTracker.abi, gwProvider);
 
+    // console.log("chainId", (await wallet.provider.getNetwork()).chainId, "assetId", assetId);
     let balance = await assetTracker.chainBalance((await wallet.provider.getNetwork()).chainId, assetId);
     // console.log('balance', l1 ? 'l1' : 'l2', balance);
     if (balance == 0n && l1) {
