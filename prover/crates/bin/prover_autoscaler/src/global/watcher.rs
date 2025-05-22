@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use anyhow::{anyhow, Context, Ok, Result};
+use anyhow::{anyhow, Context, Ok};
 use futures::future;
 use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
@@ -14,24 +14,16 @@ use crate::{
     agent::{ScaleRequest, ScaleResponse},
     cluster_types::{Cluster, ClusterName, Clusters},
     http_client::HttpClient,
+    metrics::AUTOSCALER_METRICS,
 };
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WatchedData {
     pub clusters: Clusters,
     pub is_ready: Vec<bool>,
 }
 
-pub fn check_is_ready(v: &Vec<bool>) -> Result<()> {
-    for b in v {
-        if !b {
-            return Err(anyhow!("Clusters data is not ready"));
-        }
-    }
-    Ok(())
-}
-
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Watcher {
     http_client: HttpClient,
     /// List of base URLs of all agents.
@@ -60,6 +52,46 @@ impl Watcher {
                 is_ready: vec![false; size],
             })),
         }
+    }
+
+    pub fn check_is_ready(&self, watched_data: &WatchedData) -> anyhow::Result<()> {
+        if watched_data.is_ready.is_empty() {
+            tracing::warn!("No cluster agents configured. Skipping readiness check.");
+            return Ok(());
+        }
+
+        let mut ready_count = 0;
+        for (id, is_agent_ready) in watched_data.is_ready.iter().enumerate() {
+            if *is_agent_ready {
+                ready_count += 1;
+            } else {
+                let agent_url_str = if id < self.cluster_agents.len() {
+                    self.cluster_agents[id].to_string()
+                } else {
+                    let err_msg = format!(
+                        "Agent id {} is out of bounds for cluster_agents (len {}). WatchedData might be inconsistent.",
+                        id, self.cluster_agents.len()
+                    );
+                    tracing::error!(err_msg);
+                    return Err(anyhow::anyhow!(err_msg));
+                };
+                AUTOSCALER_METRICS.agent_not_ready[&agent_url_str].inc();
+                tracing::warn!("Agent at URL '{}' (id {}) is not ready.", agent_url_str, id);
+            }
+        }
+
+        if ready_count == 0 {
+            tracing::error!("All cluster agents are not ready.");
+            return Err(anyhow::anyhow!("All cluster agents are not ready"));
+        }
+        if ready_count < watched_data.is_ready.len() {
+            tracing::warn!(
+                "{} out of {} cluster agents are ready. Proceeding with available agents.",
+                ready_count,
+                watched_data.is_ready.len()
+            );
+        }
+        Ok(())
     }
 
     pub async fn send_scale(
@@ -153,61 +185,117 @@ impl Watcher {
 
         Ok(())
     }
+
+    pub fn create_poller_tasks(&self) -> Vec<AgentPoller> {
+        let mut poller_tasks = Vec::new();
+        for (id, agent_url) in self.cluster_agents.iter().enumerate() {
+            let poller = AgentPoller::new(
+                id,
+                agent_url.clone(),
+                self.http_client.clone(),
+                self.data.clone(),
+            );
+            poller_tasks.push(poller);
+        }
+        poller_tasks
+    }
+}
+
+pub struct AgentPoller {
+    agent_id: usize,
+    agent_url: Arc<Url>,
+    http_client: HttpClient,
+    data: Arc<Mutex<WatchedData>>,
+}
+
+impl AgentPoller {
+    pub fn new(
+        agent_id: usize,
+        agent_url: Arc<Url>,
+        http_client: HttpClient,
+        data: Arc<Mutex<WatchedData>>,
+    ) -> Self {
+        Self {
+            agent_id,
+            agent_url,
+            http_client,
+            data,
+        }
+    }
 }
 
 #[async_trait::async_trait]
-impl Task for Watcher {
+impl Task for AgentPoller {
     async fn invoke(&self) -> anyhow::Result<()> {
-        let handles: Vec<_> = self
-            .cluster_agents
-            .clone()
-            .into_iter()
-            .enumerate()
-            .map(|(i, a)| {
-                tracing::debug!("Getting cluster data from agent {}", a);
-                let http_client = self.http_client.clone();
-                tokio::spawn(async move {
-                    let url: String = a
-                        .clone()
-                        .join("/cluster")
-                        .context("Failed to join URL with /cluster")?
-                        .to_string();
-                    let response = http_client
-                        .send_request_with_retries(&url, Method::GET, None, None)
-                        .await;
+        let agent_url_display = self.agent_url.as_str();
+        let agent_url_for_metrics = self.agent_url.to_string();
 
-                    let response = response.map_err(|err| {
-                        anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
-                    })?;
-                    let response = response
-                        .json::<Cluster>()
-                        .await
-                        .context("Failed to read response as json");
-                    Ok((i, response))
-                })
-            })
-            .collect();
+        let url = match self.agent_url.join("/cluster") {
+            std::result::Result::Ok(u) => u.to_string(),
+            std::result::Result::Err(e) => {
+                tracing::warn!(
+                    "AgentPoller: Failed to construct /cluster URL for agent {}: {:?}",
+                    agent_url_display,
+                    e
+                );
+                let mut guard = self.data.lock().await;
+                if self.agent_id < guard.is_ready.len() {
+                    guard.is_ready[self.agent_id] = false;
+                }
+                return Ok(());
+            }
+        };
 
-        future::try_join_all(
-            future::join_all(handles)
-                .await
-                .into_iter()
-                .map(|h| async move {
-                    let (i, res) = h??;
-                    let cluster = res?;
+        tracing::debug!("AgentPoller: Getting cluster data from agent {}", url);
+        match self
+            .http_client
+            .send_request_with_retries(&url, Method::GET, None, None)
+            .await
+        {
+            Err(http_err) => {
+                tracing::warn!(
+                    "AgentPoller: Failed fetching cluster data from agent {}: {:?}",
+                    agent_url_display,
+                    http_err
+                );
+                AUTOSCALER_METRICS.agent_not_ready[&agent_url_for_metrics].inc();
+                let mut guard = self.data.lock().await;
+                if self.agent_id < guard.is_ready.len() {
+                    guard.is_ready[self.agent_id] = false;
+                }
+            }
+            std::result::Result::Ok(response) => match response.json::<Cluster>().await {
+                Err(json_err) => {
+                    tracing::warn!(
+                        "AgentPoller: Failed to parse JSON cluster data from agent {}: {:?}",
+                        agent_url_display,
+                        json_err
+                    );
                     let mut guard = self.data.lock().await;
-                    guard.clusters.agent_ids.insert(cluster.name.clone(), i);
+                    if self.agent_id < guard.is_ready.len() {
+                        guard.is_ready[self.agent_id] = false;
+                    }
+                }
+                std::result::Result::Ok(cluster) => {
+                    tracing::debug!(
+                        "AgentPoller: Successfully fetched cluster data from agent {}",
+                        agent_url_display
+                    );
+                    let mut guard = self.data.lock().await;
+                    guard
+                        .clusters
+                        .agent_ids
+                        .insert(cluster.name.clone(), self.agent_id);
                     guard
                         .clusters
                         .clusters
                         .insert(cluster.name.clone(), cluster);
-                    guard.is_ready[i] = true;
-                    Ok(())
-                })
-                .collect::<Vec<_>>(),
-        )
-        .await?;
-
+                    if self.agent_id < guard.is_ready.len() {
+                        guard.is_ready[self.agent_id] = true;
+                    }
+                }
+            },
+        }
         Ok(())
     }
 }

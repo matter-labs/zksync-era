@@ -1,4 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use zksync_prover_task::Task;
 
@@ -20,7 +26,7 @@ pub struct Manager {
     namespaces: HashMap<NamespaceName, String>,
     watcher: watcher::Watcher,
     queuer: queuer::Queuer,
-
+    first_invoke_skipped: Arc<AtomicBool>,
     jobs: Vec<QueueReportFields>,
     scalers: Vec<Box<dyn ScalerTrait + Sync + Send>>,
 }
@@ -86,6 +92,7 @@ impl Manager {
             namespaces: config.protocol_versions.clone(),
             watcher,
             queuer,
+            first_invoke_skipped: Arc::new(AtomicBool::new(false)),
             jobs,
             scalers,
         }
@@ -95,15 +102,27 @@ impl Manager {
 #[async_trait::async_trait]
 impl Task for Manager {
     async fn invoke(&self) -> anyhow::Result<()> {
-        let queue = self.queuer.get_queue(&self.jobs).await.unwrap();
+        if !self.first_invoke_skipped.load(Ordering::Relaxed) {
+            self.first_invoke_skipped.store(true, Ordering::Relaxed);
+            return Ok(());
+        }
+
+        let queue = match self.queuer.get_queue(&self.jobs).await {
+            Ok(q) => q,
+            Err(e) => {
+                tracing::error!("Failed to get queue: {:?}. Skipping manager run.", e);
+                return Err(anyhow::anyhow!("Failed to get queue"));
+            }
+        };
 
         let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();
         {
-            let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
-                                                        // consistency.
-            if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
-                AUTOSCALER_METRICS.clusters_not_ready.inc();
-                tracing::warn!("Skipping Manager run: {}", err);
+            let guard = self.watcher.data.lock().await;
+            if let Err(err) = self.watcher.check_is_ready(&guard) {
+                tracing::error!(
+                    "Manager run aborted because all cluster agents are not ready: {}",
+                    err
+                );
                 return Ok(());
             }
 
