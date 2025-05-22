@@ -94,7 +94,6 @@ impl Component {
                 Component::WsApi,
                 Component::Tree,
                 Component::Core,
-                Component::ContractVerificationApi,
             ]),
             other => Err(anyhow::anyhow!("{other} is not a valid component name")),
         }
