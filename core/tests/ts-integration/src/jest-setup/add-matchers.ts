@@ -6,7 +6,6 @@ expect.extend(ethPrimitives);
 expect.extend(transaction);
 expect.extend(fail);
 
-
 beforeAll(() => {
     // Add custom serializer for BigInt
     expect.addSnapshotSerializer({
