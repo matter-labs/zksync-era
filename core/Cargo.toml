@@ -254,7 +254,7 @@ zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.7" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
 zk_evm_1_5_2 = { package = "zk_evm", version = "=0.152.3" }
 
 fflonk = "=0.32.1"
