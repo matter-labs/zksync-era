@@ -2856,11 +2856,13 @@
     "@opentelemetry/core" "^1.1.0"
 
 "@openzeppelin/contracts-upgradeable-v4@npm:@openzeppelin/contracts-upgradeable@4.9.5", "@openzeppelin/contracts-upgradeable@4.9.5":
+  name "@openzeppelin/contracts-upgradeable-v4"
   version "4.9.5"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.9.5.tgz#572b5da102fc9be1d73f34968e0ca56765969812"
   integrity sha512-f7L1//4sLlflAN7fVzJLoRedrf5Na3Oal5PZfIq55NFcVZ90EpV1q5xOvL4lFvg3MNICSDr2hH0JUBxwlxcoPg==
 
 "@openzeppelin/contracts-v4@npm:@openzeppelin/contracts@4.9.5", "@openzeppelin/contracts@4.9.5":
+  name "@openzeppelin/contracts-v4"
   version "4.9.5"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.5.tgz#1eed23d4844c861a1835b5d33507c1017fa98de8"
   integrity sha512-ZK+W5mVhRppff9BE6YdR8CC52C8zAvsVAiWhEtQ5+oNxFE6h1WdeWo+FJSF8KKvtxxVYZ7MTP/5KoVpAU3aSWg==
@@ -12447,7 +12449,7 @@ yocto-queue@^1.0.0:
 
 "zksync-ethers-interop-support@git+https://github.com/zksync-sdk/zksync-ethers#kl/interop-ethers-support-real":
   version "6.15.2"
-  resolved "git+https://github.com/zksync-sdk/zksync-ethers#cffaa52fb4e11a26e8b0e7550cc92be73bfcf1f1"
+  resolved "git+https://github.com/zksync-sdk/zksync-ethers#3ea7ff32178938eac0f1b697ce7623502eee3dfc"
 
 zksync-ethers@5.8.0-beta.5:
   version "5.8.0-beta.5"
