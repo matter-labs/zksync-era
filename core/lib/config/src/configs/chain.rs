@@ -2,7 +2,7 @@ use std::{collections::HashSet, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Optional, Serde},
+    de::Serde,
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -34,13 +34,13 @@ pub struct StateKeeperConfig {
     pub transaction_slots: usize,
 
     /// Number of ms after which an L1 batch is going to be unconditionally sealed.
-    #[config(alias = "block_commit_deadline_ms")]
-    #[config(default_t = Duration::from_millis(2_500), with = TimeUnit::Millis)]
-    pub l1_batch_commit_deadline_ms: Duration,
+    #[config(alias = "block_commit_deadline")]
+    #[config(default_t = Duration::from_millis(2_500))]
+    pub l1_batch_commit_deadline: Duration,
     /// Number of ms after which an L2 block should be sealed by the timeout sealer.
-    #[config(alias = "miniblock_commit_deadline_ms")]
-    #[config(default_t = Duration::from_secs(1), with = TimeUnit::Millis)]
-    pub l2_block_commit_deadline_ms: Duration,
+    #[config(alias = "miniblock_commit_deadline")]
+    #[config(default_t = Duration::from_secs(1))]
+    pub l2_block_commit_deadline: Duration,
     /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
     /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
@@ -135,8 +135,8 @@ impl StateKeeperConfig {
     pub fn for_tests() -> Self {
         Self {
             transaction_slots: 250,
-            l1_batch_commit_deadline_ms: Duration::from_millis(2500),
-            l2_block_commit_deadline_ms: Duration::from_secs(1),
+            l1_batch_commit_deadline: Duration::from_millis(2500),
+            l2_block_commit_deadline: Duration::from_secs(1),
             l2_block_seal_queue_capacity: 10,
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 6000000,
@@ -174,21 +174,21 @@ pub struct OperationsManagerConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct CircuitBreakerConfig {
-    #[config(default_t = 2 * TimeUnit::Minutes, with = TimeUnit::Millis)]
-    pub sync_interval_ms: Duration,
+    #[config(default_t = 2 * TimeUnit::Minutes)]
+    pub sync_interval: Duration,
     #[config(default_t = 10)]
     pub http_req_max_retry_number: usize,
-    #[config(default_t = Duration::from_secs(2), with = TimeUnit::Seconds)]
-    pub http_req_retry_interval_sec: Duration,
-    #[config(default_t = Some(Duration::from_secs(100)), with = Optional(TimeUnit::Seconds))]
-    pub replication_lag_limit_sec: Option<Duration>,
+    #[config(default_t = Duration::from_secs(2))]
+    pub http_req_retry_interval: Duration,
+    #[config(default_t = Some(Duration::from_secs(100)))]
+    pub replication_lag_limit: Option<Duration>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct MempoolConfig {
-    #[config(default_t = Duration::from_millis(10), with = TimeUnit::Millis)]
-    pub sync_interval_ms: Duration,
+    #[config(default_t = Duration::from_millis(10))]
+    pub sync_interval: Duration,
     #[config(default_t = 1_000)]
     pub sync_batch_size: usize,
     #[config(default_t = 10_000_000)]
@@ -209,8 +209,8 @@ pub struct MempoolConfig {
 #[config(derive(Default))]
 pub struct TimestampAsserterConfig {
     /// Minimum time between current `block.timestamp` and the end of the asserted range.
-    #[config(default_t = 1 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
-    pub min_time_till_end_sec: Duration,
+    #[config(default_t = 1 * TimeUnit::Minutes)]
+    pub min_time_till_end: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -242,8 +242,8 @@ mod tests {
     fn expected_state_keeper_config() -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
-            l1_batch_commit_deadline_ms: Duration::from_millis(2500),
-            l2_block_commit_deadline_ms: Duration::from_millis(1000),
+            l1_batch_commit_deadline: Duration::from_millis(2500),
+            l2_block_commit_deadline: Duration::from_millis(1000),
             l2_block_seal_queue_capacity: 10,
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 1_000_000,
@@ -350,7 +350,7 @@ mod tests {
 
     fn expected_mempool_config() -> MempoolConfig {
         MempoolConfig {
-            sync_interval_ms: Duration::from_millis(10),
+            sync_interval: Duration::from_millis(10),
             sync_batch_size: 1000,
             capacity: 1_000_000,
             stuck_tx_timeout: Duration::from_secs(10),
@@ -400,10 +400,10 @@ mod tests {
 
     fn expected_circuit_breaker_config() -> CircuitBreakerConfig {
         CircuitBreakerConfig {
-            sync_interval_ms: Duration::from_secs(1),
+            sync_interval: Duration::from_secs(1),
             http_req_max_retry_number: 5,
-            http_req_retry_interval_sec: Duration::from_secs(2),
-            replication_lag_limit_sec: Some(Duration::from_secs(10)),
+            http_req_retry_interval: Duration::from_secs(2),
+            replication_lag_limit: Some(Duration::from_secs(10)),
         }
     }
 

@@ -94,16 +94,16 @@ impl ExternalNodeBuilder {
         let config = PostgresConfig {
             max_connections: Some(self.config.postgres.max_connections),
             max_connections_master: Some(self.config.postgres.max_connections),
-            long_connection_threshold_ms: self
+            long_connection_threshold: self
                 .config
                 .optional
                 .long_connection_threshold()
-                .unwrap_or(default_config.long_connection_threshold_ms),
-            slow_query_threshold_ms: self
+                .unwrap_or(default_config.long_connection_threshold),
+            slow_query_threshold: self
                 .config
                 .optional
                 .slow_query_threshold()
-                .unwrap_or(default_config.slow_query_threshold_ms),
+                .unwrap_or(default_config.slow_query_threshold),
             ..default_config
         };
         let secrets = DatabaseSecrets {
@@ -448,7 +448,7 @@ impl ExternalNodeBuilder {
             max_vm_concurrency,
             (&self.config).into(),
             TimestampAsserterConfig {
-                min_time_till_end_sec: Duration::from_secs(
+                min_time_till_end: Duration::from_secs(
                     self.config
                         .optional
                         .timestamp_asserter_min_time_till_end_sec

@@ -12,18 +12,14 @@ use zksync_basic_types::L1BatchNumber;
 #[config(derive(Default))]
 pub struct FriWitnessGeneratorConfig {
     /// Max time for witness to be generated
-    #[config(default_t = 15 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
-    pub generation_timeout_in_secs: Duration,
-    #[config(with = Optional(TimeUnit::Seconds))]
-    pub basic_generation_timeout_in_secs: Option<Duration>,
-    #[config(with = Optional(TimeUnit::Seconds))]
-    pub leaf_generation_timeout_in_secs: Option<Duration>,
-    #[config(with = Optional(TimeUnit::Seconds))]
-    pub scheduler_generation_timeout_in_secs: Option<Duration>,
-    #[config(with = Optional(TimeUnit::Seconds))]
-    pub node_generation_timeout_in_secs: Option<Duration>,
-    #[config(alias = "recursion_tip_timeout_in_secs", with = Optional(TimeUnit::Seconds))]
-    pub recursion_tip_generation_timeout_in_secs: Option<Duration>,
+    #[config(default_t = 15 * TimeUnit::Minutes)]
+    pub generation_timeout: Duration,
+    pub basic_generation_timeout: Option<Duration>,
+    pub leaf_generation_timeout: Option<Duration>,
+    pub scheduler_generation_timeout: Option<Duration>,
+    pub node_generation_timeout: Option<Duration>,
+    #[config(alias = "recursion_tip_timeout")]
+    pub recursion_tip_generation_timeout: Option<Duration>,
     /// Max attempts for generating witness
     #[config(default_t = 5)]
     pub max_attempts: u32,
@@ -95,20 +91,20 @@ impl FriWitnessGeneratorConfig {
     pub fn witness_generation_timeouts(&self) -> WitnessGenerationTimeouts {
         WitnessGenerationTimeouts {
             basic: self
-                .basic_generation_timeout_in_secs
-                .unwrap_or(self.generation_timeout_in_secs),
+                .basic_generation_timeout
+                .unwrap_or(self.generation_timeout),
             leaf: self
-                .leaf_generation_timeout_in_secs
-                .unwrap_or(self.generation_timeout_in_secs),
+                .leaf_generation_timeout
+                .unwrap_or(self.generation_timeout),
             node: self
-                .node_generation_timeout_in_secs
-                .unwrap_or(self.generation_timeout_in_secs),
+                .node_generation_timeout
+                .unwrap_or(self.generation_timeout),
             recursion_tip: self
-                .recursion_tip_generation_timeout_in_secs
-                .unwrap_or(self.generation_timeout_in_secs),
+                .recursion_tip_generation_timeout
+                .unwrap_or(self.generation_timeout),
             scheduler: self
-                .scheduler_generation_timeout_in_secs
-                .unwrap_or(self.generation_timeout_in_secs),
+                .scheduler_generation_timeout
+                .unwrap_or(self.generation_timeout),
         }
     }
 }
@@ -121,12 +117,12 @@ mod tests {
 
     fn expected_config() -> FriWitnessGeneratorConfig {
         FriWitnessGeneratorConfig {
-            generation_timeout_in_secs: Duration::from_secs(900),
-            basic_generation_timeout_in_secs: Some(Duration::from_secs(900)),
-            leaf_generation_timeout_in_secs: Some(Duration::from_secs(800)),
-            node_generation_timeout_in_secs: Some(Duration::from_secs(800)),
-            recursion_tip_generation_timeout_in_secs: Some(Duration::from_secs(700)),
-            scheduler_generation_timeout_in_secs: Some(Duration::from_secs(900)),
+            generation_timeout: Duration::from_secs(900),
+            basic_generation_timeout: Some(Duration::from_secs(900)),
+            leaf_generation_timeout: Some(Duration::from_secs(800)),
+            node_generation_timeout: Some(Duration::from_secs(800)),
+            recursion_tip_generation_timeout: Some(Duration::from_secs(700)),
+            scheduler_generation_timeout: Some(Duration::from_secs(900)),
             max_attempts: 4,
             last_l1_batch_to_process: Some(L1BatchNumber(123456)),
             prometheus_listener_port: Some(3333),

@@ -581,13 +581,11 @@ impl OptionalENConfig {
                 .experimental
                 .state_keeper_db_max_open_files,
             merkle_tree_multi_get_chunk_size: merkle_tree.multi_get_chunk_size,
-            merkle_tree_block_cache_size_mb: merkle_tree.block_cache_size_mb.0 as usize
+            merkle_tree_block_cache_size_mb: merkle_tree.block_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            merkle_tree_memtable_capacity_mb: merkle_tree.memtable_capacity_mb.0 as usize
+            merkle_tree_memtable_capacity_mb: merkle_tree.memtable_capacity.0 as usize
                 / BYTES_IN_MEGABYTE,
-            merkle_tree_stalled_writes_timeout_sec: merkle_tree
-                .stalled_writes_timeout_sec
-                .as_secs(),
+            merkle_tree_stalled_writes_timeout_sec: merkle_tree.stalled_writes_timeout.as_secs(),
             merkle_tree_repair_stale_keys: general_config
                 .db_config
                 .experimental
@@ -595,13 +593,13 @@ impl OptionalENConfig {
             database_long_connection_threshold_ms: Some(
                 general_config
                     .postgres_config
-                    .long_connection_threshold_ms
+                    .long_connection_threshold
                     .as_millis() as u64,
             ),
             database_slow_query_threshold_ms: Some(
                 general_config
                     .postgres_config
-                    .slow_query_threshold_ms
+                    .slow_query_threshold
                     .as_millis() as u64,
             ),
             l2_block_seal_queue_capacity: load_config_or_default!(
@@ -626,10 +624,10 @@ impl OptionalENConfig {
                 .and_then(|config| config.object_store.clone()),
             pruning_chunk_size: general_config.pruning.chunk_size.get(),
             pruning_removal_delay_sec: NonZeroU64::new(
-                general_config.pruning.removal_delay_sec.as_secs(),
+                general_config.pruning.removal_delay.as_secs(),
             )
             .unwrap_or_else(|| NonZeroU64::new(1).unwrap()),
-            pruning_data_retention_sec: general_config.pruning.data_retention_sec.as_secs(),
+            pruning_data_retention_sec: general_config.pruning.data_retention.as_secs(),
             protective_reads_persistence_enabled: general_config
                 .db_config
                 .experimental
@@ -637,7 +635,7 @@ impl OptionalENConfig {
             merkle_tree_processing_delay_ms: general_config
                 .db_config
                 .experimental
-                .processing_delay_ms
+                .processing_delay
                 .as_millis() as u64,
             merkle_tree_include_indices_and_filters_in_block_cache: general_config
                 .db_config
@@ -653,7 +651,7 @@ impl OptionalENConfig {
                 .and_then(|dur| NonZeroU64::new(dur.as_secs())),
             timestamp_asserter_min_time_till_end_sec: general_config
                 .timestamp_asserter_config
-                .min_time_till_end_sec
+                .min_time_till_end
                 .as_secs() as u32,
         })
     }

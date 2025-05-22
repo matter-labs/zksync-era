@@ -44,7 +44,7 @@ impl DBBaseTokenRatioProvider {
     }
 
     pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut timer = tokio::time::interval(self.config.price_cache_update_interval_ms);
+        let mut timer = tokio::time::interval(self.config.price_cache_update_interval);
 
         while !*stop_receiver.borrow_and_update() {
             tokio::select! {
