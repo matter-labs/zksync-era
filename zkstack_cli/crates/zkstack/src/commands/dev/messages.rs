@@ -122,11 +122,13 @@ pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contract
 pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
 pub(super) const MSG_BUILDING_L1_DA_CONTRACTS_SPINNER: &str = "Building L1 DA contracts..";
 pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
+pub(super) const MSG_BUILDING_TEE_CONTRACTS_SPINNER: &str = "Building TEE contracts..";
 pub(super) const MSG_BUILDING_CONTRACTS_SUCCESS: &str = "Contracts built successfully";
 pub(super) const MSG_BUILD_L1_CONTRACTS_HELP: &str = "Build L1 contracts";
 pub(super) const MSG_BUILD_L1_DA_CONTRACTS_HELP: &str = "Build L1 DA contracts";
 pub(super) const MSG_BUILD_L2_CONTRACTS_HELP: &str = "Build L2 contracts";
 pub(super) const MSG_BUILD_SYSTEM_CONTRACTS_HELP: &str = "Build system contracts";
+pub(super) const MSG_BUILD_TEE_CONTRACTS_HELP: &str = "Build TEE contracts";
 
 // Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
