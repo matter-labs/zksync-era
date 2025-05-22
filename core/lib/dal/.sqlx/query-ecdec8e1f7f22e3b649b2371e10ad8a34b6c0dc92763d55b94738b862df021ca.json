@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                (\n                    from_addr = $1\n                    OR\n                    (from_addr IS NULL AND $2)\n                )\n                AND is_gateway = $3\n                AND id <= COALESCE(\n                    (SELECT\n                        eth_tx_id\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND finality_status != 'finalized'\n                        AND (\n                            from_addr = $1\n                            OR\n                            (from_addr IS NULL AND $2)\n                        )\n                        AND is_gateway = $3\n                    ORDER BY eth_tx_id DESC LIMIT 1),\n                    0\n                )\n            ORDER BY\n                id\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                (\n                    from_addr = $1\n                    OR\n                    (from_addr IS NULL AND $2)\n                )\n                AND is_gateway = $3\n                AND id <= COALESCE(\n                    (SELECT\n                        eth_tx_id\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND (\n                            eth_txs_history.finality_status IS NULL\n                            OR eth_txs_history.finality_status != 'finalized'\n                        )\n                        AND (\n                            from_addr = $1\n                            OR\n                            (from_addr IS NULL AND $2)\n                        )\n                        AND is_gateway = $3\n                    ORDER BY eth_tx_id DESC LIMIT 1),\n                    0\n                )\n            ORDER BY\n                id\n            ",
   "describe": {
     "columns": [
       {
@@ -116,5 +116,5 @@
       true
     ]
   },
-  "hash": "d80e1125ed3f636bc919126ef55c9f43b3ec1bc97ecad8557ccef03b80a8e24f"
+  "hash": "ecdec8e1f7f22e3b649b2371e10ad8a34b6c0dc92763d55b94738b862df021ca"
 }

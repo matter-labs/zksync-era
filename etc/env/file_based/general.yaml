@@ -85,7 +85,6 @@ circuit_breaker:
   http_req_retry_interval_sec: 2
 eth:
   sender:
-    wait_confirmations: 1
     tx_poll_period: 1
     aggregate_tx_poll_period: 1
     max_txs_in_flight: 30
@@ -116,7 +115,6 @@ eth:
     internal_pubdata_pricing_multiplier: 1.0
     poll_period: 5
   watcher:
-    confirmations_for_eth_event: 0
     eth_node_poll_interval: 300
 
 snapshot_creator:
