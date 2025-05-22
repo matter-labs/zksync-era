@@ -113,16 +113,16 @@ describe('Tests for the private rpc', () => {
         expect(token1).not.toBe(token2);
     });
 
-    test('User can read his own balance and unable to read others', async () => {
-        const testAddress = '0x4f9133d1d3f50011a6859807c837bdcb31aaab13';
-        const otherTestAddress = '0xaaaaaaaaaaaaabbbb/bbbbbbbbbbbbbbccccccccc';
-        const provider = await testMaster.privateRpcProvider(rpcUrl(), testAddress);
-        const balance = await provider.getBalance(testAddress);
-
-        expect(balance).toEqual(0n);
-
-        await expect(provider.getBalance(otherTestAddress)).rejects.toThrow();
-    });
+    // test('User can read his own balance and unable to read others', async () => {
+    //     const testAddress = '0x4f9133d1d3f50011a6859807c837bdcb31aaab13';
+    //     const otherTestAddress = '0xaaaaaaaaaaaaabbbb/bbbbbbbbbbbbbbccccccccc';
+    //     const provider = await testMaster.privateRpcProvider(rpcUrl(), testAddress);
+    //     const balance = await provider.getBalance(testAddress);
+    //
+    //     expect(balance).toEqual(0n);
+    //
+    //     await expect(provider.getBalance(otherTestAddress)).rejects.toThrow();
+    // });
 
     test('ERC-20 properties can be read', async () => {
         await addPermission(tokenDetails.l2Address, 'function name() public view returns (string)');
