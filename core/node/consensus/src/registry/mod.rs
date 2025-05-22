@@ -39,7 +39,7 @@ impl Registry {
         ctx: &ctx::Ctx,
         sealed_block_number: validator::BlockNumber,
     ) -> ctx::Result<(validator::Schedule, validator::BlockNumber)> {
-        self.get_schedule(ctx, sealed_block_number, true)
+        self.get_schedule_inner(ctx, sealed_block_number, true)
             .await
             .context("get_schedule()")?
             .ok_or(anyhow::anyhow!("failed to get current validator schedule").into())
@@ -53,10 +53,11 @@ impl Registry {
         ctx: &ctx::Ctx,
         sealed_block_number: validator::BlockNumber,
     ) -> ctx::Result<Option<(validator::Schedule, validator::BlockNumber)>> {
-        self.get_schedule(ctx, sealed_block_number, false).await
+        self.get_schedule_inner(ctx, sealed_block_number, false)
+            .await
     }
 
-    async fn get_schedule(
+    async fn get_schedule_inner(
         &self,
         ctx: &ctx::Ctx,
         sealed_block_number: validator::BlockNumber,
