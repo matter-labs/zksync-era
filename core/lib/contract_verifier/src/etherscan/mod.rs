@@ -389,6 +389,13 @@ impl EtherscanVerifier {
                         .await?;
                     }
                     ApiErrorRetryPolicy::IndefinitelyRetryable { pause_duration } => {
+                        // For IndefinitelyRetryable, we pause execution to prevent the service from fetching all other
+                        // queued requests and spamming the Etherscan API.
+                        tracing::warn!(
+                            "Pausing processing for {:#?} sec before the retry because of the indefinitely retryable error",
+                            pause_duration.as_secs()
+                        );
+                        self.sleep(pause_duration).await?;
                         self.save_for_retry(
                             verification_request.id,
                             // Do not increase the number of attempts so the request will be retried indefinitely.
