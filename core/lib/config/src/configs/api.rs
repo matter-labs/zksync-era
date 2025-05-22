@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Delimited, Optional, OrString, Serde, WellKnown},
+    de::{Delimited, OrString, Serde, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -155,7 +155,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 10_000)]
     pub subscriptions_limit: usize,
     /// Interval between polling db for pubsub (in ms).
-    #[config(default_t = Duration::from_millis(200), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_millis(200), with = ((), TimeUnit::Millis))]
     pub pubsub_polling_interval: Duration,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[config(default_t = 50)]
@@ -221,7 +221,7 @@ pub struct Web3JsonRpcConfig {
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     /// In milliseconds. Default is 50 milliseconds.
-    #[config(default_t = Duration::from_millis(50), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_millis(50), with = ((), TimeUnit::Millis))]
     pub mempool_cache_update_interval: Duration,
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[config(default_t = 10_000)]
@@ -274,12 +274,10 @@ pub struct HealthCheckConfig {
     pub port: u16,
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
     /// If not specified, the default value in the health check crate will be used.
-    #[config(with = Optional(TimeUnit::Millis))]
-    pub slow_time_limit_ms: Option<Duration>,
+    pub slow_time_limit: Option<Duration>,
     /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
     /// If not specified, the default value in the health check crate will be used.
-    #[config(with = Optional(TimeUnit::Millis))]
-    pub hard_time_limit_ms: Option<Duration>,
+    pub hard_time_limit: Option<Duration>,
 }
 
 impl HealthCheckConfig {
@@ -381,8 +379,8 @@ mod tests {
             },
             healthcheck: HealthCheckConfig {
                 port: 8081,
-                slow_time_limit_ms: Some(Duration::from_millis(250)),
-                hard_time_limit_ms: Some(Duration::from_millis(2_000)),
+                slow_time_limit: Some(Duration::from_millis(250)),
+                hard_time_limit: Some(Duration::from_millis(2_000)),
             },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
@@ -456,7 +454,6 @@ mod tests {
             vm_concurrency_limit: 512
             vm_execution_cache_misses_limit: 1000
             max_response_body_size_mb: 10
-            # Migration path: add based on `max_response_body_size_overrides`
             max_response_body_size_overrides_mb:
               eth_call: 1
               eth_getTransactionReceipt: null
@@ -491,6 +488,65 @@ mod tests {
             port: 8081
             slow_time_limit_ms: 250
             hard_time_limit_ms: 2000
+          merkle_tree:
+            port: 8082
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config = test_complete::<ApiConfig>(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          web3_json_rpc:
+            http_port: 3050
+            http_url: http://127.0.0.1:3050/
+            ws_port: 3051
+            ws_url: ws://127.0.0.1:3051/
+            req_entities_limit: 10000
+            filters_limit: 10000
+            fee_history_limit: 100
+            subscriptions_limit: 10000
+            websocket_requests_per_minute_limit: 10
+            vm_concurrency_limit: 512
+            vm_execution_cache_misses_limit: 1000
+            max_response_body_size: 10 MB
+            max_response_body_size_overrides_mb:
+              eth_call: 1
+              eth_getTransactionReceipt: null
+              zks_getProof: 32
+            max_batch_request_size: 200
+            initial_writes_cache_size: 32 MB
+            factory_deps_cache_size: 128 mb
+            latest_values_cache_size: 256mb
+            latest_values_max_block_lag: 50
+            mempool_cache_size: 10000
+            mempool_cache_update_interval: 50
+            pubsub_polling_interval: 200ms
+            max_nonce_ahead: 5
+            gas_price_scale_factor: 1.2
+            estimate_gas_scale_factor: 1
+            estimate_gas_acceptable_overestimation: 1000
+            max_tx_size: 1000000
+            filters_disabled: false
+            api_namespaces:
+            - debug
+            whitelisted_tokens_for_aa:
+            - "0x0000000000000000000000000000000000000001"
+            - "0x0000000000000000000000000000000000000002"
+            extended_api_tracing: true
+            estimate_gas_optimize_search: true
+            tree_api_url: "http://tree/"
+          prometheus:
+            listener_port: 3312
+            pushgateway_url: http://127.0.0.1:9091
+            push_interval: 100 ms
+          healthcheck:
+            port: 8081
+            slow_time_limit: 250ms
+            hard_time_limit: 2s
           merkle_tree:
             port: 8082
         "#;

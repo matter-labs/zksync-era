@@ -173,8 +173,8 @@ impl ExternalNodeBuilder {
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = HealthCheckConfig {
             port: self.config.required.healthcheck_port,
-            slow_time_limit_ms: self.config.optional.healthcheck_slow_time_limit(),
-            hard_time_limit_ms: self.config.optional.healthcheck_hard_time_limit(),
+            slow_time_limit: self.config.optional.healthcheck_slow_time_limit(),
+            hard_time_limit: self.config.optional.healthcheck_hard_time_limit(),
         };
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)

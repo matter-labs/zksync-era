@@ -562,12 +562,12 @@ impl OptionalENConfig {
 
             healthcheck_slow_time_limit_ms: load_config!(
                 general_config.api_config,
-                healthcheck.slow_time_limit_ms
+                healthcheck.slow_time_limit
             )
             .map(|dur: Duration| dur.as_millis() as u64),
             healthcheck_hard_time_limit_ms: load_config!(
                 general_config.api_config,
-                healthcheck.hard_time_limit_ms
+                healthcheck.hard_time_limit
             )
             .map(|dur: Duration| dur.as_millis() as u64),
             estimate_gas_scale_factor: web3_json_rpc.estimate_gas_scale_factor,

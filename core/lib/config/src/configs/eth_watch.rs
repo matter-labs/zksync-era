@@ -11,6 +11,59 @@ pub struct EthWatchConfig {
     #[config(default)]
     pub confirmations_for_eth_event: Option<u64>,
     /// How often we want to poll the Ethereum node.
-    #[config(default_t = Duration::from_secs(1), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_secs(1), with = ((), TimeUnit::Millis))]
     pub eth_node_poll_interval: Duration,
+}
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> EthWatchConfig {
+        EthWatchConfig {
+            confirmations_for_eth_event: Some(5),
+            eth_node_poll_interval: Duration::from_secs(3),
+        }
+    }
+
+    #[test]
+    fn from_yaml() {
+        let yaml = r#"
+          confirmations_for_eth_event: 5
+          eth_node_poll_interval: 3000
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: EthWatchConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn from_yaml_with_suffixed_duration() {
+        let yaml = r#"
+          confirmations_for_eth_event: 5
+          eth_node_poll_interval_sec: 3
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: EthWatchConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn from_yaml_with_idiomatic_duration() {
+        let yaml = r#"
+          confirmations_for_eth_event: 5
+          eth_node_poll_interval: 3 sec
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: EthWatchConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
 }

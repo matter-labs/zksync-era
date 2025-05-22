@@ -167,7 +167,7 @@ impl StateKeeperConfig {
 #[config(derive(Default))]
 pub struct OperationsManagerConfig {
     /// Sleep time in ms when there is no new input data
-    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_millis(100), with = ((), TimeUnit::Millis))]
     pub delay_interval: Duration,
 }
 
@@ -193,11 +193,11 @@ pub struct MempoolConfig {
     pub sync_batch_size: usize,
     #[config(default_t = 10_000_000)]
     pub capacity: u64,
-    #[config(default_t = 2 * TimeUnit::Days, with = TimeUnit::Seconds)]
+    #[config(default_t = 2 * TimeUnit::Days, with = ((), TimeUnit::Seconds))]
     pub stuck_tx_timeout: Duration,
     #[config(default_t = true)]
     pub remove_stuck_txs: bool,
-    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_millis(100), with = ((), TimeUnit::Millis))]
     pub delay_interval: Duration,
     #[config(default)]
     pub l1_to_l2_txs_paused: bool,
@@ -389,6 +389,24 @@ mod tests {
           stuck_tx_timeout: 10
           remove_stuck_txs: true
           delay_interval: 100
+          l1_to_l2_txs_paused: false
+          skip_unsafe_deposit_checks: true
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: MempoolConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_mempool_config());
+    }
+
+    #[test]
+    fn mempool_from_idiomatic_yaml() {
+        let yaml = r#"
+          sync_interval_ms: 10
+          sync_batch_size: 1000
+          capacity: 1000000
+          stuck_tx_timeout: 10s
+          remove_stuck_txs: true
+          delay_interval: 100 millis
           l1_to_l2_txs_paused: false
           skip_unsafe_deposit_checks: true
         "#;
