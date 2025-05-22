@@ -1,9 +1,8 @@
-use zksync_types::web3::contract::Tokenizable;
-
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
     l2_to_l1_log::UserL2ToL1Log,
+    web3::contract::Tokenizable,
     InteropRoot, ProtocolVersionId, H256,
 };
 
@@ -114,8 +113,7 @@ impl ExecuteBatches {
                             Token::Array(
                                 message
                                     .iter()
-                                    .map(|message| message.clone().
-                                    into_token())
+                                    .map(|message| message.clone().into_token())
                                     .collect(),
                             )
                         })
