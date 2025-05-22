@@ -291,7 +291,7 @@ impl MainNodeBuilder {
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config
                 .experimental
-                .state_keeper_db_block_cache_capacity_mb
+                .state_keeper_db_block_cache_capacity
                 .0 as usize,
             max_open_files: db_config.experimental.state_keeper_db_max_open_files,
         };
@@ -388,9 +388,9 @@ impl MainNodeBuilder {
         let deployment_allowlist = sk_config.deployment_allowlist.clone();
 
         let postgres_storage_caches_config = PostgresStorageCachesConfig {
-            factory_deps_cache_size: rpc_config.factory_deps_cache_size_mb.0,
-            initial_writes_cache_size: rpc_config.initial_writes_cache_size_mb.0,
-            latest_values_cache_size: rpc_config.latest_values_cache_size_mb.0,
+            factory_deps_cache_size: rpc_config.factory_deps_cache_size.0,
+            initial_writes_cache_size: rpc_config.initial_writes_cache_size.0,
+            latest_values_cache_size: rpc_config.latest_values_cache_size.0,
             latest_values_max_block_lag: rpc_config.latest_values_max_block_lag.get(),
         };
         let vm_config = self.configs.experimental_vm_config.clone();

@@ -49,7 +49,7 @@ pub struct StateKeeperConfig {
     pub l2_block_seal_queue_capacity: usize,
     /// The max payload size threshold (in bytes) that triggers sealing of an L2 block.
     #[config(alias = "miniblock_max_payload_size")]
-    #[config(default_t = ByteSize(1_000_000), with = SizeUnit::Bytes)]
+    #[config(default_t = ByteSize(1_000_000), with = ((), SizeUnit::Bytes))]
     pub l2_block_max_payload_size: ByteSize,
 
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
@@ -102,7 +102,7 @@ pub struct StateKeeperConfig {
     /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
     /// - the DA layer's blob size limit for the DA layer-based validiums
     /// - 100 MB for the object store-based or no-da validiums
-    #[config(with = SizeUnit::Bytes)]
+    #[config(with = ((), SizeUnit::Bytes))]
     pub max_pubdata_per_batch: ByteSize,
 
     /// The version of the fee model to use.
@@ -259,7 +259,7 @@ mod tests {
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
-            max_pubdata_per_batch: ByteSize(100_000),
+            max_pubdata_per_batch: ByteSize(131_072),
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
             save_call_traces: false,
@@ -293,7 +293,7 @@ mod tests {
             CHAIN_STATE_KEEPER_PUBDATA_OVERHEAD_PART="1.0"
             CHAIN_STATE_KEEPER_BATCH_OVERHEAD_L1_GAS="800000"
             CHAIN_STATE_KEEPER_MAX_GAS_PER_BATCH="200000000"
-            CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH="100000"
+            CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH="131072"
             CHAIN_STATE_KEEPER_MAX_CIRCUITS_PER_BATCH="24100"
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
@@ -330,12 +330,50 @@ mod tests {
           pubdata_overhead_part: 1.0
           batch_overhead_l1_gas: 800000
           max_gas_per_batch: 200000000
-          max_pubdata_per_batch: 100000
+          max_pubdata_per_batch: 131072
           fee_model_version: V2
           validation_computational_gas_limit: 10000000
           save_call_traces: false
           max_circuits_per_batch: 24100
           l2_block_max_payload_size: 1000000
+          protective_reads_persistence_enabled: true
+          deployment_allowlist:
+            source: Url
+            http_file_url: http://deployment-allowlist/
+            refresh_interval_secs: 120
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: StateKeeperConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_state_keeper_config());
+    }
+
+    #[test]
+    fn state_keeper_from_idiomatic_yaml() {
+        let yaml = r#"
+          transaction_slots: 50
+          l1_batch_commit_deadline: 2500ms
+          l2_block_commit_deadline: 1 sec
+          l2_block_seal_queue_capacity: 10
+          max_single_tx_gas: 1000000
+          max_allowed_l2_tx_gas_limit: 2000000000
+          reject_tx_at_geometry_percentage: 0.3
+          reject_tx_at_eth_params_percentage: 0.8
+          reject_tx_at_gas_percentage: 0.5
+          close_block_at_geometry_percentage: 0.5
+          close_block_at_eth_params_percentage: 0.2
+          close_block_at_gas_percentage: 0.8
+          minimal_l2_gas_price: 100000000
+          compute_overhead_part: 0.0
+          pubdata_overhead_part: 1.0
+          batch_overhead_l1_gas: 800000
+          max_gas_per_batch: 200000000
+          max_pubdata_per_batch: 128 KB
+          fee_model_version: V2
+          validation_computational_gas_limit: 10000000
+          save_call_traces: false
+          max_circuits_per_batch: 24100
+          l2_block_max_payload_size: 1000000 bytes
           protective_reads_persistence_enabled: true
           deployment_allowlist:
             source: Url

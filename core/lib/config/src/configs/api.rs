@@ -185,16 +185,15 @@ pub struct Web3JsonRpcConfig {
     /// If not set, the VM concurrency limit will be efficiently disabled.
     #[config(default_t = 2_048)]
     pub vm_concurrency_limit: usize,
-    /// Smart contract cache size in MiBs. The default value is 128 MiB.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(128, SizeUnit::MiB))]
-    pub factory_deps_cache_size_mb: ByteSize,
-    /// Initial writes cache size in MiBs. The default value is 32 MiB.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(32, SizeUnit::MiB))]
-    pub initial_writes_cache_size_mb: ByteSize,
-    /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
-    /// values cache will be disabled.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(128, SizeUnit::MiB))]
-    pub latest_values_cache_size_mb: ByteSize,
+    /// Smart contract cache size.
+    #[config(default_t = 128 * SizeUnit::MiB)]
+    pub factory_deps_cache_size: ByteSize,
+    /// Initial writes cache size.
+    #[config(default_t = 32 * SizeUnit::MiB)]
+    pub initial_writes_cache_size: ByteSize,
+    /// Latest values cache size. If set to 0, the latest values cache will be disabled.
+    #[config(default_t = 128 * SizeUnit::MiB)]
+    pub latest_values_cache_size: ByteSize,
     /// Maximum lag in the number of blocks for the latest values cache after which the cache is reset. Greater values
     /// lead to increased the cache update latency, i.e., less storage queries being processed by the cache. OTOH, smaller values
     /// can lead to spurious resets when Postgres lags for whatever reason (e.g., when sealing L1 batches).
@@ -207,8 +206,8 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 500)]
     pub max_batch_request_size: usize,
     /// Maximum response body size in MiBs. Default is 10 MiB.
-    #[config(with = SizeUnit::MiB, default_t = ByteSize::new(10, SizeUnit::MiB))]
-    pub max_response_body_size_mb: ByteSize,
+    #[config(default_t = 10 * SizeUnit::MiB)]
+    pub max_response_body_size: ByteSize,
     /// Method-specific overrides in MiBs for the maximum response body size.
     #[config(default = MaxResponseSizeOverrides::empty)]
     pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
@@ -262,7 +261,7 @@ impl Web3JsonRpcConfig {
     pub fn max_response_body_size(&self) -> MaxResponseSize {
         let scale = NonZeroUsize::new(super::BYTES_IN_MEGABYTE).unwrap();
         MaxResponseSize {
-            global: self.max_response_body_size_mb.0 as usize,
+            global: self.max_response_body_size.0 as usize,
             overrides: self.max_response_body_size_overrides_mb.scale(scale),
         }
     }
@@ -352,13 +351,13 @@ mod tests {
                 max_tx_size: 1000000,
                 vm_execution_cache_misses_limit: Some(1000),
                 vm_concurrency_limit: 512,
-                factory_deps_cache_size_mb: ByteSize::new(128, SizeUnit::MiB),
-                initial_writes_cache_size_mb: ByteSize::new(32, SizeUnit::MiB),
-                latest_values_cache_size_mb: ByteSize::new(256, SizeUnit::MiB),
+                factory_deps_cache_size: ByteSize::new(128, SizeUnit::MiB),
+                initial_writes_cache_size: ByteSize::new(32, SizeUnit::MiB),
+                latest_values_cache_size: ByteSize::new(256, SizeUnit::MiB),
                 latest_values_max_block_lag: NonZeroU32::new(50).unwrap(),
                 fee_history_limit: 100,
                 max_batch_request_size: 200,
-                max_response_body_size_mb: ByteSize::new(10, SizeUnit::MiB),
+                max_response_body_size: ByteSize::new(15, SizeUnit::MiB),
                 max_response_body_size_overrides_mb: [
                     ("eth_call", NonZeroUsize::new(1)),
                     ("eth_getTransactionReceipt", None),
@@ -421,7 +420,7 @@ mod tests {
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_TREE_API_URL="http://tree/"
-            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10
+            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=15
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="eth_call=1, eth_getTransactionReceipt=None, zks_getProof=32"
             API_PROMETHEUS_LISTENER_PORT="3312"
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
@@ -453,7 +452,7 @@ mod tests {
             websocket_requests_per_minute_limit: 10
             vm_concurrency_limit: 512
             vm_execution_cache_misses_limit: 1000
-            max_response_body_size_mb: 10
+            max_response_body_size_mb: 15
             max_response_body_size_overrides_mb:
               eth_call: 1
               eth_getTransactionReceipt: null
@@ -512,7 +511,7 @@ mod tests {
             websocket_requests_per_minute_limit: 10
             vm_concurrency_limit: 512
             vm_execution_cache_misses_limit: 1000
-            max_response_body_size: 10 MB
+            max_response_body_size: 15 MB
             max_response_body_size_overrides_mb:
               eth_call: 1
               eth_getTransactionReceipt: null

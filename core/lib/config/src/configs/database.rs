@@ -143,7 +143,7 @@ mod tests {
             Duration::from_secs(60)
         );
         assert_eq!(
-            config.experimental.state_keeper_db_block_cache_capacity_mb,
+            config.experimental.state_keeper_db_block_cache_capacity,
             ByteSize(64 << 20)
         );
         assert_eq!(
@@ -196,6 +196,35 @@ mod tests {
             state_keeper_db_block_cache_capacity_mb: 64
             reads_persistence_enabled: false
             processing_delay_ms: 0
+            include_indices_and_filters_in_block_cache: false
+            merkle_tree_repair_stale_keys: true
+            state_keeper_db_max_open_files: 100
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: DBConfig = Tester::default()
+            .coerce_variant_names()
+            .test_complete(yaml)
+            .unwrap();
+
+        assert_db_config(&config);
+    }
+
+    #[test]
+    fn db_from_idiomatic_yaml() {
+        let yaml = r#"
+          state_keeper_db_path: /db/state_keeper
+          merkle_tree:
+            path: /db/tree
+            mode: LIGHTWEIGHT
+            multi_get_chunk_size: 250
+            block_cache_size: 128 MB
+            memtable_capacity: 512 MB
+            stalled_writes_timeout: 60s
+            max_l1_batches_per_iter: 50
+          experimental:
+            state_keeper_db_block_cache_capacity: 64 MB
+            reads_persistence_enabled: false
+            processing_delay: 0ms
             include_indices_and_filters_in_block_cache: false
             merkle_tree_repair_stale_keys: true
             state_keeper_db_max_open_files: 100

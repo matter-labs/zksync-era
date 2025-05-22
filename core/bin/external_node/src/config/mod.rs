@@ -542,17 +542,17 @@ impl OptionalENConfig {
             vm_execution_cache_misses_limit: web3_json_rpc.vm_execution_cache_misses_limit,
             fee_history_limit: web3_json_rpc.fee_history_limit,
             max_batch_request_size: web3_json_rpc.max_batch_request_size,
-            max_response_body_size_mb: web3_json_rpc.max_response_body_size_mb.0 as usize
+            max_response_body_size_mb: web3_json_rpc.max_response_body_size.0 as usize
                 / BYTES_IN_MEGABYTE,
             max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides_mb,
             pubsub_polling_interval_ms: web3_json_rpc.pubsub_polling_interval.as_millis() as u64,
             max_nonce_ahead: web3_json_rpc.max_nonce_ahead,
             vm_concurrency_limit: web3_json_rpc.vm_concurrency_limit,
-            factory_deps_cache_size_mb: web3_json_rpc.factory_deps_cache_size_mb.0 as usize
+            factory_deps_cache_size_mb: web3_json_rpc.factory_deps_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            initial_writes_cache_size_mb: web3_json_rpc.initial_writes_cache_size_mb.0 as usize
+            initial_writes_cache_size_mb: web3_json_rpc.initial_writes_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            latest_values_cache_size_mb: web3_json_rpc.latest_values_cache_size_mb.0 as usize
+            latest_values_cache_size_mb: web3_json_rpc.latest_values_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
             filters_disabled: web3_json_rpc.filters_disabled,
             mempool_cache_update_interval_ms: web3_json_rpc
@@ -1081,7 +1081,7 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb: general_config
                 .db_config
                 .experimental
-                .state_keeper_db_block_cache_capacity_mb
+                .state_keeper_db_block_cache_capacity
                 .0 as usize
                 / BYTES_IN_MEGABYTE,
             state_keeper_db_max_open_files: general_config

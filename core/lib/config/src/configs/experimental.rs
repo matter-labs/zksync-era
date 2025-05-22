@@ -9,8 +9,8 @@ use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
 #[config(derive(Default))]
 pub struct ExperimentalDBConfig {
     /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
-    #[config(default_t = ByteSize::new(128, SizeUnit::MiB), with = SizeUnit::MiB)]
-    pub state_keeper_db_block_cache_capacity_mb: ByteSize,
+    #[config(default_t = 128 * SizeUnit::MiB)]
+    pub state_keeper_db_block_cache_capacity: ByteSize,
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
