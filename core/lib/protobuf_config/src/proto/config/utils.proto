@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package zksync.config.utils;
-
-message Prometheus {
-  optional uint32 listener_port = 1; // required
-  optional string pushgateway_url = 2; // required
-  optional uint64 push_interval_ms = 3;
-}

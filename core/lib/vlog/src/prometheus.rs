@@ -1,13 +1,13 @@
 //! Prometheus-related functionality, such as [`PrometheusExporterConfig`].
 
-use std::{net::Ipv4Addr, time::Duration};
+use std::{env, net::Ipv4Addr, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
 use vise::MetricsCollection;
 use vise_exporter::MetricsExporter;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum PrometheusTransport {
     Pull {
         port: u16,
@@ -19,7 +19,7 @@ enum PrometheusTransport {
 }
 
 /// Configuration of a Prometheus exporter.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrometheusExporterConfig {
     transport: PrometheusTransport,
 }
@@ -40,6 +40,15 @@ impl PrometheusExporterConfig {
                 interval,
             },
         }
+    }
+
+    /// Creates a full push gateway endpoint.
+    pub fn gateway_endpoint(base_url: &str) -> String {
+        let job_id = "zksync-pushgateway";
+        let namespace =
+            env::var("POD_NAMESPACE").unwrap_or_else(|_| "UNKNOWN_NAMESPACE".to_owned());
+        let pod = env::var("POD_NAME").unwrap_or_else(|_| "UNKNOWN_POD".to_owned());
+        format!("{base_url}/metrics/job/{job_id}/namespace/{namespace}/pod/{pod}")
     }
 
     /// Runs the exporter. This future should be spawned in a separate Tokio task.

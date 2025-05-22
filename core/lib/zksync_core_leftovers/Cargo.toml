@@ -13,8 +13,6 @@ categories.workspace = true
 [dependencies]
 zksync_config.workspace = true
 zksync_protobuf.workspace = true
-zksync_protobuf_config.workspace = true
-zksync_env_config.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["time"] }
