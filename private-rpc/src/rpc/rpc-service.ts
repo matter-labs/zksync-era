@@ -65,8 +65,6 @@ export class RpcCallHandler {
     }
 
     async handle(rawBody: unknown): Promise<FastifyReplyType> {
-        console.log('new call', { rawBody });
-
         // Batch request: array of requests
         if (Array.isArray(rawBody)) {
             if (rawBody.length === 0) {

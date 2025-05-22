@@ -26,7 +26,6 @@ export const zks_sendRawTransactionWithDetailedOutput: MethodHandler = {
         const rawTx = hexSchema.parse(params[0]);
         const tx = decodeTx(rawTx);
 
-        console.log(tx.from, context.currentUser);
         const signer = tx.from ?? (await recoverTransactionAddress({ serializedTransaction: rawTx as any }));
 
         if (!isAddressEqual(signer, context.currentUser)) {
