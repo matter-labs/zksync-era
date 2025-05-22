@@ -98,10 +98,7 @@ describe('Tests for the private rpc', () => {
 
     function addPermission(contractAddress: string, methodSignature: string): Promise<void> {
         const pathToHome = path.join(__dirname, '../../../..');
-        const permissionsPath = path.join(
-            pathToHome,
-            `chains/${chainName}/configs/private-rpc/private-rpc-permissions.yaml`
-        );
+        const permissionsPath = path.join(pathToHome, `chains/${chainName}/configs/private-rpc-permissions.yaml`);
         return injectPermissionsToFile(permissionsPath, contractAddress, methodSignature);
     }
 

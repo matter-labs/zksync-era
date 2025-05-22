@@ -46,21 +46,17 @@ pub async fn create_private_rpc_service(
     ecosystem_path: &Path,
     chain_name: &str,
 ) -> anyhow::Result<DockerComposeService> {
-    let mut permissions_path = ecosystem_path
+    let mut base_permissions_path = if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
+        PathBuf::from(docker_root)
+    } else {
+        ecosystem_path.to_path_buf()
+    };
+    let mut permissions_path = base_permissions_path
         .join("chains")
         .join(chain_name)
         .join("configs")
-        .join("private-rpc");
-
-    // A special override for CI, where we're already running inside a docker container
-    if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
-        permissions_path = PathBuf::from(docker_root)
-            .join("chains")
-            .join(chain_name)
-            .join("configs")
-            .join("private-rpc");
-        logger::info(format!("running inside docker, using {permissions_path:?}"));
-    };
+        .join("private-rpc")
+        .join("private-rpc-permissions.yaml");
 
     let host_os = detect_host_os()?;
     let other_settings = match host_os {
@@ -82,7 +78,7 @@ pub async fn create_private_rpc_service(
         platform: Some("linux/amd64".to_string()),
         ports: Some(vec![format!("{}:{}", port, port)]),
         volumes: Some(vec![format!(
-            "{}:/app/permissions",
+            "{}:/app/private-rpc-permissions.yaml:ro",
             permissions_path.display()
         )]),
         depends_on: None,
@@ -92,7 +88,7 @@ pub async fn create_private_rpc_service(
             ("PORT".to_string(), port.to_string()),
             (
                 "PERMISSIONS_YAML_PATH".to_string(),
-                "/app/permissions/private-rpc-permissions.yaml".to_string(),
+                "/app/private-rpc-permissions.yaml".to_string(),
             ),
             ("TARGET_RPC".to_string(), l2_rpc_url.to_string()),
             ("CORS_ORIGIN".to_string(), rpc_url.to_string()),

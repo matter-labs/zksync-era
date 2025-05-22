@@ -165,8 +165,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
     let dst_permissions_dir = ecosystem_path
         .join("chains")
         .join(chain_name.clone())
-        .join("configs")
-        .join("private-rpc");
+        .join("configs");
     let dst_permissions_path = dst_permissions_dir.join("private-rpc-permissions.yaml");
 
     if !dst_permissions_path.exists() {
