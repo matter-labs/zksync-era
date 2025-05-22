@@ -614,7 +614,7 @@ impl BlocksDal<'_, '_> {
                 WHERE
                     l1_batch_number = l1_batches.number
                     AND (
-                        eth_txs_history.finality_status IS NOT NULL
+                        eth_txs_history.finality_status != 'pending'
                         OR eth_precommit_tx_id IS NULL
                     )
                 ORDER BY number DESC
@@ -1562,7 +1562,7 @@ impl BlocksDal<'_, '_> {
                 eth_txs_history AS commit_tx
                 ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
             WHERE
-                commit_tx.finality_status IS NOT NULL
+                commit_tx.finality_status != 'pending'
             ORDER BY
                 number DESC
             LIMIT

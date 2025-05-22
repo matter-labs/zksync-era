@@ -103,9 +103,6 @@ eth:
     is_verifier_pre_fflonk: true
     gas_limit_mode: CALCULATED
     max_acceptable_base_fee_in_wei: 100000000000
-    precommit_params:
-      deadline_sec: 10
-      l2_blocks_to_aggregate: 5
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100
@@ -206,7 +203,7 @@ prometheus:
 
 observability:
   log_format: plain
-  log_directives: "warn,zksync=info,zksync_config=debug,zksync_commitment_generator=debug,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_eth_watch=debug,zksync_state=debug,zksync_utils=debug,zksync_mempool=debug,zksync_web3_decl=debug,zksync_health_check=debug,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
+  log_directives: "warn,zksync=info,zksync_config=debug,zksync_commitment_generator=debug,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_eth_watch=debug,zksync_eth_sender=trace,zksync_state=debug,zksync_utils=debug,zksync_mempool=debug,zksync_web3_decl=debug,zksync_health_check=debug,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
   # Uncomment only if needed
   # sentry:
   #   url: unset

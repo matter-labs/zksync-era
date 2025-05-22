@@ -620,6 +620,9 @@ impl EthTxManager {
             EthTxFinalityStatus::Finalized => {
                 METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
             }
+            EthTxFinalityStatus::Pending => {
+                // Do nothing txs just created
+            }
         }
 
         let sent_at_block = storage
