@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
-use zksync_consensus_engine::{BlockStore, PersistentBlockStore as _};
-use zksync_consensus_executor::{self as executor, attestation};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_consensus_engine::{EngineInterface as _, EngineManager};
+use zksync_consensus_executor::{self as executor};
 use zksync_consensus_roles::validator;
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender};
@@ -18,6 +18,7 @@ use zksync_web3_decl::{
 use super::{config, storage::Store, ConsensusConfig, ConsensusSecrets};
 use crate::{
     metrics::METRICS,
+    registry::{Registry, RegistryAddress},
     storage::{self, ConnectionPool},
 };
 
@@ -71,6 +72,14 @@ impl EN {
                 .await
                 .wrap("fetch_global_config()")?;
 
+            // Initialize registry.
+            let registry = Arc::new(match global_config.registry_address {
+                Some(addr) => {
+                    Some(Registry::new(self.pool.clone(), RegistryAddress::new(addr)).await)
+                }
+                None => None,
+            });
+
             let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
             conn.try_update_global_config(ctx, &global_config)
                 .await
@@ -115,6 +124,7 @@ impl EN {
                 self.pool.clone(),
                 Some(payload_queue),
                 Some(self.client.clone()),
+                registry.clone(),
             )
             .await
             .wrap("Store::new()")?;
@@ -132,23 +142,14 @@ impl EN {
                 }
             });
 
-            let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
+            let (engine_manager, engine_runner) = EngineManager::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await.context("BlockStore::run()")?) });
+            s.spawn_bg(async { Ok(engine_runner.run(ctx).await.context("BlockStore::run()")?) });
 
-            let attestation = Arc::new(attestation::Controller::new(None));
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
-                block_store,
-                validator: config::validator_key(&secrets)
-                    .context("validator_key")?
-                    .map(|key| executor::Validator {
-                        key,
-                        replica_store: Box::new(store.clone()),
-                        payload_manager: Box::new(store.clone()),
-                    }),
-                attestation,
+                engine_manager,
             };
             tracing::info!("running the external node executor");
             executor.run(ctx).await?;
