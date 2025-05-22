@@ -7,10 +7,7 @@ use smart_config::{
 };
 use url::Url;
 use zksync_basic_types::tee_types::TeeType;
-use zksync_config::{
-    configs::{ObservabilityConfig, PrometheusConfig},
-    ConfigRepositoryExt,
-};
+use zksync_config::configs::{ObservabilityConfig, PrometheusConfig};
 use zksync_vlog::ObservabilityGuard;
 
 /// Configuration for the TEE prover.
@@ -111,6 +108,7 @@ impl AppConfig {
         if let Some(metadata) = metadata {
             config_repo = config_repo.with(metadata);
         }
+        let mut config_repo = zksync_config::ConfigRepository::from(config_repo);
 
         let observability_config: ObservabilityConfig = config_repo.parse()?;
         let observability_guard = observability_config

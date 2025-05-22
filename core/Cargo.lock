@@ -13417,6 +13417,7 @@ dependencies = [
  "zksync_node_storage_init",
  "zksync_object_store",
  "zksync_proof_data_handler",
+ "zksync_shared_resources",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",

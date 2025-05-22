@@ -8,8 +8,8 @@ use zksync_config::{
     configs::{wallets::Wallets, ContractsConfig, GeneralConfig, GenesisConfigWrapper, Secrets},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepositoryExt,
 };
+use zksync_node_framework::service::ZkStackServiceBuilder;
 
 use crate::{
     components::{Component, Components},
@@ -103,11 +103,11 @@ fn main() -> anyhow::Result<()> {
         config_sources.observability()?.install()?
     };
 
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
     if let Some(command) = opt.cmd {
         match command {
             CliCommand::Config(config_args) => {
-                config_args.run(repo)?;
+                config_args.run(repo.into())?;
             }
         }
         return Ok(());
@@ -122,21 +122,24 @@ fn main() -> anyhow::Result<()> {
         .genesis
         .context("missing genesis config")?;
     let consensus = repo.parse_opt()?;
-    let node = MainNodeBuilder::new(
-        runtime,
+    let parsed_params = repo.into_parsed_params();
+    let node = MainNodeBuilder {
+        node: ZkStackServiceBuilder::on_runtime(runtime),
+        parsed_params,
         configs,
         wallets,
-        genesis,
+        genesis_config: genesis,
         consensus,
         secrets,
-        contracts_config.l1_specific_contracts(),
-        contracts_config.l2_contracts(),
+        l1_specific_contracts: contracts_config.l1_specific_contracts(),
+        l2_contracts: contracts_config.l2_contracts(),
         // Now we always pass the settlement layer contracts. After V27 upgrade,
         // it'd be possible to get rid of settlement_layer_specific_contracts in our configs.
         // For easier refactoring in the future. We can mark it as Optional
-        Some(contracts_config.settlement_layer_specific_contracts()),
-        Some(contracts_config.l1.multicall3_addr),
-    );
+        l1_sl_contracts: Some(contracts_config.settlement_layer_specific_contracts()),
+        multicall3: Some(contracts_config.l1.multicall3_addr),
+    };
+
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
         node.only_genesis()?.run(observability_guard)?;

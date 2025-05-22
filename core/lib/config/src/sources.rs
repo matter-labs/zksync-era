@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use smart_config::{ConfigRepository, ConfigSchema, Environment, Prefixed, Yaml};
+use smart_config::{Environment, Prefixed, Yaml};
 
 /// Wrapper around configuration sources.
 #[derive(Debug, Default)]
@@ -15,15 +15,6 @@ impl ConfigSources {
     pub fn with_yaml(mut self, path: &Path) -> anyhow::Result<Self> {
         self.0.push(ConfigFilePaths::read_yaml(path)?);
         Ok(self)
-    }
-
-    /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
-    /// with the existing file-based configs (e.g., coerce enum variant names).
-    pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
-        let mut repo = ConfigRepository::new(schema);
-        repo.deserializer_options().coerce_variant_names = true;
-        repo.deserializer_options().coerce_serde_enums = true;
-        repo.with_all(self.0)
     }
 }
 

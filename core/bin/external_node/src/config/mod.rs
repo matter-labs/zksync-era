@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Context;
 use serde::{de, Deserialize, Deserializer};
-use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
+use smart_config::{ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
@@ -25,7 +25,7 @@ use zksync_config::{
         DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
+    ConfigRepository, DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -1199,8 +1199,10 @@ impl ExternalNodeConfig<()> {
         consensus_schema
             .insert(&ConsensusSecrets::DESCRIPTION, "secrets.consensus")
             .context("cannot create consensus config schema")?;
-        let mut repo = ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
+        let mut repo =
+            smart_config::ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
         repo.deserializer_options().coerce_variant_names = true;
+        let mut repo = ConfigRepository::from(repo);
         let consensus = repo.parse_opt()?;
         let consensus_secrets = repo.parse()?;
 
@@ -1228,7 +1230,7 @@ impl ExternalNodeConfig<()> {
         })
     }
 
-    pub fn from_files(repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+    pub fn from_files(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
         let general_config: GeneralConfig = repo.parse()?;
         let external_node_config: ENConfig = repo.parse()?;
         let secrets_config: Secrets = repo.parse()?;
