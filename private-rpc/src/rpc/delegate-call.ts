@@ -16,5 +16,8 @@ export async function delegateCall({
         body: JSON.stringify(request({ id, method, params })),
         headers: { 'Content-Type': 'application/json' }
     });
+    // you can't just use response.body, which would be much faster
+    // because the framework doesn't handle it nicely in case of batch requests
+    // TODO research if that can be improved
     return response.json();
 }
