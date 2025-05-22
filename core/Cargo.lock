@@ -12044,7 +12044,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_bft"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12065,7 +12065,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "blst",
@@ -12085,7 +12085,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_engine"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12104,7 +12104,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_executor"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12125,7 +12125,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_network"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12161,7 +12161,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -12182,7 +12182,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -12246,7 +12246,7 @@ name = "zksync_contract_verifier"
 version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
- "clap 4.5.37",
+ "clap 4.5.38",
  "tokio",
  "tracing",
  "zksync_config",
@@ -12272,7 +12272,7 @@ dependencies = [
  "octocrab",
  "regex",
  "reqwest 0.12.15",
- "rustls 0.23.26",
+ "rustls 0.23.27",
  "secrecy 0.10.3",
  "semver 1.0.26",
  "serde",
@@ -12590,7 +12590,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
- "clap 4.5.37",
+ "clap 4.5.38",
  "envy",
  "futures 0.3.31",
  "rustc_version 0.4.1",
@@ -12829,7 +12829,7 @@ version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
- "clap 4.5.37",
+ "clap 4.5.38",
  "insta",
  "leb128",
  "once_cell",
@@ -13103,7 +13103,7 @@ version = "28.2.1-non-semver-compat"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
- "syn 2.0.100",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -13212,7 +13212,7 @@ dependencies = [
  "aws-runtime",
  "aws-sdk-s3",
  "bincode",
- "clap 4.5.37",
+ "clap 4.5.38",
  "flate2",
  "google-cloud-auth",
  "google-cloud-storage",
@@ -13278,7 +13278,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -13298,7 +13298,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
@@ -13308,7 +13308,7 @@ dependencies = [
  "prost-reflect 0.12.0",
  "protox 0.5.1",
  "quote 1.0.40",
- "syn 2.0.100",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -13369,7 +13369,7 @@ name = "zksync_server"
 version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
- "clap 4.5.37",
+ "clap 4.5.38",
  "futures 0.3.31",
  "serde_json",
  "smart-config",
@@ -13867,7 +13867,7 @@ dependencies = [
  "pin-project-lite",
  "rand 0.8.5",
  "rlp",
- "rustls 0.23.26",
+ "rustls 0.23.27",
  "serde",
  "serde_json",
  "test-casing",

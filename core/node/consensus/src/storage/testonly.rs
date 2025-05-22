@@ -150,12 +150,20 @@ impl ConnectionPool {
                     block
                         .verify(
                             cfg.genesis.hash(),
-                            &cfg.genesis.validators_schedule.unwrap(),
+                            &cfg.genesis.validators_schedule.clone().unwrap(),
                         )
                         .context(block.number())?;
                 }
                 validator::Block::FinalV2(block) => {
-                    block.verify(cfg.genesis.hash()).context(block.number())?;
+                    // Here we are assuming that we are using a static validators schedule. Hence
+                    // getting the epoch number from the genesis config and using epoch 0.
+                    block
+                        .verify(
+                            cfg.genesis.hash(),
+                            validator::EpochNumber(0),
+                            &cfg.genesis.validators_schedule.clone().unwrap(),
+                        )
+                        .context(block.number())?;
                 }
                 validator::Block::PreGenesis(_) => {}
             }
