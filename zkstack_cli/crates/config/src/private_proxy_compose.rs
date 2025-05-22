@@ -6,7 +6,7 @@ use std::{
 use serde_json::json;
 use url::Url;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{docker::adjust_localhost_for_docker, logger};
+use zkstack_cli_common::{docker::adjust_localhost_for_docker};
 
 use crate::{
     consts::{LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
@@ -46,12 +46,12 @@ pub async fn create_private_rpc_service(
     ecosystem_path: &Path,
     chain_name: &str,
 ) -> anyhow::Result<DockerComposeService> {
-    let mut base_permissions_path = if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
+    let base_permissions_path = if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
         PathBuf::from(docker_root)
     } else {
         ecosystem_path.to_path_buf()
     };
-    let mut permissions_path = base_permissions_path
+    let permissions_path = base_permissions_path
         .join("chains")
         .join(chain_name)
         .join("configs")
