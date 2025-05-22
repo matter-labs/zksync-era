@@ -497,9 +497,9 @@ impl EthTxManager {
         blocks: L1BlockNumbers,
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
-        let finality_status = if blocks.finalized.0 > receipt_block_number {
+        let finality_status = if blocks.finalized.0 >= receipt_block_number {
             EthTxFinalityStatus::Finalized
-        } else if blocks.fast_finality.0 > receipt_block_number {
+        } else if blocks.fast_finality.0 >= receipt_block_number {
             EthTxFinalityStatus::FastFinalized
         } else {
             tracing::trace!(
