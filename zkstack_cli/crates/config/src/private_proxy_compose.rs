@@ -55,7 +55,6 @@ pub async fn create_private_rpc_service(
         .join("chains")
         .join(chain_name)
         .join("configs")
-        .join("private-rpc")
         .join("private-rpc-permissions.yaml");
 
     let host_os = detect_host_os()?;
