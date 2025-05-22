@@ -8,8 +8,8 @@ use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        self, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, StorageProof,
+        self, state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, StorageProof,
         TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
