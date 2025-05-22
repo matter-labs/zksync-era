@@ -30,9 +30,10 @@ impl ConfigSources {
     /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
     /// with the existing file-based configs (e.g., coerce enum variant names).
     pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
-        let mut repo = ConfigRepository::new(schema).with_all(self.0);
+        let mut repo = ConfigRepository::new(schema);
         repo.deserializer_options().coerce_variant_names = true;
-        repo
+        repo.deserializer_options().coerce_serde_enums = true;
+        repo.with_all(self.0)
     }
 }
 
