@@ -2,7 +2,6 @@ use anyhow::Context;
 use smart_config::{ConfigSchema, DescribeConfig};
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
-
 use zksync_config::{sources::ConfigSources, ConfigRepositoryExt};
 use zksync_prover_autoscaler::{
     agent,
