@@ -6,35 +6,21 @@ import { Token } from '../src/types';
 import {
     scaledGasPrice,
     deployContract,
-    waitForBlockToBeFinalizedOnL1,
-    waitForL2ToL1LogProof,
-    waitUntilBlockCommitted,
     waitUntilBlockFinalized
 } from '../src/helpers';
 
 import {
     L2_ASSET_ROUTER_ADDRESS,
-    L2_BRIDGEHUB_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_INTEROP_HANDLER_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS,
     L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
     REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-    L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-    BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI,
     ETH_ADDRESS_IN_CONTRACTS,
-    L2_LOG_STRING,
-    ARTIFACTS_PATH,
-    INTEROP_CALL_ABI,
-    MESSAGE_INCLUSION_PROOF_ABI,
-    ArtifactBridgeHub,
     ArtifactInteropCenter,
     ArtifactInteropHandler,
-    ArtifactMessageRootStorage,
-    L2_MESSAGE_ROOT_STORAGE_ADDRESS,
     ArtifactNativeTokenVault,
-    ArtifactMintableERC20,
-    ArtifactL1AssetRouter
+    ArtifactMintableERC20
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 import { getInteropTriggerData, getInteropBundleData } from '../src/temp-sdk';

@@ -173,6 +173,10 @@ impl ProtocolVersionId {
         self < &Self::Version29
     }
 
+    pub fn is_pre_medium_interop(&self) -> bool {
+        self < &Self::Version30
+    }
+
     pub fn is_1_4_0(&self) -> bool {
         self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }

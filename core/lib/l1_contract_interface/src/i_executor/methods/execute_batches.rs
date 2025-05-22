@@ -68,6 +68,46 @@ impl ExecuteBatches {
                 Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
                 Token::Bytes(execute_data),
             ]
+        } else if internal_protocol_version.is_pre_medium_interop()
+        && chain_protocol_version.is_pre_medium_interop() {
+            let encoded_data = encode(&[
+                Token::Array(
+                    self.l1_batches
+                        .iter()
+                        .map(|batch| {
+                            StoredBatchInfo::from(batch)
+                                .into_token_with_protocol_version(internal_protocol_version)
+                        })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.priority_ops_proofs
+                        .iter()
+                        .map(|proof| proof.into_token())
+                        .collect(),
+                ),
+                Token::Array(
+                    self.dependency_roots
+                        .iter()
+                        .map(|batch_roots| {
+                            Token::Array(
+                                batch_roots
+                                    .iter()
+                                    .map(|root| root.clone().into_token())
+                                    .collect(),
+                            )
+                        })
+                        .collect(),
+                ),
+            ]);
+            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+                .concat()
+                .to_vec(); //
+            vec![
+                Token::Uint(self.l1_batches[0].header.number.0.into()),
+                Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
+                Token::Bytes(execute_data),
+            ]
         } else {
             let encoded_data = encode(&[
                 Token::Array(
