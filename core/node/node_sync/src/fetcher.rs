@@ -174,7 +174,7 @@ impl IoCursorExt for IoCursor {
                         block.l1_gas_price,
                     ),
                     first_l2_block: L2BlockParams {
-                        timestamp_ms: u128::from(block.timestamp) * 1000,
+                        timestamp_ms: block.timestamp * 1000,
                         virtual_blocks: block.virtual_blocks,
                     },
                     pubdata_params: block.pubdata_params,
@@ -189,7 +189,7 @@ impl IoCursorExt for IoCursor {
             // if it's not a new batch.
             new_actions.push(SyncAction::L2Block {
                 params: L2BlockParams {
-                    timestamp_ms: u128::from(block.timestamp) * 1000,
+                    timestamp_ms: block.timestamp * 1000,
                     virtual_blocks: block.virtual_blocks,
                 },
                 number: block.number,

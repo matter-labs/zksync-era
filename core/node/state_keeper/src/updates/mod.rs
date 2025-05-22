@@ -50,7 +50,7 @@ impl UpdatesManager {
         system_env: &SystemEnv,
         pubdata_params: PubdataParams,
         previous_batch_protocol_version: ProtocolVersionId,
-        timestamp_ms: u128,
+        timestamp_ms: u64,
     ) -> Self {
         let protocol_version = system_env.version;
         Self {
@@ -84,7 +84,7 @@ impl UpdatesManager {
         self.base_system_contract_hashes
     }
 
-    pub(crate) fn next_l2_block_timestamp_ms_mut(&mut self) -> Option<&mut u128> {
+    pub(crate) fn next_l2_block_timestamp_ms_mut(&mut self) -> Option<&mut u64> {
         self.next_l2_block_params
             .as_mut()
             .map(|params| &mut params.timestamp_ms)

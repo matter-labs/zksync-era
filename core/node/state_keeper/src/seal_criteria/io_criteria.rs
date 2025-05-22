@@ -73,7 +73,7 @@ impl IoSealCriteria for TimeoutSealer {
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
         !manager.l2_block.executed_transactions.is_empty()
             && (millis_since_epoch() - manager.l2_block.timestamp_ms)
-                > u128::from(self.l2_block_commit_deadline_ms)
+                > self.l2_block_commit_deadline_ms
     }
 }
 
@@ -319,7 +319,7 @@ mod tests {
             &system_env,
             Default::default(),
             ProtocolVersionId::latest(),
-            u128::from(l1_batch_env.first_l2_block.timestamp) * 1000,
+            l1_batch_env.first_l2_block.timestamp * 1000,
         );
         // No txs, should not be sealed.
         let should_seal = sealer

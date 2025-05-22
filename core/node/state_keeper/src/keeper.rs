@@ -119,7 +119,7 @@ impl ZkSyncStateKeeper {
                         .context("expected at least one pending L2 block")?
                         .number
                 );
-                let timestamp_ms = u128::from(params.l1_batch_env.first_l2_block.timestamp) * 1000;
+                let timestamp_ms = params.l1_batch_env.first_l2_block.timestamp * 1000;
                 (params, timestamp_ms)
             }
             None => {
@@ -351,7 +351,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams, u128), OrStopped> {
+    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams, u64), OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
@@ -494,7 +494,7 @@ impl ZkSyncStateKeeper {
                 Self::set_l2_block_params(
                     updates_manager,
                     L2BlockParams {
-                        timestamp_ms: u128::from(l2_block.timestamp) * 1000,
+                        timestamp_ms: l2_block.timestamp * 1000,
                         virtual_blocks: l2_block.virtual_blocks,
                     },
                 );

@@ -71,7 +71,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
         &default_system_env(),
         Default::default(),
         Default::default(),
-        u128::from(l1_batch_env.first_l2_block.timestamp) * 1000,
+        l1_batch_env.first_l2_block.timestamp * 1000,
     )
 }
 

@@ -28,7 +28,7 @@ pub struct L2BlockUpdates {
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
     pub l1_tx_count: usize,
-    pub timestamp_ms: u128,
+    pub timestamp_ms: u64,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
@@ -37,7 +37,7 @@ pub struct L2BlockUpdates {
 
 impl L2BlockUpdates {
     pub(crate) fn new(
-        timestamp_ms: u128,
+        timestamp_ms: u64,
         number: L2BlockNumber,
         prev_block_hash: H256,
         virtual_blocks: u32,

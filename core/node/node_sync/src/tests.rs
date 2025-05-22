@@ -42,7 +42,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             operator_address: OPERATOR_ADDRESS,
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams {
-                timestamp_ms: u128::from(timestamp) * 1000,
+                timestamp_ms: timestamp * 1000,
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
@@ -400,7 +400,7 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
 
     let open_l2_block = SyncAction::L2Block {
         params: L2BlockParams {
-            timestamp_ms: u128::from(snapshot.l2_block_timestamp + 2) * 1000,
+            timestamp_ms: (snapshot.l2_block_timestamp + 2) * 1000,
             virtual_blocks: 1,
         },
         number: snapshot.l2_block_number + 2,
@@ -507,7 +507,7 @@ async fn test_external_io_recovery(
     // Send new actions and wait until the new L2 block is sealed.
     let open_l2_block = SyncAction::L2Block {
         params: L2BlockParams {
-            timestamp_ms: u128::from(snapshot.l2_block_timestamp + 2) * 1000,
+            timestamp_ms: (snapshot.l2_block_timestamp + 2) * 1000,
             virtual_blocks: 1,
         },
         number: snapshot.l2_block_number + 3,
@@ -578,7 +578,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
 
     let fictive_l2_block = SyncAction::L2Block {
         params: L2BlockParams {
-            timestamp_ms: u128::from(snapshot.l2_block_timestamp + 2) * 1000,
+            timestamp_ms: (snapshot.l2_block_timestamp + 2) * 1000,
             virtual_blocks: 0,
         },
         number: snapshot.l2_block_number + 2,

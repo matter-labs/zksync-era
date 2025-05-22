@@ -193,7 +193,7 @@ impl StateKeeperIO for MempoolIO {
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
                 first_l2_block: L2BlockParams {
-                    timestamp_ms: u128::from(unsealed_storage_batch.timestamp) * 1000,
+                    timestamp_ms: unsealed_storage_batch.timestamp * 1000,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
@@ -302,7 +302,7 @@ impl StateKeeperIO for MempoolIO {
         }))
     }
 
-    fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u128) {
+    fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u64) {
         let current_timestamp_ms = millis_since_epoch();
 
         if current_timestamp_ms < *block_timestamp_ms {

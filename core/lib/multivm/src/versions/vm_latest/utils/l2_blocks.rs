@@ -5,7 +5,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     block::unpack_block_info, h256_to_u256, u256_to_h256, web3::keccak256, AccountTreeId,
-    L2BlockNumber, StorageKey, H256, U256,
+    L2BlockNumber, ProtocolVersionId, StorageKey, H256, U256,
 };
 
 use crate::interface::{
@@ -22,13 +22,19 @@ pub(crate) fn get_l2_block_hash_key(block_number: u32) -> StorageKey {
     )
 }
 
-pub(crate) fn assert_next_block(prev_block: &L2Block, next_block: &L2BlockEnv) {
+pub(crate) fn assert_next_block(
+    prev_block: &L2Block,
+    next_block: &L2BlockEnv,
+    protocol_version: ProtocolVersionId,
+) {
     if prev_block.number == 0 {
         // Special case for the first block it can have the same timestamp as the previous block.
         assert!(prev_block.timestamp <= next_block.timestamp);
     } else {
         assert_eq!(prev_block.number + 1, next_block.number);
-        // assert!(prev_block.timestamp < next_block.timestamp);
+        if protocol_version.is_pre_fast_block() {
+            assert!(prev_block.timestamp < next_block.timestamp);
+        }
     }
     assert_eq!(prev_block.hash, next_block.prev_block_hash);
 }

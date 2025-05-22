@@ -259,7 +259,7 @@ impl StateKeeper {
                         l1_gas_price: 100,
                     }),
                     first_l2_block: L2BlockParams {
-                        timestamp_ms: u128::from(self.last_timestamp) * 1000,
+                        timestamp_ms: self.last_timestamp * 1000,
                         virtual_blocks: 1,
                     },
                     pubdata_params: Default::default(),
@@ -272,7 +272,7 @@ impl StateKeeper {
             self.last_timestamp += 2;
             SyncAction::L2Block {
                 params: L2BlockParams {
-                    timestamp_ms: u128::from(self.last_timestamp),
+                    timestamp_ms: self.last_timestamp * 1000,
                     virtual_blocks: 0,
                 },
                 number: self.last_block,
