@@ -2,7 +2,8 @@ use std::{str::FromStr, sync::Arc};
 
 use rust_eigenda_client::{
     client::BlobProvider,
-    config::{PrivateKey, SrsPointsSource},
+    config::SrsPointsSource,
+    rust_eigenda_signers::{signers::private_key::Signer, SecretKey},
     EigenClient,
 };
 use subxt_signer::ExposeSecret;
@@ -54,10 +55,12 @@ impl EigenDAClient {
             srs_points_source,
             config.custom_quorum_numbers,
         )?;
-        let private_key = PrivateKey::from_str(secrets.private_key.0.expose_secret())
-            .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        let eigen_secrets = rust_eigenda_client::config::EigenSecrets { private_key };
-        let client = EigenClient::new(eigen_config, eigen_secrets, blob_provider)
+        let signer = Signer::new(
+            SecretKey::from_str(secrets.private_key.0.expose_secret())
+                .map_err(|_| anyhow::anyhow!("Invalid private key"))?,
+        );
+
+        let client = EigenClient::new(eigen_config, signer, blob_provider)
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
         Ok(Self { client })
@@ -84,10 +87,18 @@ impl DataAvailabilityClient for EigenDAClient {
         &self,
         dispatch_request_id: String,
     ) -> Result<Option<FinalityResponse>, DAError> {
-        // TODO: return a quick confirmation in `dispatch_blob` and await here
-        Ok(Some(FinalityResponse {
-            blob_id: dispatch_request_id,
-        }))
+        let finalized = self
+            .client
+            .check_finality(&dispatch_request_id)
+            .await
+            .map_err(to_retriable_da_error)?;
+        if finalized {
+            Ok(Some(FinalityResponse {
+                blob_id: dispatch_request_id,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn get_inclusion_data(&self, blob_id: &str) -> Result<Option<InclusionData>, DAError> {
