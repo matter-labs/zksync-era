@@ -177,7 +177,7 @@ describe('Tests for the private rpc', () => {
     });
 
     test('Eth base token can be transferred', async () => {
-        if (isETHBasedChain) {
+        if (!isETHBasedChain) {
             return;
         }
         const value = 200n;
