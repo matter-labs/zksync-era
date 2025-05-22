@@ -6,7 +6,7 @@ use std::{
 use serde_json::json;
 use url::Url;
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{docker::adjust_localhost_for_docker};
+use zkstack_cli_common::docker::adjust_localhost_for_docker;
 
 use crate::{
     consts::{LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
