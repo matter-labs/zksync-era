@@ -10,7 +10,7 @@ pub trait Function {
     const NAME: &'static str;
     /// Type representing contract this function belongs to.
     type Contract: AsRef<ethabi::Contract>;
-    /// Typ representing outputs of this function.
+    /// Type representing outputs of this function.
     type Outputs;
     /// Encodes this struct to inputs of this function.
     fn encode(&self) -> Vec<Token>;
