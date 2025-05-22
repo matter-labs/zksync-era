@@ -22,6 +22,7 @@ use crate::metrics::API_CONTRACT_VERIFIER_METRICS;
 
 pub mod client;
 pub mod errors;
+pub mod metrics;
 mod solc_versions_fetcher;
 pub mod types;
 pub mod utils;

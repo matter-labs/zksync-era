@@ -211,6 +211,20 @@ impl EtherscanVerificationDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    pub async fn get_number_of_queued_requests(&mut self) -> DalResult<u64> {
+        let result = sqlx::query!(
+            r#"
+            SELECT COUNT(*)
+            FROM etherscan_verification_requests
+            WHERE status = 'queued'
+            "#,
+        )
+        .instrument("get_number_of_queued_etherscan_requests")
+        .fetch_one(self.storage)
+        .await?;
+        Ok(result.count.unwrap_or(0) as u64)
+    }
 }
 
 #[cfg(test)]

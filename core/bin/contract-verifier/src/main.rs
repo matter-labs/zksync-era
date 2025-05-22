@@ -9,7 +9,10 @@ use zksync_config::{
     sources::ConfigFilePaths,
     ConfigRepositoryExt, ContractVerifierConfig,
 };
-use zksync_contract_verifier_lib::{etherscan::EtherscanVerifier, ContractVerifier};
+use zksync_contract_verifier_lib::{
+    etherscan::{metrics::EtherscanVerifierMetrics, EtherscanVerifier},
+    ContractVerifier,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
@@ -111,10 +114,12 @@ async fn main() -> anyhow::Result<()> {
         let etherscan_verifier = EtherscanVerifier::new(
             verifier_config.etherscan_api_url.unwrap(),
             etherscan_api_key.unwrap(),
-            pool,
-            stop_receiver,
+            pool.clone(),
+            stop_receiver.clone(),
         );
+        let etherscan_verifier_metrics = EtherscanVerifierMetrics::new(pool, stop_receiver);
         tasks.push(tokio::spawn(etherscan_verifier.run()));
+        tasks.push(tokio::spawn(etherscan_verifier_metrics.report()));
     } else {
         tracing::info!("Etherscan verifier is disabled");
     }
