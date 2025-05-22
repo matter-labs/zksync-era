@@ -2876,7 +2876,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5451,7 +5451,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -12004,8 +12004,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#83de37d2b2af850b83728600e456d8ad446a0afb"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d7eda4fa1b022812c1dd8fa06ab3977efb6533ec102707ed0b6c62abc60530c"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -12043,8 +12044,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_bft"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29a8b6c74cd1f4c67de862a674f7e178b3df18fad809b92113390784635404c1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12064,8 +12066,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1405b823834064cdc6538dbbfe775438083b65fb2f71d986684c707a72b19ff5"
 dependencies = [
  "anyhow",
  "blst",
@@ -12084,8 +12087,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_engine"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "827e2c533252512e46e0e8249bfd855cbab027692e6152d57ef0c2e0424f7e10"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12103,8 +12107,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_executor"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b6027964067c5992c67290c6ac3dddca20b6673352da32a5c94b0818e31f449"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12124,8 +12129,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_network"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0206e8105ebb5d81c4694cd135f3a3573dd61d50d705970f0226995f97be0cf6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12160,8 +12166,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18eb9246db38e0f2788316295613dc58d3f282e87d263ab4391fac137400ac69"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -12181,8 +12188,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76108070401efb69be7d74be7c9b595383ee0273b8558d90c2591321cee48166"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -12246,7 +12254,7 @@ name = "zksync_contract_verifier"
 version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
- "clap 4.5.38",
+ "clap 4.5.37",
  "tokio",
  "tracing",
  "zksync_config",
@@ -12272,7 +12280,7 @@ dependencies = [
  "octocrab",
  "regex",
  "reqwest 0.12.15",
- "rustls 0.23.27",
+ "rustls 0.23.26",
  "secrecy 0.10.3",
  "semver 1.0.26",
  "serde",
@@ -12590,7 +12598,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
- "clap 4.5.38",
+ "clap 4.5.37",
  "envy",
  "futures 0.3.31",
  "rustc_version 0.4.1",
@@ -12829,7 +12837,7 @@ version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
- "clap 4.5.38",
+ "clap 4.5.37",
  "insta",
  "leb128",
  "once_cell",
@@ -13103,7 +13111,7 @@ version = "28.2.1-non-semver-compat"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
- "syn 2.0.101",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -13212,7 +13220,7 @@ dependencies = [
  "aws-runtime",
  "aws-sdk-s3",
  "bincode",
- "clap 4.5.38",
+ "clap 4.5.37",
  "flate2",
  "google-cloud-auth",
  "google-cloud-storage",
@@ -13277,8 +13285,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c730ff540ddc6f3c36f6e48b4dce1a2a1d677a9bf7edf8b83a8feab0af19625"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -13297,8 +13306,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.10.0"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-vcr#0299cb34f684ed1a9950c3c6f867e4cf4cce9eb6"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "927bd88f2c9ebfcf551ea5d4514a76180fb0ec476723830715de7d61a5c13676"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
@@ -13308,7 +13318,7 @@ dependencies = [
  "prost-reflect 0.12.0",
  "protox 0.5.1",
  "quote 1.0.40",
- "syn 2.0.101",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -13369,7 +13379,7 @@ name = "zksync_server"
 version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
- "clap 4.5.38",
+ "clap 4.5.37",
  "futures 0.3.31",
  "serde_json",
  "smart-config",
@@ -13867,7 +13877,7 @@ dependencies = [
  "pin-project-lite",
  "rand 0.8.5",
  "rlp",
- "rustls 0.23.27",
+ "rustls 0.23.26",
  "serde",
  "serde_json",
  "test-casing",
