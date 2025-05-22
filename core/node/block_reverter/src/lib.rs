@@ -251,10 +251,10 @@ impl BlockReverter {
             let sk_cache_exists = fs::try_exists(storage_cache_path).await.with_context(|| {
                 format!("cannot check whether storage cache path `{storage_cache_path:?}` exists")
             })?;
-            anyhow::ensure!(
-                sk_cache_exists,
-                "Path with storage cache DB doesn't exist at `{storage_cache_path:?}`"
-            );
+            if sk_cache_exists {
+                tracing::info!("Storage cache doesn't exist at `{storage_cache_path:?}`; skipping");
+                continue;
+            }
             self.roll_back_storage_cache(last_l1_batch_to_keep, storage_cache_path)
                 .await?;
         }
