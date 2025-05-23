@@ -3,10 +3,9 @@ use std::str::FromStr;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory},
+    eth_sender::{EthTx, EthTxFinalityStatus, TxHistory},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
-use zksync_types::eth_sender::EthTxFinalityStatus;
 
 #[derive(Debug, Clone)]
 pub struct StorageEthTx {
@@ -32,7 +31,7 @@ pub struct StorageEthTx {
     pub blob_sidecar: Option<Vec<u8>>,
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
-    pub finality_status: Option<String>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Default)]

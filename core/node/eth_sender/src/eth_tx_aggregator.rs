@@ -859,9 +859,7 @@ impl EthTxAggregator {
                 .unwrap_or_else(|| self.eth_client.sender_account()),
             (_, _) => self.eth_client.sender_account(),
         };
-        let nonce = self
-            .get_next_nonce(&mut transaction, sender_addr)
-            .await?;
+        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
