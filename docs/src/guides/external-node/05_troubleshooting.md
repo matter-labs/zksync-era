@@ -82,3 +82,22 @@ snapshot_:
 - `external_node_sync_lag` doesn't decrease and `external_node_action_queue_action_queue_size` is at some high level.
   Cause: The State Keeper doesn't process fetched data quickly enough. Most likely, a more powerful CPU is needed.
 - `sql_connection_acquire` skyrockets. Probably, there are not enough connections in the pool to match the demand.
+
+## Manual revert
+
+Sometimes, it may be useful to revert the node state manually, as opposed to the automated revert performed by the
+[reorg detector](06_components.md#reorg-detector). For example, if a node has missed a mandatory update, it may produce
+block processing artifacts (e.g., events) diverging from the expected ones that are not caught by the reorg detector.
+
+To perform a manual revert, ensure that the node is stopped (i.e., its Postgres and RocksDB instances are unused), and
+execute the node binary with `revert $l1_batch_number` args. (If the node uses file-based configuration, the
+corresponding args must be provided as well, as during the ordinary node run.) Here, `$l1_batch_number` is the number of
+the last L1 batch to be retained by the node after the revert. The node will execute a revert and exit; after this, it
+can be started normally.
+
+```admonish warning
+Do not revert the node state by manually removing rows from Postgres. The node uses RocksDB instances (for the Merkle tree and state keeper cache)
+besides Postgres, which are expected to be in sync with Postgres at all times.
+If this invariant breaks, the RocksDB instances may become irreperably broken, which would require rebuilding the Merkle tree / state keeper cache
+from scratch. This would result in significant performance degradation (for the cache) / delays in block processing (for the Merkle tree).
+```
