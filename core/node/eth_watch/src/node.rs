@@ -161,7 +161,7 @@ impl WiringLayer for EthWatchLayer {
             input.settlement_mode.settlement_layer_for_sending_txs(),
             dependency_l2_chain_clients, //
             main_pool,
-            self.eth_watch_config.poll_interval(),
+            self.eth_watch_config.eth_node_poll_interval,
             self.chain_id,
         )
         .await?;

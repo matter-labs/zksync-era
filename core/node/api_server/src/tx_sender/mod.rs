@@ -82,7 +82,7 @@ pub async fn build_tx_sender(
     )
     .with_sealer(Arc::new(sequencer_sealer));
 
-    let max_concurrency = web3_json_config.vm_concurrency_limit();
+    let max_concurrency = web3_json_config.vm_concurrency_limit;
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
     let batch_fee_input_provider =

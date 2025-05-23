@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use anyhow::Context as _;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
@@ -8,10 +7,9 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::interface::VmEvent;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
-    address_to_h256,
     api::{
-        self, state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
-        L1BatchDetails, L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, StorageProof,
+        self, state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, StorageProof,
         TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
@@ -25,7 +23,7 @@ use zksync_types::{
     utils::storage_key_for_standard_token_balance,
     web3::{self, Bytes},
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
-    L1_MESSENGER_ADDRESS, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::{
     error::{ClientRpcContext, Web3Error},
@@ -246,86 +244,6 @@ impl ZksNamespace {
             })
             .collect();
         Ok(balances)
-    }
-
-    pub async fn get_l2_to_l1_msg_proof_impl(
-        &self,
-        block_number: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-        l2_log_position: Option<usize>,
-    ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
-            return handler
-                .get_l2_to_l1_msg_proof(block_number, sender, msg, l2_log_position)
-                .rpc_context("get_l2_to_l1_msg_proof")
-                .await
-                .map_err(Into::into);
-        }
-
-        let mut storage = self.state.acquire_connection().await?;
-        self.state
-            .start_info
-            .ensure_not_pruned(block_number, &mut storage)
-            .await?;
-
-        let Some(l1_batch_number) = storage
-            .blocks_web3_dal()
-            .get_l1_batch_number_of_l2_block(block_number)
-            .await
-            .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
-        };
-        let (first_l2_block_of_l1_batch, _) = storage
-            .blocks_web3_dal()
-            .get_l2_block_range_of_l1_batch(l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?
-            .context("L1 batch should contain at least one L2 block")?;
-
-        // Position of l1 log in L1 batch relative to logs with identical data
-        let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
-            let logs = storage
-                .events_web3_dal()
-                .get_logs(
-                    GetLogsFilter {
-                        from_block: first_l2_block_of_l1_batch,
-                        to_block: block_number,
-                        addresses: vec![L1_MESSENGER_ADDRESS],
-                        topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
-                    },
-                    self.state.api_config.req_entities_limit,
-                )
-                .await
-                .map_err(DalError::generalize)?;
-            let maybe_pos = logs.iter().position(|event| {
-                event.block_number == Some(block_number.0.into())
-                    && event.log_index == Some(l2_log_position.into())
-            });
-            match maybe_pos {
-                Some(pos) => pos,
-                None => return Ok(None),
-            }
-        } else {
-            0
-        };
-
-        let log_proof = self
-            .get_l2_to_l1_log_proof_inner(
-                &mut storage,
-                l1_batch_number,
-                l1_log_relative_position,
-                |log| {
-                    log.sender == L1_MESSENGER_ADDRESS
-                        && log.key == address_to_h256(&sender)
-                        && log.value == msg
-                },
-                None,
-                None,
-            )
-            .await?;
-        Ok(log_proof)
     }
 
     // pub async fn get_l2_to_global_message_root_proof_impl(

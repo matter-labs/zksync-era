@@ -141,7 +141,7 @@ impl Aggregator {
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Execute,
-                    deadline_seconds: config.aggregated_block_execute_deadline,
+                    deadline: config.aggregated_block_execute_deadline,
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
                 Box::from(L1GasCriterion::new(
@@ -162,7 +162,7 @@ impl Aggregator {
                     }),
                     Box::from(TimestampDeadlineCriterion {
                         op: AggregatedActionType::Commit,
-                        deadline_seconds: config.aggregated_block_commit_deadline,
+                        deadline: config.aggregated_block_commit_deadline,
                         max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                     }),
                     Box::from(L1GasCriterion::new(
@@ -289,7 +289,7 @@ impl Aggregator {
         let max_l1_batch_timestamp_millis = self
             .config
             .l1_batch_min_age_before_execute_seconds
-            .map(|age| unix_timestamp_ms() - age * 1_000);
+            .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)

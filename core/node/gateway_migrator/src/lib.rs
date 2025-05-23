@@ -38,6 +38,7 @@ pub struct GatewayMigrator {
     settlement_layer: Option<SettlementLayer>,
     l2_chain_id: L2ChainId,
     getters_facet_abi: Contract,
+    eth_node_poll_interval: Duration,
 }
 
 impl GatewayMigrator {
@@ -47,6 +48,7 @@ impl GatewayMigrator {
         l2_chain_id: L2ChainId,
         settlement_layer: Option<SettlementLayer>,
         l1_settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
+        eth_node_poll_interval: Duration,
     ) -> Self {
         let abi = getters_facet_contract();
         Self {
@@ -56,6 +58,7 @@ impl GatewayMigrator {
             settlement_layer,
             l2_chain_id,
             getters_facet_abi: abi,
+            eth_node_poll_interval,
         }
     }
 
@@ -101,7 +104,7 @@ impl GatewayMigrator {
                 }
             }
 
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(self.eth_node_poll_interval).await;
         }
     }
 }
