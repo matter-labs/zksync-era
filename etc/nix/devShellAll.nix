@@ -3,6 +3,7 @@
 , zkstack
 , devShell
 , foundry-zksync
+, rustPlatform
 , ...
 }:
 let
@@ -10,6 +11,7 @@ let
     inputsFrom = [ zksync zkstack ];
 
     packages = with pkgs; [
+      (cargo-nextest.override { rustPlatform = rustPlatform; })
       docker-compose
       nodejs
       yarn
