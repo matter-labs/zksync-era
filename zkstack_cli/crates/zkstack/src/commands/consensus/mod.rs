@@ -21,7 +21,7 @@ use zksync_consensus_roles::validator;
 use crate::{
     commands::args::WaitArgs,
     messages,
-    utils::consensus::{read_validator_committee_yaml, Validator},
+    utils::consensus::{read_validator_schedule_yaml, LeaderSelectionInFile, ValidatorWithPop},
 };
 
 #[allow(warnings)]
@@ -35,39 +35,12 @@ pub enum Command {
     /// the schedule in the yaml file.
     /// File format is defined in `SetValidatorScheduleFile` in this crate.
     SetValidatorSchedule(SetValidatorScheduleCommand),
-    /// Fetches the validator schedule from the consensus registry contract.
+    /// Fetches the current validator schedule from the consensus registry contract.
     GetValidatorSchedule,
+    /// Fetches the pending validator schedule from the consensus registry contract, if any.
+    GetPendingValidatorSchedule,
     /// Wait until the consensus registry contract is deployed to L2.
     WaitForRegistry(WaitArgs),
-}
-
-impl Command {
-    pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
-        let setup = Setup::new(shell).await?;
-        match self {
-            Self::SetValidatorCommittee(opts) => {
-                let (want, validators) = setup
-                    .read_validator_committee_file(&opts)
-                    .context("read_validator_committee()")?;
-                setup.set_validator_committee(validators).await?;
-                let got = setup.get_validator_committee().await?;
-                anyhow::ensure!(
-                    got == want,
-                    messages::msg_setting_validator_committee_failed(&got, &want)
-                );
-                print_validators(&got);
-            }
-            Self::GetValidatorCommittee => {
-                let got = setup.get_validator_committee().await?;
-                print_validators(&got);
-            }
-            Self::WaitForRegistry(args) => {
-                let verbose = global_config().verbose;
-                setup.wait_for_registry_contract(&args, verbose).await?;
-            }
-        }
-        Ok(())
-    }
 }
 
 #[derive(clap::Args, Debug)]
@@ -78,40 +51,30 @@ pub struct SetValidatorScheduleCommand {
     pub from_file: PathBuf,
 }
 
-/// Collection of sent transactions.
-#[derive(Default)]
-struct TxSet(Vec<(H256, String)>);
-
-impl TxSet {
-    /// Sends a transactions and stores the transaction hash.
-    async fn send<M: 'static + Middleware, B: Borrow<M>, D: Detokenize>(
-        &mut self,
-        name: String,
-        call: FunctionCall<B, M, D>,
-    ) -> anyhow::Result<()> {
-        let hash = call.send().await.with_context(|| name.clone())?.tx_hash();
-        if global_config().verbose {
-            logger::debug(format!("Sent transaction {name}: {hash:?}"));
-        }
-        self.0.push((hash, name));
-        Ok(())
-    }
-
-    /// Waits for all stored transactions to complete.
-    pub async fn wait<P: JsonRpcClient>(self, provider: &Provider<P>) -> anyhow::Result<()> {
-        for (h, name) in self.0 {
-            async {
-                let status = PendingTransaction::new(h, provider)
-                    .await
-                    .context("await")?
-                    .context(messages::MSG_RECEIPT_MISSING)?
-                    .status
-                    .context(messages::MSG_STATUS_MISSING)?;
-                anyhow::ensure!(status == 1.into(), messages::MSG_TRANSACTION_FAILED);
-                Ok(())
+impl Command {
+    pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
+        let setup = Setup::new(shell).await?;
+        match self {
+            Self::SetValidatorSchedule(opts) => {
+                let want = setup
+                    .read_validator_schedule_file(&opts)
+                    .context("read_validator_schedule_file()")?;
+                setup.set_validator_schedule(want).await?;
+                let got = setup.get_validator_schedule().await?;
+                anyhow::ensure!(
+                    got == want,
+                    messages::msg_setting_validator_committee_failed(&got, &want)
+                );
+                print_validators(&got);
             }
-            .await
-            .context(name)?;
+            Self::GetValidatorSchedule => {
+                let got = setup.get_validator_schedule().await?;
+                print_validators(&got);
+            }
+            Self::WaitForRegistry(args) => {
+                let verbose = global_config().verbose;
+                setup.wait_for_registry_contract(&args, verbose).await?;
+            }
         }
         Ok(())
     }
@@ -207,13 +170,13 @@ impl Setup {
         Ok(abi::ConsensusRegistry::new(addr, m))
     }
 
-    fn read_validator_committee_file(
+    fn read_validator_schedule_file(
         &self,
-        opts: &SetValidatorCommitteeCommand,
-    ) -> anyhow::Result<(validator::Committee, Vec<Validator>)> {
+        opts: &SetValidatorScheduleCommand,
+    ) -> anyhow::Result<validator::Schedule> {
         let yaml = std::fs::read_to_string(opts.from_file.clone()).context("read_to_string()")?;
         let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
-        read_validator_committee_yaml(yaml)
+        read_validator_schedule_yaml(yaml)
     }
 
     async fn last_block(&self, m: &(impl 'static + Middleware)) -> anyhow::Result<BlockId> {
@@ -304,27 +267,35 @@ impl Setup {
         Ok(())
     }
 
-    async fn get_validator_committee(&self) -> anyhow::Result<validator::Committee> {
+    async fn get_validator_schedule(&self) -> anyhow::Result<validator::Schedule> {
         let provider = Arc::new(self.provider()?);
         let consensus_registry = self
             .consensus_registry(provider)
             .context("consensus_registry()")?;
-        let validators = consensus_registry
+        let (validators, leader_selection) = consensus_registry
             .get_validator_committee()
             .call()
             .await
             .context("get_validator_committee()")?;
         let validators: Vec<_> = validators
             .iter()
-            .map(decode_weighted_validator)
+            .map(decode_committee_validator)
             .collect::<Result<_, _>>()
-            .context("decode_weighted_validator()")?;
-        validator::Committee::new(validators.into_iter()).context("validator::Committee::new()")
+            .context("decode_committee_validator()")?;
+        let leader_selection =
+            decode_leader_selection(&leader_selection).context("decode_leader_selection()")?;
+        Ok(validator::Schedule::new(validators, leader_selection)?)
     }
 
-    async fn set_validator_committee(&self, validators: Vec<Validator>) -> anyhow::Result<()> {
+    async fn set_validator_committee(
+        &self,
+        validators_want: Vec<ValidatorWithPop>,
+        leader_selection_want: LeaderSelectionInFile,
+    ) -> anyhow::Result<()> {
         if global_config().verbose {
-            logger::debug(format!("Setting validator committee: {validators:?}"));
+            logger::debug(format!(
+                "Setting validator schedule:\n{validators_want:?}\n{leader_selection_want:?}"
+            ));
         }
 
         let provider = self.provider().context("provider()")?;
@@ -367,103 +338,113 @@ impl Setup {
 
         // Fetch contract state.
         let n: usize = consensus_registry
-            .num_nodes()
+            .num_validators()
             .call_raw()
             .block(block_id)
             .await
-            .context("num_nodes()")?
+            .context("num_validators()")?
             .try_into()
             .ok()
-            .context("num_nodes() overflow")?;
+            .context("num_validators() overflow")?;
         if global_config().verbose {
             logger::debug(format!(
-                "Fetched number of nodes from consensus registry: {n}"
+                "Fetched number of validators from consensus registry: {n}"
             ));
         }
 
         multicall.block = Some(block_id);
-        let node_owners: Vec<Address> = multicall
+        let validator_owners: Vec<Address> = multicall
             .add_calls(
                 false,
-                (0..n).map(|i| consensus_registry.node_owners(i.into())),
+                (0..n).map(|i| consensus_registry.validator_owners(i.into())),
             )
             .call_array()
             .await
-            .context("node_owners()")?;
+            .context("validator_owners()")?;
         multicall.clear_calls();
         if global_config().verbose {
             logger::debug(format!(
-                "Fetched node owners from consensus registry: {node_owners:?}"
+                "Fetched validator owners from consensus registry: {validator_owners:?}"
             ));
         }
 
-        let nodes: Vec<abi::NodesReturn> = multicall
+        let validators: Vec<abi::ValidatorsReturn> = multicall
             .add_calls(
                 false,
-                node_owners
+                validator_owners
                     .iter()
-                    .map(|addr| consensus_registry.nodes(*addr)),
+                    .map(|addr| consensus_registry.validators(*addr)),
             )
             .call_array()
             .await
-            .context("nodes()")?;
+            .context("validators()")?;
         multicall.clear_calls();
         if global_config().verbose {
             logger::debug(format!(
-                "Fetched node info from consensus registry: {nodes:?}"
+                "Fetched validator info from consensus registry: {validators:?}"
             ));
         }
 
         // Update the state.
         let mut txs = TxSet::default();
-        let mut to_insert: HashMap<_, _> = validators
+        // The final state that we want to set.
+        let mut to_insert: HashMap<_, _> = validators_want
             .iter()
-            .map(|a| (a.key.clone(), (a.pop.clone(), a.weight)))
+            .map(|a| (a.key.clone(), (a.pop.clone(), a.weight, a.leader)))
             .collect();
 
-        for (i, node) in nodes.into_iter().enumerate() {
-            if node.validator_latest.removed {
+        // We'll go through each existing validator in the contract and see which changes need to be made.
+        for (i, validator) in validators.into_iter().enumerate() {
+            if validator.latest.removed {
                 continue;
             }
 
-            let node_owner = node_owners[i];
-            let got = validator::WeightedValidator {
-                key: decode_validator_key(&node.validator_latest.pub_key)
+            // Decode this validator info from the consensus registry.
+            let validator_owner = validator_owners[i];
+            let got = validator::ValidatorInfo {
+                key: decode_validator_key(&validator.latest.pub_key)
                     .context("decode_validator_key()")?,
-                weight: node.validator_latest.weight.into(),
+                weight: validator.latest.weight.into(),
+                leader: validator.latest.leader,
             };
 
-            if let Some((_pop, weight)) = to_insert.remove(&got.key) {
+            if let Some((_pop, weight, leader)) = to_insert.remove(&got.key) {
+                // If the weight has changed, we need to change it.
                 if weight != got.weight {
                     txs.send(
                         format!(
-                            "change_validator_weight({node_owner:?}, {} -> {weight})",
+                            "change_validator_weight({validator_owner:?}, {} -> {weight})",
                             got.weight
                         ),
                         consensus_registry.change_validator_weight(
-                            node_owners[i],
+                            validator_owners[i],
                             weight.try_into().context("weight overflow")?,
                         ),
                     )
                     .await?;
                 }
-                if !node.validator_latest.active {
+
+                // If the validator is not active, we need to activate it.
+                if !validator.latest.active {
                     txs.send(
-                        format!("activate({node_owner:?})"),
-                        consensus_registry.activate(node_owner),
+                        format!("activate({validator_owner:?})"),
+                        consensus_registry.change_validator_active(validator_owner, true),
                     )
                     .await?;
                 }
+                // TODO: change validator leader
+                // We don't change keys because the owner is meaningless here
             } else {
+                // If the validator is not in the final state, we need to remove it.
                 txs.send(
-                    format!("remove({node_owner:?})"),
-                    consensus_registry.remove(node_owner),
+                    format!("remove({validator_owner:?})"),
+                    consensus_registry.remove(validator_owner),
                 )
                 .await?;
             }
         }
 
-        for (key, (pop, weight)) in to_insert {
+        for (key, (pop, weight, leader)) in to_insert {
             txs.send(
                 format!("add({key:?}, {weight})"),
                 consensus_registry.add(
@@ -481,6 +462,45 @@ impl Setup {
         )
         .await?;
         txs.wait(&provider).await.context("wait()")?;
+        Ok(())
+    }
+}
+
+/// Collection of sent transactions.
+#[derive(Default)]
+struct TxSet(Vec<(H256, String)>);
+
+impl TxSet {
+    /// Sends a transactions and stores the transaction hash.
+    async fn send<M: 'static + Middleware, B: Borrow<M>, D: Detokenize>(
+        &mut self,
+        name: String,
+        call: FunctionCall<B, M, D>,
+    ) -> anyhow::Result<()> {
+        let hash = call.send().await.with_context(|| name.clone())?.tx_hash();
+        if global_config().verbose {
+            logger::debug(format!("Sent transaction {name}: {hash:?}"));
+        }
+        self.0.push((hash, name));
+        Ok(())
+    }
+
+    /// Waits for all stored transactions to complete.
+    pub async fn wait<P: JsonRpcClient>(self, provider: &Provider<P>) -> anyhow::Result<()> {
+        for (h, name) in self.0 {
+            async {
+                let status = PendingTransaction::new(h, provider)
+                    .await
+                    .context("await")?
+                    .context(messages::MSG_RECEIPT_MISSING)?
+                    .status
+                    .context(messages::MSG_STATUS_MISSING)?;
+                anyhow::ensure!(status == 1.into(), messages::MSG_TRANSACTION_FAILED);
+                Ok(())
+            }
+            .await
+            .context(name)?;
+        }
         Ok(())
     }
 }
@@ -510,12 +530,26 @@ fn decode_validator_key(k: &abi::Bls12381PublicKey) -> anyhow::Result<validator:
     ByteFmt::decode(&x)
 }
 
-fn decode_weighted_validator(
+fn decode_committee_validator(
     v: &abi::CommitteeValidator,
-) -> anyhow::Result<validator::WeightedValidator> {
-    Ok(validator::WeightedValidator {
-        weight: v.weight.into(),
+) -> anyhow::Result<validator::ValidatorInfo> {
+    Ok(validator::ValidatorInfo {
         key: decode_validator_key(&v.pub_key).context("key")?,
+        weight: v.weight.into(),
+        leader: v.leader,
+    })
+}
+
+fn decode_leader_selection(
+    l: &abi::LeaderSelectionAttr,
+) -> anyhow::Result<validator::LeaderSelection> {
+    Ok(validator::LeaderSelection {
+        frequency: l.frequency,
+        mode: if l.weighted {
+            validator::LeaderSelectionMode::Weighted
+        } else {
+            validator::LeaderSelectionMode::RoundRobin
+        },
     })
 }
 

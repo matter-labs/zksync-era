@@ -3,13 +3,18 @@ use serde::{Deserialize, Serialize};
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{node, validator};
 
-pub(crate) fn read_validator_committee_yaml(
+pub(crate) fn read_validator_schedule_yaml(
     raw_yaml: serde_yaml::Value,
-) -> anyhow::Result<validator::Schedule> {
-    let file: SetValidatorCommitteeFile =
+) -> anyhow::Result<(
+    validator::Schedule,
+    Vec<ValidatorWithPop>,
+    LeaderSelectionInFile,
+)> {
+    let file: SetValidatorScheduleFile =
         serde_yaml::from_value(raw_yaml).context("invalid validator schedule file format")?;
 
     let mut validators = Vec::with_capacity(file.validators.len());
+    let mut validators_with_pop = Vec::with_capacity(file.validators.len());
 
     for v in &file.validators {
         let key: validator::PublicKey = Text::new(&v.key).decode().context("key")?;
@@ -19,11 +24,18 @@ pub(crate) fn read_validator_committee_yaml(
             weight: v.weight,
             leader: v.leader,
         });
+
+        validators_with_pop.push(ValidatorWithPop {
+            key,
+            pop: Text::new(&v.pop).decode().context("pop")?,
+            weight: v.weight,
+            leader: v.leader,
+        });
     }
 
     let leader_selection = validator::LeaderSelection {
-        frequency: file.frequency,
-        mode: if file.weighted {
+        frequency: file.leader_selection.frequency,
+        mode: if file.leader_selection.weighted {
             validator::LeaderSelectionMode::Weighted
         } else {
             validator::LeaderSelectionMode::RoundRobin
@@ -32,34 +44,40 @@ pub(crate) fn read_validator_committee_yaml(
 
     let schedule = validator::Schedule::new(validators, leader_selection)?;
 
-    Ok(schedule)
+    Ok((schedule, validators_with_pop, file.leader_selection))
 }
 
 /// This is the file that contains the validator schedule.
 /// It is used to set the validator schedule in the consensus registry.
 #[derive(Debug, Deserialize)]
-pub(crate) struct SetValidatorCommitteeFile {
+pub(crate) struct SetValidatorScheduleFile {
     validators: Vec<ValidatorInFile>,
-    frequency: u64,
-    weighted: bool,
+    leader_selection: LeaderSelectionInFile,
 }
 
 /// This represents a validator with its proof of possession in a YAML file.
 /// The proof of possession is necessary because we don't trust the validator to provide
 /// a valid key.
 #[derive(Debug, Serialize, Deserialize)]
-struct ValidatorInFile {
+pub(crate) struct ValidatorInFile {
     key: String,
     pop: String,
     weight: u64,
     leader: bool,
 }
 
+/// This represents the leader selection parameters in the YAML file.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct LeaderSelectionInFile {
+    frequency: u64,
+    weighted: bool,
+}
+
 /// This represents a validator in the consensus registry.
 /// The proof of possession is necessary because we don't trust the validator to provide
 /// a valid key.
 #[derive(Debug)]
-pub(crate) struct Validator {
+pub(crate) struct ValidatorWithPop {
     pub(crate) key: validator::PublicKey,
     pub(crate) pop: validator::ProofOfPossession,
     pub(crate) weight: u64,
