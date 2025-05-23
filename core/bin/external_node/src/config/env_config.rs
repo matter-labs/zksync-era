@@ -159,7 +159,7 @@ pub fn cv_config_from_env(prefix: &str) -> anyhow::Result<ContractVerifierConfig
         compilation_timeout,
         prometheus_port,
         port,
-        etherscan_api_url: etherscan_api_url,
+        etherscan_api_url,
     };
 
     Ok(contract_verifier_config)
