@@ -1,5 +1,12 @@
 # Changelog
 
+## [21.1.1](https://github.com/matter-labs/zksync-era/compare/prover-v21.1.0...prover-v21.1.1) (2025-05-23)
+
+
+### Bug Fixes
+
+* **prover:** Allow to run prover-autoscaler if several agents aren't available ([#4060](https://github.com/matter-labs/zksync-era/issues/4060)) ([9178bde](https://github.com/matter-labs/zksync-era/commit/9178bde6059ae3dd58c061dba08bda37772a6454))
+
 ## [21.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.0.0...prover-v21.1.0) (2025-05-22)
 
 
