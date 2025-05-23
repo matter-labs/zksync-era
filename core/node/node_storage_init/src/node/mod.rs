@@ -42,16 +42,16 @@ impl NodeStorageInitializerLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub strategy: NodeInitializationStrategyResource,
+    master_pool: PoolResource<MasterPool>,
+    strategy: NodeInitializationStrategy,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub initializer: Option<NodeStorageInitializer>,
+    initializer: Option<NodeStorageInitializer>,
     #[context(task)]
-    pub precondition: Option<NodeStorageInitializerPrecondition>,
+    precondition: Option<NodeStorageInitializerPrecondition>,
 }
 
 impl Output {
@@ -84,9 +84,7 @@ impl WiringLayer for NodeStorageInitializerLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
-        let NodeInitializationStrategyResource(strategy) = input.strategy;
-
-        let initializer = NodeStorageInitializer::new(strategy, pool);
+        let initializer = NodeStorageInitializer::new(input.strategy, pool);
 
         // Insert either task or precondition.
         let output = if self.as_precondition {
@@ -94,7 +92,6 @@ impl WiringLayer for NodeStorageInitializerLayer {
         } else {
             Output::initializer(initializer)
         };
-
         Ok(output)
     }
 }
@@ -140,20 +137,8 @@ impl Task for NodeStorageInitializerPrecondition {
     }
 }
 
-// Note: unlike with other modules, this one keeps within the same file to simplify
-// moving the implementations out of the framework soon.
-/// Resource representing the node initialization strategy.
-#[derive(Debug, Clone)]
-pub struct NodeInitializationStrategyResource(NodeInitializationStrategy);
-
-impl Resource for NodeInitializationStrategyResource {
+impl Resource for NodeInitializationStrategy {
     fn name() -> String {
         "node_initialization_strategy".into()
-    }
-}
-
-impl From<NodeInitializationStrategy> for NodeInitializationStrategyResource {
-    fn from(strategy: NodeInitializationStrategy) -> Self {
-        Self(strategy)
     }
 }

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
@@ -5,28 +7,28 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
-use crate::{
-    node::TxSinkResource,
-    tx_sender::proxy::{AccountNonceSweeperTask, TxProxy},
+use crate::tx_sender::{
+    proxy::{AccountNonceSweeperTask, TxProxy},
+    tx_sink::TxSink,
 };
 
-/// Wiring layer for [`TxProxy`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
+/// Wiring layer for [`TxProxy`], [`TxSink`] implementation.
 #[derive(Debug)]
 pub struct ProxySinkLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub main_node_client: MainNodeClientResource,
-    pub master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub tx_sink: TxSinkResource,
+    tx_sink: Arc<dyn TxSink>,
     #[context(task)]
-    pub account_nonce_sweeper_task: AccountNonceSweeperTask,
+    account_nonce_sweeper_task: AccountNonceSweeperTask,
 }
 
 #[async_trait::async_trait]
@@ -39,14 +41,12 @@ impl WiringLayer for ProxySinkLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let MainNodeClientResource(client) = input.main_node_client;
-        let proxy = TxProxy::new(client);
-
+        let proxy = TxProxy::new(input.main_node_client);
         let pool = input.master_pool.get_singleton().await?;
         let task = proxy.account_nonce_sweeper_task(pool);
 
         Ok(Output {
-            tx_sink: proxy.into(),
+            tx_sink: Arc::new(proxy),
             account_nonce_sweeper_task: task,
         })
     }

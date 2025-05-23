@@ -6,22 +6,16 @@
 
 use std::fmt;
 
+use async_trait::async_trait;
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_types::ProtocolVersionId;
+use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_types::{ProtocolVersionId, Transaction};
+use zksync_vm_executor::interface::TransactionFilter;
 
 use super::{criteria, SealCriterion, SealData, SealResolution, AGGREGATION_METRICS};
 
 /// Checks if an L1 batch should be sealed after executing a transaction.
 pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
-    /// Finds a reason why a transaction with the specified `data` is unexecutable.
-    ///
-    /// Can be used to determine whether the transaction can be executed by the sequencer.
-    fn find_unexecutable_reason(
-        &self,
-        data: &SealData,
-        protocol_version: ProtocolVersionId,
-    ) -> Option<&'static str>;
-
     /// Returns the action that should be taken by the state keeper after executing a transaction.
     #[allow(clippy::too_many_arguments)]
     fn should_seal_l1_batch(
@@ -65,12 +59,14 @@ impl SequencerSealer {
     }
 }
 
-impl ConditionalSealer for SequencerSealer {
-    fn find_unexecutable_reason(
+#[async_trait]
+impl TransactionFilter for SequencerSealer {
+    async fn filter_transaction(
         &self,
-        data: &SealData,
-        protocol_version: ProtocolVersionId,
-    ) -> Option<&'static str> {
+        transaction: &Transaction,
+        metrics: &TransactionExecutionMetrics,
+    ) -> Result<(), String> {
+        let data = SealData::for_transaction(transaction, metrics);
         for sealer in &self.sealers {
             const TX_COUNT: usize = 1;
 
@@ -78,17 +74,20 @@ impl ConditionalSealer for SequencerSealer {
                 &self.config,
                 TX_COUNT,
                 TX_COUNT,
-                data,
-                data,
-                protocol_version,
+                &data,
+                &data,
+                ProtocolVersionId::latest(), // FIXME: is it safe to use?
             );
             if matches!(resolution, SealResolution::Unexecutable(_)) {
-                return Some(sealer.prom_criterion_name());
+                let err = sealer.prom_criterion_name().to_owned();
+                return Err(err);
             }
         }
-        None
+        Ok(())
     }
+}
 
+impl ConditionalSealer for SequencerSealer {
     fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
@@ -193,14 +192,6 @@ impl SequencerSealer {
 pub struct NoopSealer;
 
 impl ConditionalSealer for NoopSealer {
-    fn find_unexecutable_reason(
-        &self,
-        _data: &SealData,
-        _protocol_version: ProtocolVersionId,
-    ) -> Option<&'static str> {
-        None
-    }
-
     fn should_seal_l1_batch(
         &self,
         _l1_batch_number: u32,

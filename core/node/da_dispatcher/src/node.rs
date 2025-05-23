@@ -1,5 +1,5 @@
 use zksync_config::configs::{chain::StateKeeperConfig, da_dispatcher::DADispatcherConfig};
-use zksync_da_client::node::DAClientResource;
+use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_node_framework::{
     service::StopReceiver,
@@ -20,15 +20,15 @@ pub struct DataAvailabilityDispatcherLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub da_client: DAClientResource,
-    pub l2_contracts: L2ContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    da_client: Box<dyn DataAvailabilityClient>,
+    l2_contracts: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub da_dispatcher_task: DataAvailabilityDispatcher,
+    da_dispatcher_task: DataAvailabilityDispatcher,
 }
 
 impl DataAvailabilityDispatcherLayer {
@@ -50,7 +50,7 @@ impl WiringLayer for DataAvailabilityDispatcherLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let da_client = input.da_client.0;
+        let da_client = input.da_client;
         if let Some(limit) = da_client.blob_size_limit() {
             if self.state_keeper_config.max_pubdata_per_batch.0 > limit as u64 {
                 return Err(WiringError::Configuration(format!(

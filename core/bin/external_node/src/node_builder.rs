@@ -20,7 +20,7 @@ use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
 };
-use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
 use zksync_gateway_migrator::node::SettlementLayerData;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
@@ -51,9 +51,7 @@ use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
-use zksync_web3_decl::node::{
-    MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClientLayer,
-};
+use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -111,10 +109,9 @@ impl ExternalNodeBuilder {
             server_replica_url: Some(self.config.postgres.database_url()),
             prover_url: None,
         };
-        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
-            .with_replica(true)
-            .build();
+            .with_replica(true);
         self.node.add_layer(pools_layer);
         Ok(self)
     }
@@ -148,15 +145,6 @@ impl ExternalNodeBuilder {
                 gateway_rpc_url: self.config.optional.gateway_url.clone(),
             },
         ));
-        Ok(self)
-    }
-
-    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
-        let query_eth_client_layer = SettlementLayerClientLayer::new(
-            self.config.required.eth_client_url.clone(),
-            self.config.optional.gateway_url.clone(),
-        );
-        self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
 
@@ -610,7 +598,6 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_settlement_layer_client_layer()?
             .add_reorg_detector_layer()?;
 
         // Add layers that must run only on a single component.

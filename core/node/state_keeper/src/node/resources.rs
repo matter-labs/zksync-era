@@ -1,6 +1,7 @@
-use std::sync::Arc;
-
-use zksync_node_framework::resource::{Resource, Unique};
+use zksync_node_framework::{
+    resource,
+    resource::{Resource, Unique},
+};
 use zksync_state::OwnedStorage;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 
@@ -60,21 +61,8 @@ impl From<OutputHandler> for OutputHandlerResource {
     }
 }
 
-/// A resource that provides [`ConditionalSealer`] implementation to the service.
-#[derive(Debug, Clone)]
-pub struct ConditionalSealerResource(pub Arc<dyn ConditionalSealer>);
-
-impl Resource for ConditionalSealerResource {
+impl Resource<resource::Shared> for dyn ConditionalSealer {
     fn name() -> String {
         "state_keeper/conditional_sealer".into()
-    }
-}
-
-impl<T> From<T> for ConditionalSealerResource
-where
-    T: ConditionalSealer + 'static,
-{
-    fn from(sealer: T) -> Self {
-        Self(Arc::new(sealer))
     }
 }

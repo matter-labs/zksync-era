@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use zksync_config::configs::chain::TimestampAsserterConfig;
 use zksync_dal::node::{PoolResource, ReplicaPool};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_fee_model::node::ApiFeeInputResource;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -11,22 +11,23 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::node::ObjectStoreResource;
-use zksync_shared_resources::contracts::{L2ContractsResource, SettlementLayerContractsResource};
+use zksync_object_store::ObjectStore;
+use zksync_shared_resources::contracts::L2ContractsResource;
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_state_keeper::node::ConditionalSealerResource;
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
+use zksync_vm_executor::node::ApiTransactionFilter;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,
     namespaces::EnNamespaceClient as _,
-    node::MainNodeClientResource,
 };
 
-use super::resources::{TxSenderResource, TxSinkResource};
 use crate::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
-    tx_sender::{SandboxExecutorOptions, TimestampAsserterParams, TxSenderBuilder, TxSenderConfig},
+    tx_sender::{
+        tx_sink::TxSink, SandboxExecutorOptions, TimestampAsserterParams, TxSender,
+        TxSenderBuilder, TxSenderConfig,
+    },
 };
 
 #[derive(Debug)]
@@ -68,20 +69,19 @@ pub struct TxSenderLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub app_health: AppHealthCheckResource,
-    pub tx_sink: TxSinkResource,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub fee_input: ApiFeeInputResource,
-    pub main_node_client: Option<MainNodeClientResource>,
-    pub sealer: Option<ConditionalSealerResource>,
-    pub sl_contracts: SettlementLayerContractsResource,
-    pub l2_contracts: L2ContractsResource,
-    pub core_object_store: Option<ObjectStoreResource>,
+    app_health: Arc<AppHealthCheck>,
+    tx_sink: Arc<dyn TxSink>,
+    replica_pool: PoolResource<ReplicaPool>,
+    fee_input: ApiFeeInputResource,
+    main_node_client: Option<Box<DynClient<L2>>>,
+    transaction_filter: Option<ApiTransactionFilter>,
+    l2_contracts: L2ContractsResource,
+    core_object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    tx_sender: TxSenderResource,
+    tx_sender: TxSender,
     #[context(task)]
     vm_concurrency_barrier: VmConcurrencyBarrier,
     #[context(task)]
@@ -134,9 +134,9 @@ impl WiringLayer for TxSenderLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Get required resources.
-        let tx_sink = input.tx_sink.0;
+        let tx_sink = input.tx_sink;
         let replica_pool = input.replica_pool.get().await?;
-        let sealer = input.sealer.map(|s| s.0);
+        let transaction_filter = input.transaction_filter.map(|filter| filter.0);
         let fee_input = input.fee_input.0;
 
         let config = match input.l2_contracts.0.timestamp_asserter_addr {
@@ -187,24 +187,22 @@ impl WiringLayer for TxSenderLayer {
         executor_options.set_fast_vm_mode(self.vm_mode);
 
         if let Some(store) = input.core_object_store {
-            executor_options.set_vm_dump_object_store(store.0);
+            executor_options.set_vm_dump_object_store(store);
         }
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(config, replica_pool, tx_sink);
-        if let Some(sealer) = sealer {
-            tx_sender = tx_sender.with_sealer(sealer);
+        if let Some(transaction_filter) = transaction_filter {
+            tx_sender = tx_sender.with_transaction_filter(transaction_filter);
         }
 
         // Add the task for updating the whitelisted tokens for the AA cache.
         let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
-            let MainNodeClientResource(main_node_client) =
-                input.main_node_client.ok_or_else(|| {
-                    WiringError::Configuration(
-                        "Main node client is required for the whitelisted tokens for AA cache"
-                            .into(),
-                    )
-                })?;
+            let main_node_client = input.main_node_client.ok_or_else(|| {
+                WiringError::Configuration(
+                    "Main node client is required for the whitelisted tokens for AA cache".into(),
+                )
+            })?;
             let whitelisted_tokens = Arc::new(RwLock::new(Default::default()));
             tx_sender = tx_sender.with_whitelisted_tokens_for_aa(whitelisted_tokens.clone());
             Some(WhitelistedTokensForAaUpdateTask {
@@ -223,12 +221,11 @@ impl WiringLayer for TxSenderLayer {
         );
         input
             .app_health
-            .0
             .insert_custom_component(Arc::new(tx_sender.health_check()))
             .map_err(WiringError::internal)?;
 
         Ok(Output {
-            tx_sender: tx_sender.into(),
+            tx_sender,
             postgres_storage_caches_task,
             vm_concurrency_barrier,
             whitelisted_tokens_for_aa_update_task,

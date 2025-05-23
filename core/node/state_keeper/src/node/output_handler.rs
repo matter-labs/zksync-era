@@ -7,10 +7,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_resources::{
-    api::SyncState,
-    contracts::{L2ContractsResource, SettlementLayerContractsResource},
-};
+use zksync_shared_resources::{api::SyncState, contracts::L2ContractsResource};
 use zksync_types::L2_ASSET_ROUTER_ADDRESS;
 
 use super::resources::OutputHandlerResource;
@@ -48,17 +45,16 @@ pub struct OutputHandlerLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub sync_state: Option<SyncState>,
-    pub contracts: SettlementLayerContractsResource,
-    pub l2_contracts: L2ContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    sync_state: Option<SyncState>,
+    l2_contracts: L2ContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub output_handler: OutputHandlerResource,
+    output_handler: OutputHandlerResource,
     #[context(task)]
-    pub l2_block_sealer: L2BlockSealerTask,
+    l2_block_sealer: L2BlockSealerTask,
 }
 
 impl OutputHandlerLayer {
