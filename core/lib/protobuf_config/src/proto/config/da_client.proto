@@ -71,7 +71,7 @@ message EigenConfigV2M1 {
   optional string cert_verifier_addr = 12;
   optional uint32 blob_version = 13;
   optional PolynomialForm polynomial_form = 14; 
-  optional string eigenda_cert_and_blob_verifier_addr = 15;
+  optional string eigenda_sidecar_rpc = 15;
   reserved 1,2,4,6,7,9,10,11;
   reserved "rpc_node_url","inclusion_polling_interval_ms", "settlement_layer_confirmation_depth", "eigenda_svc_manager_address","wait_for_finalization", "points_source_path", "points_source_url","custom_quorum_numbers";
 }

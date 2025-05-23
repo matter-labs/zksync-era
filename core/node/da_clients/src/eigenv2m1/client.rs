@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use ethabi::{encode, ParamType, Token};
+use reqwest::Client;
 use rust_eigenda_v2_client::{
     core::BlobKey,
     payload_disperser::{PayloadDisperser, PayloadDisperserConfig},
@@ -8,9 +8,9 @@ use rust_eigenda_v2_client::{
     utils::SecretUrl,
 };
 use rust_eigenda_v2_common::{Payload, PayloadForm};
+use serde_json::{json, Value};
 use subxt_signer::ExposeSecret;
 use url::Url;
-use zksync_basic_types::web3::CallRequest;
 use zksync_config::{
     configs::da_client::eigenv2m1::{EigenSecretsV2M1, PolynomialForm},
     EigenConfigV2M1,
@@ -19,9 +19,6 @@ use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
-use zksync_eth_client::EthInterface;
-use zksync_types::Address;
-use zksync_web3_decl::client::{Client, DynClient, L1};
 
 use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
@@ -29,8 +26,8 @@ use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 #[derive(Debug, Clone)]
 pub struct EigenDAClientV2M1 {
     client: PayloadDisperser,
-    eth_call_client: Box<DynClient<L1>>,
-    eigenda_cert_and_blob_verifier_addr: Address,
+    sidecar_client: Client,
+    sidecar_rpc: String,
 }
 
 impl EigenDAClientV2M1 {
@@ -69,78 +66,71 @@ impl EigenDAClientV2M1 {
             .await
             .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
 
-        let eth_call_client: Client<L1> = Client::http(
-            config
-                .eigenda_eth_rpc
-                .ok_or(anyhow::anyhow!("Eigenda eth rpc url is not set"))?,
-        )
-        .map_err(|e| anyhow::anyhow!("Query client Error: {:?}", e))?
-        .build();
-        let eth_call_client = Box::new(eth_call_client) as Box<DynClient<L1>>;
         Ok(Self {
             client,
-            eth_call_client,
-            eigenda_cert_and_blob_verifier_addr: config.eigenda_cert_and_blob_verifier_addr,
+            sidecar_client: Client::new(),
+            sidecar_rpc: config.eigenda_sidecar_rpc,
         })
     }
 }
 
 impl EigenDAClientV2M1 {
-    /// This function checks a mapping with form
-    /// `mapping(bytes) -> bool` in the EigenDA registry contract.
-    /// The name of the mapping is passed as a parameter.
-    async fn check_mapping(&self, inclusion_data: &[u8], mapping: &str) -> Result<bool, DAError> {
-        let mut data = vec![];
-        let func_selector = ethabi::short_signature(mapping, &[ParamType::Bytes]).to_vec();
-        data.extend_from_slice(&func_selector);
-        let inclusion_data = encode(&[Token::Bytes(inclusion_data.to_owned())]);
-        data.extend_from_slice(&inclusion_data);
-        let call_request = CallRequest {
-            to: Some(self.eigenda_cert_and_blob_verifier_addr),
-            data: Some(zksync_basic_types::web3::Bytes(data)),
-            ..Default::default()
-        };
+    async fn send_blob_key(&self, blob_key: String) -> anyhow::Result<()> {
+        let body = json!({
+            "jsonrpc": "2.0",
+            "method": "generate_proof",
+            "params": { "blob_id": blob_key },
+            "id": 1
+        });
+        let response = self
+            .sidecar_client
+            .post(&self.sidecar_rpc)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to send blob key"))?;
 
-        let block_id = self
-            .eth_call_client
-            .block_number()
+        let json_response: Value = response
+            .json()
             .await
-            .map_err(to_retriable_da_error)?;
-        let res = self
-            .eth_call_client
-            .as_ref()
-            .call_contract_function(call_request, Some(block_id.into()))
-            .await
-            .map_err(to_retriable_da_error)?;
-        match hex::encode(res.0).as_str() {
-            "0000000000000000000000000000000000000000000000000000000000000000" => Ok(false),
-            "0000000000000000000000000000000000000000000000000000000000000001" => Ok(true),
-            _ => Err(anyhow::anyhow!("Invalid response from {}", mapping))
-                .map_err(to_non_retriable_da_error),
+            .map_err(|_| anyhow::anyhow!("Failed to parse response"))?;
+
+        if json_response.get("error").is_some() {
+            Err(anyhow::anyhow!("Failed to send blob key"))
+        } else {
+            Ok(())
         }
     }
 
-    async fn check_finished_batches(&self, inclusion_data: &[u8]) -> Result<bool, DAError> {
-        self.check_mapping(inclusion_data, "finishedBatches").await
-    }
+    async fn get_proof(&self, blob_key: &str) -> anyhow::Result<Option<Vec<u8>>> {
+        let body = json!({
+            "jsonrpc": "2.0",
+            "method": "get_proof",
+            "params": { "blob_id": blob_key },
+            "id": 1
+        });
+        let response = self
+            .sidecar_client
+            .post(&self.sidecar_rpc)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to get proof"))?;
 
-    async fn check_verified_batches(&self, inclusion_data: &[u8]) -> Result<bool, DAError> {
-        self.check_mapping(inclusion_data, "verifiedBatches").await
-    }
+        let json_response: Value = response
+            .json()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to parse response"))?;
 
-    /// Checks into the EigenDARegistry contract if for the given inclusion data the proof was correctly verified.
-    /// It first checks if the proof generation finished, and if it did, it checks if the proof was verified.
-    /// If the proof generation didn't finish, it will be called again later when the dispatcher attemps to get inclusion data again
-    async fn check_inclusion_data_verification(
-        &self,
-        inclusion_data: &[u8],
-    ) -> Result<Option<bool>, DAError> {
-        let finished = self.check_finished_batches(inclusion_data).await?;
-        if !finished {
-            return Ok(None);
+        if let Some(result) = json_response.get("result") {
+            if let Some(proof) = result.as_str() {
+                let proof =
+                    hex::decode(proof).map_err(|_| anyhow::anyhow!("Failed to parse proof"))?;
+                return Ok(Some(proof));
+            }
         }
-        let verified = self.check_verified_batches(inclusion_data).await?;
-        Ok(Some(verified))
+
+        Ok(None)
     }
 }
 
@@ -158,7 +148,13 @@ impl DataAvailabilityClient for EigenDAClientV2M1 {
             .await
             .map_err(to_retriable_da_error)?;
 
-        Ok(DispatchResponse::from(blob_key.to_hex()))
+        let blob_key_hex = blob_key.to_hex();
+
+        self.send_blob_key(blob_key_hex.clone())
+            .await
+            .map_err(to_non_retriable_da_error)?;
+
+        Ok(DispatchResponse::from(blob_key_hex))
     }
 
     async fn ensure_finality(
@@ -180,23 +176,13 @@ impl DataAvailabilityClient for EigenDAClientV2M1 {
             .get_inclusion_data(&blob_key)
             .await
             .map_err(to_retriable_da_error)?;
-        if let Some(eigenda_cert) = eigenda_cert {
-            let inclusion_data = eigenda_cert
-                .to_bytes()
-                .map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes"))
-                .map_err(to_non_retriable_da_error)?;
-            if let Some(verified) = self
-                .check_inclusion_data_verification(&inclusion_data)
-                .await?
+        if eigenda_cert.is_some() {
+            if let Some(proof) = self
+                .get_proof(blob_id)
+                .await
+                .map_err(to_retriable_da_error)?
             {
-                if verified {
-                    Ok(Some(InclusionData {
-                        data: inclusion_data,
-                    }))
-                } else {
-                    Err(anyhow::anyhow!("Inclusion data is not verified"))
-                        .map_err(to_non_retriable_da_error)
-                }
+                Ok(Some(InclusionData { data: proof }))
             } else {
                 Ok(None)
             }

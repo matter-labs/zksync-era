@@ -59,6 +59,3 @@ pbjson-types.workspace = true
 rust-eigenda-v2-client.workspace = true
 rust-eigenda-v2-common.workspace = true
 rust-eigenda-client.workspace = true
-zksync_web3_decl.workspace = true
-ethabi.workspace = true
-zksync_eth_client.workspace = true

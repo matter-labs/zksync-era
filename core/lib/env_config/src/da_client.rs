@@ -114,10 +114,6 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 Err(_) => None,
             },
             authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
-            eigenda_cert_and_blob_verifier_addr: H160::from_str(&env::var(format!(
-                "{}EIGENDA_CERT_AND_BLOB_VERIFIER_ADDR",
-                prefix
-            ))?)?,
             cert_verifier_addr: H160::from_str(&env::var(format!(
                 "{}CERT_VERIFIER_ADDR",
                 prefix
@@ -128,6 +124,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 "Poly" => zksync_config::configs::da_client::eigenv2m1::PolynomialForm::Eval,
                 _ => anyhow::bail!("Unknown polynomial form"),
             },
+            eigenda_sidecar_rpc: env::var(format!("{}EIGENDA_SIDECAR_RPC", prefix))?,
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
             DAClientConfig::ObjectStore(envy_load("da_object_store", prefix)?)
@@ -435,10 +432,10 @@ mod tests {
             DA_DISPERSER_RPC="http://localhost:8080"
             DA_EIGENDA_ETH_RPC="http://localhost:8545"
             DA_AUTHENTICATED=false
-            DA_EIGENDA_CERT_AND_BLOB_VERIFIER_ADDR="0x0000000000000000000000000000000000001234"
             DA_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000012345"
             DA_BLOB_VERSION="0"
             DA_POLYNOMIAL_FORM="Coeff"
+            DA_EIGENDA_SIDECAR_RPC="http://localhost:8081"
         "#;
         lock.set_env(config);
 
@@ -449,15 +446,13 @@ mod tests {
                 disperser_rpc: "http://localhost:8080".to_string(),
                 eigenda_eth_rpc: Some(SensitiveUrl::from_str("http://localhost:8545").unwrap()),
                 authenticated: false,
-                eigenda_cert_and_blob_verifier_addr: "0x0000000000000000000000000000000000001234"
-                    .parse()
-                    .unwrap(),
                 cert_verifier_addr: "0x0000000000000000000000000000000000012345"
                     .parse()
                     .unwrap(),
                 blob_version: 0,
                 polynomial_form:
                     zksync_config::configs::da_client::eigenv2m1::PolynomialForm::Coeff,
+                eigenda_sidecar_rpc: "http://localhost:8081".to_string(),
             })
         );
     }

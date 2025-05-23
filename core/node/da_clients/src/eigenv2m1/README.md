@@ -18,7 +18,7 @@ These are the fields that can be modified:
 - `cert_verifier_addr` Address of the eigenDA cert verifier contract
 - `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
 - `polynomial_form` Polynomial form used to encode data, either COEFF or EVAL
-- `eigenda_cert_and_blob_verifier_addr` Address of the eigenda cert and blob verifier contract
+- `eigenda_sidecar_rpc` RPC of the EigenDA Sidecar that generates the proofs
 
 So, for example, a client setup that uses the holesky EigenDA client would look like this:
 
@@ -30,7 +30,7 @@ eigenv2m1:
   cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
   blob_version: 0
   polynomial_form: COEFF
-  eigenda_cert_and_blob_verifier_addr: 0xA9F8693aeA4ce4b1A334d490b038EC2D805FA69a
+  eigenda_sidecar_rpc: http://localhost:9999
 ```
 
 You also need to modify `etc/env/file_based/secrets.yaml` to include the private key of the account that will be used.

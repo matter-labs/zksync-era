@@ -19,14 +19,14 @@ pub struct EigenConfigV2M1 {
     pub eigenda_eth_rpc: Option<SensitiveUrl>,
     /// Authenticated dispersal
     pub authenticated: bool,
-    /// Address of the eigenDA registry contract
-    pub eigenda_cert_and_blob_verifier_addr: Address,
     /// Address of the EigenDA cert verifier
     pub cert_verifier_addr: Address,
     /// Blob version
     pub blob_version: u16,
     /// Polynomial form to disperse the blobs
     pub polynomial_form: PolynomialForm,
+    /// URL of the EigenDA Sidecar RPC server
+    pub eigenda_sidecar_rpc: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -124,14 +124,9 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         .transpose()
                         .context("eigenda_eth_rpc")?,
                     authenticated: *required(&conf.authenticated).context("authenticated")?,
-                    eigenda_cert_and_blob_verifier_addr: required(
-                        &conf.eigenda_cert_and_blob_verifier_addr,
-                    )
-                    .and_then(|x| parse_h160(x))
-                    .context("eigenda_cert_and_blob_verifier_addr")?,
                     cert_verifier_addr: required(&conf.cert_verifier_addr)
                         .and_then(|x| parse_h160(x))
-                        .context("eigenda_cert_and_blob_verifier_addr")?,
+                        .context("eigenda_cert_verifier_addr")?,
                     blob_version: *required(&conf.blob_version).context("blob_version")? as u16,
                     polynomial_form: match required(&conf.polynomial_form)
                         .and_then(|x| Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?))
@@ -144,6 +139,9 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             configs::da_client::eigenv2m1::PolynomialForm::Eval
                         }
                     },
+                    eigenda_sidecar_rpc: required(&conf.eigenda_sidecar_rpc)
+                        .context("eigenda_sidecar_rpc")?
+                        .clone(),
                 })
             }
             proto::data_availability_client::Config::Eigenv2m0(conf) => {
@@ -160,7 +158,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                     authenticated: *required(&conf.authenticated).context("authenticated")?,
                     cert_verifier_addr: required(&conf.cert_verifier_addr)
                         .and_then(|x| parse_h160(x))
-                        .context("eigenda_cert_and_blob_verifier_addr")?,
+                        .context("eigenda_cert_verifier_addr")?,
                     blob_version: *required(&conf.blob_version).context("blob_version")? as u16,
                     polynomial_form: match required(&conf.polynomial_form)
                         .and_then(|x| Ok(crate::proto::da_client::PolynomialForm::try_from(*x)?))
@@ -258,10 +256,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         .as_ref()
                         .map(|a| a.expose_str().to_string()),
                     authenticated: Some(config.authenticated),
-                    eigenda_cert_and_blob_verifier_addr: Some(format!(
-                        "{:?}",
-                        config.eigenda_cert_and_blob_verifier_addr
-                    )),
                     cert_verifier_addr: Some(format!("{:?}", config.cert_verifier_addr)),
                     blob_version: Some(config.blob_version as u32),
                     polynomial_form: Some(match config.polynomial_form {
@@ -272,6 +266,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             crate::proto::da_client::PolynomialForm::Eval.into()
                         }
                     }),
+                    eigenda_sidecar_rpc: Some(config.eigenda_sidecar_rpc.clone()),
                 })
             }
             EigenV2M0(config) => {
