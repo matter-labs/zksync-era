@@ -174,6 +174,7 @@ impl IoCursorExt for IoCursor {
                         block.l1_gas_price,
                     ),
                     first_l2_block: L2BlockParams {
+                        // It's ok that we lose info about millis since it's only used for sealing criteria.
                         timestamp_ms: block.timestamp * 1000,
                         virtual_blocks: block.virtual_blocks,
                     },
@@ -189,6 +190,7 @@ impl IoCursorExt for IoCursor {
             // if it's not a new batch.
             new_actions.push(SyncAction::L2Block {
                 params: L2BlockParams {
+                    // It's ok that we lose info about millis since it's only used for sealing criteria.
                     timestamp_ms: block.timestamp * 1000,
                     virtual_blocks: block.virtual_blocks,
                 },

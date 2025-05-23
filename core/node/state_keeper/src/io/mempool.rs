@@ -193,6 +193,8 @@ impl StateKeeperIO for MempoolIO {
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
                 first_l2_block: L2BlockParams {
+                    // We only persist timestamp in seconds.
+                    // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
                     timestamp_ms: unsealed_storage_batch.timestamp * 1000,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
@@ -465,7 +467,7 @@ impl StateKeeperIO for MempoolIO {
 /// Returns the current timestamp after the sleep. It is guaranteed to be larger than `timestamp`.
 async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
     let mut current_timestamp_millis = millis_since_epoch();
-    let mut current_timestamp = (current_timestamp_millis / 1_000) as u64;
+    let mut current_timestamp = current_timestamp_millis / 1_000;
     match timestamp.cmp(&current_timestamp) {
         cmp::Ordering::Less => return current_timestamp,
         cmp::Ordering::Equal => {
@@ -494,12 +496,12 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
         // since we've ensured that `timestamp >= current_timestamp`.
         let wait_seconds = timestamp - current_timestamp;
         // Time to wait until the current timestamp increases.
-        let wait_millis = 1_001 - (current_timestamp_millis % 1_000) as u64;
+        let wait_millis = 1_001 - (current_timestamp_millis % 1_000);
         let wait = Duration::from_millis(wait_millis + wait_seconds * 1_000);
 
         tokio::time::sleep(wait).await;
         current_timestamp_millis = millis_since_epoch();
-        current_timestamp = (current_timestamp_millis / 1_000) as u64;
+        current_timestamp = current_timestamp_millis / 1_000;
 
         if current_timestamp > timestamp {
             return current_timestamp;

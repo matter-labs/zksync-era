@@ -119,6 +119,7 @@ impl ZkSyncStateKeeper {
                         .context("expected at least one pending L2 block")?
                         .number
                 );
+                // For re-executing purposes it's ok to not use exact precise millis.
                 let timestamp_ms = params.l1_batch_env.first_l2_block.timestamp * 1000;
                 (params, timestamp_ms)
             }
@@ -494,6 +495,7 @@ impl ZkSyncStateKeeper {
                 Self::set_l2_block_params(
                     updates_manager,
                     L2BlockParams {
+                        // For re-executing purposes it's ok to not use exact precise millis.
                         timestamp_ms: l2_block.timestamp * 1000,
                         virtual_blocks: l2_block.virtual_blocks,
                     },

@@ -62,7 +62,7 @@ pub struct L2BlockParams {
 impl L2BlockParams {
     /// The timestamp of the L2 block in seconds.
     pub fn timestamp(&self) -> u64 {
-        u64::try_from(self.timestamp_ms / 1000).unwrap()
+        self.timestamp_ms / 1000
     }
 }
 

@@ -145,7 +145,7 @@ impl ProtocolUpgradeSealer {
             .pool
             .connection_tagged("protocol_upgrade_sealer")
             .await?;
-        let current_timestamp = (millis_since_epoch() / 1_000) as u64;
+        let current_timestamp = millis_since_epoch() / 1_000;
         let protocol_version = conn
             .protocol_versions_dal()
             .protocol_version_id_by_timestamp(current_timestamp)
