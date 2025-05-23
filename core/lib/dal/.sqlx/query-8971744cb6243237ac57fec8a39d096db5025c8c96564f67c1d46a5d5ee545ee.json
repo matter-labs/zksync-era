@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                (\n                    from_addr = $2\n                    OR\n                    (from_addr IS NULL AND $3)\n                )\n                AND is_gateway = $4\n                AND id > COALESCE(\n                    (SELECT\n                        eth_tx_id\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND (\n                            from_addr = $2\n                            OR\n                            (from_addr IS NULL AND $3)\n                        )\n                        AND is_gateway = $4\n                        AND sent_successfully = TRUE\n                    ORDER BY eth_tx_id DESC LIMIT 1),\n                    0\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
+  "query": "\n            SELECT\n                eth_txs.*\n            FROM\n                eth_txs\n            JOIN eth_txs_history ON eth_txs.confirmed_eth_tx_history_id = eth_txs_history.id\n            WHERE\n                from_addr = $1\n                AND is_gateway = $2\n                AND eth_txs_history.finality_status != 'finalized'\n            ",
   "describe": {
     "columns": [
       {
@@ -82,13 +82,16 @@
         "ordinal": 15,
         "name": "chain_id",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "status",
+        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
         "Bytea",
-        "Bool",
         "Bool"
       ]
     },
@@ -108,8 +111,9 @@
       true,
       true,
       false,
+      true,
       true
     ]
   },
-  "hash": "3e2fd6f945c2365388694b338fc36d05708fb879aeb2bba31887b7a9cdf5d465"
+  "hash": "8971744cb6243237ac57fec8a39d096db5025c8c96564f67c1d46a5d5ee545ee"
 }

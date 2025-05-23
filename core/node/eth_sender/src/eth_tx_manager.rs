@@ -362,17 +362,45 @@ impl EthTxManager {
             .await?;
 
         if let Some(operator_nonce) = operator_nonce {
+            let non_final_txs = storage
+                .eth_sender_dal()
+                .get_non_final_txs(
+                    self.operator_address(operator_type),
+                    operator_type == OperatorType::Gateway,
+                )
+                .await
+                .unwrap();
+
+            let result = self
+                .apply_inflight_txs_statuses_and_get_first_to_resend(
+                    storage,
+                    l1_block_numbers,
+                    operator_nonce,
+                    non_final_txs,
+                )
+                .await?;
+            if let Some((eth_tx, _)) = result {
+                tracing::warn!("Fast finalized transaction has been reverted {:?}", &eth_tx);
+                storage
+                    .eth_sender_dal()
+                    .unfinalize_txs(
+                        self.operator_address(operator_type),
+                        operator_type == OperatorType::Gateway,
+                        eth_tx.id,
+                    )
+                    .await
+                    .unwrap();
+            }
+
             let inflight_txs = storage
                 .eth_sender_dal()
                 .get_inflight_txs(
                     self.operator_address(operator_type),
-                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
                 .unwrap();
             METRICS.number_of_inflight_txs[&operator_type].set(inflight_txs.len());
-
             Ok(self
                 .apply_inflight_txs_statuses_and_get_first_to_resend(
                     storage,
@@ -681,7 +709,6 @@ impl EthTxManager {
             .eth_sender_dal()
             .get_inflight_txs(
                 self.operator_address(operator_type),
-                operator_type != OperatorType::Blob,
                 operator_type == OperatorType::Gateway,
             )
             .await
@@ -699,7 +726,6 @@ impl EthTxManager {
                 .get_new_eth_txs(
                     number_of_available_slots_for_eth_txs,
                     self.operator_address(operator_type),
-                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await

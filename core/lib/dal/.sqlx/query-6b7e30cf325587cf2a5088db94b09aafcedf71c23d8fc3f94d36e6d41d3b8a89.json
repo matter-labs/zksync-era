@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                (\n                    from_addr = $1\n                    OR\n                    (from_addr IS NULL AND $2)\n                )\n                AND is_gateway = $3\n                AND id <= COALESCE(\n                    (SELECT\n                        eth_tx_id\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND (\n                            eth_txs_history.finality_status != 'finalized'\n                        )\n                        AND (\n                            from_addr = $1\n                            OR\n                            (from_addr IS NULL AND $2)\n                        )\n                        AND is_gateway = $3\n                    ORDER BY eth_tx_id DESC LIMIT 1),\n                    0\n                )\n            ORDER BY\n                id\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr = $1\n                AND is_gateway = $2\n                AND confirmed_eth_tx_history_id IS NULL\n                AND id <= COALESCE(\n                    (SELECT\n                        eth_tx_id\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.finality_status != 'finalized'\n                        AND\n                        from_addr = $1\n                        AND is_gateway = $2\n                    ORDER BY eth_tx_id DESC LIMIT 1),\n                    0\n                )\n            ORDER BY\n                id\n            ",
   "describe": {
     "columns": [
       {
@@ -92,7 +92,6 @@
     "parameters": {
       "Left": [
         "Bytea",
-        "Bool",
         "Bool"
       ]
     },
@@ -116,5 +115,5 @@
       true
     ]
   },
-  "hash": "59edc7dd0972a3f2a2092b652b5351701419262bba25dc8e1c43c91165c6a1d5"
+  "hash": "6b7e30cf325587cf2a5088db94b09aafcedf71c23d8fc3f94d36e6d41d3b8a89"
 }
