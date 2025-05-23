@@ -1,0 +1,5 @@
+eth:
+  sender:
+    precommit_params:
+      deadline_sec: 10
+      l2_blocks_to_aggregate: 5

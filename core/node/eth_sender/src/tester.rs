@@ -346,10 +346,11 @@ impl EthSenderTester {
             .unwrap()
             .latest;
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
+        let fast_finality = finalized + 1;
         L1BlockNumbers {
             finalized,
             latest,
-            safe: finalized,
+            fast_finality,
         }
     }
     async fn insert_l1_batch(&self, number: L1BatchNumber) -> L1BatchHeader {
@@ -625,11 +626,7 @@ impl EthSenderTester {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(
-                    self.manager.operator_address(OperatorType::NonBlob),
-                    false,
-                    false,
-                )
+                .get_inflight_txs(self.manager.operator_address(OperatorType::NonBlob), false)
                 .await
                 .unwrap()
                 .len()
@@ -637,11 +634,7 @@ impl EthSenderTester {
                     .storage()
                     .await
                     .eth_sender_dal()
-                    .get_inflight_txs(
-                        self.manager.operator_address(OperatorType::Blob),
-                        false,
-                        false,
-                    )
+                    .get_inflight_txs(self.manager.operator_address(OperatorType::Blob), false)
                     .await
                     .unwrap()
                     .len()
@@ -649,11 +642,7 @@ impl EthSenderTester {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(
-                    self.manager.operator_address(OperatorType::Gateway),
-                    false,
-                    true,
-                )
+                .get_inflight_txs(self.manager.operator_address(OperatorType::Gateway), true)
                 .await
                 .unwrap()
                 .len()

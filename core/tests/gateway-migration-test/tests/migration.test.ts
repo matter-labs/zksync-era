@@ -174,13 +174,13 @@ describe('Migration From/To gateway test', function () {
             ZK_CHAIN_INTERFACE,
             gatewayInfo?.gatewayProvider
         );
+
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
             expect(slAddressl1 != ZeroAddress);
             expect(slAddressGW == ZeroAddress);
         } else {
-            let slAddressl1 = await l1MainContract.getSettlementLayer();
             expect(slAddressl1 == ZeroAddress);
             expect(slAddressGW != ZeroAddress);
         }

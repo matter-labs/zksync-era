@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_txs_history\n            SET\n                updated_at = NOW(),\n                confirmed_at = NOW(),\n                finality_status = $2,\n                sent_successfully = TRUE\n            WHERE\n                tx_hash = $1\n            RETURNING\n            id,\n            eth_tx_id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "eth_tx_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "9a429bda30a7a402b4b1c8c891c58f498f1907f92b295f5cc0b2f93044625f54"
+}
