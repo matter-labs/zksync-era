@@ -53,15 +53,14 @@ impl TeeRequestProcessor {
     ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, TeeProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let batch_ignored_timeout = ChronoDuration::from_std(
-            self.config.tee_batch_permanently_ignored_timeout(),
-        )
-        .map_err(|err| {
-            TeeProcessorError::GeneralError(format!(
-                "Failed to convert batch_ignored_timeout: {}",
-                err
-            ))
-        })?;
+        let batch_ignored_timeout =
+            ChronoDuration::from_std(self.config.batch_permanently_ignored_timeout_in_hours)
+                .map_err(|err| {
+                    TeeProcessorError::GeneralError(format!(
+                        "Failed to convert batch_ignored_timeout: {}",
+                        err
+                    ))
+                })?;
         let min_batch_number = self.config.first_processed_batch;
 
         loop {
@@ -194,7 +193,7 @@ impl TeeRequestProcessor {
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
                 tee_type,
-                self.config.tee_proof_generation_timeout(),
+                self.config.proof_generation_timeout_in_secs,
                 min_batch_number,
             )
             .await

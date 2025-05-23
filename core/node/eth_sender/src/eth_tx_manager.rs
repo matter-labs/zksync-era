@@ -635,7 +635,7 @@ impl EthTxManager {
         let pool = self.pool.clone();
 
         loop {
-            tokio::time::sleep(self.config.tx_poll_period()).await;
+            tokio::time::sleep(self.config.tx_poll_period).await;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {

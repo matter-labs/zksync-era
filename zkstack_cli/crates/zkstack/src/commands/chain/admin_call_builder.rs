@@ -143,7 +143,7 @@ impl AdminCallBuilder {
         upgrade_cut_data: Bytes,
         l1_rpc_url: String,
     ) {
-        let result = prepare_upgrade_zk_chain_on_gateway(
+        let result = crate::admin_functions::prepare_upgrade_zk_chain_on_gateway(
             shell,
             forge_args,
             foundry_contracts_path,
