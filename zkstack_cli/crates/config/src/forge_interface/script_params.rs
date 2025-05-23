@@ -106,3 +106,9 @@ pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     output: "script-out/gateway-finalize-upgrade.toml",
     script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
 };
+
+pub const DEPLOY_TEE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-tee.toml",
+    output: "script-out/output-deploy-tee.toml",
+    script_path: "DeployTeeDCAP.s.sol",
+};

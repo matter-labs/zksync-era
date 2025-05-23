@@ -183,6 +183,14 @@ impl ContractsConfig {
         self.l2.da_validator_addr = Some(output.l2_da_validator_address);
         Ok(())
     }
+
+    pub fn set_tee_dcap_attestation_addr(
+        &mut self,
+        tee_dcap_attestation_addr: Address,
+    ) -> anyhow::Result<()> {
+        self.l1.tee_dcap_attestation_addr = Some(tee_dcap_attestation_addr);
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
@@ -270,6 +278,9 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
+    // TEE DCAP attestation related contract address
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tee_dcap_attestation_addr: Option<Address>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

@@ -27,3 +27,8 @@ pub fn build_system_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Re
     let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
     Ok(Cmd::new(cmd!(shell, "yarn build:foundry")).run()?)
 }
+
+pub fn build_tee_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts/tee-contracts"));
+    Ok(Cmd::new(cmd!(shell, "forge build")).run()?)
+}
