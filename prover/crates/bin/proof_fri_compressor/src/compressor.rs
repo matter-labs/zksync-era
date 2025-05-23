@@ -114,10 +114,11 @@ impl JobProcessor for ProofCompressor {
         self.pool
             .connection()
             .await
-            .unwrap()
+            .expect("failed to acquire DB connection for ProofCompressor")
             .fri_proof_compressor_dal()
             .mark_proof_compression_job_failed(&error, job_id)
-            .await;
+            .await
+            .expect("failed to mark proof compression job failed");
     }
 
     async fn process_job(
@@ -195,10 +196,11 @@ impl JobProcessor for ProofCompressor {
         self.pool
             .connection()
             .await
-            .unwrap()
+            .expect("failed to acquire DB connection for ProofCompressor")
             .fri_proof_compressor_dal()
             .mark_proof_compression_job_successful(job_id, started_at.elapsed(), &blob_url)
-            .await;
+            .await
+            .expect("failed to mark proof compression job successful");
         Ok(())
     }
 
