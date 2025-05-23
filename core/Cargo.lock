@@ -12315,18 +12315,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_core_leftovers"
-version = "28.2.1-non-semver-compat"
-dependencies = [
- "anyhow",
- "ctrlc",
- "serde_yaml",
- "tokio",
- "zksync_config",
- "zksync_protobuf",
-]
-
-[[package]]
 name = "zksync_crypto_primitives"
 version = "28.2.1-non-semver-compat"
 dependencies = [
@@ -13396,7 +13384,6 @@ dependencies = [
  "zksync_consensus_executor",
  "zksync_consensus_roles",
  "zksync_contract_verification_server",
- "zksync_core_leftovers",
  "zksync_da_clients",
  "zksync_da_dispatcher",
  "zksync_dal",
