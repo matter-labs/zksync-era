@@ -5,7 +5,8 @@
 import { TestMaster } from '../src';
 import { Token } from '../src/types';
 
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { IL2NativeTokenVault__factory } from 'zksync-ethers/build/typechain';

@@ -1,3 +1,4 @@
+use zksync_dal::DalError;
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::web3::contract;
 
@@ -11,6 +12,8 @@ pub enum EthSenderError {
     Parse(#[from] contract::Error),
     #[error("Max base fee exceeded")]
     ExceedMaxBaseFee,
+    #[error("Dal error: {0}")]
+    Dal(#[from] DalError),
 }
 
 impl EthSenderError {

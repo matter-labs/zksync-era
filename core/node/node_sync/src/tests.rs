@@ -44,6 +44,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             first_l2_block: L2BlockParams {
                 timestamp,
                 virtual_blocks: 1,
+                interop_roots: vec![],
             },
             pubdata_params: Default::default(),
         },
@@ -402,6 +403,7 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
         params: L2BlockParams {
             timestamp: snapshot.l2_block_timestamp + 2,
             virtual_blocks: 1,
+            interop_roots: vec![],
         },
         number: snapshot.l2_block_number + 2,
     };
@@ -509,6 +511,7 @@ async fn test_external_io_recovery(
         params: L2BlockParams {
             timestamp: snapshot.l2_block_timestamp + 3,
             virtual_blocks: 1,
+            interop_roots: vec![],
         },
         number: snapshot.l2_block_number + 3,
     };
@@ -580,6 +583,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
         params: L2BlockParams {
             timestamp: snapshot.l2_block_timestamp + 2,
             virtual_blocks: 0,
+            interop_roots: vec![],
         },
         number: snapshot.l2_block_number + 2,
     };
@@ -705,6 +709,7 @@ async fn external_io_empty_unsealed_batch() {
         params: L2BlockParams {
             timestamp: 2,
             virtual_blocks: 0,
+            interop_roots: vec![],
         },
         number: L2BlockNumber(2),
     };
@@ -741,6 +746,7 @@ async fn external_io_empty_unsealed_batch() {
         params: L2BlockParams {
             timestamp: 4,
             virtual_blocks: 0,
+            interop_roots: vec![],
         },
         number: L2BlockNumber(4),
     };

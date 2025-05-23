@@ -216,7 +216,7 @@ impl TestedVmForValidation for TestedLatestVm {
 
         let tracer = ValidationTracer::<HistoryEnabled>::new(
             validation_params,
-            VmVersion::VmEcPrecompiles,
+            VmVersion::latest(),
             timestamp,
         );
         let mut failures = tracer.get_result();

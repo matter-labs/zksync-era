@@ -6,12 +6,26 @@ import { TestMaster } from '../src';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
+import * as path from 'path';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
-import { RetryableWallet } from '../src/retry-provider';
+import { RetryableWallet, RetryProvider } from '../src/retry-provider';
 
+import {
+    L2_MESSAGE_VERIFICATION_ADDRESS,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
+    ArtifactL2MessageVerification,
+    ArtifactL2InteropRootStorage,
+    ArtifactBridgeHub
+} from '../src/constants';
+import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
+import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
+import { loadConfig } from 'utils/src/file-configs';
+
+const GW_CHAIN_ID = 506n;
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
@@ -160,7 +174,8 @@ describe('L1 ERC20 contract checks', () => {
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.toEqual(0n);
     });
 
-    test('Can perform a withdrawal', async () => {
+    let withdrawalHash: string;
+    test('Can perform a withdrawal from L2-A', async () => {
         if (testMaster.isFastMode()) {
             return;
         }
@@ -176,6 +191,7 @@ describe('L1 ERC20 contract checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
+        withdrawalHash = withdrawalTx.hash;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
         await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
@@ -187,9 +203,146 @@ describe('L1 ERC20 contract checks', () => {
                 l1: true
             }
         );
-
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
+
+    let params: FinalizeWithdrawalParams;
+    let bridgehub: ethers.Contract;
+    let skipInteropTest = false;
+    test('Can check withdrawal hash in L2-A', async () => {
+        bridgehub = new ethers.Contract(
+            await alice.provider.getBridgehubContractAddress(),
+            ArtifactBridgeHub.abi,
+            alice.providerL1
+        );
+
+        if (
+            (await bridgehub.settlementLayer((await alice.provider.getNetwork()).chainId)) ==
+            (await alice.providerL1!.getNetwork()).chainId
+        ) {
+            skipInteropTest = true;
+            return;
+        }
+
+        const l2MessageVerification = new zksync.Contract(
+            L2_MESSAGE_VERIFICATION_ADDRESS,
+            ArtifactL2MessageVerification.abi,
+            alice.provider
+        );
+
+        // Imports proof until GW's message root, needed for proof based interop.
+        params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
+
+        // Needed else the L2's view of GW's MessageRoot won't be updated
+        await waitForInteropRootNonZero(alice.provider, alice, GW_CHAIN_ID, getGWBlockNumber(params));
+
+        const included = await l2MessageVerification.proveL2MessageInclusionShared(
+            (await alice.provider.getNetwork()).chainId,
+            params.l1BatchNumber,
+            params.l2MessageIndex,
+            { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
+            params.proof
+        );
+        expect(included).toBe(true);
+    });
+
+    test('Can check withdrawal hash from L2-B', async () => {
+        // We extract the L2-B RPC URL from the corresponding yaml file to define the L2-B provider
+        const url = getL2bUrl(testMaster.environment().l2NodeUrl);
+        let l2b_provider = new RetryProvider({ url, timeout: 1200 * 1000 }, undefined, testMaster.reporter);
+
+        if (skipInteropTest) {
+            return;
+        }
+
+        const l2MessageVerification = new zksync.Contract(
+            L2_MESSAGE_VERIFICATION_ADDRESS,
+            ArtifactL2MessageVerification.abi,
+            l2b_provider
+        );
+
+        // Manually fund the L2-B account with some ETH, and wait for the balance to be updated
+        let aliceL2b = new zksync.Wallet(alice.privateKey, l2b_provider, testMaster.mainAccount().providerL1);
+        const l1Balance = await aliceL2b.getBalanceL1();
+        await aliceL2b.deposit({
+            token: ETH_ADDRESS,
+            amount: l1Balance / 20n
+        });
+        let balance: bigint = 0n;
+        while (balance.toString() === '0') {
+            balance = await aliceL2b.getBalance();
+        }
+
+        // Needed else the L2's view of GW's MessageRoot won't be updated
+        await waitForInteropRootNonZero(l2b_provider, aliceL2b, GW_CHAIN_ID, getGWBlockNumber(params));
+
+        // We use the same proof that was verified in L2-A
+        const included = await l2MessageVerification.proveL2MessageInclusionShared(
+            (await alice.provider.getNetwork()).chainId,
+            params.l1BatchNumber,
+            params.l2MessageIndex,
+            { txNumberInBatch: params.l2TxNumberInBlock, sender: params.sender, data: params.message },
+            params.proof
+        );
+        expect(included).toBe(true);
+    });
+
+    function getGWBlockNumber(params: FinalizeWithdrawalParams): number {
+        /// see hashProof in MessageHashing.sol for this logic.
+        let gwProofIndex =
+            1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+        console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
+        return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
+    }
+
+    async function waitForInteropRootNonZero(
+        provider: zksync.Provider,
+        alice: zksync.Wallet,
+        chainId: bigint,
+        l1BatchNumber: number
+    ) {
+        const l2InteropRootStorage = new zksync.Contract(
+            L2_INTEROP_ROOT_STORAGE_ADDRESS,
+            ArtifactL2InteropRootStorage.abi,
+            provider
+        );
+        let currentRoot = ethers.ZeroHash;
+        let count = 0;
+        while (currentRoot === ethers.ZeroHash) {
+            const tx = await alice.transfer({
+                to: alice.address,
+                amount: 1,
+                token: ETH_ADDRESS
+            });
+            await tx.wait();
+
+            currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
+            console.log('currentRoot', currentRoot, count);
+            count++;
+        }
+        console.log('Interop root is non-zero', currentRoot);
+    }
+
+    // Gets the L2-B provider URL based on the L2-A provider URL: validium (L2-B) for era (L2-A), or era (L2-B) for validium (L2-A)
+    function getL2bUrl(l2aUrl: string) {
+        const pathToHome = path.join(__dirname, '../../../..');
+        const validiumConfig = loadConfig({
+            pathToHome,
+            chain: 'validium',
+            config: 'general.yaml'
+        });
+        const validiumUrl = validiumConfig.api.web3_json_rpc.http_url;
+        if (validiumUrl !== l2aUrl) return validiumUrl;
+
+        const eraConfig = loadConfig({
+            pathToHome,
+            chain: 'era',
+            config: 'general.yaml'
+        });
+        const eraUrl = eraConfig.api.web3_json_rpc.http_url;
+        if (eraUrl !== l2aUrl) return eraUrl;
+        throw new Error('No valid L2-B provider found');
+    }
 
     test('Should claim failed deposit', async () => {
         if (testMaster.isFastMode()) {

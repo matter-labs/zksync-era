@@ -176,6 +176,7 @@ impl IoCursorExt for IoCursor {
                     first_l2_block: L2BlockParams {
                         timestamp: block.timestamp,
                         virtual_blocks: block.virtual_blocks,
+                        interop_roots: vec![],
                     },
                     pubdata_params: block.pubdata_params,
                 },
@@ -191,6 +192,7 @@ impl IoCursorExt for IoCursor {
                 params: L2BlockParams {
                     timestamp: block.timestamp,
                     virtual_blocks: block.virtual_blocks,
+                    interop_roots: vec![],
                 },
                 number: block.number,
             });

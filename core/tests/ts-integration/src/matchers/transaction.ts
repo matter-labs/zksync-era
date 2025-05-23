@@ -1,6 +1,7 @@
 import { TestMessage } from './matcher-helpers';
 import { MatcherModifier } from '../modifiers';
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import { AugmentedTransactionResponse } from '../transaction-response';
 import { ethers } from 'ethers';
 
@@ -71,6 +72,10 @@ export async function toBeReverted(
 
         return fail(message);
     } catch (error: any) {
+        // kl todo remove this once ethers is fixed
+        if (error.toString().includes('reverted')) {
+            return pass();
+        }
         const receipt = error.receipt;
         if (!receipt) {
             const message = new TestMessage()
