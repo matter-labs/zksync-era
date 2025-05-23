@@ -33,8 +33,7 @@ fi
 # Update version in the file if provided as argument
 if [ "$1" ]; then
     VERSION="$1"
-    sed -i "s/version = \".*\"/version = \"$VERSION\"/" ./foundry-zksync.nix
-    sed -i "s/version=\".*\"/version=\"$VERSION\"/" ./foundry-zksync.nix
+    sed -i "s/version *= *\".*\"/version = \"$VERSION\"/" ./foundry-zksync.nix
 fi
 
 echo "Updating foundry-zksync to version $VERSION..."
