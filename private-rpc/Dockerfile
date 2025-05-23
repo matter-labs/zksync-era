@@ -4,6 +4,7 @@ WORKDIR /app
 COPY src src/
 COPY package.json .
 COPY drizzle.config.ts .
+COPY drizzle drizzle
 COPY esbuild.ts .
 COPY tsconfig.json .
 
