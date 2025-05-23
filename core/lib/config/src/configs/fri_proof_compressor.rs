@@ -86,4 +86,22 @@ mod tests {
         let config: FriProofCompressorConfig = test_complete(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          compression_mode: 1
+          prometheus_listener_port: 3326
+          prometheus_pushgateway_url: http://127.0.0.1:9091
+          prometheus_push_interval: 100ms
+          generation_timeout: 50min
+          max_attempts: 5
+          universal_setup_path: keys/setup/setup_2^26.key
+          universal_setup_download_url: https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key
+          verify_wrapper_proof: false
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: FriProofCompressorConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
 }

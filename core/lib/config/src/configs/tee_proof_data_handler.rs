@@ -35,12 +35,27 @@ mod tests {
     }
 
     #[test]
-    fn tee_proof_data_handler_config_from_yaml() {
+    fn parsing_from_yaml() {
         let yaml = r#"
           http_port: 4320
           first_processed_batch: 123
           proof_generation_timeout_in_secs: 90
           batch_permanently_ignored_timeout_in_hours: 120
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: TeeProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          http_port: 4320
+          first_processed_batch: 123
+          proof_generation_timeout: 90s
+          batch_permanently_ignored_timeout: 5 days
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();
         let yaml = Yaml::new("test.yml", yaml).unwrap();

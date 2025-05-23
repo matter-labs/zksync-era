@@ -172,4 +172,24 @@ mod tests {
         let config: FriWitnessGeneratorConfig = test_complete(yaml).unwrap();
         assert_eq!(config, expected_config());
     }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          generation_timeout: 15min
+          basic_generation_timeout: 15min
+          leaf_generation_timeout: 800s
+          node_generation_timeout: 800s
+          scheduler_generation_timeout: 15min
+          recursion_tip_timeout: 700s
+          last_l1_batch_to_process: 123456
+          max_attempts: 4
+          shall_save_to_public_bucket: true
+          prometheus_listener_port: 3333
+          max_circuits_in_flight: 500
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: FriWitnessGeneratorConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
 }

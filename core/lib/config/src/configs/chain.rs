@@ -378,7 +378,7 @@ mod tests {
           deployment_allowlist:
             source: Url
             http_file_url: http://deployment-allowlist/
-            refresh_interval_secs: 120
+            refresh_interval: 2min
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();

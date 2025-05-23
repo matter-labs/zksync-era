@@ -67,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn parsing_from_yaml_with_new_durations() {
+    fn parsing_from_idiomatic_yaml() {
         let yaml = r#"
           http_port: 3320
           proof_generation_timeout: 5 hours
