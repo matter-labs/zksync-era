@@ -8,6 +8,10 @@ on:
         required: true
   pull_request:
 
+env:
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || 'v0.1.0' }}
+  REGISTRY_PATH: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/private-rpc
+
 jobs:
   build-images:
     name: Private Rpc - Build and Push Docker Image
@@ -41,10 +45,16 @@ jobs:
 
       - name: build-image
         run: |
-          ci_run docker build --platform linux/amd64 -t private-rpc private-rpc
+          ci_run docker build \
+            --platform linux/amd64 \
+            -t "$REGISTRY_PATH:${IMAGE_TAG}" \
+            private-rpc
 
-      - name: update-image
+      - name: login to Docker registries
         run: |
-          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
-          ci_run zk docker push private-rpc --custom-tag 0.1.0
+          docker login -u "${{ secrets.DOCKERHUB_USER }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+#      - name: push-image
+#        run: |
+#          docker push "$REGISTRY_PATH:${IMAGE_TAG}"
