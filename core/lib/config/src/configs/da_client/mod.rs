@@ -13,6 +13,7 @@ pub enum DAClientConfig {
     Celestia(CelestiaConfig),
     Eigen(EigenConfig),
     ObjectStore(ObjectStoreConfig),
+    #[config(alias = "NoDa")]
     NoDA,
 }
 
@@ -28,7 +29,7 @@ mod tests {
 
     use secrecy::ExposeSecret;
     use smart_config::{
-        testing::{test, test_complete},
+        testing::{test, test_complete, Tester},
         ConfigRepository, ConfigSchema, Environment, Yaml,
     };
 
@@ -86,6 +87,40 @@ mod tests {
     }
 
     #[test]
+    fn object_store_config_from_yaml_with_enum_coercion() {
+        let yaml = r#"
+          object_store:
+            file_backed:
+              file_backed_base_path: ./chains/era/artifacts/
+            max_retries: 10
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = Tester::<DAClientConfig>::default()
+            .coerce_serde_enums()
+            .test(yaml)
+            .unwrap();
+        let DAClientConfig::ObjectStore(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+        assert_eq!(config.max_retries, 10);
+    }
+
+    #[test]
+    fn no_da_config_from_yaml_with_enum_coercion() {
+        let yaml = r#"
+            no_da: {}
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = Tester::<DAClientConfig>::default()
+            .coerce_serde_enums()
+            .test(yaml)
+            .unwrap();
+        assert_eq!(config, DAClientConfig::NoDA);
+    }
+
+    #[test]
     fn avail_config_from_env() {
         let env = r#"
           DA_CLIENT="Avail"
@@ -125,12 +160,16 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
         let config = test_complete::<DAClientConfig>(yaml).unwrap();
+        assert_gas_relay_avail_config(&config);
+    }
+
+    fn assert_gas_relay_avail_config(config: &DAClientConfig) {
         let DAClientConfig::Avail(config) = config else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(config.bridge_api_url, "https://bridge-api.avail.so");
         assert_eq!(config.timeout, Duration::from_secs(20));
-        let AvailClientConfig::GasRelay(client) = config.config else {
+        let AvailClientConfig::GasRelay(client) = &config.config else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(
@@ -138,6 +177,25 @@ mod tests {
             "https://lens-turbo-api.availproject.org"
         );
         assert_eq!(client.max_retries, 4);
+    }
+
+    #[test]
+    fn gas_relay_avail_config_from_yaml_with_enum_coercion() {
+        let yaml = r#"
+          avail:
+            bridge_api_url: https://bridge-api.avail.so
+            timeout_ms: 20000
+            gas_relay:
+              gas_relay_api_url: https://lens-turbo-api.availproject.org
+              max_retries: 4
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = Tester::<DAClientConfig>::default()
+            .coerce_serde_enums()
+            .test(yaml)
+            .unwrap();
+        assert_gas_relay_avail_config(&config);
     }
 
     // Checks that non-secret and secret parts of the DA config don't clash despite previously having differing prefixes
@@ -197,16 +255,39 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
         let config = test_complete::<DAClientConfig>(yaml).unwrap();
+        assert_full_avail_config(&config);
+    }
+
+    fn assert_full_avail_config(config: &DAClientConfig) {
         let DAClientConfig::Avail(config) = config else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(config.bridge_api_url, "https://turing-bridge-api.avail.so");
         assert_eq!(config.timeout, Duration::from_secs(20));
-        let AvailClientConfig::FullClient(client) = config.config else {
+        let AvailClientConfig::FullClient(client) = &config.config else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(client.api_node_url, "wss://turing-rpc.avail.so/ws");
         assert_eq!(client.app_id, 123_456);
+    }
+
+    #[test]
+    fn full_avail_config_from_yaml_with_enum_coercion() {
+        let yaml = r#"
+          avail:
+            bridge_api_url: https://turing-bridge-api.avail.so
+            timeout: 20s
+            full_client:
+              api_node_url: wss://turing-rpc.avail.so/ws
+              app_id: 123456
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = Tester::<DAClientConfig>::default()
+            .coerce_serde_enums()
+            .test(yaml)
+            .unwrap();
+        assert_full_avail_config(&config);
     }
 
     #[test]
@@ -269,10 +350,13 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
         let config = test_complete::<DAClientConfig>(yaml).unwrap();
+        assert_eigen_config(&config);
+    }
+
+    fn assert_eigen_config(config: &DAClientConfig) {
         let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
-
         assert_eq!(
             config.disperser_rpc,
             "https://disperser-holesky.eigenda.xyz:443"
@@ -295,5 +379,29 @@ mod tests {
         };
         assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");
         assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");
+    }
+
+    #[test]
+    fn eigen_config_from_yaml_with_enum_coercion() {
+        let yaml = r#"
+          eigen:
+            disperser_rpc: https://disperser-holesky.eigenda.xyz:443
+            settlement_layer_confirmation_depth: 1
+            eigenda_eth_rpc: https://holesky.infura.io/
+            eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+            wait_for_finalization: true
+            authenticated: true
+            points: # This still doesn't correspond to the previous schema!
+              url:
+                g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
+                g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = Tester::<DAClientConfig>::default()
+            .coerce_serde_enums()
+            .test(yaml)
+            .unwrap();
+        assert_eigen_config(&config);
     }
 }

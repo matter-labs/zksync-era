@@ -33,8 +33,8 @@ The env-based format is *de facto* currently deprecated for the main node (the `
 Potential breaking changes in it are not exhaustively tested and will be fixed at best-effort basis.
 ```
 
-The initial stage will also not touch env-based config for non-validator nodes (`zksync_external_node` binary); it will
-be migrated separately.
+The initial stage will also not touch env-based config for non-validator / external nodes (`zksync_external_node`
+binary); it will be migrated separately.
 
 Migration is only necessary for _existing_ configurations; config files newly created via (updated) `zkstack` will have
 the necessary changes applied automatically.
@@ -45,6 +45,10 @@ The current schema uses "one-of" encoding for enumerations, in which an enumerat
 object with the key corresponding to the variant, and value being the variant payload. With the change, the tagged
 representation will be used instead, in which the tag is placed in a separate key _adjacent_ to the payload. (Tagged
 representation works better with prioritized merging.)
+
+All of tagged enumeration migrations other than the `da_client.eigen.points_source_(url|path)` (described in details
+below) are not technically required; a node should pick up the existing "one-of" encoding. Still, these migrations are
+strongly recommended for better forward compatibility.
 
 The following enumeration configs are affected.
 
@@ -153,6 +157,12 @@ da_client:
     source: Url
     g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
     g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
+```
+
+```admonish note
+`da_client.eigen.points_source_(url|path)` **MUST** be transformed, unlike other enumations mentioned in the section.
+This is caused by inconsistency between the logical structure of the corresponding config and its serialization schema,
+which has been fixed in the new schema.
 ```
 
 For `secrets.yaml`, the change is as follows:

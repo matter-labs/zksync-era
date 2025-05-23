@@ -45,12 +45,11 @@ impl ObjectStoreConfig {
 #[config(tag = "mode")]
 #[serde(tag = "mode")]
 pub enum ObjectStoreMode {
-    GCS {
-        bucket_base_url: String,
-    },
-    GCSAnonymousReadOnly {
-        bucket_base_url: String,
-    },
+    #[config(alias = "Gcs")]
+    GCS { bucket_base_url: String },
+    #[config(alias = "GcsAnonymousReadOnly")]
+    GCSAnonymousReadOnly { bucket_base_url: String },
+    #[config(alias = "GcsWithCredentialFile")]
     GCSWithCredentialFile {
         bucket_base_url: String,
         gcs_credential_file_path: String,
@@ -67,15 +66,13 @@ pub enum ObjectStoreMode {
         region: Option<String>,
     },
     #[config(default)]
-    FileBacked {
-        file_backed_base_path: PathBuf,
-    },
+    FileBacked { file_backed_base_path: PathBuf },
 }
 
 #[cfg(test)]
 mod tests {
     use smart_config::{
-        testing::{test, test_complete},
+        testing::{test, test_complete, Tester},
         Environment, Yaml,
     };
 
@@ -168,6 +165,24 @@ mod tests {
             config.mode,
             ObjectStoreMode::FileBacked {
                 file_backed_base_path: "./chains/era/artifacts/".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn public_bucket_from_yaml_with_enum_coercion() {
+        let yaml = r#"
+          gcs_anonymous_read_only:
+            bucket_base_url: /public_base_url
+          max_retries: 3
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ObjectStoreConfig = Tester::default().coerce_serde_enums().test(yaml).unwrap();
+        assert_eq!(config.max_retries, 3);
+        assert_eq!(
+            config.mode,
+            ObjectStoreMode::GCSAnonymousReadOnly {
+                bucket_base_url: "/public_base_url".to_owned(),
             }
         );
     }
