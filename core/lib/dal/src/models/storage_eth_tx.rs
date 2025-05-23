@@ -31,7 +31,6 @@ pub struct StorageEthTx {
     pub blob_sidecar: Option<Vec<u8>>,
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
-    pub status: Option<String>,
 }
 
 #[derive(Debug, Default)]

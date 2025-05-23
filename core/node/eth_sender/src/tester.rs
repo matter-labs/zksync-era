@@ -626,11 +626,7 @@ impl EthSenderTester {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(
-                    self.manager.operator_address(OperatorType::NonBlob),
-                    false,
-                    false,
-                )
+                .get_inflight_txs(self.manager.operator_address(OperatorType::NonBlob), false)
                 .await
                 .unwrap()
                 .len()
@@ -638,11 +634,7 @@ impl EthSenderTester {
                     .storage()
                     .await
                     .eth_sender_dal()
-                    .get_inflight_txs(
-                        self.manager.operator_address(OperatorType::Blob),
-                        false,
-                        false,
-                    )
+                    .get_inflight_txs(self.manager.operator_address(OperatorType::Blob), false)
                     .await
                     .unwrap()
                     .len()
@@ -650,11 +642,7 @@ impl EthSenderTester {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(
-                    self.manager.operator_address(OperatorType::Gateway),
-                    false,
-                    true,
-                )
+                .get_inflight_txs(self.manager.operator_address(OperatorType::Gateway), true)
                 .await
                 .unwrap()
                 .len()
