@@ -28,16 +28,20 @@ pub trait IoSealCriteria {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TimeoutSealer {
-    block_commit_deadline_ms: u64,
+    l1_batch_commit_deadline_ms: u64,
     l2_block_commit_deadline_ms: u64,
 }
 
 impl TimeoutSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
-            block_commit_deadline_ms: config.l1_batch_commit_deadline_ms.as_millis() as u64,
+            l1_batch_commit_deadline_ms: config.l1_batch_commit_deadline_ms.as_millis() as u64,
             l2_block_commit_deadline_ms: config.l2_block_commit_deadline_ms.as_millis() as u64,
         }
+    }
+
+    pub fn l2_block_commit_deadline_ms(&self) -> u64 {
+        self.l2_block_commit_deadline_ms
     }
 }
 
@@ -54,16 +58,16 @@ impl IoSealCriteria for TimeoutSealer {
             return Ok(false);
         }
 
-        let block_commit_deadline_ms = self.block_commit_deadline_ms;
+        let l1_batch_commit_deadline_ms = self.l1_batch_commit_deadline_ms;
         // Verify timestamp
         let should_seal_timeout =
-            millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
+            millis_since(manager.batch_timestamp()) > l1_batch_commit_deadline_ms;
 
         if should_seal_timeout {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion(RULE_NAME);
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
-                 commit deadline: {block_commit_deadline_ms}ms",
+                 commit deadline: {l1_batch_commit_deadline_ms}ms",
                 display_timestamp(manager.batch_timestamp())
             );
         }
@@ -72,7 +76,8 @@ impl IoSealCriteria for TimeoutSealer {
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
         !manager.l2_block.executed_transactions.is_empty()
-            && millis_since(manager.l2_block.timestamp) > self.l2_block_commit_deadline_ms
+            && (millis_since_epoch() - manager.l2_block.timestamp_ms)
+                > self.l2_block_commit_deadline_ms
     }
 }
 
@@ -144,7 +149,7 @@ impl ProtocolUpgradeSealer {
             .pool
             .connection_tagged("protocol_upgrade_sealer")
             .await?;
-        let current_timestamp = (millis_since_epoch() / 1_000) as u64;
+        let current_timestamp = millis_since_epoch() / 1_000;
         let protocol_version = conn
             .protocol_versions_dal()
             .protocol_version_id_by_timestamp(current_timestamp)
@@ -175,9 +180,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::tests::{
-        create_execution_result, create_transaction, create_updates_manager, seconds_since_epoch,
-    };
+    use crate::tests::{create_execution_result, create_transaction, create_updates_manager};
 
     fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
@@ -192,13 +195,13 @@ mod tests {
     #[test]
     fn timeout_l2_block_sealer() {
         let mut timeout_l2_block_sealer = TimeoutSealer {
-            block_commit_deadline_ms: 10_000,
+            l1_batch_commit_deadline_ms: 10_000,
             l2_block_commit_deadline_ms: 10_000,
         };
 
         let mut manager = create_updates_manager();
         // Empty L2 block should not trigger.
-        manager.l2_block.timestamp = seconds_since_epoch() - 10;
+        manager.l2_block.timestamp_ms = millis_since_epoch() - 10_001;
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Empty L2 block shouldn't be sealed"
@@ -214,7 +217,7 @@ mod tests {
         // Check the timestamp logic. This relies on the fact that the test shouldn't run
         // for more than 10 seconds (while the test itself is trivial, it may be preempted
         // by other tests).
-        manager.l2_block.timestamp = seconds_since_epoch();
+        manager.l2_block.timestamp_ms = millis_since_epoch();
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Non-empty L2 block with too recent timestamp shouldn't be sealed"
@@ -320,6 +323,7 @@ mod tests {
             &system_env,
             Default::default(),
             ProtocolVersionId::latest(),
+            l1_batch_env.first_l2_block.timestamp * 1000,
         );
         // No txs, should not be sealed.
         let should_seal = sealer
