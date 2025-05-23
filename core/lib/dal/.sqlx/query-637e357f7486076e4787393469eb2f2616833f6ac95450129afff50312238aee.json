@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM interop_roots\n            WHERE processed_block_number IS NULL\n            ORDER BY received_timestamp;\n            ",
+  "query": "\n            SELECT *\n            FROM interop_roots\n            WHERE processed_block_number IS NULL\n            ORDER BY received_timestamp, dependency_block_number;\n            ",
   "describe": {
     "columns": [
       {
@@ -40,5 +40,5 @@
       false
     ]
   },
-  "hash": "7b5b96402bad3de264bc3c0ee9bf6dbb373facb909d156e9636c0e2eddbd4517"
+  "hash": "637e357f7486076e4787393469eb2f2616833f6ac95450129afff50312238aee"
 }
