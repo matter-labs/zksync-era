@@ -318,7 +318,7 @@ impl StateKeeperIO for MempoolIO {
         // - otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
         //   if clock returns consistent time than it shouldn't actually sleep
         let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks()
-            || self.timeout_sealer.block_commit_deadline_ms() >= 1000
+            || self.timeout_sealer.l2_block_commit_deadline_ms() >= 1000
         {
             cursor.prev_l2_block_timestamp
         } else {
@@ -630,7 +630,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(ts > current_timestamp);
+        assert!(ts / 1000 > current_timestamp);
 
         let future_timestamp = seconds_since_epoch() + 1;
         let deadline = Instant::now() + Duration::from_secs(3);
@@ -640,7 +640,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(ts > future_timestamp);
+        assert!(ts / 1000 > future_timestamp);
 
         let future_timestamp = seconds_since_epoch() + 1;
         let deadline = Instant::now() + Duration::from_millis(100);

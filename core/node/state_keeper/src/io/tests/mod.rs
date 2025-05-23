@@ -711,7 +711,32 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
         .unwrap()
         .expect("no batch params generated");
 
-    assert_eq!(old_l1_batch_params, new_l1_batch_params);
+    assert_eq!(
+        old_l1_batch_params.protocol_version,
+        new_l1_batch_params.protocol_version
+    );
+    assert_eq!(
+        old_l1_batch_params.validation_computational_gas_limit,
+        new_l1_batch_params.validation_computational_gas_limit
+    );
+    assert_eq!(
+        old_l1_batch_params.operator_address,
+        new_l1_batch_params.operator_address
+    );
+    assert_eq!(old_l1_batch_params.fee_input, new_l1_batch_params.fee_input);
+    assert_eq!(
+        old_l1_batch_params.pubdata_params,
+        new_l1_batch_params.pubdata_params
+    );
+    assert_eq!(
+        old_l1_batch_params.first_l2_block.virtual_blocks,
+        new_l1_batch_params.first_l2_block.virtual_blocks
+    );
+    // Timestamp in millis can be different.
+    assert_eq!(
+        old_l1_batch_params.first_l2_block.timestamp(),
+        new_l1_batch_params.first_l2_block.timestamp()
+    );
 }
 
 #[test_casing(2, COMMITMENT_MODES)]

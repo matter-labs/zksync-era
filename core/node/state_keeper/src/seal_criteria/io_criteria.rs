@@ -28,20 +28,20 @@ pub trait IoSealCriteria {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TimeoutSealer {
-    block_commit_deadline_ms: u64,
+    l1_batch_commit_deadline_ms: u64,
     l2_block_commit_deadline_ms: u64,
 }
 
 impl TimeoutSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
-            block_commit_deadline_ms: config.l1_batch_commit_deadline_ms.as_millis() as u64,
+            l1_batch_commit_deadline_ms: config.l1_batch_commit_deadline_ms.as_millis() as u64,
             l2_block_commit_deadline_ms: config.l2_block_commit_deadline_ms.as_millis() as u64,
         }
     }
 
-    pub fn block_commit_deadline_ms(&self) -> u64 {
-        self.block_commit_deadline_ms
+    pub fn l2_block_commit_deadline_ms(&self) -> u64 {
+        self.l2_block_commit_deadline_ms
     }
 }
 
@@ -58,16 +58,16 @@ impl IoSealCriteria for TimeoutSealer {
             return Ok(false);
         }
 
-        let block_commit_deadline_ms = self.block_commit_deadline_ms;
+        let l1_batch_commit_deadline_ms = self.l1_batch_commit_deadline_ms;
         // Verify timestamp
         let should_seal_timeout =
-            millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
+            millis_since(manager.batch_timestamp()) > l1_batch_commit_deadline_ms;
 
         if should_seal_timeout {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion(RULE_NAME);
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
-                 commit deadline: {block_commit_deadline_ms}ms",
+                 commit deadline: {l1_batch_commit_deadline_ms}ms",
                 display_timestamp(manager.batch_timestamp())
             );
         }
@@ -195,13 +195,13 @@ mod tests {
     #[test]
     fn timeout_l2_block_sealer() {
         let mut timeout_l2_block_sealer = TimeoutSealer {
-            block_commit_deadline_ms: 10_000,
+            l1_batch_commit_deadline_ms: 10_000,
             l2_block_commit_deadline_ms: 10_000,
         };
 
         let mut manager = create_updates_manager();
         // Empty L2 block should not trigger.
-        manager.l2_block.timestamp_ms = millis_since_epoch() - 10_000;
+        manager.l2_block.timestamp_ms = millis_since_epoch() - 10_001;
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Empty L2 block shouldn't be sealed"
