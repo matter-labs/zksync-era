@@ -17,8 +17,7 @@ const IMAGES = [
     'proof-fri-gpu-compressor',
     'snapshots-creator',
     'verified-sources-fetcher',
-    'prover-autoscaler',
-    'private-rpc'
+    'prover-autoscaler'
 ];
 
 const DOCKER_REGISTRIES = ['us-docker.pkg.dev/matterlabs-infra/matterlabs-docker', 'matterlabs'];
