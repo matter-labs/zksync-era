@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use anyhow::Context;
 use zksync_prover_task::Task;
 
 use super::{
@@ -107,22 +108,18 @@ impl Task for Manager {
             return Ok(());
         }
 
-        let queue = match self.queuer.get_queue(&self.jobs).await {
-            Ok(q) => q,
-            Err(e) => {
-                tracing::error!("Failed to get queue: {:?}. Skipping manager run.", e);
-                return Err(anyhow::anyhow!("Failed to get queue"));
-            }
-        };
+        let queue = self
+            .queuer
+            .get_queue(&self.jobs)
+            .await
+            .context("Failed to get the queue")?;
 
         let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();
         {
-            let guard = self.watcher.data.lock().await;
+            let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
+                                                        // consistency.
             if let Err(err) = self.watcher.check_is_ready(&guard) {
-                tracing::error!(
-                    "Manager run aborted because all cluster agents are not ready: {}",
-                    err
-                );
+                tracing::error!("Skipping Manager run: {}", err);
                 return Ok(());
             }
 

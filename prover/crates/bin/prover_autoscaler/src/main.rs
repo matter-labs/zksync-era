@@ -116,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
                 scaler_config.dry_run,
             );
             let queuer = Queuer::new(http_client, scaler_config.prover_job_monitor_url.clone());
-            let manager = Manager::new(watcher.clone(), queuer, scaler_config.clone());
+            let manager = Manager::new(watcher.clone(), queuer, scaler_config);
 
             let mut task_runner = TaskRunner::default();
             task_runner.extend("AgentPoller", interval, watcher.create_poller_tasks());
