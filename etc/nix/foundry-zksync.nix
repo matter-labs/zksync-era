@@ -5,21 +5,21 @@
 , ...
 }:
 let
-  version = "v0.0.14";
+  version = "v0.0.15";
 
   # use `nix-prefetch-url <URL>` to update the hashes
-
+  # or the script `./update-foundry-zksync.sh v0.0.15`
   linux_amd_bin_url = "https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${version}/foundry_zksync_${version}_linux_amd64.tar.gz";
-  linux_amd_bin_sha = "108da9djxws30z7apr2p2dzzpr1ngi4nqx90lgmgrpsj5sf2pqmz";
+  linux_amd_bin_sha = "0ra6yab8jj9i002zxw2g49q4s17xcbmx417kb8h0gsxi10yn9i3r";
 
   linux_arm_bin_url = "https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${version}/foundry_zksync_${version}_linux_arm64.tar.gz";
-  linux_arm_bin_sha = "1zdx72crr6mx835hzgmcm883qdf5j806nbcx6mh5afggxq3v645z";
+  linux_arm_bin_sha = "1x2v6gk0qv92wn8xd6f45j8f233hah1psks4pbcc14l97c9w9y6k";
 
   darwin_amd_bin_url = "https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${version}/foundry_zksync_${version}_darwin_amd64.tar.gz";
-  darwin_amd_bin_sha = "07aw374hf31ix8vlyxkaw8iyq8i1dyi9hrs6wnrg3f31hp78bbwg";
+  darwin_amd_bin_sha = "0fnxn5jc6y5fl76q3jlpligh1876l0q6l5vcfpivjbdfvp03wcsp";
 
   darwin_arm_bin_url = "https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${version}/foundry_zksync_${version}_darwin_arm64.tar.gz";
-  darwin_arm_bin_sha = "0x7w7ladfscnd2xpqj4l26606f3gy869nr8yrp0vvmbkh8awmi9b";
+  darwin_arm_bin_sha = "1yljrms7llwdbqwfsqmmr7brvkqnn43byxzb5sv38vaa8c65cpzv";
 
   # Map of system identifiers to their specific source URL and SHA256 hash
   sourcesBySystem = {
