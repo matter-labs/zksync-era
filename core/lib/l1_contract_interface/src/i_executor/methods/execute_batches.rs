@@ -1,7 +1,9 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
     ethabi::{encode, Token},
-    InteropRoot, ProtocolVersionId,
+    l2_to_l1_log::UserL2ToL1Log,
+    web3::contract::Tokenizable,
+    InteropRoot, ProtocolVersionId, H256,
 };
 
 use crate::i_executor::structures::{
@@ -14,6 +16,9 @@ pub struct ExecuteBatches {
     pub l1_batches: Vec<L1BatchWithMetadata>,
     pub priority_ops_proofs: Vec<PriorityOpsMerkleProof>,
     pub dependency_roots: Vec<Vec<InteropRoot>>,
+    pub logs: Vec<Vec<UserL2ToL1Log>>,
+    pub messages: Vec<Vec<Vec<u8>>>,
+    pub message_roots: Vec<H256>, //
 }
 
 impl ExecuteBatches {
@@ -63,6 +68,46 @@ impl ExecuteBatches {
                 Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
                 Token::Bytes(execute_data),
             ]
+        } else if internal_protocol_version.is_pre_medium_interop()
+        && chain_protocol_version.is_pre_medium_interop() {
+            let encoded_data = encode(&[
+                Token::Array(
+                    self.l1_batches
+                        .iter()
+                        .map(|batch| {
+                            StoredBatchInfo::from(batch)
+                                .into_token_with_protocol_version(internal_protocol_version)
+                        })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.priority_ops_proofs
+                        .iter()
+                        .map(|proof| proof.into_token())
+                        .collect(),
+                ),
+                Token::Array(
+                    self.dependency_roots
+                        .iter()
+                        .map(|batch_roots| {
+                            Token::Array(
+                                batch_roots
+                                    .iter()
+                                    .map(|root| root.clone().into_token())
+                                    .collect(),
+                            )
+                        })
+                        .collect(),
+                ),
+            ]);
+            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+                .concat()
+                .to_vec(); //
+            vec![
+                Token::Uint(self.l1_batches[0].header.number.0.into()),
+                Token::Uint(self.l1_batches.last().unwrap().header.number.0.into()),
+                Token::Bytes(execute_data),
+            ]
         } else {
             let encoded_data = encode(&[
                 Token::Array(
@@ -91,6 +136,33 @@ impl ExecuteBatches {
                                     .collect(),
                             )
                         })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.logs
+                        .iter()
+                        .map(|log| {
+                            Token::Array(log.iter().map(|log| log.clone().0.into_token()).collect())
+                        })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.messages
+                        .iter()
+                        .map(|message| {
+                            Token::Array(
+                                message
+                                    .iter()
+                                    .map(|message| message.clone().into_token())
+                                    .collect(),
+                            )
+                        })
+                        .collect(),
+                ),
+                Token::Array(
+                    self.message_roots
+                        .iter()
+                        .map(|root| Token::FixedBytes(root.0.as_slice().try_into().unwrap()))
                         .collect(),
                 ),
             ]);

@@ -117,7 +117,7 @@ eth:
     internal_pubdata_pricing_multiplier: 1.0
     poll_period: 5
   watcher:
-    confirmations_for_eth_event: 0
+    confirmations_for_eth_event: 1
     eth_node_poll_interval: 300
 
 snapshot_creator:

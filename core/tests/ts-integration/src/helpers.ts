@@ -4,6 +4,8 @@ import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import * as path from 'path';
+import { loadConfig } from 'utils/src/file-configs';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -307,4 +309,16 @@ export function getOverheadForTransaction(encodingLength: bigint): bigint {
     const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
 
     return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
+}
+
+// Gets the L2-B provider URL based on the L2-A provider URL: validium (L2-B) for era (L2-A), or era (L2-B) for validium (L2-A)
+export function getL2bUrl(chainName: string) {
+    const pathToHome = path.join(__dirname, '../../../..');
+    const config = loadConfig({
+        pathToHome,
+        chain: chainName,
+        config: 'general.yaml'
+    });
+    const url = config.api.web3_json_rpc.http_url;
+    return url;
 }
