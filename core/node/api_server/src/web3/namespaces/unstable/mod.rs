@@ -124,6 +124,10 @@ impl UnstableNamespace {
                 get_chain_root_from_id(&mut connection, chain_id, l2_block_number).await?;
             leaves.push(chain_id_leaf_preimage(chain_root, chain_id));
         }
+        println!(
+            "chain merkle tree leaves for chain of id {} at block {}: {:?}",
+            l2_chain_id, l2_block_number, leaves
+        );
 
         let chain_merkle_tree =
             MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leaves.into_iter(), None);
