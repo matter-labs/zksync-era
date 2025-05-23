@@ -215,8 +215,8 @@ trybuild = "1.0"
 # "Internal" dependencies
 vise = "0.3.0"
 vise-exporter = "0.3.0"
-smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
-smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
+smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "52ac561a74ff99c6cd4683a56abef255a32700c6" } # FIXME: use revision from `main` branch
+smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "52ac561a74ff99c6cd4683a56abef255a32700c6" }
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies
