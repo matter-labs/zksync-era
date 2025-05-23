@@ -11,16 +11,16 @@ update_sha() {
 
     case "$platform" in
         "linux_amd64")
-            sed -i "s/linux_amd_bin_sha = \".*\"/linux_amd_bin_sha = \"$new_sha\"/" "$file"
+            sed -i.bak "s/linux_amd_bin_sha = \".*\"/linux_amd_bin_sha = \"$new_sha\"/" "$file" && rm -f "$file.bak"
             ;;
         "linux_arm64")
-            sed -i "s/linux_arm_bin_sha = \".*\"/linux_arm_bin_sha = \"$new_sha\"/" "$file"
+            sed -i.bak "s/linux_arm_bin_sha = \".*\"/linux_arm_bin_sha = \"$new_sha\"/" "$file" && rm -f "$file.bak"
             ;;
         "darwin_amd64")
-            sed -i "s/darwin_amd_bin_sha = \".*\"/darwin_amd_bin_sha = \"$new_sha\"/" "$file"
+            sed -i.bak "s/darwin_amd_bin_sha = \".*\"/darwin_amd_bin_sha = \"$new_sha\"/" "$file" && rm -f "$file.bak"
             ;;
         "darwin_arm64")
-            sed -i "s/darwin_arm_bin_sha = \".*\"/darwin_arm_bin_sha = \"$new_sha\"/" "$file"
+            sed -i.bak "s/darwin_arm_bin_sha = \".*\"/darwin_arm_bin_sha = \"$new_sha\"/" "$file" && rm -f "$file.bak"
             ;;
     esac
 }
