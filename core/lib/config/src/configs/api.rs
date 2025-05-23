@@ -175,8 +175,8 @@ pub struct Web3JsonRpcConfig {
     #[config(default)]
     pub estimate_gas_optimize_search: bool,
     ///  Max possible size of an ABI encoded tx (in bytes).
-    #[config(default_t = 10 * 1_024 * 1_024)]
-    pub max_tx_size: usize,
+    #[config(default_t = 10 * SizeUnit::MiB, with = ((), SizeUnit::Bytes))]
+    pub max_tx_size: ByteSize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
@@ -348,7 +348,7 @@ mod tests {
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
                 estimate_gas_optimize_search: true,
-                max_tx_size: 1000000,
+                max_tx_size: ByteSize(1000000),
                 vm_execution_cache_misses_limit: Some(1000),
                 vm_concurrency_limit: 512,
                 factory_deps_cache_size: ByteSize::new(128, SizeUnit::MiB),
@@ -528,7 +528,7 @@ mod tests {
             gas_price_scale_factor: 1.2
             estimate_gas_scale_factor: 1
             estimate_gas_acceptable_overestimation: 1000
-            max_tx_size: 1000000
+            max_tx_size: 1000000 B
             filters_disabled: false
             api_namespaces:
             - debug

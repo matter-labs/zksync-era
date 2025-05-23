@@ -131,7 +131,7 @@ pub struct SenderConfig {
     #[config(default_t = 4_000_000)]
     pub max_aggregated_tx_gas: u64,
     #[config(default_t = 6_000_000)]
-    pub max_eth_tx_data_size: usize,
+    pub max_eth_tx_data_size: usize, // FIXME: never read
     #[config(default_t = 10)]
     pub max_aggregated_blocks_to_commit: u32,
     #[config(default_t = 10)]
@@ -149,7 +149,7 @@ pub struct SenderConfig {
     /// Note that this number must be slightly higher than the one set on the contract,
     /// because the contract uses `block.timestamp` which lags behind the clock time.
     pub l1_batch_min_age_before_execute: Option<Duration>,
-    // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
+    /// Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     #[config(default_t = 100_000_000_000)]
     pub max_acceptable_priority_fee_in_gwei: u64,
 

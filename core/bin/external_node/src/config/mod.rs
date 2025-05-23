@@ -538,7 +538,7 @@ impl OptionalENConfig {
             filters_limit: web3_json_rpc.filters_limit,
             subscriptions_limit: web3_json_rpc.subscriptions_limit,
             req_entities_limit: web3_json_rpc.req_entities_limit as usize,
-            max_tx_size_bytes: web3_json_rpc.max_tx_size,
+            max_tx_size_bytes: web3_json_rpc.max_tx_size.0 as usize,
             vm_execution_cache_misses_limit: web3_json_rpc.vm_execution_cache_misses_limit,
             fee_history_limit: web3_json_rpc.fee_history_limit,
             max_batch_request_size: web3_json_rpc.max_batch_request_size,
