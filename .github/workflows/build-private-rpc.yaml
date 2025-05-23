@@ -30,6 +30,15 @@ jobs:
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
 
+      - name: init
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
+          ci_run zk
+          ci_run cp etc/tokens/{test,localhost}.json
+
       - name: build-image
         run: |
           ci_run docker build --platform linux/amd64 -t private-rpc private-rpc
