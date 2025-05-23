@@ -8922,6 +8922,7 @@ dependencies = [
  "serde_yaml",
  "smart-config",
  "tracing",
+ "vise",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
