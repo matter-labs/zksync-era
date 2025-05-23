@@ -73,7 +73,7 @@ impl EtherscanVerificationDal<'_, '_> {
                     FROM etherscan_verification_requests
                     WHERE
                         (
-                            status = 'queued'
+                            (status = 'queued' AND (retry_at IS NULL OR retry_at < NOW()))
                             OR (
                                 status = 'in_progress'
                                 AND processing_started_at < NOW() - $1::INTERVAL
@@ -195,7 +195,8 @@ impl EtherscanVerificationDal<'_, '_> {
                 status = 'queued',
                 attempts = $2,
                 updated_at = NOW(),
-                retry_at = $3
+                retry_at = $3,
+                processing_started_at = NULL
             WHERE
                 contract_verification_request_id = $1
             "#,
@@ -211,22 +212,18 @@ impl EtherscanVerificationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn reset_processing_started_at(&mut self, request_id: usize) -> DalResult<()> {
-        sqlx::query!(
+    pub async fn get_number_of_queued_requests(&mut self) -> DalResult<u64> {
+        let result = sqlx::query!(
             r#"
-            UPDATE etherscan_verification_requests
-            SET
-                processing_started_at = NOW()
-            WHERE
-                contract_verification_request_id = $1
+            SELECT COUNT(*)
+            FROM etherscan_verification_requests
+            WHERE status = 'queued'
             "#,
-            request_id as i64,
         )
-        .instrument("reset_processing_started_at")
-        .with_arg("request_id", &request_id)
-        .execute(self.storage)
+        .instrument("get_number_of_queued_etherscan_requests")
+        .fetch_one(self.storage)
         .await?;
-        Ok(())
+        Ok(result.count.unwrap_or(0) as u64)
     }
 }
 
