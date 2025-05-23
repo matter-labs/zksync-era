@@ -189,7 +189,6 @@ mod tests {
           bridge_api_url: https://turing-bridge-api.avail.so
           timeout: 20s
           dispatch_timeout: 5s
-          finality_state: inBlock
           avail_client_type: FullClient
           api_node_url: wss://turing-rpc.avail.so/ws
           app_id: 123456

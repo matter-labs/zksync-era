@@ -7,28 +7,23 @@ use anyhow::{bail, Context};
 use bip39::Mnemonic;
 use bytes::Bytes;
 use jsonrpsee::{
-    core::client::{Client, ClientT, Subscription, SubscriptionClientT},
+    core::client::{Client, ClientT},
     rpc_params,
 };
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
 use subxt_signer::sr25519::{Keypair, Signature};
-use tokio::time::{timeout, Duration};
-use zksync_config::configs::da_client::avail::AvailFinalityState;
 use zksync_types::H256;
 
 use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
-const DISPATCH_POLLING_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Clone)]
 pub(crate) struct RawAvailClient {
     app_id: u32,
     keypair: Keypair,
-    finality_state: AvailFinalityState,
-    dispatch_timeout: Duration,
 }
 
 /// Utility type needed for encoding the call data
@@ -46,21 +41,11 @@ struct BoundedVec<_0>(pub Vec<_0>);
 impl RawAvailClient {
     pub(crate) const MAX_BLOB_SIZE: usize = 1024 * 1024; // 1mb
 
-    pub(crate) async fn new(
-        app_id: u32,
-        seed: &str,
-        finality_state: AvailFinalityState,
-        dispatch_timeout: Duration,
-    ) -> anyhow::Result<Self> {
+    pub(crate) async fn new(app_id: u32, seed: &str) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 
-        Ok(Self {
-            app_id,
-            keypair,
-            finality_state,
-            dispatch_timeout,
-        })
+        Ok(Self { app_id, keypair })
     }
 
     /// Returns a hex-encoded extrinsic
@@ -284,84 +269,87 @@ impl RawAvailClient {
         encoded
     }
 
-    async fn wait_for_response(
-        sub: &mut Subscription<serde_json::Value>,
-        finality_state: &str,
-    ) -> anyhow::Result<String> {
-        Ok(loop {
-            let status = sub.next().await.transpose()?;
-            let status = status.filter(serde_json::Value::is_object);
-
-            if let Some(status) = status {
-                if let Some(block_hash) = status.get(finality_state) {
-                    break block_hash
-                        .as_str()
-                        .context("Invalid block hash")?
-                        .strip_prefix("0x")
-                        .context("Block hash doesn't have 0x prefix")?
-                        .to_string();
-                }
-            }
-
-            tokio::time::sleep(DISPATCH_POLLING_SLEEP_DURATION).await;
-        })
-    }
-
-    /// Submits an extrinsic. Subscribes to a stream and waits for a tx to be included in a block
-    /// to return the block hash
+    /// Submits an extrinsic. Doesn't wait for it to be included, simply returns its hash
     pub(crate) async fn submit_extrinsic(
         &self,
         client: &Client,
         extrinsic: &str,
     ) -> anyhow::Result<String> {
-        let mut sub: Subscription<serde_json::Value> = client
-            .subscribe(
-                "author_submitAndWatchExtrinsic",
-                rpc_params![extrinsic],
-                "author_unwatchExtrinsic",
-            )
+        let ext_hash: serde_json::Value = client
+            .request("author_submitExtrinsic", rpc_params![extrinsic])
             .await?;
 
-        let block_hash = timeout(
-            self.dispatch_timeout,
-            RawAvailClient::wait_for_response(&mut sub, self.finality_state.as_str()),
-        )
-        .await
-        .map_err(|_| anyhow::anyhow!("Timeout waiting for block hash"))??;
+        let ext_hash = ext_hash
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Invalid extrinsic hash"))?
+            .strip_prefix("0x")
+            .ok_or_else(|| anyhow::anyhow!("Extrinsic hash doesn't have 0x prefix"))?;
 
-        sub.unsubscribe().await?;
-
-        Ok(block_hash)
+        Ok(ext_hash.to_string())
     }
 
-    /// Iterates over all transaction in the block and finds an ID of the one provided as an argument
-    pub(crate) async fn get_tx_id(
+    /// Monitors latest Avail blocks to find the extrinsic with a certain hash
+    pub(crate) async fn search_for_ext_in_latest_block(
         &self,
         client: &Client,
-        block_hash: &str,
-        hex_ext: &str,
-    ) -> anyhow::Result<usize> {
-        let resp: serde_json::Value = client
+        extrinsic_hash: &str,
+    ) -> anyhow::Result<Option<(String, usize)>> {
+        let block_hash: serde_json::Value = client
+            .request("chain_getFinalizedHead", rpc_params![])
+            .await?;
+
+        let Some(block_hash) = block_hash.as_str() else {
+            return Err(anyhow::anyhow!(
+                "Invalid block hash from RPC: {:?}",
+                block_hash
+            ));
+        };
+
+        let latest_block_result: serde_json::Value = client
             .request("chain_getBlock", rpc_params![block_hash])
             .await?;
 
-        let block = resp
+        let block = latest_block_result
             .get("block")
             .ok_or_else(|| anyhow::anyhow!("Invalid block"))?;
+
         let extrinsics = block
             .get("extrinsics")
             .ok_or_else(|| anyhow::anyhow!("No field named extrinsics in block"))?
             .as_array()
             .ok_or_else(|| anyhow::anyhow!("Extrinsics field is not an array"))?;
 
-        let hex_ext = format!("0x{}", hex_ext);
+        Ok(Self::find_ext_in_array(extrinsics, extrinsic_hash)
+            .await
+            .map(|index| {
+                (
+                    block_hash
+                        .strip_prefix("0x")
+                        .unwrap_or(block_hash)
+                        .to_string(),
+                    index,
+                )
+            }))
+    }
 
-        let tx_id = extrinsics
-            .iter()
-            .position(|extrinsic| extrinsic.as_str() == Some(hex_ext.as_str()))
-            .ok_or_else(|| anyhow::anyhow!("Extrinsic not found in block"))?;
+    /// Finds the extrinsic with a certain hash in the array of extrinsics
+    async fn find_ext_in_array(
+        extrinsics: &[serde_json::Value],
+        extrinsic_hash: &str,
+    ) -> Option<usize> {
+        for (index, ext) in extrinsics.iter().enumerate() {
+            let ext_id = ext.as_str()?.strip_prefix("0x")?;
+            let decoded = hex::decode(ext_id)
+                .context("Failed to decode extrinsic")
+                .unwrap();
+            let ext_hash = hex::encode(blake2::<32>(decoded));
 
-        Ok(tx_id)
+            if ext_hash == extrinsic_hash {
+                return Some(index);
+            }
+        }
+
+        None
     }
 
     /// Returns the balance of the address controlled by the `keypair`
@@ -508,6 +496,11 @@ impl GasRelayClient {
                 .send()
                 .await?;
 
+            tracing::debug!(
+                "Received status response, status code: {}, content length: {:?}",
+                status_response.status(),
+                status_response.content_length()
+            );
             let status_response_bytes = status_response
                 .bytes()
                 .await
