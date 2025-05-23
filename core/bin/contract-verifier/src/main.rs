@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
         );
         let etherscan_verifier_metrics = EtherscanVerifierMetrics::new(pool, stop_receiver);
         tasks.push(tokio::spawn(etherscan_verifier.run()));
-        tasks.push(tokio::spawn(etherscan_verifier_metrics.report()));
+        tasks.push(tokio::spawn(etherscan_verifier_metrics.run()));
     } else {
         tracing::info!("Etherscan verifier is disabled");
     }

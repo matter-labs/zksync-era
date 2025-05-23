@@ -6,6 +6,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 
 use crate::metrics::CONTRACT_VERIFIER_METRICS;
 
+#[derive(Debug)]
 pub struct EtherscanVerifierMetrics {
     connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
@@ -40,7 +41,7 @@ impl EtherscanVerifierMetrics {
         Ok(())
     }
 
-    pub async fn report(mut self) -> anyhow::Result<()> {
+    pub async fn run(mut self) -> anyhow::Result<()> {
         loop {
             if *self.stop_receiver.borrow() {
                 return Ok(());
