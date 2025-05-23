@@ -1,6 +1,9 @@
 //! Logic to fill transaction receipts.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use zksync_dal::{
     transactions_web3_dal::ExtendedTransactionReceipt, Connection, Core, CoreDal, DalError,
@@ -17,6 +20,11 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
+use super::metrics::{TxReceiptStage, TX_RECEIPT_METRICS};
+use crate::utils::ReportFilter;
+
+static FILTER: ReportFilter = report_filter!(Duration::from_secs(60));
+
 /// Fills `contract_address` for the provided transaction receipts. This field must be set
 /// only for canonical deployment transactions, i.e., txs with `to == None` for EVM contract deployment
 /// and calls to `ContractDeployer.{create, create2, createAccount, create2Account}` for EraVM contracts.
@@ -31,6 +39,15 @@ pub(crate) async fn fill_transaction_receipts(
     storage: &mut Connection<'_, Core>,
     mut receipts: Vec<ExtendedTransactionReceipt>,
 ) -> Result<Vec<TransactionReceipt>, Web3Error> {
+    let log_stats = FILTER.should_report();
+    TX_RECEIPT_METRICS.total_count.observe(receipts.len());
+    if log_stats {
+        tracing::debug!(
+            receipts.len = receipts.len(),
+            "filling transaction receipts"
+        );
+    }
+
     receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
 
     let deployments = receipts.iter().map(|receipt| {
@@ -45,6 +62,27 @@ pub(crate) async fn fill_transaction_receipts(
     });
     let deployments: Vec<_> = deployments.collect();
 
+    if log_stats {
+        let mut evm_deployments = 0;
+        let mut eravm_deployments = 0;
+        for deployment in &deployments {
+            match deployment {
+                Some(DeploymentTransactionType::Evm) => {
+                    evm_deployments += 1;
+                }
+                Some(DeploymentTransactionType::EraVm(_)) => {
+                    eravm_deployments += 1;
+                }
+                None => { /* do nothing */ }
+            }
+        }
+        tracing::debug!(
+            evm_deployments,
+            eravm_deployments,
+            "determined deployment types"
+        );
+    }
+
     // Get the AA type for deployment transactions to filter out custom AAs below.
     let deployment_receipts = receipts
         .iter()
@@ -53,7 +91,18 @@ pub(crate) async fn fill_transaction_receipts(
     let account_types = if let Some(first_receipt) = deployment_receipts.clone().next() {
         let block_number = L2BlockNumber(first_receipt.inner.block_number.as_u32());
         let from_addresses = deployment_receipts.map(|receipt| receipt.inner.from);
-        get_external_account_types(storage, from_addresses, block_number).await?
+        let latency = TX_RECEIPT_METRICS.stage_latency[&TxReceiptStage::AccountTypes].start();
+        let account_types =
+            get_external_account_types(storage, from_addresses, block_number).await?;
+        let latency = latency.observe();
+        if log_stats {
+            let mut account_type_counts = HashMap::<_, usize>::new();
+            for &ty in account_types.values() {
+                *account_type_counts.entry(ty).or_default() += 1;
+            }
+            tracing::debug!(?latency, ?account_type_counts, "got account types");
+        }
+        account_types
     } else {
         HashMap::new()
     };
@@ -91,6 +140,16 @@ pub(crate) async fn fill_transaction_receipts(
         filled_receipts.push(receipt.inner);
     }
 
+    TX_RECEIPT_METRICS
+        .unknown_nonces_count
+        .observe(receipt_indexes_with_unknown_nonce.len());
+    if log_stats {
+        tracing::debug!(
+            count = receipt_indexes_with_unknown_nonce.len(),
+            "getting unknown nonces"
+        );
+    }
+
     if let Some(&first_idx) = receipt_indexes_with_unknown_nonce.iter().next() {
         let block_number = L2BlockNumber(filled_receipts[first_idx].block_number.as_u32());
         // We cannot iterate over `receipt_indexes_with_unknown_nonce` since it would violate Rust aliasing rules
@@ -104,7 +163,8 @@ pub(crate) async fn fill_transaction_receipts(
                     .then_some(receipt)
             })
             .collect();
-        fill_receipts_with_unknown_nonce(storage, block_number, unknown_receipts).await?;
+        fill_receipts_with_unknown_nonce(storage, block_number, unknown_receipts, log_stats)
+            .await?;
     }
 
     Ok(filled_receipts)
@@ -116,7 +176,7 @@ enum DeploymentTransactionType {
     EraVm(DeploymentParams),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ExternalAccountType {
     Default,
     Custom,
@@ -162,25 +222,36 @@ async fn fill_receipts_with_unknown_nonce(
     storage: &mut Connection<'_, Core>,
     block_number: L2BlockNumber,
     receipts: Vec<&mut TransactionReceipt>,
+    log_stats: bool,
 ) -> Result<(), Web3Error> {
     // Load nonces at the start of the block.
     let nonce_keys: Vec<_> = receipts
         .iter()
         .map(|receipt| get_nonce_key(&receipt.from).hashed_key())
         .collect();
+    let latency = TX_RECEIPT_METRICS.stage_latency[&TxReceiptStage::StoredNonces].start();
     let nonces_at_block_start = storage
         .storage_logs_dal()
         .get_storage_values(&nonce_keys, block_number - 1)
         .await
         .map_err(DalError::generalize)?;
+    let latency = latency.observe();
+    if log_stats {
+        tracing::debug!(?latency, %block_number, "got nonces at block start");
+    }
 
     // Load deployment events for the block in order to compute deployment nonces at the start of each transaction.
     // TODO: can filter by the senders as well if necessary.
+    let latency = TX_RECEIPT_METRICS.stage_latency[&TxReceiptStage::DeploymentEvents].start();
     let deployment_events = storage
         .events_web3_dal()
         .get_contract_deployment_logs(block_number)
         .await
         .map_err(DalError::generalize)?;
+    let latency = latency.observe();
+    if log_stats {
+        tracing::debug!(?latency, %block_number, count = deployment_events.len(), "got deployment events in block");
+    }
 
     for (receipt, nonce_key) in receipts.into_iter().zip(nonce_keys) {
         let sender = receipt.from;
