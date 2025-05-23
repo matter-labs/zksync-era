@@ -32,8 +32,8 @@ zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
 zksync_contracts = { path = "../core/lib/contracts" }
-zksync_consensus_roles = "=0.9.0"
-zksync_consensus_crypto = "=0.9.0"
+zksync_consensus_roles = "=0.10.0"
+zksync_consensus_crypto = "=0.10.0"
 
 # External dependencies
 anyhow = "1.0.82"
@@ -75,4 +75,4 @@ reqwest = { version = "0.12.8", features = ["blocking"] }
 strip = true
 
 [patch.crates-io]
-vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
+vise = { git = "https://github.com/matter-labs/vise.git", rev = "8c64392753ab8fe563c6fa3db5e4d987952ad011" }
