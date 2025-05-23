@@ -251,7 +251,7 @@ impl BlockReverter {
             let sk_cache_exists = fs::try_exists(storage_cache_path).await.with_context(|| {
                 format!("cannot check whether storage cache path `{storage_cache_path:?}` exists")
             })?;
-            if sk_cache_exists {
+            if !sk_cache_exists {
                 tracing::info!("Storage cache doesn't exist at `{storage_cache_path:?}`; skipping");
                 continue;
             }
