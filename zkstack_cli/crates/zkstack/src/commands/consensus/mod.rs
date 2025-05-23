@@ -464,8 +464,6 @@ impl Setup {
         }
 
         for (key, (pop, weight)) in to_insert {
-            // We are inserting dummy attester keys here since we won't use them.
-            let ak = attester::SecretKey::generate();
             txs.send(
                 format!("add({key:?}, {weight})"),
                 consensus_registry.add(
@@ -473,8 +471,6 @@ impl Setup {
                     weight.try_into().context("overflow")?,
                     encode_validator_key(&key),
                     encode_validator_pop(&pop),
-                    1,
-                    encode_attester_key(&ak.public()),
                 ),
             )
             .await?;
