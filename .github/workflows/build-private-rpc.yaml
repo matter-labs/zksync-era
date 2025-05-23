@@ -6,6 +6,8 @@ on:
         description: "Tag of a built image to deploy"
         type: string
         required: true
+  pull_request:
+
 jobs:
   build-images:
     name: Private Rpc - Build and Push Docker Image
@@ -36,4 +38,4 @@ jobs:
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           ci_run gcloud auth configure-docker us-docker.pkg.dev -q
-          ci_run zk docker push private-rpc --custom-tag ${{ inputs.image_tag }}
+          ci_run zk docker push private-rpc --custom-tag 0.1.0
