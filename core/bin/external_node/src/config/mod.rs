@@ -25,7 +25,7 @@ use zksync_config::{
         DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
-    ConfigRepository, DAClientConfig, ObjectStoreConfig,
+    ConfigRepository, DAClientConfig, ObjectStoreConfig, ParsedParams,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -1175,6 +1175,8 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
+    // **NB.** Only filled for file-based configuration right now.
+    pub config_params: Option<ParsedParams>,
     pub remote: R,
 }
 
@@ -1226,11 +1228,13 @@ impl ExternalNodeConfig<()> {
                 da_client_config_from_env("EN_DA_").ok(),
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
+            config_params: None, // Since we don't capture most of params, exposing them would be misleading
             remote: (),
         })
     }
 
     pub fn from_files(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+        repo.capture_parsed_params();
         let general_config: GeneralConfig = repo.parse()?;
         let external_node_config: ENConfig = repo.parse()?;
         let secrets_config: Secrets = repo.parse()?;
@@ -1280,6 +1284,7 @@ impl ExternalNodeConfig<()> {
             tree_component,
             consensus_secrets,
             data_availability,
+            config_params: Some(repo.into_parsed_params()),
             remote: (),
         })
     }
@@ -1316,6 +1321,7 @@ impl ExternalNodeConfig<()> {
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
             data_availability: self.data_availability,
+            config_params: self.config_params,
             remote,
         })
     }
@@ -1337,6 +1343,7 @@ impl ExternalNodeConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
+            config_params: None,
             data_availability: (None, None),
         }
     }

@@ -1,7 +1,7 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use std::{collections::HashMap, mem, time::Duration};
+use std::{mem, time::Duration};
 
 use anyhow::{bail, Context};
 use zksync_base_token_adjuster::node::{
@@ -22,7 +22,7 @@ use zksync_config::{
         wallets::Wallets,
         GeneralConfig, Secrets,
     },
-    GenesisConfig, ParsedParam,
+    GenesisConfig, ParsedParams,
 };
 use zksync_contract_verification_server::node::ContractVerificationApiLayer;
 use zksync_da_clients::node::{
@@ -62,7 +62,6 @@ use zksync_node_storage_init::node::{
 };
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
-use zksync_shared_resources::ConfigParamsLayer;
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
@@ -90,7 +89,7 @@ macro_rules! try_load_config {
 
 pub(crate) struct MainNodeBuilder {
     pub node: ZkStackServiceBuilder,
-    pub parsed_params: HashMap<String, ParsedParam>,
+    pub config_params: ParsedParams,
     pub configs: GeneralConfig,
     pub wallets: Wallets,
     pub genesis_config: GenesisConfig,
@@ -324,15 +323,9 @@ impl MainNodeBuilder {
 
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = try_load_config!(self.configs.api_config).healthcheck;
-        self.node.add_layer(HealthCheckLayer(healthcheck_config));
-        Ok(self)
-    }
-
-    fn add_config_params_layer(mut self) -> anyhow::Result<Self> {
-        // Using `mem::take` is safe: the layer is added no more than once.
-        // FIXME: opt-in
+        let config_params = mem::take(&mut self.config_params);
         self.node
-            .add_layer(ConfigParamsLayer(mem::take(&mut self.parsed_params)));
+            .add_layer(HealthCheckLayer::new(healthcheck_config).with_config_params(config_params));
         Ok(self)
     }
 
@@ -731,7 +724,6 @@ impl MainNodeBuilder {
             .add_object_store_layer()?
             .add_circuit_breaker_checker_layer()?
             .add_healthcheck_layer()?
-            .add_config_params_layer()?
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?

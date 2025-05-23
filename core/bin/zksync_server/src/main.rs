@@ -113,6 +113,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    repo.capture_parsed_params();
     let configs: GeneralConfig = repo.parse()?;
     let wallets: Wallets = repo.parse()?;
     let secrets: Secrets = repo.parse()?;
@@ -122,10 +123,10 @@ fn main() -> anyhow::Result<()> {
         .genesis
         .context("missing genesis config")?;
     let consensus = repo.parse_opt()?;
-    let parsed_params = repo.into_parsed_params();
+    let config_params = repo.into_parsed_params();
     let node = MainNodeBuilder {
         node: ZkStackServiceBuilder::on_runtime(runtime),
-        parsed_params,
+        config_params,
         configs,
         wallets,
         genesis_config: genesis,

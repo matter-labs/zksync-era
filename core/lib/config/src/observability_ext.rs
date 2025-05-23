@@ -36,7 +36,7 @@ impl ConfigSources {
         repo.deserializer_options().coerce_serde_enums = true;
         ConfigRepository {
             inner: repo.with_all(self.0),
-            parsed_params: HashMap::new(),
+            parsed_params: None,
         }
     }
 }
@@ -156,15 +156,15 @@ fn log_all_errors(errors: ParseErrors) -> anyhow::Error {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ParsedParam {
+struct ParsedParam {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub value: Option<serde_json::Value>,
+    value: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub origin: Option<String>,
+    origin: Option<String>,
     #[serde(skip_serializing_if = "ParsedParam::is_false")]
-    pub is_secret: bool,
+    is_secret: bool,
     #[serde(skip_serializing_if = "ParsedParam::is_true")]
-    pub is_default: bool,
+    is_default: bool,
 }
 
 impl ParsedParam {
@@ -177,20 +177,30 @@ impl ParsedParam {
     }
 }
 
+/// Opaque representation of parsed config parameters.
+#[derive(Debug, Default, Serialize)]
+#[serde(transparent)]
+pub struct ParsedParams(HashMap<String, ParsedParam>);
+
 #[derive(Debug)]
 pub struct ConfigRepository<'a> {
     inner: smart_config::ConfigRepository<'a>,
-    // TODO: optional?
-    parsed_params: HashMap<String, ParsedParam>,
+    parsed_params: Option<ParsedParams>,
 }
 
 impl ConfigRepository<'_> {
+    pub fn capture_parsed_params(&mut self) {
+        if self.parsed_params.is_none() {
+            self.parsed_params = Some(ParsedParams::default());
+        }
+    }
+
     /// Parses a configuration from this repo. The configuration must have a unique mounting point.
     pub fn parse<C: DeserializeConfig>(&mut self) -> anyhow::Result<C> {
         let config_parser = self.inner.single::<C>()?;
         let prefix = config_parser.config().prefix();
         let config = config_parser.parse().map_err(log_all_errors)?;
-        ObservabilityVisitor::visit(&self.inner, &mut self.parsed_params, prefix, &config);
+        ObservabilityVisitor::visit(&self.inner, self.parsed_params.as_mut(), prefix, &config);
         Ok(config)
     }
 
@@ -200,7 +210,7 @@ impl ConfigRepository<'_> {
         let prefix = config_parser.config().prefix();
         let maybe_config = config_parser.parse_opt().map_err(log_all_errors)?;
         if let Some(config) = &maybe_config {
-            ObservabilityVisitor::visit(&self.inner, &mut self.parsed_params, prefix, config);
+            ObservabilityVisitor::visit(&self.inner, self.parsed_params.as_mut(), prefix, config);
         }
         Ok(maybe_config)
     }
@@ -214,12 +224,13 @@ impl ConfigRepository<'_> {
         })?;
         let prefix = config_parser.config().prefix();
         let config = config_parser.parse().map_err(log_all_errors)?;
-        ObservabilityVisitor::visit(&self.inner, &mut self.parsed_params, prefix, &config);
+        ObservabilityVisitor::visit(&self.inner, self.parsed_params.as_mut(), prefix, &config);
         Ok(config)
     }
 
-    pub fn into_parsed_params(self) -> HashMap<String, ParsedParam> {
-        self.parsed_params
+    /// Returns all captured parsed params, or an empty container if none were captured.
+    pub fn into_parsed_params(self) -> ParsedParams {
+        self.parsed_params.unwrap_or_default()
     }
 }
 
@@ -227,7 +238,7 @@ impl<'a> From<smart_config::ConfigRepository<'a>> for ConfigRepository<'a> {
     fn from(inner: smart_config::ConfigRepository<'a>) -> Self {
         Self {
             inner,
-            parsed_params: HashMap::new(),
+            parsed_params: None,
         }
     }
 }
@@ -241,7 +252,7 @@ impl<'a> From<ConfigRepository<'a>> for smart_config::ConfigRepository<'a> {
 #[derive(Debug)]
 struct ObservabilityVisitor<'a> {
     source: Option<&'a value::Map>,
-    parsed_params: &'a mut HashMap<String, ParsedParam>,
+    parsed_params: Option<&'a mut ParsedParams>,
     metadata: &'static ConfigMetadata,
     config_prefix: String,
 }
@@ -249,7 +260,7 @@ struct ObservabilityVisitor<'a> {
 impl<'a> ObservabilityVisitor<'a> {
     fn visit<C: DeserializeConfig>(
         repo: &'a smart_config::ConfigRepository<'_>,
-        parsed_params: &'a mut HashMap<String, ParsedParam>,
+        parsed_params: Option<&'a mut ParsedParams>,
         prefix: &str,
         config: &C,
     ) {
@@ -326,15 +337,18 @@ impl ConfigVisitor for ObservabilityVisitor<'_> {
             is_default,
             "parsed config param"
         );
-        self.parsed_params.insert(
-            path,
-            ParsedParam {
-                value,
-                origin: origin.map(ToString::to_string),
-                is_secret,
-                is_default: is_default.unwrap_or(false),
-            },
-        );
+
+        if let Some(params) = self.parsed_params.as_deref_mut() {
+            params.0.insert(
+                path,
+                ParsedParam {
+                    value,
+                    origin: origin.map(ToString::to_string),
+                    is_secret,
+                    is_default: is_default.unwrap_or(false),
+                },
+            );
+        }
     }
 
     fn visit_nested_config(&mut self, config_index: usize, config: &dyn VisitConfig) {

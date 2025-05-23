@@ -3,10 +3,7 @@
 use zksync_node_framework::Resource;
 use zksync_types::pubdata_da::PubdataSendingMode;
 
-pub use self::config::ConfigParamsLayer;
-
 pub mod api;
-mod config;
 pub mod contracts;
 pub mod tree;
 

@@ -8,7 +8,7 @@ pub use crate::configs::{
     PostgresConfig, SnapshotsCreatorConfig,
 };
 #[cfg(feature = "observability_ext")]
-pub use crate::observability_ext::{ConfigRepository, ParsedParam};
+pub use crate::observability_ext::{ConfigRepository, ParsedParams};
 
 #[cfg(feature = "cli")]
 pub mod cli;
