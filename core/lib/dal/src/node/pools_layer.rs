@@ -102,8 +102,6 @@ impl WiringLayer for PoolsLayer {
             Some(PoolResource::<MasterPool>::new(
                 self.secrets.master_url()?,
                 pool_size_master,
-                None,
-                None,
             ))
         } else {
             None
@@ -112,12 +110,17 @@ impl WiringLayer for PoolsLayer {
         let replica_pool = if self.with_replica {
             // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
             // on Postgres.
-            Some(PoolResource::<ReplicaPool>::new(
+            let pool = PoolResource::<ReplicaPool>::new(
                 self.secrets.replica_url()?,
                 self.config.max_connections()?,
-                Some(self.config.statement_timeout_sec),
-                Some(self.config.acquire_timeout_sec),
-            ))
+            );
+            let pool = pool
+                .with_statement_timeout(Some(self.config.statement_timeout_sec))
+                .with_acquire_timeout(
+                    Some(self.config.acquire_timeout_sec),
+                    self.config.acquire_retries,
+                );
+            Some(pool)
         } else {
             None
         };

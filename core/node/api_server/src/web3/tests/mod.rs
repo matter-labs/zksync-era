@@ -154,13 +154,13 @@ trait HttpTest: Send + Sync {
         Arc::default()
     }
 
+    /// Provides a custom Web3 config. Note that only some config options are actually used in the tests.
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig::for_tests()
+    }
+
     async fn test(&self, client: &DynClient<L2>, pool: &ConnectionPool<Core>)
         -> anyhow::Result<()>;
-
-    /// Overrides the `filters_disabled` configuration parameter for HTTP server startup
-    fn filters_disabled(&self) -> bool {
-        false
-    }
 }
 
 /// Storage initialization strategy.
@@ -275,9 +275,9 @@ async fn test_http_server(test: impl HttpTest) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let contracts_config = ContractsConfig::for_tests();
-    let web3_config = Web3JsonRpcConfig::for_tests();
+    let web3_config = test.web3_config();
     let genesis = GenesisConfig::for_tests();
-    let mut api_config = InternalApiConfig::new(
+    let api_config = InternalApiConfig::new(
         &web3_config,
         &contracts_config.settlement_layer_specific_contracts(),
         &contracts_config.l1_specific_contracts(),
@@ -286,10 +286,11 @@ async fn test_http_server(test: impl HttpTest) {
         false,
         SettlementLayer::for_tests(),
     );
-    api_config.filters_disabled = test.filters_disabled();
+
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
         .with_tx_executor(test.transaction_executor())
-        .with_method_tracer(test.method_tracer());
+        .with_method_tracer(test.method_tracer())
+        .with_request_timeout(web3_config.request_timeout);
     if let Some(executor_options) = test.executor_options() {
         server_builder = server_builder.with_executor_options(executor_options);
     }

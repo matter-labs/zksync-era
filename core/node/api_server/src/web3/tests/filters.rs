@@ -315,8 +315,11 @@ impl HttpTest for DisableFiltersTest {
         Ok(())
     }
 
-    fn filters_disabled(&self) -> bool {
-        true
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            filters_disabled: true,
+            ..Web3JsonRpcConfig::for_tests()
+        }
     }
 }
 

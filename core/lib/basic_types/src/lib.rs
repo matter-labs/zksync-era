@@ -28,6 +28,7 @@ pub use self::{
         u256_to_h256,
     },
     errors::{OrStopped, StopContext},
+    stop_guard::{StopGuard, StopToken},
 };
 
 #[macro_use]
@@ -44,6 +45,7 @@ pub mod pubdata_da;
 pub mod secrets;
 pub mod serde_wrappers;
 pub mod settlement;
+mod stop_guard;
 pub mod tee_types;
 pub mod url;
 pub mod vm;

@@ -105,6 +105,7 @@ impl ApiServerHandles {
 pub struct TestServerBuilder {
     pool: ConnectionPool<Core>,
     api_config: InternalApiConfig,
+    request_timeout: Option<Duration>,
     tx_executor: MockOneshotExecutor,
     executor_options: Option<SandboxExecutorOptions>,
     method_tracer: Arc<MethodTracer>,
@@ -116,6 +117,7 @@ impl TestServerBuilder {
         Self {
             api_config,
             pool,
+            request_timeout: None,
             tx_executor: MockOneshotExecutor::default(),
             executor_options: None,
             method_tracer: Arc::default(),
@@ -139,6 +141,12 @@ impl TestServerBuilder {
     #[must_use]
     pub fn with_executor_options(mut self, options: SandboxExecutorOptions) -> Self {
         self.executor_options = Some(options);
+        self
+    }
+
+    #[must_use]
+    pub fn with_request_timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.request_timeout = timeout;
         self
     }
 
@@ -172,6 +180,7 @@ impl TestServerBuilder {
         let Self {
             tx_executor,
             executor_options,
+            request_timeout,
             pool,
             api_config,
             method_tracer,
@@ -208,7 +217,8 @@ impl TestServerBuilder {
                 builder
             }
         };
-        let server_handles = server_builder
+
+        let mut server_builder = server_builder
             .with_polling_interval(POLL_INTERVAL)
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
@@ -216,7 +226,12 @@ impl TestServerBuilder {
             .with_method_tracer(method_tracer)
             .enable_api_namespaces(namespaces)
             .with_sealed_l2_block_handle(sealed_l2_block_handle)
-            .with_bridge_addresses_handle(bridge_addresses_handle)
+            .with_bridge_addresses_handle(bridge_addresses_handle);
+        if let Some(timeout) = request_timeout {
+            server_builder = server_builder.with_request_timeout(timeout);
+        }
+
+        let server_handles = server_builder
             .build()
             .expect("Unable to build API server")
             .run(stop_receiver)

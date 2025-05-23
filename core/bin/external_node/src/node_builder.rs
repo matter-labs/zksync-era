@@ -506,6 +506,7 @@ impl ExternalNodeBuilder {
             subscriptions_limit: Some(self.config.optional.subscriptions_limit),
             batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
+            request_timeout: None,
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
             polling_interval: Some(self.config.optional.polling_interval()),
