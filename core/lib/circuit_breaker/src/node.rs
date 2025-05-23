@@ -53,7 +53,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let circuit_breaker_checker =
-            CircuitBreakerChecker::new(input.circuit_breakers.breakers, self.0.sync_interval_ms);
+            CircuitBreakerChecker::new(input.circuit_breakers.breakers, self.0.sync_interval);
 
         Ok(Output {
             circuit_breaker_checker,

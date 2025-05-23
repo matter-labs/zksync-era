@@ -284,7 +284,7 @@ impl Aggregator {
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let max_l1_batch_timestamp_millis = self
             .config
-            .l1_batch_min_age_before_execute_seconds
+            .l1_batch_min_age_before_execute
             .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()

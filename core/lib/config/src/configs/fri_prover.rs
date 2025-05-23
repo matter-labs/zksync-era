@@ -12,8 +12,8 @@ pub struct FriProverConfig {
     pub prometheus_port: u16,
     #[config(default_t = 5)]
     pub max_attempts: u32,
-    #[config(default_t = 10 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
-    pub generation_timeout_in_secs: Duration,
+    #[config(default_t = 10 * TimeUnit::Minutes)]
+    pub generation_timeout: Duration,
     #[config(nest)]
     pub prover_object_store: ObjectStoreConfig,
 }
@@ -33,7 +33,7 @@ mod tests {
             setup_data_path: "prover/data/keys".into(),
             prometheus_port: 3315,
             max_attempts: 10,
-            generation_timeout_in_secs: Duration::from_secs(300),
+            generation_timeout: Duration::from_secs(300),
             prover_object_store: ObjectStoreConfig {
                 mode: ObjectStoreMode::GCSWithCredentialFile {
                     bucket_base_url: "/base/url".to_owned(),

@@ -8,8 +8,8 @@ use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct ContractVerifierConfig {
-    /// Max time of a single compilation (in s).
-    #[config(default_t = 4 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
+    /// Max time of a single compilation.
+    #[config(default_t = 4 * TimeUnit::Minutes, with = ((), TimeUnit::Seconds))]
     pub compilation_timeout: Duration,
     /// Port to which the Prometheus exporter server is listening.
     #[config(default_t = 3_318)]
@@ -63,6 +63,19 @@ mod tests {
         let yaml = r#"
           port: 3070
           compilation_timeout: 30
+          prometheus_port: 3314
+          etherscan_api_url: https://api.etherscan.io/
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ContractVerifierConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          port: 3070
+          compilation_timeout: 30s
           prometheus_port: 3314
           etherscan_api_url: https://api.etherscan.io/
         "#;

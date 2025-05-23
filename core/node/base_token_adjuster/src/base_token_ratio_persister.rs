@@ -42,7 +42,7 @@ impl BaseTokenRatioPersister {
     /// Main loop for the base token ratio persister.
     /// Orchestrates fetching a new ratio, persisting it, and conditionally updating the L1 with it.
     pub async fn run(&mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut timer = tokio::time::interval(self.config.price_polling_interval_ms);
+        let mut timer = tokio::time::interval(self.config.price_polling_interval);
 
         while !*stop_receiver.borrow_and_update() {
             tokio::select! {
@@ -74,7 +74,7 @@ impl BaseTokenRatioPersister {
     }
 
     async fn retry_fetch_ratio(&self) -> anyhow::Result<BaseTokenAPIRatio> {
-        let sleep_duration = self.config.price_fetching_sleep_ms;
+        let sleep_duration = self.config.price_fetching_sleep;
         let max_retries = self.config.price_fetching_max_attempts;
         let mut last_error = None;
 

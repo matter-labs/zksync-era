@@ -32,7 +32,7 @@ impl CoinGeckoPriceAPIClient {
 
             reqwest::Client::builder()
                 .default_headers(headers)
-                .timeout(config.client_timeout_ms)
+                .timeout(config.client_timeout)
                 .build()
                 .expect("Failed to build reqwest client")
         } else {

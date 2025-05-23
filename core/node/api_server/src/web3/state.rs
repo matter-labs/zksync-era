@@ -130,7 +130,7 @@ impl InternalApiConfigBase {
             l2_chain_id: genesis.l2_chain_id,
             dummy_verifier: genesis.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
-            max_tx_size: web3_config.max_tx_size,
+            max_tx_size: web3_config.max_tx_size.0 as usize,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
