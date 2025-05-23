@@ -20,7 +20,7 @@ use zksync_types::{
     StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
-use zksync_web3_decl::namespaces::DebugNamespaceClient;
+use zksync_web3_decl::namespaces::{DebugNamespaceClient, UnstableNamespaceClient};
 
 use super::*;
 
