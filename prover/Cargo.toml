@@ -100,8 +100,6 @@ zksync_utils = { path = "../core/lib/utils" }
 zksync_task_management = { path = "../core/lib/task_management" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
-zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
-zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
 zksync_prover_dal = { version = "=21.1.0", path = "crates/lib/prover_dal" }
