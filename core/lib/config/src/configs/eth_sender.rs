@@ -53,6 +53,7 @@ impl EthConfig {
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
+                tee_dcap_attestation_gas_limit_in_wei: 100000000000,
                 time_in_mempool_multiplier_cap: None,
             },
             gas_adjuster: GasAdjusterConfig {
@@ -174,6 +175,9 @@ pub struct SenderConfig {
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
     #[config(default_t = u64::MAX)]
     pub max_acceptable_base_fee_in_wei: u64,
+    /// Gas limit for DCAP attestation transactions
+    #[config(default_t = u64::MAX)]
+    pub tee_dcap_attestation_gas_limit_in_wei: u64,
     /// Cap for `b ^ time_in_mempool` used for price calculations.
     #[config(default)]
     pub time_in_mempool_multiplier_cap: Option<u32>,
@@ -198,6 +202,14 @@ impl SenderConfig {
     #[deprecated]
     pub fn private_key_blobs(&self) -> Option<H256> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
+            .ok()
+            .map(|pk| pk.parse().unwrap())
+    }
+
+    // Don't load TEE DCAP private key, if it's not required
+    #[deprecated]
+    pub fn private_key_tee_dcap(&self) -> Option<H256> {
+        std::env::var("ETH_SENDER_SENDER_OPERATOR_TEE_DCAP_PRIVATE_KEY")
             .ok()
             .map(|pk| pk.parse().unwrap())
     }
@@ -289,6 +301,7 @@ mod tests {
                 is_verifier_pre_fflonk: false,
                 gas_limit_mode: GasLimitMode::Calculated,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
+                tee_dcap_attestation_gas_limit_in_wei: 100_000_000_000,
                 time_in_mempool_multiplier_cap: Some(10),
             },
             gas_adjuster: GasAdjusterConfig {
@@ -350,6 +363,7 @@ mod tests {
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
+            ETH_SENDER_SENDER_TEE_DCAP_ATTESTATION_GAS_LIMIT_IN_WEI=100000000000
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -386,6 +400,7 @@ mod tests {
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
+            tee_dcap_attestation_gas_limit_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000

@@ -942,6 +942,7 @@ async fn test_signing_eip712_tx() {
     let l1_interface = RealL1Interface {
         ethereum_client: None,
         ethereum_client_blobs: None,
+        ethereum_client_tee: None,
         sl_client: Some(sign_client),
         wait_confirmations: Some(10),
     };

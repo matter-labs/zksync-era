@@ -37,6 +37,7 @@ pub(crate) enum OperatorType {
     NonBlob,
     Blob,
     Gateway,
+    Tee,
 }
 
 #[async_trait]
@@ -98,6 +99,7 @@ pub(super) trait AbstractL1Interface: 'static + Sync + Send + fmt::Debug {
 pub(super) struct RealL1Interface {
     pub ethereum_client: Option<Box<dyn BoundEthInterface>>,
     pub ethereum_client_blobs: Option<Box<dyn BoundEthInterface>>,
+    pub ethereum_client_tee: Option<Box<dyn BoundEthInterface>>,
     pub sl_client: Option<Box<dyn BoundEthInterface>>,
     pub wait_confirmations: Option<u64>,
 }
@@ -108,6 +110,7 @@ impl RealL1Interface {
             OperatorType::NonBlob => self.ethereum_client.as_deref().unwrap().as_ref(),
             OperatorType::Blob => self.ethereum_client_blobs.as_deref().unwrap().as_ref(),
             OperatorType::Gateway => self.sl_client.as_deref().unwrap().as_ref(),
+            OperatorType::Tee => self.ethereum_client_tee.as_deref().unwrap().as_ref(),
         }
     }
 
@@ -115,6 +118,7 @@ impl RealL1Interface {
         match operator_type {
             OperatorType::NonBlob => self.ethereum_client.as_deref().unwrap(),
             OperatorType::Blob => self.ethereum_client_blobs.as_deref().unwrap(),
+            OperatorType::Tee => self.ethereum_client_tee.as_deref().unwrap(),
             OperatorType::Gateway => self.sl_client.as_deref().unwrap(),
         }
     }
@@ -128,6 +132,9 @@ impl AbstractL1Interface for RealL1Interface {
         }
 
         let mut result = vec![];
+        if self.ethereum_client_tee.is_some() {
+            result.push(OperatorType::Tee)
+        }
         if self.ethereum_client_blobs.is_some() {
             result.push(OperatorType::Blob)
         }

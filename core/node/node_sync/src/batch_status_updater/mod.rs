@@ -31,6 +31,10 @@ fn l1_batch_stage_to_action_str(stage: AggregatedActionType) -> &'static str {
         AggregatedActionType::Commit => "committed",
         AggregatedActionType::PublishProofOnchain => "proven",
         AggregatedActionType::Execute => "executed",
+        AggregatedActionType::Tee => {
+            // FIXME: TEE
+            todo!()
+        }
     }
 }
 
@@ -156,6 +160,10 @@ impl UpdaterCursor {
                 batch_info.base.executed_at,
                 batch_info.base.execute_chain_id,
             ),
+            AggregatedActionType::Tee => {
+                // FIXME: TEE
+                todo!()
+            }
         }
     }
 
@@ -193,6 +201,10 @@ impl UpdaterCursor {
                 &mut self.last_executed_l1_batch,
                 &mut status_changes.execute,
             ),
+            AggregatedActionType::Tee => {
+                // FIXME: TEE
+                todo!()
+            }
         };
 
         // Check whether we have all data for the update.

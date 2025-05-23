@@ -8,7 +8,7 @@ pub use self::{
     pk_signing_eth_client::PKSigningEthClientLayer,
     resources::{
         BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-        BoundEthInterfaceResource, SenderConfigResource,
+        BoundEthInterfaceForTeeDcapResource, BoundEthInterfaceResource, SenderConfigResource,
     },
 };
 

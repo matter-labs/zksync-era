@@ -32,7 +32,7 @@ pub(super) struct ZkSyncFunctions {
     pub(super) state_transition_manager_contract: Contract,
 }
 
-fn get_function(contract: &Contract, name: &str) -> Function {
+pub(crate) fn get_function(contract: &Contract, name: &str) -> Function {
     contract
         .functions
         .get(name)

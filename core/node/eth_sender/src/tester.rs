@@ -273,6 +273,7 @@ impl EthSenderTester {
             aggregator,
             gateway.clone(),
             use_blob_operator.then(|| gateway_blobs.clone() as Box<dyn BoundEthInterface>),
+            Default::default(),
             // ZKsync contract address
             Address::random(),
             STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
@@ -289,6 +290,7 @@ impl EthSenderTester {
             gas_adjuster.clone(),
             Some(gateway.clone()),
             Some(gateway_blobs.clone()),
+            None,
             None,
         );
 
@@ -328,6 +330,7 @@ impl EthSenderTester {
             None,
             None,
             Some(self.l2_gateway.clone()),
+            None,
         );
         self.settlement_layer = SettlementLayer::Gateway(10.into());
         tracing::info!("Switched eth-sender tester to use Gateway!");

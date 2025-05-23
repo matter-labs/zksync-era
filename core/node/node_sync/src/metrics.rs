@@ -28,6 +28,10 @@ impl From<AggregatedActionType> for L1BatchStage {
             AggregatedActionType::Commit => Self::Committed,
             AggregatedActionType::PublishProofOnchain => Self::Proven,
             AggregatedActionType::Execute => Self::Executed,
+            AggregatedActionType::Tee => {
+                // FIXME: TEE
+                todo!("Tee is not supported yet.")
+            }
         }
     }
 }

@@ -183,10 +183,12 @@ impl MainNodeBuilder {
         let gas_adjuster = try_load_config!(self.configs.eth).gas_adjuster;
         let operator = try_load_config!(self.wallets.operator);
         let blob_operator = self.wallets.blob_operator.clone();
+        let tee_dcap_operator = self.wallets.tee_dcap_operator.clone();
         self.node.add_layer(PKSigningEthClientLayer::new(
             gas_adjuster,
             operator,
             blob_operator,
+            tee_dcap_operator,
         ));
         Ok(self)
     }

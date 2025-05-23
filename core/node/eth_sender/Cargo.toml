@@ -34,6 +34,7 @@ async-trait.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
 test-casing.workspace = true

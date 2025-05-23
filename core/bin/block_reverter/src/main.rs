@@ -167,6 +167,7 @@ async fn main() -> anyhow::Result<()> {
         contracts.ecosystem_contracts.bridgehub_proxy_addr,
         zksync_network_id,
         None,
+        None,
     )
     .await?
     // If None has been returned, in case of pre v27 upgrade, use the contracts from configs
@@ -193,6 +194,7 @@ async fn main() -> anyhow::Result<()> {
                 &gateway_client,
                 L2_BRIDGEHUB_ADDRESS,
                 zksync_network_id,
+                None,
                 None,
             )
             .await?

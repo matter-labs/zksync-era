@@ -1426,6 +1426,7 @@ impl ExternalNodeConfig {
                 // Multicall 3 is useless for external node
                 multicall3: None,
                 validator_timelock_addr: None,
+                tee_dcap_attestation_addr: None,
             },
             chain_contracts_config: ChainContracts {
                 diamond_proxy_addr: self.l1_diamond_proxy_address(),

@@ -45,6 +45,7 @@ pub struct L1ContractsConfig {
     pub base_token_addr: Address,
     pub base_token_asset_id: Option<H256>,
     pub no_da_validium_l1_validator_addr: Option<Address>,
+    pub tee_dcap_attestation_addr: Option<Address>,
 }
 
 impl L1ContractsConfig {
@@ -60,6 +61,7 @@ impl L1ContractsConfig {
             base_token_asset_id: Some(H256::repeat_byte(0x15)),
             chain_admin_addr: Address::repeat_byte(0x18),
             no_da_validium_l1_validator_addr: Some(Address::repeat_byte(0x1b)),
+            tee_dcap_attestation_addr: Some(Address::repeat_byte(0x1c)),
         }
     }
 }
@@ -205,6 +207,7 @@ impl ContractsConfig {
                 state_transition_proxy_addr: Some(ecosystem.state_transition_proxy_addr),
                 multicall3: Some(self.l1.multicall3_addr),
                 validator_timelock_addr: Some(self.l1.validator_timelock_addr),
+                tee_dcap_attestation_addr: self.l1.tee_dcap_attestation_addr,
             },
             chain_contracts_config: ChainContracts {
                 diamond_proxy_addr: self.l1.diamond_proxy_addr,
@@ -264,6 +267,7 @@ mod tests {
                 no_da_validium_l1_validator_addr: Some(addr(
                     "0x34782eE00206EAB6478F2692caa800e4A581687b",
                 )),
+                tee_dcap_attestation_addr: Some(addr("0x188f14607697957c1f63eb5524b7963dea26b25d")),
             },
             l2: L2ContractsConfig {
                 testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
@@ -315,6 +319,7 @@ mod tests {
             CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
             CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
             CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
+            CONTRACTS_TEE_DCAP_ATTESTATION_ADDR="0x188f14607697957c1f63eb5524b7963dea26b25d"
             CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
             CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
             CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR="0x0000000000000000000000000000000000000002"
@@ -374,6 +379,7 @@ mod tests {
               base_token_addr: '0x0000000000000000000000000000000000000001'
               base_token_asset_id: '0x00000000000000000000000000000000000000000000000000000000075bcd15'
               no_da_validium_l1_validator_addr: 0x34782eE00206EAB6478F2692caa800e4A581687b
+              tee_dcap_attestation_addr: 0x188f14607697957c1f63eb5524b7963dea26b25d
             l2:
               testnet_paymaster_addr: FC073319977e314F251EAE6ae6bE76B0B3BAeeCF
               # NOT PARSED: default_l2_upgrader: 0x512ecb6081fa5bab215aee40d3b69bcc95b565b3

@@ -9,7 +9,8 @@ use zksync_shared_resources::contracts::{
 use zksync_web3_decl::node::{EthInterfaceResource, SettlementLayerClient};
 
 use super::resources::{
-    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
+    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+    BoundEthInterfaceForTeeDcapResource, BoundEthInterfaceResource,
 };
 use crate::{clients::PKSigningClient, EthInterface};
 
@@ -19,6 +20,7 @@ pub struct PKSigningEthClientLayer {
     gas_adjuster_config: GasAdjusterConfig,
     operator: wallets::Wallet,
     blob_operator: Option<wallets::Wallet>,
+    tee_dcap_operator: Option<wallets::Wallet>,
 }
 
 #[derive(Debug, FromContext)]
@@ -35,6 +37,7 @@ pub struct Output {
     /// Only provided if the blob operator key is provided to the layer.
     pub signing_client_for_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub signing_client_for_gateway: Option<BoundEthInterfaceForL2Resource>,
+    pub signing_client_for_tee_dcap: Option<BoundEthInterfaceForTeeDcapResource>,
 }
 
 impl PKSigningEthClientLayer {
@@ -42,11 +45,13 @@ impl PKSigningEthClientLayer {
         gas_adjuster_config: GasAdjusterConfig,
         operator: wallets::Wallet,
         blob_operator: Option<wallets::Wallet>,
+        tee_dcap_operator: Option<wallets::Wallet>,
     ) -> Self {
         Self {
             gas_adjuster_config,
             operator,
             blob_operator,
+            tee_dcap_operator,
         }
     }
 }
@@ -91,10 +96,30 @@ impl WiringLayer for PKSigningEthClientLayer {
                 l1_diamond_proxy_addr,
                 gas_adjuster_config.default_priority_fee_per_gas,
                 l1_chain_id,
-                query_client,
+                query_client.clone(),
             );
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
+
+        // FIXME: TEE
+        let signing_client_for_tee_dcap =
+            self.tee_dcap_operator.map(|tee_dcap_attestation_operator| {
+                let private_key = tee_dcap_attestation_operator.private_key();
+                let signing_client_for_tee_dcap = PKSigningClient::new_raw(
+                    private_key.clone(),
+                    input
+                        .l1_contracts
+                        .0
+                        .ecosystem_contracts
+                        .tee_dcap_attestation_addr
+                        .unwrap(),
+                    gas_adjuster_config.default_priority_fee_per_gas,
+                    l1_chain_id,
+                    // FIXME: TEE
+                    query_client,
+                );
+                BoundEthInterfaceForTeeDcapResource(Box::new(signing_client_for_tee_dcap))
+            });
 
         let signing_client_for_gateway = match input.gateway_client {
             SettlementLayerClient::L2(gateway_client) => {
@@ -121,6 +146,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             signing_client,
             signing_client_for_blobs,
             signing_client_for_gateway,
+            signing_client_for_tee_dcap,
         })
     }
 }

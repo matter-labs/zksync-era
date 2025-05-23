@@ -94,11 +94,20 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let tee_dcap_attestation_addr = self
+            .config
+            .l1_sl_specific_contracts
+            .as_ref()
+            .and_then(|c| c.ecosystem_contracts.tee_dcap_attestation_addr)
+            .as_ref()
+            .copied();
+
         let sl_l1_contracts = load_settlement_layer_contracts(
             &input.eth_client.0,
             self.config.l1_specific_contracts.bridge_hub.unwrap(),
             self.config.l2_chain_id,
             self.config.multicall3,
+            tee_dcap_attestation_addr,
         )
         .await?
         // before v26 upgrade not all function for getting addresses are available,
@@ -150,6 +159,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
                     L2_BRIDGEHUB_ADDRESS,
                     self.config.l2_chain_id,
                     l2_multicall3,
+                    tee_dcap_attestation_addr,
                 )
                 .await?
                 // This unwrap is safe we have already verified it. Or it is supposed to be gateway,
@@ -251,7 +261,8 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
 
         // There is no need to specify multicall3 for external node
         let contracts =
-            load_settlement_layer_contracts(client, bridgehub, self.config.chain_id, None).await?;
+            load_settlement_layer_contracts(client, bridgehub, self.config.chain_id, None, None)
+                .await?;
         let contracts = match contracts {
             Some(contracts) => contracts,
             None => match initial_sl_mode {

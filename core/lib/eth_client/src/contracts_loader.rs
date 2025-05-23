@@ -42,6 +42,7 @@ pub async fn load_settlement_layer_contracts(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
     multicall3: Option<Address>,
+    tee_dcap_attestation_addr: Option<Address>,
 ) -> anyhow::Result<Option<SettlementLayerSpecificContracts>> {
     let diamond_proxy =
         get_diamond_proxy_contract(sl_client, bridgehub_address, l2_chain_id).await?;
@@ -77,6 +78,7 @@ pub async fn load_settlement_layer_contracts(
             state_transition_proxy_addr: Some(ctm_address),
             validator_timelock_addr: Some(validator_timelock_addr),
             multicall3,
+            tee_dcap_attestation_addr,
         },
         chain_contracts_config: ChainContracts {
             diamond_proxy_addr: diamond_proxy,

@@ -12526,6 +12526,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "chrono",
+ "hex",
  "serde",
  "test-casing",
  "test-log",

@@ -4,7 +4,8 @@ use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::{
     node::{
         contracts::SettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
-        BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
+        BoundEthInterfaceForL2Resource, BoundEthInterfaceForTeeDcapResource,
+        BoundEthInterfaceResource, SenderConfigResource,
     },
     web3_decl::node::SettlementModeResource,
 };
@@ -51,6 +52,7 @@ pub struct Input {
     pub eth_client: Option<BoundEthInterfaceResource>,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
+    pub eth_client_tee_dcap: Option<BoundEthInterfaceForTeeDcapResource>,
     pub object_store: ObjectStoreResource,
     pub settlement_mode: SettlementModeResource,
     pub sender_config: SenderConfigResource,
@@ -125,6 +127,8 @@ impl WiringLayer for EthTxAggregatorLayer {
         let replica_pool = input.replica_pool.get().await?;
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
+        let eth_client_tee_dcap = input.eth_client_tee_dcap.map(|c| c.0);
+
         let object_store = input.object_store.0;
 
         // Create and add tasks.
@@ -146,6 +150,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             aggregator,
             eth_client,
             eth_client_blobs,
+            eth_client_tee_dcap,
             validator_timelock_addr,
             state_transition_manager_address,
             multicall3_addr,

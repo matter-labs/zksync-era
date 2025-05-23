@@ -50,11 +50,14 @@ impl EthTxManager {
         gas_adjuster: Arc<dyn TxParamsProvider>,
         ethereum_client: Option<Box<dyn BoundEthInterface>>,
         ethereum_client_blobs: Option<Box<dyn BoundEthInterface>>,
+        ethereum_client_tee: Option<Box<dyn BoundEthInterface>>,
         l2_client: Option<Box<dyn BoundEthInterface>>,
     ) -> Self {
         let ethereum_client = ethereum_client.map(|eth| eth.for_component("eth_tx_manager"));
         let ethereum_client_blobs =
             ethereum_client_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        let ethereum_client_tee =
+            ethereum_client_tee.map(|eth| eth.for_component("eth_tx_manager"));
         // If `time_in_mempool_multiplier_cap` is set in config then we use it to derive cap for `l1_blocks_cap`.
         // Otherwise we use `time_in_mempool_in_l1_blocks_cap`.
         let time_in_mempool_in_l1_blocks_cap =
@@ -72,6 +75,7 @@ impl EthTxManager {
         let l1_interface = Box::new(RealL1Interface {
             ethereum_client,
             ethereum_client_blobs,
+            ethereum_client_tee,
             sl_client: l2_client,
             wait_confirmations: config.wait_confirmations,
         });
@@ -320,6 +324,7 @@ impl EthTxManager {
                         self.config.max_aggregated_tx_gas.into()
                     }
                 }
+                OperatorType::Tee => self.config.tee_dcap_attestation_gas_limit_in_wei.into(),
             }
         } else {
             gas_without_pubdata.into()
@@ -535,6 +540,7 @@ impl EthTxManager {
                     OperatorType::NonBlob
                 }
                 Some(a) if a == self.operator_address(OperatorType::Blob) => OperatorType::Blob,
+                Some(a) if a == self.operator_address(OperatorType::Tee) => OperatorType::Tee,
                 Some(a) => panic!("Cannot infer operator type for {a:#?}"),
                 None => OperatorType::NonBlob,
             }

@@ -653,6 +653,10 @@ impl BlocksDal<'_, '_> {
                     return Err(err);
                 }
             }
+            AggregatedActionType::Tee => {
+                // FIXME: TEE
+                todo!("set_eth_tx_id#tee")
+            }
         }
         Ok(())
     }

@@ -162,6 +162,11 @@ impl L1GasCriterion {
         total
     }
 
+    pub fn total_tee_gas_amount() -> u64 {
+        // FIXME: TEE
+        GasConsts::L1_TEE_PROOF_GAS_COST_ETHEREUM
+    }
+
     pub fn total_proof_gas_amount(is_gateway: bool) -> u64 {
         GasConsts::proof_costs(is_gateway)
     }
@@ -307,6 +312,10 @@ impl GasConsts {
     /// All gas cost of processing `PROVE` operation per batch.
     /// It's applicable if SL is Ethereum.
     const L1_BATCH_PROOF_GAS_COST_ETHEREUM: u64 = 800_000;
+
+    /// All gas cost of processing `TEE` operation per batch.
+    /// FIXME: TEE
+    const L1_TEE_PROOF_GAS_COST_ETHEREUM: u64 = 8_000_000;
 
     /// Base gas cost of processing `EXECUTION` operation per batch.
     /// It's applicable if SL is GATEWAY.

@@ -170,6 +170,8 @@ impl EthSenderDal<'_, '_> {
                         (true, AggregatedActionType::Execute) => (
                             "true", "eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
+                        // FIXME: TEE
+                        (_, AggregatedActionType::Tee) => ( "true", "eth_commit_tx_id", ""; ),
                     }
                 );
                 tx_rows.extend(query.fetch_all(self.storage.conn()).await?);
@@ -931,6 +933,10 @@ impl EthSenderDal<'_, '_> {
             AggregatedActionType::Commit => row.eth_commit_tx_id,
             AggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
             AggregatedActionType::Execute => row.eth_execute_tx_id,
+            AggregatedActionType::Tee => {
+                // FIXME: TEE
+                return None;
+            }
         }
         .unwrap() as u32;
         self.get_last_sent_successfully_eth_tx(eth_tx_id)

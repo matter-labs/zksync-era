@@ -568,6 +568,10 @@ impl BlockReverter {
             AggregatedActionType::Commit => "getTotalBatchesCommitted",
             AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
             AggregatedActionType::Execute => "getTotalBatchesExecuted",
+            AggregatedActionType::Tee => {
+                // FIXME: TEE
+                return Err(anyhow::anyhow!("TEE is not supported"));
+            }
         };
         let block_number: U256 = CallFunctionArgs::new(function_name, ())
             .for_contract(contract_address, &hyperchain_contract())

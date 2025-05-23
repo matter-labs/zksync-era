@@ -7,6 +7,7 @@ pub enum AggregatedActionType {
     Commit,
     PublishProofOnchain,
     Execute,
+    Tee,
 }
 
 impl AggregatedActionType {
@@ -16,6 +17,7 @@ impl AggregatedActionType {
             Self::Commit => "CommitBlocks",
             Self::PublishProofOnchain => "PublishProofBlocksOnchain",
             Self::Execute => "ExecuteBlocks",
+            Self::Tee => "TEE",
         }
     }
 }
@@ -34,9 +36,10 @@ impl FromStr for AggregatedActionType {
             "CommitBlocks" => Ok(Self::Commit),
             "PublishProofBlocksOnchain" => Ok(Self::PublishProofOnchain),
             "ExecuteBlocks" => Ok(Self::Execute),
+            "TEE" => Ok(Self::Tee),
             _ => Err(
                 "Incorrect aggregated action type; expected one of `CommitBlocks`, `PublishProofBlocksOnchain`, \
-                `ExecuteBlocks`",
+                `ExecuteBlocks`, `TEE`",
             ),
         }
     }

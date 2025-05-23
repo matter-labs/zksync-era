@@ -1,8 +1,8 @@
 use zksync_circuit_breaker::{l1_txs::FailedL1TransactionChecker, node::CircuitBreakersResource};
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::node::{
-    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
-    SenderConfigResource,
+    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+    BoundEthInterfaceForTeeDcapResource, BoundEthInterfaceResource, SenderConfigResource,
 };
 use zksync_health_check::node::AppHealthCheckResource;
 use zksync_node_fee_model::node::GasAdjusterResource;
@@ -41,6 +41,7 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: BoundEthInterfaceResource,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    pub eth_client_tee: Option<BoundEthInterfaceForTeeDcapResource>,
     pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub gas_adjuster: GasAdjusterResource,
     pub sender_config: SenderConfigResource,
@@ -72,6 +73,7 @@ impl WiringLayer for EthTxManagerLayer {
 
         let eth_client = input.eth_client.0.clone();
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
+        let eth_client_tee = input.eth_client_tee.map(|c| c.0);
         let l2_client = input.eth_client_gateway.map(|c| c.0);
 
         let gas_adjuster = input.gas_adjuster.0;
@@ -82,6 +84,7 @@ impl WiringLayer for EthTxManagerLayer {
             gas_adjuster,
             Some(eth_client),
             eth_client_blobs,
+            eth_client_tee,
             l2_client,
         );
 

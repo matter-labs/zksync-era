@@ -12,6 +12,7 @@ mod zksync_functions;
 mod abstract_l1_interface;
 
 mod eth_fees_oracle;
+mod tee_contract;
 #[cfg(test)]
 mod tests;
 

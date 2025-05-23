@@ -35,7 +35,9 @@ pub enum ContractLanguage {
 /// by two constants, intermediate folder and actual contract name. For Forge we use only second part
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
 const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
+const TEE_FORGE_PATH_PREFIX: &str = "contracts/tee-contracts/out";
 
+const TEE_CONTRACT_FILE: &str = "MatterLabsDCAPAttestation.sol/MatterLabsDCAPAttestation.json";
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
@@ -120,6 +122,13 @@ fn load_contract_for_forge(file_path: &str) -> Option<Contract> {
     load_contract_if_present(path)
 }
 
+fn load_tee_contract(file_path: &str) -> Contract {
+    let path = Path::new(TEE_FORGE_PATH_PREFIX).join(file_path);
+    load_contract_if_present(&path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
+}
+
 fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
     if let Some(contract) = load_contract_for_forge(path.1) {
         return contract;
@@ -157,6 +166,10 @@ pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> Option<Str
             .expect("Failed to parse abi")
             .to_string(),
     )
+}
+
+pub fn tee_contract() -> Contract {
+    load_tee_contract(TEE_CONTRACT_FILE)
 }
 
 pub fn bridgehub_contract() -> Contract {
