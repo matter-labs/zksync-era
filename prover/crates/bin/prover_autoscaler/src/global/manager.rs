@@ -27,7 +27,7 @@ pub struct Manager {
     namespaces: HashMap<NamespaceName, String>,
     watcher: watcher::Watcher,
     queuer: queuer::Queuer,
-    first_invoke_skipped: Arc<AtomicBool>,
+    first_invoke_skipped: AtomicBool,
     jobs: Vec<QueueReportFields>,
     scalers: Vec<Box<dyn ScalerTrait + Sync + Send>>,
 }
@@ -93,7 +93,7 @@ impl Manager {
             namespaces: config.protocol_versions.clone(),
             watcher,
             queuer,
-            first_invoke_skipped: Arc::new(AtomicBool::new(false)),
+            first_invoke_skipped: AtomicBool::new(false),
             jobs,
             scalers,
         }

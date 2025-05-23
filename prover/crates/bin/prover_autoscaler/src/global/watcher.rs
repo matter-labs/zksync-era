@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, result::Result, sync::Arc};
 
 use anyhow::{anyhow, Context, Ok};
 use futures::future;
@@ -227,7 +227,7 @@ impl Task for AgentPoller {
                 let mut guard = self.data.lock().await;
                 guard.is_ready[self.agent_id] = false;
             }
-            std::result::Result::Ok(response) => match response.json::<Cluster>().await {
+            Result::Ok(response) => match response.json::<Cluster>().await {
                 Err(json_err) => {
                     tracing::error!(
                         "AgentPoller: Failed to parse JSON cluster data from agent {}: {:?}",
@@ -238,7 +238,7 @@ impl Task for AgentPoller {
                     let mut guard = self.data.lock().await;
                     guard.is_ready[self.agent_id] = false;
                 }
-                std::result::Result::Ok(cluster) => {
+                Result::Ok(cluster) => {
                     let mut guard = self.data.lock().await;
                     guard
                         .clusters
