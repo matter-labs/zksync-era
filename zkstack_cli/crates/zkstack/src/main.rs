@@ -16,10 +16,12 @@ use zkstack_cli_config::EcosystemConfig;
 
 use crate::commands::{
     args::ServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
-    explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
+    explorer::ExplorerCommands, external_node::ExternalNodeCommands,
+    private_rpc::PrivateRpcCommands, prover::ProverCommands,
 };
 
-pub mod accept_ownership;
+pub mod abi;
+pub mod admin_functions;
 mod commands;
 mod consts;
 mod defaults;
@@ -70,6 +72,9 @@ pub enum ZkStackSubcommands {
     ContractVerifier(ContractVerifierCommands),
     /// Run dapp-portal
     Portal,
+    /// Run private RPC
+    #[command(subcommand)]
+    PrivateRPC(PrivateRpcCommands),
     /// Run block-explorer
     #[command(subcommand)]
     Explorer(ExplorerCommands),
@@ -151,6 +156,9 @@ async fn run_subcommand(zkstack_args: ZkStack) -> anyhow::Result<()> {
         ZkStackSubcommands::Update(args) => commands::update::run(&shell, args).await?,
         ZkStackSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<ZkStack>();
+        }
+        ZkStackSubcommands::PrivateRPC(args) => {
+            commands::private_rpc::run(&shell, args).await?;
         }
     }
     Ok(())

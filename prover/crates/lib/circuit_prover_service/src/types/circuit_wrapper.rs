@@ -50,15 +50,29 @@ impl StoredObject for CircuitWrapper {
     const BUCKET: Bucket = Bucket::ProverJobsFri;
     type Key<'a> = FriCircuitKey;
 
-    fn encode_key(key: Self::Key<'_>) -> String {
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
         let FriCircuitKey {
-            block_number,
+            batch_id,
             sequence_number,
             circuit_id,
             aggregation_round,
             depth,
         } = key;
-        format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin")
+        Some(format!(
+            "{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin",
+            block_number = batch_id.batch_number()
+        ))
+    }
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let FriCircuitKey {
+            batch_id,
+            sequence_number,
+            circuit_id,
+            aggregation_round,
+            depth,
+        } = key;
+        format!("{block_number}_{chain_id}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin", block_number = batch_id.batch_number(), chain_id = batch_id.chain_id())
     }
 
     serialize_using_bincode!();

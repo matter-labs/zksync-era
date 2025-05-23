@@ -19,9 +19,10 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
+    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
 };
+use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
 use crate::{
     executor::TxExecutionResult,
@@ -36,24 +37,6 @@ use crate::{
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
 pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
-
-/// Structure used to indicate that task cancellation was requested.
-#[derive(thiserror::Error, Debug)]
-pub(super) enum Error {
-    #[error("canceled")]
-    Canceled,
-    #[error(transparent)]
-    Fatal(#[from] anyhow::Error),
-}
-
-impl Error {
-    fn context(self, msg: &'static str) -> Self {
-        match self {
-            Self::Canceled => Self::Canceled,
-            Self::Fatal(err) => Self::Fatal(err.context(msg)),
-        }
-    }
-}
 
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
 ///
@@ -73,6 +56,7 @@ pub struct ZkSyncStateKeeper {
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
+    deployment_tx_filter: Option<DeploymentTxFilter>,
 }
 
 impl ZkSyncStateKeeper {
@@ -82,6 +66,7 @@ impl ZkSyncStateKeeper {
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
+        deployment_tx_filter: Option<DeploymentTxFilter>,
     ) -> Self {
         Self {
             io: sequencer,
@@ -90,24 +75,20 @@ impl ZkSyncStateKeeper {
             sealer,
             storage_factory,
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
+            deployment_tx_filter,
         }
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        match self.run_inner(stop_receiver).await {
-            Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
-            Err(Error::Canceled) => {
-                tracing::info!("Stop signal received, state keeper is shutting down");
-                Ok(())
-            }
-        }
+        try_stoppable!(self.run_inner(stop_receiver).await);
+        Ok(())
     }
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(
         &mut self,
         mut stop_receiver: watch::Receiver<bool>,
-    ) -> Result<Infallible, Error> {
+    ) -> Result<Infallible, OrStopped> {
         let (cursor, pending_batch_params) = self.io.initialize().await?;
         self.output_handler.initialize(&cursor).await?;
         self.health_updater
@@ -142,7 +123,7 @@ impl ZkSyncStateKeeper {
                 let (system_env, l1_batch_env, pubdata_params) = self
                     .wait_for_new_batch_env(&cursor, &mut stop_receiver)
                     .await
-                    .map_err(|e| e.context("wait_for_new_batch_params()"))?;
+                    .stop_context("failed getting new batch params")?;
                 PendingBatchData {
                     l1_batch_env,
                     pending_l2_blocks: Vec::new(),
@@ -249,7 +230,7 @@ impl ZkSyncStateKeeper {
                 None
             };
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     async fn create_batch_executor(
@@ -258,13 +239,12 @@ impl ZkSyncStateKeeper {
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<Box<dyn BatchExecutor<OwnedStorage>>, Error> {
+    ) -> Result<Box<dyn BatchExecutor<OwnedStorage>>, OrStopped> {
         let storage = self
             .storage_factory
             .access_storage(stop_receiver, l1_batch_env.number - 1)
             .await
-            .context("failed creating VM storage")?
-            .ok_or(Error::Canceled)?;
+            .stop_context("failed creating VM storage")?;
         Ok(self
             .batch_executor
             .init_batch(storage, l1_batch_env, system_env, pubdata_params))
@@ -278,7 +258,7 @@ impl ZkSyncStateKeeper {
         pending_l2_blocks: &[L2BlockExecutionData],
         protocol_version: ProtocolVersionId,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<ProtocolUpgradeTx>, Error> {
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         // After the Shared Bridge is integrated,
         // there has to be a GenesisUpgrade upgrade transaction after the chain genesis.
         // It has to be the first transaction of the first batch.
@@ -339,7 +319,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L1BatchParams, Error> {
+    ) -> Result<L1BatchParams, OrStopped> {
         while !is_canceled(stop_receiver) {
             if let Some(params) = self
                 .io
@@ -349,7 +329,7 @@ impl ZkSyncStateKeeper {
                 return Ok(params);
             }
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     #[tracing::instrument(
@@ -362,9 +342,9 @@ impl ZkSyncStateKeeper {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), Error> {
+    ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
-        // until we get the rest of parameters from I/O or receive a stop signal.
+        // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
             .wait_for_new_batch_params(cursor, stop_receiver)
             .await?;
@@ -385,7 +365,7 @@ impl ZkSyncStateKeeper {
                 let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
                 Ok(params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash))
             }
-            _ = stop_receiver.changed() => Err(Error::Canceled),
+            _ = stop_receiver.changed() => Err(OrStopped::Stopped),
         }
     }
 
@@ -400,7 +380,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         updates: &UpdatesManager,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<L2BlockParams, Error> {
+    ) -> Result<L2BlockParams, OrStopped> {
         let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
         let cursor = updates.io_cursor();
         while !is_canceled(stop_receiver) {
@@ -417,7 +397,7 @@ impl ZkSyncStateKeeper {
                 return Ok(params);
             }
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     fn set_l2_block_params(updates_manager: &mut UpdatesManager, l2_block_params: L2BlockParams) {
@@ -492,7 +472,7 @@ impl ZkSyncStateKeeper {
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), OrStopped> {
         if l2_blocks_to_reexecute.is_empty() {
             return Ok(());
         }
@@ -575,7 +555,7 @@ impl ZkSyncStateKeeper {
         let new_l2_block_params = self
             .wait_for_new_l2_block_params(updates_manager, stop_receiver)
             .await
-            .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+            .stop_context("failed getting L2 block params")?;
         Self::set_l2_block_params(updates_manager, new_l2_block_params);
         Ok(())
     }
@@ -590,7 +570,7 @@ impl ZkSyncStateKeeper {
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), OrStopped> {
         if let Some(protocol_upgrade_tx) = protocol_upgrade_tx {
             self.process_upgrade_tx(batch_executor, updates_manager, protocol_upgrade_tx)
                 .await?;
@@ -617,6 +597,9 @@ impl ZkSyncStateKeeper {
                     Self::start_next_l2_block(updates_manager, batch_executor).await?;
                 }
 
+                self.report_seal_criteria_capacity(updates_manager);
+                full_latency.observe();
+
                 return Ok(());
             }
 
@@ -634,7 +617,7 @@ impl ZkSyncStateKeeper {
                 let next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
-                    .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
+                    .stop_context("failed getting L2 block params")?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
@@ -722,12 +705,13 @@ impl ZkSyncStateKeeper {
                      transaction {tx_hash}",
                     updates_manager.l1_batch.number
                 );
+                self.report_seal_criteria_capacity(updates_manager);
                 full_latency.observe();
                 return Ok(());
             }
             full_latency.observe();
         }
-        Err(Error::Canceled)
+        Err(OrStopped::Stopped)
     }
 
     async fn process_upgrade_tx(
@@ -854,7 +838,6 @@ impl ZkSyncStateKeeper {
                 ..
             } => {
                 let tx_execution_status = &tx_result.result;
-
                 tracing::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in L2 block {}) \
                     status: {:?}. Tx execution metrics: {:?}, block execution metrics: {:?}",
@@ -869,6 +852,26 @@ impl ZkSyncStateKeeper {
                     &tx_execution_metrics,
                     updates_manager.pending_execution_metrics() + **tx_execution_metrics,
                 );
+
+                if let Some(tx_filter) = &self.deployment_tx_filter {
+                    if !tx.is_l1()
+                        && tx_filter
+                            .find_not_allowed_deployer(
+                                tx.initiator_account(),
+                                &tx_result.logs.events,
+                            )
+                            .await
+                            .is_some()
+                    {
+                        tracing::warn!(
+                                "Deployment transaction {tx:?} is not allowed. Mark it as unexecutable."
+                            );
+                        return Ok((
+                            SealResolution::Unexecutable(UnexecutableReason::DeploymentNotAllowed),
+                            exec_result,
+                        ));
+                    }
+                }
 
                 let encoding_len = tx.encoding_len();
 
@@ -898,7 +901,6 @@ impl ZkSyncStateKeeper {
 
                 self.sealer.should_seal_l1_batch(
                     updates_manager.l1_batch.number.0,
-                    updates_manager.batch_timestamp() as u128 * 1_000,
                     updates_manager.pending_executed_transactions_len() + 1,
                     updates_manager.pending_l1_transactions_len() + is_tx_l1,
                     &block_data,
@@ -914,5 +916,26 @@ impl ZkSyncStateKeeper {
     /// Returns the health check for state keeper.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+
+    fn report_seal_criteria_capacity(&self, manager: &UpdatesManager) {
+        let block_writes_metrics = manager.storage_writes_deduplicator.metrics();
+
+        let block_data = SealData {
+            execution_metrics: manager.pending_execution_metrics(),
+            cumulative_size: manager.pending_txs_encoding_size(),
+            writes_metrics: block_writes_metrics,
+            gas_remaining: u32::MAX, // not used
+        };
+
+        let capacities = self.sealer.capacity_filled(
+            manager.pending_executed_transactions_len(),
+            manager.pending_l1_transactions_len(),
+            &block_data,
+            manager.protocol_version(),
+        );
+        for (criterion, capacity) in capacities {
+            AGGREGATION_METRICS.record_criterion_capacity(criterion, capacity);
+        }
     }
 }

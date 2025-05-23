@@ -27,13 +27,21 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
     fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
-        block_open_timestamp_ms: u128,
         tx_count: usize,
         l1_tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution;
+
+    /// Returns fractions of the criteria's capacity filled in the batch.
+    fn capacity_filled(
+        &self,
+        tx_count: usize,
+        l1_tx_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Vec<(&'static str, f64)>;
 }
 
 /// Implementation of [`ConditionalSealer`] used by the main node.
@@ -41,10 +49,20 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
 ///
 /// The checks are deterministic, i.e., should depend solely on execution metrics and [`StateKeeperConfig`].
 /// Non-deterministic seal criteria are expressed using [`IoSealCriteria`](super::IoSealCriteria).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SequencerSealer {
     config: StateKeeperConfig,
     sealers: Vec<Box<dyn SealCriterion>>,
+}
+
+#[cfg(test)]
+impl SequencerSealer {
+    pub(crate) fn for_tests() -> Self {
+        Self {
+            config: StateKeeperConfig::for_tests(),
+            sealers: vec![],
+        }
+    }
 }
 
 impl ConditionalSealer for SequencerSealer {
@@ -54,12 +72,10 @@ impl ConditionalSealer for SequencerSealer {
         protocol_version: ProtocolVersionId,
     ) -> Option<&'static str> {
         for sealer in &self.sealers {
-            const MOCK_BLOCK_TIMESTAMP: u128 = 0;
             const TX_COUNT: usize = 1;
 
             let resolution = sealer.should_seal(
                 &self.config,
-                MOCK_BLOCK_TIMESTAMP,
                 TX_COUNT,
                 TX_COUNT,
                 data,
@@ -76,7 +92,6 @@ impl ConditionalSealer for SequencerSealer {
     fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
-        block_open_timestamp_ms: u128,
         tx_count: usize,
         l1_tx_count: usize,
         block_data: &SealData,
@@ -93,7 +108,6 @@ impl ConditionalSealer for SequencerSealer {
         for sealer in &self.sealers {
             let seal_resolution = sealer.should_seal(
                 &self.config,
-                block_open_timestamp_ms,
                 tx_count,
                 l1_tx_count,
                 block_data,
@@ -118,6 +132,28 @@ impl ConditionalSealer for SequencerSealer {
         }
         final_seal_resolution
     }
+
+    fn capacity_filled(
+        &self,
+        tx_count: usize,
+        l1_tx_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Vec<(&'static str, f64)> {
+        self.sealers
+            .iter()
+            .filter_map(|s| {
+                let filled = s.capacity_filled(
+                    &self.config,
+                    tx_count,
+                    l1_tx_count,
+                    block_data,
+                    protocol_version,
+                );
+                filled.map(|f| (s.prom_criterion_name(), f))
+            })
+            .collect()
+    }
 }
 
 impl SequencerSealer {
@@ -138,7 +174,7 @@ impl SequencerSealer {
         vec![
             Box::new(criteria::SlotsCriterion),
             Box::new(criteria::PubDataBytesCriterion {
-                max_pubdata_per_batch: config.max_pubdata_per_batch,
+                max_pubdata_per_batch: config.max_pubdata_per_batch.0,
             }),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
@@ -168,7 +204,6 @@ impl ConditionalSealer for NoopSealer {
     fn should_seal_l1_batch(
         &self,
         _l1_batch_number: u32,
-        _block_open_timestamp_ms: u128,
         _tx_count: usize,
         _l1_tx_count: usize,
         _block_data: &SealData,
@@ -176,5 +211,15 @@ impl ConditionalSealer for NoopSealer {
         _protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         SealResolution::NoSeal
+    }
+
+    fn capacity_filled(
+        &self,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        _block_data: &SealData,
+        _protocol_version: ProtocolVersionId,
+    ) -> Vec<(&'static str, f64)> {
+        Vec::new()
     }
 }

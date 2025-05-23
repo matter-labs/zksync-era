@@ -87,6 +87,8 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .unwrap()
         .short_signature();
 
+    let get_da_validator_pair_selector = functions.get_da_validator_pair.short_signature();
+
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
         let call = call.unwrap();
@@ -126,6 +128,12 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
                 H256::from_low_u64_be(ProtocolVersionId::default() as u64)
                     .0
                     .to_vec()
+            }
+            selector if selector == get_da_validator_pair_selector => {
+                assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
+                let non_zero_address = vec![6u8; 32];
+
+                [non_zero_address.clone(), non_zero_address].concat()
             }
             _ => panic!("unexpected call: {call:?}"),
         };
@@ -266,6 +274,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .eth_sender_dal()
             .get_inflight_txs(
                 tester.manager.operator_address(OperatorType::NonBlob),
+                false,
                 false
             )
             .await
@@ -322,6 +331,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             .eth_sender_dal()
             .get_inflight_txs(
                 tester.manager.operator_address(OperatorType::NonBlob),
+                false,
                 false
             )
             .await
@@ -491,7 +501,9 @@ async fn blob_transactions_are_resent_independently_of_non_blob_txs() {
     // second iteration sends first_batch prove tx and resends second_batch commit tx
     tester.assert_just_sent_tx_count_equals(2).await;
 
-    tester.run_eth_sender_tx_manager_iteration().await;
+    tester
+        .run_eth_sender_tx_manager_iteration_after_n_blocks(10)
+        .await;
     // we should resend both of those transactions here as they use different operators
     tester.assert_just_sent_tx_count_equals(2).await;
 }
@@ -761,6 +773,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             ),
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
     ];
     if with_evm_emulator {
         mock_response.insert(

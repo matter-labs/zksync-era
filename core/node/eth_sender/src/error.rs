@@ -9,6 +9,8 @@ pub enum EthSenderError {
     ContractCall(#[from] ContractCallError),
     #[error("Token parsing error: {0}")]
     Parse(#[from] contract::Error),
+    #[error("Max base fee exceeded")]
+    ExceedMaxBaseFee,
 }
 
 impl EthSenderError {

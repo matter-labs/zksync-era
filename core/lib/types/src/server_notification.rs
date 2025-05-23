@@ -12,9 +12,12 @@ pub enum GatewayMigrationState {
 
 impl GatewayMigrationState {
     pub fn from_sl_and_notification(
-        settlement_layer: SettlementLayer,
+        settlement_layer: Option<SettlementLayer>,
         notification: Option<GatewayMigrationNotification>,
     ) -> Self {
+        let Some(settlement_layer) = settlement_layer else {
+            return GatewayMigrationState::InProgress;
+        };
         notification
             .map(|a| match (a, settlement_layer) {
                 (GatewayMigrationNotification::ToGateway, SettlementLayer::L1(_))

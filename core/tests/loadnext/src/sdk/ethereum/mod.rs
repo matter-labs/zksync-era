@@ -427,7 +427,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .sign_prepared_tx(
                 tx_data,
                 Options::with(|f| {
-                    f.gas = Some(U256::from(300000));
+                    f.gas = Some(U256::from(600000));
                     f.value = Some(value);
                     f.gas_price = Some(gas_price)
                 }),

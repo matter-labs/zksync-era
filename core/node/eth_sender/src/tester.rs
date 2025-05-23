@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
@@ -154,10 +154,8 @@ impl EthSenderTester {
         let aggregator_config = SenderConfig {
             pubdata_sending_mode,
             ..eth_sender_config
-                .clone()
                 .get_eth_sender_config_for_sender_layer_data_layer()
-                .cloned()
-                .unwrap()
+                .clone()
         };
 
         let history: Vec<_> = history
@@ -182,7 +180,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
@@ -203,7 +201,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
@@ -223,9 +221,10 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
+            .with_sender(Address::from_str("0xb10b000000000000000000000000000000000000").unwrap())
             .build();
         gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
         let gateway_blobs = Box::new(gateway_blobs);
@@ -238,7 +237,7 @@ impl EthSenderTester {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
                     pricing_formula_parameter_b: 2.0,
-                    ..eth_sender_config.gas_adjuster.unwrap()
+                    ..eth_sender_config.gas_adjuster
                 },
                 pubdata_sending_mode,
                 commitment_mode,
@@ -247,21 +246,15 @@ impl EthSenderTester {
             .unwrap(),
         );
 
-        let eth_sender = eth_sender_config
-            .get_eth_sender_config_for_sender_layer_data_layer()
-            .unwrap();
+        let eth_sender = eth_sender_config.get_eth_sender_config_for_sender_layer_data_layer();
 
-        let custom_commit_sender_addr =
-            if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
-                Some(gateway_blobs.sender_account())
-            } else {
-                None
-            };
+        let use_blob_operator =
+            aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup;
 
         let aggregator = Aggregator::new(
             aggregator_config.clone(),
             MockObjectStore::arc(),
-            custom_commit_sender_addr,
+            use_blob_operator,
             commitment_mode,
             connection_pool.clone(),
             SettlementLayer::L1(chain_id),
@@ -279,14 +272,14 @@ impl EthSenderTester {
             // Aggregator - unused
             aggregator,
             gateway.clone(),
+            use_blob_operator.then(|| gateway_blobs.clone() as Box<dyn BoundEthInterface>),
             // ZKsync contract address
             Address::random(),
             STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
-            contracts_config.l1_multicall3_addr,
+            contracts_config.l1.multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
-            custom_commit_sender_addr,
-            SettlementLayer::L1(chain_id),
+            Some(SettlementLayer::L1(chain_id)),
         )
         .await;
 
@@ -330,8 +323,7 @@ impl EthSenderTester {
             self.conn.clone(),
             EthConfig::for_tests()
                 .get_eth_sender_config_for_sender_layer_data_layer()
-                .cloned()
-                .unwrap(),
+                .clone(),
             self.gas_adjuster.clone(),
             None,
             None,
@@ -514,6 +506,12 @@ impl EthSenderTester {
         } else {
             PubdataSendingMode::Calldata
         };
+        let commitment_mode = if self.pubdata_sending_mode == PubdataSendingMode::Custom {
+            L1BatchCommitmentMode::Validium
+        } else {
+            L1BatchCommitmentMode::Rollup
+        };
+
         let operation = AggregatedOperation::Commit(
             l1_batch_with_metadata(
                 self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_commit - 1)
@@ -524,6 +522,7 @@ impl EthSenderTester {
                     .await,
             )],
             pubdata_mode,
+            commitment_mode,
         );
         self.next_l1_batch_number_to_commit += 1;
         self.save_operation(operation).await
@@ -623,12 +622,14 @@ impl EthSenderTester {
 
     pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
         let inflight_count = if !self.settlement_layer.is_gateway() {
-            //sanity check
-            assert!(self.manager.operator_address(OperatorType::Blob).is_some());
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(self.manager.operator_address(OperatorType::NonBlob), false)
+                .get_inflight_txs(
+                    self.manager.operator_address(OperatorType::NonBlob),
+                    false,
+                    false,
+                )
                 .await
                 .unwrap()
                 .len()
@@ -636,7 +637,11 @@ impl EthSenderTester {
                     .storage()
                     .await
                     .eth_sender_dal()
-                    .get_inflight_txs(self.manager.operator_address(OperatorType::Blob), false)
+                    .get_inflight_txs(
+                        self.manager.operator_address(OperatorType::Blob),
+                        false,
+                        false,
+                    )
                     .await
                     .unwrap()
                     .len()
@@ -644,7 +649,11 @@ impl EthSenderTester {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(None, true)
+                .get_inflight_txs(
+                    self.manager.operator_address(OperatorType::Gateway),
+                    false,
+                    true,
+                )
                 .await
                 .unwrap()
                 .len()

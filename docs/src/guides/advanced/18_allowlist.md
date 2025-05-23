@@ -58,30 +58,43 @@ determine if it includes any contract deployments.
 
 2. These events are parsed from the `execution_output.events` field.
 
-3. If any deployment events are found:
+3. The transaction initiator is checked:
+
+   If the initiator is in the allowlist, all deployments in the transaction are allowed.
+
+   This enables nested deployments of any depth from allowlisted addresses.
+
+   The transaction is forwarded to the mempool via `MasterPoolSink`.
+
+4. If the initiator is not allowlisted and deployment events are found:
 
    - The deployer address (from topic[1]) is extracted.
    - The address is checked against the current in-memory allowlist (`SharedAllowList`).
 
-4. If the deployer is **not** in the allowlist:
+   A. If the deployer is **not** in the allowlist:
 
    - The transaction is **rejected** with a `DeployerNotInAllowList` error.
    - A log is written with the deployer address and transaction hash.
 
-5. If all deployments are allowed:
+   B. If all deployments are allowed:
+
    - The transaction is forwarded to the mempool via `MasterPoolSink`.
 
 #### Example Check (Simplified)
 
-- Deployment event detected → extract deployer address
-- Check: `allowlist.contains(deployer_address)`
-- If not found → reject transaction
-- Otherwise → forward to mempool
+- If transaction initiator is allowlisted → allow all deployments
+
+- Otherwise, for each deployment event detected → extract deployer address
+  - Check: `allowlist.contains(deployer_address)`
+  - If not found → reject transaction
+  - Otherwise → forward to mempool
 
 ## Behavior
 
-- On tx submission: contract deployer is checked against the allowlist.
-- If not listed → tx is rejected.
+- On tx submission:
+  - If tx initiator is allowlisted, all deployments are permitted regardless of nested depth
+  - Otherwise, each contract deployer must be individually allowlisted
+- If not permited → tx is rejected.
 - On refresh: allowlist is reloaded via HTTP. Skipped if `304 Not Modified`.
 
 ### ETag Support

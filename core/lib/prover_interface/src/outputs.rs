@@ -9,9 +9,8 @@ use circuit_definitions::{
 };
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
-use serde_with::{hex::Hex, serde_as};
-use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject, _reexports::BoxedError};
-use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType, L1BatchNumber};
+use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId, L1BatchNumber};
 
 use crate::{FormatMarker, CBOR};
 
@@ -147,24 +146,6 @@ impl<FM: FormatMarker> From<PlonkL1BatchProofForL1> for L1BatchProofForL1<FM> {
     }
 }
 
-/// A "final" TEE proof that can be sent to the L1 contract.
-#[serde_as]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct L1BatchTeeProofForL1 {
-    // signature generated within the TEE enclave, using the privkey corresponding to the pubkey
-    #[serde_as(as = "Hex")]
-    pub signature: Vec<u8>,
-    // pubkey used for signature verification; each key pair is attested by the TEE attestation
-    // stored in the db
-    #[serde_as(as = "Hex")]
-    pub pubkey: Vec<u8>,
-    // data that was signed
-    #[serde_as(as = "Hex")]
-    pub proof: Vec<u8>,
-    // type of TEE used for attestation
-    pub tee_type: TeeType,
-}
-
 impl fmt::Debug for L1BatchProofForL1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -199,22 +180,46 @@ impl fmt::Debug for FflonkL1BatchProofForL1 {
     }
 }
 
-impl fmt::Debug for L1BatchTeeProofForL1 {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("L1BatchTeeProofForL1")
-            .finish_non_exhaustive()
-    }
+#[derive(Clone, Copy)]
+pub enum L1BatchProofForL1Key {
+    Core((L1BatchNumber, ProtocolSemanticVersion)),
+    Prover((L1BatchId, ProtocolSemanticVersion)),
 }
 
 impl StoredObject for L1BatchProofForL1 {
     const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = (L1BatchNumber, ProtocolSemanticVersion);
+    type Key<'a> = L1BatchProofForL1Key;
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        if let L1BatchProofForL1Key::Prover((l1_batch_id, protocol_version)) = key {
+            let semver_suffix = protocol_version.to_string().replace('.', "_");
+            Some(format!(
+                "l1_batch_proof_{batch_number}_{semver_suffix}.cbor",
+                batch_number = l1_batch_id.batch_number().0
+            ))
+        } else {
+            None
+        }
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        let (l1_batch_number, protocol_version) = key;
-        let semver_suffix = protocol_version.to_string().replace('.', "_");
-        format!("l1_batch_proof_{l1_batch_number}_{semver_suffix}.cbor")
+        match key {
+            L1BatchProofForL1Key::Core((l1_batch_number, protocol_version)) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
+                format!(
+                    "l1_batch_proof_{batch_number}_{semver_suffix}.cbor",
+                    batch_number = l1_batch_number.0
+                )
+            }
+            L1BatchProofForL1Key::Prover((l1_batch_id, protocol_version)) => {
+                let semver_suffix = protocol_version.to_string().replace('.', "_");
+                format!(
+                    "l1_batch_proof_{batch_number}_{chain_id}_{semver_suffix}.cbor",
+                    batch_number = l1_batch_id.batch_number().0,
+                    chain_id = l1_batch_id.chain_id()
+                )
+            }
+        }
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
@@ -230,15 +235,4 @@ impl StoredObject for L1BatchProofForL1 {
         ciborium::from_reader(&bytes[..])
             .map_err(|e| BoxedError::from(format!("Failed to deserialize L1BatchProofForL1: {e}")))
     }
-}
-
-impl StoredObject for L1BatchTeeProofForL1 {
-    const BUCKET: Bucket = Bucket::ProofsTee;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("l1_batch_tee_proof_{key}.bin")
-    }
-
-    serialize_using_bincode!();
 }

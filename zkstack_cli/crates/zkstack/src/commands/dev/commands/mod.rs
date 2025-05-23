@@ -13,7 +13,10 @@ pub mod snapshot;
 pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
-#[cfg(feature = "gateway")]
+pub mod track_priority_txs;
+#[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
 pub mod upgrade_utils;
 #[cfg(feature = "v27_evm_interpreter")]
 pub mod v27_evm_eq;
+#[cfg(feature = "v28_precompiles")]
+pub mod v28_precompiles;

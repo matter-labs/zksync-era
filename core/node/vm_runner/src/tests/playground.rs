@@ -226,9 +226,13 @@ async fn resetting_playground_state(reset_to: L1BatchNumber) {
     // Manually catch up RocksDB to Postgres to ensure that resetting it is not trivial.
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let mut conn = pool.connection().await.unwrap();
-    RocksdbStorage::builder(rocksdb_dir.path())
+    let rocksdb = RocksdbStorage::builder(rocksdb_dir.path())
         .await
         .unwrap()
+        .get()
+        .await
+        .unwrap();
+    rocksdb
         .synchronize(&mut conn, &stop_receiver, None)
         .await
         .unwrap();

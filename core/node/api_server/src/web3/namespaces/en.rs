@@ -2,8 +2,10 @@ use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
-    api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
-    L2BlockNumber,
+    api::{en, ProtocolVersionInfo},
+    protocol_version::ProtocolSemanticVersion,
+    tokens::TokenInfo,
+    Address, L1BatchNumber, L2BlockNumber,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -39,52 +41,6 @@ impl EnNamespace {
         Ok(Some(en::ConsensusGlobalConfig(
             zksync_protobuf::serde::Serialize
                 .proto_fmt(&cfg, serde_json::value::Serializer)
-                .unwrap(),
-        )))
-    }
-
-    pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let mut conn = self.state.acquire_connection().await?;
-        let Some(cfg) = conn
-            .consensus_dal()
-            .global_config()
-            .await
-            .context("global_config()")?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(en::ConsensusGenesis(
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(&cfg.genesis, serde_json::value::Serializer)
-                .unwrap(),
-        )))
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub async fn attestation_status_impl(
-        &self,
-    ) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let Some(status) = self
-            .state
-            .acquire_connection()
-            .await?
-            // unwrap is ok, because we start outermost transaction.
-            .transaction_builder()
-            .unwrap()
-            // run readonly transaction to perform consistent reads.
-            .set_readonly()
-            .build()
-            .await
-            .context("TransactionBuilder::build()")?
-            .consensus_dal()
-            .attestation_status()
-            .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(en::AttestationStatus(
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(&status, serde_json::value::Serializer)
                 .unwrap(),
         )))
     }
@@ -236,5 +192,30 @@ impl EnNamespace {
             .tx_sender
             .read_whitelisted_tokens_for_aa_cache()
             .await)
+    }
+
+    pub async fn get_protocol_version_info_impl(
+        &self,
+        version_id: Option<u16>,
+    ) -> Result<Option<ProtocolVersionInfo>, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        let version_id = match version_id {
+            Some(version_id) => version_id,
+            None => {
+                storage
+                    .protocol_versions_dal()
+                    .latest_semantic_version()
+                    .await
+                    .map_err(DalError::generalize)?
+                    .context("expected some version to be present in DB")?
+                    .minor as u16
+            }
+        };
+        let protocol_version_info = storage
+            .protocol_versions_web3_dal()
+            .get_protocol_version_info_by_id(version_id)
+            .await
+            .map_err(DalError::generalize)?;
+        Ok(protocol_version_info)
     }
 }

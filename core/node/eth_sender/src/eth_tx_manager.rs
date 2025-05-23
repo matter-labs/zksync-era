@@ -55,10 +55,19 @@ impl EthTxManager {
         let ethereum_client = ethereum_client.map(|eth| eth.for_component("eth_tx_manager"));
         let ethereum_client_blobs =
             ethereum_client_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        // If `time_in_mempool_multiplier_cap` is set in config then we use it to derive cap for `l1_blocks_cap`.
+        // Otherwise we use `time_in_mempool_in_l1_blocks_cap`.
+        let time_in_mempool_in_l1_blocks_cap =
+            if let Some(multiplier_cap) = config.time_in_mempool_multiplier_cap {
+                derive_l1_block_cap(multiplier_cap, gas_adjuster.get_parameter_b())
+            } else {
+                config.time_in_mempool_in_l1_blocks_cap
+            };
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
-            time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
+            time_in_mempool_in_l1_blocks_cap,
+            max_acceptable_base_fee_in_wei: config.max_acceptable_base_fee_in_wei,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_client,
@@ -132,6 +141,7 @@ impl EthTxManager {
             .await
             .unwrap();
 
+        let operator_type = self.operator_type(tx);
         let EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
@@ -140,10 +150,8 @@ impl EthTxManager {
         } = self.fees_oracle.calculate_fees(
             &previous_sent_tx,
             time_in_mempool_in_l1_blocks,
-            self.operator_type(tx),
+            operator_type,
         )?;
-
-        let operator_type = self.operator_type(tx);
 
         let blob_gas_price = if tx.blob_sidecar.is_some() {
             Some(
@@ -345,13 +353,10 @@ impl EthTxManager {
         }
     }
 
-    pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Option<Address> {
-        if operator_type == OperatorType::Blob {
-            self.l1_interface.get_blobs_operator_account()
-        } else {
-            None
-        }
+    pub(crate) fn operator_address(&self, operator_type: OperatorType) -> Address {
+        self.l1_interface.get_operator_account(operator_type)
     }
+
     // Monitors the in-flight transactions, marks mined ones as confirmed,
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions_single_operator(
@@ -370,6 +375,7 @@ impl EthTxManager {
                 .eth_sender_dal()
                 .get_inflight_txs(
                     self.operator_address(operator_type),
+                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
@@ -523,10 +529,15 @@ impl EthTxManager {
     fn operator_type(&self, tx: &EthTx) -> OperatorType {
         if tx.is_gateway {
             OperatorType::Gateway
-        } else if tx.from_addr.is_none() {
-            OperatorType::NonBlob
         } else {
-            OperatorType::Blob
+            match tx.from_addr {
+                Some(a) if a == self.operator_address(OperatorType::NonBlob) => {
+                    OperatorType::NonBlob
+                }
+                Some(a) if a == self.operator_address(OperatorType::Blob) => OperatorType::Blob,
+                Some(a) => panic!("Cannot infer operator type for {a:#?}"),
+                None => OperatorType::NonBlob,
+            }
         }
     }
 
@@ -609,11 +620,11 @@ impl EthTxManager {
         let pool = self.pool.clone();
 
         loop {
-            tokio::time::sleep(self.config.tx_poll_period()).await;
+            tokio::time::sleep(self.config.tx_poll_period).await;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_manager is shutting down");
+                tracing::info!("Stop request received, eth_tx_manager is shutting down");
                 break;
             }
             let operator_to_track = self.l1_interface.supported_operator_types()[0];
@@ -649,6 +660,7 @@ impl EthTxManager {
             .eth_sender_dal()
             .get_inflight_txs(
                 self.operator_address(operator_type),
+                operator_type != OperatorType::Blob,
                 operator_type == OperatorType::Gateway,
             )
             .await
@@ -665,7 +677,8 @@ impl EthTxManager {
                 .eth_sender_dal()
                 .get_new_eth_txs(
                     number_of_available_slots_for_eth_txs,
-                    &self.operator_address(operator_type),
+                    self.operator_address(operator_type),
+                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
@@ -753,5 +766,29 @@ impl EthTxManager {
     /// Returns the health check for eth tx manager.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+}
+
+fn derive_l1_block_cap(multiplier_cap: u32, b: f64) -> u32 {
+    (multiplier_cap as f64).log(b).ceil() as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::derive_l1_block_cap;
+
+    #[test]
+    fn check_derive_l1_block_cap() {
+        let multiplier_cap = 10;
+        let b = 2.0;
+        let expected_l1_block_cap = 4; // ceil(log_2(10))
+        let actual_l1_block_cap = derive_l1_block_cap(multiplier_cap, b);
+        assert_eq!(actual_l1_block_cap, expected_l1_block_cap);
+
+        let multiplier_cap = 10;
+        let b = 1.01;
+        let expected_l1_block_cap = 232;
+        let actual_l1_block_cap = derive_l1_block_cap(multiplier_cap, b);
+        assert_eq!(actual_l1_block_cap, expected_l1_block_cap);
     }
 }

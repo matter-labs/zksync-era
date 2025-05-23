@@ -30,7 +30,7 @@ use super::{
     utils::{build_da_contracts, install_yarn_dependencies},
 };
 use crate::{
-    accept_ownership::{accept_admin, accept_owner},
+    admin_functions::{accept_admin, accept_owner},
     commands::{
         chain::{self},
         ecosystem::create_configs::{
@@ -141,7 +141,8 @@ async fn deploy_erc20(
     forge_args: ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<ERC20Tokens> {
-    let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
+    let deploy_config_path =
+        DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.path_to_l1_foundry());
     let wallets = ecosystem_config.get_wallets()?;
     DeployErc20Config::new(
         erc20_deployment_config,
@@ -173,7 +174,7 @@ async fn deploy_erc20(
 
     let result = ERC20Tokens::read(
         shell,
-        DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
+        DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.path_to_l1_foundry()),
     )?;
     result.save_with_base_path(shell, &ecosystem_config.config)?;
     Ok(result)
@@ -393,6 +394,7 @@ async fn init_chains(
             dev: final_init_args.dev,
             validium_args: final_init_args.validium_args.clone(),
             server_command: genesis_args.server_command.clone(),
+            make_permanent_rollup: init_args.make_permanent_rollup,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

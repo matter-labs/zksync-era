@@ -13,7 +13,7 @@ use zkstack_cli_config::{
             input::DeployL2ContractsInput,
             output::{
                 ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-                Multicall3Output, TimestampAsserterOutput,
+                L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
             },
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
@@ -33,6 +33,7 @@ pub enum Deploy2ContractsOption {
     ConsensusRegistry,
     Multicall3,
     TimestampAsserter,
+    L2DAValidator,
 }
 
 pub async fn run(
@@ -101,6 +102,16 @@ pub async fn run(
             )
             .await?;
         }
+        Deploy2ContractsOption::L2DAValidator => {
+            deploy_l2_da_validator(
+                shell,
+                &chain_config,
+                &ecosystem_config,
+                &mut contracts,
+                args,
+            )
+            .await?
+        }
     }
 
     contracts.save_with_base_path(shell, &chain_config.configs)?;
@@ -132,7 +143,7 @@ async fn build_and_deploy(
     .await?;
     update_config(
         shell,
-        &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+        &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.path_to_l1_foundry()),
     )?;
     Ok(())
 }
@@ -220,6 +231,28 @@ pub async fn deploy_timestamp_asserter(
     .await
 }
 
+pub async fn deploy_l2_da_validator(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: ForgeScriptArgs,
+) -> anyhow::Result<()> {
+    build_and_deploy(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployL2DAValidator"),
+        |shell, out| {
+            contracts_config
+                .set_l2_da_validator_address(&L2DAValidatorAddressOutput::read(shell, out)?)
+        },
+        true,
+    )
+    .await
+}
+
 pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
@@ -267,7 +300,7 @@ async fn call_forge(
     let secrets = chain_config.get_secrets_config().await?;
     input.save(
         shell,
-        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.input(&chain_config.link_to_code),
+        DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.input(&chain_config.path_to_l1_foundry()),
     )?;
 
     let mut forge = Forge::new(&foundry_contracts_path)

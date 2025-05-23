@@ -255,7 +255,7 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
 
     // Check detector shutdown
     stop_sender.send_replace(true);
-    detector_task.await.unwrap().unwrap();
+    assert_matches!(detector_task.await.unwrap(), Err(OrStopped::Stopped));
 }
 
 #[tokio::test]
@@ -272,7 +272,7 @@ async fn detector_stops_on_fatal_rpc_error() {
     let stop = watch::channel(false).1;
     let detector = create_mock_detector(client, pool.clone());
     // Check that the detector stops when a fatal RPC error is encountered.
-    detector.run(stop).await.unwrap_err();
+    assert_matches!(detector.run(stop).await, Err(OrStopped::Internal(_)));
 }
 
 #[tokio::test]
@@ -472,7 +472,7 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
 
     assert_matches!(
         detector.run(watch::channel(false).1).await,
-        Err(Error::ReorgDetected(got)) if got.0 == last_correct_batch
+        Err(OrStopped::Internal(Error::ReorgDetected(got))) if got.0 == last_correct_batch
     );
 }
 
@@ -488,7 +488,7 @@ async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
     let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     stop_sender.send_replace(true);
-    detector_task.await.unwrap().unwrap();
+    assert_matches!(detector_task.await.unwrap(), Err(OrStopped::Stopped));
 }
 
 #[tokio::test]
@@ -541,7 +541,9 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
 
     assert_matches!(
         detector.run(watch::channel(false).1).await,
-        Err(Error::EarliestL1BatchMismatch(L1BatchNumber(3)))
+        Err(OrStopped::Internal(Error::EarliestL1BatchMismatch(
+            L1BatchNumber(3)
+        )))
     );
 }
 
@@ -725,5 +727,8 @@ async fn detector_does_not_deadlock_if_main_node_is_not_available() {
     assert!(!detector_handle.is_finished());
 
     stop_sender.send_replace(true);
-    detector_handle.await.unwrap().unwrap();
+    assert_matches!(
+        detector_handle.await.unwrap().unwrap_err(),
+        OrStopped::Stopped
+    );
 }

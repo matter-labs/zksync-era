@@ -33,7 +33,8 @@ use zksync_prover_keystore::{
     GoldilocksGpuProverSetupData,
 };
 use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchNumber,
+    basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchId, L1BatchNumber,
+    L2ChainId,
 };
 
 async fn create_witness_vector(
@@ -68,7 +69,7 @@ async fn create_witness_vector(
     tracing::info!(
             "Finished picking witness vector generator job {}, on batch {}, for circuit {}, at round {} in {:?}",
             metadata.id,
-            metadata.block_number,
+            metadata.batch_id.batch_number().0,
             metadata.circuit_id,
             metadata.aggregation_round,
             start_time.elapsed()
@@ -153,7 +154,7 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
     // Expected file like prover_jobs_fri/10330_48_1_BasicCircuits_0.bin.
     Ok(FriProverJobMetadata {
         id: 1,
-        block_number: L1BatchNumber(caps["block"].parse()?),
+        batch_id: L1BatchId::new(L2ChainId::zero(), L1BatchNumber(caps["block"].parse()?)),
         circuit_id: caps["circuit"].parse()?,
         aggregation_round: AggregationRound::BasicCircuits,
         sequence_number: caps["sequence"].parse()?,
@@ -167,7 +168,7 @@ fn get_metadata(path: &Path) -> anyhow::Result<FriProverJobMetadata> {
 fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
     let FriProverJobMetadata {
         id: _,
-        block_number,
+        batch_id,
         sequence_number,
         circuit_id,
         aggregation_round,
@@ -176,7 +177,7 @@ fn witness_vector_filename(metadata: FriProverJobMetadata) -> String {
         pick_time: _,
         batch_sealed_at: _,
     } = metadata;
-    format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector")
+    format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.witness_vector", block_number = batch_id.batch_number().0)
 }
 
 fn get_setup_data_path() -> PathBuf {
@@ -208,11 +209,10 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config = ObservabilityConfig {
-        sentry_url: None,
-        sentry_environment: None,
+        sentry: None,
         opentelemetry: None,
         log_format: "json".to_string(),
-        log_directives: None,
+        ..ObservabilityConfig::default()
     };
     let _observability_guard = observability_config
         .install()
@@ -220,7 +220,7 @@ async fn main() -> anyhow::Result<()> {
 
     let object_store_config = ObjectStoreConfig {
         mode: zksync_config::configs::object_store::ObjectStoreMode::FileBacked {
-            file_backed_base_path: opt.object_store_path.display().to_string(),
+            file_backed_base_path: opt.object_store_path,
         },
         max_retries: 1,
         local_mirror_path: None,

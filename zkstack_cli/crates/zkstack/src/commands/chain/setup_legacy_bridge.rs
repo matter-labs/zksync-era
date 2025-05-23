@@ -51,7 +51,10 @@ pub async fn setup_legacy_bridge(
         create2factory_addr: contracts_config.create2_factory_addr,
     };
     let foundry_contracts_path = chain_config.path_to_l1_foundry();
-    input.save(shell, SETUP_LEGACY_BRIDGE.input(&chain_config.link_to_code))?;
+    input.save(
+        shell,
+        SETUP_LEGACY_BRIDGE.input(&chain_config.path_to_l1_foundry()),
+    )?;
     let secrets = chain_config.get_secrets_config().await?;
 
     let mut forge = Forge::new(&foundry_contracts_path)

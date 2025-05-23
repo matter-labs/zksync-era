@@ -18,7 +18,6 @@ impl SealCriterion for PubDataBytesCriterion {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
-        _block_open_timestamp_ms: u128,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -60,6 +59,23 @@ impl SealCriterion for PubDataBytesCriterion {
         }
     }
 
+    fn capacity_filled(
+        &self,
+        _config: &StateKeeperConfig,
+        _tx_count: usize,
+        _l1_tx_count: usize,
+        block_data: &SealData,
+        protocol_version: ProtocolVersionId,
+    ) -> Option<f64> {
+        let used_pubdata = (block_data.execution_metrics.size()
+            + block_data.writes_metrics.size(protocol_version)
+            + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into()))
+            as f64;
+        let full_pubdata = self.max_pubdata_per_batch as f64;
+
+        Some(used_pubdata / full_pubdata)
+    }
+
     fn prom_criterion_name(&self) -> &'static str {
         "pub_data_size"
     }
@@ -77,8 +93,8 @@ mod tests {
         let config = StateKeeperConfig {
             reject_tx_at_eth_params_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
-            max_pubdata_per_batch: 100000,
-            ..Default::default()
+            max_pubdata_per_batch: 100000.into(),
+            ..StateKeeperConfig::for_tests()
         };
 
         let criterion = PubDataBytesCriterion {
@@ -86,7 +102,7 @@ mod tests {
         };
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
+            l2_l1_long_messages: (config.max_pubdata_per_batch.0 as f64
                 * config.close_block_at_eth_params_percentage
                 - 1.0
                 - execution_metrics_bootloader_batch_tip_overhead(
@@ -100,7 +116,6 @@ mod tests {
             &config,
             0,
             0,
-            0,
             &SealData {
                 execution_metrics: block_execution_metrics,
                 ..SealData::default()
@@ -111,7 +126,7 @@ mod tests {
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
+            l2_l1_long_messages: (config.max_pubdata_per_batch.0 as f64
                 * config.close_block_at_eth_params_percentage
                 + 1f64)
                 .round() as usize,
@@ -120,7 +135,6 @@ mod tests {
 
         let full_block_resolution = criterion.should_seal(
             &config,
-            0,
             0,
             0,
             &SealData {
@@ -133,12 +147,11 @@ mod tests {
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
         let block_execution_metrics = VmExecutionMetrics {
-            l2_l1_long_messages: config.max_pubdata_per_batch as usize + 1,
+            l2_l1_long_messages: config.max_pubdata_per_batch.0 as usize + 1,
             ..VmExecutionMetrics::default()
         };
         let full_block_resolution = criterion.should_seal(
             &config,
-            0,
             0,
             0,
             &SealData {

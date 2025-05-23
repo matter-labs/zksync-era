@@ -25,7 +25,8 @@ pub struct EthSenderDal<'a, 'c> {
 impl EthSenderDal<'_, '_> {
     pub async fn get_inflight_txs(
         &mut self,
-        operator_address: Option<Address>,
+        operator_address: Address,
+        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
@@ -36,9 +37,13 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
+                (
+                    from_addr = $1
+                    OR
+                    (from_addr IS NULL AND $2)
+                )
                 AND confirmed_eth_tx_history_id IS NULL
-                AND is_gateway = $2
+                AND is_gateway = $3
                 AND id <= COALESCE(
                     (SELECT
                         eth_tx_id
@@ -47,16 +52,21 @@ impl EthSenderDal<'_, '_> {
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
-                        AND eth_txs.from_addr IS NOT DISTINCT FROM $1
-                        AND is_gateway = $2
+                        AND (
+                            from_addr = $1
+                            OR
+                            (from_addr IS NULL AND $2)
+                        )
+                        AND is_gateway = $3
                     ORDER BY eth_tx_id DESC LIMIT 1),
                     0
                 )
             ORDER BY
                 id
             "#,
-            operator_address.as_ref().map(|h160| h160.as_bytes()),
-            is_gateway
+            operator_address.as_bytes(),
+            consider_null_operator_address,
+            is_gateway,
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -198,7 +208,8 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_new_eth_txs(
         &mut self,
         limit: u64,
-        operator_address: &Option<Address>,
+        operator_address: Address,
+        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
@@ -209,8 +220,12 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL
-                AND is_gateway = $3
+                (
+                    from_addr = $2
+                    OR
+                    (from_addr IS NULL AND $3)
+                )
+                AND is_gateway = $4
                 AND id > COALESCE(
                     (SELECT
                         eth_tx_id
@@ -219,8 +234,12 @@ impl EthSenderDal<'_, '_> {
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
-                        AND eth_txs.from_addr IS NOT DISTINCT FROM $2
-                        AND is_gateway = $3
+                        AND (
+                            from_addr = $2
+                            OR
+                            (from_addr IS NULL AND $3)
+                        )
+                        AND is_gateway = $4
                         AND sent_successfully = TRUE
                     ORDER BY eth_tx_id DESC LIMIT 1),
                     0
@@ -231,7 +250,8 @@ impl EthSenderDal<'_, '_> {
                 $1
             "#,
             limit as i64,
-            operator_address.as_ref().map(|h160| h160.as_bytes()),
+            operator_address.as_bytes(),
+            consider_null_operator_address,
             is_gateway
         )
         .fetch_all(self.storage.conn())
@@ -710,39 +730,62 @@ impl EthSenderDal<'_, '_> {
     }
 
     /// Returns the next nonce for the operator account
-    ///
-    /// # Params
-    /// * `from_address`: an optional value indicating that nonce must be returned for a custom
-    ///   operator address which is not the "main" one. For example, a separate custom operator
-    ///   sends the blob transactions. For such a case this should be `Some`. For requesting the
-    ///   none of the main operator this parameter should be set to `None`.
     pub async fn get_next_nonce(
         &mut self,
-        from_address: Option<Address>,
+        from_address: Address,
+        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Option<u64>> {
-        let nonce = sqlx::query!(
+        // First query nonce where `from_addr` is set.
+        let row = sqlx::query!(
             r#"
             SELECT
                 nonce
             FROM
                 eth_txs
             WHERE
-                -- can't just use equality as NULL != NULL
-                from_addr IS NOT DISTINCT FROM $1
+                from_addr = $1
                 AND is_gateway = $2
             ORDER BY
                 id DESC
             LIMIT
                 1
             "#,
-            from_address.as_ref().map(|h160| h160.as_bytes()),
-            is_gateway
+            from_address.as_bytes(),
+            is_gateway,
         )
         .fetch_optional(self.storage.conn())
         .await?;
 
-        Ok(nonce.map(|row| row.nonce as u64 + 1))
+        if let Some(row) = row {
+            return Ok(Some(row.nonce as u64 + 1));
+        }
+
+        // Otherwise, check rows with `from_addr IS NULL`.
+        if consider_null_operator_address {
+            let nonce = sqlx::query!(
+                r#"
+                SELECT
+                    nonce
+                FROM
+                    eth_txs
+                WHERE
+                    from_addr IS NULL
+                    AND is_gateway = $1
+                ORDER BY
+                    id DESC
+                LIMIT
+                    1
+                "#,
+                is_gateway,
+            )
+            .fetch_optional(self.storage.conn())
+            .await?;
+
+            Ok(nonce.map(|row| row.nonce as u64 + 1))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {

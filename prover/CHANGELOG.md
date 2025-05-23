@@ -1,5 +1,64 @@
 # Changelog
 
+## [21.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.0.0...prover-v21.1.0) (2025-05-22)
+
+
+### Features
+
+* Configuration system PoC ([#3851](https://github.com/matter-labs/zksync-era/issues/3851)) ([7b449c2](https://github.com/matter-labs/zksync-era/commit/7b449c216aa250cf99bb79e69df810f566dcc28a))
+* **prover:** Autoscaler detect which pod out of resources and reschedule ([#4008](https://github.com/matter-labs/zksync-era/issues/4008)) ([56658c8](https://github.com/matter-labs/zksync-era/commit/56658c89f83f3d6c188df5c1944ac9f9a7307ef9))
+
+
+### Bug Fixes
+
+* Prefix env vars for `zksync_server` ([#4039](https://github.com/matter-labs/zksync-era/issues/4039)) ([3b2dd70](https://github.com/matter-labs/zksync-era/commit/3b2dd70e858312d1709b8ac64a651f4f7f806e05))
+* **prover:** Fix revert GPU prover table migration ([#4047](https://github.com/matter-labs/zksync-era/issues/4047)) ([764e73c](https://github.com/matter-labs/zksync-era/commit/764e73c92ea737e19e8d6f5903df587413ed79a7))
+* **vm:** update deps ([#4019](https://github.com/matter-labs/zksync-era/issues/4019)) ([2b51c6d](https://github.com/matter-labs/zksync-era/commit/2b51c6df08b45cc41fd6b4d930c31670d004a93d))
+* **vm:** update v27 ([#4035](https://github.com/matter-labs/zksync-era/issues/4035)) ([b7aeab6](https://github.com/matter-labs/zksync-era/commit/b7aeab64ce5c915233a773542ef64e79bf3893ee))
+
+## [21.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.3.1...prover-v21.0.0) (2025-05-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* update zksync-protocol and zksync-crypto-gpu deps ([#3948](https://github.com/matter-labs/zksync-era/issues/3948))
+
+### Features
+
+* Add Support for Protocol Version v28 ([#3821](https://github.com/matter-labs/zksync-era/issues/3821)) ([5419420](https://github.com/matter-labs/zksync-era/commit/5419420e23a3c083187065219a0722179dab0419))
+* bump rustc to `nightly-2025-03-19` ([#3985](https://github.com/matter-labs/zksync-era/issues/3985)) ([d27390e](https://github.com/matter-labs/zksync-era/commit/d27390e14a586de7dccb974a0cb54352de3536b3))
+* update zksync-protocol and zksync-crypto-gpu deps ([#3948](https://github.com/matter-labs/zksync-era/issues/3948)) ([1ddf85a](https://github.com/matter-labs/zksync-era/commit/1ddf85a14b6a54ce926482eafc84ef0979c9afd3))
+
+
+### Bug Fixes
+
+* Join on chain_id in WG queries ([#3950](https://github.com/matter-labs/zksync-era/issues/3950)) ([0975a88](https://github.com/matter-labs/zksync-era/commit/0975a8887c13698f7682be641cc5f0762ce7c146))
+* number of chunks for inserting prover jobs ([#3952](https://github.com/matter-labs/zksync-era/issues/3952)) ([5c59a11](https://github.com/matter-labs/zksync-era/commit/5c59a1192f8c0e68b4a2ab8a75390aceff5c413e))
+* **prover:** Check pods list for stale ones every `pod_check_interval` ([#3982](https://github.com/matter-labs/zksync-era/issues/3982)) ([0bc1e46](https://github.com/matter-labs/zksync-era/commit/0bc1e46d710aea254f8005993ffca345b5aa3868))
+
+## [20.3.1](https://github.com/matter-labs/zksync-era/compare/prover-v20.3.0...prover-v20.3.1) (2025-05-02)
+
+
+### Bug Fixes
+
+* Fix issue with EVM bytecodes not being stored in DB ([#3928](https://github.com/matter-labs/zksync-era/issues/3928)) ([0e8f1da](https://github.com/matter-labs/zksync-era/commit/0e8f1dacb27be3b33aaabf842ea4350e20a3cada))
+* **prover:** Scale down replicas using correct speed for queue calculation ([#3926](https://github.com/matter-labs/zksync-era/issues/3926)) ([868d6dc](https://github.com/matter-labs/zksync-era/commit/868d6dc96806276ce1d9b97f434febac46838dcc))
+
+## [20.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.2.0...prover-v20.3.0) (2025-04-30)
+
+
+### Features
+
+* Proof data handler client ([#3874](https://github.com/matter-labs/zksync-era/issues/3874)) ([daf6f7b](https://github.com/matter-labs/zksync-era/commit/daf6f7b80a018204693f8ad7296574b8b55dc6d9))
+* **prover:** Add support of H100 into provers and gpu-checker ([#3887](https://github.com/matter-labs/zksync-era/issues/3887)) ([ec9e4a9](https://github.com/matter-labs/zksync-era/commit/ec9e4a9da99502e8e853574ea3a27cd0bb16e8fe))
+* Reversed prover gateway server ([#3855](https://github.com/matter-labs/zksync-era/issues/3855)) ([a78c3ae](https://github.com/matter-labs/zksync-era/commit/a78c3ae1f74c0f4adfc9b94681c7b80b44dd16f1))
+* rework prover job identifiers ([#3888](https://github.com/matter-labs/zksync-era/issues/3888)) ([073326f](https://github.com/matter-labs/zksync-era/commit/073326f124eae808ef0e25694e99f0dab5ee7af4))
+
+
+### Bug Fixes
+
+* Aux output witness object store key ([#3918](https://github.com/matter-labs/zksync-era/issues/3918)) ([4609d0f](https://github.com/matter-labs/zksync-era/commit/4609d0fc28a4cb201242017bf6433126dee39343))
+
 ## [20.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v20.1.0...prover-v20.2.0) (2025-04-11)
 
 

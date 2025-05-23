@@ -80,6 +80,10 @@ pub(crate) fn circuit_statistic_from_cycles(cycles: CircuitCycleStatistic) -> Ci
             / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
         transient_storage_checker: cycles.transient_storage_checker_cycles as f32
             / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
-        ..Default::default()
+        modexp: cycles.modexp_cycles as f32 / GEOMETRY_CONFIG.cycles_per_modexp_circuit as f32,
+        ecadd: cycles.ecadd_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecadd_circuit as f32,
+        ecmul: cycles.ecmul_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecmul_circuit as f32,
+        ecpairing: cycles.ecpairing_cycles as f32
+            / GEOMETRY_CONFIG.cycles_per_ecpairing_circuit as f32,
     }
 }

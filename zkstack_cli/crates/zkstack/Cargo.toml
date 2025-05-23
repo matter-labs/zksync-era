@@ -39,6 +39,7 @@ zkstack_cli_types.workspace = true
 url.workspace = true
 xshell.workspace = true
 zksync_basic_types.workspace = true
+zksync_types.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
 zksync_web3_decl.workspace = true
@@ -55,7 +56,5 @@ ethers.workspace = true
 xshell.workspace = true
 
 [features]
-# Features that allows gateway-chain related actions.
-# These should be available for outside users until stabilized.
-gateway = []
-v27_evm_interpreter = ["gateway"]
+v27_evm_interpreter = []
+v28_precompiles = []
