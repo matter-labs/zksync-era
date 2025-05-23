@@ -25,6 +25,7 @@ use crate::{
         AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
     },
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
+    health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,
 };
 
@@ -547,14 +548,16 @@ impl EthTxManager {
                 blocks.fast_finality.0,
                 blocks.finalized.0
             );
-        // TODO set correct values for health updater
-        // self.health_updater.update(
-        //     EthTxManagerHealthDetails {
-        //         last_finalized_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
-        //         finalized_block,
-        //     }
-        //     .into(),
-        // );
+
+        if finality_status == EthTxFinalityStatus::Finalized {
+            self.health_updater.update(
+                EthTxManagerHealthDetails {
+                    last_finalized_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
+                    finalized_block: blocks.finalized,
+                }
+                .into(),
+            );
+        }
 
         if tx_status.success {
             self.confirm_tx(storage, tx, finality_status, tx_status)
@@ -649,7 +652,7 @@ impl EthTxManager {
                 METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
             }
             EthTxFinalityStatus::Pending => {
-                // Do nothing txs just created
+                // Do nothing txs were created, but not sent yet
             }
         }
 
