@@ -15,7 +15,7 @@ use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigenda::{ClientTypeConfig, EigenDASecrets, PointsSource, PolynomialForm},
+    configs::da_client::eigenda::{EigenDASecrets, PointsSource, PolynomialForm, Version},
     EigenDAConfig,
 };
 use zksync_da_client::{
@@ -53,9 +53,9 @@ impl EigenDAClient {
 
         let private_key = secrets.private_key.0.expose_secret();
 
-        let client = match config.client_type {
-            ClientTypeConfig::V1(v1_config) => {
-                let srs_points_source = match v1_config.points {
+        let client = match config.version {
+            Version::V1 => {
+                let srs_points_source = match config.points {
                     PointsSource::Path { path } => SrsPointsSource::Path(path),
                     PointsSource::Url { g1_url, g2_url } => SrsPointsSource::Url((g1_url, g2_url)),
                 };
@@ -63,12 +63,12 @@ impl EigenDAClient {
                 let eigen_config = rust_eigenda_client::config::EigenConfig::new(
                     config.disperser_rpc,
                     SecretUrlV1::new(url),
-                    v1_config.settlement_layer_confirmation_depth,
-                    v1_config.eigenda_svc_manager_address,
-                    v1_config.wait_for_finalization,
+                    config.settlement_layer_confirmation_depth,
+                    config.eigenda_svc_manager_address,
+                    config.wait_for_finalization,
                     config.authenticated,
                     srs_points_source,
-                    v1_config.custom_quorum_numbers,
+                    config.custom_quorum_numbers,
                 )?;
 
                 let private_key = PrivateKey::from_str(private_key)
@@ -79,16 +79,16 @@ impl EigenDAClient {
                     .map_err(|e| anyhow::anyhow!("EigenDA client Error: {:?}", e))?;
                 InnerClient::V1(client)
             }
-            ClientTypeConfig::V2(v2_config) => {
-                let payload_form = match v2_config.polynomial_form {
+            Version::V2 => {
+                let payload_form = match config.polynomial_form {
                     PolynomialForm::Coeff => PayloadForm::Coeff,
                     PolynomialForm::Eval => PayloadForm::Eval,
                 };
 
                 let payload_disperser_config = PayloadDisperserConfig {
                     polynomial_form: payload_form,
-                    blob_version: v2_config.blob_version,
-                    cert_verifier_address: v2_config.cert_verifier_addr,
+                    blob_version: config.blob_version,
+                    cert_verifier_address: config.cert_verifier_addr,
                     eth_rpc_url: SecretUrlV2::new(url),
                     disperser_rpc: config.disperser_rpc,
                     use_secure_grpc_flag: config.authenticated,

@@ -35,8 +35,8 @@ da_client:
   authenticated: true
 ```
 
-If using `authenticated` dispersal, you also need to modify `etc/env/file_based/secrets.yaml` to include the private key
-of the account that will be used. You need to add the following field:
+You also need to modify `etc/env/file_based/secrets.yaml` to include the private key of the account that will be used.
+You need to add the following field:
 
 ```yaml
 da_client:
@@ -50,7 +50,7 @@ Now continue with the configuration with v1 or v2 specifics:
 
 ### V1 Specific client configuration
 
-A V1 client is configured by adding the `client_type: v1` field to the `da_client`, these are the fields that can be
+A V1 client is configured by adding the `version: V1` field to the `da_client`, these are the fields that can be
 modified:
 
 - `settlement_layer_confirmation_depth` (unsigned number): Block height needed to reach in order to consider the blob
@@ -66,6 +66,15 @@ modified:
     - `path`: (string): Path to the local points source files.
 - `custom_quorum_numbers` (optional list of numbers): quorums to be used beside the default ones.
 
+### V2 specific client configuration
+
+A V2 client is configured by adding the `version: V2` field to the `da_client`, these are the fields that can be
+modified:
+
+- `cert_verifier_addr` Address of the eigenDA cert verifier contract
+- `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
+- `polynomial_form` Polynomial form used to encode data, either coeff or eval
+
 So, for example, a client setup that uses the holesky EigenDA V1 client would look like this:
 
 `etc/env/file_based/overrides/validium.yaml`:
@@ -75,45 +84,51 @@ da_dispatcher:
   use_dummy_inclusion_data: true
 da_client:
   client: EigenDA
+  version: V1
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
   authenticated: true
-  client_type:
-    version: V1
-    settlement_layer_confirmation_depth: 0
-    eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-    wait_for_finalization: false
-    points:
-      source: Url
-      g1_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point
-      g2_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2
-      # source: Path # uncomment to use Path
-      # path: ./resources
-    # custom_quorum_numbers: 2,3 # uncomment to use other quorums besides defaults
+  settlement_layer_confirmation_depth: 0
+  eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+  wait_for_finalization: false
+  points:
+    source: Url
+    g1_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point
+    g2_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2
+    # source: Path # uncomment to use Path
+    # path: ./resources
+  # custom_quorum_numbers: 2,3 # uncomment to use other quorums besides defaults
+  cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+  blob_version: 0
+  polynomial_form: coeff
 ```
 
-### V2 specific client configuration
-
-A V2 client is configured by adding the `client_type: v2` field to the `da_client`, these are the fields that can be
-modified:
-
-- `cert_verifier_addr` Address of the eigenDA cert verifier contract
-- `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
-- `polynomial_form` Polynomial form used to encode data, either coeff or eval
-
-So, for example, a client setup that uses the holesky EigenDA V2 client would look like this:
+And a client setup that uses the holesky EigenDA V2 client would look like this:
 
 ```yaml
 da_dispatcher:
   use_dummy_inclusion_data: true
 da_client:
   client: EigenDA
+  version: V2
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
   authenticated: true
-  client_type:
-    version: V2
-    cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
-    blob_version: 0
-    polynomial_form: coeff
+  settlement_layer_confirmation_depth: 0
+  eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+  wait_for_finalization: false
+  points:
+    source: Url
+    g1_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point
+    g2_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2
+    # source: Path # uncomment to use Path
+    # path: ./resources
+  # custom_quorum_numbers: 2,3 # uncomment to use other quorums besides defaults
+  cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+  blob_version: 0
+  polynomial_form: coeff
 ```
+
+The only difference is the version field, specifying `V1` or `V2`. The fields specific of the remaining version will not
+be used. Why do you need to keep both config parameters? The idea is to eventually remove the V1 version entirely, with
+the config like this, this will be seamless, since you would only need to remove the V1 specific fields.
