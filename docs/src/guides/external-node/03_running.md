@@ -23,6 +23,11 @@ This configuration is approximate and should be considered as **minimal** requir
 
 For smaller chains, less powerful hardware may be sufficient, especially in terms of disk space.
 
+```admonish tip
+RAM requirements [can generally be reduced](02_configuration.md#optimizing-ram-consumption) with a moderate performance tradeoff.
+They also may be lower for [non-archive nodes](08_pruning.md) or nodes [without a local Merkle tree](09_treeless_mode.md).
+```
+
 ## A note about PostgreSQL storage
 
 By far, the heaviest table to maintain is the `call_traces` table. This table is only required for the `debug`
