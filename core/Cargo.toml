@@ -43,7 +43,6 @@ members = [
   "node/zk_os_tree_manager",
   # Libraries
   "lib/db_connection",
-  "lib/zksync_core_leftovers",
   "lib/basic_types",
   "lib/config",
   "lib/constants",
@@ -286,7 +285,6 @@ zksync_circuit_breaker = { version = "28.2.1-non-semver-compat", path = "lib/cir
 zksync_config = { version = "28.2.1-non-semver-compat", path = "lib/config" }
 zksync_contract_verifier_lib = { version = "28.2.1-non-semver-compat", path = "lib/contract_verifier" }
 zksync_contracts = { version = "28.2.1-non-semver-compat", path = "lib/contracts" }
-zksync_core_leftovers = { version = "28.2.1-non-semver-compat", path = "lib/zksync_core_leftovers" }
 zksync_dal = { version = "28.2.1-non-semver-compat", path = "lib/dal" }
 zksync_db_connection = { version = "28.2.1-non-semver-compat", path = "lib/db_connection" }
 zksync_eth_client = { version = "28.2.1-non-semver-compat", path = "lib/eth_client" }

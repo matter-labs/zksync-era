@@ -27,7 +27,6 @@ zksync_vlog = { workspace = true, features = ["node_framework"] }
 zksync_base_token_adjuster.workspace = true
 zksync_commitment_generator.workspace = true
 zksync_contract_verification_server.workspace = true
-zksync_core_leftovers.workspace = true
 zksync_da_clients.workspace = true
 zksync_da_dispatcher.workspace = true
 zksync_eth_sender.workspace = true

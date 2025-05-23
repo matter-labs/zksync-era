@@ -1,29 +1,7 @@
-#![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
-
 use std::str::FromStr;
 
-use tokio::sync::oneshot;
-
-/// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
-/// is received.
-pub fn setup_sigint_handler() -> oneshot::Receiver<()> {
-    let (sigint_sender, sigint_receiver) = oneshot::channel();
-    let mut sigint_sender = Some(sigint_sender);
-    ctrlc::set_handler(move || {
-        if let Some(sigint_sender) = sigint_sender.take() {
-            sigint_sender.send(()).ok();
-            // ^ The send fails if `sigint_receiver` is dropped. We're OK with this,
-            // since at this point the node should be stopping anyway, or is not interested
-            // in listening to interrupt signals.
-        }
-    })
-    .expect("Error setting Ctrl+C handler");
-
-    sigint_receiver
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Component {
+pub(crate) enum Component {
     /// Public Web3 API running on HTTP server.
     HttpApi,
     /// Public Web3 API (including PubSub) running on WebSocket server.
@@ -66,7 +44,7 @@ pub enum Component {
 }
 
 #[derive(Debug)]
-pub struct Components(pub Vec<Component>);
+pub(crate) struct Components(pub Vec<Component>);
 
 impl FromStr for Components {
     type Err = String;

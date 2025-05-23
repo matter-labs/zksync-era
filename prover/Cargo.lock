@@ -8864,7 +8864,6 @@ dependencies = [
  "vise",
  "zksync_circuit_prover_service",
  "zksync_config",
- "zksync_core_leftovers",
  "zksync_object_store",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
@@ -9018,18 +9017,6 @@ dependencies = [
  "serde_json",
  "zksync_basic_types",
  "zksync_utils",
-]
-
-[[package]]
-name = "zksync_core_leftovers"
-version = "28.2.1-non-semver-compat"
-dependencies = [
- "anyhow",
- "ctrlc",
- "serde_yaml",
- "tokio",
- "zksync_config",
- "zksync_protobuf",
 ]
 
 [[package]]
@@ -9317,7 +9304,6 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
- "zksync_core_leftovers",
  "zksync_object_store",
  "zksync_prover_dal",
  "zksync_prover_fri_types",
@@ -9428,7 +9414,6 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
- "zksync_core_leftovers",
  "zksync_object_store",
  "zksync_prover_dal",
  "zksync_prover_interface",
@@ -9486,7 +9471,6 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
- "zksync_core_leftovers",
  "zksync_db_connection",
  "zksync_prover_dal",
  "zksync_prover_task",
@@ -9758,7 +9742,6 @@ dependencies = [
  "zkevm_test_harness",
  "zksync_circuit_prover_service",
  "zksync_config",
- "zksync_core_leftovers",
  "zksync_multivm",
  "zksync_object_store",
  "zksync_prover_dal",
