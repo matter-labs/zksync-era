@@ -1284,7 +1284,7 @@ impl ExternalNodeConfig<()> {
             tree_component,
             consensus_secrets,
             data_availability,
-            config_params: Some(repo.into_parsed_params()),
+            config_params: Some(repo.into_captured_params()),
             remote: (),
         })
     }

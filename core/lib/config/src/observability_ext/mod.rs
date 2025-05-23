@@ -12,10 +12,13 @@ use smart_config::{
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
+use self::metrics::METRICS;
 use crate::{
     configs::{ObservabilityConfig, PrometheusConfig},
     sources::ConfigSources,
 };
+
+mod metrics;
 
 impl ConfigSources {
     /// Returns the observability config. It should be used to install observability early in the executable lifecycle.
@@ -228,9 +231,12 @@ impl ConfigRepository<'_> {
         Ok(config)
     }
 
-    /// Returns all captured parsed params, or an empty container if none were captured.
-    pub fn into_parsed_params(self) -> ParsedParams {
-        self.parsed_params.unwrap_or_default()
+    /// Returns all captured parsed params, or an empty container if none were captured. Also, observes
+    /// the returned params as `INFO` metrics.
+    pub fn into_captured_params(self) -> ParsedParams {
+        let params = self.parsed_params.unwrap_or_default();
+        METRICS.observe(&params);
+        params
     }
 }
 

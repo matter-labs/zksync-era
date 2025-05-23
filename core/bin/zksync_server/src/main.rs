@@ -123,7 +123,7 @@ fn main() -> anyhow::Result<()> {
         .genesis
         .context("missing genesis config")?;
     let consensus = repo.parse_opt()?;
-    let config_params = repo.into_parsed_params();
+    let config_params = repo.into_captured_params();
     let node = MainNodeBuilder {
         node: ZkStackServiceBuilder::on_runtime(runtime),
         config_params,
