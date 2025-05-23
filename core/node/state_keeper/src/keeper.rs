@@ -398,7 +398,11 @@ impl ZkSyncStateKeeper {
         while !is_canceled(stop_receiver) {
             if let Some(params) = self
                 .io
-                .wait_for_new_l2_block_params(&cursor, POLL_WAIT_DURATION)
+                .wait_for_new_l2_block_params(
+                    &cursor,
+                    POLL_WAIT_DURATION,
+                    updates.protocol_version(),
+                )
                 .await
                 .context("error waiting for new L2 block params")?
             {

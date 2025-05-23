@@ -208,29 +208,42 @@ impl StateKeeperIO for MempoolIO {
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            // We cannot create two L1 batches with the same timestamp (forbidden by the bootloader).
-            // Hence, we wait until the current timestamp is larger than the timestamp of the previous L2 block.
+            let curr_timestamp = millis_since_epoch() / 1000;
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
+            let protocol_version = storage
+                .protocol_versions_dal()
+                .protocol_version_id_by_timestamp(curr_timestamp)
+                .await
+                .context("Failed loading protocol version")?;
+
+            // We cannot create two L1 batches with the same timestamp (forbidden by the bootloader)
+            // and we cannot create two L2 blocks with the same timestamp for protocol versions that are <= v28.
+            // Also, we want to keep the timestamp of the batch to be the same as the timestamp of its first L2 block.
+            // Hence
+            // - for <= v28 we wait until the current timestamp is larger than the timestamp of the previous L2 block.
+            // - for  > v28 we wait until the current timestamp is larger than the timestamp of the previous L1 batch.
             // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
-            // TODO: sleep past not previous block timestamp but rather batch timestamp.
-            let timestamp = tokio::time::timeout_at(
-                deadline.into(),
-                sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
-            );
-            let Some(timestamp) = timestamp.await.ok() else {
+            let timestamp_ms = if protocol_version.is_pre_fast_blocks() {
+                tokio::time::timeout_at(
+                    deadline.into(),
+                    sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
+                )
+            } else {
+                tokio::time::timeout_at(
+                    deadline.into(),
+                    sleep_past(cursor.prev_l1_batch_timestamp, cursor.next_l2_block),
+                )
+            };
+            let Some(timestamp_ms) = timestamp_ms.await.ok() else {
                 return Ok(None);
             };
+            let timestamp = timestamp_ms / 1000;
 
             tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
                 cursor.l1_batch,
                 self.filter.fee_input
             );
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
-            let protocol_version = storage
-                .protocol_versions_dal()
-                .protocol_version_id_by_timestamp(timestamp)
-                .await
-                .context("Failed loading protocol version")?;
             let previous_protocol_version = storage
                 .blocks_dal()
                 .pending_protocol_version()
@@ -282,7 +295,7 @@ impl StateKeeperIO for MempoolIO {
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
                 first_l2_block: L2BlockParams {
-                    timestamp_ms: millis_since_epoch(),
+                    timestamp_ms,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
@@ -294,11 +307,34 @@ impl StateKeeperIO for MempoolIO {
 
     async fn wait_for_new_l2_block_params(
         &mut self,
-        _cursor: &IoCursor,
-        _max_wait: Duration,
+        cursor: &IoCursor,
+        max_wait: Duration,
+        protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<L2BlockParams>> {
+        // For versions <= v28 timestamps should be increasing for each L2 block.
+        // For versions >  v28 timestamps should be non-decreasing for each L2 block.
+        // - we sleep past `prev_l2_block_timestamp` for <= v28
+        // - we sleep past `prev_l2_block_timestamp` for > v28 if `block_commit_deadline_ms >= 1000`
+        // - otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
+        //   if clock returns consistent time than it shouldn't actually sleep
+        let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks()
+            || self.timeout_sealer.block_commit_deadline_ms() >= 1000
+        {
+            cursor.prev_l2_block_timestamp
+        } else {
+            cursor.prev_l2_block_timestamp.saturating_sub(1)
+        };
+        let timeout_result = tokio::time::timeout(
+            max_wait,
+            sleep_past(timestamp_to_sleep_past, cursor.next_l2_block),
+        )
+        .await;
+        let Ok(timestamp_ms) = timeout_result else {
+            return Ok(None);
+        };
+
         Ok(Some(L2BlockParams {
-            timestamp_ms: millis_since_epoch(),
+            timestamp_ms,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
         }))
@@ -462,14 +498,15 @@ impl StateKeeperIO for MempoolIO {
     }
 }
 
-/// Sleeps until the current timestamp is larger than the provided `timestamp`.
+/// Sleeps until the current timestamp in seconds is larger than the provided `timestamp`.
 ///
-/// Returns the current timestamp after the sleep. It is guaranteed to be larger than `timestamp`.
+/// Returns the current timestamp in millis after the sleep.
+/// If converted to seconds it is guaranteed to be larger than `timestamp`.
 async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
     let mut current_timestamp_millis = millis_since_epoch();
     let mut current_timestamp = current_timestamp_millis / 1_000;
     match timestamp.cmp(&current_timestamp) {
-        cmp::Ordering::Less => return current_timestamp,
+        cmp::Ordering::Less => return current_timestamp_millis,
         cmp::Ordering::Equal => {
             tracing::info!(
                 "Current timestamp {} for L2 block #{l2_block} is equal to previous L2 block timestamp; waiting until \
@@ -504,7 +541,7 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
         current_timestamp = current_timestamp_millis / 1_000;
 
         if current_timestamp > timestamp {
-            return current_timestamp;
+            return current_timestamp_millis;
         }
     }
 }

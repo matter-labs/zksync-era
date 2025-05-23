@@ -140,6 +140,7 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
+        protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<L2BlockParams>>;
 
     /// Update the next block params timestamp

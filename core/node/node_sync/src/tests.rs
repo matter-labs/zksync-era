@@ -507,7 +507,7 @@ async fn test_external_io_recovery(
     // Send new actions and wait until the new L2 block is sealed.
     let open_l2_block = SyncAction::L2Block {
         params: L2BlockParams {
-            timestamp_ms: (snapshot.l2_block_timestamp + 2) * 1000,
+            timestamp_ms: (snapshot.l2_block_timestamp + 3) * 1000,
             virtual_blocks: 1,
         },
         number: snapshot.l2_block_number + 3,

@@ -699,6 +699,7 @@ impl StateKeeperIO for TestIO {
             prev_l2_block_hash: H256::zero(),
             prev_l2_block_timestamp: self.timestamp.saturating_sub(1),
             l1_batch: self.batch_number,
+            prev_l1_batch_timestamp: self.timestamp.saturating_sub(1),
         };
         let pending_batch = self.pending_batch.take();
         if pending_batch.is_some() {
@@ -736,6 +737,7 @@ impl StateKeeperIO for TestIO {
         &mut self,
         cursor: &IoCursor,
         _max_wait: Duration,
+        _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
         let params = L2BlockParams {

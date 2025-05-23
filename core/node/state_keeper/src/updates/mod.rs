@@ -107,6 +107,7 @@ impl UpdatesManager {
             prev_l2_block_hash: self.l2_block.get_l2_block_hash(),
             prev_l2_block_timestamp: self.l2_block.timestamp(),
             l1_batch: self.l1_batch.number,
+            prev_l1_batch_timestamp: self.batch_timestamp,
         }
     }
 
