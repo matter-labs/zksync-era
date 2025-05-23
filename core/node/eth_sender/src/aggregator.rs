@@ -269,12 +269,12 @@ impl Aggregator {
                 last_sealed_l1_batch_number,
                 base_system_contracts_hashes,
                 protocol_version_id,
-                self.precommit_params().is_some(),
+                self.precommit_params.is_some(),
             )
             .await,
         ) {
             Ok(Some(op))
-        } else if let Some(params) = self.precommit_params() {
+        } else if let Some(params) = &self.precommit_params {
             Ok(restrictions.filter_precommit_op(
                 self.get_precommit_operation(storage, params.clone())
                     .await?,
@@ -282,13 +282,6 @@ impl Aggregator {
         } else {
             Ok(None)
         }
-    }
-
-    fn precommit_params(&self) -> Option<&PrecommitParams> {
-        if self.settlement_layer.is_gateway() {
-            return None;
-        }
-        self.precommit_params.as_ref()
     }
 
     async fn get_or_init_tree(

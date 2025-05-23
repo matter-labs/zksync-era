@@ -292,6 +292,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 commit_tx.tx_hash AS "eth_commit_tx_hash?",
                 prove_tx.tx_hash AS "eth_prove_tx_hash?",
                 execute_tx.tx_hash AS "eth_execute_tx_hash?",
+                execute_tx.finality_status AS "eth_execute_tx_finality_status?",
                 precommit_tx.tx_hash AS "eth_precommit_tx_hash?"
             FROM
                 transactions

@@ -57,8 +57,10 @@ impl EthTxDetails {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EthTxManagerHealthDetails {
-    pub last_mined_tx: EthTxDetails,
+    pub last_fast_finalized_tx: EthTxDetails,
+    pub last_finalized_tx: EthTxDetails,
     pub finalized_block: L1BlockNumber,
+    pub safe_block: L1BlockNumber,
 }
 
 impl From<EthTxManagerHealthDetails> for Health {

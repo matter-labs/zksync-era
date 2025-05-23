@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory},
+    eth_sender::{EthTx, EthTxFinalityStatus, TxHistory},
     Address, Nonce, SLChainId, H256,
 };
 
@@ -64,6 +64,7 @@ pub struct StorageTxHistory {
     pub max_gas_per_pubdata: Option<i64>,
     pub predicted_gas_limit: Option<i64>,
     pub sent_successfully: bool,
+    pub finality_status: Option<String>,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -105,6 +106,10 @@ impl From<StorageTxHistory> for TxHistory {
             sent_at_block: history.sent_at_block.map(|block| block as u32),
             max_gas_per_pubdata: history.max_gas_per_pubdata.map(|v| v as u64),
             sent_successfully: history.sent_successfully,
+            eth_tx_finality_status: history
+                .finality_status
+                .as_deref()
+                .and_then(|s| EthTxFinalityStatus::from_str(s).ok()),
         }
     }
 }
