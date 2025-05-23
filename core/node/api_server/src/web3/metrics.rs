@@ -521,6 +521,9 @@ pub(super) struct TxReceiptMetrics {
     /// Total number of processed receipts per query.
     #[metrics(buckets = SMALL_COUNT_BUCKETS)]
     pub total_count: Histogram<usize>,
+    /// Number of distinct addresses queried.
+    #[metrics(buckets = SMALL_COUNT_BUCKETS)]
+    pub initiator_address_count: Histogram<usize>,
     /// Number of receipts for which nonces should be computed, per query.
     #[metrics(buckets = SMALL_COUNT_BUCKETS)]
     pub unknown_nonces_count: Histogram<usize>,

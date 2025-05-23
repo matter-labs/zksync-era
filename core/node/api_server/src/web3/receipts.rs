@@ -95,12 +95,20 @@ pub(crate) async fn fill_transaction_receipts(
         let account_types =
             get_external_account_types(storage, from_addresses, block_number).await?;
         let latency = latency.observe();
+        TX_RECEIPT_METRICS
+            .initiator_address_count
+            .observe(account_types.len());
         if log_stats {
             let mut account_type_counts = HashMap::<_, usize>::new();
             for &ty in account_types.values() {
                 *account_type_counts.entry(ty).or_default() += 1;
             }
-            tracing::debug!(?latency, ?account_type_counts, "got account types");
+            tracing::debug!(
+                ?latency,
+                address_count = account_types.len(),
+                ?account_type_counts,
+                "got account types"
+            );
         }
         account_types
     } else {
@@ -143,14 +151,15 @@ pub(crate) async fn fill_transaction_receipts(
     TX_RECEIPT_METRICS
         .unknown_nonces_count
         .observe(receipt_indexes_with_unknown_nonce.len());
-    if log_stats {
-        tracing::debug!(
-            count = receipt_indexes_with_unknown_nonce.len(),
-            "getting unknown nonces"
-        );
-    }
 
     if let Some(&first_idx) = receipt_indexes_with_unknown_nonce.iter().next() {
+        if log_stats {
+            tracing::debug!(
+                count = receipt_indexes_with_unknown_nonce.len(),
+                "getting unknown nonces"
+            );
+        }
+
         let block_number = L2BlockNumber(filled_receipts[first_idx].block_number.as_u32());
         // We cannot iterate over `receipt_indexes_with_unknown_nonce` since it would violate Rust aliasing rules
         // (Rust isn't smart enough to understand that `receipt_indexes_with_unknown_nonce` are unique).
