@@ -30,7 +30,7 @@ jobs:
 
       - name: build-image
         run: |
-          docker build --platform linux/amd64 -t private-rpc private-rpc
+          ci_run docker build --platform linux/amd64 -t private-rpc private-rpc
 
       - name: update-image
         run: |
