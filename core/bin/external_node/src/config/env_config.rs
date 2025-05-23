@@ -9,11 +9,11 @@ use zksync_config::{
         da_client::{
             avail::{AvailClientConfig, AvailSecrets},
             celestia::CelestiaSecrets,
-            eigen::EigenSecrets,
+            eigenda::EigenDASecrets,
         },
         DataAvailabilitySecrets,
     },
-    AvailConfig, DAClientConfig, EigenConfig,
+    AvailConfig, DAClientConfig, EigenDAConfig,
 };
 use zksync_types::{
     secrets::{APIKey, PrivateKey, SeedPhrase},
@@ -29,11 +29,16 @@ fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T>
 
 const AVAIL_CLIENT_CONFIG_NAME: &str = "Avail";
 const CELESTIA_CLIENT_CONFIG_NAME: &str = "Celestia";
-const EIGEN_CLIENT_CONFIG_NAME: &str = "Eigen";
+const EIGENDA_CLIENT_CONFIG_NAME: &str = "EigenDA";
 const OBJECT_STORE_CLIENT_CONFIG_NAME: &str = "ObjectStore";
 const NO_DA_CLIENT_CONFIG_NAME: &str = "NoDA";
 const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
 const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
+
+const EIGENDA_VERSION_V1: &str = "V1";
+const EIGENDA_VERSION_V2: &str = "V2";
+const EIGENDA_POINTS_PATH: &str = "Path";
+const EIGENDA_POINTS_URL: &str = "Url";
 
 pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig> {
     let client_tag = env::var(format!("{}CLIENT", prefix))?;
@@ -54,13 +59,8 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
         CELESTIA_CLIENT_CONFIG_NAME => {
             DAClientConfig::Celestia(envy_load("da_celestia_config", prefix)?)
         }
-        EIGEN_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(EigenConfig {
+        EIGENDA_CLIENT_CONFIG_NAME => DAClientConfig::EigenDA(EigenDAConfig {
             disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
-            settlement_layer_confirmation_depth: env::var(format!(
-                "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
-                prefix
-            ))?
-            .parse()?,
             eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
                 // Use a specific L1 RPC URL for the EigenDA client.
                 Ok(url) => Some(SensitiveUrl::from_str(&url)?),
@@ -68,20 +68,34 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 // Use zkSync default L1 RPC for the EigenDA client.
                 Err(_) => None,
             },
+            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
+            version: match env::var(format!("{}VERSION", prefix))?.as_str() {
+                EIGENDA_VERSION_V1 => zksync_config::configs::da_client::eigenda::Version::V1,
+                EIGENDA_VERSION_V2 => zksync_config::configs::da_client::eigenda::Version::V2,
+                _ => anyhow::bail!("Unknown EigenDA version"),
+            },
+            settlement_layer_confirmation_depth: env::var(format!(
+                "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
+                prefix
+            ))?
+            .parse()?,
             eigenda_svc_manager_address: Address::from_str(&env::var(format!(
                 "{}EIGENDA_SVC_MANAGER_ADDRESS",
                 prefix
             ))?)?,
             wait_for_finalization: env::var(format!("{}WAIT_FOR_FINALIZATION", prefix))?.parse()?,
-            authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
             points: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
-                "Path" => zksync_config::configs::da_client::eigen::PointsSource::Path {
-                    path: env::var(format!("{}POINTS_PATH", prefix))?,
-                },
-                "Url" => zksync_config::configs::da_client::eigen::PointsSource::Url {
-                    g1_url: env::var(format!("{}POINTS_LINK_G1", prefix))?,
-                    g2_url: env::var(format!("{}POINTS_LINK_G2", prefix))?,
-                },
+                EIGENDA_POINTS_PATH => {
+                    zksync_config::configs::da_client::eigenda::PointsSource::Path {
+                        path: env::var(format!("{}POINTS_PATH", prefix))?,
+                    }
+                }
+                EIGENDA_POINTS_URL => {
+                    zksync_config::configs::da_client::eigenda::PointsSource::Url {
+                        g1_url: env::var(format!("{}POINTS_LINK_G1", prefix))?,
+                        g2_url: env::var(format!("{}POINTS_LINK_G2", prefix))?,
+                    }
+                }
                 _ => anyhow::bail!("Unknown Eigen points type"),
             },
             custom_quorum_numbers: match env::var(format!("{}CUSTOM_QUORUM_NUMBERS", prefix)) {
@@ -90,6 +104,18 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                     .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
                     .collect::<anyhow::Result<Vec<_>>>()?,
                 Err(_) => vec![],
+            },
+            cert_verifier_addr: Address::from_str(&env::var(format!(
+                "{}EIGENDA_CERT_VERIFIER_ADDRESS",
+                prefix
+            ))?)?,
+            blob_version: env::var(format!("{}BLOB_VERSION", prefix))?
+                .parse()
+                .context("EigenDA blob version not found")?,
+            polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
+                "Coeff" => zksync_config::configs::da_client::eigenda::PolynomialForm::Coeff,
+                "Eval" => zksync_config::configs::da_client::eigenda::PolynomialForm::Eval,
+                _ => anyhow::bail!("Unknown Eigen polynomial form"),
             },
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
@@ -127,10 +153,10 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
                 private_key: PrivateKey(private_key.into()),
             })
         }
-        EIGEN_CLIENT_CONFIG_NAME => {
+        EIGENDA_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
                 .context("Eigen private key not found")?;
-            DataAvailabilitySecrets::Eigen(EigenSecrets {
+            DataAvailabilitySecrets::EigenDA(EigenDASecrets {
                 private_key: PrivateKey(private_key.into()),
             })
         }
