@@ -16,6 +16,7 @@ use zksync_config::{
     DAClientConfig, PostgresConfig,
 };
 use zksync_consistency_checker::node::ConsistencyCheckerLayer;
+use zksync_contract_verification_server::node::ContractVerificationApiLayer;
 use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
@@ -352,6 +353,16 @@ impl ExternalNodeBuilder {
     fn add_sync_state_updater_layer(mut self) -> anyhow::Result<Self> {
         // This layer may be used as a fallback for EN API if API server runs without the core component.
         self.node.add_layer(SyncStateUpdaterLayer);
+        Ok(self)
+    }
+
+    fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
+        if let Some(contract_verifier_config) = self.config.contract_verifier.clone() {
+            self.node
+                .add_layer(ContractVerificationApiLayer(contract_verifier_config));
+        } else {
+            tracing::info!("Contract verifier configuration is missing, skipping contract verification API layer");
+        }
         Ok(self)
     }
 
@@ -699,6 +710,9 @@ impl ExternalNodeBuilder {
                         .add_commitment_generator_layer()?
                         .add_batch_status_updater_layer()?
                         .add_logs_bloom_backfill_layer()?;
+                }
+                Component::ContractVerificationApi => {
+                    self = self.add_contract_verification_api_layer()?;
                 }
             }
         }
