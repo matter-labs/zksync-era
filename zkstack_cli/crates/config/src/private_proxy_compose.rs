@@ -3,29 +3,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde_json::json;
 use url::Url;
-use xshell::{cmd, Shell};
 use zkstack_cli_common::docker::adjust_localhost_for_docker;
 
 use crate::{
-    consts::{LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
+    consts::{DEFAULT_EXPLORER_PORT, LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH},
     docker_compose::DockerComposeService,
     PRIVATE_RPC_DOCKER_COMPOSE_FILE,
 };
-pub enum HostOs {
-    MacOS,
-    Linux,
-}
-
-pub fn detect_host_os() -> Result<HostOs, xshell::Error> {
-    let sh = Shell::new()?;
-    let raw = cmd!(sh, "uname -s").read()?;
-    Ok(match raw.trim() {
-        "Darwin" => HostOs::MacOS,
-        _ => HostOs::Linux,
-    })
-}
 
 pub fn get_private_rpc_docker_compose_path(
     ecosystem_base_path: &Path,
@@ -57,25 +42,11 @@ pub async fn create_private_rpc_service(
         .join("configs")
         .join("private-rpc-permissions.yaml");
 
-    let host_os = detect_host_os()?;
-    let other_settings = match host_os {
-        HostOs::Linux => json!({"network_mode": "host"}),
-        HostOs::MacOS => json!(null),
-    };
-    let rpc_url = match host_os {
-        HostOs::Linux => "http://localhost:3010",
-        HostOs::MacOS => "http://docker.host.internal:3010",
-    };
-
-    let database_url = match host_os {
-        HostOs::Linux => database_url.to_string(),
-        HostOs::MacOS => adjust_localhost_for_docker(database_url)?.to_string(),
-    };
-
-    let corrected_l2_rpc_url = match host_os {
-        HostOs::Linux => l2_rpc_url.to_string(),
-        HostOs::MacOS => adjust_localhost_for_docker(l2_rpc_url)?.to_string(),
-    };
+    // FIXME: Cors origin is the explorer app URL. This must be changed to reflect
+    // the actual deployment URL.
+    let cors_origin = format!("http://localhost:{DEFAULT_EXPLORER_PORT}");
+    let database_url = adjust_localhost_for_docker(database_url)?;
+    let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url)?;
 
     Ok(DockerComposeService {
         image: "private-rpc".to_string(),
@@ -88,14 +59,14 @@ pub async fn create_private_rpc_service(
         depends_on: None,
         restart: None,
         environment: Some(HashMap::from([
-            ("DATABASE_URL".to_string(), database_url),
+            ("DATABASE_URL".to_string(), database_url.to_string()),
             ("PORT".to_string(), port.to_string()),
             (
                 "PERMISSIONS_YAML_PATH".to_string(),
                 "/app/private-rpc-permissions.yaml".to_string(),
             ),
-            ("TARGET_RPC".to_string(), corrected_l2_rpc_url),
-            ("CORS_ORIGIN".to_string(), rpc_url.to_string()),
+            ("TARGET_RPC".to_string(), l2_rpc_url.to_string()),
+            ("CORS_ORIGIN".to_string(), cors_origin),
             ("PERMISSIONS_HOT_RELOAD".to_string(), "true".to_string()),
             (
                 "CREATE_TOKEN_SECRET".to_string(),
@@ -103,6 +74,6 @@ pub async fn create_private_rpc_service(
             ),
         ])),
         extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
-        other: other_settings,
+        other: serde_json::Value::Null,
     })
 }
