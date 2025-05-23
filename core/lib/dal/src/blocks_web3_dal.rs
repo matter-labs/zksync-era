@@ -314,6 +314,8 @@ impl BlocksWeb3Dal<'_, '_> {
                                     l1_batches.eth_execute_tx_id = eth_txs_history.eth_tx_id
                                 WHERE
                                     eth_txs_history.finality_status = 'fast_finalized'
+                                    OR
+                                    eth_txs_history.finality_status = 'finalized'
                                 ORDER BY number DESC LIMIT 1
                             )
                         ),
