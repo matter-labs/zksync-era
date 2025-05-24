@@ -35,6 +35,8 @@ pub enum Command {
     /// the schedule in the yaml file.
     /// File format is defined in `SetValidatorScheduleFile` in this crate.
     SetValidatorSchedule(SetValidatorScheduleCommand),
+    /// Sets the committee activation delay in the consensus registry contract.
+    SetScheduleActivationDelay(SetScheduleActivationDelayCommand),
     /// Fetches the current validator schedule from the consensus registry contract.
     GetValidatorSchedule,
     /// Fetches the pending validator schedule from the consensus registry contract, if any.
@@ -51,25 +53,57 @@ pub struct SetValidatorScheduleCommand {
     pub from_file: PathBuf,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct SetScheduleActivationDelayCommand {
+    /// The activation delay in blocks.
+    #[clap(long)]
+    pub delay: u64,
+}
+
 impl Command {
     pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
         let setup = Setup::new(shell).await?;
         match self {
             Self::SetValidatorSchedule(opts) => {
-                let want = setup
+                let (schedule_want, validators_want, leader_selection_want) = setup
                     .read_validator_schedule_file(&opts)
                     .context("read_validator_schedule_file()")?;
-                setup.set_validator_schedule(want).await?;
-                let got = setup.get_validator_schedule().await?;
-                anyhow::ensure!(
-                    got == want,
-                    messages::msg_setting_validator_committee_failed(&got, &want)
-                );
-                print_validators(&got);
+                setup
+                    .set_validator_schedule(validators_want, leader_selection_want)
+                    .await?;
+
+                // Check if the schedule was set correctly (check pending first, then current)
+                let pending_schedule = setup.get_pending_validator_schedule().await?;
+                let (schedule_got, is_pending) = if pending_schedule == schedule_want {
+                    (pending_schedule, true)
+                } else {
+                    let current_schedule = setup.get_validator_schedule().await?;
+                    anyhow::ensure!(
+                        current_schedule == schedule_want,
+                        messages::msg_setting_validator_schedule_failed(
+                            &current_schedule,
+                            &schedule_want
+                        )
+                    );
+                    (current_schedule, false)
+                };
+
+                print_schedule(&schedule_got, is_pending);
+            }
+            Self::SetScheduleActivationDelay(opts) => {
+                setup.set_schedule_activation_delay(opts.delay).await?;
+                logger::success(format!(
+                    "Successfully set schedule activation delay to {} blocks",
+                    opts.delay
+                ));
             }
             Self::GetValidatorSchedule => {
                 let got = setup.get_validator_schedule().await?;
-                print_validators(&got);
+                print_schedule(&got, false);
+            }
+            Self::GetPendingValidatorSchedule => {
+                let got = setup.get_pending_validator_schedule().await?;
+                print_schedule(&got, true);
             }
             Self::WaitForRegistry(args) => {
                 let verbose = global_config().verbose;
@@ -173,7 +207,11 @@ impl Setup {
     fn read_validator_schedule_file(
         &self,
         opts: &SetValidatorScheduleCommand,
-    ) -> anyhow::Result<validator::Schedule> {
+    ) -> anyhow::Result<(
+        validator::Schedule,
+        Vec<ValidatorWithPop>,
+        LeaderSelectionInFile,
+    )> {
         let yaml = std::fs::read_to_string(opts.from_file.clone()).context("read_to_string()")?;
         let yaml = serde_yaml::from_str(&yaml).context("parse YAML")?;
         read_validator_schedule_yaml(yaml)
@@ -287,7 +325,27 @@ impl Setup {
         Ok(validator::Schedule::new(validators, leader_selection)?)
     }
 
-    async fn set_validator_committee(
+    async fn get_pending_validator_schedule(&self) -> anyhow::Result<validator::Schedule> {
+        let provider = Arc::new(self.provider()?);
+        let consensus_registry = self
+            .consensus_registry(provider)
+            .context("consensus_registry()")?;
+        let (validators, leader_selection) = consensus_registry
+            .get_next_validator_committee()
+            .call()
+            .await
+            .context("get_next_validator_committee()")?;
+        let validators: Vec<_> = validators
+            .iter()
+            .map(decode_committee_validator)
+            .collect::<Result<_, _>>()
+            .context("decode_committee_validator()")?;
+        let leader_selection =
+            decode_leader_selection(&leader_selection).context("decode_leader_selection()")?;
+        Ok(validator::Schedule::new(validators, leader_selection)?)
+    }
+
+    async fn set_validator_schedule(
         &self,
         validators_want: Vec<ValidatorWithPop>,
         leader_selection_want: LeaderSelectionInFile,
@@ -385,7 +443,7 @@ impl Setup {
             ));
         }
 
-        // Update the state.
+        // Update the validators.
         let mut txs = TxSet::default();
         // The final state that we want to set.
         let mut to_insert: HashMap<_, _> = validators_want
@@ -408,7 +466,7 @@ impl Setup {
                 leader: validator.latest.leader,
             };
 
-            if let Some((_pop, weight, leader)) = to_insert.remove(&got.key) {
+            if let Some((_, weight, leader)) = to_insert.remove(&got.key) {
                 // If the weight has changed, we need to change it.
                 if weight != got.weight {
                     txs.send(
@@ -424,6 +482,15 @@ impl Setup {
                     .await?;
                 }
 
+                // If the leader status has changed, we need to change it.
+                if leader != got.leader {
+                    txs.send(
+                        format!("change_validator_leader({validator_owner:?}, {leader})"),
+                        consensus_registry.change_validator_leader(validator_owner, leader),
+                    )
+                    .await?;
+                }
+
                 // If the validator is not active, we need to activate it.
                 if !validator.latest.active {
                     txs.send(
@@ -432,8 +499,10 @@ impl Setup {
                     )
                     .await?;
                 }
-                // TODO: change validator leader
-                // We don't change keys because the owner is meaningless here
+
+                // We don't change keys because in this case we are using them as an identifier and
+                // the validator owner is just random. So to change the key we need to remove the
+                // validator and add it back with the new key.
             } else {
                 // If the validator is not in the final state, we need to remove it.
                 txs.send(
@@ -445,23 +514,94 @@ impl Setup {
         }
 
         for (key, (pop, weight, leader)) in to_insert {
+            let owner = Address::random();
             txs.send(
                 format!("add({key:?}, {weight})"),
                 consensus_registry.add(
-                    Address::random(),
+                    owner,
                     weight.try_into().context("overflow")?,
                     encode_validator_key(&key),
                     encode_validator_pop(&pop),
                 ),
             )
             .await?;
+
+            // Validators that are added are leaders by default. If we want them to not be leaders,
+            // we need to change their leader status.
+            // TODO: remove this once we can add validators with leader status.
+            if !leader {
+                txs.send(
+                    format!("change_validator_leader({key:?}, false)"),
+                    consensus_registry.change_validator_leader(owner, false),
+                )
+                .await?;
+            }
         }
+
+        // Update the leader selection.
+        txs.send(
+            "change_leader_selection".to_owned(),
+            consensus_registry.update_leader_selection(
+                leader_selection_want.frequency,
+                leader_selection_want.weighted,
+            ),
+        )
+        .await?;
+
+        // Commit the validator schedule.
         txs.send(
             "commit_validator_committee".to_owned(),
             consensus_registry.commit_validator_committee(),
         )
         .await?;
         txs.wait(&provider).await.context("wait()")?;
+
+        Ok(())
+    }
+
+    async fn set_schedule_activation_delay(&self, delay: u64) -> anyhow::Result<()> {
+        if global_config().verbose {
+            logger::debug(format!(
+                "Setting committee activation delay to {delay} blocks"
+            ));
+        }
+
+        let provider = self.provider().context("provider()")?;
+
+        let governor = self.governor().context("governor()")?;
+        if global_config().verbose {
+            logger::debug(format!("Using governor: {:?}", governor.address));
+        }
+
+        let signer = self.signer(
+            governor
+                .private_key
+                .clone()
+                .context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?,
+        )?;
+        let consensus_registry = self
+            .consensus_registry(signer.clone())
+            .context("consensus_registry()")?;
+
+        let owner = consensus_registry.owner().call().await.context("owner()")?;
+        if owner != governor.address {
+            anyhow::bail!(
+                "governor ({:#x}) is different than the consensus registry owner ({:#x})",
+                governor.address,
+                owner
+            );
+        }
+
+        // Send the transaction to set committee activation delay
+        let mut txs = TxSet::default();
+        txs.send(
+            format!("set_committee_activation_delay({delay})"),
+            consensus_registry.set_committee_activation_delay(delay.into()),
+        )
+        .await?;
+
+        txs.wait(&provider).await.context("wait()")?;
+
         Ok(())
     }
 }
@@ -553,12 +693,31 @@ fn decode_leader_selection(
     })
 }
 
-fn print_validators(committee: &validator::Committee) {
-    logger::success(
-        committee
-            .iter()
-            .map(|a| format!("{a:?}"))
-            .collect::<Vec<_>>()
-            .join("\n"),
+fn print_schedule(schedule: &validator::Schedule, is_pending: bool) {
+    let status = if is_pending { "Pending" } else { "Current" };
+    let mut validators_info = format!("{} Validator Schedule:\nValidators:", status);
+
+    for (i, validator) in schedule.iter().enumerate() {
+        validators_info.push_str(&format!(
+            "\n  Validator {}:\n    Key: {:?}\n    Weight: {}\n    Leader: {}",
+            i + 1,
+            validator.key,
+            validator.weight,
+            validator.leader
+        ));
+    }
+
+    let leader_selection = schedule.leader_selection();
+    let mode_str = match leader_selection.mode {
+        validator::LeaderSelectionMode::Weighted => "Weighted",
+        validator::LeaderSelectionMode::RoundRobin => "RoundRobin",
+        _ => unreachable!(),
+    };
+
+    let leader_info = format!(
+        "Leader Selection:\n  Frequency: {}\n  Mode: {}",
+        leader_selection.frequency, mode_str
     );
+
+    logger::success(format!("{}\n\n{}", validators_info, leader_info));
 }

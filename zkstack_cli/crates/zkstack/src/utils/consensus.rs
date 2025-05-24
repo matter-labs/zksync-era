@@ -60,17 +60,17 @@ pub(crate) struct SetValidatorScheduleFile {
 /// a valid key.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ValidatorInFile {
-    key: String,
-    pop: String,
-    weight: u64,
-    leader: bool,
+    pub(crate) key: String,
+    pub(crate) pop: String,
+    pub(crate) weight: u64,
+    pub(crate) leader: bool,
 }
 
 /// This represents the leader selection parameters in the YAML file.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct LeaderSelectionInFile {
-    frequency: u64,
-    weighted: bool,
+    pub(crate) frequency: u64,
+    pub(crate) weighted: bool,
 }
 
 /// This represents a validator in the consensus registry.

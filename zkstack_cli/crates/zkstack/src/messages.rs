@@ -600,11 +600,11 @@ pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
 pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
 pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
 
-pub(super) fn msg_setting_validator_committee_failed(
-    got: &validator::Committee,
-    want: &validator::Committee,
+pub(super) fn msg_setting_validator_schedule_failed(
+    got: &validator::Schedule,
+    want: &validator::Schedule,
 ) -> String {
-    format!("setting validator committee failed: got {got:?}, want {want:?}")
+    format!("setting validator schedule failed: got {got:?}, want {want:?}")
 }
 
 pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {
