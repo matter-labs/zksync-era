@@ -5911,19 +5911,6 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vise"
-version = "0.2.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
-dependencies = [
- "compile-fmt",
- "ctor",
- "elsa",
- "once_cell",
- "prometheus-client",
- "vise-macros 0.2.0",
-]
-
-[[package]]
-name = "vise"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "269640ec8679c379b8ffefbd4623f7a435f40c159b87bee4620fd9585ea573ba"
@@ -5933,17 +5920,7 @@ dependencies = [
  "elsa",
  "once_cell",
  "prometheus-client",
- "vise-macros 0.3.0",
-]
-
-[[package]]
-name = "vise-macros"
-version = "0.2.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.89",
+ "vise-macros",
 ]
 
 [[package]]
@@ -6680,9 +6657,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a437d604f41b4fd587107e79bcbcb36f669f4b4e4c29e42ae2f26871a8c99bb7"
+checksum = "6d7eda4fa1b022812c1dd8fa06ab3977efb6533ec102707ed0b6c62abc60530c"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6694,14 +6671,14 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "vise 0.2.0",
+ "vise",
 ]
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdcf7218d1d5770c7cfd3b6c79063b7c26820e01b6c4355ce6a1cf6c0043378d"
+checksum = "1405b823834064cdc6538dbbfe775438083b65fb2f71d986684c707a72b19ff5"
 dependencies = [
  "anyhow",
  "blst",
@@ -6720,9 +6697,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04274a561025e3925bf3b05ae2e97721df22c5b12acb6e40298fdc4ea723e8a3"
+checksum = "18eb9246db38e0f2788316295613dc58d3f282e87d263ab4391fac137400ac69"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6742,9 +6719,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed85ed3bccb73a24f3cade637db54d3da504e250b673a47c8179bd64fcb68ea8"
+checksum = "76108070401efb69be7d74be7c9b595383ee0273b8558d90c2591321cee48166"
 dependencies = [
  "anyhow",
  "rand",
@@ -6792,9 +6769,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7bff1b75f45f575f12d6de8e5fd425130894ca271383ae1ff715e24ac998147"
+checksum = "0c730ff540ddc6f3c36f6e48b4dce1a2a1d677a9bf7edf8b83a8feab0af19625"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6813,9 +6790,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.9.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "490162efc219778cffa5f20fade35393e20fb2e5c11826fd7b035c84ce55f0dd"
+checksum = "927bd88f2c9ebfcf551ea5d4514a76180fb0ec476723830715de7d61a5c13676"
 dependencies = [
  "anyhow",
  "heck",
@@ -6887,7 +6864,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tracing",
- "vise 0.3.0",
+ "vise",
  "zksync_types",
 ]
 
@@ -6919,3 +6896,8 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "vise"
+version = "0.2.0"
+source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"

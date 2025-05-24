@@ -24,7 +24,7 @@ pub(crate) fn make_tx<F: crate::abi::Function>(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WeightedValidator {
-    pub(crate) weight: validator::Weight,
+    pub(crate) weight: u64,
     pub(crate) key: validator::PublicKey,
     pub(crate) pop: validator::ProofOfPossession,
 }
@@ -56,13 +56,13 @@ pub(crate) fn gen_validator(rng: &mut impl Rng) -> WeightedValidator {
 }
 
 impl Registry {
-    pub(crate) fn deploy(&self, account: &mut Account) -> (Address, Transaction) {
+    pub(crate) fn deploy(account: &mut Account) -> (RegistryAddress, Transaction) {
         let tx = account.get_deploy_tx(
             &abi::ConsensusRegistry::bytecode(),
             None,
             zksync_test_contracts::TxType::L2,
         );
-        (Address::new(tx.address), tx.tx)
+        (RegistryAddress::new(tx.address), tx.tx)
     }
 
     pub(crate) fn add(
