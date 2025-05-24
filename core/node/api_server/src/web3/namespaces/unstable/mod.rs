@@ -119,14 +119,16 @@ impl UnstableNamespace {
         };
 
         let mut leaves = Vec::new();
-        for chain_id in chain_ids {
+        let mut raw_leaves = Vec::new();
+        for chain_id in chain_ids.clone() {
             let chain_root =
                 get_chain_root_from_id(&mut connection, chain_id, l2_block_number).await?;
             leaves.push(chain_id_leaf_preimage(chain_root, chain_id));
+            raw_leaves.push(chain_root);
         }
         println!(
-            "chain merkle tree leaves for chain of id {} at block {}: {:?}",
-            l2_chain_id, l2_block_number, leaves
+            "chain merkle tree leaves for chain of id {} at block {}: {:?}, {:?}",
+            l2_chain_id, l2_block_number, raw_leaves, chain_ids
         );
 
         let chain_merkle_tree =
