@@ -322,7 +322,7 @@ impl Setup {
             .context("decode_committee_validator()")?;
         let leader_selection =
             decode_leader_selection(&leader_selection).context("decode_leader_selection()")?;
-        Ok(validator::Schedule::new(validators, leader_selection)?)
+        validator::Schedule::new(validators, leader_selection)
     }
 
     async fn get_pending_validator_schedule(&self) -> anyhow::Result<validator::Schedule> {
@@ -342,7 +342,7 @@ impl Setup {
             .context("decode_committee_validator()")?;
         let leader_selection =
             decode_leader_selection(&leader_selection).context("decode_leader_selection()")?;
-        Ok(validator::Schedule::new(validators, leader_selection)?)
+        validator::Schedule::new(validators, leader_selection)
     }
 
     async fn set_validator_schedule(
