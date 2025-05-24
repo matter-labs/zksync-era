@@ -1,5 +1,4 @@
-FROM node:22-slim AS build
-RUN apt-get update && apt-get install -y python3 make g++
+FROM node:22-slim
 WORKDIR /app
 
 COPY src src/
