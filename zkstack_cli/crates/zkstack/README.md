@@ -492,8 +492,8 @@ contracts to be deployed.
 
 ## `zk_inception consensus get-pending-validator-schedule`
 
-Get pending validator schedule from the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
-contracts to be deployed.
+Get pending validator schedule from the consensus registry smart contract. Requires `consensus_registry` and
+`multicall3` contracts to be deployed.
 
 **Usage:** `zk_inception consensus get-pending-validator-schedule`
 
