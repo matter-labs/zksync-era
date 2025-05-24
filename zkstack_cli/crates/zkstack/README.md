@@ -21,8 +21,10 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain deploy-multicall3`↴](#zk_inception-chain-deploy-multicall3)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
 - [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
-- [`zk_inception consensus set-validator-committee`↴](#zk_inception-consensus-set-validator-committee)
-- [`zk_inception consensus get-validator-committee`↴](#zk_inception-consensus-get-validator-committee)
+- [`zk_inception consensus set-validator-schedule`↴](#zk_inception-consensus-set-validator-schedule)
+- [`zk_inception consensus set-schedule-activation-delay`↴](#zk_inception-consensus-set-schedule-activation-delay)
+- [`zk_inception consensus get-validator-schedule`↴](#zk_inception-consensus-get-validator-schedule)
+- [`zk_inception consensus get-pending-validator-schedule`↴](#zk_inception-consensus-get-pending-validator-schedule)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover setup-keys`↴](#zk_inception-prover-setup-keys)
@@ -438,15 +440,17 @@ Consensus related commands
 
 ###### **Subcommands:**
 
-- `set-validator-committee` — Set validator committee
-- `get-validator-committee` — Get validator committee
+- `set-validator-schedule` — Set validator schedule
+- `set-schedule-activation-delay` — Set schedule activation delay
+- `get-validator-schedule` — Get validator schedule
+- `get-pending-validator-schedule` — Get pending validator schedule
 
-## `zk_inception consensus set-validator-committee`
+## `zk_inception consensus set-validator-schedule`
 
-Set validator committee in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+Set validator schedule in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
 contracts to be deployed.
 
-**Usage:** `zk_inception consensus set-validator-committee [OPTIONS]`
+**Usage:** `zk_inception consensus set-validator-schedule [OPTIONS]`
 
 ###### **Options:**
 
@@ -455,20 +459,43 @@ contracts to be deployed.
 
   ```yaml
   validators:
-    - key: validator:public:bls12_381:????
-      pop: validator:pop:bls12_381:????
+    - key: validator:public:bls12_381:ab0dacba7f37f4b05f2472f47d8fc1d36af5ea52fef26c2b411980bd9803c59d7d0c315afdd9feabc7fba00792a8334a050225b7683933e03b58b27e207ce68d83526c016cadbce38fb72a08613a02aeaf02526aff3b5131256a89c2224172f2
+      pop: validator:pop:bls12_381:b924d44d5254991547cb56ed950f6303b25e09f08f1f48acb6920a65b06df6a97bb8d0ba894717f6860834b1b409af40
       weight: 3
-    - key: validator:public:bls12_381:????
-      pop: validator:pop:bls12_381:????
+      leader: true
+    - key: validator:public:bls12_381:af2e889cb27f3e2473e6970af631d0133574bcbac65e1742deb08e7c6fa4b9c0e8f5bf5f600f4685fc3dcddae9541026058fa724fe94dd14f3ce4e79d49159b9b6e55077a6bbba02a122365e4fa8755f3c9bc274c703e515e1d739f499db27b9
+      pop: validator:pop:bls12_381:924eec0d926068c6da9cd525780ac9112286015ba4509e13b59a1a31e0c95e9598d712af12e1dbb76abc4ccbb52a6180
       weight: 1
+      leader: false
+  leader_selection:
+    frequency: 100
+    weighted: true
   ```
 
-## `zk_inception consensus get-validator-committee`
+## `zk_inception consensus set-schedule-activation-delay`
 
-Requires `consensus_registry` and `multicall3` contracts to be deployed. Fetches validator committee from the consensus
-registry contract and prints it.
+Set schedule activation delay in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+contracts to be deployed.
 
-**Usage:** `zk_inception consensus get-validator-committee`
+**Usage:** `zk_inception consensus set-schedule-activation-delay [OPTIONS]`
+
+###### **Options:**
+
+- `--delay <DELAY>` — Set schedule activation delay to `DELAY` blocks.
+
+## `zk_inception consensus get-validator-schedule`
+
+Get validator schedule from the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+contracts to be deployed.
+
+**Usage:** `zk_inception consensus get-validator-schedule`
+
+## `zk_inception consensus get-pending-validator-schedule`
+
+Get pending validator schedule from the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+contracts to be deployed.
+
+**Usage:** `zk_inception consensus get-pending-validator-schedule`
 
 ## `zk_inception prover`
 
