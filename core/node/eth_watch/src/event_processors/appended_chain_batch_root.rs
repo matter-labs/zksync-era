@@ -183,6 +183,10 @@ impl EventProcessor for BatchRootProcessor {
             for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs) {
                 let gw_block_number =
                     Self::get_gw_block_number(&mut transaction, *batch_number).await?;
+                println!(
+                    "gw block number for batch {}: {}",
+                    batch_number, gw_block_number
+                );
                 let gw_chain_agg_proof = self
                     .sl_l2_client
                     .get_chain_log_proof(
