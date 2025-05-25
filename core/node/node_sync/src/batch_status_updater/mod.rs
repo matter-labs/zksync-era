@@ -10,10 +10,12 @@ use serde::Serialize;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, L1BatchNumber, SLChainId, H256,
+    aggregated_operations::L1BatchAggregatedActionType, api, ethabi, web3::TransactionReceipt,
+    Address, L1BatchNumber, SLChainId, H256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -97,6 +99,390 @@ impl MainNodeClient for Box<DynClient<L2>> {
     }
 }
 
+#[async_trait]
+trait SLClient: fmt::Debug + Send + Sync {
+    async fn tx_receipt(&self, tx_hash: H256) -> anyhow::Result<Option<TransactionReceipt>>;
+}
+
+#[async_trait]
+impl SLClient for Box<dyn EthInterface> {
+    async fn tx_receipt(&self, tx_hash: H256) -> anyhow::Result<Option<TransactionReceipt>> {
+        self.tx_receipt(tx_hash).await
+    }
+}
+
+/// Verifies the L1 transaction against the database and the SL.
+#[derive(Debug)]
+struct L1TransactionVerifier {
+    sl_client: Box<dyn SLClient>,
+    diamond_proxy_addr: Address,
+    /// ABI of the ZKsync contract
+    contract: ethabi::Contract,
+    pool: ConnectionPool<Core>,
+    sl_chain_id: SLChainId,
+}
+
+impl L1TransactionVerifier {
+    pub fn new(
+        sl_client: Box<dyn SLClient>,
+        diamond_proxy_addr: Address,
+        pool: ConnectionPool<Core>,
+        sl_chain_id: SLChainId,
+    ) -> Self {
+        Self {
+            sl_client,
+            diamond_proxy_addr,
+            contract: zksync_contracts::hyperchain_contract(),
+            pool,
+            sl_chain_id,
+        }
+    }
+
+    async fn validate_commit_tx_against_db(
+        &self,
+        commit_tx_hash: H256,
+        batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let db_batch = self
+            .pool
+            .connection_tagged("sync_layer")
+            .await?
+            .blocks_dal()
+            .get_l1_batch_metadata(batch_number)
+            .await?
+            .ok_or(anyhow::anyhow!(
+                "Batch {} is not found in the database",
+                batch_number
+            ))?;
+
+        let receipt = self
+            .sl_client
+            .tx_receipt(commit_tx_hash)
+            .await?
+            .context("Failed to fetch commit transaction receipt from SL")?;
+        if receipt.status != Some(U64::one()) {
+            let err = anyhow::anyhow!(
+                "Commit transaction {commit_tx_hash} for batch {} is not successful",
+                batch_number
+            );
+            return Err(err);
+        }
+
+        let event = self
+            .contract
+            .event("BlockCommit")
+            .context("`BlockCommit` event not found for ZKsync L1 contract")?;
+
+        let commited_batch_info: Option<(H256, H256)> =
+            receipt.logs.into_iter().filter_map(|log| {
+                if log.address != self.diamond_proxy_addr {
+                    tracing::debug!(
+                        "Log address {} does not match diamond proxy address {}, skipping",
+                        log.address,
+                        self.diamond_proxy_addr
+                    );
+                    return None;
+                }
+                let parsed_log = event
+                    .parse_log_whole(ethabi::RawLog {
+                        topics: log.topics,
+                        data: log.data.0,
+                    })
+                    .ok()?; // Skip logs that are of different event type
+
+                let block_number_from_log = parsed_log.params.iter().find_map(|param| {
+                    (param.name == "batchNumber")
+                        .then_some(param.value.clone())
+                        .and_then(ethabi::Token::into_uint)
+                        .and_then(|batch_number_from_log| {
+                            u32::try_from(batch_number_from_log)
+                                    .ok()
+                                    .map(L1BatchNumber)
+                        })
+                }).expect("Missing expected `batchNumber` parameter in `BlockCommit` event log");
+
+                if block_number_from_log != batch_number {
+                    tracing::warn!(
+                        "Commit transaction {commit_tx_hash:?} has `BlockCommit` event log with batchNumber={block_number_from_log}, \
+                        but we are checking for batchNumber={batch_number}"
+                    );
+                    return None;
+                }
+
+                let batch_hash = parsed_log.params.iter().find_map(|param| {
+                    (param.name == "batchHash")
+                        .then_some(param.value.clone())
+                        .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
+                }).expect("Missing expected `batchHash` parameter in `BlockCommit` event log");
+
+                let commitment = parsed_log.params.into_iter().find_map(|param| {
+                    (param.name == "commitment")
+                        .then_some(param.value)
+                        .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
+                }).expect("Missing expected `commitment` parameter in `BlockCommit` event log");
+
+                tracing::debug!(
+                    "Commit transaction {commit_tx_hash:?} has `BlockCommit` event log with batch_hash={batch_hash:?} and commitment={commitment:?}"
+                );
+
+                Some((batch_hash, commitment))
+            }).next();
+
+        if let Some((batch_hash, commitment)) = commited_batch_info {
+            if db_batch.metadata.commitment != commitment {
+                let err = anyhow::anyhow!(
+                    "Commit transaction {commit_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
+                    batch_number,
+                    db_batch.metadata.commitment,
+                    commitment
+                );
+                return Err(err);
+            }
+            if db_batch.metadata.root_hash != batch_hash {
+                let err = anyhow::anyhow!(
+                    "Commit transaction {commit_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
+                    batch_number,
+                    db_batch.metadata.root_hash,
+                    batch_hash
+                );
+                return Err(err);
+            }
+            // OK verified successfully the commit transaction.
+            tracing::debug!(
+                "Commit transaction {commit_tx_hash} for batch {} verified successfully",
+                batch_number
+            );
+            Ok(())
+        } else {
+            let err = anyhow::anyhow!(
+                "Commit transaction {commit_tx_hash} for batch {} does not have `BlockCommit` event log",
+                batch_number
+            );
+            Err(err)
+        }
+    }
+
+    async fn validate_prove_tx(
+        &self,
+        prove_tx_hash: H256,
+        batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let receipt = self
+            .sl_client
+            .tx_receipt(prove_tx_hash)
+            .await?
+            .context("Failed to fetch prove transaction receipt from SL")?;
+        if receipt.status != Some(U64::one()) {
+            let err = anyhow::anyhow!(
+                "Prove transaction {prove_tx_hash} for batch {} is not successful",
+                batch_number
+            );
+            return Err(err);
+        }
+
+        let event = self
+            .contract
+            .event("BlocksVerification")
+            .context("`BlocksVerification` event not found for ZKsync L1 contract")?;
+
+        let proved_from_to: Option<(u32, u32)> =
+            receipt.logs.into_iter().filter_map(|log| {
+                if log.address != self.diamond_proxy_addr {
+                    tracing::debug!(
+                        "Log address {} does not match diamond proxy address {}, skipping",
+                        log.address,
+                        self.diamond_proxy_addr
+                    );
+                    return None;
+                }
+                let parsed_log = event
+                    .parse_log_whole(ethabi::RawLog {
+                        topics: log.topics,
+                        data: log.data.0,
+                    })
+                    .ok()?; // Skip logs that are of different event type
+
+                let block_number_from = parsed_log.params.iter().find_map(|param| {
+                    (param.name == "previousLastVerifiedBatch")
+                        .then_some(param.value.clone())
+                        .and_then(ethabi::Token::into_uint)
+                        .and_then(|batch_number_from_log| {
+                            u32::try_from(batch_number_from_log).ok()
+                        })
+                }).expect("Missing expected `previousLastVerifiedBatch` parameter in `BlocksVerification` event log");
+                let block_number_to = parsed_log.params.iter().find_map(|param| {
+                    (param.name == "currentLastVerifiedBatch")
+                        .then_some(param.value.clone())
+                        .and_then(ethabi::Token::into_uint)
+                        .and_then(|batch_number_to_log| {
+                            u32::try_from(batch_number_to_log).ok()
+                        })
+                }).expect("Missing expected `currentLastVerifiedBatch` parameter in `BlocksVerification` event log");
+                Some((
+                    block_number_from,
+                    block_number_to,
+                ))
+            }).next();
+        if let Some((from, to)) = proved_from_to {
+            if from >= batch_number.0 {
+                let err = anyhow::anyhow!(
+                    "Prove transaction {prove_tx_hash} for batch {} has invalid `from` value: expected < {}, got {}",
+                    batch_number,
+                    batch_number.0,
+                    from
+                );
+                return Err(err);
+            }
+            if to < batch_number.0 {
+                let err = anyhow::anyhow!(
+                    "Prove transaction {prove_tx_hash} for batch {} has invalid `to` value: expected >= {}, got {}",
+                    batch_number,
+                    batch_number.0,
+                    to
+                );
+                return Err(err);
+            }
+            // OK verified successfully the prove transaction.
+            tracing::debug!(
+                "Prove transaction {prove_tx_hash} for batch {} verified successfully",
+                batch_number
+            );
+            Ok(())
+        } else {
+            let err = anyhow::anyhow!(
+                "Prove transaction {prove_tx_hash} for batch {} does not have `BlocksVerification` event log",
+                batch_number
+            );
+            Err(err)
+        }
+    }
+
+    /// Validates the execute transaction against the database.
+    async fn validate_execute_tx(
+        &self,
+        execute_tx_hash: H256,
+        batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let db_batch = self
+            .pool
+            .connection_tagged("sync_layer")
+            .await?
+            .blocks_dal()
+            .get_l1_batch_metadata(batch_number)
+            .await?
+            .ok_or(anyhow::anyhow!(
+                "Batch {} is not found in the database",
+                batch_number
+            ))?;
+
+        let receipt = self
+            .sl_client
+            .tx_receipt(execute_tx_hash)
+            .await?
+            .context("Failed to fetch execute transaction receipt from SL")?;
+        if receipt.status != Some(U64::one()) {
+            let err = anyhow::anyhow!(
+                "Execute transaction {execute_tx_hash} for batch {} is not successful",
+                batch_number
+            );
+            return Err(err);
+        }
+
+        let event = self
+            .contract
+            .event("BlockExecution")
+            .context("`BlockExecution` event not found for ZKsync L1 contract")?;
+
+        let commited_batch_info: Option<(H256, H256)> =
+            receipt.logs.into_iter().filter_map(|log| {
+                if log.address != self.diamond_proxy_addr {
+                    tracing::debug!(
+                        "Log address {} does not match diamond proxy address {}, skipping",
+                        log.address,
+                        self.diamond_proxy_addr
+                    );
+                    return None;
+                }
+                let parsed_log = event
+                    .parse_log_whole(ethabi::RawLog {
+                        topics: log.topics,
+                        data: log.data.0,
+                    })
+                    .ok()?; // Skip logs that are of different event type
+
+                let block_number_from_log = parsed_log.params.iter().find_map(|param| {
+                    (param.name == "batchNumber")
+                        .then_some(param.value.clone())
+                        .and_then(ethabi::Token::into_uint)
+                        .and_then(|batch_number_from_log| {
+                            u32::try_from(batch_number_from_log)
+                                    .ok()
+                                    .map(L1BatchNumber)
+                        })
+                }).expect("Missing expected `batchNumber` parameter in `BlockExecution` event log");
+
+                if block_number_from_log != batch_number {
+                    tracing::debug!(
+                        "Skipping event log batchNumber={block_number_from_log} for commit transaction {execute_tx_hash:?}. \
+                        We are checking for batchNumber={batch_number}"
+                    );
+                    return None;
+                }
+
+                let batch_hash = parsed_log.params.iter().find_map(|param| {
+                    (param.name == "batchHash")
+                        .then_some(param.value.clone())
+                        .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
+                }).expect("Missing expected `batchHash` parameter in `BlockExecution` event log");
+
+                let commitment = parsed_log.params.into_iter().find_map(|param| {
+                    (param.name == "commitment")
+                        .then_some(param.value)
+                        .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
+                }).expect("Missing expected `commitment` parameter in `BlockExecution` event log");
+
+                tracing::debug!(
+                    "Execute transaction {execute_tx_hash:?} has `BlockExecution` event log with batch_hash={batch_hash:?} and commitment={commitment:?}"
+                );
+
+                Some((batch_hash, commitment))
+            }).next();
+
+        if let Some((batch_hash, commitment)) = commited_batch_info {
+            if db_batch.metadata.commitment != commitment {
+                let err = anyhow::anyhow!(
+                    "Execute transaction {execute_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
+                    batch_number,
+                    db_batch.metadata.commitment,
+                    commitment
+                );
+                return Err(err);
+            }
+            if db_batch.metadata.root_hash != batch_hash {
+                let err = anyhow::anyhow!(
+                    "Execute transaction {execute_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
+                    batch_number,
+                    db_batch.metadata.root_hash,
+                    batch_hash
+                );
+                return Err(err);
+            }
+            // OK verified successfully the execute transaction.
+            tracing::debug!(
+                "Execute transaction {execute_tx_hash} for batch {} verified successfully",
+                batch_number
+            );
+            Ok(())
+        } else {
+            let err = anyhow::anyhow!(
+                "Execute transaction {execute_tx_hash} for batch {} does not have the corresponding `BlockExecution` event log",
+                batch_number
+            );
+            Err(err)
+        }
+    }
+}
+
 /// Cursors for the last executed / proven / committed L1 batch numbers.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 struct UpdaterCursor {
@@ -136,51 +522,113 @@ impl UpdaterCursor {
     }
 
     /// Extracts tx hash, timestamp and chain id of the operation.
-    fn extract_op_data(
+    async fn extract_and_verify_op_data(
+        l1_transaction_verifier: &L1TransactionVerifier,
         batch_info: &api::L1BatchDetails,
-        stage: AggregatedActionType,
-    ) -> (Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>) {
+        stage: L1BatchAggregatedActionType,
+    ) -> anyhow::Result<(Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>)> {
         match stage {
-            AggregatedActionType::Commit => (
-                batch_info.base.commit_tx_hash,
-                batch_info.base.committed_at,
-                batch_info.base.commit_chain_id,
-            ),
-            AggregatedActionType::PublishProofOnchain => (
-                batch_info.base.prove_tx_hash,
-                batch_info.base.proven_at,
-                batch_info.base.prove_chain_id,
-            ),
-            AggregatedActionType::Execute => (
-                batch_info.base.execute_tx_hash,
-                batch_info.base.executed_at,
-                batch_info.base.execute_chain_id,
-            ),
+            L1BatchAggregatedActionType::Commit => {
+                if let Some(commit_tx_hash) = batch_info.base.commit_tx_hash {
+                    if batch_info.base.commit_chain_id != Some(l1_transaction_verifier.sl_chain_id)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Commit transaction chain ID {:?} does not match SL chain ID {}",
+                            batch_info.base.commit_chain_id,
+                            l1_transaction_verifier.sl_chain_id
+                        ));
+                    }
+                    // Validate the commit transaction against the database.
+                    l1_transaction_verifier
+                        .validate_commit_tx_against_db(commit_tx_hash, batch_info.number)
+                        .await
+                        .context("Failed to validate commit transaction against the database")?;
+                    Ok((
+                        batch_info.base.commit_tx_hash,
+                        batch_info.base.committed_at,
+                        batch_info.base.commit_chain_id,
+                    ))
+                } else {
+                    Ok((None, None, None))
+                }
+            }
+            L1BatchAggregatedActionType::PublishProofOnchain => {
+                if let Some(prove_tx_hash) = batch_info.base.prove_tx_hash {
+                    if batch_info.base.prove_chain_id != Some(l1_transaction_verifier.sl_chain_id) {
+                        return Err(anyhow::anyhow!(
+                            "Prove transaction chain ID {:?} does not match SL chain ID {}",
+                            batch_info.base.prove_chain_id,
+                            l1_transaction_verifier.sl_chain_id
+                        ));
+                    }
+                    // Validate the prove transaction events.
+                    l1_transaction_verifier
+                        .validate_prove_tx(prove_tx_hash, batch_info.number)
+                        .await
+                        .context("Failed to validate prove transaction")?;
+                    Ok((
+                        batch_info.base.prove_tx_hash,
+                        batch_info.base.proven_at,
+                        batch_info.base.prove_chain_id,
+                    ))
+                } else {
+                    Ok((None, None, None))
+                }
+            }
+            L1BatchAggregatedActionType::Execute => {
+                if let Some(execute_tx_hash) = batch_info.base.execute_tx_hash {
+                    if batch_info.base.execute_chain_id != Some(l1_transaction_verifier.sl_chain_id)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Execute transaction chain ID {:?} does not match SL chain ID {}",
+                            batch_info.base.execute_chain_id,
+                            l1_transaction_verifier.sl_chain_id
+                        ));
+                    }
+                    // Validate the execute transaction events.
+                    l1_transaction_verifier
+                        .validate_execute_tx(execute_tx_hash, batch_info.number)
+                        .await
+                        .context("Failed to validate execute transaction")?;
+
+                    Ok((
+                        Some(execute_tx_hash),
+                        batch_info.base.executed_at,
+                        batch_info.base.execute_chain_id,
+                    ))
+                } else {
+                    Ok((None, None, None))
+                }
+            }
         }
     }
 
-    fn update(
+    async fn update(
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::L1BatchDetails,
+        l1_transaction_verifier: &L1TransactionVerifier,
     ) -> anyhow::Result<()> {
         for stage in [
             AggregatedActionType::Commit,
             AggregatedActionType::PublishProofOnchain,
             AggregatedActionType::Execute,
         ] {
-            self.update_stage(status_changes, batch_info, stage)?;
+            self.update_stage(status_changes, batch_info, l1_transaction_verifier, stage)
+                .await?;
         }
         Ok(())
     }
 
-    fn update_stage(
+    async fn update_stage(
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::L1BatchDetails,
-        stage: AggregatedActionType,
+        l1_transaction_verifier: &L1TransactionVerifier,
+        stage: L1BatchAggregatedActionType,
     ) -> anyhow::Result<()> {
-        let (l1_tx_hash, happened_at, sl_chain_id) = Self::extract_op_data(batch_info, stage);
+        let (l1_tx_hash, happened_at, sl_chain_id) =
+            Self::extract_and_verify_op_data(l1_transaction_verifier, batch_info, stage).await?;
         let (last_l1_batch, changes_to_update) = match stage {
             AggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
@@ -224,13 +672,14 @@ impl UpdaterCursor {
 /// locally applied batch was committed, proven or executed on L1.
 ///
 /// In essence, it keeps track of the last batch number per status, and periodically polls the main
-/// node on these batches in order to see whether the status has changed. If some changes were picked up,
+/// node on these batches in order to see whewith_sl_chain_idther the status has changed. If some changes were picked up,
 /// the module updates the database to mirror the state observable from the main node. This is required for other components
 /// (e.g., the API server and the consistency checker) to function properly. E.g., the API server returns commit / prove / execute
 /// L1 transaction information in `zks_getBlockDetails` and `zks_getL1BatchDetails` RPC methods.
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
-    client: Box<dyn MainNodeClient>,
+    main_node_client: Box<dyn MainNodeClient>,
+    l1_transaction_verifier: L1TransactionVerifier,
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     sleep_interval: Duration,
@@ -242,24 +691,43 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(
+        client: Box<DynClient<L2>>,
+        sl_client: Box<dyn EthInterface>,
+        diamond_proxy_addr: Address,
+        pool: ConnectionPool<Core>,
+        sl_chain_id: SLChainId,
+    ) -> Self {
         Self::from_parts(
             Box::new(client.for_component("batch_status_updater")),
+            Box::new(sl_client),
+            diamond_proxy_addr,
             pool,
             Self::DEFAULT_SLEEP_INTERVAL,
+            sl_chain_id,
         )
     }
 
     fn from_parts(
-        client: Box<dyn MainNodeClient>,
+        main_client: Box<dyn MainNodeClient>,
+        sl_client: Box<dyn SLClient>,
+        diamond_proxy_addr: Address,
         pool: ConnectionPool<Core>,
         sleep_interval: Duration,
+        sl_chain_id: SLChainId,
     ) -> Self {
         Self {
-            client,
+            main_node_client: main_client,
+            l1_transaction_verifier: L1TransactionVerifier::new(
+                sl_client,
+                diamond_proxy_addr,
+                pool.clone(),
+                sl_chain_id,
+            ),
             pool,
             health_updater: ReactiveHealthCheck::new("batch_status_updater").1,
             sleep_interval,
+
             #[cfg(test)]
             changes_sender: mpsc::unbounded_channel().0,
         }
@@ -336,23 +804,33 @@ impl BatchStatusUpdater {
         // update all three statuses (e.g. if the node is still syncing), but also skipping the gaps in the statuses
         // (e.g. if the last executed batch is 10, but the last proven is 20, we don't need to check the batches 11-19).
         while batch <= last_sealed_batch {
-            let Some(batch_info) = self.client.batch_details(batch).await? else {
+            // batch details fetched from the main node are untrusted and should be checked with SL
+            let Some(untrusted_batch_info) = self.main_node_client.batch_details(batch).await?
+            else {
                 // Batch is not ready yet
                 return Ok(());
             };
 
-            cursor.update(status_changes, &batch_info)?;
+            cursor
+                .update(
+                    status_changes,
+                    &untrusted_batch_info,
+                    &self.l1_transaction_verifier,
+                )
+                .await?;
 
             // Check whether we can skip a part of the range.
-            if batch_info.base.commit_tx_hash.is_none() {
+            if untrusted_batch_info.base.commit_tx_hash.is_none() {
                 // No committed batches after this one.
                 break;
-            } else if batch_info.base.prove_tx_hash.is_none()
+            } else if untrusted_batch_info.base.prove_tx_hash.is_none()
                 && batch < cursor.last_committed_l1_batch
             {
                 // The interval between this batch and the last committed one is not proven.
                 batch = cursor.last_committed_l1_batch.next();
-            } else if batch_info.base.executed_at.is_none() && batch < cursor.last_proven_l1_batch {
+            } else if untrusted_batch_info.base.executed_at.is_none()
+                && batch < cursor.last_proven_l1_batch
+            {
                 // The interval between this batch and the last proven one is not executed.
                 batch = cursor.last_proven_l1_batch.next();
             } else {

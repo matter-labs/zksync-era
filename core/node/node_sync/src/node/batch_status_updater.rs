@@ -1,6 +1,14 @@
-use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
-use zksync_node_framework::{
+use zksync_eth_client::EthInterface;
+use zksync_node_sync::batch_status_updater::BatchStatusUpdater;
+
+use crate::{
+    implementations::resources::{
+        contracts::SettlementLayerContractsResource,
+        eth_interface::SettlementLayerClientResource,
+        healthcheck::AppHealthCheckResource,
+        main_node_client::MainNodeClientResource,
+        pools::{MasterPool, PoolResource},
+    },
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
@@ -14,6 +22,8 @@ use crate::batch_status_updater::BatchStatusUpdater;
 pub struct Input {
     pub pool: PoolResource<MasterPool>,
     pub client: MainNodeClientResource,
+    pub settlement_layer_client: SettlementLayerClientResource,
+    pub sl_chain_contracts: SettlementLayerContractsResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -41,10 +51,27 @@ impl WiringLayer for BatchStatusUpdaterLayer {
         let Input {
             pool,
             client,
+            settlement_layer_client,
+            sl_chain_contracts,
             app_health,
         } = input;
 
-        let updater = BatchStatusUpdater::new(client.0, pool.get().await?);
+        let sl_client: Box<dyn EthInterface> = settlement_layer_client.0.into();
+        let sl_chain_id = sl_client
+            .fetch_chain_id()
+            .await
+            .map_err(WiringError::internal)?;
+
+        let updater = BatchStatusUpdater::new(
+            client.0,
+            sl_client,
+            sl_chain_contracts
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            pool.get().await?,
+            sl_chain_id,
+        );
 
         // Insert healthcheck
         app_health

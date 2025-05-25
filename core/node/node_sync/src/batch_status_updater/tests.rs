@@ -1,6 +1,6 @@
 //! Tests for batch status updater.
 
-use std::{future, sync::Arc};
+use std::{collections::HashMap, future, sync::Arc};
 
 use chrono::TimeZone;
 use test_casing::{test_casing, Product};
@@ -8,10 +8,41 @@ use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
-use zksync_types::L2BlockNumber;
+use zksync_types::{
+    web3::{TransactionReceipt},
+    L2BlockNumber,
+};
 
 use super::*;
 use crate::metrics::L1BatchStage;
+
+/// Mock implementation of SLClient for testing
+#[derive(Debug, Default)]
+struct MockSLClient {
+    // Store transaction receipts for mocking tx_receipt calls
+    receipts: Arc<Mutex<HashMap<H256, TransactionReceipt>>>,
+}
+
+impl MockSLClient {
+    fn new() -> Self {
+        Self {
+            receipts: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    // Helper to add a mock receipt for testing
+    async fn add_receipt(&self, tx_hash: H256, receipt: TransactionReceipt) {
+        let mut receipts = self.receipts.lock().await;
+        receipts.insert(tx_hash, receipt);
+    }
+}
+
+#[async_trait]
+impl SLClient for MockSLClient {
+    async fn tx_receipt(&self, tx_hash: H256) -> anyhow::Result<Option<TransactionReceipt>> {
+        Ok(self.receipts.lock().await.get(&tx_hash).cloned())
+    }
+}
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();
@@ -215,8 +246,16 @@ fn mock_updater(
     pool: ConnectionPool<Core>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
-    let mut updater =
-        BatchStatusUpdater::from_parts(Box::new(client), pool, Duration::from_millis(10));
+    let sl_client = Box::new(MockSLClient::new());
+
+    let mut updater = BatchStatusUpdater::from_parts(
+        Box::new(client),
+        sl_client,
+        Address::repeat_byte(0x42),
+        pool,
+        Duration::from_millis(10),
+        1u64.into(),
+    );
     updater.changes_sender = changes_sender;
     (updater, changes_receiver)
 }
