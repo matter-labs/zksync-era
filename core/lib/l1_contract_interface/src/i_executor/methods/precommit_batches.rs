@@ -16,14 +16,14 @@ pub struct PrecommitBatches<'a> {
 
 impl Tokenize for &PrecommitBatches<'_> {
     fn into_tokens(self) -> Vec<Token> {
-        let txs = self
+        let packed_txs = self
             .txs
             .iter()
-            .map(|tx| tx.clone().into_token())
+            .flat_map(|tx| tx.get_packed_bytes().into_iter())
             .collect::<Vec<_>>();
 
         let mut encoded_data = encode(&[Token::Tuple(vec![
-            Token::Array(txs),
+            Token::Bytes(packed_txs),
             Token::Uint(self.last_l2_block.0.into()),
         ])]);
         encoded_data.insert(0, SUPPORTED_ENCODING_VERSION);
