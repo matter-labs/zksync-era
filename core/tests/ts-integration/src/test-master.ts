@@ -5,6 +5,7 @@ import { claimEtherBack } from './context-owner';
 import { EthersRetryProvider, RetryableWallet, RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
 import { bigIntReviver, isLocalHost } from './helpers';
+import fetch from 'node-fetch';
 
 /**
  * Test master is a singleton class (per suite) that is capable of providing wallets to the suite.
@@ -117,6 +118,44 @@ export class TestMaster {
         return newWallet;
     }
 
+    /**
+     * Creates a user and returns just the access token.
+     */
+    async privateRpcToken(baseUrl: string, address: string, secret = 'sososecret'): Promise<string> {
+        const res = await fetch(`${baseUrl}/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address, secret })
+        });
+
+        if (!res.ok) {
+            throw new Error(`createUser: ${res.status} ${res.statusText} for ${address}`);
+        }
+
+        const { token } = (await res.json()) as { ok: boolean; token: string };
+        return token;
+    }
+
+    async privateRpcProvider(baseUrl: string, address: string, secret = 'sososecret'): Promise<RetryProvider> {
+        const token = await this.privateRpcToken(baseUrl, address, secret);
+        const url = `${baseUrl}/rpc/${token}`;
+        return new RetryProvider({ url, timeout: 120_000 }, undefined, this.reporter) as any;
+    }
+
+    async privateRpcMainAccount(baseUrl: string, secret = 'sososecret'): Promise<RetryableWallet> {
+        const address = this.mainWallet.address;
+        const provider = await this.privateRpcProvider(baseUrl, address, secret);
+        return new RetryableWallet(this.mainWallet.privateKey, provider, this.l1Provider);
+    }
+
+    async privateRpcNewEmptyAccount(baseUrl: string, secret = 'sososecret'): Promise<RetryableWallet> {
+        const randomPK = ethers.Wallet.createRandom().privateKey;
+        const address = new ethers.Wallet(randomPK).address;
+        const provider = await this.privateRpcProvider(baseUrl, address, secret);
+        const newWallet = new RetryableWallet(randomPK, provider, this.l1Provider);
+        this.subAccounts.push(newWallet);
+        return newWallet;
+    }
     /**
      * Getter for the test environment.
      */
