@@ -995,7 +995,7 @@ pub struct L1ToL2TxsStatus {
 pub struct GatewayMigrationStatus {
     pub latest_notification: Option<GatewayMigrationNotification>,
     pub state: GatewayMigrationState,
-    pub settlement_layer: SettlementLayer,
+    pub settlement_layer: Option<SettlementLayer>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

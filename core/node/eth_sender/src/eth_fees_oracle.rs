@@ -32,6 +32,7 @@ pub(crate) struct GasAdjusterFeesOracle {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub max_acceptable_base_fee_in_wei: u64,
 }
 
 impl GasAdjusterFeesOracle {
@@ -43,12 +44,28 @@ impl GasAdjusterFeesOracle {
             );
         }
     }
+
+    fn is_base_fee_exceeding_limit(&self, value: u64) -> bool {
+        if value > self.max_acceptable_base_fee_in_wei {
+            tracing::warn!(
+                    "base fee per gas: {} exceed max acceptable fee in configuration: {}, skip transaction",
+                    value,
+                    self.max_acceptable_base_fee_in_wei
+            );
+            return true;
+        }
+        false
+    }
+
     fn calculate_fees_with_blob_sidecar(
         &self,
         previous_sent_tx: &Option<TxHistory>,
     ) -> Result<EthFees, EthSenderError> {
         let base_fee_per_gas = self.gas_adjuster.get_blob_tx_base_fee();
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
+        if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
+            return Err(EthSenderError::ExceedMaxBaseFee);
+        }
         let priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
         let blob_base_fee_per_gas = self.gas_adjuster.get_blob_tx_blob_base_fee();
         self.assert_fee_is_not_zero(blob_base_fee_per_gas, "blob");
@@ -91,6 +108,9 @@ impl GasAdjusterFeesOracle {
             .gas_adjuster
             .get_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
+        if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
+            return Err(EthSenderError::ExceedMaxBaseFee);
+        }
         if let Some(previous_sent_tx) = previous_sent_tx {
             self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,
@@ -147,6 +167,9 @@ impl GasAdjusterFeesOracle {
             .gas_adjuster
             .get_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
+        if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
+            return Err(EthSenderError::ExceedMaxBaseFee);
+        }
         if let Some(previous_sent_tx) = previous_sent_tx {
             self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,

@@ -4,10 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData, commitment::PubdataParams,
-    witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
+    basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchId,
+    L1BatchNumber, ProtocolVersionId, H256, U256,
 };
-use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
 use crate::{FormatMarker, CBOR};
 
@@ -214,10 +213,21 @@ pub struct WitnessInputData<FM: FormatMarker = CBOR> {
 impl StoredObject for WitnessInputData {
     const BUCKET: Bucket = Bucket::WitnessInput;
 
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = L1BatchId;
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!(
+            "witness_inputs_{batch_number}.cbor",
+            batch_number = key.batch_number().0
+        ))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("witness_inputs_{key}.cbor")
+        format!(
+            "witness_inputs_{batch_number}_{chain_id}.cbor",
+            batch_number = key.batch_number().0,
+            chain_id = key.chain_id().inner()
+        )
     }
 
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
@@ -240,53 +250,6 @@ pub struct L1BatchMetadataHashes {
     pub root_hash: H256,
     pub meta_hash: H256,
     pub aux_hash: H256,
-}
-
-/// Version 1 of the data used as input for the TEE verifier.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct V1TeeVerifierInput {
-    pub vm_run_data: VMRunWitnessInputData,
-    pub merkle_paths: WitnessInputMerklePaths,
-    pub l2_blocks_execution_data: Vec<L2BlockExecutionData>,
-    pub l1_batch_env: L1BatchEnv,
-    pub system_env: SystemEnv,
-    pub pubdata_params: PubdataParams,
-}
-
-impl V1TeeVerifierInput {
-    pub fn new(
-        vm_run_data: VMRunWitnessInputData,
-        merkle_paths: WitnessInputMerklePaths,
-        l2_blocks_execution_data: Vec<L2BlockExecutionData>,
-        l1_batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        pubdata_params: PubdataParams,
-    ) -> Self {
-        V1TeeVerifierInput {
-            vm_run_data,
-            merkle_paths,
-            l2_blocks_execution_data,
-            l1_batch_env,
-            system_env,
-            pubdata_params,
-        }
-    }
-}
-
-/// Data used as input for the TEE verifier.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[non_exhaustive]
-#[allow(clippy::large_enum_variant)]
-pub enum TeeVerifierInput {
-    /// `V0` suppresses warning about irrefutable `let...else` pattern
-    V0,
-    V1(V1TeeVerifierInput),
-}
-
-impl TeeVerifierInput {
-    pub fn new(input: V1TeeVerifierInput) -> Self {
-        TeeVerifierInput::V1(input)
-    }
 }
 
 #[cfg(test)]

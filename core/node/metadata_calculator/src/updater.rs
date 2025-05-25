@@ -183,7 +183,7 @@ impl TreeUpdater {
     ) -> anyhow::Result<()> {
         let pruning_info = storage.pruning_dal().get_pruning_info().await?;
         anyhow::ensure!(
-            pruning_info.last_soft_pruned.map_or(true, |info| info.l1_batch < l1_batch_number),
+            pruning_info.last_soft_pruned.is_none_or(|info| info.l1_batch < l1_batch_number),
             "L1 batch #{l1_batch_number}, next to be processed by the tree, is pruned; the tree cannot continue operating"
         );
         Ok(())

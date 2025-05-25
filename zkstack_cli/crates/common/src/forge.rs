@@ -56,6 +56,12 @@ pub struct ForgeScript {
 impl ForgeScript {
     /// Run the forge script command.
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
+        // When running the DeployL1 script, we skip recompiling the Bridgehub
+        // because it must be compiled with a low optimizer-runs value.
+        if self.script_path == Path::new("deploy-scripts/DeployL1.s.sol") {
+            let skip_path: String = String::from("contracts/bridgehub/*");
+            self.args.add_arg(ForgeScriptArg::Skip { skip_path });
+        }
         let _dir_guard = shell.push_dir(&self.base_path);
         let script_path = self.script_path.as_os_str();
         let args_no_resume = self.args.build();
@@ -279,6 +285,10 @@ pub enum ForgeScriptArg {
         gas_limit: u64,
     },
     Zksync,
+    #[strum(to_string = "skip={skip_path}")]
+    Skip {
+        skip_path: String,
+    },
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.

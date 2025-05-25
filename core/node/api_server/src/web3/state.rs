@@ -164,6 +164,7 @@ pub struct InternalApiConfig {
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
     pub l1_ecosystem_contracts: EcosystemCommonContracts,
+    pub server_notifier_addr: Option<Address>,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_diamond_proxy_addr: Address,
@@ -177,7 +178,7 @@ pub struct InternalApiConfig {
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
-    pub settlement_layer: SettlementLayer,
+    pub settlement_layer: Option<SettlementLayer>,
 }
 
 impl InternalApiConfig {
@@ -186,7 +187,7 @@ impl InternalApiConfig {
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
-        settlement_layer: SettlementLayer,
+        settlement_layer: Option<SettlementLayer>,
     ) -> Self {
         Self {
             l1_chain_id: base.l1_chain_id,
@@ -206,6 +207,7 @@ impl InternalApiConfig {
                 l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             },
             l1_ecosystem_contracts: l1_contracts_config.ecosystem_contracts.clone(),
+            server_notifier_addr: l1_ecosystem_contracts.server_notifier_addr,
             l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
             l1_diamond_proxy_addr: l1_contracts_config
@@ -241,7 +243,7 @@ impl InternalApiConfig {
             l1_contracts_config,
             l1_ecosystem_contracts,
             l2_contracts,
-            settlement_layer,
+            Some(settlement_layer),
         )
     }
 }

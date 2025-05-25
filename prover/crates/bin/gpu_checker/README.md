@@ -33,8 +33,8 @@ Find circuit file from a recent prover batch like `10330_48_1_BasicCircuits_0.bi
 it into `prover/`.
 
 ```bash
-docker build -t us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.2.0 -f docker/gpu-checker/Dockerfile --progress=plain . 2>&1 | tee build.log
-docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.2.0
+docker build -t us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.3.0 -f docker/gpu-checker/Dockerfile --progress=plain . 2>&1 | tee build.log
+docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/gpu_checker:v0.3.0
 ```
 
 ## Run gpu-checker

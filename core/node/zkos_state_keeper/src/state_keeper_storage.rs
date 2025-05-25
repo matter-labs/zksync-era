@@ -150,7 +150,7 @@ impl ReadStorageFactory for ZkOsAsyncRocksdbCache {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<OwnedStorage>> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
-        let rocksdb = if initial_state.l1_batch_number.unwrap_or(L1BatchNumber(0))
+        let rocksdb = if initial_state.next_l1_batch_number.unwrap_or(L1BatchNumber(0))
             >= l1_batch_number
         {
             tracing::info!(
@@ -170,9 +170,8 @@ impl ReadStorageFactory for ZkOsAsyncRocksdbCache {
             let mut batch_diffs_lock = self.batch_diffs.lock().await;
             let rocksdb: RocksdbStorage = rocksdb.clone().into();
             let rocksdb_l1_batch_number = rocksdb
-                .l1_batch_number()
-                .await
-                .context("Rocksdb storage is not initialized")?;
+                .next_l1_batch_number()
+                .await;
 
             let storage =
                 OwnedStorage::rocksdb_with_memory(rocksdb, &batch_diffs_lock, l1_batch_number)

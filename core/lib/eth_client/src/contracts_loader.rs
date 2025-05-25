@@ -25,6 +25,17 @@ pub async fn get_diamond_proxy_contract(
         .await
 }
 
+pub async fn get_server_notifier_addr(
+    sl_client: &dyn EthInterface,
+    ctm_address: Address,
+) -> Result<Option<Address>, ContractCallError> {
+    CallFunctionArgs::new("serverNotifierAddress", ())
+        .for_contract(ctm_address, &state_transition_manager_contract())
+        .call(sl_client)
+        .await
+        .map(|a: Address| if a.is_zero() { None } else { Some(a) })
+}
+
 /// Load contacts specific for each settlement layer, using bridgehub contract
 pub async fn load_settlement_layer_contracts(
     sl_client: &dyn EthInterface,
@@ -55,12 +66,6 @@ pub async fn load_settlement_layer_contracts(
             .call(sl_client)
             .await?;
 
-    let server_notifier_addr = CallFunctionArgs::new("serverNotifierAddress", ())
-        .for_contract(ctm_address, &state_transition_manager_contract())
-        .call(sl_client)
-        .await
-        .map(|a: Address| if a.is_zero() { None } else { Some(a) })?;
-
     let validator_timelock_addr = CallFunctionArgs::new("validatorTimelock", ())
         .for_contract(ctm_address, &state_transition_manager_contract())
         .call(sl_client)
@@ -70,7 +75,6 @@ pub async fn load_settlement_layer_contracts(
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
             state_transition_proxy_addr: Some(ctm_address),
-            server_notifier_addr,
             validator_timelock_addr: Some(validator_timelock_addr),
             multicall3,
         },

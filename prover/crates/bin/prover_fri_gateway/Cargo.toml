@@ -21,10 +21,12 @@ zksync_prover_interface.workspace = true
 zksync_task_management.workspace = true
 zksync_vlog.workspace = true
 
+axum.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 tokio = { workspace = true, features = ["time", "macros"] }
+thiserror.workspace = true
 ctrlc = { workspace = true, features = ["termination"] }
 async-trait.workspace = true
 serde = { workspace = true, features = ["derive"] }

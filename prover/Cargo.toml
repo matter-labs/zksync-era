@@ -4,7 +4,7 @@ members = ["crates/bin/*", "crates/lib/*"]
 resolver = "2"
 
 [workspace.package]
-version = "20.2.0" # x-release-please-version
+version = "20.3.1" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -41,8 +41,8 @@ once_cell = "1.18"
 proptest = "1.2.0"
 rand = "0.8"
 regex = "1.10.4"
-reqwest = "0.12"
-reqwest-middleware = "0.3.3"
+reqwest = "=0.12.9"
+reqwest-middleware = "=0.3.3"
 reqwest-retry = "0.7.0"
 ring = "0.17.8"
 rustls = { version = "0.23.12", features = ["ring"] }
@@ -55,6 +55,7 @@ structopt = "0.3.26"
 strum = { version = "0.26" }
 strum_macros = "0.26"
 tempfile = "3"
+thiserror = "2.0.12"
 tokio = "1"
 tokio-util = "0.7.11"
 tokio-stream = "0.1.16"
@@ -63,20 +64,24 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-test = "0.2.5"
 url = "2.5.2"
-vise = "0.2.0"
+vise = "0.3.0"
 
-circuit_definitions = "=0.151.5"
-circuit_sequencer_api = "=0.151.5"
-zkevm_test_harness = "=0.151.5"
-fflonk = "=0.31.0"
-franklin-crypto = "=0.31.0"
+circuit_definitions = "=0.152.2"
+circuit_sequencer_api = "=0.152.2"
+zkevm_test_harness = "=0.152.2"
+
+fflonk = "=0.32.1"
+franklin-crypto = "=0.32.1"
 
 # GPU proving dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.153.3" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.153.3" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.153.3" }
-shivini = "=0.153.3"
-boojum-cuda = "=0.153.3"
+
+proof-compression-gpu = { package = "proof-compression", version = "=0.154.2" }
+
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.2" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.2" }
+
+shivini = "=0.154.2"
+boojum-cuda = "=0.154.2"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
@@ -99,20 +104,17 @@ zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { version = "=20.2.0", path = "crates/lib/prover_dal" }
-zksync_prover_fri_types = { version = "=20.2.0", path = "crates/lib/prover_fri_types" }
-zksync_prover_fri_utils = { version = "=20.2.0", path = "crates/lib/prover_fri_utils" }
-zksync_prover_keystore = { version = "=20.2.0", path = "crates/lib/keystore" }
-zksync_vk_setup_data_generator_server_fri = { version = "=20.2.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
-zksync_prover_job_processor = { version = "=20.2.0", path = "crates/lib/prover_job_processor" }
-zksync_circuit_prover_service = { version = "=20.2.0", path = "crates/lib/circuit_prover_service" }
-zksync_prover_job_monitor = { version = "=20.2.0", path = "crates/bin/prover_job_monitor" }
+zksync_prover_dal = { version = "=20.3.1", path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { version = "=20.3.1", path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { version = "=20.3.1", path = "crates/lib/prover_fri_utils" }
+zksync_prover_task = { version = "=20.3.1", path = "crates/lib/prover_task" }
+zksync_prover_keystore = { version = "=20.3.1", path = "crates/lib/keystore" }
+zksync_vk_setup_data_generator_server_fri = { version = "=20.3.1", path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_processor = { version = "=20.3.1", path = "crates/lib/prover_job_processor" }
+zksync_circuit_prover_service = { version = "=20.3.1", path = "crates/lib/circuit_prover_service" }
+zksync_prover_job_monitor = { version = "=20.3.1", path = "crates/bin/prover_job_monitor" }
 
 # for `perf` profiling
 [profile.perf]
 inherits = "release"
 debug = true
-
-[patch.crates-io]
-vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }
-vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }

@@ -311,6 +311,7 @@ async fn load_upgrade_tx() {
         output_handler,
         Arc::new(sealer),
         Arc::new(MockReadStorageFactory),
+        None,
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

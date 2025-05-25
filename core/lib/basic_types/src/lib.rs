@@ -148,7 +148,19 @@ impl<'de> Deserialize<'de> for L2ChainId {
     }
 }
 
+impl fmt::Display for L2ChainId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl L2ChainId {
+    /// The maximum value of the L2 chain ID.
+    // `2^53 - 1` is a max safe integer in JS. In Ethereum JS libraries chain ID should be the safe integer.
+    // Next arithmetic operation: subtract 36 and divide by 2 comes from `v` calculation:
+    // `v = 2*chainId + 36`, that should be save integer as well.
+    const MAX: u64 = ((1 << 53) - 1 - 36) / 2;
+
     pub fn new(number: u64) -> Result<Self, String> {
         if number > L2ChainId::max().0 {
             return Err(format!(
@@ -158,6 +170,24 @@ impl L2ChainId {
             ));
         }
         Ok(L2ChainId(number))
+    }
+
+    pub fn max() -> Self {
+        Self(Self::MAX)
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
+
+    pub fn inner(&self) -> u64 {
+        self.0
+    }
+
+    /// Returns the zero L2ChainId. This is a temporarily measure to avoid breaking changes.
+    /// Will be removed after prover cluster is integrated on all environments.
+    pub fn zero() -> Self {
+        Self(0)
     }
 }
 
@@ -179,22 +209,6 @@ impl FromStr for L2ChainId {
     }
 }
 
-impl L2ChainId {
-    /// The maximum value of the L2 chain ID.
-    // `2^53 - 1` is a max safe integer in JS. In Ethereum JS libraries chain ID should be the safe integer.
-    // Next arithmetic operation: subtract 36 and divide by 2 comes from `v` calculation:
-    // `v = 2*chainId + 36`, that should be save integer as well.
-    const MAX: u64 = ((1 << 53) - 1 - 36) / 2;
-
-    pub fn max() -> Self {
-        Self(Self::MAX)
-    }
-
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
-}
-
 impl Default for L2ChainId {
     fn default() -> Self {
         Self(270)
@@ -213,6 +227,52 @@ impl From<u32> for L2ChainId {
     fn from(value: u32) -> Self {
         // Max value is guaranteed bigger than u32
         Self(u64::from(value))
+    }
+}
+
+/// Unique identifier of the L1 batch for provers.
+///
+/// With prover cluster, we can have multiple L2 chains being processed in parallel, and each L2 chain can have multiple batches,
+/// so the type identifies the batch uniquely.
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct L1BatchId {
+    chain_id: L2ChainId,
+    batch_number: L1BatchNumber,
+}
+
+impl std::fmt::Display for L1BatchId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "L1BatchId
+        (chain_id: {}, batch_number: {})",
+            self.chain_id.as_u64(),
+            self.batch_number.0
+        )
+    }
+}
+
+impl L1BatchId {
+    pub fn new(chain_id: L2ChainId, batch_number: L1BatchNumber) -> Self {
+        Self {
+            chain_id,
+            batch_number,
+        }
+    }
+
+    pub fn from_raw(chain_id: u64, batch_number: u32) -> Self {
+        Self {
+            chain_id: L2ChainId::new(chain_id).expect("Invalid chain ID"),
+            batch_number: L1BatchNumber(batch_number),
+        }
+    }
+
+    pub fn chain_id(&self) -> L2ChainId {
+        self.chain_id
+    }
+
+    pub fn batch_number(&self) -> L1BatchNumber {
+        self.batch_number
     }
 }
 

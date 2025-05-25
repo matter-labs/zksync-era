@@ -8,12 +8,12 @@ use reqwest::{
 };
 use tokio::sync::Mutex;
 use url::Url;
+use zksync_prover_task::Task;
 
 use crate::{
     agent::{ScaleRequest, ScaleResponse},
     cluster_types::{Cluster, ClusterName, Clusters},
     http_client::HttpClient,
-    task_wiring::Task,
 };
 
 #[derive(Default)]

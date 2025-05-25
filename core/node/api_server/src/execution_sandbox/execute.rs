@@ -255,7 +255,7 @@ impl SandboxExecutor {
 
         let mut last_dump_timestamp = last_dump_timestamp.lock().await;
         let now = Instant::now();
-        let should_dump = last_dump_timestamp.map_or(true, |ts| {
+        let should_dump = last_dump_timestamp.is_none_or(|ts| {
             now.checked_duration_since(ts)
                 .is_some_and(|elapsed| elapsed >= DUMP_INTERVAL)
         });

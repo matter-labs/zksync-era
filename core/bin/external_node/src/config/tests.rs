@@ -101,10 +101,6 @@ fn parsing_optional_config_from_empty_env() {
         config.max_response_body_size().overrides,
         MaxResponseSizeOverrides::empty()
     );
-    assert_eq!(
-        config.l1_batch_commit_data_generator_mode,
-        L1BatchCommitmentMode::Rollup
-    );
 }
 
 #[test]
@@ -129,7 +125,6 @@ fn parsing_optional_config_from_env() {
             "EN_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB",
             "zks_getProof=100,eth_call=2",
         ),
-        ("EN_L1_BATCH_COMMIT_DATA_GENERATOR_MODE", "Validium"),
         ("EN_TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC", "2"),
     ];
     let env_vars = env_vars
@@ -171,10 +166,6 @@ fn parsing_optional_config_from_env() {
                 NonZeroUsize::new(2 * BYTES_IN_MEGABYTE).unwrap()
             )
         ])
-    );
-    assert_eq!(
-        config.l1_batch_commit_data_generator_mode,
-        L1BatchCommitmentMode::Validium
     );
 }
 

@@ -20,6 +20,7 @@ impl ProtoRepr for proto::GeneralConfig {
             prover_gateway: read_optional_repr(&self.prover_gateway),
             prometheus_config: read_optional_repr(&self.prometheus),
             proof_data_handler_config: read_optional_repr(&self.data_handler),
+            tee_proof_data_handler_config: read_optional_repr(&self.tee_proof_data_handler),
             witness_generator_config: read_optional_repr(&self.witness_generator),
             api_config: read_optional_repr(&self.api),
             db_config: read_optional_repr(&self.db),
@@ -67,6 +68,10 @@ impl ProtoRepr for proto::GeneralConfig {
             prometheus: this.prometheus_config.as_ref().map(ProtoRepr::build),
             data_handler: this
                 .proof_data_handler_config
+                .as_ref()
+                .map(ProtoRepr::build),
+            tee_proof_data_handler: this
+                .tee_proof_data_handler_config
                 .as_ref()
                 .map(ProtoRepr::build),
             api: this.api_config.as_ref().map(ProtoRepr::build),

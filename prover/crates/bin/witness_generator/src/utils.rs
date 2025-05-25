@@ -25,7 +25,9 @@ use zksync_prover_fri_types::{
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
     FriProofWrapper,
 };
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchId, ProtocolVersionId, U256};
+
+use crate::artifacts::JobId;
 
 // Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
 pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
@@ -61,12 +63,24 @@ impl StoredObject for ClosedFormInputWrapper {
     const BUCKET: Bucket = Bucket::LeafAggregationWitnessJobsFri;
     type Key<'a> = ClosedFormInputKey;
 
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!(
+            "closed_form_inputs_{batch_number}_{circuit_id}.bin",
+            batch_number = key.batch_id.batch_number().0,
+            circuit_id = key.circuit_id
+        ))
+    }
+
     fn encode_key(key: Self::Key<'_>) -> String {
         let ClosedFormInputKey {
-            block_number,
+            batch_id,
             circuit_id,
         } = key;
-        format!("closed_form_inputs_{block_number}_{circuit_id}.bin")
+        format!(
+            "closed_form_inputs_{batch_number}_{chain_id}_{circuit_id}.bin",
+            batch_number = batch_id.batch_number().0,
+            chain_id = batch_id.chain_id().inner()
+        )
     }
 
     serialize_using_bincode!();
@@ -79,13 +93,30 @@ impl StoredObject for AggregationWrapper {
     const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
     type Key<'a> = AggregationsKey;
 
-    fn encode_key(key: Self::Key<'_>) -> String {
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
         let AggregationsKey {
-            block_number,
+            batch_id,
             circuit_id,
             depth,
         } = key;
-        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
+        Some(format!(
+            "aggregations_{block_number}_{circuit_id}_{depth}.bin",
+            block_number = batch_id.batch_number().0
+        ))
+    }
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let AggregationsKey {
+            batch_id,
+            circuit_id,
+            depth,
+        } = key;
+
+        format!(
+            "aggregations_{block_number}_{chain_id}_{circuit_id}_{depth}.bin",
+            block_number = batch_id.batch_number().0,
+            chain_id = batch_id.chain_id().inner(),
+        )
     }
 
     serialize_using_bincode!();
@@ -102,10 +133,21 @@ pub struct SchedulerPartialInputWrapper(
 
 impl StoredObject for SchedulerPartialInputWrapper {
     const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = L1BatchNumber;
+    type Key<'a> = L1BatchId;
+
+    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+        Some(format!(
+            "scheduler_witness_{batch_number}.bin",
+            batch_number = key.batch_number().0
+        ))
+    }
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("scheduler_witness_{key}.bin")
+        format!(
+            "scheduler_witness_{batch_number}_{chain_id}.bin",
+            batch_number = key.batch_number().0,
+            chain_id = key.chain_id().inner()
+        )
     }
 
     serialize_using_bincode!();
@@ -113,17 +155,17 @@ impl StoredObject for SchedulerPartialInputWrapper {
 
 #[tracing::instrument(
     skip_all,
-    fields(l1_batch = %block_number, circuit_id = %circuit.numeric_circuit_type())
+    fields(l1_batch = %batch_id, circuit_id = %circuit.numeric_circuit_type())
 )]
 pub async fn save_circuit(
-    block_number: L1BatchNumber,
+    batch_id: L1BatchId,
     circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String) {
     let circuit_id = circuit.numeric_circuit_type();
     let circuit_key = FriCircuitKey {
-        block_number,
+        batch_id,
         sequence_number,
         circuit_id,
         aggregation_round: AggregationRound::BasicCircuits,
@@ -140,10 +182,10 @@ pub async fn save_circuit(
 
 #[tracing::instrument(
     skip_all,
-    fields(l1_batch = %block_number)
+    fields(l1_batch = %batch_id)
 )]
 pub async fn save_recursive_layer_prover_input_artifacts(
-    block_number: L1BatchNumber,
+    batch_id: L1BatchId,
     sequence_number_offset: usize,
     recursive_circuits: Vec<ZkSyncRecursiveLayerCircuit>,
     aggregation_round: AggregationRound,
@@ -155,7 +197,7 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     for (sequence_number, circuit) in recursive_circuits.into_iter().enumerate() {
         let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
         let circuit_key = FriCircuitKey {
-            block_number,
+            batch_id,
             sequence_number: sequence_number_offset + sequence_number,
             circuit_id,
             aggregation_round,
@@ -172,12 +214,12 @@ pub async fn save_recursive_layer_prover_input_artifacts(
 
 #[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
-    job_ids: &[u32],
+    job_ids: &[JobId],
     object_store: &dyn ObjectStore,
 ) -> Vec<FriProofWrapper> {
     let mut handles = Vec::with_capacity(job_ids.len());
     for job_id in job_ids {
-        handles.push(object_store.get(*job_id));
+        handles.push(object_store.get((job_id.id(), job_id.chain_id())));
     }
     futures::future::join_all(handles)
         .await

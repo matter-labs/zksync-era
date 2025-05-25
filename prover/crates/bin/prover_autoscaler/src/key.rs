@@ -28,6 +28,8 @@ pub enum Gpu {
     #[strum(ascii_case_insensitive)]
     L4,
     #[strum(ascii_case_insensitive)]
+    H100,
+    #[strum(ascii_case_insensitive)]
     T4,
     #[strum(ascii_case_insensitive)]
     V100,

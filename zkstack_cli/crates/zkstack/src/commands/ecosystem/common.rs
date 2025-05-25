@@ -26,11 +26,11 @@ pub async fn deploy_l1(
     broadcast: bool,
     support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
+    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
     let genesis_config_path = config.get_default_configs_path().join(GENESIS_FILE);
     let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
     let default_genesis_input = GenesisInput::new(&default_genesis_config)?;
-
+    println!("here");
     let wallets_config = config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployL1Config::new(
@@ -42,12 +42,15 @@ pub async fn deploy_l1(
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
     );
+    println!("here1");
+
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());
+    println!("here2");
 
     if config.l1_network == L1Network::Localhost {
         // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
@@ -63,17 +66,20 @@ pub async fn deploy_l1(
             WalletOwner::Deployer,
         )?;
     }
+    println!("here3");
 
     if broadcast {
         forge = forge.with_broadcast();
         check_the_balance(&forge).await?;
     }
+    println!("here4");
 
     forge.run(shell)?;
+    println!("here5");
 
     let script_output = DeployL1Output::read(
         shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.link_to_code),
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.path_to_l1_foundry()),
     )?;
     let mut contracts_config = ContractsConfig::default();
     contracts_config.update_from_l1_output(&script_output);

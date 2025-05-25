@@ -671,3 +671,17 @@ impl ResolvedL1BatchForL2Block {
         self.block_l1_batch.unwrap_or(self.pending_l1_batch)
     }
 }
+
+pub(crate) struct StoragePubdataParams {
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
+}
+
+impl From<StoragePubdataParams> for PubdataParams {
+    fn from(row: StoragePubdataParams) -> Self {
+        Self {
+            l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+            pubdata_type: PubdataType::from_str(&row.pubdata_type).unwrap(),
+        }
+    }
+}

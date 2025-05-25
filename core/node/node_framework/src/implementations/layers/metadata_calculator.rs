@@ -100,8 +100,7 @@ impl WiringLayer for MetadataCalculatorLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
-        // The number of connections in a recovery pool is based on the mainnet recovery runs. It doesn't need
-        // to be particularly accurate at this point, since the main node isn't expected to recover from a snapshot.
+        // The number of connections in a recovery pool is based on the Era mainnet recovery runs.
         let recovery_pool = input.replica_pool.get_custom(10).await?;
         let app_health = input.app_health.0;
 

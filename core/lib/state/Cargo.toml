@@ -25,6 +25,7 @@ zk_os_basic_system.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+futures.workspace = true
 mini-moka.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true

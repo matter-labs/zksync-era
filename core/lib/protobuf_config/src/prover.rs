@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_config::configs;
+use zksync_config::configs::{self, fri_prover_gateway::ApiMode};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto::prover as proto;
+use crate::proto::prover::{self as proto};
 
 impl ProtoRepr for proto::ProofCompressor {
     type Type = configs::FriProofCompressorConfig;
@@ -73,6 +73,16 @@ impl ProtoRepr for proto::CircuitIdRoundTuple {
 impl ProtoRepr for proto::ProverGateway {
     type Type = configs::FriProverGatewayConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
+        let api_mode = if let Some(api_mode) = &self.api_mode {
+            match api_mode {
+                0 => ApiMode::Legacy,
+                1 => ApiMode::ProverCluster,
+                _ => panic!("Unknown ProofDataHandler API mode: {api_mode}"),
+            }
+        } else {
+            ApiMode::default()
+        };
+
         Ok(Self::Type {
             api_url: required(&self.api_url).context("api_url")?.clone(),
             api_poll_duration_secs: required(&self.api_poll_duration_secs)
@@ -85,16 +95,25 @@ impl ProtoRepr for proto::ProverGateway {
                 .context("prometheus_pushgateway_url")?
                 .clone(),
             prometheus_push_interval_ms: self.prometheus_push_interval_ms,
+            api_mode,
+            port: self.port.map(|x| x as u16),
         })
     }
 
     fn build(this: &Self::Type) -> Self {
+        let api_mode = match this.api_mode {
+            ApiMode::Legacy => 0,
+            ApiMode::ProverCluster => 1,
+        };
+
         Self {
             api_url: Some(this.api_url.clone()),
             api_poll_duration_secs: Some(this.api_poll_duration_secs.into()),
             prometheus_listener_port: Some(this.prometheus_listener_port.into()),
             prometheus_pushgateway_url: Some(this.prometheus_pushgateway_url.clone()),
             prometheus_push_interval_ms: this.prometheus_push_interval_ms,
+            api_mode: Some(api_mode),
+            port: this.port.map(|x| x as u32),
         }
     }
 }

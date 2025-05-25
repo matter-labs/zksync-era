@@ -75,6 +75,11 @@
       },
       {
         "ordinal": 14,
+        "name": "sent_successfully",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -99,6 +104,7 @@
       true,
       true,
       true,
+      false,
       true
     ]
   },

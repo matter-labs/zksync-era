@@ -47,7 +47,7 @@ impl From<DalError> for TreeDataFetcherError {
 impl TreeDataFetcherError {
     fn is_retriable(&self) -> bool {
         match self {
-            Self::Rpc(err) => err.is_retriable(),
+            Self::Rpc(err) => err.is_retryable(),
             Self::Internal(_) => false,
         }
     }

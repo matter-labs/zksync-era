@@ -64,7 +64,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-          
+
       - name: git config for cloning private repos
         run: |
           ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
@@ -77,7 +77,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local --cargo-features gateway
+          ci_run zkstackup -g --local
 
       - name: Build contracts
         run: |
@@ -154,7 +154,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local --cargo-features gateway
+          ci_run zkstackup -g --local
 
 
       - name: Create and initialize legacy chain
@@ -234,18 +234,24 @@ jobs:
           ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
           ci_run git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf https://github.com/
 
+      - name: Set safe git directories
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local --cargo-features gateway
+          ci_run zkstackup -g --local
 
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
           INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests
           INTEGRATION_TESTS_EN_LOGS_DIR=logs/integration_tests/en
-          SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery/
-          GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery/
+          SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery
+          GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery
           EXTERNAL_NODE_LOGS_DIR=logs/external_node
           FEES_LOGS_DIR=logs/fees
           REVERT_LOGS_DIR=logs/revert
@@ -268,12 +274,18 @@ jobs:
           echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 
+      - name: Build tested binaries
+        run: |
+          ci_run zkstack server build
+          ci_run zkstack external-node build
+          ci_run zkstack contract-verifier build
+
+      - name: Build test dependencies
+        run: |
+          ci_run zkstack dev test build
+
       - name: Initialize ecosystem
         run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-
           ci_run zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
           --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -319,7 +331,7 @@ jobs:
           --chain gateway \
           --validium-type no-da
           
-          ci_run zkstack chain convert-to-gateway --chain gateway --ignore-prerequisites
+          ci_run zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
 
       - name: Run gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
@@ -327,17 +339,13 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
-      - name: Build test dependencies
-        run: |
-          ci_run zkstack dev test build
-
       - name: Migrate chains to gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
-          ci_run zkstack chain migrate-to-gateway --chain validium --gateway-chain-name gateway
-          ci_run zkstack chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
-          ci_run zkstack chain migrate-to-gateway --chain consensus --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
@@ -352,13 +360,11 @@ jobs:
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
-
-
-      - name: Build tested binaries
+      - name: Initialize Contract verifier
         run: |
-          ci_run zkstack server build
-          ci_run zkstack external-node build
-          ci_run zkstack contract-verifier build
+          ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+          ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
+          ci_run zkstack contract-verifier wait --chain era --verbose
 
       - name: Run servers
         run: |

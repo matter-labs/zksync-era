@@ -11,7 +11,7 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 
 async function logsPath(name: string): Promise<string> {
-    return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
+    return await logsTestPath(fileConfig.chain, 'logs/migration/', name);
 }
 
 const pathToHome = path.join(__dirname, '../../../..');
@@ -48,8 +48,8 @@ describe('Migration From/To gateway test', function () {
     let mainNodeSpawner: utils.NodeSpawner;
 
     before('Create test wallet', async () => {
-        logs = await fs.open(await logsPath('migration.log'), 'a');
         direction = process.env.DIRECTION || 'TO';
+        logs = await fs.open(await logsPath(`migration_${direction}.log`), 'a');
         console.log(`Start Migration ${direction} gateway`);
         gatewayChain = process.env.GATEWAY_CHAIN || 'gateway';
 
@@ -141,9 +141,9 @@ describe('Migration From/To gateway test', function () {
 
     step('Migrate to/from gateway', async () => {
         if (direction == 'TO') {
-            await utils.spawn(`zkstack chain notify-about-to-gateway-update --chain ${fileConfig.chain}`);
+            await utils.spawn(`zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`);
         } else {
-            await utils.spawn(`zkstack chain notify-about-from-gateway-update --chain ${fileConfig.chain}`);
+            await utils.spawn(`zkstack chain gateway notify-about-from-gateway-update --chain ${fileConfig.chain}`);
         }
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
@@ -155,11 +155,11 @@ describe('Migration From/To gateway test', function () {
 
         if (direction == 'TO') {
             await utils.spawn(
-                `zkstack chain migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         } else {
             await utils.spawn(
-                `zkstack chain migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
             );
         }
         await mainNodeSpawner.mainNode?.waitForShutdown();

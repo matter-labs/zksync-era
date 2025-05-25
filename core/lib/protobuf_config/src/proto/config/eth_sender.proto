@@ -58,6 +58,7 @@ message Sender {
   reserved 23; reserved "priority_op_start_index";
   optional bool is_verifier_pre_fflonk = 24; // optional
   optional GasLimitMode gas_limit_mode = 25; // optional
+  optional uint64 max_acceptable_base_fee_in_wei = 26; // optional; wei
 }
 
 message GasAdjuster {

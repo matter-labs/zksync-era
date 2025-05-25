@@ -14,6 +14,7 @@ zksync_vlog.workspace = true
 zksync_task_management.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_prover_job_monitor.workspace = true
+zksync_prover_task.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

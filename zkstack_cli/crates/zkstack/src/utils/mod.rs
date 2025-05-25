@@ -1,3 +1,4 @@
+pub mod addresses;
 pub mod consensus;
 pub mod forge;
 pub mod link_to_code;

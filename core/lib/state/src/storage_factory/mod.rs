@@ -8,7 +8,6 @@ use zk_os_forward_system::run::{
     LeafProof, PreimageSource, ReadStorage as ReadStorageZkOs, ReadStorageTree,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_storage::RocksDB;
 use zksync_types::{u256_to_h256, L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};
@@ -18,7 +17,7 @@ pub use self::{
     rocksdb_with_memory::{BatchDiff, BatchDiffs, RocksdbWithMemory},
     snapshot::SnapshotStorage,
 };
-use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
+use crate::{PostgresStorage, RocksdbStorage};
 
 mod metrics;
 mod rocksdb_with_memory;
@@ -95,13 +94,12 @@ impl CommonStorage<'static> {
     /// Propagates RocksDB and Postgres errors.
     pub async fn rocksdb(
         connection: &mut Connection<'_, Core>,
-        rocksdb: RocksDB<StateKeeperColumnFamily>,
+        rocksdb: RocksdbStorage,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Self>> {
         tracing::debug!("Catching up RocksDB synchronously");
-        let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
-        let rocksdb = rocksdb_builder
+        let rocksdb = rocksdb
             .synchronize(connection, stop_receiver, None)
             .await
             .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
@@ -109,10 +107,7 @@ impl CommonStorage<'static> {
             tracing::info!("Synchronizing RocksDB interrupted");
             return Ok(None);
         };
-        let rocksdb_l1_batch_number = rocksdb
-            .l1_batch_number()
-            .await
-            .ok_or_else(|| anyhow::anyhow!("No L1 batches available in Postgres"))?;
+        let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
         if l1_batch_number + 1 != rocksdb_l1_batch_number {
             anyhow::bail!(
                 "RocksDB synchronized to L1 batch #{} while #{} was expected",
@@ -138,10 +133,7 @@ impl CommonStorage<'static> {
         batch_diffs: &BatchDiffs,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Self> {
-        let rocksdb_l1_batch_number = rocksdb
-            .l1_batch_number()
-            .await
-            .context("Rocksdb storage is not initialized")?;
+        let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
 
         match (l1_batch_number + 1).cmp(&rocksdb_l1_batch_number) {
             Ordering::Equal => {
@@ -464,9 +456,9 @@ mod tests {
         let task_handle = tokio::spawn(task.run(stop_receiver));
         task_handle.await.unwrap().unwrap();
 
-        let rocksdb: RocksdbStorage = rocksdb_cell.wait().await.unwrap().into();
-        let l1_batch_number = rocksdb.l1_batch_number().await;
-        assert_eq!(l1_batch_number, Some(L1BatchNumber(2)));
+        let rocksdb = rocksdb_cell.wait().await.unwrap();
+        let l1_batch_number = rocksdb.next_l1_batch_number().await;
+        assert_eq!(l1_batch_number, L1BatchNumber(2));
 
         // Check scenario when memory part is not required.
         let storage = CommonStorage::rocksdb_with_memory(

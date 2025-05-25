@@ -45,7 +45,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<OwnedStorage>> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
-        let rocksdb = if initial_state.l1_batch_number >= Some(l1_batch_number) {
+        let rocksdb = if initial_state.next_l1_batch_number >= Some(l1_batch_number) {
             tracing::info!(
                 "RocksDB cache (initial state: {initial_state:?}) doesn't need to catch up to L1 batch #{l1_batch_number}, \
                  waiting for it to become available"

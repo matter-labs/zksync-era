@@ -6,7 +6,10 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::{outputs::L1BatchProofForL1, Bincode};
+use zksync_prover_interface::{
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
+    Bincode,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -16,7 +19,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchNumber, ProtocolVersionId,
+    L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -106,13 +109,12 @@ impl Aggregator {
     pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
-        custom_commit_sender_addr: Option<Address>,
+        custom_commit_sender_addr: bool,
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
-        let operate_4844_mode: bool =
-            custom_commit_sender_addr.is_some() && !settlement_layer.is_gateway();
+        let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
         let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_layer
@@ -371,6 +373,16 @@ impl Aggregator {
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
     ) -> Option<AggregatedOperation> {
+        // The commit operation is not aggregated at the moment. The code below relies on `limit`
+        // being set to 1 when defining the pubdata commitment mode.
+        if limit != 1 {
+            tracing::error!(
+                "Commit operation is not aggregated anymore. \
+                The limit of commit operation is set to 1."
+            );
+            return None;
+        }
+
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -420,9 +432,52 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| {
-            AggregatedOperation::Commit(last_committed_l1_batch, batches, self.pubdata_da)
-        })
+        let batches = batches?;
+
+        // Note: the line below only works correctly during rollup <-> validium transitions
+        // if the limit of commit operation is set to 1.
+        let (pubdata_sending_mode, commitment_mode) =
+            self.get_commitment_modes(batches.first()?, storage).await;
+
+        Some(AggregatedOperation::Commit(
+            last_committed_l1_batch,
+            batches,
+            pubdata_sending_mode,
+            commitment_mode,
+        ))
+    }
+
+    async fn get_commitment_modes(
+        &self,
+        batch: &L1BatchWithMetadata,
+        storage: &mut Connection<'_, Core>,
+    ) -> (PubdataSendingMode, L1BatchCommitmentMode) {
+        let pubdata_params = storage
+            .blocks_dal()
+            .get_l1_batch_pubdata_params(batch.header.number)
+            .await
+            .unwrap();
+
+        match pubdata_params {
+            Some(p) => {
+                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type);
+
+                if commitment_mode == L1BatchCommitmentMode::Rollup
+                    && self.pubdata_da == PubdataSendingMode::Custom
+                {
+                    tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
+                    (PubdataSendingMode::Blobs, commitment_mode)
+                } else if commitment_mode == L1BatchCommitmentMode::Validium
+                    && self.pubdata_da != PubdataSendingMode::Custom
+                {
+                    tracing::warn!("Overriding pubdata sending mode to Custom, most likely validium -> rollup migration is in place");
+                    (PubdataSendingMode::Custom, commitment_mode)
+                } else {
+                    (self.pubdata_da, self.commitment_mode)
+                }
+            }
+            None => (self.pubdata_da, self.commitment_mode),
+        }
     }
 
     async fn load_dummy_proof_operations(
@@ -653,14 +708,6 @@ impl Aggregator {
             }
         }
     }
-
-    pub fn pubdata_da(&self) -> PubdataSendingMode {
-        self.pubdata_da
-    }
-
-    pub fn mode(&self) -> L1BatchCommitmentMode {
-        self.commitment_mode
-    }
 }
 
 async fn extract_ready_subrange(
@@ -701,13 +748,16 @@ pub async fn load_wrapped_fri_proofs_for_range(
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .get::<L1BatchProofForL1>(L1BatchProofForL1Key::Core((l1_batch_number, *version)))
             .await
         {
             Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => {
                 match blob_store
-                    .get::<L1BatchProofForL1<Bincode>>((l1_batch_number, *version))
+                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
+                        l1_batch_number,
+                        *version,
+                    )))
                     .await
                 {
                     Ok(proof) => return Some(proof.into()),

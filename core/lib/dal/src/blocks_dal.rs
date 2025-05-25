@@ -20,7 +20,7 @@ use zksync_types::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
-    commitment::{L1BatchCommitmentArtifacts, L1BatchMetadata, L1BatchWithMetadata},
+    commitment::{L1BatchCommitmentArtifacts, L1BatchMetadata, L1BatchWithMetadata, PubdataParams},
     fee_model::BatchFeeInput,
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
@@ -34,7 +34,7 @@ use crate::{
         parse_protocol_version,
         storage_block::{
             CommonStorageL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
-            UnsealedStorageL1Batch,
+            StoragePubdataParams, UnsealedStorageL1Batch,
         },
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
@@ -188,6 +188,42 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_earliest_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.number.map(|num| L1BatchNumber(num as u32)))
+    }
+
+    /// Returns the first validium batch with a number higher than the provided one.
+    /// The query might look inefficient, but it is slow only when there is a large range of
+    /// "Rollup" batches, i.e. during the first lookup of Rollup->Validium transition, otherwise it
+    /// is only 2 index scans.
+    pub async fn get_first_validium_l1_batch_number(
+        &mut self,
+        last_processed_batch: L1BatchNumber,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "number"
+            FROM
+                l1_batches
+            WHERE
+                is_sealed
+                AND number > $1
+                AND (
+                    SELECT pubdata_type
+                    FROM miniblocks
+                    WHERE l1_batch_number = l1_batches.number
+                    ORDER BY miniblocks.number
+                    LIMIT 1
+                ) != 'Rollup'
+            "#,
+            last_processed_batch.0 as i32
+        )
+        .instrument("get_earliest_l1_batch_number")
+        .with_arg("last_processed_batch", &last_processed_batch)
         .report_latency()
         .fetch_one(self.storage)
         .await?;
@@ -2184,6 +2220,31 @@ impl BlocksDal<'_, '_> {
         Ok(Some(
             bincode::deserialize(&batch_chain_merkle_path).unwrap(),
         ))
+    }
+
+    pub async fn get_l1_batch_pubdata_params(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<PubdataParams>> {
+        Ok(sqlx::query_as!(
+            StoragePubdataParams,
+            r#"
+            SELECT
+                l2_da_validator_address, pubdata_type
+            FROM
+                miniblocks
+            WHERE
+                l1_batch_number = $1
+            ORDER BY number ASC
+            LIMIT 1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_pubdata_params")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.into()))
     }
 
     pub async fn get_executed_batch_roots_on_sl(

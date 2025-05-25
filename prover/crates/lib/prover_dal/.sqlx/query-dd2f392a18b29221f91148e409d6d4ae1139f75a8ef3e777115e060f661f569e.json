@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = 'queued'\n            WHERE\n                (l1_batch_number, chain_id, circuit_id) IN (\n                    SELECT\n                        prover_jobs_fri.l1_batch_number,\n                        prover_jobs_fri.chain_id,\n                        prover_jobs_fri.circuit_id\n                    FROM\n                        prover_jobs_fri\n                    JOIN leaf_aggregation_witness_jobs_fri lawj\n                        ON\n                            prover_jobs_fri.l1_batch_number = lawj.l1_batch_number\n                            AND prover_jobs_fri.circuit_id = lawj.circuit_id\n                            AND prover_jobs_fri.chain_id = lawj.chain_id\n                    WHERE\n                        lawj.status = 'waiting_for_proofs'\n                        AND prover_jobs_fri.status = 'successful'\n                        AND prover_jobs_fri.aggregation_round = 0\n                    GROUP BY\n                        prover_jobs_fri.l1_batch_number,\n                        prover_jobs_fri.chain_id,\n                        prover_jobs_fri.circuit_id,\n                        lawj.number_of_basic_circuits\n                    HAVING\n                        COUNT(*) = lawj.number_of_basic_circuits\n                )\n            RETURNING\n            l1_batch_number,\n            chain_id,\n            circuit_id;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "chain_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "circuit_id",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dd2f392a18b29221f91148e409d6d4ae1139f75a8ef3e777115e060f661f569e"
+}

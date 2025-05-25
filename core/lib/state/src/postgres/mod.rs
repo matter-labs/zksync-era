@@ -684,7 +684,7 @@ impl ReadStorage for PostgresStorage<'_> {
         });
         latency.observe();
 
-        let contains_key = l1_batch_number.map_or(false, |initial_write_l1_batch_number| {
+        let contains_key = l1_batch_number.is_some_and(|initial_write_l1_batch_number| {
             self.write_counts(initial_write_l1_batch_number)
         });
         !contains_key
@@ -714,7 +714,7 @@ impl ReadStorage for PostgresStorage<'_> {
                 if let Some(value) = value.clone() {
                     caches.factory_deps.insert(hash, value);
                 }
-            };
+            }
 
             value
         });
