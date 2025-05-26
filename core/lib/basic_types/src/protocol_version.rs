@@ -202,6 +202,10 @@ impl ProtocolVersionId {
     pub const fn gateway_upgrade() -> Self {
         ProtocolVersionId::Version26
     }
+
+    pub fn is_pre_29_interop(&self) -> bool {
+        self < &Self::Version29
+    }
 }
 
 impl Default for ProtocolVersionId {
