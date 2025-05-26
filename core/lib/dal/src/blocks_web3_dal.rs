@@ -444,6 +444,23 @@ impl BlocksWeb3Dal<'_, '_> {
             .await
     }
 
+    pub async fn get_l2_to_l1_messages(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<Vec<u8>>> {
+        self.storage
+            .blocks_dal()
+            .get_l2_to_l1_messages_for_batch(l1_batch_number)
+            .await
+    } //
+
+    pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
+        self.storage
+            .blocks_dal()
+            .get_message_root(l1_batch_number)
+            .await
+    }
+
     pub async fn get_l1_batch_number_of_l2_block(
         &mut self,
         l2_block_number: L2BlockNumber,

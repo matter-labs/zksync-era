@@ -33,6 +33,7 @@ use zksync_state_keeper::{
     seal_criteria::{ConditionalSealer, NoopSealer, SealData},
     SequencerSealer,
 };
+use zksync_system_constants::L2_INTEROP_HANDLER_ADDRESS; //
 use zksync_types::{
     api::state_override::StateOverride,
     fee_model::BatchFeeInput,
@@ -639,6 +640,9 @@ impl TxSender {
         if paymaster != Address::default() {
             return Ok(());
         }
+        if tx.execute.contract_address == Some(L2_INTEROP_HANDLER_ADDRESS) {
+            return Ok(());
+        } //
 
         let balance = self.get_balance(&tx.common_data.initiator_address).await?;
         // Estimate the minimum fee price user will agree to.

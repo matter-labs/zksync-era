@@ -74,7 +74,8 @@ pub fn derive_base_fee_and_gas_per_pubdata(
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => {
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => {
             crate::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata(
                 batch_fee_input.into_pubdata_independent(),
             )
@@ -107,7 +108,10 @@ pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::utils::fee::get_batch_base_fee(l1_batch_env),
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => {
+            crate::vm_latest::utils::fee::get_batch_base_fee(l1_batch_env)
+        }
     }
 }
 
@@ -242,7 +246,10 @@ pub fn derive_overhead(
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::utils::overhead::derive_overhead(encoded_len),
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => {
+            crate::vm_latest::utils::overhead::derive_overhead(encoded_len)
+        }
     }
 }
 
@@ -287,9 +294,11 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
                 crate::vm_latest::MultiVmSubversion::EcPrecompiles,
             )
         }
-        VmVersion::VmInterop => crate::vm_latest::constants::get_bootloader_tx_encoding_space(
-            crate::vm_latest::MultiVmSubversion::Interop,
-        ),
+        VmVersion::VmInterop | VmVersion::VmMediumInterop => {
+            crate::vm_latest::constants::get_bootloader_tx_encoding_space(
+                crate::vm_latest::MultiVmSubversion::Interop,
+            )
+        }
     }
 }
 
@@ -314,7 +323,8 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::constants::MAX_TXS_IN_BATCH,
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::MAX_TXS_IN_BATCH,
     }
 }
 
@@ -340,7 +350,8 @@ pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
     }
 }
 
@@ -366,7 +377,8 @@ pub fn circuit_statistics_bootloader_batch_tip_overhead(version: VmVersion) -> u
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => {
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => {
             crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as usize
         }
     }
@@ -394,7 +406,8 @@ pub fn execution_metrics_bootloader_batch_tip_overhead(version: VmVersion) -> us
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => {
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => {
             crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as usize
         }
     }
@@ -423,7 +436,8 @@ pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE,
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE,
     }
 }
 
@@ -468,9 +482,11 @@ pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
                 crate::vm_latest::MultiVmSubversion::EcPrecompiles,
             )
         }
-        VmVersion::VmInterop => crate::vm_latest::constants::get_used_bootloader_memory_bytes(
-            crate::vm_latest::MultiVmSubversion::Interop,
-        ),
+        VmVersion::VmInterop | VmVersion::VmMediumInterop => {
+            crate::vm_latest::constants::get_used_bootloader_memory_bytes(
+                crate::vm_latest::MultiVmSubversion::Interop,
+            )
+        }
     }
 }
 
@@ -515,9 +531,11 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
                 crate::vm_latest::MultiVmSubversion::EcPrecompiles,
             )
         }
-        VmVersion::VmInterop => crate::vm_latest::constants::get_used_bootloader_memory_words(
-            crate::vm_latest::MultiVmSubversion::Interop,
-        ),
+        VmVersion::VmInterop | VmVersion::VmMediumInterop => {
+            crate::vm_latest::constants::get_used_bootloader_memory_words(
+                crate::vm_latest::MultiVmSubversion::Interop,
+            )
+        }
     }
 }
 
@@ -544,7 +562,8 @@ pub fn get_max_batch_gas_limit(version: VmVersion) -> u64 {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::constants::BATCH_GAS_LIMIT,
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::BATCH_GAS_LIMIT,
     }
 }
 
@@ -573,7 +592,8 @@ pub fn get_eth_call_gas_limit(version: VmVersion) -> u64 {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::constants::ETH_CALL_GAS_LIMIT,
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::ETH_CALL_GAS_LIMIT,
     }
 }
 
@@ -599,7 +619,8 @@ pub fn get_max_batch_base_layer_circuits(version: VmVersion) -> usize {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop => crate::vm_latest::constants::MAX_BASE_LAYER_CIRCUITS,
     }
 }
 
@@ -626,7 +647,8 @@ pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles
-        | VmVersion::VmInterop) => {
+        | VmVersion::VmInterop
+        | VmVersion::VmMediumInterop) => {
             crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
         }
     }
