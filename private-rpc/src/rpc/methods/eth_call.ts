@@ -6,6 +6,8 @@ import { isAddressEqual } from 'viem';
 import { unauthorized } from '@/rpc/json-rpc';
 import { delegateCall } from '@/rpc/delegate-call';
 import { sendToTargetRpc } from '@/rpc/methods/utils';
+import { authorizer } from '@/permissions';
+import { env } from '@/env';
 
 const callReqSchema = z
     .object({
@@ -25,6 +27,9 @@ const callResponseSchema = z.object({
 export const eth_call: MethodHandler = {
     name: 'eth_call',
     async handle(context, method, params, id) {
+        if (env.PERMISSIONS_HOT_RELOAD === 'true') {
+            authorizer.reloadFromEnv();
+        }
         const call = callReqSchema.parse(params[0]);
 
         if (call.from !== undefined && !isAddressEqual(call.from, context.currentUser)) {
