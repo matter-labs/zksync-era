@@ -24,37 +24,4 @@ impl TransactionStatusCommitment {
 
         data
     }
-
-    // fn from_packed_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
-    //     if bytes.len() != PACKED_BYTES_SIZE {
-    //         anyhow::bail!("Wrong packed TransactionStatusCommitment length");
-    //     }
-
-    //     let status_byte = bytes[32];
-    //     let is_success = match status_byte {
-    //         0 => false,
-    //         1 => true,
-    //         _ => anyhow::bail!("Incorrect status bytee")
-    //     };
-
-    //     Ok(Self {
-    //         tx_hash: H256::from_slice(&bytes[0..32]),
-    //         is_success
-    //     })
-    // }
 }
-
-// impl Tokenizable for TransactionStatusCommitment {
-//     fn from_token(token: Token) -> Result<Self, Error> {
-//         (|| {
-//             let as_bytes = token.into_bytes().context("not bytes array")?;
-
-//             Self::from_packed_bytes(&as_bytes)
-//         })()
-//         .map_err(|err| Error::InvalidOutputType(format!("{err:#}")))
-//     }
-
-//     fn into_token(self) -> Token {
-//         Token::Bytes(self.get_packed_bytes().to_vec())
-//     }
-// }
