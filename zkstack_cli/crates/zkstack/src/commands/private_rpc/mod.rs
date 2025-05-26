@@ -11,7 +11,7 @@ use zkstack_cli_config::{
     docker_compose::{DockerComposeConfig, DockerComposeService},
     private_proxy_compose::{create_private_rpc_service, get_private_rpc_docker_compose_path},
     traits::SaveConfig,
-    ChainConfig, EcosystemConfig,
+    ChainConfig, EcosystemConfig, DEFAULT_PRIVATE_RPC_PORT, DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
 };
 
 use crate::{
@@ -51,7 +51,7 @@ pub struct PrivateProxyPorts {
 impl ConfigWithChainPorts for PrivateProxyPorts {
     fn get_default_ports(&self) -> anyhow::Result<HashMap<String, u16>> {
         let mut ports = HashMap::new();
-        ports.insert("private-proxy".to_string(), 4041);
+        ports.insert("private-proxy".to_string(), DEFAULT_PRIVATE_RPC_PORT);
         Ok(ports)
     }
 
@@ -192,7 +192,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         create_private_rpc_service(
             db_config,
             ports.port,
-            "sososecret",
+            DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
             l2_rpc_url,
             &ecosystem_path,
             &chain_name,

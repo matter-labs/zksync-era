@@ -14,7 +14,7 @@ pub const L2_BASE_TOKEN_ADDRESS: &str = "0x0000000000000000000000000000000000008
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
-pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app:v2.68.1";
+pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app:v2.72.0";
 /// Path to the JS runtime config for the dapp-portal docker container to be mounted to
 pub const PORTAL_DOCKER_CONFIG_PATH: &str = "/usr/src/app/dist/config.js";
 pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";

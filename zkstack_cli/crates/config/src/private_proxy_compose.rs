@@ -44,7 +44,7 @@ pub async fn create_private_rpc_service(
 
     // FIXME: Cors origin is the explorer app URL. This must be changed to reflect
     // the actual deployment URL.
-    let cors_origin = format!("http://localhost:{DEFAULT_EXPLORER_PORT}");
+    let cors_origin = format!("http://127.0.0.1:{DEFAULT_EXPLORER_PORT}");
     let database_url = adjust_localhost_for_docker(database_url)?;
     let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url)?;
 
