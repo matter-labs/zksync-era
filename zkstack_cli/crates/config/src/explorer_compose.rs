@@ -7,6 +7,7 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{db, docker::adjust_localhost_for_docker};
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
@@ -19,7 +20,6 @@ use crate::{
     traits::ZkStackConfig,
     EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL,
 };
-use zksync_basic_types::L2ChainId;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExplorerBackendPorts {

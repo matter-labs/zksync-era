@@ -1,9 +1,10 @@
 use anyhow::Context;
+use clap::Parser;
+use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
 use xshell::Shell;
 use zkstack_cli_common::{config::global_config, db, logger, Prompt, PromptConfirm};
-use zkstack_cli_config::DEFAULT_PRIVATE_RPC_PORT;
 use zkstack_cli_config::{
     explorer::{ExplorerChainConfig, ExplorerConfig},
     explorer_compose::{
@@ -11,7 +12,7 @@ use zkstack_cli_config::{
         PrividiumExplorerBackendConfig,
     },
     traits::SaveConfig,
-    ChainConfig, EcosystemConfig, DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
+    ChainConfig, EcosystemConfig, DEFAULT_PRIVATE_RPC_PORT, DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
     DEFAULT_PRIVIDIUM_EXPLORER_SESSION_MAX_AGE, DEFAULT_PRIVIDIUM_EXPLORER_SESSION_SAME_SITE,
 };
 
@@ -27,8 +28,6 @@ use crate::{
     },
     utils::ports::{EcosystemPorts, EcosystemPortsScanner},
 };
-use clap::Parser;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ExplorerInitArgs {
