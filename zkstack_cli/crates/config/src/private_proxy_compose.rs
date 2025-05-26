@@ -72,6 +72,11 @@ pub async fn create_private_rpc_service(
         HostOs::MacOS => adjust_localhost_for_docker(database_url)?.to_string(),
     };
 
+    let corrected_l2_rpc_url = match host_os {
+        HostOs::Linux => l2_rpc_url.to_string(),
+        HostOs::MacOS => adjust_localhost_for_docker(l2_rpc_url)?.to_string(),
+    };
+
     Ok(DockerComposeService {
         image: "private-rpc".to_string(),
         platform: Some("linux/amd64".to_string()),
@@ -89,7 +94,7 @@ pub async fn create_private_rpc_service(
                 "PERMISSIONS_YAML_PATH".to_string(),
                 "/app/private-rpc-permissions.yaml".to_string(),
             ),
-            ("TARGET_RPC".to_string(), l2_rpc_url.to_string()),
+            ("TARGET_RPC".to_string(), corrected_l2_rpc_url),
             ("CORS_ORIGIN".to_string(), rpc_url.to_string()),
             ("PERMISSIONS_HOT_RELOAD".to_string(), "true".to_string()),
             (
