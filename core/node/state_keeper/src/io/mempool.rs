@@ -231,7 +231,10 @@ impl StateKeeperIO for MempoolIO {
             } else {
                 tokio::time::timeout_at(
                     deadline.into(),
-                    sleep_past(cursor.prev_l1_batch_timestamp, cursor.next_l2_block),
+                    // TODO: understand if we can sleep past `prev_l1_batch_timestamp` in v29 before merging.
+                    // If not then revert whole `prev_l1_batch_timestamp` thing.
+                    // sleep_past(cursor.prev_l1_batch_timestamp, cursor.next_l2_block),
+                    sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
                 )
             };
             let Some(timestamp_ms) = timestamp_ms.await.ok() else {
