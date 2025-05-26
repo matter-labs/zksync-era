@@ -615,15 +615,6 @@ impl MainNodeBuilder {
 
                 self.node.add_layer(EigenWiringLayer::new(config, secret));
             }
-            (DAClientConfig::EigenV2M1(mut config), DataAvailabilitySecrets::EigenV2M1(secret)) => {
-                if config.eigenda_eth_rpc.is_none() {
-                    let l1_secrets = try_load_config!(self.secrets.l1);
-                    config.eigenda_eth_rpc = Some(l1_secrets.l1_rpc_url);
-                }
-
-                self.node
-                    .add_layer(EigenV2M1WiringLayer::new(config, secret));
-            }
             _ => bail!("invalid pair of da_client and da_secrets"),
         }
 
