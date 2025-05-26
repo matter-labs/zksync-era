@@ -519,23 +519,13 @@ impl Setup {
                 format!("add({key:?}, {weight})"),
                 consensus_registry.add(
                     owner,
+                    leader,
                     weight.try_into().context("overflow")?,
                     encode_validator_key(&key),
                     encode_validator_pop(&pop),
                 ),
             )
             .await?;
-
-            // Validators that are added are leaders by default. If we want them to not be leaders,
-            // we need to change their leader status.
-            // TODO: remove this once we can add validators with leader status.
-            if !leader {
-                txs.send(
-                    format!("change_validator_leader({key:?}, false)"),
-                    consensus_registry.change_validator_leader(owner, false),
-                )
-                .await?;
-            }
         }
 
         // Update the leader selection.
