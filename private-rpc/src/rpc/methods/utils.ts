@@ -44,9 +44,9 @@ export async function sendToTargetRpc<T extends ZodTypeAny>(
         .then((json) => schema.parse(json));
 }
 
-const onlyUserParamsSchema = z.tuple([addressSchema]).rest(z.any()); // z.array(addressSchema).length(1);
+const onlyUserParamsSchema = (additional: ZodTypeAny[] = []) => z.tuple([addressSchema, ...additional]);
 
-export function onlyCurrentUser(name: string) {
+export function onlyCurrentUser(name: string, additionalParamsSchema: ZodTypeAny[] = []) {
     return {
         name: name,
         async handle(
@@ -56,7 +56,7 @@ export function onlyCurrentUser(name: string) {
             id: number | string
         ): Promise<FastifyReplyType> {
             const user = context.currentUser;
-            const [target] = onlyUserParamsSchema.parse(params);
+            const [target] = onlyUserParamsSchema(additionalParamsSchema).parse(params);
             if (user !== target) {
                 return unauthorized(id);
             }
