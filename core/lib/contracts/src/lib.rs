@@ -1545,7 +1545,7 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static POST_V26_SHARED_BRIDGE_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
+pub static POST_V26_GATEWAY_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     let abi = r#"
   {
       "inputs": [
@@ -1577,7 +1577,7 @@ pub static POST_V26_SHARED_BRIDGE_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(||
     serde_json::from_str(abi).unwrap()
 });
 
-pub static POST_V26_SHARED_BRIDGE_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+pub static POST_V26_GATEWAY_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     let abi = r#"
 {
                     "inputs": [
@@ -1609,7 +1609,7 @@ pub static POST_V26_SHARED_BRIDGE_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| 
     serde_json::from_str(abi).unwrap()
 });
 
-pub static POST_V26_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+pub static POST_V26_GATEWAY_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     let abi = r#"
                   {
                     "inputs": [
