@@ -2,8 +2,8 @@ use zksync_contracts::{
     getters_facet_contract, hyperchain_contract, multicall_contract,
     state_transition_manager_contract, verifier_contract, POST_SHARED_BRIDGE_COMMIT_FUNCTION,
     POST_SHARED_BRIDGE_EXECUTE_FUNCTION, POST_SHARED_BRIDGE_PROVE_FUNCTION,
-    POST_V26_SHARED_BRIDGE_COMMIT_FUNCTION, POST_V26_SHARED_BRIDGE_EXECUTE_FUNCTION,
-    POST_V26_SHARED_BRIDGE_PROVE_FUNCTION,
+    POST_V26_GATEWAY_COMMIT_FUNCTION, POST_V26_GATEWAY_EXECUTE_FUNCTION,
+    POST_V26_GATEWAY_PROVE_FUNCTION,
 };
 use zksync_types::ethabi::{Contract, Function};
 
@@ -69,9 +69,9 @@ impl Default for ZkSyncFunctions {
         let post_shared_bridge_prove = POST_SHARED_BRIDGE_PROVE_FUNCTION.clone();
         let post_shared_bridge_execute = POST_SHARED_BRIDGE_EXECUTE_FUNCTION.clone();
 
-        let post_v26_gateway_commit = POST_V26_SHARED_BRIDGE_COMMIT_FUNCTION.clone();
-        let post_v26_gateway_prove = POST_V26_SHARED_BRIDGE_PROVE_FUNCTION.clone();
-        let post_v26_gateway_execute = POST_V26_SHARED_BRIDGE_EXECUTE_FUNCTION.clone();
+        let post_v26_gateway_commit = POST_V26_GATEWAY_COMMIT_FUNCTION.clone();
+        let post_v26_gateway_prove = POST_V26_GATEWAY_PROVE_FUNCTION.clone();
+        let post_v26_gateway_execute = POST_V26_GATEWAY_EXECUTE_FUNCTION.clone();
 
         let post_v29_interop_commit = get_function(&zksync_contract, "commitBatchesSharedBridge");
         let post_v29_timelock_interop_prove =
