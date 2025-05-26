@@ -14,6 +14,7 @@ mod create;
 pub mod create_configs;
 pub(crate) mod init;
 pub(crate) mod setup_observability;
+mod tee_contracts;
 mod utils;
 
 #[derive(Subcommand, Debug)]

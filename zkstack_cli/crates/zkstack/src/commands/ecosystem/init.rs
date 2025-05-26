@@ -4,7 +4,9 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
-    contracts::{build_l1_contracts, build_l2_contracts, build_system_contracts},
+    contracts::{
+        build_l1_contracts, build_l2_contracts, build_system_contracts, build_tee_contracts,
+    },
     forge::{Forge, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
@@ -33,16 +35,17 @@ use crate::{
     admin_functions::{accept_admin, accept_owner},
     commands::{
         chain::{self},
-        ecosystem::create_configs::{
-            create_erc20_deployment_config, create_initial_deployments_config,
+        ecosystem::{
+            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
+            tee_contracts::deploy_tee_contracts,
         },
     },
     messages::{
         msg_chain_load_err, msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
         msg_initializing_chain, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
-        MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
-        MSG_INTALLING_DEPS_SPINNER,
+        MSG_DEPLOYING_ERC20_SPINNER, MSG_DEPLOYING_TEE_CONTRACTS_SPINNER,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
+        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -117,6 +120,7 @@ async fn init_ecosystem(
         build_l1_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
         build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
+        build_tee_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     }
     spinner.finish();
 
@@ -150,6 +154,7 @@ async fn deploy_erc20(
         vec![
             wallets.governor.address,
             wallets.operator.address,
+            wallets.blob_operator.address,
             wallets.blob_operator.address,
         ],
     )
@@ -260,7 +265,7 @@ async fn deploy_ecosystem_inner(
     support_l2_legacy_shared_bridge_test: bool,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1(
+    let mut contracts_config = deploy_l1(
         shell,
         &forge_args,
         config,
@@ -348,6 +353,19 @@ async fn deploy_ecosystem_inner(
         l1_rpc_url.clone(),
     )
     .await?;
+
+    // Deploy TEE DCAP attestation contracts
+    let spinner = Spinner::new(MSG_DEPLOYING_TEE_CONTRACTS_SPINNER);
+    // Deploy the TEE contracts
+    deploy_tee_contracts(
+        shell,
+        config,
+        &mut contracts_config,
+        forge_args.clone(),
+        &l1_rpc_url,
+    )
+    .await?;
+    spinner.finish();
 
     Ok(contracts_config)
 }

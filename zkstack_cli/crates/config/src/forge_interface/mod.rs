@@ -2,6 +2,7 @@ pub mod accept_ownership;
 pub mod deploy_ecosystem;
 pub mod deploy_gateway_tx_filterer;
 pub mod deploy_l2_contracts;
+pub mod deploy_tee;
 pub mod gateway_chain_upgrade;
 pub mod gateway_ecosystem_upgrade;
 pub mod gateway_vote_preparation;
