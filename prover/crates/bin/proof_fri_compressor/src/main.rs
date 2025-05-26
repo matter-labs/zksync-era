@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::Context as _;
 use clap::Parser;
+use proof_compression_gpu::CompressorBlobStorage;
 // use proof_compression_gpu::SnarkWrapperSetup;
 use tokio_util::sync::CancellationToken;
 use zksync_config::configs::FriProofCompressorConfig;
@@ -17,10 +18,9 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_proof_fri_compressor_service::proof_fri_compressor_runner;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-use zksync_prover_keystore::{keystore::Keystore};
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-use proof_compression_gpu::CompressorBlobStorage;
 
 use crate::{
     initial_setup_keys::download_initial_setup_keys_if_not_present,

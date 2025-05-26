@@ -25,6 +25,8 @@ use circuit_definitions::{
 };
 #[cfg(feature = "gpu")]
 use fflonk_gpu::{FflonkSnarkVerifierCircuitDeviceSetup, FflonkSnarkVerifierCircuitVK};
+#[cfg(feature = "gpu")]
+use proof_compression_gpu::CompressorSetupData;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::boojum::field::goldilocks::GoldilocksField;
@@ -35,9 +37,6 @@ use zksync_utils::env::Workspace;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
 use crate::{GoldilocksProverSetupData, VkCommitments};
-
-#[cfg(feature = "gpu")]
-use proof_compression_gpu::CompressorSetupData;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {
@@ -68,9 +67,7 @@ pub struct Keystore {
 impl Keystore {
     /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
     /// Setup data path is used for the large setup keys.
-    pub fn new(
-        basedir: PathBuf,
-    ) -> Self {
+    pub fn new(basedir: PathBuf) -> Self {
         Keystore {
             basedir: basedir.clone(),
             setup_data_path: basedir,

@@ -11,9 +11,12 @@ use circuit_definitions::{
     },
 };
 use proof_compression_gpu::{
-    proof_system::{fflonk::FflonkSnarkWrapper, plonk::PlonkSnarkWrapper}, step::{
+    proof_system::{fflonk::FflonkSnarkWrapper, plonk::PlonkSnarkWrapper},
+    step::{
         compression::CompressionSetupData, snark_wrapper::SnarkWrapperSetupData, CompressionStep,
-    }, CompressorBlobStorage, FflonkSetupData, PlonkSetupData, SnarkWrapperProofSystem, SnarkWrapperStep
+    },
+    CompressorBlobStorage, FflonkSetupData, PlonkSetupData, SnarkWrapperProofSystem,
+    SnarkWrapperStep,
 };
 use zksync_prover_fri_types::ProverServiceDataKey;
 
@@ -145,160 +148,231 @@ impl Keystore {
 }
 
 impl CompressorBlobStorage for Keystore {
-    
-    fn get_compression_mode1_setup_data(
-        &self,
-    ) -> &CompressionSetupData<CompressionMode1> {
-        let setup_data = self.setup_data_cache_proof_compressor.fflonk_setup_data.compression_mode1_setup_data.get_or_init(|| {
-            let vk = self.get_compression_vk::<CompressionMode1>().unwrap();
-            let previous_vk = self.get_compression_previous_vk::<CompressionMode1>().unwrap();
-            let precomputation = self.get_compression_precomputation::<CompressionMode1>().unwrap();
-            let finalization_hint = self.get_compression_finalization_hint::<CompressionMode1>().unwrap();
+    fn get_compression_mode1_setup_data(&self) -> &CompressionSetupData<CompressionMode1> {
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .fflonk_setup_data
+            .compression_mode1_setup_data
+            .get_or_init(|| {
+                let vk = self.get_compression_vk::<CompressionMode1>().unwrap();
+                let previous_vk = self
+                    .get_compression_previous_vk::<CompressionMode1>()
+                    .unwrap();
+                let precomputation = self
+                    .get_compression_precomputation::<CompressionMode1>()
+                    .unwrap();
+                let finalization_hint = self
+                    .get_compression_finalization_hint::<CompressionMode1>()
+                    .unwrap();
 
-            CompressionSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-            }
-        });
+                CompressionSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                }
+            });
         setup_data
     }
-    
-    fn get_compression_mode2_setup_data(
-        &self,
-    ) -> &CompressionSetupData<CompressionMode2> {
-        let setup_data = self.setup_data_cache_proof_compressor.fflonk_setup_data.compression_mode2_setup_data.get_or_init(|| {
-            let vk = self.get_compression_vk::<CompressionMode2>().unwrap();
-            let previous_vk = self.get_compression_previous_vk::<CompressionMode2>().unwrap();
-            let precomputation = self.get_compression_precomputation::<CompressionMode2>().unwrap();
-            let finalization_hint = self.get_compression_finalization_hint::<CompressionMode2>().unwrap();
 
-            CompressionSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-            }
-        });
+    fn get_compression_mode2_setup_data(&self) -> &CompressionSetupData<CompressionMode2> {
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .fflonk_setup_data
+            .compression_mode2_setup_data
+            .get_or_init(|| {
+                let vk = self.get_compression_vk::<CompressionMode2>().unwrap();
+                let previous_vk = self
+                    .get_compression_previous_vk::<CompressionMode2>()
+                    .unwrap();
+                let precomputation = self
+                    .get_compression_precomputation::<CompressionMode2>()
+                    .unwrap();
+                let finalization_hint = self
+                    .get_compression_finalization_hint::<CompressionMode2>()
+                    .unwrap();
+
+                CompressionSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                }
+            });
         setup_data
     }
-    
-    fn get_compression_mode3_setup_data(
-        &self,
-    ) -> &CompressionSetupData<CompressionMode3> {
-        let setup_data = self.setup_data_cache_proof_compressor.fflonk_setup_data.compression_mode3_setup_data.get_or_init(|| {
-            let vk = self.get_compression_vk::<CompressionMode3>().unwrap();
-            let previous_vk = self.get_compression_previous_vk::<CompressionMode3>().unwrap();
-            let precomputation = self.get_compression_precomputation::<CompressionMode3>().unwrap();
-            let finalization_hint = self.get_compression_finalization_hint::<CompressionMode3>().unwrap();
 
-            CompressionSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-            }
-        });
+    fn get_compression_mode3_setup_data(&self) -> &CompressionSetupData<CompressionMode3> {
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .fflonk_setup_data
+            .compression_mode3_setup_data
+            .get_or_init(|| {
+                let vk = self.get_compression_vk::<CompressionMode3>().unwrap();
+                let previous_vk = self
+                    .get_compression_previous_vk::<CompressionMode3>()
+                    .unwrap();
+                let precomputation = self
+                    .get_compression_precomputation::<CompressionMode3>()
+                    .unwrap();
+                let finalization_hint = self
+                    .get_compression_finalization_hint::<CompressionMode3>()
+                    .unwrap();
+
+                CompressionSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                }
+            });
         setup_data
     }
-    
-    fn get_compression_mode4_setup_data(
-        &self,
-    ) -> &CompressionSetupData<CompressionMode4> {
-        let setup_data = self.setup_data_cache_proof_compressor.fflonk_setup_data.compression_mode4_setup_data.get_or_init(|| {
-            let vk = self.get_compression_vk::<CompressionMode4>().unwrap();
-            let previous_vk = self.get_compression_previous_vk::<CompressionMode4>().unwrap();
-            let precomputation = self.get_compression_precomputation::<CompressionMode4>().unwrap();
-            let finalization_hint = self.get_compression_finalization_hint::<CompressionMode4>().unwrap();
 
-            CompressionSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-            }
-        });
+    fn get_compression_mode4_setup_data(&self) -> &CompressionSetupData<CompressionMode4> {
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .fflonk_setup_data
+            .compression_mode4_setup_data
+            .get_or_init(|| {
+                let vk = self.get_compression_vk::<CompressionMode4>().unwrap();
+                let previous_vk = self
+                    .get_compression_previous_vk::<CompressionMode4>()
+                    .unwrap();
+                let precomputation = self
+                    .get_compression_precomputation::<CompressionMode4>()
+                    .unwrap();
+                let finalization_hint = self
+                    .get_compression_finalization_hint::<CompressionMode4>()
+                    .unwrap();
+
+                CompressionSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                }
+            });
         setup_data
     }
-    
+
     fn get_compression_mode5_for_wrapper_setup_data(
         &self,
     ) -> &CompressionSetupData<CompressionMode5ForWrapper> {
-        let setup_data = self.setup_data_cache_proof_compressor.fflonk_setup_data.compression_mode5_for_wrapper_setup_data.get_or_init(|| {
-            let vk = self.get_compression_vk::<CompressionMode5ForWrapper>().unwrap();
-            let previous_vk = self.get_compression_previous_vk::<CompressionMode5ForWrapper>().unwrap();
-            let precomputation = self.get_compression_precomputation::<CompressionMode5ForWrapper>().unwrap();
-            let finalization_hint = self.get_compression_finalization_hint::<CompressionMode5ForWrapper>().unwrap();
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .fflonk_setup_data
+            .compression_mode5_for_wrapper_setup_data
+            .get_or_init(|| {
+                let vk = self
+                    .get_compression_vk::<CompressionMode5ForWrapper>()
+                    .unwrap();
+                let previous_vk = self
+                    .get_compression_previous_vk::<CompressionMode5ForWrapper>()
+                    .unwrap();
+                let precomputation = self
+                    .get_compression_precomputation::<CompressionMode5ForWrapper>()
+                    .unwrap();
+                let finalization_hint = self
+                    .get_compression_finalization_hint::<CompressionMode5ForWrapper>()
+                    .unwrap();
 
-            CompressionSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-            }
-        });
+                CompressionSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                }
+            });
         setup_data
     }
-    
+
     fn get_compression_mode1_for_wrapper_setup_data(
         &self,
     ) -> &CompressionSetupData<CompressionMode1ForWrapper> {
-        let setup_data = self.setup_data_cache_proof_compressor.plonk_setup_data.compression_mode1_for_wrapper_setup_data.get_or_init(|| {
-            let vk = self.get_compression_vk::<CompressionMode1ForWrapper>().unwrap();
-            let previous_vk = self.get_compression_previous_vk::<CompressionMode1ForWrapper>().unwrap();
-            let precomputation = self.get_compression_precomputation::<CompressionMode1ForWrapper>().unwrap();
-            let finalization_hint = self.get_compression_finalization_hint::<CompressionMode1ForWrapper>().unwrap();
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .plonk_setup_data
+            .compression_mode1_for_wrapper_setup_data
+            .get_or_init(|| {
+                let vk = self
+                    .get_compression_vk::<CompressionMode1ForWrapper>()
+                    .unwrap();
+                let previous_vk = self
+                    .get_compression_previous_vk::<CompressionMode1ForWrapper>()
+                    .unwrap();
+                let precomputation = self
+                    .get_compression_precomputation::<CompressionMode1ForWrapper>()
+                    .unwrap();
+                let finalization_hint = self
+                    .get_compression_finalization_hint::<CompressionMode1ForWrapper>()
+                    .unwrap();
 
-            CompressionSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-            }
-        });
+                CompressionSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                }
+            });
         setup_data
     }
-    
-    fn get_plonk_snark_wrapper_setup_data(
-        &self,
-    ) -> &SnarkWrapperSetupData<PlonkSnarkWrapper> {
-        let setup_data = self.setup_data_cache_proof_compressor.plonk_setup_data.plonk_snark_wrapper_setup_data.get_or_init(|| {
-            let vk = self.get_snark_wrapper_vk::<PlonkSnarkWrapper>().unwrap();
-            let previous_vk = self.get_snark_wrapper_previous_vk::<PlonkSnarkWrapper>().unwrap();
-            let precomputation = self.get_snark_wrapper_precomputation::<PlonkSnarkWrapper>().unwrap();
-            let ctx = self.get_snark_wrapper_ctx::<PlonkSnarkWrapper>().unwrap();
-            let finalization_hint = self.get_snark_wrapper_finalization_hint::<PlonkSnarkWrapper>().unwrap();
 
-            SnarkWrapperSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-                ctx: Some(ctx),
-            }
-        });
+    fn get_plonk_snark_wrapper_setup_data(&self) -> &SnarkWrapperSetupData<PlonkSnarkWrapper> {
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .plonk_setup_data
+            .plonk_snark_wrapper_setup_data
+            .get_or_init(|| {
+                let vk = self.get_snark_wrapper_vk::<PlonkSnarkWrapper>().unwrap();
+                let previous_vk = self
+                    .get_snark_wrapper_previous_vk::<PlonkSnarkWrapper>()
+                    .unwrap();
+                let precomputation = self
+                    .get_snark_wrapper_precomputation::<PlonkSnarkWrapper>()
+                    .unwrap();
+                let ctx = self.get_snark_wrapper_ctx::<PlonkSnarkWrapper>().unwrap();
+                let finalization_hint = self
+                    .get_snark_wrapper_finalization_hint::<PlonkSnarkWrapper>()
+                    .unwrap();
+
+                SnarkWrapperSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                    ctx: Some(ctx),
+                }
+            });
         setup_data
     }
-    
-    fn get_fflonk_snark_wrapper_setup_data(
-        &self,
-    ) -> &SnarkWrapperSetupData<FflonkSnarkWrapper> {
-        let setup_data = self.setup_data_cache_proof_compressor.fflonk_setup_data.fflonk_snark_wrapper_setup_data.get_or_init(|| {
-            let vk = self.get_snark_wrapper_vk::<FflonkSnarkWrapper>().unwrap();
-            let previous_vk = self.get_snark_wrapper_previous_vk::<FflonkSnarkWrapper>().unwrap();
-            let precomputation = self.get_snark_wrapper_precomputation::<FflonkSnarkWrapper>().unwrap();
-            let ctx = self.get_snark_wrapper_ctx::<FflonkSnarkWrapper>().unwrap();
-            let finalization_hint = self.get_snark_wrapper_finalization_hint::<FflonkSnarkWrapper>().unwrap();
 
-            SnarkWrapperSetupData {
-                vk: Some(vk),
-                previous_vk: Some(previous_vk),
-                precomputation: Some(precomputation),
-                finalization_hint: Some(finalization_hint),
-                ctx: Some(ctx),
-            }
-        });
+    fn get_fflonk_snark_wrapper_setup_data(&self) -> &SnarkWrapperSetupData<FflonkSnarkWrapper> {
+        let setup_data = self
+            .setup_data_cache_proof_compressor
+            .fflonk_setup_data
+            .fflonk_snark_wrapper_setup_data
+            .get_or_init(|| {
+                let vk = self.get_snark_wrapper_vk::<FflonkSnarkWrapper>().unwrap();
+                let previous_vk = self
+                    .get_snark_wrapper_previous_vk::<FflonkSnarkWrapper>()
+                    .unwrap();
+                let precomputation = self
+                    .get_snark_wrapper_precomputation::<FflonkSnarkWrapper>()
+                    .unwrap();
+                let ctx = self.get_snark_wrapper_ctx::<FflonkSnarkWrapper>().unwrap();
+                let finalization_hint = self
+                    .get_snark_wrapper_finalization_hint::<FflonkSnarkWrapper>()
+                    .unwrap();
+
+                SnarkWrapperSetupData {
+                    vk: Some(vk),
+                    previous_vk: Some(previous_vk),
+                    precomputation: Some(precomputation),
+                    finalization_hint: Some(finalization_hint),
+                    ctx: Some(ctx),
+                }
+            });
         setup_data
     }
     // fn get_snark_wrapper_setup_data<WS: SnarkWrapperStep>(
