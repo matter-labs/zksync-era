@@ -195,7 +195,7 @@ impl ExplorerBackendComposeConfig {
             );
             env.insert(
                 "APP_URL".to_string(),
-                format!("http://127.0.0.1:3010"), //FIXME
+                "http://127.0.0.1:3010".to_string(), //FIXME
             );
             env.insert(
                 "APP_HOSTNAME".to_string(),
