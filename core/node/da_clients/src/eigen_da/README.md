@@ -75,6 +75,13 @@ modified:
 - `blob_version` Blob Version used by eigenDA, currently only blob version 0 is supported
 - `polynomial_form` Polynomial form used to encode data, either coeff or eval
 
+### V2Secure specific client configuration
+
+A V2 Secure client is configured by adding the `version: V2Secure` field to the `da_client`, it uses the same fields as
+the `V2` Version, and adds a new field:
+
+- `eigenda_sidecar_rpc` RPC of the EigenDA sidecar that generates the proofs
+
 So, for example, a client setup that uses the holesky EigenDA V1 client would look like this:
 
 `etc/env/file_based/overrides/validium.yaml`:
@@ -101,9 +108,10 @@ da_client:
   cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
   blob_version: 0
   polynomial_form: coeff
+  eigenda_sidecar_rpc: http://localhost:9999
 ```
 
-And a client setup that uses the holesky EigenDA V2 client would look like this:
+A client setup that uses the holesky EigenDA V2 client would look like this:
 
 ```yaml
 da_dispatcher:
@@ -127,8 +135,37 @@ da_client:
   cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
   blob_version: 0
   polynomial_form: coeff
+  eigenda_sidecar_rpc: http://localhost:9999
 ```
 
-The only difference is the version field, specifying `V1` or `V2`. The fields specific of the remaining version will not
-be used. Why do you need to keep both config parameters? The idea is to eventually remove the V1 version entirely, with
-the config like this, this will be seamless, since you would only need to remove the V1 specific fields.
+And a client setup that uses the holesky EigenDA V2 Secure client would look like this:
+
+```yaml
+da_dispatcher:
+  use_dummy_inclusion_data: true
+da_client:
+  client: EigenDA
+  version: V2Secure
+  disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
+  eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
+  authenticated: true
+  settlement_layer_confirmation_depth: 0
+  eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+  wait_for_finalization: false
+  points:
+    source: Url
+    g1_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g1.point
+    g2_url: https://github.com/Layr-Labs/eigenda-proxy/raw/2fd70b99ef5bf137d7bbca3461cf9e1f2c899451/resources/g2.point.powerOf2
+    # source: Path # uncomment to use Path
+    # path: ./resources
+  # custom_quorum_numbers: 2,3 # uncomment to use other quorums besides defaults
+  cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
+  blob_version: 0
+  polynomial_form: coeff
+  eigenda_sidecar_rpc: http://localhost:9999
+```
+
+The only difference is the version field, specifying `V1`, `V2` or `V2Secure`. The fields specific of the remaining
+version will not be used. Why do you need to keep both config parameters? The idea is to eventually remove the V1
+version entirely, with the config like this, this will be seamless, since you would only need to remove the V1 specific
+fields.

@@ -44,6 +44,7 @@ da_client:
   cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
   blob_version: 0
   polynomial_form: coeff #Either coeff or eval
+  eigenda_sidecar_rpc: http://localhost:9999
 ```
 
 Note that the client changed from `Eigen` to `EigenDA`

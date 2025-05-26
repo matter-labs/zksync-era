@@ -53,6 +53,8 @@ pub enum Version {
     V1,
     /// The EigenDA V2 client
     V2,
+    /// The EigenDA V2 client with secure integration
+    V2Secure,
 }
 
 impl Version {
@@ -60,6 +62,7 @@ impl Version {
         match self {
             Self::V1 => "V1",
             Self::V2 => "V2",
+            Self::V2Secure => "V2Secure",
         }
     }
 }
@@ -104,7 +107,7 @@ pub struct EigenDAConfig {
     /// Custom quorum numbers
     #[config(default, with = Delimited(","))]
     pub custom_quorum_numbers: Vec<u8>,
-    // V2 specific fields
+    // V2 and M1 specific fields
     //
     /// Address of the EigenDA cert verifier
     pub cert_verifier_addr: Address,
@@ -113,6 +116,10 @@ pub struct EigenDAConfig {
     /// Polynomial form to disperse the blobs
     #[serde(default)]
     pub polynomial_form: PolynomialForm,
+    // V2Secure specific fields
+    //
+    /// URL of the EigenDA Sidecar RPC server
+    pub eigenda_sidecar_rpc: String,
 }
 
 /// Configuration for the EigenDA secrets.
