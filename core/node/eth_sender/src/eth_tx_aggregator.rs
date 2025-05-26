@@ -77,6 +77,7 @@ pub struct EthTxAggregator {
     pub(super) state_transition_chain_contract: Address,
     state_transition_manager_address: Address,
     functions: ZkSyncFunctions,
+    rollup_chain_id: L2ChainId,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit
     /// transactions. The `Some` then contains client for this custom operator address.
@@ -108,6 +109,7 @@ impl EthTxAggregator {
         state_transition_manager_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
+        rollup_chain_id: L2ChainId,
         settlement_layer: Option<SettlementLayer>,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
@@ -134,6 +136,7 @@ impl EthTxAggregator {
             l1_multicall3_address,
             state_transition_chain_contract,
             functions,
+            rollup_chain_id,
             eth_client_blobs,
             pool,
             sl_chain_id,
@@ -770,11 +773,15 @@ impl EthTxAggregator {
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
     ) -> TxData {
-        let mut args = vec![Token::Address(self.state_transition_chain_contract)];
-
         match op {
             AggregatedOperation::L1Batch(op) => {
                 let protocol_version = op.protocol_version();
+
+                let mut args = if protocol_version.is_pre_29_interop() {
+                    vec![Token::Uint(self.rollup_chain_id.as_u64().into())]
+                } else {
+                    vec![Token::Address(self.state_transition_chain_contract)]
+                };
 
                 let (calldata, sidecar) = match op {
                     L1BatchAggregatedOperation::Commit(
@@ -798,7 +805,7 @@ impl EthTxAggregator {
                         } else if protocol_version.is_pre_29_interop() {
                             &self.functions.post_v26_gateway_commit
                         } else {
-                            &self.functions.post_v29_timelock_optimization_commit
+                            &self.functions.post_v29_interop_commit
                         };
 
                         let l1_batch_for_sidecar = if PubdataSendingMode::Blobs == *pubdata_da {
@@ -816,7 +823,7 @@ impl EthTxAggregator {
                         } else if protocol_version.is_pre_29_interop() {
                             &self.functions.post_v26_gateway_prove
                         } else {
-                            &self.functions.post_v29_timelock_optimization_prove
+                            &self.functions.post_v29_timelock_interop_prove
                         };
                         let calldata = encoding_fn
                             .encode_input(&args)
@@ -832,7 +839,7 @@ impl EthTxAggregator {
                         } else if protocol_version.is_pre_29_interop() {
                             &self.functions.post_v26_gateway_execute
                         } else {
-                            &self.functions.post_v29_timelock_optimization_execute
+                            &self.functions.post_v29_interop_execute
                         };
 
                         let calldata = encoding_fn
@@ -850,6 +857,8 @@ impl EthTxAggregator {
                     txs,
                     ..
                 } => {
+                    let mut args = vec![Token::Address(self.state_transition_chain_contract)];
+
                     let precommit_batches = PrecommitBatches {
                         txs,
                         last_l2_block: *last_l2_block,
@@ -858,7 +867,7 @@ impl EthTxAggregator {
                     let precommit_data_base = precommit_batches.into_tokens();
 
                     args.extend(precommit_data_base);
-                    let encoding_fn = &self.functions.post_v29_timelock_optimization_precommit;
+                    let encoding_fn = &self.functions.post_v29_interop_precommit;
 
                     let calldata = encoding_fn
                         .encode_input(&args)

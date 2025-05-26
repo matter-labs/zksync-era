@@ -17,10 +17,10 @@ pub(super) struct ZkSyncFunctions {
     pub(super) post_v26_gateway_prove: Function,
     pub(super) post_v26_gateway_execute: Function,
 
-    pub(super) post_v29_timelock_optimization_commit: Function,
-    pub(super) post_v29_timelock_optimization_prove: Function,
-    pub(super) post_v29_timelock_optimization_execute: Function,
-    pub(super) post_v29_timelock_optimization_precommit: Function,
+    pub(super) post_v29_interop_commit: Function,
+    pub(super) post_v29_timelock_interop_prove: Function,
+    pub(super) post_v29_interop_execute: Function,
+    pub(super) post_v29_interop_precommit: Function,
 
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
@@ -73,14 +73,11 @@ impl Default for ZkSyncFunctions {
         let post_v26_gateway_prove = POST_V26_SHARED_BRIDGE_PROVE_FUNCTION.clone();
         let post_v26_gateway_execute = POST_V26_SHARED_BRIDGE_EXECUTE_FUNCTION.clone();
 
-        let post_v29_timelock_optimization_commit =
-            get_function(&zksync_contract, "commitBatchesSharedBridge");
-        let post_v29_timelock_optimization_prove =
+        let post_v29_interop_commit = get_function(&zksync_contract, "commitBatchesSharedBridge");
+        let post_v29_timelock_interop_prove =
             get_function(&zksync_contract, "proveBatchesSharedBridge");
-        let post_v29_timelock_optimization_execute =
-            get_function(&zksync_contract, "executeBatchesSharedBridge");
-        let post_v29_timelock_optimization_precommit =
-            get_function(&zksync_contract, "precommitSharedBridge");
+        let post_v29_interop_execute = get_function(&zksync_contract, "executeBatchesSharedBridge");
+        let post_v29_interop_precommit = get_function(&zksync_contract, "precommitSharedBridge");
 
         let get_l2_bootloader_bytecode_hash =
             get_function(&zksync_contract, "getL2BootloaderBytecodeHash");
@@ -102,10 +99,10 @@ impl Default for ZkSyncFunctions {
             post_v26_gateway_commit,
             post_v26_gateway_prove,
             post_v26_gateway_execute,
-            post_v29_timelock_optimization_commit,
-            post_v29_timelock_optimization_prove,
-            post_v29_timelock_optimization_execute,
-            post_v29_timelock_optimization_precommit,
+            post_v29_interop_commit,
+            post_v29_timelock_interop_prove,
+            post_v29_interop_execute,
+            post_v29_interop_precommit,
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,
             get_evm_emulator_bytecode_hash,
