@@ -63,6 +63,7 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                     2 => PubdataType::Avail,
                     3 => PubdataType::Celestia,
                     4 => PubdataType::Eigen,
+                    6 => PubdataType::EigenDAV2Secure,
                     _ => PubdataType::ObjectStore,
                 },
                 l2_da_validator_address: rng.gen(),

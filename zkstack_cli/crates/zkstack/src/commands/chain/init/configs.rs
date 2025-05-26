@@ -85,11 +85,11 @@ pub async fn init_configs(
     })?;
 
     match &init_args.validium_config {
-        None
-        | Some(ValidiumType::NoDA)
-        | Some(ValidiumType::EigenDA)
-        | Some(ValidiumType::EigenDAV2Secure) => {
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => {
             general_config.remove_da_client();
+        }
+        Some(ValidiumType::EigenDAV2Secure) => {
+            general_config.set_eigendav2secure_client()?;
         }
         Some(ValidiumType::Avail((avail_config, _))) => {
             general_config.set_avail_client(avail_config)?;

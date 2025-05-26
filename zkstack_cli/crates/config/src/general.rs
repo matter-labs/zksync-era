@@ -260,6 +260,11 @@ impl GeneralConfigPatch {
         Ok(())
     }
 
+    pub fn set_eigendav2secure_client(&mut self) -> anyhow::Result<()> {
+        self.0.insert("da_client.client", "EigenDAV2Secure")?;
+        Ok(())
+    }
+
     fn set_object_store(&mut self, prefix: &str, config: &ObjectStoreConfig) -> anyhow::Result<()> {
         self.0
             .insert(&format!("{prefix}.max_retries"), config.max_retries)?;
