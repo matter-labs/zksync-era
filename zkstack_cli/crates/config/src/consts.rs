@@ -78,10 +78,10 @@ pub const DEFAULT_PRIVATE_RPC_PORT: u16 = 4041;
 /// Default token secret for the private rpc
 pub const DEFAULT_PRIVATE_RPC_TOKEN_SECRET: &str = "sososecret";
 
-pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.72.0";
+pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.73.1";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str =
-    "matterlabs/block-explorer-data-fetcher:v2.72.0";
-pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.72.0";
+    "matterlabs/block-explorer-data-fetcher:v2.73.1";
+pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.73.1";
 
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;
