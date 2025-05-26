@@ -112,8 +112,16 @@ impl Registry {
 
         let mut validator_infos = vec![];
         for a in validators {
-            validator_infos
-                .push(decode_weighted_validator(&a).context("decode_weighted_validator()")?);
+            // TODO: This is a temporary fix to handle the case where the validator is not valid.
+            // We should remove this once we can verify the validator's proof of possession on-chain.
+            match decode_weighted_validator(&a) {
+                Ok(validator_info) => {
+                    validator_infos.push(validator_info);
+                }
+                Err(err) => {
+                    tracing::warn!("Failed to decode weighted validator: {:?}", err);
+                }
+            }
         }
 
         let leader_selection = validator::LeaderSelection {
