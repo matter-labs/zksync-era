@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, TransactionDetailedResult,
-        TransactionDetails,
+        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
