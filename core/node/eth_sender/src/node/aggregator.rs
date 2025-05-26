@@ -151,7 +151,6 @@ impl WiringLayer for EthTxAggregatorLayer {
             state_transition_manager_address,
             multicall3_addr,
             diamond_proxy_addr,
-            self.zksync_network_id,
             input.settlement_mode.settlement_layer_for_sending_txs(),
         )
         .await;

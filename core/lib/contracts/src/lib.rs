@@ -1544,3 +1544,99 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     }"#;
     serde_json::from_str(abi).unwrap()
 });
+
+pub static POST_V26_SHARED_BRIDGE_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+  {
+      "inputs": [
+          {
+              "internalType": "uint256",
+              "name": "_chainId",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processFrom",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processTo",
+              "type": "uint256"
+          },
+          {
+              "internalType": "bytes",
+              "name": "_commitData",
+              "type": "bytes"
+          }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function",
+      "name": "commitBatchesSharedBridge"
+  }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_SHARED_BRIDGE_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+{
+                    "inputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "_chainId",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "_processBatchFrom",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "_processBatchTo",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "_proofData",
+                            "type": "bytes"
+                        }
+                    ],
+                    "stateMutability": "nonpayable",
+                    "type": "function",
+                    "name": "proveBatchesSharedBridge"
+                }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+                  {
+                    "inputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "_chainId",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "_processFrom",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "_processTo",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "_executeData",
+                            "type": "bytes"
+                        }
+                    ],
+                    "stateMutability": "nonpayable",
+                    "type": "function",
+                    "name": "executeBatchesSharedBridge"
+                }"#;
+    serde_json::from_str(abi).unwrap()
+});
