@@ -1,12 +1,10 @@
 #[cfg(any(
-    feature = "v27_evm_interpreter",
     feature = "v28_precompiles",
     feature = "v29"
 ))]
 use std::path::Path;
 
 #[cfg(any(
-    feature = "v27_evm_interpreter",
     feature = "v28_precompiles",
     feature = "v29"
 ))]
@@ -17,13 +15,11 @@ use ethers::{
 };
 use serde::Serialize;
 #[cfg(any(
-    feature = "v27_evm_interpreter",
     feature = "v28_precompiles",
     feature = "v29"
 ))]
 use xshell::Shell;
 #[cfg(any(
-    feature = "v27_evm_interpreter",
     feature = "v28_precompiles",
     feature = "v29"
 ))]
@@ -31,12 +27,6 @@ use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
 
-#[cfg(any(
-    feature = "v27_evm_interpreter",
-    feature = "v28_precompiles",
-    feature = "v29"
-))]
-use crate::admin_functions::prepare_upgrade_zk_chain_on_gateway;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
@@ -122,7 +112,6 @@ impl AdminCallBuilder {
     }
 
     #[cfg(any(
-        feature = "v27_evm_interpreter",
         feature = "v28_precompiles",
         feature = "v29"
     ))]

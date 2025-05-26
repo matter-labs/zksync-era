@@ -9,7 +9,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -185,15 +185,6 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
         self.get_base_token_l1_address_impl()
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        tx_bytes: web3::Bytes,
-    ) -> RpcResult<TransactionDetailedResult> {
-        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
-            .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
