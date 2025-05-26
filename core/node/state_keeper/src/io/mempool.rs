@@ -316,7 +316,7 @@ impl StateKeeperIO for MempoolIO {
         // - we sleep past `prev_l2_block_timestamp` for <= v28
         // - we sleep past `prev_l2_block_timestamp` for > v28 if `block_commit_deadline_ms >= 1000`
         // - otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
-        //   if clock returns consistent time than it shouldn't actually sleep
+        //   if clock returns consistent time then it shouldn't actually sleep.
         let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks()
             || self.timeout_sealer.l2_block_commit_deadline_ms() >= 1000
         {

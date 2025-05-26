@@ -645,27 +645,31 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     assert_eq!(pending_batch.pending_l2_blocks[0].txs[0].hash(), tx_hash);
 }
 
-// /// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps
-// #[test_casing(2, COMMITMENT_MODES)]
-// #[tokio::test]
-// async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1BatchCommitmentMode) {
-//     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-//     let tester = Tester::new(commitment_mode);
-//
-//     // Genesis is needed for proper mempool initialization.
-//     tester.genesis(&connection_pool).await;
-//     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool).await;
-//     let (mut io_cursor, _) = mempool.initialize().await.unwrap();
-//     let current_timestamp = seconds_since_epoch();
-//     io_cursor.prev_l2_block_timestamp = current_timestamp;
-//
-//     let l2_block_params = mempool
-//         .wait_for_new_l2_block_params(&io_cursor, Duration::from_secs(10))
-//         .await
-//         .unwrap()
-//         .expect("no new L2 block params");
-//     assert!(l2_block_params.timestamp > current_timestamp);
-// }
+/// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps for <= v28.
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tester = Tester::new(commitment_mode);
+
+    // Genesis is needed for proper mempool initialization.
+    tester.genesis(&connection_pool).await;
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool).await;
+    let (mut io_cursor, _) = mempool.initialize().await.unwrap();
+    let current_timestamp = seconds_since_epoch();
+    io_cursor.prev_l2_block_timestamp = current_timestamp;
+
+    let l2_block_params = mempool
+        .wait_for_new_l2_block_params(
+            &io_cursor,
+            Duration::from_secs(10),
+            ProtocolVersionId::Version28,
+        )
+        .await
+        .unwrap()
+        .expect("no new L2 block params");
+    assert!(l2_block_params.timestamp() > current_timestamp);
+}
 
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
