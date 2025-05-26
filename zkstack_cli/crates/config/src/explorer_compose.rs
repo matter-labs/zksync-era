@@ -128,7 +128,7 @@ impl ExplorerBackendComposeConfig {
                 config.ports.api_http_port,
                 db_url.as_ref(),
                 &config.prividium,
-            ),
+            )?,
         );
         services.insert(
             Self::DATA_FETCHER_NAME.to_string(),
@@ -161,7 +161,7 @@ impl ExplorerBackendComposeConfig {
         port: u16,
         db_url: &str,
         prividium_config: &Option<PrividiumExplorerBackendConfig>,
-    ) -> DockerComposeService {
+    ) -> anyhow::Result<DockerComposeService> {
         let mut env = HashMap::new();
         env.insert("PORT".to_string(), port.to_string());
         env.insert("LOG_LEVEL".to_string(), "verbose".to_string());
@@ -175,7 +175,7 @@ impl ExplorerBackendComposeConfig {
         if let Some(config) = prividium_config {
             env.insert(
                 "PRIVIDIUM_PRIVATE_RPC_URL".to_string(),
-                config.private_rpc_url.to_string(),
+                adjust_localhost_for_docker(config.private_rpc_url.clone())?.to_string(),
             );
             env.insert(
                 "PRIVIDIUM_PRIVATE_RPC_SECRET".to_string(),
@@ -204,7 +204,7 @@ impl ExplorerBackendComposeConfig {
             env.insert("NODE_ENV".to_string(), "development".to_string());
         }
 
-        DockerComposeService {
+        Ok(DockerComposeService {
             image: EXPLORER_API_DOCKER_IMAGE.to_string(),
             platform: Some("linux/amd64".to_string()),
             ports: Some(vec![format!("{}:{}", port, port)]),
@@ -214,7 +214,7 @@ impl ExplorerBackendComposeConfig {
             environment: Some(env),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
             other: serde_json::Value::Null,
-        }
+        })
     }
 
     fn create_data_fetcher_service(port: u16, l2_rpc_url: &str) -> DockerComposeService {
