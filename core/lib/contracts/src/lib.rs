@@ -1572,7 +1572,8 @@ pub static POST_V26_GATEWAY_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
       ],
       "stateMutability": "nonpayable",
       "type": "function",
-      "name": "commitBatchesSharedBridge"
+      "name": "commitBatchesSharedBridge",
+      "outputs": []
   }"#;
     serde_json::from_str(abi).unwrap()
 });
@@ -1604,7 +1605,8 @@ pub static POST_V26_GATEWAY_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
                     ],
                     "stateMutability": "nonpayable",
                     "type": "function",
-                    "name": "proveBatchesSharedBridge"
+                    "name": "proveBatchesSharedBridge",
+                    "outputs": []
                 }"#;
     serde_json::from_str(abi).unwrap()
 });
@@ -1636,7 +1638,8 @@ pub static POST_V26_GATEWAY_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
                     ],
                     "stateMutability": "nonpayable",
                     "type": "function",
-                    "name": "executeBatchesSharedBridge"
+                    "name": "executeBatchesSharedBridge",
+                    "outputs": []
                 }"#;
     serde_json::from_str(abi).unwrap()
 });
