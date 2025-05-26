@@ -48,14 +48,15 @@ async fn get_da_validator_type(config: &ChainConfig) -> anyhow::Result<DAValidat
 
     match (
         config.l1_batch_commit_data_generator_mode,
-        general.da_client_type(),
+        general.da_client_type().as_deref(),
     ) {
         (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
-        (L1BatchCommitmentMode::Validium, None | Some("no_da")) => Ok(DAValidatorType::NoDA),
-        (L1BatchCommitmentMode::Validium, Some("avail")) => Ok(DAValidatorType::Avail),
-        (L1BatchCommitmentMode::Validium, Some("eigenv1m0")) => Ok(DAValidatorType::EigenDAV1M0),
-        (L1BatchCommitmentMode::Validium, Some("eigenv2m0")) => Ok(DAValidatorType::EigenDAV2M0),
-        (L1BatchCommitmentMode::Validium, Some("eigenv2m1")) => Ok(DAValidatorType::EigenDAV2M1),
+        (L1BatchCommitmentMode::Validium, None | Some("NoDA")) => Ok(DAValidatorType::NoDA),
+        (L1BatchCommitmentMode::Validium, Some("Avail")) => Ok(DAValidatorType::Avail),
+        (L1BatchCommitmentMode::Validium, Some("Eigen")) => Ok(DAValidatorType::NoDA),
+        (L1BatchCommitmentMode::Validium, Some("EigenDAM1")) => {
+            Ok(DAValidatorType::EigenDAM1)
+        }
         _ => anyhow::bail!("DAValidatorType is not supported"),
     }
 }

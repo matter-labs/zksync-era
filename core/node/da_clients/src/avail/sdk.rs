@@ -4,7 +4,6 @@
 use std::{fmt::Debug, sync::Arc, time};
 
 use anyhow::{bail, Context};
-use backon::{ConstantBuilder, Retryable};
 use bip39::Mnemonic;
 use bytes::Bytes;
 use jsonrpsee::{
@@ -16,6 +15,7 @@ use scale_encode::EncodeAsFields;
 use serde::{Deserialize, Serialize};
 use subxt_signer::sr25519::{Keypair, Signature};
 use tokio::time::{timeout, Duration};
+use zksync_config::configs::da_client::avail::AvailFinalityState;
 use zksync_types::H256;
 
 use crate::utils::to_non_retriable_da_error;
@@ -27,7 +27,7 @@ const DISPATCH_POLLING_SLEEP_DURATION: Duration = Duration::from_millis(100);
 pub(crate) struct RawAvailClient {
     app_id: u32,
     keypair: Keypair,
-    finality_state: String,
+    finality_state: AvailFinalityState,
     dispatch_timeout: Duration,
 }
 
@@ -49,7 +49,7 @@ impl RawAvailClient {
     pub(crate) async fn new(
         app_id: u32,
         seed: &str,
-        finality_state: String,
+        finality_state: AvailFinalityState,
         dispatch_timeout: Duration,
     ) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
@@ -286,18 +286,19 @@ impl RawAvailClient {
 
     async fn wait_for_response(
         sub: &mut Subscription<serde_json::Value>,
-        finality_state: String,
+        finality_state: &str,
     ) -> anyhow::Result<String> {
         Ok(loop {
             let status = sub.next().await.transpose()?;
+            let status = status.filter(serde_json::Value::is_object);
 
-            if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get(finality_state.as_str()) {
+            if let Some(status) = status {
+                if let Some(block_hash) = status.get(finality_state) {
                     break block_hash
                         .as_str()
-                        .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
+                        .context("Invalid block hash")?
                         .strip_prefix("0x")
-                        .ok_or_else(|| anyhow::anyhow!("Block hash doesn't have 0x prefix"))?
+                        .context("Block hash doesn't have 0x prefix")?
                         .to_string();
                 }
             }
@@ -323,7 +324,7 @@ impl RawAvailClient {
 
         let block_hash = timeout(
             self.dispatch_timeout,
-            RawAvailClient::wait_for_response(&mut sub, self.finality_state.clone()),
+            RawAvailClient::wait_for_response(&mut sub, self.finality_state.as_str()),
         )
         .await
         .map_err(|_| anyhow::anyhow!("Timeout waiting for block hash"))??;
@@ -499,39 +500,54 @@ impl GasRelayClient {
             self.api_url, submission_id
         );
 
-        let status_response = (|| async {
-            self.api_client
+        for _ in 0..self.max_retries {
+            let status_response = self
+                .api_client
                 .get(&status_url)
                 .header("x-api-key", &self.api_key)
                 .send()
+                .await?;
+
+            let status_response_bytes = status_response
+                .bytes()
                 .await
-        })
-        .retry(
-            &ConstantBuilder::default()
-                .with_delay(Self::RETRY_DELAY)
-                .with_max_times(self.max_retries),
-        )
-        .await?;
+                .context("Failed to read response body")?;
 
-        let status_response_bytes = status_response
-            .bytes()
-            .await
-            .context("Failed to read response body")?;
+            if is_empty_json(&status_response_bytes) {
+                tracing::warn!("Empty response from gas relay");
 
-        let status_response =
-            match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
-                Ok(response) => response,
-                Err(_) => {
-                    bail!(
-                        "Unexpected status response from gas relay: {:?}",
-                        String::from_utf8_lossy(&status_response_bytes).as_ref()
-                    )
-                }
-            };
+                tokio::time::sleep(Self::RETRY_DELAY).await;
+                continue;
+            }
 
-        Ok(status_response
-            .submission
-            .block_hash
-            .zip(status_response.submission.extrinsic_index))
+            let status_response =
+                match serde_json::from_slice::<GasRelayAPIStatusResponse>(&status_response_bytes) {
+                    Ok(response) => {
+                        tracing::debug!("Status response: {:?}", response);
+
+                        response
+                    }
+                    Err(_) => {
+                        bail!(
+                            "Unexpected status response from gas relay: {:?}",
+                            String::from_utf8_lossy(&status_response_bytes).as_ref()
+                        )
+                    }
+                };
+
+            match (
+                status_response.submission.block_hash,
+                status_response.submission.extrinsic_index,
+            ) {
+                (Some(block_hash), Some(ext_idx)) => return Ok(Some((block_hash, ext_idx))),
+                _ => tokio::time::sleep(Self::RETRY_DELAY).await,
+            }
+        }
+
+        Ok(None)
     }
+}
+
+fn is_empty_json(bytes: &[u8]) -> bool {
+    bytes.is_empty() || bytes == b"{}"
 }

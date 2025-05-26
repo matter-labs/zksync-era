@@ -8,7 +8,10 @@ use zksync_dal::{
     ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
+use zksync_prover_interface::{
+    inputs::{VMRunWitnessInputData, WitnessInputMerklePaths},
+    Bincode,
+};
 use zksync_tee_prover_interface::{
     api::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitTeeProofRequest,
@@ -50,15 +53,14 @@ impl TeeRequestProcessor {
     ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, TeeProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let batch_ignored_timeout = ChronoDuration::from_std(
-            self.config.tee_batch_permanently_ignored_timeout(),
-        )
-        .map_err(|err| {
-            TeeProcessorError::GeneralError(format!(
-                "Failed to convert batch_ignored_timeout: {}",
-                err
-            ))
-        })?;
+        let batch_ignored_timeout =
+            ChronoDuration::from_std(self.config.batch_permanently_ignored_timeout_in_hours)
+                .map_err(|err| {
+                    TeeProcessorError::GeneralError(format!(
+                        "Failed to convert batch_ignored_timeout: {}",
+                        err
+                    ))
+                })?;
         let min_batch_number = self.config.first_processed_batch;
 
         loop {
@@ -77,7 +79,10 @@ impl TeeRequestProcessor {
                 Ok(input) => {
                     break Ok(Some(Json(TeeProofGenerationDataResponse(Box::new(input)))));
                 }
-                Err(TeeProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
+                Err(TeeProcessorError::ObjectStore {
+                    source: ObjectStoreError::KeyNotFound(_),
+                    context,
+                }) => {
                     let duration = Utc::now().signed_duration_since(locked_batch.created_at);
                     let status = if duration > batch_ignored_timeout {
                         TeeProofGenerationJobStatus::PermanentlyIgnored
@@ -87,7 +92,7 @@ impl TeeRequestProcessor {
                     self.unlock_batch(batch_number, request.tee_type, status)
                         .await?;
                     tracing::warn!(
-                        "Assigned status {} to batch {} created at {}",
+                        "Assigned status `{}` to batch {} created at {}: {context}",
                         status,
                         batch_number,
                         locked_batch.created_at
@@ -111,17 +116,32 @@ impl TeeRequestProcessor {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<TeeVerifierInput, TeeProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(TeeProcessorError::ObjectStore)?;
+        let vm_run_data: VMRunWitnessInputData = match self.blob_store.get(l1_batch_number).await {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<VMRunWitnessInputData<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(|source| TeeProcessorError::ObjectStore {
+                    source,
+                    context: "Failed to get VMRunWitnessInputData".into(),
+                })?,
+        };
 
-        let merkle_paths: WitnessInputMerklePaths = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(TeeProcessorError::ObjectStore)?;
+        let merkle_paths: WitnessInputMerklePaths = match self.blob_store.get(l1_batch_number).await
+        {
+            Ok(data) => data,
+            Err(_) => self
+                .blob_store
+                .get::<WitnessInputMerklePaths<Bincode>>(l1_batch_number)
+                .await
+                .map(Into::into)
+                .map_err(|source| TeeProcessorError::ObjectStore {
+                    source,
+                    context: "Failed to get WitnessInputMerklePaths".into(),
+                })?,
+        };
 
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
 
@@ -173,7 +193,7 @@ impl TeeRequestProcessor {
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
                 tee_type,
-                self.config.tee_proof_generation_timeout(),
+                self.config.proof_generation_timeout_in_secs,
                 min_batch_number,
             )
             .await

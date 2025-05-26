@@ -114,7 +114,7 @@ message ProtocolUpgradeTxCommonData {
   optional bytes canonical_tx_hash = 8; // required; H256
   optional bytes to_mint = 9; // required; U256
   optional bytes refund_recipient_address = 10; // required; H160
-  
+
   // deprecated.
   optional bytes eth_hash = 6; // required; constant = [0;32]
   optional uint64 eth_block = 7; // required
@@ -157,8 +157,6 @@ enum PubdataType {
   NoDA = 1;
   Avail = 2;
   Celestia = 3;
-  EigenV1M0 = 4;
+  EigenDA = 4;
   ObjectStore = 5;
-  EigenV2M0 = 6;
-  EigenV2M1 = 7;
 }

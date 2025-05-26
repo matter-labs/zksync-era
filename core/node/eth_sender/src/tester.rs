@@ -154,10 +154,8 @@ impl EthSenderTester {
         let aggregator_config = SenderConfig {
             pubdata_sending_mode,
             ..eth_sender_config
-                .clone()
                 .get_eth_sender_config_for_sender_layer_data_layer()
-                .cloned()
-                .unwrap()
+                .clone()
         };
 
         let history: Vec<_> = history
@@ -182,7 +180,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
@@ -203,7 +201,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .build();
@@ -223,7 +221,7 @@ impl EthSenderTester {
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
             .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1_multicall3_addr));
+                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
                 crate::tests::mock_multicall_response(call)
             })
             .with_sender(Address::from_str("0xb10b000000000000000000000000000000000000").unwrap())
@@ -239,7 +237,7 @@ impl EthSenderTester {
                     max_base_fee_samples: Self::MAX_BASE_FEE_SAMPLES,
                     pricing_formula_parameter_a: 3.0,
                     pricing_formula_parameter_b: 2.0,
-                    ..eth_sender_config.gas_adjuster.unwrap()
+                    ..eth_sender_config.gas_adjuster
                 },
                 pubdata_sending_mode,
                 commitment_mode,
@@ -248,9 +246,7 @@ impl EthSenderTester {
             .unwrap(),
         );
 
-        let eth_sender = eth_sender_config
-            .get_eth_sender_config_for_sender_layer_data_layer()
-            .unwrap();
+        let eth_sender = eth_sender_config.get_eth_sender_config_for_sender_layer_data_layer();
 
         let use_blob_operator =
             aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup;
@@ -280,10 +276,10 @@ impl EthSenderTester {
             // ZKsync contract address
             Address::random(),
             STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
-            contracts_config.l1_multicall3_addr,
+            contracts_config.l1.multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
-            SettlementLayer::L1(chain_id),
+            Some(SettlementLayer::L1(chain_id)),
         )
         .await;
 
@@ -327,8 +323,7 @@ impl EthSenderTester {
             self.conn.clone(),
             EthConfig::for_tests()
                 .get_eth_sender_config_for_sender_layer_data_layer()
-                .cloned()
-                .unwrap(),
+                .clone(),
             self.gas_adjuster.clone(),
             None,
             None,

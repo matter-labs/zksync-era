@@ -56,6 +56,8 @@ pub const EXPLORER_CONFIG_FILE: &str = "explorer.config.json";
 /// Name of explorer docker compose file
 pub const EXPLORER_DOCKER_COMPOSE_FILE: &str = "explorer-docker-compose.yml";
 
+pub const PRIVATE_RPC_DOCKER_COMPOSE_FILE: &str = "private-proxy-docker-compose.yml";
+
 /// Default port for the explorer app
 pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
 /// Default port for the portal app
@@ -67,10 +69,10 @@ pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
 /// Default port for the explorer data fetcher service
 pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
 
-pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.67.1";
+pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.68.1";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str =
-    "matterlabs/block-explorer-data-fetcher:v2.67.1";
-pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.67.1";
+    "matterlabs/block-explorer-data-fetcher:v2.68.1";
+pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.68.1";
 
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;

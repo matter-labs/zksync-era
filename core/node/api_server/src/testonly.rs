@@ -1,6 +1,6 @@
 //! Test utils shared among multiple modules.
 
-use std::{collections::HashMap, iter};
+use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
@@ -55,9 +55,11 @@ const MULTICALL3_CONTRACT_PATH: &str =
 /// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
 fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
     bytecode.extend(
-        iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
-            .take(nop_count)
-            .flatten(),
+        std::iter::repeat_n(
+            EncodingModeProduction::nop_encoding().to_be_bytes(),
+            nop_count,
+        )
+        .flatten(),
     );
 }
 
