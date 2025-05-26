@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use proof_compression_gpu::SnarkWrapperSetup;
+use proof_compression_gpu::CompressorBlobStorage;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper};
@@ -22,7 +22,7 @@ pub struct ProofFriCompressorJobPicker {
     pool: ConnectionPool<Prover>,
     blob_store: Arc<dyn ObjectStore>,
     protocol_version: ProtocolSemanticVersion,
-    setup_data_cache: Arc<SnarkWrapperSetup>,
+    setup_data_cache: Arc<dyn CompressorBlobStorage>,
 }
 
 impl ProofFriCompressorJobPicker {
@@ -30,7 +30,7 @@ impl ProofFriCompressorJobPicker {
         pool: ConnectionPool<Prover>,
         blob_store: Arc<dyn ObjectStore>,
         protocol_version: ProtocolSemanticVersion,
-        setup_data_cache: Arc<SnarkWrapperSetup>,
+        setup_data_cache: Arc<dyn CompressorBlobStorage>,
     ) -> Self {
         Self {
             pool,

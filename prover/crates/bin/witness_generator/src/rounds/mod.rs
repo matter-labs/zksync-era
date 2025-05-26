@@ -58,7 +58,7 @@ pub trait JobManager: ArtifactsManager {
     ) -> anyhow::Result<Option<Self::Metadata>>;
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct WitnessGenerator<R> {
     pub config: FriWitnessGeneratorConfig,
     pub object_store: Arc<dyn ObjectStore>,

@@ -3,7 +3,7 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex, RwLock},
 };
 
 use anyhow::Context as _;
@@ -36,6 +36,9 @@ use zksync_utils::env::Workspace;
 use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
 use crate::{GoldilocksProverSetupData, VkCommitments};
 
+#[cfg(feature = "gpu")]
+use proof_compression_gpu::CompressorSetupData;
+
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {
     VerificationKey,
@@ -51,21 +54,28 @@ pub enum ProverServiceDataType {
 /// There are 2 types:
 /// - small verification, finalization keys (used only during verification)
 /// - large setup keys, used during proving.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Keystore {
     /// Directory to store all the small keys.
     basedir: PathBuf,
     /// Directory to store large setup keys.
     setup_data_path: PathBuf,
+    /// Setup data cache for proof compressor
+    #[cfg(feature = "gpu")]
+    pub setup_data_cache_proof_compressor: Arc<CompressorSetupData>,
 }
 
 impl Keystore {
     /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
     /// Setup data path is used for the large setup keys.
-    pub fn new(basedir: PathBuf) -> Self {
+    pub fn new(
+        basedir: PathBuf,
+    ) -> Self {
         Keystore {
             basedir: basedir.clone(),
             setup_data_path: basedir,
+            #[cfg(feature = "gpu")]
+            setup_data_cache_proof_compressor: Arc::new(CompressorSetupData::new()),
         }
     }
 
@@ -98,9 +108,14 @@ impl Keystore {
         };
         let base_path = data_dir_path.join("keys");
 
+        #[cfg(feature = "gpu")]
+        let setup_data_cache_proof_compressor = Arc::new(CompressorSetupData::new());
+
         Self {
             basedir: base_path.clone(),
             setup_data_path: base_path,
+            #[cfg(feature = "gpu")]
+            setup_data_cache_proof_compressor,
         }
     }
 

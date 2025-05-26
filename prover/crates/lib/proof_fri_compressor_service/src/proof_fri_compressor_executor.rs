@@ -90,7 +90,7 @@ impl Executor for ProofFriCompressorExecutor {
 
         let proof_wrapper = run_proof_chain(
             snark_wrapper_mode,
-            &setup_data_cache,
+            setup_data_cache,
             input.scheduler_proof.into_inner(),
         );
 

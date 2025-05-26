@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use proof_compression_gpu::SnarkWrapperSetup;
+use proof_compression_gpu::CompressorBlobStorage;
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
@@ -16,7 +16,7 @@ pub fn proof_fri_compressor_runner(
     protocol_version: ProtocolSemanticVersion,
     is_fflonk: bool,
     cancellation_token: CancellationToken,
-    setup_data_cache: Arc<SnarkWrapperSetup>,
+    setup_data_cache: Arc<dyn CompressorBlobStorage>,
 ) -> JobRunner<ProofFriCompressorExecutor, ProofFriCompressorJobPicker, ProofFriCompressorJobSaver>
 {
     let executor = ProofFriCompressorExecutor::new(is_fflonk, protocol_version);
