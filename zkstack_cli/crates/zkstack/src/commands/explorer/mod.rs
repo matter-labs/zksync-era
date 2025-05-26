@@ -1,6 +1,6 @@
 use clap::Subcommand;
-use xshell::Shell;
 use init::ExplorerInitArgs;
+use xshell::Shell;
 
 mod backend;
 mod init;
