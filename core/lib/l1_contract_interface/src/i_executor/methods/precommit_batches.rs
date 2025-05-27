@@ -4,7 +4,7 @@ use zksync_types::{
     L1BatchNumber, L2BlockNumber,
 };
 
-use crate::{i_executor::structures::SUPPORTED_ENCODING_VERSION, Tokenizable, Tokenize};
+use crate::{i_executor::structures::SUPPORTED_ENCODING_VERSION, Tokenize};
 
 /// Input required to encode `preCommitBatches` call for a contract
 #[derive(Debug)]
