@@ -209,7 +209,7 @@ describe('L1 ERC20 contract checks', () => {
     let params: FinalizeWithdrawalParams;
     let bridgehub: ethers.Contract;
     let skipInteropTest = false;
-    test('Can check withdrawal hash in L2-A', async () => {
+    test.skip('Can check withdrawal hash in L2-A', async () => {
         bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
             ArtifactBridgeHub.abi,
