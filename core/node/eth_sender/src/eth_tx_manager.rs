@@ -423,7 +423,7 @@ impl EthTxManager {
         operator_nonce: OperatorNonce,
         inflight_txs: Vec<EthTx>,
     ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
-        tracing::info!(
+        tracing::trace!(
             "Going through not confirmed txs. \
              Block numbers: latest {}, fast_finality {}, finalized {}, \
              operator's nonce: latest {}, fast_finality {}, finalized {}",
@@ -478,7 +478,7 @@ impl EthTxManager {
                 continue;
             }
 
-            tracing::info!(
+            tracing::trace!(
                 "Sender's nonce on finalized block is greater than current tx's nonce. \
                  Checking transaction with id {}. Tx nonce is equal to {}",
                 tx.id,

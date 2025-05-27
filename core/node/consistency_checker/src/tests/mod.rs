@@ -369,6 +369,7 @@ impl SaveAction<'_> {
                         commit_tx_hash,
                         chrono::Utc::now(),
                         chain_id,
+                        EthTxFinalityStatus::Finalized,
                     )
                     .await
                     .unwrap();

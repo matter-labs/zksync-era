@@ -618,6 +618,7 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
         sl_chain_id: Option<SLChainId>,
+        finality_status: EthTxFinalityStatus,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -652,16 +653,16 @@ impl EthSenderDal<'_, '_> {
             .fetch_one(transaction.conn())
             .await?;
 
-            // TODO mark finality status correspondingly
             // Insert a "sent transaction".
             let eth_history_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
                 (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE, 'finalized') \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE, $4) \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,
-                confirmed_at.naive_utc()
+                confirmed_at.naive_utc(),
+                finality_status.to_string()
             )
             .fetch_one(transaction.conn())
             .await?;
