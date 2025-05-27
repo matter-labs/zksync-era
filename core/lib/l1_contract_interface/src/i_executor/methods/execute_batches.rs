@@ -69,7 +69,8 @@ impl ExecuteBatches {
                 Token::Bytes(execute_data),
             ]
         } else if internal_protocol_version.is_pre_medium_interop()
-        && chain_protocol_version.is_pre_medium_interop() {
+            && chain_protocol_version.is_pre_medium_interop()
+        {
             let encoded_data = encode(&[
                 Token::Array(
                     self.l1_batches

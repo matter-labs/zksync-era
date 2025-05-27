@@ -3,12 +3,7 @@ import * as ethers from 'ethers';
 
 import { TestMaster } from '../src';
 import { Token } from '../src/types';
-import {
-    scaledGasPrice,
-    deployContract,
-    waitUntilBlockFinalized,
-    getL2bUrl
-} from '../src/helpers';
+import { scaledGasPrice, deployContract, waitUntilBlockFinalized, getL2bUrl } from '../src/helpers';
 
 import {
     L2_ASSET_ROUTER_ADDRESS,
@@ -22,13 +17,12 @@ import {
     ArtifactInteropHandler,
     ArtifactNativeTokenVault,
     ArtifactMintableERC20,
-    ArtifactL2InteropRootStorage,
+    ArtifactL2InteropRootStorage
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 import { getInteropBundleData } from '../src/temp-sdk';
 import { ETH_ADDRESS, sleep } from 'zksync-ethers/build/utils';
 import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
-
 
 const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110'; // Must have L1 ETH
 const ethFundAmount = ethers.parseEther('1');
@@ -59,7 +53,6 @@ describe('Interop checks', () => {
     let interop2InteropHandler: zksync.Contract;
     let interop1NativeTokenVault: zksync.Contract;
     let interop1TokenA: zksync.Contract;
-    let aliasedInterop1WalletAddress: string;
 
     // Interop2 (Second Chain) Variables
     let interop2Provider: zksync.Provider;
@@ -82,7 +75,7 @@ describe('Interop checks', () => {
 
         // Setup Interop2 Provider and Wallet
         interop2Provider = new RetryProvider(
-            { url: await getL2bUrl("second"), timeout: 1200 * 1000 },
+            { url: await getL2bUrl('validium'), timeout: 1200 * 1000 },
             undefined,
             testMaster.reporter
         );
@@ -110,12 +103,6 @@ describe('Interop checks', () => {
             L2_NATIVE_TOKEN_VAULT_ADDRESS,
             ArtifactNativeTokenVault.abi,
             interop2Provider
-        );
-
-        // Get the aliased address for interop calls on the first chain.
-        aliasedInterop1WalletAddress = await interop2InteropHandler.getAliasedAccount(
-            interop1Wallet.address,
-            0 // <- Chain ID, right? Why does it work with any value right now...
         );
     });
 
@@ -164,7 +151,7 @@ describe('Interop checks', () => {
             tokenA.decimals
         ]);
         tokenA.l2Address = await tokenADeploy.getAddress();
-        console.log("tokenA.l2Address", tokenA.l2Address);
+        console.log('tokenA.l2Address', tokenA.l2Address);
         // Register Token A
         await (await interop1NativeTokenVault.registerToken(tokenA.l2Address)).wait();
         tokenA.assetId = await interop1NativeTokenVault.assetId(tokenA.l2Address);
@@ -201,11 +188,7 @@ describe('Interop checks', () => {
                 {
                     directCall: false,
                     nextContract: L2_ASSET_ROUTER_ADDRESS,
-                    data: getTokenTransferSecondBridgeData(
-                        tokenA.assetId!,
-                        transferAmount,
-                        aliasedInterop1WalletAddress
-                    ),
+                    data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
                     value: 0n,
                     requestedInteropCallValue: 0n
                 }
@@ -308,7 +291,7 @@ describe('Interop checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while ((currentRoot === ethers.ZeroHash) && (count < 20)) {
+        while (currentRoot === ethers.ZeroHash && count < 20) {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,

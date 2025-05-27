@@ -4,7 +4,6 @@ import { BytesLike } from 'ethers';
 import {
     L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
     INTEROP_BUNDLE_ABI,
-    INTEROP_TRIGGER_ABI,
     MESSAGE_INCLUSION_PROOF_ABI,
     L2_INTEROP_CENTER_ADDRESS
 } from './constants';
