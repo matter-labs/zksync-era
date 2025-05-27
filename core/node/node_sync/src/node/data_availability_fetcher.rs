@@ -55,7 +55,8 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
         let DAClientResource(da_client) = input.da_client;
 
         tracing::info!("Running data availability fetcher.");
-        let task = DataAvailabilityFetcher::new(client, pool, da_client, self.max_batches_to_recheck);
+        let task =
+            DataAvailabilityFetcher::new(client, pool, da_client, self.max_batches_to_recheck);
 
         // Insert healthcheck
         input
