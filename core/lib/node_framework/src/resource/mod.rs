@@ -58,6 +58,11 @@ impl ResourceKind for Boxed {}
 ///
 /// // The resource can now be injected / requested as `Arc<dyn MyInterface>`
 /// ```
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a `{Kind}` resource",
+    note = "If `Resource` is implemented for `{Self}`, check its type param: `Plain` (default), `Shared` or `Boxed`",
+    note = "`Boxed` resources must be wrapped in a `Box` and `Shared` resources in an `Arc` when used in dependency injection"
+)]
 pub trait Resource<Kind: ResourceKind = Plain>: 'static + Send + Sync {
     /// Returns the name of the resource.
     /// Used for logging purposes.
