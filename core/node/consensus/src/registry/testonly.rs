@@ -97,4 +97,12 @@ impl Registry {
     ) -> crate::abi::Call<abi::CommitValidatorCommittee> {
         self.contract.call(abi::CommitValidatorCommittee)
     }
+
+    pub(crate) fn set_committee_activation_delay(
+        &self,
+        delay: u32,
+    ) -> crate::abi::Call<abi::SetCommitteeActivationDelay> {
+        self.contract
+            .call(abi::SetCommitteeActivationDelay { delay })
+    }
 }
