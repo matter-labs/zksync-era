@@ -1,15 +1,11 @@
-use std::{ops::Sub, sync::Arc};
+use std::sync::Arc;
 
 use axum::{extract::Path, Json};
-use chrono::{Duration as ChronoDuration, NaiveDateTime, TimeDelta, Utc};
-use intel_dcap_api::{
-    ApiVersion, EnclaveIdentityJson, EnclaveIdentityResponse, TcbInfoJson, TcbInfoResponse,
-};
-use teepot::quote::TEEType;
+use chrono::{Duration as ChronoDuration, Utc};
 use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{
     tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
-    Connection, ConnectionPool, Core, CoreDal,
+    ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::{
@@ -27,7 +23,7 @@ use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::{
-    collateral::{get_next_update, update_collateral_for_quote},
+    collateral::update_collateral_for_quote,
     errors::{TeeProcessorContext, TeeProcessorError},
     metrics::METRICS,
 };
