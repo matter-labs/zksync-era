@@ -39,9 +39,9 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
     let client_tag = env::var(format!("{}CLIENT", prefix))?;
     let config = match client_tag.as_str() {
         AVAIL_CLIENT_CONFIG_NAME => DAClientConfig::Avail(AvailConfig {
-            bridge_api_url: env::var(format!("{}BRIDGE_API_URL", prefix))?,
-            timeout: Duration::from_millis(env::var(format!("{}TIMEOUT_MS", prefix))?.parse()?),
-            config: match env::var(format!("{}AVAIL_CLIENT_TYPE", prefix))?.as_str() {
+            bridge_api_url: env::var("EN_DA_BRIDGE_API_URL")?,
+            timeout: Duration::from_millis(env::var("EN_DA_TIMEOUT_MS")?.parse()?),
+            config: match env::var("EN_DA_AVAIL_CLIENT_TYPE")?.as_str() {
                 AVAIL_FULL_CLIENT_NAME => {
                     AvailClientConfig::FullClient(envy_load("da_avail_full_client", prefix)?)
                 }
@@ -102,14 +102,14 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
     Ok(config)
 }
 
-pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabilitySecrets> {
-    let client_tag = env::var(format!("{}CLIENT", prefix))?;
+pub fn da_client_secrets_from_env() -> anyhow::Result<DataAvailabilitySecrets> {
+    let client_tag = env::var("EN_DA_CLIENT")?;
     let secrets = match client_tag.as_str() {
         AVAIL_CLIENT_CONFIG_NAME => {
-            let seed_phrase = env::var(format!("{}SECRETS_SEED_PHRASE", prefix))
+            let seed_phrase = env::var("EN_DA_SECRETS_SEED_PHRASE")
                 .ok()
                 .map(|s| SeedPhrase(s.into()));
-            let gas_relay_api_key = env::var(format!("{}SECRETS_GAS_RELAY_API_KEY", prefix))
+            let gas_relay_api_key = env::var("EN_DA_SECRETS_GAS_RELAY_API_KEY")
                 .ok()
                 .map(|s| APIKey(s.into()));
             if seed_phrase.is_none() && gas_relay_api_key.is_none() {
@@ -121,15 +121,15 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
             })
         }
         CELESTIA_CLIENT_CONFIG_NAME => {
-            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
-                .context("Celestia private key not found")?;
+            let private_key =
+                env::var("EN_DA_SECRETS_PRIVATE_KEY").context("Celestia private key not found")?;
             DataAvailabilitySecrets::Celestia(CelestiaSecrets {
                 private_key: PrivateKey(private_key.into()),
             })
         }
         EIGEN_CLIENT_CONFIG_NAME => {
-            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
-                .context("Eigen private key not found")?;
+            let private_key =
+                env::var("EN_DA_SECRETS_PRIVATE_KEY").context("Eigen private key not found")?;
             DataAvailabilitySecrets::Eigen(EigenSecrets {
                 private_key: PrivateKey(private_key.into()),
             })

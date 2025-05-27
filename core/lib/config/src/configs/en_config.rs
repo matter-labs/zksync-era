@@ -25,6 +25,8 @@ pub struct ENConfig {
     pub bridge_addresses_refresh_interval: Option<Duration>,
     #[config(with = Optional(Serde![int]))]
     pub gateway_chain_id: Option<SLChainId>,
+    #[config(with = Optional(Serde![int]))]
+    pub consistency_checker_max_batches_to_recheck: Option<u32>,
 }
 
 #[cfg(test)]
@@ -42,6 +44,7 @@ mod tests {
             main_node_rate_limit_rps: NonZeroUsize::new(200).unwrap(),
             gateway_url: None,
             bridge_addresses_refresh_interval: Some(Duration::from_secs(15)),
+            consistency_checker_max_batches_to_recheck: Some(15),
         }
     }
 

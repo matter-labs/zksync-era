@@ -517,6 +517,9 @@ pub(crate) struct OptionalENConfig {
     /// Minimum time between current block.timestamp and the end of the asserted range for TimestampAsserter
     #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_time_till_end_sec")]
     pub timestamp_asserter_min_time_till_end_sec: u32,
+    /// Maximum number of batches to recheck.
+    #[serde(default = "OptionalENConfig::default_max_batches_to_recheck")]
+    pub max_batches_to_recheck: u32,
 }
 
 impl OptionalENConfig {
@@ -655,6 +658,8 @@ impl OptionalENConfig {
                 .timestamp_asserter_config
                 .min_time_till_end_sec
                 .as_secs() as u32,
+            max_batches_to_recheck: enconfig.consistency_checker_max_batches_to_recheck
+                .unwrap_or_else(OptionalENConfig::default_max_batches_to_recheck),
         })
     }
 
@@ -787,6 +792,10 @@ impl OptionalENConfig {
 
     const fn default_timestamp_asserter_min_time_till_end_sec() -> u32 {
         60
+    }
+
+    const fn default_max_batches_to_recheck() -> u32 {
+        10
     }
 
     fn from_env() -> anyhow::Result<Self> {
@@ -1224,7 +1233,7 @@ impl ExternalNodeConfig<()> {
             consensus_secrets,
             data_availability: (
                 da_client_config_from_env("EN_DA_").ok(),
-                da_client_secrets_from_env("EN_DA_").ok(),
+                da_client_secrets_from_env().ok(),
             ),
             remote: (),
         })

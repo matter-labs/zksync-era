@@ -13,7 +13,17 @@ use crate::data_availability_fetcher::DataAvailabilityFetcher;
 
 /// Wiring layer for [`DataAvailabilityFetcher`].
 #[derive(Debug)]
-pub struct DataAvailabilityFetcherLayer;
+pub struct DataAvailabilityFetcherLayer {
+    max_batches_to_recheck: u32,
+}
+
+impl DataAvailabilityFetcherLayer {
+    pub fn new(max_batches_to_recheck: u32) -> Self {
+        Self {
+            max_batches_to_recheck,
+        }
+    }
+}
 
 #[derive(Debug, FromContext)]
 pub struct Input {
@@ -45,7 +55,7 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
         let DAClientResource(da_client) = input.da_client;
 
         tracing::info!("Running data availability fetcher.");
-        let task = DataAvailabilityFetcher::new(client, pool, da_client);
+        let task = DataAvailabilityFetcher::new(client, pool, da_client, self.max_batches_to_recheck);
 
         // Insert healthcheck
         input

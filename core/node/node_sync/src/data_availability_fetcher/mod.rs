@@ -73,6 +73,7 @@ pub struct DataAvailabilityFetcher {
     health_updater: HealthUpdater,
     poll_interval: Duration,
     last_scanned_batch: L1BatchNumber,
+    max_batches_to_recheck: u32,
 }
 
 impl DataAvailabilityFetcher {
@@ -83,6 +84,7 @@ impl DataAvailabilityFetcher {
         client: Box<DynClient<L2>>,
         pool: ConnectionPool<Core>,
         da_client: Box<dyn DataAvailabilityClient>,
+        max_batches_to_recheck: u32,
     ) -> Self {
         Self {
             client: client.for_component("data_availability_fetcher"),
@@ -91,7 +93,33 @@ impl DataAvailabilityFetcher {
             health_updater: ReactiveHealthCheck::new("data_availability_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
             last_scanned_batch: L1BatchNumber(0),
+            max_batches_to_recheck,
         }
+    }
+
+    async fn determine_first_batch_to_scan(&self) -> anyhow::Result<L1BatchNumber> {
+        let last_committed_batch = self
+            .pool
+            .connection()
+            .await?
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_on_eth()
+            .await?
+            .unwrap_or(L1BatchNumber(0));
+
+        let first_batch_to_check: L1BatchNumber = last_committed_batch
+            .0
+            .saturating_sub(self.max_batches_to_recheck + 1) // +1 to cover any race conditions with consistency checker
+            .into();
+
+        tracing::debug!(
+            "Determined first batch to scan: {} (last committed batch: {})",
+            first_batch_to_check,
+            last_committed_batch
+        );
+        println!("Determined first batch to scan: {} (last committed batch: {})", first_batch_to_check, last_committed_batch);
+
+        Ok(first_batch_to_check)
     }
 
     /// Returns a health check for this fetcher.
@@ -117,7 +145,7 @@ impl DataAvailabilityFetcher {
             .data_availability_dal()
             .get_latest_batch_with_inclusion_data(self.last_scanned_batch)
             .await?
-            .unwrap_or(L1BatchNumber(0));
+            .unwrap_or(self.last_scanned_batch);
 
         let l1_batch_to_fetch = storage
             .blocks_dal()
@@ -249,6 +277,8 @@ impl DataAvailabilityFetcher {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
+
+        self.last_scanned_batch = self.determine_first_batch_to_scan().await?;
         self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {
