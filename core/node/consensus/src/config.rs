@@ -72,6 +72,7 @@ impl GenesisSpec {
             Some(
                 validator::Schedule::new(
                     validators,
+                    // TODO: Use default() for this.
                     validator::LeaderSelection {
                         frequency: 1,
                         mode: validator::LeaderSelectionMode::RoundRobin,

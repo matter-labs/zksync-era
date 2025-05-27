@@ -119,7 +119,11 @@ impl Registry {
                     validator_infos.push(validator_info);
                 }
                 Err(err) => {
-                    tracing::warn!("Failed to decode weighted validator: {:?}", err);
+                    tracing::warn!(
+                        "Failed to decode weighted validator:\nError: {:?}\nValidator info: {:?}",
+                        err,
+                        a
+                    );
                 }
             }
         }

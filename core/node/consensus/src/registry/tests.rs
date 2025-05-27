@@ -61,7 +61,7 @@ async fn test_current_validator_committee() {
             .map(|v| validator::ValidatorInfo {
                 key: v.key.clone(),
                 weight: v.weight,
-                leader: true,
+                leader: v.is_leader,
             })
             .collect();
         let schedule = validator::Schedule::new(validator_infos, leader_selection).unwrap();
@@ -107,6 +107,8 @@ async fn test_current_validator_committee() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pending_validator_committee() {
+    const DELAY: u32 = 100;
+
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
@@ -142,7 +144,7 @@ async fn test_pending_validator_committee() {
             .map(|v| validator::ValidatorInfo {
                 key: v.key.clone(),
                 weight: v.weight,
-                leader: true,
+                leader: v.is_leader,
             })
             .collect();
         let schedule = validator::Schedule::new(validator_infos, leader_selection).unwrap();
@@ -151,7 +153,7 @@ async fn test_pending_validator_committee() {
         txs.push(testonly::make_tx(
             account,
             registry_addr,
-            registry.set_committee_activation_delay(100),
+            registry.set_committee_activation_delay(DELAY),
         ));
 
         // Add validators to the registry.
@@ -186,7 +188,7 @@ async fn test_pending_validator_committee() {
 
         // Check the schedule and commit block number.
         assert_eq!(schedule, actual_schedule);
-        assert_eq!(block_num, commit_block);
+        assert_eq!(block_num + DELAY as u64, commit_block);
 
         Ok(())
     })
