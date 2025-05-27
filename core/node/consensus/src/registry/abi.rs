@@ -65,6 +65,7 @@ impl abi::Function for Initialize {
 #[derive(Debug, Default)]
 pub(crate) struct Add {
     pub(crate) node_owner: ethabi::Address,
+    pub(crate) validator_is_leader: bool,
     pub(crate) validator_weight: u32,
     pub(crate) validator_pub_key: BLS12_381PublicKey,
     pub(crate) validator_pop: BLS12_381Signature,
@@ -76,6 +77,7 @@ impl abi::Function for Add {
     fn encode(&self) -> Vec<Token> {
         vec![
             Token::Address(self.node_owner),
+            Token::Bool(self.validator_is_leader),
             Token::Uint(self.validator_weight.into()),
             self.validator_pub_key.to_token(),
             self.validator_pop.to_token(),
