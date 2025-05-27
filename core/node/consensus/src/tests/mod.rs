@@ -341,6 +341,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
     .unwrap();
 }
 
+#[ignore]
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
 async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {

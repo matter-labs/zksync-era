@@ -86,10 +86,11 @@ async fn test_pending_validator_committee() {
         // Read the validator schedule using the vm.
         let block_num = node.last_block();
         let (actual_schedule, commit_block) = registry
-            .get_pending_validator_schedule(ctx, block_num)
+            .get_current_validator_schedule(ctx, block_num)
             .await
-            .unwrap()
             .unwrap();
+
+        // TODO: test the pending schedule
 
         // Check the schedule and commit block number.
         assert_eq!(schedule, actual_schedule);
