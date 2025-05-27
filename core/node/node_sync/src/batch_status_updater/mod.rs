@@ -14,7 +14,7 @@ use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType, api, ethabi, web3::TransactionReceipt,
+    aggregated_operations::AggregatedActionType, api, ethabi,
     Address, L1BatchNumber, SLChainId, H256, U64,
 };
 use zksync_web3_decl::{
@@ -99,22 +99,10 @@ impl MainNodeClient for Box<DynClient<L2>> {
     }
 }
 
-#[async_trait]
-trait SLClient: fmt::Debug + Send + Sync {
-    async fn tx_receipt(&self, tx_hash: H256) -> anyhow::Result<Option<TransactionReceipt>>;
-}
-
-#[async_trait]
-impl SLClient for Box<dyn EthInterface> {
-    async fn tx_receipt(&self, tx_hash: H256) -> anyhow::Result<Option<TransactionReceipt>> {
-        self.tx_receipt(tx_hash).await
-    }
-}
-
 /// Verifies the L1 transaction against the database and the SL.
 #[derive(Debug)]
 struct L1TransactionVerifier {
-    sl_client: Box<dyn SLClient>,
+    sl_client: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
     /// ABI of the ZKsync contract
     contract: ethabi::Contract,
@@ -124,7 +112,7 @@ struct L1TransactionVerifier {
 
 impl L1TransactionVerifier {
     pub fn new(
-        sl_client: Box<dyn SLClient>,
+        sl_client: Box<dyn EthInterface>,
         diamond_proxy_addr: Address,
         pool: ConnectionPool<Core>,
         sl_chain_id: SLChainId,
@@ -525,10 +513,10 @@ impl UpdaterCursor {
     async fn extract_and_verify_op_data(
         l1_transaction_verifier: &L1TransactionVerifier,
         batch_info: &api::L1BatchDetails,
-        stage: L1BatchAggregatedActionType,
+        stage: AggregatedActionType,
     ) -> anyhow::Result<(Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>)> {
         match stage {
-            L1BatchAggregatedActionType::Commit => {
+            AggregatedActionType::Commit => {
                 if let Some(commit_tx_hash) = batch_info.base.commit_tx_hash {
                     if batch_info.base.commit_chain_id != Some(l1_transaction_verifier.sl_chain_id)
                     {
@@ -552,7 +540,7 @@ impl UpdaterCursor {
                     Ok((None, None, None))
                 }
             }
-            L1BatchAggregatedActionType::PublishProofOnchain => {
+            AggregatedActionType::PublishProofOnchain => {
                 if let Some(prove_tx_hash) = batch_info.base.prove_tx_hash {
                     if batch_info.base.prove_chain_id != Some(l1_transaction_verifier.sl_chain_id) {
                         return Err(anyhow::anyhow!(
@@ -575,7 +563,7 @@ impl UpdaterCursor {
                     Ok((None, None, None))
                 }
             }
-            L1BatchAggregatedActionType::Execute => {
+            AggregatedActionType::Execute => {
                 if let Some(execute_tx_hash) = batch_info.base.execute_tx_hash {
                     if batch_info.base.execute_chain_id != Some(l1_transaction_verifier.sl_chain_id)
                     {
@@ -625,7 +613,7 @@ impl UpdaterCursor {
         status_changes: &mut StatusChanges,
         batch_info: &api::L1BatchDetails,
         l1_transaction_verifier: &L1TransactionVerifier,
-        stage: L1BatchAggregatedActionType,
+        stage: AggregatedActionType,
     ) -> anyhow::Result<()> {
         let (l1_tx_hash, happened_at, sl_chain_id) =
             Self::extract_and_verify_op_data(l1_transaction_verifier, batch_info, stage).await?;
@@ -700,7 +688,7 @@ impl BatchStatusUpdater {
     ) -> Self {
         Self::from_parts(
             Box::new(client.for_component("batch_status_updater")),
-            Box::new(sl_client),
+            sl_client,
             diamond_proxy_addr,
             pool,
             Self::DEFAULT_SLEEP_INTERVAL,
@@ -710,7 +698,7 @@ impl BatchStatusUpdater {
 
     fn from_parts(
         main_client: Box<dyn MainNodeClient>,
-        sl_client: Box<dyn SLClient>,
+        sl_client: Box<dyn EthInterface>,
         diamond_proxy_addr: Address,
         pool: ConnectionPool<Core>,
         sleep_interval: Duration,
