@@ -216,27 +216,28 @@ impl StateKeeperIO for MempoolIO {
                 .await
                 .context("Failed loading protocol version")?;
 
-            // We cannot create two L1 batches with the same timestamp (forbidden by the bootloader)
-            // and we cannot create two L2 blocks with the same timestamp for protocol versions that are <= v28.
+            // We cannot create two L1 batches with the same timestamp regardless of the protocol version.
+            // For versions <= v28 timestamps should be increasing for each L2 block.
+            // For versions >  v28 timestamps should be non-decreasing for each L2 block.
             // Also, we want to keep the timestamp of the batch to be the same as the timestamp of its first L2 block.
-            // Hence
-            // - for <= v28 we wait until the current timestamp is larger than the timestamp of the previous L2 block.
-            // - for  > v28 we wait until the current timestamp is larger than the timestamp of the previous L1 batch.
-            // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
-            let timestamp_ms = if protocol_version.is_pre_fast_blocks() {
-                tokio::time::timeout_at(
-                    deadline.into(),
-                    sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
-                )
+            // - We sleep past `prev_l2_block_timestamp` for <= v28.
+            // - We sleep past `prev_l2_block_timestamp` for > v28 if `block_commit_deadline_ms >= 1000`,
+            //      so that timestamps for blocks are different.
+            // - Otherwise, we sleep past `max(prev_l1_batch_timestamp, prev_l2_block_timestamp - 1)`
+            //      to ensure different timestamp for batches and non-decreasing timestamps for blocks.
+            let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks()
+                || self.timeout_sealer.l2_block_commit_deadline_ms() >= 1000
+            {
+                cursor.prev_l2_block_timestamp
             } else {
-                tokio::time::timeout_at(
-                    deadline.into(),
-                    // TODO: understand if we can sleep past `prev_l1_batch_timestamp` in v29 before merging.
-                    // If not then revert whole `prev_l1_batch_timestamp` thing.
-                    // sleep_past(cursor.prev_l1_batch_timestamp, cursor.next_l2_block),
-                    sleep_past(cursor.prev_l2_block_timestamp, cursor.next_l2_block),
-                )
+                cursor
+                    .prev_l1_batch_timestamp
+                    .max(cursor.prev_l2_block_timestamp.saturating_sub(1))
             };
+            let timestamp_ms = tokio::time::timeout_at(
+                deadline.into(),
+                sleep_past(timestamp_to_sleep_past, cursor.next_l2_block),
+            );
             let Some(timestamp_ms) = timestamp_ms.await.ok() else {
                 return Ok(None);
             };
@@ -316,10 +317,11 @@ impl StateKeeperIO for MempoolIO {
     ) -> anyhow::Result<Option<L2BlockParams>> {
         // For versions <= v28 timestamps should be increasing for each L2 block.
         // For versions >  v28 timestamps should be non-decreasing for each L2 block.
-        // - we sleep past `prev_l2_block_timestamp` for <= v28
-        // - we sleep past `prev_l2_block_timestamp` for > v28 if `block_commit_deadline_ms >= 1000`
-        // - otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
-        //   if clock returns consistent time then it shouldn't actually sleep.
+        // - We sleep past `prev_l2_block_timestamp` for <= v28.
+        // - We sleep past `prev_l2_block_timestamp` for > v28 if `block_commit_deadline_ms >= 1000`,
+        //      so that timestamps for blocks are different.
+        // - Otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
+        //      if clock returns consistent time then it shouldn't actually sleep.
         let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks()
             || self.timeout_sealer.l2_block_commit_deadline_ms() >= 1000
         {
