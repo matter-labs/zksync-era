@@ -1,6 +1,6 @@
 //! Tests for batch status updater.
 
-use std::{collections::HashMap, future, sync::Arc};
+use std::{future, sync::Arc};
 
 use chrono::TimeZone;
 use test_casing::{test_casing, Product};
@@ -9,40 +9,13 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{
-    web3::{TransactionReceipt},
+    web3::{Log, TransactionReceipt},
     L2BlockNumber,
 };
+use zksync_web3_decl::client::{MockClient, L1};
 
 use super::*;
 use crate::metrics::L1BatchStage;
-
-/// Mock implementation of SLClient for testing
-#[derive(Debug, Default)]
-struct MockSLClient {
-    // Store transaction receipts for mocking tx_receipt calls
-    receipts: Arc<Mutex<HashMap<H256, TransactionReceipt>>>,
-}
-
-impl MockSLClient {
-    fn new() -> Self {
-        Self {
-            receipts: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    // Helper to add a mock receipt for testing
-    async fn add_receipt(&self, tx_hash: H256, receipt: TransactionReceipt) {
-        let mut receipts = self.receipts.lock().await;
-        receipts.insert(tx_hash, receipt);
-    }
-}
-
-#[async_trait]
-impl SLClient for MockSLClient {
-    async fn tx_receipt(&self, tx_hash: H256) -> anyhow::Result<Option<TransactionReceipt>> {
-        Ok(self.receipts.lock().await.get(&tx_hash).cloned())
-    }
-}
 
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();
@@ -190,14 +163,29 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             l2_tx_count: 0,
             root_hash: Some(H256::zero()),
             status: api::BlockStatus::Sealed,
-            commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(1)),
+            commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| {
+                let mut h = [0u8; 32];
+                h[0] = 1;
+                h[28..].copy_from_slice(&number.to_be_bytes());
+                H256::from(h)
+            }),
             committed_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
             commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
-            prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| H256::repeat_byte(2)),
+            prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| {
+                let mut h = [0u8; 32];
+                h[0] = 2;
+                h[28..].copy_from_slice(&number.to_be_bytes());
+                H256::from(h)
+            }),
             proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
             prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(22)),
-            execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
+            execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| {
+                let mut h = [0u8; 32];
+                h[0] = 3;
+                h[28..].copy_from_slice(&number.to_be_bytes());
+                H256::from(h)
+            }),
             executed_at: (stage >= L1BatchStage::Executed)
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
             execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(33)),
@@ -241,17 +229,83 @@ fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
     }
 }
 
+const MOCK_DIAMON_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
+
+#[derive(Debug, Default)]
+struct MockSlClient;
+
+impl MockSlClient {
+    fn into_eth_interface(&self) -> Box<dyn EthInterface> {
+        let contract = zksync_contracts::hyperchain_contract();
+        Box::new(
+            MockClient::builder(L1::default())
+                .method("eth_getTransactionReceipt", move |tx_hash: H256| {
+                    // Extract the batch number from the tx hash
+                    // The batch number is stored in the last 4 bytes
+                    let bytes = tx_hash.as_bytes();
+                    let tx_type = bytes[0]; // 1 for commit, 2 for prove, 3 for execute
+
+                    // Extract batch number from the last 4 bytes
+                    let mut batch_number_bytes = [0u8; 4];
+                    batch_number_bytes.copy_from_slice(&bytes[28..32]);
+                    let batch_number = u32::from_be_bytes(batch_number_bytes);
+                    println!("Returning mock tx for batch {} type {}", batch_number, tx_type);
+
+                    let topics: Vec<H256> = match tx_type {
+                        1 => {
+                            //BlockCommit (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
+                            let event = contract.event("BlockCommit").unwrap();
+                            vec![event.signature(), H256::from_low_u64_be(batch_number.into()), H256::zero(), H256::zero()]
+                        }
+                        2 => {
+                            // BlocksVerification (index_topic_1 uint256 previousLastVerifiedBlock, index_topic_2 uint256 currentLastVerifiedBlock
+                            let event = contract.event("BlocksVerification").unwrap();
+                            vec![event.signature(), H256::from_low_u64_be(batch_number.into()), H256::from_low_u64_be(batch_number.into())]
+                        }
+                        3 => {
+                            // BlockExecution (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
+                            let event = contract.event("BlockExecution").unwrap();
+                            vec![event.signature(), H256::from_low_u64_be(batch_number.into()), H256::zero(), H256::zero()]
+                        }
+                        _ => return Ok(None),
+                    };
+
+                    // Create a receipt with status 1 (success)
+                    let mut receipt = TransactionReceipt::default();
+                    receipt.status = Some(U64::one());
+                    receipt.logs = vec![Log {
+                        address: MOCK_DIAMON_PROXY_ADDRESS,
+                        topics,
+                        data: vec![].into(),
+                        block_hash: None,
+                        block_number: None,
+                        transaction_hash: None,
+                        transaction_index: None,
+                        log_index: None,
+                        transaction_log_index: None,
+                        log_type: Some("Regular".to_string()),
+                        removed: None,
+                        block_timestamp: None,
+                    }];
+
+                    Ok(Some(receipt))
+                })
+                .build(),
+        )
+    }
+}
+
 fn mock_updater(
     client: MockMainNodeClient,
     pool: ConnectionPool<Core>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
-    let sl_client = Box::new(MockSLClient::new());
+    let sl_client = Box::new(MockSlClient::default());
 
     let mut updater = BatchStatusUpdater::from_parts(
         Box::new(client),
-        sl_client,
-        Address::repeat_byte(0x42),
+        sl_client.into_eth_interface(),
+        MOCK_DIAMON_PROXY_ADDRESS,
         pool,
         Duration::from_millis(10),
         1u64.into(),
