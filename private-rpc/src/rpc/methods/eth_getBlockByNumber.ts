@@ -5,11 +5,14 @@ import { sendToTargetRpc } from '@/rpc/methods/utils';
 
 const schema = z
     .object({
-        result: z
-            .object({
-                transactions: z.any()
-            })
-            .passthrough()
+        result: z.union([
+            z
+                .object({
+                    transactions: z.any()
+                })
+                .passthrough(),
+            z.null()
+        ])
     })
     .passthrough();
 
