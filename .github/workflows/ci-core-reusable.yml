@@ -326,7 +326,7 @@ jobs:
       - name: Create and initialize Validium chain
         run: |
           ci_run zkstack chain create \
-          --chain-name 2validium \
+          --chain-name validium \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
@@ -343,13 +343,13 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_validium \
-          --chain 2validium \
+          --chain validium \
           --validium-type no-da
 
       - name: Create and initialize DA migration chain
         run: |
           ci_run zkstack chain create \
-          --chain-name 4da_migration \
+          --chain-name da_migration \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
@@ -366,13 +366,13 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_da_migration \
-          --chain 4da_migration \
+          --chain da_migration \
           --validium-type no-da
 
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zkstack chain create \
-          --chain-name 3custom_token \
+          --chain-name custom_token \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
@@ -389,7 +389,7 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
-          --chain 3custom_token \
+          --chain custom_token \
           --validium-type no-da
 
       - name: Create and register chain with transactions signed "offline"
@@ -431,7 +431,7 @@ jobs:
       - name: Create and initialize Consensus chain
         run: |
           ci_run zkstack chain create \
-          --chain-name 5consensus \
+          --chain-name consensus \
           --chain-id sequential \
           --prover-mode no-proofs \
           --wallet-creation localhost \
@@ -448,12 +448,12 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_consensus \
-          --chain 5consensus \
+          --chain consensus \
           --validium-type no-da
 
       - name: Export chain list to environment variable
         run: |
-          CHAINS="era,2validium,3custom_token,4da_migration,5consensus"
+          CHAINS="era,validium,custom_token,da_migration,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
       # ----------------------------------------------------------------
@@ -495,10 +495,10 @@ jobs:
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
-          ci_run zkstack chain gateway migrate-to-gateway --chain 2validium --gateway-chain-name gateway
-          ci_run zkstack chain gateway migrate-to-gateway --chain 3custom_token --gateway-chain-name gateway
-          ci_run zkstack chain gateway migrate-to-gateway --chain 4da_migration --gateway-chain-name gateway
-          ci_run zkstack chain gateway migrate-to-gateway --chain 5consensus --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain da_migration --gateway-chain-name gateway
+          ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
@@ -523,27 +523,27 @@ jobs:
         run: |
           # Override config for part of chains to test the default config as well
           ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
-          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain 2validium
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
           
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
-          ci_run zkstack server --ignore-prerequisites --chain 2validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
-          ci_run zkstack server --ignore-prerequisites --chain 3custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
-          ci_run zkstack server --ignore-prerequisites --chain 4da_migration &> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
-          ci_run zkstack server --ignore-prerequisites --chain 5consensus \
+          ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
+          ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack server --ignore-prerequisites --chain da_migration &> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          ci_run zkstack server --ignore-prerequisites --chain consensus \
             --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
             &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
 
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain era
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain 2validium
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain 3custom_token
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain 4da_migration
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain 5consensus
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain validium
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain da_migration
+          ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
       - name: Run integration tests
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
-            'era:--evm' '2validium:--evm'
+            'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests on push to main to check for flakiness
         if: ${{ (github.ref == 'refs/heads/main') }}
@@ -553,30 +553,30 @@ jobs:
             mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
             ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
               ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i \
-              'era:--evm' '2validium:--evm'
+              'era:--evm' 'validium:--evm'
           done
 
       - name: DA migration tests
         run: |
           echo "Reducing L1 batch seal timeout and restarting server"
-          sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/4da_migration/configs/general.yaml
-          ci_run pkill -f "zksync_server.*chains/4da_migration/configs"
-          ci_run zkstack server --ignore-prerequisites --chain 4da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/da_migration/configs/general.yaml
+          ci_run pkill -f "zksync_server.*chains/da_migration/configs"
+          ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           
           echo "Setting pubdata pricing mode to validium and updating configuration"
-          ci_run zkstack chain set-pubdata-pricing-mode --chain 4da_migration --rollup=false
-          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/4da_migration/configs/genesis.yaml
-          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/4da_migration/ZkStack.yaml
-          sudo yq -i '.state_keeper.l1_batch_commit_data_generator_mode = "Validium"' ./chains/4da_migration/configs/general.yaml
-          sudo yq -i '.da_client.client = "NoDA"' ./chains/4da_migration/configs/general.yaml
-          sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/4da_migration/configs/general.yaml
-          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/4da_migration/configs/general.yaml
+          ci_run zkstack chain set-pubdata-pricing-mode --chain da_migration --rollup=false
+          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/da_migration/configs/genesis.yaml
+          sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/da_migration/ZkStack.yaml
+          sudo yq -i '.state_keeper.l1_batch_commit_data_generator_mode = "Validium"' ./chains/da_migration/configs/general.yaml
+          sudo yq -i '.da_client.client = "NoDA"' ./chains/da_migration/configs/general.yaml
+          sudo yq -i '.eth.sender.pubdata_sending_mode = "CUSTOM"' ./chains/da_migration/configs/general.yaml
+          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = true' ./chains/da_migration/configs/general.yaml
           echo "Deploying L2 DA validator and restarting server"
-          ci_run zkstack chain deploy-l2da-validator --chain 4da_migration
-          ci_run pkill -f "zksync_server.*chains/4da_migration/configs"
-          ci_run zkstack server --ignore-prerequisites --chain 4da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          ci_run zkstack chain deploy-l2da-validator --chain da_migration
+          ci_run pkill -f "zksync_server.*chains/da_migration/configs"
+          ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 100
           echo "Server restart wait completed"
@@ -621,16 +621,16 @@ jobs:
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.validium_da_validator' "./chains/gateway/configs/gateway.yaml")
           else
-            L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/4da_migration/configs/contracts.yaml")
+            L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/da_migration/configs/contracts.yaml")
           fi
           
-          ci_run zkstack chain set-da-validator-pair --chain 4da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000
+          ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000
           
-          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/4da_migration/configs/general.yaml
-          sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/4da_migration/configs/general.yaml
-          sudo yq -i '.state_keeper.compute_overhead_part = 1' ./chains/4da_migration/configs/general.yaml
-          ci_run pkill -f "zksync_server.*chains/4da_migration/configs"
-          ci_run zkstack server --ignore-prerequisites --chain 4da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/da_migration/configs/general.yaml
+          sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/da_migration/configs/general.yaml
+          sudo yq -i '.state_keeper.compute_overhead_part = 1' ./chains/da_migration/configs/general.yaml
+          ci_run pkill -f "zksync_server.*chains/da_migration/configs"
+          ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
           echo "Server restart wait completed"
@@ -638,8 +638,8 @@ jobs:
           echo "Running integration tests"
           
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
-            "4da_migration" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
-            'era:--evm' '2validium:--evm'
+            "da_migration" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
           echo "Integration tests completed"
 
       - name: Init external nodes
@@ -651,20 +651,20 @@ jobs:
           ci_run zkstack external-node init --ignore-prerequisites --chain era
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain 2validium
-          ci_run zkstack external-node init --ignore-prerequisites --chain 2validium
+          --db-name=zksync_en_localhost_era_validium1 --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain validium
+          ci_run zkstack external-node init --ignore-prerequisites --chain validium
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain 3custom_token
-          ci_run zkstack external-node init --ignore-prerequisites --chain 3custom_token
+          --db-name=zksync_en_localhost_era_custom_token --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain custom_token
+          ci_run zkstack external-node init --ignore-prerequisites --chain custom_token
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_da_migration --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain 4da_migration
-          ci_run zkstack external-node init --ignore-prerequisites --chain 4da_migration
+          --db-name=zksync_en_localhost_era_da_migration --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain da_migration
+          ci_run zkstack external-node init --ignore-prerequisites --chain da_migration
 
           ci_run zkstack external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain 5consensus
-          ci_run zkstack external-node init --ignore-prerequisites --chain 5consensus
+          --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 $GATEWAY_RPC_URL --chain consensus
+          ci_run zkstack external-node init --ignore-prerequisites --chain consensus
 
       - name: Run recovery tests (from snapshot)
         run: |
@@ -677,22 +677,22 @@ jobs:
       - name: Run external nodes
         run: |
           ci_run zkstack external-node run --ignore-prerequisites --chain era &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/rollup.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain 2validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain 3custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain 4da_migration --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/da_migration.log &
-          ci_run zkstack external-node run --ignore-prerequisites --chain 5consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain validium --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/validium.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain custom_token &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain da_migration --components all,da_fetcher &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/da_migration.log &
+          ci_run zkstack external-node run --ignore-prerequisites --chain consensus --enable-consensus &> ${{ env.EXTERNAL_NODE_LOGS_DIR }}/consensus.log &
 
           ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain era
-          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain 2validium
-          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain 3custom_token
-          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain 4da_migration
-          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain 5consensus
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain validium
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain custom_token
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain da_migration
+          ci_run zkstack external-node wait --ignore-prerequisites --verbose --chain consensus
 
       - name: Run integration tests en
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
             ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }} \
-            'era:--evm' '2validium:--evm'
+            'era:--evm' 'validium:--evm'
 
       - name: Repeat integration tests en on push to main to check for flakiness
         if: ${{ (github.ref == 'refs/heads/main') }}
@@ -702,7 +702,7 @@ jobs:
             mkdir -p ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i
             ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --external-node" \
               ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/$i \
-              'era:--evm' '2validium:--evm'
+              'era:--evm' 'validium:--evm'
           done
 
       - name: Fee projection tests
