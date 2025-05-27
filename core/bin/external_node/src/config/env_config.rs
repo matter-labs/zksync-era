@@ -102,14 +102,14 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
     Ok(config)
 }
 
-pub fn da_client_secrets_from_env() -> anyhow::Result<DataAvailabilitySecrets> {
-    let client_tag = env::var("EN_DA_CLIENT")?;
+pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabilitySecrets> {
+    let client_tag = env::var(format!("{}CLIENT", prefix))?;
     let secrets = match client_tag.as_str() {
         AVAIL_CLIENT_CONFIG_NAME => {
-            let seed_phrase = env::var("EN_DA_SECRETS_SEED_PHRASE")
+            let seed_phrase = env::var(format!("{}SECRETS_SEED_PHRASE", prefix))
                 .ok()
                 .map(|s| SeedPhrase(s.into()));
-            let gas_relay_api_key = env::var("EN_DA_SECRETS_GAS_RELAY_API_KEY")
+            let gas_relay_api_key = env::var(format!("{}SECRETS_GAS_RELAY_API_KEY", prefix))
                 .ok()
                 .map(|s| APIKey(s.into()));
             if seed_phrase.is_none() && gas_relay_api_key.is_none() {
@@ -121,15 +121,15 @@ pub fn da_client_secrets_from_env() -> anyhow::Result<DataAvailabilitySecrets> {
             })
         }
         CELESTIA_CLIENT_CONFIG_NAME => {
-            let private_key =
-                env::var("EN_DA_SECRETS_PRIVATE_KEY").context("Celestia private key not found")?;
+            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
+                .context("Celestia private key not found")?;
             DataAvailabilitySecrets::Celestia(CelestiaSecrets {
                 private_key: PrivateKey(private_key.into()),
             })
         }
         EIGEN_CLIENT_CONFIG_NAME => {
-            let private_key =
-                env::var("EN_DA_SECRETS_PRIVATE_KEY").context("Eigen private key not found")?;
+            let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
+                .context("Eigen private key not found")?;
             DataAvailabilitySecrets::Eigen(EigenSecrets {
                 private_key: PrivateKey(private_key.into()),
             })

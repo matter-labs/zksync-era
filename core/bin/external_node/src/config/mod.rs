@@ -1234,7 +1234,7 @@ impl ExternalNodeConfig<()> {
             consensus_secrets,
             data_availability: (
                 da_client_config_from_env("EN_DA_").ok(),
-                da_client_secrets_from_env().ok(),
+                da_client_secrets_from_env("EN_DA_").ok(),
             ),
             remote: (),
         })
