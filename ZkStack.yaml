@@ -4,6 +4,6 @@ link_to_code: .
 chains: ./chains
 config: ./configs/
 default_chain: era
-era_chain_id: 270
+era_chain_id: 271
 prover_version: NoProofs
 wallet_creation: Localhost

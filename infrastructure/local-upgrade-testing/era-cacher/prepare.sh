@@ -10,7 +10,7 @@ git submodule update --init --recursive
 cd ..
 
 cd zksync-new
-git checkout kl/upgrade-support
+git checkout kl/reduced-interop-support
 git submodule update --init --recursive
 cd ..
 
