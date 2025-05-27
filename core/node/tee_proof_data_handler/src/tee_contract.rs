@@ -3,14 +3,64 @@
 use zksync_contracts::tee_contract;
 use zksync_l1_contract_interface::Tokenizable;
 use zksync_types::{
-    ethabi::{Bytes, Function, Token},
+    ethabi::{Bytes, Contract, Function, Token},
     H256, U256,
 };
 
-use crate::zksync_functions::get_function;
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EnclaveId {
+    QE = 0,
+    QVE = 1,
+    TDQE = 2,
+}
 
-#[derive(Debug)]
-pub(super) struct TeeFunctions {
+impl From<EnclaveId> for u8 {
+    fn from(id: EnclaveId) -> Self {
+        id as u8
+    }
+}
+
+impl TryFrom<&str> for EnclaveId {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value.to_uppercase().as_str() {
+            "QE" => Ok(Self::QE),
+            "QVE" => Ok(Self::QVE),
+            "TD_QE" => Ok(Self::TDQE),
+            _ => Err(format!("Invalid enclave ID: {}", value)),
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CA {
+    ROOT = 0,
+    PROCESSOR = 1,
+    PLATFORM = 2,
+    SIGNING = 3,
+}
+
+impl From<CA> for u8 {
+    fn from(ca: CA) -> Self {
+        ca as u8
+    }
+}
+
+pub(crate) fn get_function(contract: &Contract, name: &str) -> Function {
+    contract
+        .functions
+        .get(name)
+        .cloned()
+        .unwrap_or_else(|| panic!("{} function not found", name))
+        .pop()
+        .unwrap_or_else(|| panic!("{} function entry not found", name))
+}
+
+#[derive(Debug, Clone)]
+pub struct TeeFunctions {
     f_verify_and_attest_on_chain: Function,
     f_upsert_pcs_certificates: Function,
     f_upsert_root_ca_crl: Function,
@@ -52,11 +102,13 @@ impl TeeFunctions {
     /// function upsertPcsCertificates(CA[] calldata ca, bytes[] calldata certs) external returns (bytes32[] memory attestationIds){
     pub fn upsert_pcs_certificates(
         &self,
-        ca: Vec<u8>,
-        certs: Vec<u8>,
+        ca: Vec<CA>,
+        certs: Vec<Vec<u8>>,
     ) -> zksync_types::ethabi::Result<Bytes> {
+        let ca_u8: Vec<u8> = ca.into_iter().map(|c| u8::from(c)).collect();
+
         self.f_upsert_pcs_certificates
-            .encode_input(&[ca.into_token(), certs.into_token()])
+            .encode_input(&[ca_u8.into_token(), certs.into_token()])
     }
 
     /// function upsertRootCACrl(bytes calldata rootcacrl) external returns (bytes32 attestationId){
@@ -66,22 +118,22 @@ impl TeeFunctions {
     }
 
     /// function upsertPckCrl(CA ca, bytes calldata crl) external returns (bytes32 attestationId){
-    pub fn upsert_pck_crl(&self, ca: Vec<u8>, crl: Vec<u8>) -> zksync_types::ethabi::Result<Bytes> {
+    pub fn upsert_pck_crl(&self, ca: CA, crl: Vec<u8>) -> zksync_types::ethabi::Result<Bytes> {
         self.f_upsert_pck_crl
-            .encode_input(&[ca.into_token(), crl.into_token()])
+            .encode_input(&[U256::from(ca as u8).into_token(), crl.into_token()])
     }
 
     /// function upsertEnclaveIdentity(uint256 id, uint256 quoteVersion, EnclaveIdentityJsonObj calldata identityJson) external {
     pub fn upsert_enclave_identity(
         &self,
-        id: U256,
-        version: U256,
+        id: EnclaveId,
+        version: u64,
         identity_json: String,
         signature: Vec<u8>,
     ) -> zksync_types::ethabi::Result<Bytes> {
         self.f_upsert_enclave_identity.encode_input(&[
-            id.into_token(),
-            version.into_token(),
+            U256::from(id as u8).into_token(),
+            U256::from(version).into_token(),
             Token::Tuple(vec![Token::String(identity_json), signature.into_token()]),
         ])
     }

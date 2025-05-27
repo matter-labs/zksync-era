@@ -36,6 +36,7 @@ tower-http = { workspace = true, features = [
 tower.workspace = true
 tracing.workspace = true
 vise.workspace = true
+x509-cert = { version = "0.2", features = ["builder", "signature", "default"] }
 zksync_config.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_node_framework.workspace = true
@@ -44,6 +45,8 @@ zksync_prover_interface.workspace = true
 zksync_tee_prover_interface.workspace = true
 zksync_types.workspace = true
 zksync_vm_executor.workspace = true
+zksync_contracts.workspace = true
+zksync_l1_contract_interface.workspace = true
 
 [dev-dependencies]
 hyper.workspace = true

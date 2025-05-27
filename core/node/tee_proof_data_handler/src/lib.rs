@@ -18,6 +18,7 @@ mod metrics;
 pub mod node;
 mod tee_request_processor;
 
+pub mod tee_contract;
 #[cfg(test)]
 mod tests;
 

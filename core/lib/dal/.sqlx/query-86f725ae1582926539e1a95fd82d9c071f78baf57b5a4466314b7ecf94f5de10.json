@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                sha256,\n                not_after,\n                eth_tx_id,\n                update_guard_expires\n            FROM tee_dcap_collateral\n            WHERE kind = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sha256",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "not_after",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "eth_tx_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "update_guard_expires",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "86f725ae1582926539e1a95fd82d9c071f78baf57b5a4466314b7ecf94f5de10"
+}
