@@ -39,9 +39,9 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
     let client_tag = env::var(format!("{}CLIENT", prefix))?;
     let config = match client_tag.as_str() {
         AVAIL_CLIENT_CONFIG_NAME => DAClientConfig::Avail(AvailConfig {
-            bridge_api_url: env::var("EN_DA_BRIDGE_API_URL")?,
-            timeout: Duration::from_millis(env::var("EN_DA_TIMEOUT_MS")?.parse()?),
-            config: match env::var("EN_DA_AVAIL_CLIENT_TYPE")?.as_str() {
+            bridge_api_url: env::var(format!("{}BRIDGE_API_URL", prefix))?,
+            timeout: Duration::from_millis(env::var(format!("{}TIMEOUT_MS", prefix))?.parse()?),
+            config: match env::var(format!("{}AVAIL_CLIENT_TYPE", prefix))?.as_str() {
                 AVAIL_FULL_CLIENT_NAME => {
                     AvailClientConfig::FullClient(envy_load("da_avail_full_client", prefix)?)
                 }

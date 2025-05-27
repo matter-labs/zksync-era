@@ -117,10 +117,6 @@ impl DataAvailabilityFetcher {
             first_batch_to_check,
             last_committed_batch
         );
-        println!(
-            "Determined first batch to scan: {} (last committed batch: {})",
-            first_batch_to_check, last_committed_batch
-        );
 
         Ok(first_batch_to_check)
     }
