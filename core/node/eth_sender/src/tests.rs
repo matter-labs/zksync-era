@@ -18,6 +18,7 @@ use zksync_types::{
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
+    eth_sender::EthTxFinalityStatus,
     ethabi::{self, Token},
     helpers::unix_timestamp_ms,
     settlement::SettlementLayer,
@@ -242,7 +243,9 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     .await;
 
     // after this, median should be 6
-    tester.gateway.advance_block_number(3);
+    tester
+        .gateway
+        .advance_block_number(3, EthTxFinalityStatus::Finalized);
     tester.gas_adjuster.keep_updated().await?;
 
     TestL1Batch::sealed(&mut tester).await;
@@ -297,7 +300,9 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
     );
 
     // now, median is 5
-    tester.gateway.advance_block_number(2);
+    tester
+        .gateway
+        .advance_block_number(2, EthTxFinalityStatus::Finalized);
     tester.gas_adjuster.keep_updated().await?;
     let block_numbers = tester.get_block_numbers().await;
 
@@ -386,8 +391,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
             l1_batch.number,
             AggregatedActionType::Commit,
             true,
-            // we use -2 as running eth_sender iteration implicitly advances block number by 1
-            EthSenderTester::WAIT_CONFIRMATIONS - 2,
+            EthTxFinalityStatus::Pending,
         )
         .await;
     tester.run_eth_sender_tx_manager_iteration().await;
@@ -437,6 +441,65 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
     tester.run_eth_sender_tx_manager_iteration().await;
     // check that last 2 transactions are still considered in-flight
     tester.assert_inflight_txs_count_equals(2).await;
+
+    //We should have resent only first not-mined transaction
+    third_batch.assert_commit_tx_just_sent(&mut tester).await;
+    tester.assert_just_sent_tx_count_equals(1).await;
+
+    Ok(())
+}
+
+// #[test_casing(2, COMMITMENT_MODES)]
+#[test_log::test(tokio::test)]
+async fn fast_finalization() -> anyhow::Result<()> {
+    let commitment_mode = L1BatchCommitmentMode::Rollup;
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let mut tester = EthSenderTester::new(
+        connection_pool.clone(),
+        vec![100; 100],
+        false,
+        true,
+        commitment_mode,
+        SettlementLayer::L1(10.into()),
+    )
+    .await;
+
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+
+    let first_batch = TestL1Batch::sealed(&mut tester).await;
+    let second_batch = TestL1Batch::sealed(&mut tester).await;
+    let third_batch = TestL1Batch::sealed(&mut tester).await;
+    let fourth_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_batch.save_commit_tx(&mut tester).await;
+    second_batch.save_commit_tx(&mut tester).await;
+    third_batch.save_commit_tx(&mut tester).await;
+    fourth_batch.save_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // we should have sent transactions for all batches for the first time
+    tester.assert_just_sent_tx_count_equals(4).await;
+
+    first_batch.fast_finalize_commit_tx(&mut tester).await;
+    second_batch.fast_finalize_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // check that last 2 transactions are still considered in-flight
+    tester.assert_inflight_txs_count_equals(2).await;
+    tester.assert_non_finalized_txs_count_equals(2).await;
+    tester.revert_blocks(2).await;
+    // After revert we send transactions one by one
+    print!("after revert ");
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_just_sent_tx_count_equals(1).await;
+    first_batch.execute_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_just_sent_tx_count_equals(3).await;
+    second_batch.execute_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_inflight_txs_count_equals(2).await;
+    tester.assert_non_finalized_txs_count_equals(0).await;
 
     //We should have resent only first not-mined transaction
     third_batch.assert_commit_tx_just_sent(&mut tester).await;

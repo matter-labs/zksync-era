@@ -19,6 +19,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::L2BlockHeader,
     commitment::{L1BatchWithMetadata, PubdataType},
+    eth_sender::EthTxFinalityStatus,
     protocol_version::ProtocolSemanticVersion,
     web3::Log,
     ProtocolVersion, ProtocolVersionId, H256, L2_BRIDGEHUB_ADDRESS,
@@ -498,7 +499,7 @@ async fn normal_checker_function(
         let signed_tx = signed_tx.unwrap();
         client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
-            .execute_tx(signed_tx.hash, true, 1)
+            .execute_tx(signed_tx.hash, true, EthTxFinalityStatus::Finalized)
             .with_logs(l1_batches.iter().map(l1_batch_commit_log).collect());
 
         commit_tx_hash_by_l1_batch.extend(
@@ -600,7 +601,7 @@ async fn checker_processes_pre_boojum_batches(
         let signed_tx = signed_tx.unwrap();
         client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
-            .execute_tx(signed_tx.hash, true, 1)
+            .execute_tx(signed_tx.hash, true, EthTxFinalityStatus::Finalized)
             .with_logs(vec![l1_batch_commit_log(l1_batch)]);
 
         commit_tx_hash_by_l1_batch.insert(l1_batch.header.number, signed_tx.hash);
@@ -686,7 +687,7 @@ async fn checker_functions_after_snapshot_recovery(
     let commit_tx_hash = signed_tx.hash;
     client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
     client
-        .execute_tx(commit_tx_hash, true, 1)
+        .execute_tx(commit_tx_hash, true, EthTxFinalityStatus::Finalized)
         .with_logs(vec![l1_batch_commit_log(&l1_batch)]);
 
     let save_actions = [
@@ -852,7 +853,11 @@ impl IncorrectDataKind {
         };
         client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
-            .execute_tx(signed_tx.hash, successful_status, 1)
+            .execute_tx(
+                signed_tx.hash,
+                successful_status,
+                EthTxFinalityStatus::Finalized,
+            )
             .with_logs(tx_logs);
         signed_tx.hash
     }

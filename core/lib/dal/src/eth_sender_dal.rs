@@ -40,6 +40,8 @@ impl EthSenderDal<'_, '_> {
                 from_addr = $1
                 AND is_gateway = $2
                 AND eth_txs_history.finality_status != 'finalized'
+            ORDER BY
+                eth_txs.id
             "#,
             operator_address.as_bytes(),
             is_gateway,
@@ -404,7 +406,7 @@ impl EthSenderDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW(), FALSE, 'pending')
-            ON CONFLICT (tx_hash) DO NOTHING
+            ON CONFLICT (tx_hash) DO UPDATE SET sent_at_block = $9
             RETURNING
             id
             "#,
