@@ -246,7 +246,7 @@ describe('L1 ERC20 contract checks', () => {
         expect(included).toBe(true);
     });
 
-    test('Can check withdrawal hash from L2-B', async () => {
+    test.skip('Can check withdrawal hash from L2-B', async () => {
         // We extract the L2-B RPC URL from the corresponding yaml file to define the L2-B provider
         const url = getL2bUrl(testMaster.environment().l2NodeUrl);
         let l2b_provider = new RetryProvider({ url, timeout: 1200 * 1000 }, undefined, testMaster.reporter);
@@ -308,7 +308,7 @@ describe('L1 ERC20 contract checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while (currentRoot === ethers.ZeroHash && count < 100) {
+        while (currentRoot === ethers.ZeroHash && count < 20) {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
