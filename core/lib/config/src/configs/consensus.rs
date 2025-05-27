@@ -15,6 +15,8 @@ use smart_config::{
 use zksync_basic_types::{ethabi, L2ChainId};
 use zksync_concurrency::{limiter, time};
 
+use crate::utils::Fallback;
+
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -145,17 +147,17 @@ pub struct ConsensusConfig {
     /// node.
     pub public_addr: Host,
     /// Maximal allowed size of the payload in bytes.
-    #[config(default_t = ByteSize(2_500_000), with = ((), SizeUnit::Bytes))]
+    #[config(default_t = ByteSize(2_500_000), with = Fallback(SizeUnit::Bytes))]
     pub max_payload_size: ByteSize,
     /// View timeout duration.
-    #[config(default_t = Duration::from_secs(2), with = ((), CustomDurationFormat))]
+    #[config(default_t = Duration::from_secs(2), with = Fallback(CustomDurationFormat))]
     pub view_timeout: Duration,
     /// Maximal allowed size of the sync-batch payloads in bytes.
     ///
     /// The batch consists of block payloads and a Merkle proof of inclusion on L1 (~1kB),
     /// so the maximum batch size should be the maximum payload size times the maximum number
     /// of blocks in a batch.
-    #[config(default_t = ByteSize(12_500_001_024), with = ((), SizeUnit::Bytes))]
+    #[config(default_t = ByteSize(12_500_001_024), with = Fallback(SizeUnit::Bytes))]
     pub max_batch_size: ByteSize,
 
     /// Limit on the number of inbound connections outside the `static_inbound` set.

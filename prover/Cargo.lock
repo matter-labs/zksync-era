@@ -6474,7 +6474,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=52ac561a74ff99c6cd4683a56abef255a32700c6#52ac561a74ff99c6cd4683a56abef255a32700c6"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -6490,7 +6490,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=52ac561a74ff99c6cd4683a56abef255a32700c6#52ac561a74ff99c6cd4683a56abef255a32700c6"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",

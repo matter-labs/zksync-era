@@ -8,6 +8,8 @@ use smart_config::{
 };
 use zksync_basic_types::Address;
 
+use crate::utils::Fallback;
+
 /// An enum that represents the version of the fee model to use.
 ///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
 ///    Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
@@ -49,7 +51,7 @@ pub struct StateKeeperConfig {
     pub l2_block_seal_queue_capacity: usize,
     /// The max payload size threshold (in bytes) that triggers sealing of an L2 block.
     #[config(alias = "miniblock_max_payload_size")]
-    #[config(default_t = ByteSize(1_000_000), with = ((), SizeUnit::Bytes))]
+    #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
     pub l2_block_max_payload_size: ByteSize,
 
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
@@ -102,7 +104,7 @@ pub struct StateKeeperConfig {
     /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
     /// - the DA layer's blob size limit for the DA layer-based validiums
     /// - 100 MB for the object store-based or no-da validiums
-    #[config(with = ((), SizeUnit::Bytes))]
+    #[config(with = Fallback(SizeUnit::Bytes))]
     pub max_pubdata_per_batch: ByteSize,
 
     /// The version of the fee model to use.
@@ -167,7 +169,7 @@ impl StateKeeperConfig {
 #[config(derive(Default))]
 pub struct OperationsManagerConfig {
     /// Sleep time in ms when there is no new input data
-    #[config(default_t = Duration::from_millis(100), with = ((), TimeUnit::Millis))]
+    #[config(default_t = Duration::from_millis(100), with = Fallback(TimeUnit::Millis))]
     pub delay_interval: Duration,
 }
 
@@ -193,11 +195,11 @@ pub struct MempoolConfig {
     pub sync_batch_size: usize,
     #[config(default_t = 10_000_000)]
     pub capacity: u64,
-    #[config(default_t = 2 * TimeUnit::Days, with = ((), TimeUnit::Seconds))]
+    #[config(default_t = 2 * TimeUnit::Days, with = Fallback(TimeUnit::Seconds))]
     pub stuck_tx_timeout: Duration,
     #[config(default_t = true)]
     pub remove_stuck_txs: bool,
-    #[config(default_t = Duration::from_millis(100), with = ((), TimeUnit::Millis))]
+    #[config(default_t = Duration::from_millis(100), with = Fallback(TimeUnit::Millis))]
     pub delay_interval: Duration,
     #[config(default)]
     pub l1_to_l2_txs_paused: bool,

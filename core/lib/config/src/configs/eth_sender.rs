@@ -10,7 +10,7 @@ use smart_config::{
 use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
-use crate::EthWatchConfig;
+use crate::{utils::Fallback, EthWatchConfig};
 
 /// Configuration for the Ethereum related components.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -119,10 +119,10 @@ pub struct SenderConfig {
     /// If not specified L1 transaction will be considered finalized once its block is finalized.
     pub wait_confirmations: Option<u64>,
     /// Node polling period in seconds.
-    #[config(default_t = Duration::from_secs(1), with = ((), TimeUnit::Seconds))]
+    #[config(default_t = Duration::from_secs(1), with = Fallback(TimeUnit::Seconds))]
     pub tx_poll_period: Duration,
     /// Aggregate txs polling period in seconds.
-    #[config(default_t = Duration::from_secs(1), with = ((), TimeUnit::Seconds))]
+    #[config(default_t = Duration::from_secs(1), with = Fallback(TimeUnit::Seconds))]
     pub aggregate_tx_poll_period: Duration,
     /// The maximum number of unconfirmed Ethereum transactions.
     #[config(default_t = 30)]
@@ -137,11 +137,11 @@ pub struct SenderConfig {
     pub max_aggregated_blocks_to_commit: u32,
     #[config(default_t = 10)]
     pub max_aggregated_blocks_to_execute: u32,
-    #[config(default_t = 5 * TimeUnit::Minutes, with = ((), TimeUnit::Seconds))]
+    #[config(default_t = 5 * TimeUnit::Minutes, with = Fallback(TimeUnit::Seconds))]
     pub aggregated_block_commit_deadline: Duration,
-    #[config(default_t = 5 * TimeUnit::Minutes, with = ((), TimeUnit::Seconds))]
+    #[config(default_t = 5 * TimeUnit::Minutes, with = Fallback(TimeUnit::Seconds))]
     pub aggregated_block_prove_deadline: Duration,
-    #[config(default_t = 5 * TimeUnit::Minutes, with = ((), TimeUnit::Seconds))]
+    #[config(default_t = 5 * TimeUnit::Minutes, with = Fallback(TimeUnit::Seconds))]
     pub aggregated_block_execute_deadline: Duration,
     #[config(default_t = 30)]
     pub timestamp_criteria_max_allowed_lag: usize,
@@ -238,7 +238,7 @@ pub struct GasAdjusterConfig {
     #[config(default)]
     pub internal_enforced_pubdata_price: Option<u64>,
     /// Node polling period in seconds
-    #[config(default_t = 1 * TimeUnit::Minutes, with = ((), TimeUnit::Seconds))]
+    #[config(default_t = 1 * TimeUnit::Minutes, with = Fallback(TimeUnit::Seconds))]
     pub poll_period: Duration,
     /// Max number of l1 gas price that is allowed to be used.
     #[config(default_t = u64::MAX)]

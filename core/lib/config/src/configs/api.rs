@@ -15,6 +15,8 @@ use smart_config::{
 };
 use zksync_basic_types::Address;
 
+use crate::utils::Fallback;
+
 /// API configuration.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ApiConfig {
@@ -155,7 +157,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 10_000)]
     pub subscriptions_limit: usize,
     /// Interval between polling db for pubsub (in ms).
-    #[config(default_t = Duration::from_millis(200), with = ((), TimeUnit::Millis))]
+    #[config(default_t = Duration::from_millis(200), with = Fallback(TimeUnit::Millis))]
     pub pubsub_polling_interval: Duration,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[config(default_t = 50)]
@@ -175,7 +177,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default)]
     pub estimate_gas_optimize_search: bool,
     ///  Max possible size of an ABI encoded tx (in bytes).
-    #[config(default_t = 10 * SizeUnit::MiB, with = ((), SizeUnit::Bytes))]
+    #[config(default_t = 10 * SizeUnit::MiB, with = Fallback(SizeUnit::Bytes))]
     pub max_tx_size: ByteSize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
@@ -220,7 +222,7 @@ pub struct Web3JsonRpcConfig {
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     /// In milliseconds. Default is 50 milliseconds.
-    #[config(default_t = Duration::from_millis(50), with = ((), TimeUnit::Millis))]
+    #[config(default_t = Duration::from_millis(50), with = Fallback(TimeUnit::Millis))]
     pub mempool_cache_update_interval: Duration,
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[config(default_t = 10_000)]

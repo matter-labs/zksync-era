@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 
+use crate::utils::Fallback;
+
 /// Configuration for the Ethereum watch crate.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
@@ -11,7 +13,7 @@ pub struct EthWatchConfig {
     #[config(default)]
     pub confirmations_for_eth_event: Option<u64>,
     /// How often we want to poll the Ethereum node.
-    #[config(default_t = Duration::from_secs(1), with = ((), TimeUnit::Millis))]
+    #[config(default_t = Duration::from_secs(1), with = Fallback(TimeUnit::Millis))]
     pub eth_node_poll_interval: Duration,
 }
 
