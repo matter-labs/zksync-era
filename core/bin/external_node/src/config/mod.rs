@@ -659,7 +659,7 @@ impl OptionalENConfig {
                 .min_time_till_end_sec
                 .as_secs() as u32,
             max_batches_to_recheck: enconfig
-                .consistency_checker_max_batches_to_recheck
+                .max_batches_to_recheck
                 .unwrap_or_else(OptionalENConfig::default_max_batches_to_recheck),
         })
     }
