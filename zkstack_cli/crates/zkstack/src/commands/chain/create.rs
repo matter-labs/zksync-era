@@ -80,6 +80,7 @@ pub(crate) async fn create_chain_inner(
     } else {
         ecosystem_config.list_of_chains().len() as u32
     };
+    println!("internal_id: {}", internal_id);
     let chain_path = ecosystem_config.chains.join(&default_chain_name);
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
