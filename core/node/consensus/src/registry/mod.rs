@@ -165,7 +165,7 @@ fn decode_validator_key(k: &abi::BLS12_381PublicKey) -> anyhow::Result<validator
     x.extend(k.a);
     x.extend(k.b);
     x.extend(k.c);
-    ByteFmt::decode(&x)
+    ByteFmt::decode(&x).context("decode validator key")
 }
 
 fn decode_validator_pop(
