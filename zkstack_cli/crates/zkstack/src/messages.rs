@@ -403,7 +403,7 @@ pub(super) fn msg_address_doesnt_have_enough_money_prompt(
     let actual = format_ether(actual);
     let expected = format_ether(expected);
     format!(
-        "It is recommended to have {expected} ETH on the address {address:?} to deploy contracts. Current balance is {actual} ETH. How do you want to proceed?",
+        "It is not recommended to have {expected} ETH on the address {address:?} to deploy contracts. Current balance is {actual} ETH. How do you want to proceed?",
     )
 }
 
