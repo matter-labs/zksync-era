@@ -213,6 +213,7 @@ impl ExplorerBackendComposeConfig {
             restart: None,
             environment: Some(env),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            network_mode: None,
             other: serde_json::Value::Null,
         })
     }
@@ -232,6 +233,7 @@ impl ExplorerBackendComposeConfig {
                 ("BLOCKCHAIN_RPC_URL".to_string(), l2_rpc_url.to_string()),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            network_mode: None,
             other: serde_json::Value::Null,
         }
     }
@@ -279,6 +281,7 @@ impl ExplorerBackendComposeConfig {
                 ),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            network_mode: None,
             other: serde_json::Value::Null,
         })
     }

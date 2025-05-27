@@ -30,6 +30,7 @@ pub async fn create_private_rpc_service(
     l2_rpc_url: Url,
     ecosystem_path: &Path,
     chain_name: &str,
+    docker_network_host: bool,
 ) -> anyhow::Result<DockerComposeService> {
     let base_permissions_path = if let Ok(docker_root) = std::env::var("DOCKER_PWD") {
         PathBuf::from(docker_root)
@@ -45,8 +46,16 @@ pub async fn create_private_rpc_service(
     // FIXME: Cors origin is the explorer app URL. This must be changed to reflect
     // the actual deployment URL.
     let cors_origin = format!("http://127.0.0.1:{DEFAULT_EXPLORER_PORT}");
-    let database_url = adjust_localhost_for_docker(database_url)?;
-    let l2_rpc_url = adjust_localhost_for_docker(l2_rpc_url)?;
+
+    let adjust_url = |url: Url| -> anyhow::Result<Url> {
+        if docker_network_host {
+            Ok(url)
+        } else {
+            adjust_localhost_for_docker(url)
+        }
+    };
+    let database_url = adjust_url(database_url)?;
+    let l2_rpc_url = adjust_url(l2_rpc_url)?;
 
     Ok(DockerComposeService {
         image: "private-rpc".to_string(),
@@ -74,6 +83,11 @@ pub async fn create_private_rpc_service(
             ),
         ])),
         extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+        network_mode: if docker_network_host {
+            Some("host".to_string())
+        } else {
+            None
+        },
         other: serde_json::Value::Null,
     })
 }

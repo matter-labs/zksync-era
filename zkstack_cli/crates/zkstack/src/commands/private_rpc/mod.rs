@@ -31,6 +31,9 @@ use crate::{
 pub struct PrivateRpcCommandInitArgs {
     #[clap(long)]
     pub dev: bool,
+    /// Initializes private proxy with network host mode. This is useful for environments that don't support host.docker.internal.
+    #[clap(long)]
+    pub docker_network_host: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -196,6 +199,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
             l2_rpc_url,
             &ecosystem_path,
             &chain_name,
+            args.docker_network_host,
         )
         .await?,
     );
