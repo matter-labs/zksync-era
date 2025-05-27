@@ -167,8 +167,7 @@ impl MockSettlementLayerInner {
                 self.current_nonce = tx_nonce + 1;
             }
         } else {
-            // todo recover
-            // assert_eq!(tx_nonce, nonce, "nonce mismatch");
+            assert_eq!(tx_nonce, nonce, "nonce mismatch");
         }
         self.nonces.insert(self.pending_block_number, nonce + 1);
 
@@ -663,8 +662,9 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
         MockExecutedTxHandle { inner, tx_hash }
     }
 
-    /// Increases the block number in the network by the specified value.
-    pub fn revert_block_number(&self, val: u64) -> u64 {
+    /// Revert the block. It will set proper block numbers and
+    /// remove all executed transactions in reverted blocks.
+    pub fn revert_block_by_number(&self, val: u64) -> u64 {
         let mut inner = self.inner.write().unwrap();
         let pending_block_number = inner.pending_block_number;
         let final_block_number = inner.final_block_number;

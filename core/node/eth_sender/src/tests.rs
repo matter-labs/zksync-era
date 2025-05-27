@@ -449,10 +449,9 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
     Ok(())
 }
 
-// #[test_casing(2, COMMITMENT_MODES)]
+#[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
-async fn fast_finalization() -> anyhow::Result<()> {
-    let commitment_mode = L1BatchCommitmentMode::Rollup;
+async fn fast_finalization(commitment_mode: L1BatchCommitmentMode) -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
         connection_pool.clone(),
@@ -489,11 +488,12 @@ async fn fast_finalization() -> anyhow::Result<()> {
     tester.assert_non_finalized_txs_count_equals(2).await;
     tester.revert_blocks(2).await;
     // After revert we send transactions one by one
-    print!("after revert ");
     tester.run_eth_sender_tx_manager_iteration().await;
+    // Automatically we resend first transaction
     tester.assert_just_sent_tx_count_equals(1).await;
     first_batch.execute_commit_tx(&mut tester).await;
     tester.run_eth_sender_tx_manager_iteration().await;
+    // Now we should send all remaining transactions, except the one that was already mined
     tester.assert_just_sent_tx_count_equals(3).await;
     second_batch.execute_commit_tx(&mut tester).await;
 

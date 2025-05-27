@@ -668,9 +668,9 @@ impl EthSenderTester {
     }
 
     pub async fn revert_blocks(&mut self, count: u64) {
-        self.gateway.revert_block_number(count);
-        self.gateway_blobs.revert_block_number(count);
-        self.l2_gateway.revert_block_number(count);
+        self.gateway.revert_block_by_number(count);
+        self.gateway_blobs.revert_block_by_number(count);
+        self.l2_gateway.revert_block_by_number(count);
     }
 
     pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
