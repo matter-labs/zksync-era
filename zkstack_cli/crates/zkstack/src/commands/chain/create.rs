@@ -78,7 +78,7 @@ pub(crate) async fn create_chain_inner(
             .unwrap() as u32
             + 1
     } else {
-        ecosystem_config.list_of_chains().len() as u32
+        ecosystem_config.list_of_chains().len() as u32 + 1
     };
     println!("internal_id: {}", internal_id);
     let chain_path = ecosystem_config.chains.join(&default_chain_name);
