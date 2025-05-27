@@ -66,6 +66,20 @@ pub(crate) async fn create_chain_inner(
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
     let default_chain_name = args.chain_name.clone();
+    println!(
+        "ecosystem_config.list_of_chains() before: {:?}",
+        ecosystem_config.list_of_chains()
+    );
+    let internal_id = if ecosystem_config.list_of_chains().contains(&args.chain_name) {
+        ecosystem_config
+            .list_of_chains()
+            .iter()
+            .position(|x| *x == args.chain_name)
+            .unwrap() as u32
+            + 1
+    } else {
+        ecosystem_config.list_of_chains().len() as u32
+    };
     let chain_path = ecosystem_config.chains.join(&default_chain_name);
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
@@ -74,14 +88,8 @@ pub(crate) async fn create_chain_inner(
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
-    let internal_id = ecosystem_config
-        .list_of_chains()
-        .iter()
-        .position(|x| *x == args.chain_name)
-        .unwrap() as u32
-        + 1;
     println!(
-        "ecosystem_config.list_of_chains(): {:?}",
+        "ecosystem_config.list_of_chains() after: {:?}",
         ecosystem_config.list_of_chains()
     );
     let link_to_code = resolve_link_to_code(
