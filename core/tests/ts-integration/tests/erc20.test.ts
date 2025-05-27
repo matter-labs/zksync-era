@@ -308,7 +308,7 @@ describe('L1 ERC20 contract checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while (currentRoot === ethers.ZeroHash) {
+        while (currentRoot === ethers.ZeroHash && count < 100) {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
