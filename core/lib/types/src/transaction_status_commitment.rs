@@ -1,10 +1,4 @@
-use anyhow::Context;
-use zksync_basic_types::{
-    web3::contract::{Error, Tokenizable},
-    U256,
-};
-
-use crate::{ethabi::Token, H256};
+use crate::H256;
 
 #[derive(Debug, Clone)]
 pub struct TransactionStatusCommitment {
