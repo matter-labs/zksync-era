@@ -170,17 +170,15 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs.clone()) {
-                proof.proof.extend(chain_proof_vector.clone());
-
+            for ((batch_number, _), base_proof) in chain_batches.iter().zip(batch_proofs) {
+                let mut batch_chain_proof = base_proof.clone();
+                batch_chain_proof.proof.extend(chain_proof_vector.clone());
                 transaction
                     .blocks_dal()
-                    .set_batch_chain_merkle_path(*batch_number, proof)
+                    .set_batch_chain_merkle_path(*batch_number, batch_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
-            }
 
-            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs) {
                 let gw_block_number =
                     Self::get_gw_block_number(&mut transaction, *batch_number).await?;
                 println!(
@@ -197,11 +195,12 @@ impl EventProcessor for BatchRootProcessor {
                     .context("Missing Gateway chain log proof for finalized batch")?;
                 let gw_chain_proof_vector =
                     Self::chain_proof_vector(gw_block_number.0, gw_chain_agg_proof, sl_chain_id);
-                proof.proof.extend(gw_chain_proof_vector);
 
+                let mut gw_chain_proof = base_proof;
+                gw_chain_proof.proof.extend(gw_chain_proof_vector);
                 transaction
                     .blocks_dal()
-                    .set_gw_interop_batch_chain_merkle_path(*batch_number, proof)
+                    .set_gw_interop_batch_chain_merkle_path(*batch_number, gw_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
             }
