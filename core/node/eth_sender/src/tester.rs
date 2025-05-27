@@ -353,20 +353,11 @@ impl EthSenderTester {
     }
 
     pub async fn get_block_numbers(&self) -> L1BlockNumbers {
-        let latest = self
-            .manager
+        self.manager
             .l1_interface()
             .get_l1_block_numbers(OperatorType::NonBlob)
             .await
             .unwrap()
-            .latest;
-        let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
-        let fast_finality = finalized + 1;
-        L1BlockNumbers {
-            finalized,
-            latest,
-            fast_finality,
-        }
     }
     async fn insert_l1_batch(&self, number: L1BatchNumber) -> L1BatchHeader {
         let header = create_l1_batch(number.0);

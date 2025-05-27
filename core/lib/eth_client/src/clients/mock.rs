@@ -127,7 +127,7 @@ impl MockSettlementLayerInner {
         finality_status: EthTxFinalityStatus,
     ) {
         let (tx, block_number) = &self.sent_txs[&tx_hash];
-        let block_number = *block_number as u64;
+        let block_number = { *block_number };
         let nonce = self.current_nonce;
         if self.current_nonce <= tx.nonce {
             self.current_nonce = tx.nonce + 1;
@@ -710,7 +710,8 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
     /// Increases the block number in the network by the specified value.
     pub fn advance_block_number(&self, val: u64, finality_status: EthTxFinalityStatus) -> u64 {
         let mut inner = self.inner.write().unwrap();
-        let number = match finality_status {
+
+        match finality_status {
             EthTxFinalityStatus::Pending => {
                 inner.pending_block_number += val;
                 inner.pending_block_number
@@ -725,8 +726,7 @@ impl<Net: SupportedMockSLNetwork> MockSettlementLayer<Net> {
                 inner.final_block_number = inner.safe_block_number;
                 inner.final_block_number
             }
-        };
-        number
+        }
     }
 
     /// Converts this client into an immutable / contract-agnostic client.
@@ -822,7 +822,7 @@ mod tests {
         let block_number = mock.client.block_number().await.unwrap();
         assert_eq!(block_number, 0.into());
 
-        mock.advance_block_number(5);
+        mock.advance_block_number(5, EthTxFinalityStatus::Finalized);
         let block_number = mock.client.block_number().await.unwrap();
         assert_eq!(block_number, 5.into());
 
@@ -858,7 +858,7 @@ mod tests {
         let client = MockSettlementLayer::<L1>::builder()
             .with_fee_history(initial_fee_history.clone())
             .build();
-        client.advance_block_number(4);
+        client.advance_block_number(4, EthTxFinalityStatus::Finalized);
 
         let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
         assert_eq!(fee_history, initial_fee_history[1..=4]);
@@ -880,7 +880,7 @@ mod tests {
         let client = MockSettlementLayer::<L2>::builder()
             .with_fee_history(initial_fee_history.clone())
             .build();
-        client.advance_block_number(4);
+        client.advance_block_number(4, EthTxFinalityStatus::Finalized);
 
         let fee_history = client.client.base_fee_history(4, 4).await.unwrap();
         assert_eq!(fee_history, initial_fee_history[1..=4]);
@@ -895,7 +895,7 @@ mod tests {
         let client = MockSettlementLayer::<L1>::builder()
             .with_non_ordering_confirmation(true)
             .build();
-        client.advance_block_number(2);
+        client.advance_block_number(2, EthTxFinalityStatus::Finalized);
 
         let signed_tx = client
             .sign_prepared_tx(
