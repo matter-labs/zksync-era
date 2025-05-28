@@ -10,10 +10,13 @@ use zksync_config::{
     sources::ConfigFilePaths,
     ConfigRepositoryExt,
 };
-use zksync_core_leftovers::{Component, Components};
 
-use crate::node_builder::MainNodeBuilder;
+use crate::{
+    components::{Component, Components},
+    node_builder::MainNodeBuilder,
+};
 
+mod components;
 mod node_builder;
 
 #[cfg(not(target_env = "msvc"))]
