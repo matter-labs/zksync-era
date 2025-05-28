@@ -54,6 +54,7 @@ impl EthConfig {
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
                 precommit_params: None,
+                time_in_mempool_multiplier_cap: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -177,6 +178,9 @@ pub struct SenderConfig {
     /// Parameters for precommit operation.
     #[config(nest)]
     pub precommit_params: Option<PrecommitParams>,
+    /// Cap for `b ^ time_in_mempool` used for price calculations.
+    #[config(default)]
+    pub time_in_mempool_multiplier_cap: Option<u32>,
 }
 
 /// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
@@ -201,15 +205,7 @@ impl SenderConfig {
             .transpose()
     }
 
-    // Don't load blobs private key, if it's not required
-    #[deprecated]
-    pub fn private_key_blobs(&self) -> Option<H256> {
-        std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
-            .ok()
-            .map(|pk| pk.parse().unwrap())
-    }
-
-    pub const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
+    const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
         let blocks_per_hour = 3600 / 12;
         // we cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
@@ -300,6 +296,7 @@ mod tests {
                     l2_blocks_to_aggregate: 1,
                     deadline: Duration::from_secs(1),
                 }),
+                time_in_mempool_multiplier_cap: Some(10),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -362,6 +359,7 @@ mod tests {
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1"
+            ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -397,6 +395,7 @@ mod tests {
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
+            time_in_mempool_multiplier_cap: 10
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
