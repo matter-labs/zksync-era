@@ -92,6 +92,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_legacy_vm!(self.finish_batch(pubdata_builder))
     }
+
+    fn gas_remaining(&mut self) -> u32 {
+        dispatch_legacy_vm!(self.gas_remaining())
+    }
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for LegacyVmInstance<S, H> {
@@ -320,6 +324,10 @@ where
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_fast_vm!(self.finish_batch(pubdata_builder))
+    }
+
+    fn gas_remaining(&mut self) -> u32 {
+        dispatch_fast_vm!(self.gas_remaining())
     }
 }
 

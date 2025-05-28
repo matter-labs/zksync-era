@@ -11,7 +11,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_shared_resources::contracts::{L2ContractsResource, SettlementLayerContractsResource};
+use zksync_shared_resources::contracts::L2ContractsResource;
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
 use super::resources::{ConditionalSealerResource, StateKeeperIOResource};
@@ -45,7 +45,6 @@ pub struct MempoolIOLayer {
 pub struct Input {
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
-    pub sl_contracts: SettlementLayerContractsResource,
     pub l2_contracts: L2ContractsResource,
 }
 

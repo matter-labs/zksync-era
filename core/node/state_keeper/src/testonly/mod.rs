@@ -74,6 +74,10 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
+
+    async fn gas_remaining(&mut self) -> anyhow::Result<u32> {
+        Ok(u32::MAX)
+    }
 }
 
 pub(crate) async fn apply_genesis_logs(storage: &mut Connection<'_, Core>, logs: &[StorageLog]) {

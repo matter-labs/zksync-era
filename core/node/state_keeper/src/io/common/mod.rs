@@ -20,7 +20,7 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
 }
 
 /// Cursor of the L2 block / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperIO) implementations.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct IoCursor {
     pub next_l2_block: L2BlockNumber,
     pub prev_l2_block_hash: H256,

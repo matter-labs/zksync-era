@@ -54,6 +54,8 @@ pub trait VmInterface {
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch;
+
+    fn gas_remaining(&mut self) -> u32;
 }
 
 /// Extension trait for [`VmInterface`] that provides some additional methods.

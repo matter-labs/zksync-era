@@ -605,6 +605,13 @@ where
         }
         main_batch
     }
+
+    fn gas_remaining(&mut self) -> u32 {
+        self.get_mut("gas_remaining", |vm| match vm {
+            ShadowMut::Main(vm) => vm.gas_remaining(),
+            ShadowMut::Shadow(vm) => vm.gas_remaining(),
+        })
+    }
 }
 
 #[derive(Debug)]

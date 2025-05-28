@@ -36,7 +36,7 @@ use crate::{
         BASE_SYSTEM_CONTRACTS,
     },
     updates::UpdatesManager,
-    ZkSyncStateKeeper,
+    StateKeeperInner,
 };
 
 pub(crate) fn seconds_since_epoch() -> u64 {
@@ -305,7 +305,7 @@ async fn load_upgrade_tx() {
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
-    let mut sk = ZkSyncStateKeeper::new(
+    let mut sk = StateKeeperInner::new(
         Box::new(io),
         Box::new(batch_executor),
         output_handler,

@@ -97,6 +97,9 @@ pub struct StateKeeperMetrics {
     /// The time it takes for one iteration of the main loop in `process_l1_batch`.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub process_l1_batch_loop_iteration: Histogram<Duration>,
+    /// The time it takes for one iteration of the main loop in `process_block`.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub process_block_loop_iteration: Histogram<Duration>,
     /// The time it takes to wait for new L2 block parameters
     #[metrics(buckets = Buckets::LATENCIES)]
     pub wait_for_l2_block_params: Histogram<Duration>,
