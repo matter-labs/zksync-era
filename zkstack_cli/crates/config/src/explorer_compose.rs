@@ -7,6 +7,7 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{db, docker::adjust_localhost_for_docker};
+use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::{
@@ -52,14 +53,47 @@ pub struct ExplorerBackendConfig {
     pub database_url: Url,
     pub ports: ExplorerBackendPorts,
     pub batches_processing_polling_interval: u64,
+    pub prividium: Option<PrividiumExplorerBackendConfig>,
 }
 
 impl ExplorerBackendConfig {
-    pub fn new(database_url: Url, ports: &ExplorerBackendPorts) -> Self {
+    pub fn new(
+        database_url: Url,
+        ports: &ExplorerBackendPorts,
+        prividium: Option<PrividiumExplorerBackendConfig>,
+    ) -> Self {
         ExplorerBackendConfig {
             database_url,
             ports: ports.clone(),
             batches_processing_polling_interval: EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL,
+            prividium,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PrividiumExplorerBackendConfig {
+    pub private_rpc_url: Url,
+    pub private_rpc_secret: String,
+    pub chain_id: L2ChainId,
+    pub session_max_age: u64,
+    pub session_same_site: String,
+}
+
+impl PrividiumExplorerBackendConfig {
+    pub fn new(
+        private_rpc_url: Url,
+        private_rpc_secret: String,
+        chain_id: L2ChainId,
+        session_max_age: u64,
+        session_same_site: String,
+    ) -> Self {
+        PrividiumExplorerBackendConfig {
+            private_rpc_url,
+            private_rpc_secret,
+            chain_id,
+            session_max_age,
+            session_same_site,
         }
     }
 }
@@ -90,7 +124,11 @@ impl ExplorerBackendComposeConfig {
         let mut services: HashMap<String, DockerComposeService> = HashMap::new();
         services.insert(
             Self::API_NAME.to_string(),
-            Self::create_api_service(config.ports.api_http_port, db_url.as_ref()),
+            Self::create_api_service(
+                config.ports.api_http_port,
+                db_url.as_ref(),
+                &config.prividium,
+            )?,
         );
         services.insert(
             Self::DATA_FETCHER_NAME.to_string(),
@@ -119,23 +157,65 @@ impl ExplorerBackendComposeConfig {
         })
     }
 
-    fn create_api_service(port: u16, db_url: &str) -> DockerComposeService {
-        DockerComposeService {
+    fn create_api_service(
+        port: u16,
+        db_url: &str,
+        prividium_config: &Option<PrividiumExplorerBackendConfig>,
+    ) -> anyhow::Result<DockerComposeService> {
+        let mut env = HashMap::new();
+        env.insert("PORT".to_string(), port.to_string());
+        env.insert("LOG_LEVEL".to_string(), "verbose".to_string());
+        env.insert("NODE_ENV".to_string(), "development".to_string());
+        env.insert("DATABASE_URL".to_string(), db_url.to_string());
+        env.insert(
+            "PRIVIDIUM".to_string(),
+            prividium_config.is_some().to_string(),
+        );
+
+        if let Some(config) = prividium_config {
+            env.insert(
+                "PRIVIDIUM_PRIVATE_RPC_URL".to_string(),
+                adjust_localhost_for_docker(config.private_rpc_url.clone())?.to_string(),
+            );
+            env.insert(
+                "PRIVIDIUM_PRIVATE_RPC_SECRET".to_string(),
+                config.private_rpc_secret.to_string(),
+            );
+            env.insert(
+                "PRIVIDIUM_CHAIN_ID".to_string(),
+                config.chain_id.to_string(),
+            );
+            env.insert(
+                "PRIVIDIUM_SESSION_MAX_AGE".to_string(),
+                config.session_max_age.to_string(),
+            );
+            env.insert(
+                "PRIVIDIUM_SESSION_SAME_SITE".to_string(),
+                config.session_same_site.to_string(),
+            );
+            env.insert(
+                "APP_URL".to_string(),
+                "http://127.0.0.1:3010".to_string(), //FIXME
+            );
+            env.insert(
+                "APP_HOSTNAME".to_string(),
+                "127.0.0.1".to_string(), //FIXME
+            );
+            env.insert("NODE_ENV".to_string(), "development".to_string());
+        }
+
+        Ok(DockerComposeService {
             image: EXPLORER_API_DOCKER_IMAGE.to_string(),
             platform: Some("linux/amd64".to_string()),
             ports: Some(vec![format!("{}:{}", port, port)]),
             volumes: None,
             depends_on: Some(vec![Self::WORKER_NAME.to_string()]),
             restart: None,
-            environment: Some(HashMap::from([
-                ("PORT".to_string(), port.to_string()),
-                ("LOG_LEVEL".to_string(), "verbose".to_string()),
-                ("NODE_ENV".to_string(), "development".to_string()),
-                ("DATABASE_URL".to_string(), db_url.to_string()),
-            ])),
+            environment: Some(env),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            network_mode: None,
             other: serde_json::Value::Null,
-        }
+        })
     }
 
     fn create_data_fetcher_service(port: u16, l2_rpc_url: &str) -> DockerComposeService {
@@ -153,6 +233,7 @@ impl ExplorerBackendComposeConfig {
                 ("BLOCKCHAIN_RPC_URL".to_string(), l2_rpc_url.to_string()),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            network_mode: None,
             other: serde_json::Value::Null,
         }
     }
@@ -200,6 +281,7 @@ impl ExplorerBackendComposeConfig {
                 ),
             ])),
             extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            network_mode: None,
             other: serde_json::Value::Null,
         })
     }

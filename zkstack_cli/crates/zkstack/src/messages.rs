@@ -357,6 +357,8 @@ pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop private proxy database";
 
 /// Explorer related messages
+pub(super) const MSG_EXPLORER_PRIVIDIUM_HELP: &str =
+    "Enable Prividium mode for this Block Explorer";
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
 pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
@@ -383,6 +385,15 @@ pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
 pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
     format!("Chain {chain} is not initialized for explorer: run `zkstack explorer init --chain {chain}` first")
 }
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_MODE_PROMPT: &str =
+    "Do you want to enable Prividium mode for this Block Explorer?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_MAX_AGE_PROMPT: &str =
+    "What session max age configuration do you want to use for Prividium mode?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_SAME_SITE_PROMPT: &str =
+    "What session same site configuration do you want to use for Prividium mode?";
 
 /// Forge utils related messages
 pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
