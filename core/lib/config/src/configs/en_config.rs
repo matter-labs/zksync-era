@@ -20,8 +20,6 @@ pub struct ENConfig {
     pub main_node_url: SensitiveUrl,
     #[config(default_t = NonZeroUsize::new(100).unwrap())]
     pub main_node_rate_limit_rps: NonZeroUsize,
-    #[config(secret, with = Optional(Serde![str]))]
-    pub gateway_url: Option<SensitiveUrl>,
     pub bridge_addresses_refresh_interval: Option<Duration>,
     #[config(with = Optional(Serde![int]))]
     pub gateway_chain_id: Option<SLChainId>,
@@ -40,7 +38,6 @@ mod tests {
             gateway_chain_id: Some(SLChainId(123)),
             main_node_url: "http://127.0.0.1:3050/".parse().unwrap(),
             main_node_rate_limit_rps: NonZeroUsize::new(200).unwrap(),
-            gateway_url: None,
             bridge_addresses_refresh_interval: Some(Duration::from_secs(15)),
         }
     }

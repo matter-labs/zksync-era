@@ -1,9 +1,10 @@
-use std::{path::PathBuf, time::Duration};
+use std::{num::NonZeroU32, path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Serde, WellKnown},
+    fallback,
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -37,14 +38,25 @@ pub struct MerkleTreeConfig {
     /// Operation mode for the Merkle tree. If not specified, the full mode will be used.
     #[config(default)]
     pub mode: MerkleTreeMode,
+    /// Processing delay between processing L1 batches in the Merkle tree.
+    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
+    pub processing_delay_ms: Duration,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     #[config(default_t = 500)]
     pub multi_get_chunk_size: usize,
+    /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub max_open_files: Option<NonZeroU32>,
     /// Capacity of the block cache for the Merkle tree RocksDB. Reasonable values range from ~100 MB to several GB.
     /// The default value is 128 MB.
     #[config(default_t = ByteSize::new(128, SizeUnit::MiB), with = SizeUnit::MiB)]
     pub block_cache_size_mb: ByteSize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    #[config(default)]
+    pub include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[config(default_t = ByteSize::new(256, SizeUnit::MiB), with = SizeUnit::MiB)]
@@ -54,6 +66,10 @@ pub struct MerkleTreeConfig {
     pub stalled_writes_timeout_sec: Duration,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
     #[config(default_t = 20)]
+    #[config(
+        alias = "max_l1_batches_per_tree_iter",
+        deprecated = "max_blocks_per_tree_batch"
+    )]
     pub max_l1_batches_per_iter: usize,
 }
 
@@ -63,6 +79,9 @@ impl MerkleTreeConfig {
         Self {
             path,
             mode: MerkleTreeMode::default(),
+            processing_delay_ms: Duration::from_millis(50),
+            max_open_files: Some(NonZeroU32::new(512).unwrap()),
+            include_indices_and_filters_in_block_cache: true,
             multi_get_chunk_size: 500,
             block_cache_size_mb: ByteSize::new(128, SizeUnit::MiB),
             memtable_capacity_mb: ByteSize::new(256, SizeUnit::MiB),
@@ -76,6 +95,7 @@ impl MerkleTreeConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct DBConfig {
     /// Path to the RocksDB data directory that serves state cache.
+    #[config(alias = "state_cache_path")]
     pub state_keeper_db_path: PathBuf,
     /// Merkle tree configuration.
     #[config(nest)]
@@ -92,7 +112,7 @@ pub struct DBConfig {
 #[config(derive(Default))]
 pub struct PostgresConfig {
     /// Maximum size of the connection pool.
-    #[config(alias = "pool_size")]
+    #[config(alias = "pool_size", fallback = &fallback::Env("DATABASE_POOL_SIZE"))]
     pub max_connections: Option<u32>,
     /// Maximum size of the connection pool to master DB.
     #[config(alias = "pool_size_master")]

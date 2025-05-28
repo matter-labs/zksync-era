@@ -14,7 +14,11 @@ use serde::{de, Deserialize, Deserializer};
 use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
-        api::{MaxResponseSize, MaxResponseSizeOverrides},
+        api::{
+            HealthCheckConfig, MaxResponseSize, MaxResponseSizeOverrides, MerkleTreeApiConfig,
+            Web3JsonRpcConfig,
+        },
+        chain::TimestampAsserterConfig,
         consensus::{ConsensusConfig, ConsensusSecrets},
         contracts::{
             chain::{ChainContracts, L2Contracts},
@@ -22,10 +26,11 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         en_config::ENConfig,
-        DataAvailabilitySecrets, GeneralConfig, Secrets,
+        CommitmentGeneratorConfig, DataAvailabilitySecrets, GeneralConfig, L1Secrets,
+        PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
+    ConfigRepositoryExt, DAClientConfig, DBConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -289,6 +294,73 @@ where
         .map_err(de::Error::custom)
 }
 
+fn schema() -> anyhow::Result<ConfigSchema> {
+    let mut schema = ConfigSchema::default();
+    schema
+        .insert(&Web3JsonRpcConfig::DESCRIPTION, "api.web3_json_rpc")?
+        .push_alias("api")? // FIXME: is this OK (used for single param)?
+        .push_deprecated_alias("")?;
+    schema
+        .insert(&HealthCheckConfig::DESCRIPTION, "api.healthcheck")?
+        .push_deprecated_alias("healthcheck")?;
+    schema
+        .insert(&MerkleTreeApiConfig::DESCRIPTION, "api.merkle_tree")?
+        .push_deprecated_alias("merkle_tree.api")?;
+    schema
+        .insert(&DBConfig::DESCRIPTION, "db")?
+        .push_deprecated_alias("")?;
+    schema
+        .insert(&zksync_config::PostgresConfig::DESCRIPTION, "postgres")?
+        .push_alias("database")?;
+    schema.insert(&PruningConfig::DESCRIPTION, "pruning")?;
+    schema
+        .insert(&SnapshotRecoveryConfig::DESCRIPTION, "snapshot_recovery")?
+        .push_deprecated_alias("snapshots_recovery")?;
+    schema
+        .get_mut(
+            &ObjectStoreConfig::DESCRIPTION,
+            "snapshot_recovery.object_store",
+        )
+        .context("no object_store config for snapshot recovery")?
+        .push_deprecated_alias("snapshots.object_store")?;
+
+    schema.insert(
+        &CommitmentGeneratorConfig::DESCRIPTION,
+        "commitment_generator",
+    )?;
+    schema.insert(&TimestampAsserterConfig::DESCRIPTION, "timestamp_asserter")?;
+    schema
+        .insert(&DAClientConfig::DESCRIPTION, "da_client")?
+        .push_deprecated_alias("da")?;
+
+    // FIXME: should be namespaced (`networks`? `l1`?).
+    schema.insert(&ENConfig::DESCRIPTION, "")?;
+
+    schema.insert(&Secrets::DESCRIPTION, "")?;
+    schema
+        .single_mut(&L1Secrets::DESCRIPTION)?
+        .push_deprecated_alias("")?;
+    schema
+        .single_mut(&DataAvailabilitySecrets::DESCRIPTION)?
+        .push_deprecated_alias("da_secrets")?;
+    Ok(schema)
+}
+
+// FIXME: all used configs:
+//   - Web3JsonRpc: '' (vs 'api.web3_json_rpc')
+//   - Healthcheck: 'healthcheck' (vs 'api.healthcheck')
+//   - MerkleTreeApi: `merkle_tree.api` (vs `api.merkle_tree`)
+//   - MerkleTree: 'merkle_tree' (mostly; vs 'db.merkle_tree')
+//   - DBConfig: '' (vs 'db'; some inconsistencies w.r.t. experimental params)
+//   - Postgres: 'database'; the env vars are not prefixed!
+//   - Pruning: 'pruning'
+//   - SnapshotRecovery: 'snapshots_recovery' (vs 'snapshot_recovery')
+//   - ExternalNode: '' (vs not used)
+// FIXME: Separate params
+//   - {l2_block_seal_queue_capacity, protective_reads_persistence_enabled} from StateKeeper (most params don't make sense for EN)
+//   - `contracts.diamond_proxy_addr` from Contracts (other params are obtained from the main node)
+//   - `eth_client_url` from `L1Secrets` (vs `{l1, eth_client}.{l1_rpc_url, web3_url}`).
+
 /// This part of the external node config is completely optional to provide.
 /// It can tweak limits of the API, delay intervals of certain components, etc.
 /// If any of the fields are not provided, the default values will be used.
@@ -297,36 +369,45 @@ pub(crate) struct OptionalENConfig {
     // User-facing API limits
     /// Max possible limit of filters to be in the API state at once.
     #[serde(default = "OptionalENConfig::default_filters_limit")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub filters_limit: usize,
     /// Max possible limit of subscriptions to be in the API state at once.
     #[serde(default = "OptionalENConfig::default_subscriptions_limit")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub subscriptions_limit: usize,
     /// Max possible limit of entities to be requested via API at once.
     #[serde(default = "OptionalENConfig::default_req_entities_limit")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub req_entities_limit: usize,
     /// Max possible size of an ABI-encoded transaction supplied to `eth_sendRawTransaction`.
     #[serde(
         alias = "max_tx_size",
         default = "OptionalENConfig::default_max_tx_size_bytes"
     )]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub max_tx_size_bytes: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub vm_execution_cache_misses_limit: Option<usize>,
     /// Limit for fee history block range.
     #[serde(default = "OptionalENConfig::default_fee_history_limit")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub fee_history_limit: u64,
     /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
     #[serde(default = "OptionalENConfig::default_max_batch_request_size")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub max_batch_request_size: usize,
     /// Maximum response body size in MiBs. Default is 10 MiB.
     #[serde(default = "OptionalENConfig::default_max_response_body_size_mb")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub max_response_body_size_mb: usize,
     /// Method-specific overrides in MiBs for the maximum response body size.
     #[serde(
         default = "MaxResponseSizeOverrides::empty",
         deserialize_with = "deserialize_from_str"
     )]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
 
     // Other API config settings
@@ -335,25 +416,32 @@ pub(crate) struct OptionalENConfig {
         alias = "pubsub_polling_interval",
         default = "OptionalENConfig::default_polling_interval"
     )]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pubsub_polling_interval_ms: u64,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[serde(default = "OptionalENConfig::default_max_nonce_ahead")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub max_nonce_ahead: u32,
     /// Max number of VM instances to be concurrently spawned by the API server.
     /// This option can be tweaked down if the API server is running out of memory.
     #[serde(default = "OptionalENConfig::default_vm_concurrency_limit")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub vm_concurrency_limit: usize,
     /// Smart contract bytecode cache size for the API server. Default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_factory_deps_cache_size_mb")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     factory_deps_cache_size_mb: usize,
     /// Initial writes cache size for the API server. Default value is 32 MiB.
     #[serde(default = "OptionalENConfig::default_initial_writes_cache_size_mb")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     initial_writes_cache_size_mb: usize,
     /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
     /// values cache will be disabled.
     #[serde(default = "OptionalENConfig::default_latest_values_cache_size_mb")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     api_namespaces: Option<Vec<Namespace>>,
     /// Whether to support HTTP methods that install filters and query filter changes.
     /// WS methods are unaffected.
@@ -364,6 +452,7 @@ pub(crate) struct OptionalENConfig {
     /// query the previously created filter as the request might get routed to a
     /// different node.
     #[serde(default)]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub filters_disabled: bool,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     /// Default is 50 milliseconds.
@@ -371,37 +460,46 @@ pub(crate) struct OptionalENConfig {
         alias = "mempool_cache_update_interval",
         default = "OptionalENConfig::default_mempool_cache_update_interval_ms"
     )]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub mempool_cache_update_interval_ms: u64,
     /// Maximum number of transactions to be stored in the mempool cache.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub mempool_cache_size: usize,
     /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
     #[serde(default = "OptionalENConfig::default_extended_api_tracing")]
+    // FIXME: doesn't exist in `api.web3_json_rpc.` (easy to add)
     pub extended_rpc_tracing: bool,
 
     // Health checks
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
     /// If not specified, the default value in the health check crate will be used.
+    // FIXME: `api.` prefix is missing
     healthcheck_slow_time_limit_ms: Option<u64>,
     /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
     /// If not specified, the default value in the health check crate will be used.
+    // FIXME: `api.` prefix is missing
     healthcheck_hard_time_limit_ms: Option<u64>,
 
     // Gas estimation config
     /// The factor by which to scale the gas limit.
     #[serde(default = "OptionalENConfig::default_estimate_gas_scale_factor")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub estimate_gas_acceptable_overestimation: u32,
     /// Enables optimizations for the binary search of the gas limit in `eth_estimateGas`. These optimizations are currently
     /// considered experimental.
     #[serde(default)]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub estimate_gas_optimize_search: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
+    // FIXME: `api.web3_json_rpc.` prefix is missing
     pub gas_price_scale_factor: f64,
 
     // Merkle tree config
@@ -410,6 +508,7 @@ pub(crate) struct OptionalENConfig {
         alias = "metadata_calculator_delay",
         default = "OptionalENConfig::default_merkle_tree_processing_delay_ms"
     )]
+    // FIXME: as `db.experimental.processing_delay`; probably OK to stabilize (i.e., move from experimental to Merkle tree)
     merkle_tree_processing_delay_ms: u64,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time. L1 batches are processed in a bulk
     /// only if they are readily available (i.e., mostly during node catch-up). Increasing this value reduces the number
@@ -419,39 +518,49 @@ pub(crate) struct OptionalENConfig {
         alias = "max_l1_batches_per_tree_iter",
         default = "OptionalENConfig::default_merkle_tree_max_l1_batches_per_iter"
     )]
+    // FIXME: missing `db.` prefix; aliases!
     pub merkle_tree_max_l1_batches_per_iter: usize,
     /// Maximum number of files concurrently opened by Merkle tree RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the tree.
+    // FIXME: doesn't exist in `db.merkle_tree` (easy to add)
     pub merkle_tree_max_open_files: Option<NonZeroU32>,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     #[serde(default = "OptionalENConfig::default_merkle_tree_multi_get_chunk_size")]
+    // FIXME: missing `db.` prefix
     pub merkle_tree_multi_get_chunk_size: usize,
     /// Capacity of the block cache for the Merkle tree RocksDB. Reasonable values range from ~100 MiB to several GiB.
     /// The default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_merkle_tree_block_cache_size_mb")]
+    // FIXME: missing `db.` prefix
     merkle_tree_block_cache_size_mb: usize,
     /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
     /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
     /// correspondingly; otherwise, RocksDB performance can significantly degrade.
     #[serde(default)]
+    // FIXME: as `db.experimental.include_indices_and_filters_in_block_cache`; probably OK to stabilize (i.e., move from experimental to Merkle tree)
     pub merkle_tree_include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[serde(default = "OptionalENConfig::default_merkle_tree_memtable_capacity_mb")]
+    // FIXME: missing `db.` prefix
     merkle_tree_memtable_capacity_mb: usize,
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
+    // FIXME: missing `db.` prefix
     merkle_tree_stalled_writes_timeout_sec: u64,
     /// Enables the stale keys repair task for the Merkle tree.
     #[serde(default)]
+    // FIXME: missing `db.experimental.` prefix; probably OK to ignore compat
     pub merkle_tree_repair_stale_keys: bool,
 
     // Postgres config (new parameters)
     /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
     /// If not specified, such logging will be disabled.
+    // FIXME: OK
     database_long_connection_threshold_ms: Option<u64>,
     /// Threshold in milliseconds to denote a DB query as "slow" and log its details. If not specified, such logging will be disabled.
+    // FIXME: OK
     database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
@@ -462,19 +571,23 @@ pub(crate) struct OptionalENConfig {
         alias = "miniblock_seal_queue_capacity",
         default = "OptionalENConfig::default_l2_block_seal_queue_capacity"
     )]
+    // FIXME: missing `state_keeper.` prefix
     pub l2_block_seal_queue_capacity: usize,
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
     #[serde(default)]
+    // FIXME: missing `state_keeper.` or `experimental.` prefix
     pub protective_reads_persistence_enabled: bool,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
     /// by commit transactions. If not set, it will not be verified.
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
+    // FIXME: OK, provided that Contracts config is read (???)
     pub contracts_diamond_proxy_addr: Option<Address>,
     /// Number of requests per second allocated for the main node HTTP client. Default is 100 requests.
     #[serde(default = "OptionalENConfig::default_main_node_rate_limit_rps")]
+    // FIXME: OK (but probably badly structured)
     pub main_node_rate_limit_rps: NonZeroUsize,
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
@@ -482,26 +595,31 @@ pub(crate) struct OptionalENConfig {
     ///
     /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
     #[serde(default)]
+    // FIXME: as `snapshot_recovery.enabled`
     pub snapshots_recovery_enabled: bool,
     /// Maximum concurrency factor for the concurrent parts of snapshot recovery for Postgres. It may be useful to
     /// reduce this factor to about 5 if snapshot recovery overloads I/O capacity of the node. Conversely,
     /// if I/O capacity of your infra is high, you may increase concurrency to speed up Postgres recovery.
     #[serde(default = "OptionalENConfig::default_snapshots_recovery_postgres_max_concurrency")]
+    // FIXME: as `snapshot_recovery.*`
     pub snapshots_recovery_postgres_max_concurrency: NonZeroUsize,
-
+    // FIXME: as `snapshot_recovery.*`
     #[serde(skip)]
     pub snapshots_recovery_object_store: Option<ObjectStoreConfig>,
 
     /// Enables pruning of the historical node state (Postgres and Merkle tree). The node will retain
     /// recent state and will continuously remove (prune) old enough parts of the state in the background.
     #[serde(default)]
+    // FIXME: OK
     pub pruning_enabled: bool,
     /// Number of L1 batches pruned at a time.
     #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
+    // FIXME: OK
     pub pruning_chunk_size: u32,
     /// Delta between soft- and hard-removing data from Postgres. Should be reasonably large (order of 60 seconds).
     /// The default value is 60 seconds.
     #[serde(default = "OptionalENConfig::default_pruning_removal_delay_sec")]
+    // FIXME: OK
     pruning_removal_delay_sec: NonZeroU64,
     /// If set, L1 batches will be pruned after the batch timestamp is this old (in seconds). Note that an L1 batch
     /// may be temporarily retained for other reasons; e.g., a batch cannot be pruned until it is executed on L1,
@@ -509,13 +627,17 @@ pub(crate) struct OptionalENConfig {
     /// the retention period greater than that implicitly imposed by other criteria (e.g., 7 or 30 days).
     /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 7 days.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
+    // FIXME: OK
     pruning_data_retention_sec: u64,
     /// Gateway RPC URL, needed for operating during migration.
+    // FIXME: OK (but badly structured)
     pub gateway_url: Option<SensitiveUrl>,
     /// Interval for bridge addresses refreshing in seconds.
+    // FIXME: OK (but badly structured)
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
     /// Minimum time between current block.timestamp and the end of the asserted range for TimestampAsserter
     #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_time_till_end_sec")]
+    // FIXME: OK
     pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
@@ -636,12 +758,12 @@ impl OptionalENConfig {
                 .protective_reads_persistence_enabled,
             merkle_tree_processing_delay_ms: general_config
                 .db_config
-                .experimental
+                .merkle_tree
                 .processing_delay_ms
                 .as_millis() as u64,
             merkle_tree_include_indices_and_filters_in_block_cache: general_config
                 .db_config
-                .experimental
+                .merkle_tree
                 .include_indices_and_filters_in_block_cache,
             extended_rpc_tracing: web3_json_rpc.extended_api_tracing,
             main_node_rate_limit_rps: enconfig.main_node_rate_limit_rps,
@@ -897,27 +1019,37 @@ impl OptionalENConfig {
 #[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
     /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet).
+    // FIXME: OK (but badly structured)
     pub l1_chain_id: L1ChainId,
     /// The chain ID of the gateway. This ID will be checked against the `gateway_rpc_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual gateway network.
+    // FIXME: OK (but badly structured)
     pub gateway_chain_id: Option<SLChainId>,
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
+    // FIXME: OK (but badly structured)
     pub l2_chain_id: L2ChainId,
 
     /// Port on which the HTTP RPC server is listening.
+    // FIXME: missing `api.web3_json_rpc.` prefix
     pub http_port: u16,
     /// Port on which the WebSocket RPC server is listening.
+    // FIXME: missing `api.web3_json_rpc.` prefix
     pub ws_port: u16,
     /// Port on which the healthcheck REST server is listening.
+    // FIXME: missing `api.` prefix
     pub healthcheck_port: u16,
     /// Address of the Ethereum node API.
+    // FIXME: ???
     pub eth_client_url: SensitiveUrl,
     /// Main node URL - used by external node to proxy transactions to, query state from, etc.
+    // FIXME: OK (but badly structured)
     pub main_node_url: SensitiveUrl,
     /// Path to the database data directory that serves state cache.
+    // FIXME: as `db.state_keeper_db_path`
     pub state_cache_path: PathBuf,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
+    // FIXME: missing `db.` prefix
     pub merkle_tree_path: PathBuf,
 }
 
@@ -980,7 +1112,9 @@ impl RequiredENConfig {
 /// Thus it is kept separately for backward compatibility and ease of deserialization.
 #[derive(Debug, Deserialize)]
 pub(crate) struct PostgresConfig {
+    // FIXME: OK, as `database.server_url`
     database_url: SensitiveUrl,
+    // FIXME: OK, as `database.pool_size`
     pub max_connections: u32,
 }
 
@@ -1013,6 +1147,7 @@ impl PostgresConfig {
 
 /// Experimental part of the external node config. All parameters in this group can change or disappear without notice.
 /// Eventually, parameters from this group generally end up in the optional group.
+// FIXME: compatibility ignored 'cause experimental
 #[derive(Debug, Deserialize)]
 pub(crate) struct ExperimentalENConfig {
     // State keeper cache config
@@ -1134,6 +1269,7 @@ pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
+    // FIXME: as `api.web3_json_rpc.tree_api_url` (i.e., missing alias and `web3_json_rpc.`)
     pub tree_api_remote_url: Option<String>,
 }
 
@@ -1150,6 +1286,7 @@ impl ApiComponentConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct TreeComponentConfig {
+    // FIXME: as `api.merkle_tree.port`.
     pub api_port: Option<u16>,
 }
 

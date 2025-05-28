@@ -3,7 +3,7 @@
 use anyhow::Context;
 use smart_config::{
     de::{FromSecretString, Optional, Serde},
-    DescribeConfig, DeserializeConfig,
+    fallback, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
@@ -17,6 +17,7 @@ use crate::configs::{
 pub struct DatabaseSecrets {
     /// Postgres connection string for the server database.
     #[config(alias = "url", secret, with = Optional(Serde![str]))]
+    #[config(fallback = &fallback::Env("DATABASE_URL"))]
     pub server_url: Option<SensitiveUrl>,
     /// Postgres connection string for the prover database.
     #[config(secret, with = Optional(Serde![str]))]
@@ -30,10 +31,11 @@ pub struct DatabaseSecrets {
 #[config(derive(Default))]
 pub struct L1Secrets {
     /// RPC URL for L1.
-    #[config(alias = "web3_url", secret, with = Optional(Serde![str]))]
+    #[config(alias = "eth_client_url", secret, with = Optional(Serde![str]))]
     pub l1_rpc_url: Option<SensitiveUrl>,
     /// RPC URL for the gateway layer.
-    #[config(alias = "gateway_web3_url", secret, with = Optional(Serde![str]))]
+    #[config(secret, with = Optional(Serde![str]))]
+    #[config(alias = "gateway_web3_url", alias = "gateway_url")]
     pub gateway_rpc_url: Option<SensitiveUrl>,
 }
 
@@ -62,7 +64,7 @@ pub struct Secrets {
     pub consensus: ConsensusSecrets,
     #[config(nest)]
     pub database: DatabaseSecrets,
-    #[config(alias = "eth_client", nest)]
+    #[config(nest)]
     pub l1: L1Secrets,
     #[config(nest, rename = "da_client", alias = "da")]
     pub data_availability: Option<DataAvailabilitySecrets>,

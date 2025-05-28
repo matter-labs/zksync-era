@@ -1,12 +1,8 @@
 //! Experimental part of configuration.
 
-use std::{num::NonZeroU32, path::PathBuf, time::Duration};
+use std::{num::NonZeroU32, path::PathBuf};
 
-use smart_config::{
-    de::Serde,
-    metadata::{SizeUnit, TimeUnit},
-    ByteSize, DescribeConfig, DeserializeConfig,
-};
+use smart_config::{de::Serde, metadata::SizeUnit, ByteSize, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -27,14 +23,6 @@ pub struct ExperimentalDBConfig {
     #[config(default, alias = "reads_persistence_enabled")]
     pub protective_reads_persistence_enabled: bool,
     // Merkle tree config
-    /// Processing delay between processing L1 batches in the Merkle tree.
-    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
-    pub processing_delay_ms: Duration,
-    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
-    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
-    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
-    #[config(default)]
-    pub include_indices_and_filters_in_block_cache: bool,
     /// Enables the stale keys repair task for the Merkle tree.
     #[config(default)]
     pub merkle_tree_repair_stale_keys: bool,

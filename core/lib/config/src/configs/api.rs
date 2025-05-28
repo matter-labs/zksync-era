@@ -218,6 +218,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = NonZeroU32::new(6_000).unwrap())]
     pub websocket_requests_per_minute_limit: NonZeroU32,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
+    #[config(alias = "tree_api_remote_url")]
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     /// In milliseconds. Default is 50 milliseconds.
@@ -235,7 +236,7 @@ pub struct Web3JsonRpcConfig {
     pub api_namespaces: Option<Vec<String>>,
     /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
-    #[config(default)]
+    #[config(default, alias = "extended_rpc_tracing")]
     pub extended_api_tracing: bool,
 }
 

@@ -6474,7 +6474,6 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -6483,8 +6482,32 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "smart-config-derive",
+ "smart-config-derive 0.1.0",
  "tracing",
+]
+
+[[package]]
+name = "smart-config"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+dependencies = [
+ "anyhow",
+ "compile-fmt",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "smart-config-derive 0.1.0 (git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a)",
+ "tracing",
+]
+
+[[package]]
+name = "smart-config-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote 1.0.40",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -8922,7 +8945,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "smart-config",
+ "smart-config 0.1.0",
  "tracing",
  "zksync_basic_types",
  "zksync_concurrency",
@@ -9371,7 +9394,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "smart-config",
+ "smart-config 0.1.0 (git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a)",
  "structopt",
  "strum",
  "strum_macros",
