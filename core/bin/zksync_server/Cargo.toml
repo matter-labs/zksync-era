@@ -12,22 +12,46 @@ categories.workspace = true
 publish = false
 
 [dependencies]
-zksync_config = { workspace = true, features = ["observability_ext"] }
-zksync_env_config.workspace = true
-zksync_eth_client.workspace = true
-zksync_protobuf_config.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext", "cli"] }
+zksync_circuit_breaker = { workspace = true, features = ["node_framework"] }
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_web3_decl = { workspace = true, features = ["node_framework"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
+zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_storage.workspace = true
+zksync_state.workspace = true
 zksync_types.workspace = true
-zksync_core_leftovers.workspace = true
-zksync_node_genesis.workspace = true
+zksync_vlog = { workspace = true, features = ["node_framework"] }
+
+# Node components
+zksync_base_token_adjuster.workspace = true
+zksync_commitment_generator.workspace = true
+zksync_contract_verification_server.workspace = true
 zksync_da_clients.workspace = true
+zksync_da_dispatcher.workspace = true
+zksync_eth_sender.workspace = true
+zksync_eth_watch.workspace = true
+zksync_external_proof_integration_api.workspace = true
+zksync_gateway_migrator.workspace = true
+zksync_house_keeper.workspace = true
+zksync_logs_bloom_backfill.workspace = true
+zksync_metadata_calculator.workspace = true
+zksync_node_api_server.workspace = true
+zksync_node_consensus.workspace = true
+zksync_node_genesis.workspace = true
+zksync_node_fee_model.workspace = true
+zksync_node_framework.workspace = true
+zksync_node_storage_init.workspace = true
+zksync_proof_data_handler.workspace = true
+zksync_tee_proof_data_handler.workspace = true
+zksync_state_keeper.workspace = true
+zksync_vm_runner.workspace = true
 
 # Consensus dependenices
 zksync_consensus_crypto.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_executor.workspace = true
 zksync_concurrency.workspace = true
-zksync_vlog.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
@@ -35,10 +59,8 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 futures.workspace = true
-
-zksync_node_framework.workspace = true
-zksync_metadata_calculator.workspace = true
-zksync_node_api_server.workspace = true
+smart-config.workspace = true
+smart-config-commands.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true

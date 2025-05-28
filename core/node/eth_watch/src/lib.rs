@@ -28,6 +28,7 @@ use crate::event_processors::{
 mod client;
 mod event_processors;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 

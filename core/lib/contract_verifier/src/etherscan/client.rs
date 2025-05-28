@@ -23,20 +23,35 @@ pub(super) struct EtherscanClient {
 async fn extract_result<T: DeserializeOwned>(
     response: reqwest::Response,
 ) -> Result<T, EtherscanError> {
-    if response.status() == 404 {
+    let headers = response.headers().clone();
+    let status = response.status();
+    let response_text = response.text().await?;
+
+    if status != 200 {
+        tracing::debug!(
+            status = status.as_u16(),
+            "Error Etherscan API response: {response_text}"
+        );
+    }
+
+    if status == 404 {
         return Err(EtherscanError::PageNotFound);
     }
-    if response.status() == 403 {
+    if status == 403 {
         return Err(EtherscanError::BlockedByCloudflare);
     }
 
-    if let Some(value) = response.headers().get("cf-mitigated") {
+    if let Some(value) = headers.get("cf-mitigated") {
         if value == "challenge" {
             return Err(EtherscanError::CloudflareSecurityChallenge);
         }
     }
 
-    let raw_response: RawEtherscanResponse = response.json().await?;
+    let raw_response: RawEtherscanResponse =
+        serde_json::from_str(&response_text).map_err(|error| EtherscanError::Serde {
+            error,
+            content: response_text.clone(),
+        })?;
 
     if raw_response.status == "0" {
         return Err(raw_response.error_message());

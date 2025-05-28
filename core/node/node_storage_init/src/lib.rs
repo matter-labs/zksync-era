@@ -9,6 +9,7 @@ pub use crate::traits::{InitializeStorage, RevertStorage};
 
 pub mod external_node;
 pub mod main_node;
+pub mod node;
 mod traits;
 
 #[derive(Debug)]

@@ -5,6 +5,8 @@ use tokio::sync::{watch, Mutex};
 
 pub mod l1_txs;
 mod metrics;
+#[cfg(feature = "node_framework")]
+pub mod node;
 pub mod replication_lag;
 
 #[derive(Default, Debug)]

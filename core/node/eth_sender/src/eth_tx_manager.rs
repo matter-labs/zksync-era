@@ -13,8 +13,9 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::BlockL1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, eth_sender::EthTx, Address, L1BlockNumber,
-    GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
+    aggregated_operations::AggregatedActionType,
+    eth_sender::{EthTx, EthTxFinalityStatus},
+    Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
@@ -55,10 +56,18 @@ impl EthTxManager {
         let ethereum_client = ethereum_client.map(|eth| eth.for_component("eth_tx_manager"));
         let ethereum_client_blobs =
             ethereum_client_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        // If `time_in_mempool_multiplier_cap` is set in config then we use it to derive cap for `l1_blocks_cap`.
+        // Otherwise we use `time_in_mempool_in_l1_blocks_cap`.
+        let time_in_mempool_in_l1_blocks_cap =
+            if let Some(multiplier_cap) = config.time_in_mempool_multiplier_cap {
+                derive_l1_block_cap(multiplier_cap, gas_adjuster.get_parameter_b())
+            } else {
+                config.time_in_mempool_in_l1_blocks_cap
+            };
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
-            time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
+            time_in_mempool_in_l1_blocks_cap,
             max_acceptable_base_fee_in_wei: config.max_acceptable_base_fee_in_wei,
         };
         let l1_interface = Box::new(RealL1Interface {
@@ -363,17 +372,45 @@ impl EthTxManager {
             .await?;
 
         if let Some(operator_nonce) = operator_nonce {
+            let non_final_txs = storage
+                .eth_sender_dal()
+                .get_non_final_txs(
+                    self.operator_address(operator_type),
+                    operator_type == OperatorType::Gateway,
+                )
+                .await
+                .unwrap();
+
+            let result = self
+                .apply_inflight_txs_statuses_and_get_first_to_resend(
+                    storage,
+                    l1_block_numbers,
+                    operator_nonce,
+                    non_final_txs,
+                )
+                .await?;
+            if let Some((eth_tx, _)) = result {
+                tracing::warn!("Fast finalized transaction has been reverted {:?}", &eth_tx);
+                storage
+                    .eth_sender_dal()
+                    .unfinalize_txs(
+                        self.operator_address(operator_type),
+                        operator_type == OperatorType::Gateway,
+                        eth_tx.id,
+                    )
+                    .await
+                    .unwrap();
+            }
+
             let inflight_txs = storage
                 .eth_sender_dal()
                 .get_inflight_txs(
                     self.operator_address(operator_type),
-                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
                 .unwrap();
             METRICS.number_of_inflight_txs[&operator_type].set(inflight_txs.len());
-
             Ok(self
                 .apply_inflight_txs_statuses_and_get_first_to_resend(
                     storage,
@@ -396,11 +433,13 @@ impl EthTxManager {
     ) -> Result<Option<(EthTx, u32)>, EthSenderError> {
         tracing::trace!(
             "Going through not confirmed txs. \
-             Block numbers: latest {}, finalized {}, \
-             operator's nonce: latest {}, finalized {}",
+             Block numbers: latest {}, fast_finality {}, finalized {}, \
+             operator's nonce: latest {}, fast_finality {}, finalized {}",
             l1_block_numbers.latest,
+            l1_block_numbers.fast_finality,
             l1_block_numbers.finalized,
             operator_nonce.latest,
+            operator_nonce.fast_finality,
             operator_nonce.finalized,
         );
 
@@ -439,11 +478,11 @@ impl EthTxManager {
                 )));
             }
 
-            // If on finalized block sender's nonce was > tx.nonce,
+            // If on fast_finality block sender's nonce was > tx.nonce,
             // then `tx` is mined and confirmed (either successful or reverted).
             // Only then we will check the history to find the receipt.
             // Otherwise, `tx` is mined but not confirmed, so we skip to the next one.
-            if operator_nonce.finalized <= tx.nonce {
+            if operator_nonce.fast_finality <= tx.nonce {
                 continue;
             }
 
@@ -462,7 +501,7 @@ impl EthTxManager {
             );
             match self.check_all_sending_attempts(storage, &tx).await {
                 Ok(Some(tx_status)) => {
-                    self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers.finalized)
+                    self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers)
                         .await;
                 }
                 Ok(None) => {
@@ -492,29 +531,47 @@ impl EthTxManager {
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
-        finalized_block: L1BlockNumber,
+        blocks: L1BlockNumbers,
     ) {
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
-        if receipt_block_number <= finalized_block.0 {
+        let finality_status = if blocks.finalized.0 >= receipt_block_number {
+            EthTxFinalityStatus::Finalized
+        } else if blocks.fast_finality.0 >= receipt_block_number {
+            EthTxFinalityStatus::FastFinalized
+        } else {
+            tracing::trace!(
+                "Transaction {} with id {} is not finalized: block in receipt {receipt_block_number}, finalized block {}",
+                tx_status.tx_hash,
+                tx.id,
+                blocks.finalized.0
+            );
+            return;
+        };
+
+        tracing::trace!(
+                "Transaction {} with id {} is {:?}: block in receipt {receipt_block_number}, safe block {}, finalized block {}",
+                tx_status.tx_hash,
+                tx.id,
+                finality_status,
+                blocks.fast_finality.0,
+                blocks.finalized.0
+            );
+
+        if finality_status == EthTxFinalityStatus::Finalized {
             self.health_updater.update(
                 EthTxManagerHealthDetails {
-                    last_mined_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
-                    finalized_block,
+                    last_finalized_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
+                    finalized_block: blocks.finalized,
                 }
                 .into(),
             );
+        }
 
-            if tx_status.success {
-                self.confirm_tx(storage, tx, tx_status).await;
-            } else {
-                self.fail_tx(storage, tx, tx_status).await;
-            }
+        if tx_status.success {
+            self.confirm_tx(storage, tx, finality_status, tx_status)
+                .await;
         } else {
-            tracing::trace!(
-                "Transaction {} with id {} is not yet finalized: block in receipt {receipt_block_number}, finalized block {finalized_block}",
-                tx_status.tx_hash,
-                tx.id,
-            );
+            self.fail_tx(storage, tx, tx_status).await;
         }
     }
 
@@ -562,6 +619,7 @@ impl EthTxManager {
         &self,
         storage: &mut Connection<'_, Core>,
         tx: &EthTx,
+        eth_tx_finality_status: EthTxFinalityStatus,
         tx_status: ExecutedTxStatus,
     ) {
         let tx_hash = tx_status.receipt.transaction_hash;
@@ -572,7 +630,7 @@ impl EthTxManager {
 
         storage
             .eth_sender_dal()
-            .confirm_tx(tx_status.tx_hash, gas_used)
+            .confirm_tx(tx_status.tx_hash, eth_tx_finality_status, gas_used)
             .await
             .unwrap();
 
@@ -581,9 +639,10 @@ impl EthTxManager {
             .await;
 
         tracing::info!(
-            "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
+            "eth_tx {} with hash {tx_hash:?} for {} is {:?}. Gas spent: {gas_used:?}",
             tx.id,
-            tx.tx_type
+            tx.tx_type,
+            eth_tx_finality_status,
         );
         let tx_type_label = tx.tx_type.into();
         METRICS.l1_gas_used[&tx_type_label].observe(gas_used.low_u128() as f64);
@@ -593,7 +652,17 @@ impl EthTxManager {
             .expect("incorrect system time");
         let tx_latency =
             duration_since_epoch.saturating_sub(Duration::from_secs(tx.created_at_timestamp));
-        METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
+        match eth_tx_finality_status {
+            EthTxFinalityStatus::FastFinalized => {
+                METRICS.l1_tx_fast_finalized_latency[&tx_type_label].observe(tx_latency);
+            }
+            EthTxFinalityStatus::Finalized => {
+                METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
+            }
+            EthTxFinalityStatus::Pending => {
+                // Do nothing txs were created, but not sent yet
+            }
+        }
 
         let sent_at_block = storage
             .eth_sender_dal()
@@ -612,7 +681,7 @@ impl EthTxManager {
         let pool = self.pool.clone();
 
         loop {
-            tokio::time::sleep(self.config.tx_poll_period()).await;
+            tokio::time::sleep(self.config.tx_poll_period).await;
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
@@ -652,7 +721,6 @@ impl EthTxManager {
             .eth_sender_dal()
             .get_inflight_txs(
                 self.operator_address(operator_type),
-                operator_type != OperatorType::Blob,
                 operator_type == OperatorType::Gateway,
             )
             .await
@@ -670,7 +738,6 @@ impl EthTxManager {
                 .get_new_eth_txs(
                     number_of_available_slots_for_eth_txs,
                     self.operator_address(operator_type),
-                    operator_type != OperatorType::Blob,
                     operator_type == OperatorType::Gateway,
                 )
                 .await
@@ -758,5 +825,29 @@ impl EthTxManager {
     /// Returns the health check for eth tx manager.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+}
+
+fn derive_l1_block_cap(multiplier_cap: u32, b: f64) -> u32 {
+    (multiplier_cap as f64).log(b).ceil() as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::derive_l1_block_cap;
+
+    #[test]
+    fn check_derive_l1_block_cap() {
+        let multiplier_cap = 10;
+        let b = 2.0;
+        let expected_l1_block_cap = 4; // ceil(log_2(10))
+        let actual_l1_block_cap = derive_l1_block_cap(multiplier_cap, b);
+        assert_eq!(actual_l1_block_cap, expected_l1_block_cap);
+
+        let multiplier_cap = 10;
+        let b = 1.01;
+        let expected_l1_block_cap = 232;
+        let actual_l1_block_cap = derive_l1_block_cap(multiplier_cap, b);
+        assert_eq!(actual_l1_block_cap, expected_l1_block_cap);
     }
 }

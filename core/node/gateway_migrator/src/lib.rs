@@ -2,7 +2,11 @@ use std::time::Duration;
 
 use anyhow::bail;
 use tokio::sync::watch;
-use zksync_basic_types::{ethabi::Contract, settlement::SettlementLayer, L2ChainId};
+use zksync_basic_types::{
+    ethabi::Contract,
+    settlement::{SettlementLayer, WorkingSettlementLayer},
+    L2ChainId,
+};
 use zksync_config::configs::contracts::SettlementLayerSpecificContracts;
 use zksync_contracts::getters_facet_contract;
 use zksync_eth_client::{
@@ -12,6 +16,8 @@ use zksync_eth_client::{
     ContractCallError, EthInterface,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+
+pub mod node;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GatewayMigratorError {
@@ -32,6 +38,7 @@ pub struct GatewayMigrator {
     settlement_layer: Option<SettlementLayer>,
     l2_chain_id: L2ChainId,
     getters_facet_abi: Contract,
+    eth_node_poll_interval: Duration,
 }
 
 impl GatewayMigrator {
@@ -41,6 +48,7 @@ impl GatewayMigrator {
         l2_chain_id: L2ChainId,
         settlement_layer: Option<SettlementLayer>,
         l1_settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
+        eth_node_poll_interval: Duration,
     ) -> Self {
         let abi = getters_facet_contract();
         Self {
@@ -50,6 +58,7 @@ impl GatewayMigrator {
             settlement_layer,
             l2_chain_id,
             getters_facet_abi: abi,
+            eth_node_poll_interval,
         }
     }
 
@@ -95,39 +104,7 @@ impl GatewayMigrator {
                 }
             }
 
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-    }
-}
-
-/// During the migration settlement layer could be unknown for the server.
-/// In this case, we should not use it for sending transactions.
-/// Meanwhile we should continue to work with the old settlement layer.
-#[derive(Debug, Clone)]
-pub struct WorkingSettlementLayer {
-    unsafe_settlement_layer: SettlementLayer,
-    migration_in_progress: bool,
-}
-
-impl WorkingSettlementLayer {
-    pub fn new(unsafe_settlement_layer: SettlementLayer) -> Self {
-        Self {
-            unsafe_settlement_layer,
-            migration_in_progress: false,
-        }
-    }
-}
-
-impl WorkingSettlementLayer {
-    pub fn settlement_layer(&self) -> SettlementLayer {
-        self.unsafe_settlement_layer
-    }
-
-    pub fn settlement_layer_for_sending_txs(&self) -> Option<SettlementLayer> {
-        if self.migration_in_progress {
-            None
-        } else {
-            Some(self.unsafe_settlement_layer)
+            tokio::time::sleep(self.eth_node_poll_interval).await;
         }
     }
 }
@@ -205,8 +182,7 @@ pub async fn current_settlement_layer(
         }
     };
 
-    Ok(WorkingSettlementLayer {
-        unsafe_settlement_layer: final_settlement_mode,
-        migration_in_progress: !use_settlement_mode_from_l1,
-    })
+    let mut layer = WorkingSettlementLayer::new(final_settlement_mode);
+    layer.set_migration_in_progress(!use_settlement_mode_from_l1);
+    Ok(layer)
 }

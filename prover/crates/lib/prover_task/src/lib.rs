@@ -56,6 +56,18 @@ impl TaskRunner {
         });
     }
 
+    /// Adds multiple tasks from an iterator, generating names from a prefix.
+    pub fn extend<T: Task + Send + Sync + 'static>(
+        &mut self,
+        name_prefix: &str,
+        interval: Duration,
+        jobs: impl IntoIterator<Item = T>,
+    ) {
+        for (idx, job) in jobs.into_iter().enumerate() {
+            self.add(&format!("{}_{}", name_prefix, idx), interval, job);
+        }
+    }
+
     pub fn spawn(
         self,
         stop_receiver: tokio::sync::watch::Receiver<bool>,

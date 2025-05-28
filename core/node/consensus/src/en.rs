@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStore, PersistentBlockStore as _};
 use zksync_dal::consensus_dal;
-use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, SyncState};
+use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender};
+use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -23,6 +24,22 @@ use crate::{
 /// Whenever more than FALLBACK_FETCHER_THRESHOLD certificates are missing,
 /// the fallback fetcher is active.
 pub(crate) const FALLBACK_FETCHER_THRESHOLD: u64 = 10;
+
+/// Waits until the main node block is greater or equal to the given block number.
+/// Returns the current main node block number.
+async fn wait_for_main_node_block(
+    ctx: &ctx::Ctx,
+    sync_state: &SyncState,
+    pred: impl Fn(validator::BlockNumber) -> bool,
+) -> ctx::OrCanceled<validator::BlockNumber> {
+    sync::wait_for_some(ctx, &mut sync_state.subscribe(), |inner| {
+        inner
+            .main_node_block()
+            .map(|n| validator::BlockNumber(n.0.into()))
+            .filter(|n| pred(*n))
+    })
+    .await
+}
 
 /// External node.
 pub(super) struct EN {
@@ -250,14 +267,10 @@ impl EN {
                 let mut next = store.next_block(ctx).await.wrap("next_block()")?;
                 loop {
                     // Wait until p2p syncing is lagging.
-                    self.sync_state
-                        .wait_for_main_node_block(ctx, is_lagging)
-                        .await?;
+                    wait_for_main_node_block(ctx, &self.sync_state, is_lagging).await?;
                     // Determine the next block to fetch and wait for it to be available.
                     next = next.max(store.next_block(ctx).await.wrap("next_block()")?);
-                    self.sync_state
-                        .wait_for_main_node_block(ctx, |main| main >= next)
-                        .await?;
+                    wait_for_main_node_block(ctx, &self.sync_state, |main| main >= next).await?;
                     // Fetch the block asynchronously.
                     send.send(ctx, s.spawn(self.fetch_block(ctx, next))).await?;
                     next = next.next();
@@ -287,9 +300,7 @@ impl EN {
             s.spawn::<()>(async {
                 let send = send;
                 loop {
-                    self.sync_state
-                        .wait_for_main_node_block(ctx, |main| main >= next)
-                        .await?;
+                    wait_for_main_node_block(ctx, &self.sync_state, |main| main >= next).await?;
                     send.send(ctx, s.spawn(self.fetch_block(ctx, next))).await?;
                     next = next.next();
                 }

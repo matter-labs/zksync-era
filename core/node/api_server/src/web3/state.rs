@@ -10,7 +10,7 @@ use std::{
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{
@@ -25,7 +25,7 @@ use zksync_config::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_node_sync::SyncState;
+use zksync_shared_resources::api::{BridgeAddressesHandle, SyncState};
 use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::SettlementLayer,
     transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
@@ -41,12 +41,12 @@ use super::{
     backend_jsonrpsee::MethodTracer,
     mempool_cache::MempoolCache,
     metrics::{FilterType, FILTER_METRICS},
+    receipts::AccountTypesCache,
     TypedFilter,
 };
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
-    utils::AccountTypesCache,
     web3::metrics::FilterMetrics,
 };
 
@@ -135,8 +135,8 @@ impl InternalApiConfigBase {
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
-            req_entities_limit: web3_config.req_entities_limit(),
-            fee_history_limit: web3_config.fee_history_limit(),
+            req_entities_limit: web3_config.req_entities_limit as usize,
+            fee_history_limit: web3_config.fee_history_limit,
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
         }
@@ -283,32 +283,6 @@ impl SealedL2BlockNumber {
         } else {
             diff
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BridgeAddressesHandle(Arc<RwLock<api::BridgeAddresses>>);
-
-impl BridgeAddressesHandle {
-    pub fn new(bridge_addresses: api::BridgeAddresses) -> Self {
-        Self(Arc::new(RwLock::new(bridge_addresses)))
-    }
-
-    pub async fn update(&self, bridge_addresses: api::BridgeAddresses) {
-        *self.0.write().await = bridge_addresses;
-    }
-
-    pub async fn update_l1_shared_bridge(&self, l1_shared_bridge: Address) {
-        self.0.write().await.l1_shared_default_bridge = Some(l1_shared_bridge);
-    }
-
-    pub async fn update_l2_bridges(&self, l2_shared_bridge: Address) {
-        self.0.write().await.l2_shared_default_bridge = Some(l2_shared_bridge);
-        self.0.write().await.l2_erc20_default_bridge = Some(l2_shared_bridge);
-    }
-
-    pub async fn read(&self) -> api::BridgeAddresses {
-        self.0.read().await.clone()
     }
 }
 

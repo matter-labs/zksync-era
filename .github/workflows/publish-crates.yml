@@ -1,6 +1,9 @@
 name: Publish crates
 
 on:
+  push:
+    branches:
+      - release-please--branches--main--components--core
   workflow_dispatch:
     inputs:
       component:
@@ -33,13 +36,14 @@ jobs:
       ZKSYNC_USE_CUDA_STUBS: true
     steps:
       - name: Publish crates
-        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@38ec28e7851f7ac0498f04ccb0f68ce81586541d # v1
+        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@f890fd394468b3de781f13a9e89b58caf9527434 # v1
         with:
           slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }} # Slack webhook for notifications
           cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }} # Crates.io token for publishing
-          workspace_path: ${{ inputs.component }}
+          workspace_path: ${{ inputs.component || 'core' }}
           org_owner: ${{ inputs.org-owner }}
           run_build: ${{ inputs.run-build }}
           run_tests: ${{ inputs.run-tests }}
           gh_token: ${{ secrets.GITHUB_TOKEN }}
           dependencies: 'clang libclang-dev'
+          dry_run: ${{ github.event_name == 'push' }}
