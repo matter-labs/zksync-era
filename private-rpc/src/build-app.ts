@@ -9,6 +9,7 @@ import { Authorizer } from '@/permissions/authorizer';
 import { rpcRoutes } from '@/routes/rpc-routes';
 import { usersRoutes } from '@/routes/users-routes';
 import cors from '@fastify/cors';
+import {healthRoutes} from "@/routes/health-routes";
 
 export function buildApp(
   produceLogs = true,
@@ -38,6 +39,7 @@ export function buildApp(
   });
 
   app.register(usersRoutes, { prefix: '/users' });
+  app.register(healthRoutes, { prefix: '/health' });
   app.register(rpcRoutes, { prefix: '/rpc' });
 
   return app;

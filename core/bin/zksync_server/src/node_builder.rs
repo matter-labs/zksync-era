@@ -26,7 +26,6 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_contract_verification_server::node::ContractVerificationApiLayer;
-use zksync_core_leftovers::Component;
 use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
@@ -78,6 +77,8 @@ use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
     BasicWitnessInputProducerLayer, ProtectiveReadsWriterLayer, VmPlaygroundLayer,
 };
+
+use crate::components::Component;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -333,6 +334,7 @@ impl MainNodeBuilder {
     fn add_gateway_migrator_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(GatewayMigratorLayer {
             l2_chain_id: self.genesis_config.l2_chain_id,
+            gateway_migrator_config: self.configs.gateway_migrator_config.clone(),
         });
         Ok(self)
     }
