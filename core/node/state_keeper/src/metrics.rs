@@ -94,9 +94,6 @@ pub struct StateKeeperMetrics {
     /// The time it takes for state keeper to wait for tx execution result from batch executor.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub execute_tx_outer_time: Histogram<Duration>,
-    /// The time it takes for one iteration of the main loop in `process_l1_batch`.
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub process_l1_batch_loop_iteration: Histogram<Duration>,
     /// The time it takes for one iteration of the main loop in `process_block`.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub process_block_loop_iteration: Histogram<Duration>,
