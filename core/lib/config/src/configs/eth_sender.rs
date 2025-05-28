@@ -31,7 +31,7 @@ impl EthConfig {
     pub fn for_tests() -> Self {
         Self {
             sender: SenderConfig {
-                wait_confirmations: Some(10),
+                wait_confirmations: None,
                 tx_poll_period: Duration::from_secs(1),
                 aggregate_tx_poll_period: Duration::from_secs(1),
                 max_txs_in_flight: 30,
