@@ -291,8 +291,9 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.refunded_gas,
                 commit_tx.tx_hash AS "eth_commit_tx_hash?",
                 prove_tx.tx_hash AS "eth_prove_tx_hash?",
+                precommit_tx.tx_hash AS "eth_precommit_tx_hash?",
                 execute_tx.tx_hash AS "eth_execute_tx_hash?",
-                precommit_tx.tx_hash AS "eth_precommit_tx_hash?"
+                execute_tx.finality_status AS "eth_execute_tx_finality_status?"
             FROM
                 transactions
             LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number

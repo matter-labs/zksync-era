@@ -6,7 +6,7 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -16,7 +16,7 @@ use zksync_types::{
 
 use crate::{
     client::{ForWeb3Network, L2},
-    types::{Bytes, Token},
+    types::Token,
 };
 
 #[cfg_attr(
@@ -132,10 +132,4 @@ pub trait ZksNamespace {
 
     #[method(name = "getBatchFeeInput")]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
-
-    #[method(name = "sendRawTransactionWithDetailedOutput")]
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        tx_bytes: Bytes,
-    ) -> RpcResult<TransactionDetailedResult>;
 }

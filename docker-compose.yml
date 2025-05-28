@@ -2,6 +2,10 @@ services:
   reth:
     restart: always
     image: "ghcr.io/paradigmxyz/reth:v1.3.7"
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     ports:
       - 127.0.0.1:8545:8545
     volumes:
@@ -12,11 +16,15 @@ services:
         source: ./etc/reth/chaindata
         target: /chaindata
 
-    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 300ms --chain /chaindata/reth_config
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*"  --chain /chaindata/reth_config --dev.block-time 300ms
 
   postgres:
     image: "postgres:14"
     command: postgres -c 'max_connections=1000'
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     ports:
       - 127.0.0.1:5432:5432
     volumes:
@@ -33,6 +41,10 @@ services:
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     volumes:
       - .:/usr/src/zksync
       - /usr/src/cache:/usr/src/cache
