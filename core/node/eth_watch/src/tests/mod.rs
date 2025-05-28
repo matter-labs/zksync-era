@@ -7,6 +7,7 @@ use zksync_types::{
     api::ChainAggProof,
     block::{BatchOrBlockNumber, L1BatchHeader},
     commitment::L1BatchCommitmentArtifacts,
+    eth_sender::EthTxFinalityStatus,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2_to_l1_log::BatchAndChainMerklePath,
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
@@ -850,7 +851,7 @@ async fn setup_batch_roots(
             .unwrap();
         connection
             .eth_sender_dal()
-            .confirm_tx(tx_hash, U256::zero(), 0)
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
             .await
             .unwrap();
 
