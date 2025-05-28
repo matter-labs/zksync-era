@@ -1,11 +1,15 @@
-use std::{fmt, path::Path, time::Duration};
+use std::{
+    fmt,
+    path::{Display, Path},
+    time::Duration,
+};
 
 use ethers::{
     types::{Address, H160, U256},
     utils::format_ether,
 };
 use url::Url;
-use zksync_consensus_roles::attester;
+use zksync_consensus_roles::validator;
 
 use crate::utils::forge::WalletOwner;
 
@@ -101,8 +105,15 @@ pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
+pub(super) const MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER: &str = "Updating da validator pair...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
     "Token multiplier setter updated to";
+pub(super) const MSG_DA_VALIDATOR_PAIR_UPDATED_TO: &str = "DA validator pair updated to";
+pub(super) const MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW: &str =
+    "Got the settlement layer address from gateway";
+pub(super) const MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER: &str =
+    "Updating pubdata pricing mode...";
+pub(super) const MSG_PUBDATA_PRICING_MODE_UPDATED_TO: &str = "Pubdata pricing mode updated to";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
@@ -312,7 +323,42 @@ pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
 }
 
+/// Private proxy related messages
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run private proxy container";
+
+pub(super) fn msg_private_rpc_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database url for chain {chain_name}")
+}
+
+pub(super) fn msg_private_rpc_initializing_database_for(chain: &str) -> String {
+    format!("Initializing private proxy database for {chain} chain")
+}
+
+pub(super) fn msg_private_rpc_docker_image_being_built() -> String {
+    "Building private-proxy docker image, it may take a while...".to_string()
+}
+pub(super) fn msg_private_rpc_docker_compose_file_generated(path: Display) -> String {
+    format!("Generated private proxy docker-compose file and stored it at {path}")
+}
+pub(super) fn msg_private_rpc_permissions_file_generated(path: Display) -> String {
+    format!("Created example permissions config and stored it at {path}")
+}
+
+pub(super) fn msg_private_rpc_chain_not_initialized(chain: &str) -> String {
+    format!("Chain {chain} is not initialized for private-proxy: run `zkstack private-proxy init --chain {chain}` first")
+}
+
+pub(super) fn msg_private_proxy_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide private proxy database name for chain {chain_name}")
+}
+
+pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
+    "Failed to drop private proxy database";
+
 /// Explorer related messages
+pub(super) const MSG_EXPLORER_PRIVIDIUM_HELP: &str =
+    "Enable Prividium mode for this Block Explorer";
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
 pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
@@ -339,6 +385,15 @@ pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
 pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
     format!("Chain {chain} is not initialized for explorer: run `zkstack explorer init --chain {chain}` first")
 }
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_MODE_PROMPT: &str =
+    "Do you want to enable Prividium mode for this Block Explorer?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_MAX_AGE_PROMPT: &str =
+    "What session max age configuration do you want to use for Prividium mode?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_SAME_SITE_PROMPT: &str =
+    "What session same site configuration do you want to use for Prividium mode?";
 
 /// Forge utils related messages
 pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
@@ -479,7 +534,7 @@ pub(super) fn msg_downloading_binary_spinner(name: &str, version: &str) -> Strin
     format!("Downloading {} {} binary", name, version)
 }
 
-/// Update related messages
+// Update related messages
 
 pub(super) const MSG_UPDATE_ONLY_CONFIG_HELP: &str = "Update only the config files";
 pub(super) const MSG_UPDATING_ZKSYNC: &str = "Updating ZKsync";
@@ -553,16 +608,14 @@ pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
 pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
 pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
     "consensus registry address not configured";
-pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
-    "consensus.genesis_spec.attesters missing in general.yaml";
 pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
 pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
 
-pub(super) fn msg_setting_attester_committee_failed(
-    got: &attester::Committee,
-    want: &attester::Committee,
+pub(super) fn msg_setting_validator_committee_failed(
+    got: &validator::Committee,
+    want: &validator::Committee,
 ) -> String {
-    format!("setting attester committee failed: got {got:?}, want {want:?}")
+    format!("setting validator committee failed: got {got:?}, want {want:?}")
 }
 
 pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {

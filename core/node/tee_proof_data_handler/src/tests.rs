@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::{
     body::Body,
     http::{self, Method, Request, StatusCode},
@@ -16,6 +18,15 @@ use zksync_types::{
 
 use crate::create_proof_processing_router;
 
+fn test_config() -> TeeProofDataHandlerConfig {
+    TeeProofDataHandlerConfig {
+        http_port: 1337,
+        first_processed_batch: L1BatchNumber(0),
+        proof_generation_timeout_in_secs: Duration::from_secs(600),
+        batch_permanently_ignored_timeout_in_hours: Duration::from_secs(10 * 24 * 3_600),
+    }
+}
+
 #[tokio::test]
 async fn request_tee_proof_inputs() {
     let db_conn_pool = ConnectionPool::test_pool().await;
@@ -23,12 +34,7 @@ async fn request_tee_proof_inputs() {
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
-        TeeProofDataHandlerConfig {
-            http_port: 1337,
-            first_processed_batch: L1BatchNumber(0),
-            proof_generation_timeout_in_secs: 600,
-            batch_permanently_ignored_timeout_in_hours: 10 * 24,
-        },
+        test_config(),
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
@@ -79,12 +85,7 @@ async fn submit_tee_proof() {
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
-        TeeProofDataHandlerConfig {
-            http_port: 1337,
-            first_processed_batch: L1BatchNumber(0),
-            proof_generation_timeout_in_secs: 600,
-            batch_permanently_ignored_timeout_in_hours: 10 * 24,
-        },
+        test_config(),
         L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );

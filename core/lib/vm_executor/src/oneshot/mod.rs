@@ -236,6 +236,7 @@ where
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum Vm<S: ReadStorage, Tr, Val> {
     Legacy(LegacyVmInstance<S, HistoryDisabled>),

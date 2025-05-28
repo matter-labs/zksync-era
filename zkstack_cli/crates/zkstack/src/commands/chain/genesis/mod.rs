@@ -63,7 +63,8 @@ pub async fn genesis(
     shell: &Shell,
     config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    database::update_configs(args.clone(), shell, config).await?;
+    let override_validium_config = true;
+    database::update_configs(args.clone(), shell, config, override_validium_config).await?;
 
     logger::note(
         MSG_SELECTED_CONFIG,

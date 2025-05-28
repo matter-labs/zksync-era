@@ -76,13 +76,14 @@
             ];
 
             buildInputs = with pkgs;[
-              libclang.dev
-              openssl.dev
-              snappy.dev
-              lz4.dev
-              bzip2.dev
+              libclang
+              openssl
+              snappy
+              lz4
+              bzip2
+              snappy
               rocksdb_8_3
-              snappy.dev
+              postgresql
             ];
 
             src = with pkgs.lib.fileset; let root = ./core/.; in toSource {
@@ -129,6 +130,7 @@
                 inherit craneLib;
                 inherit coreCommonArgs;
                 inherit zkstackArgs;
+                inherit rustPlatform;
                 inputs = inputs // { src = ./.; };
               });
               directory = ./etc/nix;

@@ -28,3 +28,5 @@ zksync_basic_types.workspace = true
 zksync_system_constants.workspace = true
 zkstack_cli_common.workspace = true
 zkstack_cli_types.workspace = true
+zksync_consensus_roles.workspace = true
+zksync_consensus_crypto.workspace = true

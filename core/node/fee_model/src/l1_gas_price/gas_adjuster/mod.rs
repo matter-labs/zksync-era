@@ -199,7 +199,7 @@ impl GasAdjuster {
     }
 
     fn bound_gas_price(&self, gas_price: u64) -> u64 {
-        let max_l1_gas_price = self.config.max_l1_gas_price();
+        let max_l1_gas_price = self.config.max_l1_gas_price;
         if gas_price > max_l1_gas_price {
             tracing::warn!(
                 "Effective gas price is too high: {gas_price}, using max allowed: {}",
@@ -213,7 +213,7 @@ impl GasAdjuster {
     pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, gas_adjuster is shutting down");
+                tracing::info!("Stop request received, gas_adjuster is shutting down");
                 break;
             }
 
@@ -221,7 +221,7 @@ impl GasAdjuster {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
-            tokio::time::sleep(self.config.poll_period()).await;
+            tokio::time::sleep(self.config.poll_period).await;
         }
         Ok(())
     }
@@ -255,7 +255,7 @@ impl GasAdjuster {
 
                 // Check if blob base fee overflows `u64` before converting. Can happen only in very extreme cases.
                 if blob_base_fee_median > U256::from(u64::MAX) {
-                    let max_allowed = self.config.max_blob_base_fee();
+                    let max_allowed = self.config.max_blob_base_fee;
                     tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
                     return max_allowed;
                 }
@@ -284,7 +284,7 @@ impl GasAdjuster {
 
     fn cap_pubdata_fee(&self, pubdata_fee: f64) -> u64 {
         // We will treat the max blob base fee as the maximal fee that we can take for each byte of pubdata.
-        let max_blob_base_fee = self.config.max_blob_base_fee();
+        let max_blob_base_fee = self.config.max_blob_base_fee;
         match self.commitment_mode {
             L1BatchCommitmentMode::Validium => 0,
             L1BatchCommitmentMode::Rollup => {
@@ -330,6 +330,21 @@ impl TxParamsProvider for GasAdjuster {
         last_block_base_fee * 875 / 1000
     }
 
+    fn get_next_block_minimal_blob_base_fee(&self) -> u64 {
+        let last_block_blob_base_fee = self.blob_base_fee_statistics.last_added_value();
+        let multiplied = last_block_blob_base_fee * U256::from(875);
+        if multiplied > U256::from(u64::MAX) {
+            tracing::error!(
+                "Blob base fee last value is too high, using u64::MAX {}",
+                u64::MAX
+            );
+            u64::MAX
+        } else {
+            // The next block's blob base fee will decrease by a maximum of 12.5%.
+            multiplied.as_u64() / 1000
+        }
+    }
+
     // Priority fee is set to constant, sourced from config.
     // Reasoning behind this is the following:
     // High `priority_fee` means high demand for block space,
@@ -341,20 +356,27 @@ impl TxParamsProvider for GasAdjuster {
         self.config.default_priority_fee_per_gas
     }
 
-    // The idea is that when we finally decide to send blob tx, we want to offer gas fees high
-    // enough to "almost be certain" that the transaction gets included. To never have to double
-    // the gas prices as then we have very little control how much we pay in the end. This strategy
-    // works as no matter if we double or triple such price, we pay the same block base fees.
-    fn get_blob_tx_base_fee(&self) -> u64 {
-        self.base_fee_statistics.last_added_value() * 2
+    fn get_blob_tx_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        self.get_base_fee(time_in_mempool_in_l1_blocks)
     }
 
-    fn get_blob_tx_blob_base_fee(&self) -> u64 {
-        self.blob_base_fee_statistics.last_added_value().as_u64() * 2
+    fn get_blob_tx_blob_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        let median = self.blob_base_fee_statistics.median();
+        let median_u64 = if median > U256::from(u64::MAX) {
+            tracing::error!(
+                "Blob base fee median is too high: {median}, using u64::MAX {}",
+                u64::MAX
+            );
+            u64::MAX
+        } else {
+            median.as_u64()
+        };
+        METRICS.median_blob_base_fee.set(median_u64);
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median_u64)
     }
 
     fn get_blob_tx_priority_fee(&self) -> u64 {
-        self.get_priority_fee() * 2
+        self.get_priority_fee()
     }
 
     fn get_gateway_l2_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
@@ -367,6 +389,10 @@ impl TxParamsProvider for GasAdjuster {
         let median = self.gas_per_pubdata_price_statistic.median();
         METRICS.median_gas_per_pubdata_price.set(median);
         self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
+    }
+
+    fn get_parameter_b(&self) -> f64 {
+        self.config.pricing_formula_parameter_b
     }
 }
 

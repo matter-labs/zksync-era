@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_txs_history\n            SET\n                confirmed_at = NULL,\n                finality_status = 'pending',\n                sent_successfully = FALSE\n            WHERE\n                eth_tx_id >= $1\n                AND sent_successfully = TRUE\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "501d0cc0679376b1202816b36c5fc8d2a989e0f819828cc09e30d8af8e98fda4"
+}

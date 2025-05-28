@@ -9,6 +9,7 @@ pub mod ecosystem;
 pub mod explorer;
 pub mod external_node;
 pub mod portal;
+pub mod private_rpc;
 pub mod prover;
 pub mod server;
 pub mod update;

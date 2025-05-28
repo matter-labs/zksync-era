@@ -23,7 +23,7 @@ use zksync_vm_executor::oneshot::{
     BaseSystemContractsProvider, ContractsKind, MockOneshotExecutor, OneshotEnvParameters,
     ResolvedBlockInfo,
 };
-use zksync_web3_decl::namespaces::DebugNamespaceClient;
+use zksync_web3_decl::namespaces::{DebugNamespaceClient, UnstableNamespaceClient};
 
 use super::*;
 
@@ -50,7 +50,6 @@ impl ExpectedFeeInput {
         self.expect_for_block(api::BlockNumber::Pending, scale);
     }
 
-    #[allow(dead_code)]
     fn expect_custom(&self, expected: BatchFeeInput) {
         *self.0.lock().unwrap() = expected;
     }

@@ -11,7 +11,7 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 
 async function logsPath(name: string): Promise<string> {
-    return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
+    return await logsTestPath(fileConfig.chain, 'logs/migration/', name);
 }
 
 const pathToHome = path.join(__dirname, '../../../..');
@@ -48,8 +48,8 @@ describe('Migration From/To gateway test', function () {
     let mainNodeSpawner: utils.NodeSpawner;
 
     before('Create test wallet', async () => {
-        logs = await fs.open(await logsPath('migration.log'), 'a');
         direction = process.env.DIRECTION || 'TO';
+        logs = await fs.open(await logsPath(`migration_${direction}.log`), 'a');
         console.log(`Start Migration ${direction} gateway`);
         gatewayChain = process.env.GATEWAY_CHAIN || 'gateway';
 
@@ -174,13 +174,13 @@ describe('Migration From/To gateway test', function () {
             ZK_CHAIN_INTERFACE,
             gatewayInfo?.gatewayProvider
         );
+
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
             expect(slAddressl1 != ZeroAddress);
             expect(slAddressGW == ZeroAddress);
         } else {
-            let slAddressl1 = await l1MainContract.getSettlementLayer();
             expect(slAddressl1 == ZeroAddress);
             expect(slAddressGW != ZeroAddress);
         }

@@ -3,12 +3,13 @@ use std::{future::Future, sync::Arc, time::Duration};
 use tokio::sync::watch;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
-use zksync_types::L1BatchNumber;
+use zksync_types::{try_stoppable, L1BatchNumber, OrStopped, StopContext};
 
 pub use crate::traits::{InitializeStorage, RevertStorage};
 
 pub mod external_node;
 pub mod main_node;
+pub mod node;
 mod traits;
 
 #[derive(Debug)]
@@ -107,15 +108,17 @@ impl NodeStorageInitializer {
         match decision {
             InitDecision::Genesis => {
                 tracing::info!("Performing genesis initialization");
-                self.strategy
-                    .genesis
-                    .initialize_storage(stop_receiver.clone())
-                    .await?;
+                try_stoppable!(
+                    self.strategy
+                        .genesis
+                        .initialize_storage(stop_receiver.clone())
+                        .await
+                );
             }
             InitDecision::SnapshotRecovery => {
                 tracing::info!("Performing snapshot recovery initialization");
                 if let Some(recovery) = &self.strategy.snapshot_recovery {
-                    recovery.initialize_storage(stop_receiver.clone()).await?;
+                    try_stoppable!(recovery.initialize_storage(stop_receiver.clone()).await);
                 } else {
                     anyhow::bail!(
                         "Snapshot recovery should be performed, but the strategy is not provided. \
@@ -130,13 +133,12 @@ impl NodeStorageInitializer {
 
         // Now we may check whether we're in the invalid state and should perform a rollback.
         if let Some(reverter) = &self.strategy.block_reverter {
-            if let Some(to_batch) = reverter
-                .last_correct_batch_for_reorg(stop_receiver.clone())
-                .await?
+            if let Some(to_batch) =
+                try_stoppable!(reverter.last_correct_batch_for_reorg(stop_receiver).await)
             {
                 tracing::info!(l1_batch = %to_batch, "State must be rolled back to L1 batch");
                 tracing::info!("Performing the rollback");
-                reverter.revert_storage(to_batch, stop_receiver).await?;
+                reverter.revert_storage(to_batch).await?;
             }
         }
 
@@ -147,7 +149,7 @@ impl NodeStorageInitializer {
     pub async fn wait_for_initialized_storage(
         &self,
         stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OrStopped> {
         const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 
         // Wait until data is added to the database.
@@ -155,17 +157,12 @@ impl NodeStorageInitializer {
             self.is_database_initialized()
         })
         .await?;
-        if *stop_receiver.borrow() {
-            return Ok(());
-        }
 
         // Wait until the rollback is no longer needed.
         poll(stop_receiver.clone(), POLLING_INTERVAL, || {
             self.is_chain_tip_correct(stop_receiver.clone())
         })
-        .await?;
-
-        Ok(())
+        .await
     }
 
     async fn is_database_initialized(&self) -> anyhow::Result<bool> {
@@ -184,9 +181,12 @@ impl NodeStorageInitializer {
         &self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<bool> {
-        // May be `true` if stop signal is received, but the node will shut down without launching any tasks anyway.
+        // May be `true` if stop request is received, but the node will shut down without launching any tasks anyway.
         let initialized = if let Some(reverter) = &self.strategy.block_reverter {
-            !reverter.is_reorg_needed(stop_receiver).await?
+            !reverter
+                .is_reorg_needed(stop_receiver)
+                .await
+                .unwrap_stopped(false)?
         } else {
             true
         };
@@ -198,7 +198,7 @@ async fn poll<F, Fut>(
     mut stop_receiver: watch::Receiver<bool>,
     polling_interval: Duration,
     mut check: F,
-) -> anyhow::Result<()>
+) -> Result<(), OrStopped>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = anyhow::Result<bool>>,
@@ -210,5 +210,9 @@ where
             .ok();
     }
 
-    Ok(())
+    if *stop_receiver.borrow() {
+        Err(OrStopped::Stopped)
+    } else {
+        Ok(())
+    }
 }
