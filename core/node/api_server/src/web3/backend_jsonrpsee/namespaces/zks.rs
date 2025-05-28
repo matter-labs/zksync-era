@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -77,18 +77,6 @@ impl ZksNamespaceServer for ZksNamespace {
         address: Address,
     ) -> RpcResult<HashMap<Address, U256>> {
         self.get_all_account_balances_impl(address)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        block: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-        l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_msg_proof_impl(block, sender, msg, l2_log_position)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -195,15 +183,6 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
         self.get_base_token_l1_address_impl()
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        tx_bytes: web3::Bytes,
-    ) -> RpcResult<TransactionDetailedResult> {
-        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
-            .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
