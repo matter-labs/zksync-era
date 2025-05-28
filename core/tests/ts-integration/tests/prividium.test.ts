@@ -19,7 +19,6 @@ import YAML from 'yaml';
 const chainName = shouldLoadConfigFromFile().chain;
 const SKIP_FILE = true;
 
-
 // Skip all tests in this file
 if (SKIP_FILE) {
     test('Skipped test file', () => {
@@ -147,7 +146,10 @@ if (SKIP_FILE) {
                 tokenDetails.l2Address,
                 'function transfer(address to, uint256 amount) public returns (bool)'
             );
-            await addPermission(tokenDetails.l2Address, 'function balanceOf(address owner) public view returns (uint256)');
+            await addPermission(
+                tokenDetails.l2Address,
+                'function balanceOf(address owner) public view returns (uint256)'
+            );
 
             const balanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
                 { wallet: alice, change: -value },
