@@ -218,18 +218,22 @@ impl EcosystemConfig {
     }
 
     pub fn list_of_chains(&self) -> Vec<String> {
-        self.get_shell()
-            .read_dir(&self.chains)
-            .unwrap()
-            .iter()
-            .filter_map(|file| {
-                if file.is_dir() {
-                    file.file_name().map(|a| a.to_str().unwrap().to_string())
-                } else {
-                    None
-                }
-            })
-            .collect()
+        match self.get_shell().read_dir(&self.chains) {
+            Ok(entries) => entries
+                .iter()
+                .filter_map(|file| {
+                    if file.is_dir() {
+                        file.file_name().map(|a| a.to_str().unwrap().to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            Err(_) => {
+                // Return empty vector if chains directory doesn't exist
+                Vec::new()
+            }
+        }
     }
 
     pub fn get_default_configs_path(&self) -> PathBuf {
@@ -306,4 +310,45 @@ pub fn get_link_to_prover(config: &EcosystemConfig) -> PathBuf {
     let mut link_to_prover = link_to_code.into_os_string();
     link_to_prover.push("/prover");
     link_to_prover.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::OnceCell;
+    use zkstack_cli_types::{L1Network, ProverMode, WalletCreation};
+
+    #[test]
+    fn test_list_of_chains_with_missing_directory() {
+        let shell = Shell::new().unwrap();
+        let current_dir = shell.current_dir();
+
+        // Create an ecosystem config with a non-existent chains directory
+        let ecosystem_config = EcosystemConfig {
+            name: "test".to_string(),
+            l1_network: L1Network::Localhost,
+            link_to_code: current_dir.clone(),
+            bellman_cuda_dir: None,
+            chains: current_dir.join("non_existent_chains_dir"), // This directory doesn't exist
+            config: current_dir.join("config"),
+            default_chain: "test_chain".to_string(),
+            era_chain_id: get_default_era_chain_id(),
+            prover_version: ProverMode::NoProofs,
+            wallet_creation: WalletCreation::Localhost,
+            shell: OnceCell::new(),
+        };
+
+        // Initialize the shell in the config
+        ecosystem_config.shell.set(shell).unwrap();
+
+        // This should not panic and should return an empty vector
+        let chains = ecosystem_config.list_of_chains();
+
+        // Verify that it returns an empty vector instead of panicking
+        assert!(
+            chains.is_empty(),
+            "Expected empty vector, got: {:?}",
+            chains
+        );
+    }
 }
