@@ -9,6 +9,8 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{
+    block::L1BatchTreeData,
+    commitment::L1BatchCommitmentArtifacts,
     web3::{Log, TransactionReceipt},
     L2BlockNumber,
 };
@@ -33,6 +35,25 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
         .insert_mock_l1_batch(&l1_batch)
         .await
         .unwrap();
+
+    storage
+        .blocks_dal()
+        .save_l1_batch_tree_data(
+            number,
+            &L1BatchTreeData {
+                hash: H256::zero(),
+                rollup_last_leaf_index: 0,
+            },
+        )
+        .await
+        .unwrap();
+
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(number, &L1BatchCommitmentArtifacts::default())
+        .await
+        .unwrap();
+
     storage
         .blocks_dal()
         .mark_l2_blocks_as_executed_in_l1_batch(number)
@@ -249,23 +270,36 @@ impl MockSlClient {
                     let mut batch_number_bytes = [0u8; 4];
                     batch_number_bytes.copy_from_slice(&bytes[28..32]);
                     let batch_number = u32::from_be_bytes(batch_number_bytes);
-                    println!("Returning mock tx for batch {} type {}", batch_number, tx_type);
 
                     let topics: Vec<H256> = match tx_type {
                         1 => {
                             //BlockCommit (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
                             let event = contract.event("BlockCommit").unwrap();
-                            vec![event.signature(), H256::from_low_u64_be(batch_number.into()), H256::zero(), H256::zero()]
+                            vec![
+                                event.signature(),
+                                H256::from_low_u64_be(batch_number.into()),
+                                H256::zero(),
+                                H256::zero(),
+                            ]
                         }
                         2 => {
                             // BlocksVerification (index_topic_1 uint256 previousLastVerifiedBlock, index_topic_2 uint256 currentLastVerifiedBlock
                             let event = contract.event("BlocksVerification").unwrap();
-                            vec![event.signature(), H256::from_low_u64_be(batch_number.into()), H256::from_low_u64_be(batch_number.into())]
+                            vec![
+                                event.signature(),
+                                H256::from_low_u64_be((batch_number - 1).into()),
+                                H256::from_low_u64_be(batch_number.into()),
+                            ]
                         }
                         3 => {
                             // BlockExecution (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
                             let event = contract.event("BlockExecution").unwrap();
-                            vec![event.signature(), H256::from_low_u64_be(batch_number.into()), H256::zero(), H256::zero()]
+                            vec![
+                                event.signature(),
+                                H256::from_low_u64_be(batch_number.into()),
+                                H256::zero(),
+                                H256::zero(),
+                            ]
                         }
                         _ => return Ok(None),
                     };
