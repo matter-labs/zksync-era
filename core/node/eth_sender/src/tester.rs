@@ -429,14 +429,14 @@ impl EthSenderTester {
             self.get_l1_batch_header_from_db(self.next_l1_batch_number_to_execute)
                 .await,
         ];
-        let operation =
-            AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
-                priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
-                l1_batches: l1_batch_headers
-                    .into_iter()
-                    .map(l1_batch_with_metadata)
-                    .collect(),
-            }));
+        let operation = AggregatedOperation::Execute(ExecuteBatches {
+            priority_ops_proofs: vec![Default::default(); l1_batch_headers.len()],
+            l1_batches: l1_batch_headers
+                .into_iter()
+                .map(l1_batch_with_metadata)
+                .collect(),
+            dependency_roots: vec![vec![], vec![]],
+        });
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await
     }

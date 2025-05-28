@@ -52,7 +52,7 @@ async function depositWithRichAccounts() {
                     utils.IERC20,
                     wallet
                 );
-                const sharedBridge = await contract.sharedBridge();
+                const sharedBridge = await contract.assetRouter();
                 await (await baseTokenContract.approve(sharedBridge, ethers.constants.MaxUint256)).wait();
                 const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
                 const l1Erc20Contract = new ethers.Contract(baseTokenContract.address, l1Erc20ABI, wallet);

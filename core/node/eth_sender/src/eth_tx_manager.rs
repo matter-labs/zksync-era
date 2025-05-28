@@ -570,10 +570,11 @@ impl EthTxManager {
             .receipt
             .gas_used
             .expect("light ETH clients are not supported");
+        let confirmed_at_block = tx_status.receipt.block_number.unwrap().as_u32();
 
         storage
             .eth_sender_dal()
-            .confirm_tx(tx_status.tx_hash, gas_used)
+            .confirm_tx(tx_status.tx_hash, gas_used, confirmed_at_block)
             .await
             .unwrap();
 

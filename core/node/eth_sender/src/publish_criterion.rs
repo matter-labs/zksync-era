@@ -160,7 +160,7 @@ impl L1GasCriterion {
             total += Self::get_execute_gas_amount(storage, batch_number.into(), &costs).await;
         }
 
-        total
+        2 * total // sma TODO remove this, temporary bump fix
     }
 
     pub fn total_precommit_gas_amount(is_gateway: bool, txs_len: usize) -> u64 {

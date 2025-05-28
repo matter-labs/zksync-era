@@ -603,9 +603,9 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
-    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
-    pub fn estimate_gas() -> Self {
-        let bootloader_bytecode = read_bootloader_code("fee_estimate");
+    pub fn playground_interop() -> Self {
+        let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
+        // kl todo once contracts are stabilized move to etc/multivm
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
@@ -697,6 +697,11 @@ impl BaseSystemContracts {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_precompiles/fee_estimate.yul/Bootloader.zbin",
         );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_interop() -> Self {
+        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 

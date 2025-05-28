@@ -194,6 +194,55 @@ impl From<H256> for TransactionId {
     }
 }
 
+/// Merkle root target for interop log proofs
+#[derive(Copy, Clone, Debug, PartialEq, Display)]
+pub enum LogProofTarget {
+    // L2's ChainBatchRoot
+    Chain,
+    // Gateway's MessageRoot
+    GatewayMessageRoot,
+    // GGateway's ChainBatchRoot. Fallback behaviour, used for withdrawals
+    GatewayChainBatchRoot,
+}
+
+impl Serialize for LogProofTarget {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match *self {
+            LogProofTarget::Chain => serializer.serialize_str("chain"),
+            LogProofTarget::GatewayMessageRoot => serializer.serialize_str("gw_message_root"),
+            _ => serializer.serialize_str("gw_chain_batch_root"),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LogProofTarget {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = LogProofTarget;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("One of the supported aliases")
+            }
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                let result = match value {
+                    "chain" => LogProofTarget::Chain,
+                    "gw_message_root" => LogProofTarget::GatewayMessageRoot,
+                    _ => LogProofTarget::GatewayChainBatchRoot,
+                };
+
+                Ok(result)
+            }
+        }
+        deserializer.deserialize_str(V)
+    }
+}
+
 /// A struct with the proof for the L2->L1 log in a specific block.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -1062,6 +1111,7 @@ pub struct EcosystemContracts {
     // the location of the contracts we call it `l1_wrapped_base_token_store`
     pub l1_wrapped_base_token_store: Option<Address>,
     pub server_notifier_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
 }
 
 #[cfg(test)]

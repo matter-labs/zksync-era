@@ -1,8 +1,33 @@
+#[cfg(any(
+    feature = "v27_evm_interpreter",
+    feature = "v28_precompiles",
+    feature = "v29"
+))]
+use std::path::Path;
+
+#[cfg(any(
+    feature = "v27_evm_interpreter",
+    feature = "v28_precompiles",
+    feature = "v29"
+))]
+use ethers::types::Bytes;
 use ethers::{
     abi::{decode, ParamType, Token},
     utils::hex,
 };
 use serde::Serialize;
+#[cfg(any(
+    feature = "v27_evm_interpreter",
+    feature = "v28_precompiles",
+    feature = "v29"
+))]
+use xshell::Shell;
+#[cfg(any(
+    feature = "v27_evm_interpreter",
+    feature = "v28_precompiles",
+    feature = "v29"
+))]
+use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
 #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
@@ -10,6 +35,13 @@ use ::{
     ethers::types::Bytes, std::path::Path, xshell::Shell,
     zkstack_cli_common::forge::ForgeScriptArgs,
 };
+
+#[cfg(any(
+    feature = "v27_evm_interpreter",
+    feature = "v28_precompiles",
+    feature = "v29"
+))]
+use crate::admin_functions::prepare_upgrade_zk_chain_on_gateway;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
@@ -94,7 +126,11 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[cfg(any(
+        feature = "v27_evm_interpreter",
+        feature = "v28_precompiles",
+        feature = "v29"
+    ))]
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
@@ -140,7 +176,11 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[cfg(any(
+        feature = "v27_evm_interpreter",
+        feature = "v28_precompiles",
+        feature = "v29"
+    ))]
     pub fn append_execute_upgrade(
         &mut self,
         hyperchain_addr: Address,
@@ -175,7 +215,11 @@ impl AdminCallBuilder {
         serde_json::to_string_pretty(&self.calls).unwrap()
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[cfg(any(
+        feature = "v27_evm_interpreter",
+        feature = "v28_precompiles",
+        feature = "v29"
+    ))]
     pub fn display(&self) {
         // Serialize with pretty printing
         let serialized = serde_json::to_string_pretty(&self.calls).unwrap();

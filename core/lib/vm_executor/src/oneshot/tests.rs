@@ -88,6 +88,7 @@ async fn inspecting_transfer(exec_mode: TxExecutionMode, fast_vm_mode: FastVmMod
             number: l1_batch.first_l2_block.number - 1,
             timestamp: l1_batch.first_l2_block.timestamp - 1,
             txs_rolling_hash: H256::zero(),
+            interop_roots: vec![],
         }),
         l1_batch,
     };

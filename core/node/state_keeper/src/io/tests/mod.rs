@@ -263,6 +263,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let tx = create_transaction(10, 100);
@@ -354,6 +355,7 @@ async fn processing_events_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let events = (0_u8..10).map(|i| VmEvent {
@@ -430,6 +432,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         H256::zero(),
         1,
         ProtocolVersionId::latest(),
+        vec![],
     );
 
     let static_factory_deps: Vec<_> = (0_u8..10)

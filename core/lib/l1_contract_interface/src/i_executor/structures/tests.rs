@@ -16,6 +16,7 @@ impl Distribution<StoredBatchInfo> for Standard {
             l2_logs_tree_root: rng.gen(),
             timestamp: rng.gen::<u64>().into(),
             commitment: rng.gen(),
+            dependency_roots_rolling_hash: rng.gen(),
         }
     }
 }
