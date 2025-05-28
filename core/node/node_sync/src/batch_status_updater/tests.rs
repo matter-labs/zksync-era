@@ -301,22 +301,24 @@ fn new_mock_eth_interface() -> Box<dyn EthInterface> {
                 };
 
                 // Create a receipt with status 1 (success)
-                let mut receipt = TransactionReceipt::default();
-                receipt.status = Some(U64::one());
-                receipt.logs = vec![Log {
-                    address: MOCK_DIAMON_PROXY_ADDRESS,
-                    topics,
-                    data: vec![].into(),
-                    block_hash: None,
-                    block_number: None,
-                    transaction_hash: None,
-                    transaction_index: None,
-                    log_index: None,
-                    transaction_log_index: None,
-                    log_type: Some("Regular".to_string()),
-                    removed: None,
-                    block_timestamp: None,
-                }];
+                let receipt = TransactionReceipt {
+                    status: Some(U64::one()),
+                    logs: vec![Log {
+                        address: MOCK_DIAMON_PROXY_ADDRESS,
+                        topics,
+                        data: vec![].into(),
+                        block_hash: None,
+                        block_number: None,
+                        transaction_hash: None,
+                        transaction_index: None,
+                        log_index: None,
+                        transaction_log_index: None,
+                        log_type: Some("Regular".to_string()),
+                        removed: None,
+                        block_timestamp: None,
+                    }],
+                    ..Default::default()
+                };
 
                 Ok(Some(receipt))
             })
