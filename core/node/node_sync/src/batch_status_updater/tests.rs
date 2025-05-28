@@ -334,7 +334,7 @@ fn mock_updater(
     pool: ConnectionPool<Core>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
-    let sl_client = Box::new(MockSlClient::default());
+    let sl_client = Box::new(MockSlClient);
 
     let mut updater = BatchStatusUpdater::from_parts(
         Box::new(client),

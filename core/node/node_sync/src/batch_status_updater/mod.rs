@@ -99,6 +99,13 @@ impl MainNodeClient for Box<DynClient<L2>> {
     }
 }
 
+pub fn get_param(log_params: &[ethabi::LogParam], name: &str) -> Option<ethabi::Token> {
+    log_params
+        .iter()
+        .find(|param| param.name == name)
+        .map(|param| param.value.clone())
+}
+
 /// Verifies the L1 transaction against the database and the SL.
 #[derive(Debug)]
 struct L1TransactionVerifier {
@@ -172,22 +179,15 @@ impl L1TransactionVerifier {
                     return None;
                 }
                 let parsed_log = event
-                    .parse_log_whole(ethabi::RawLog {
-                        topics: log.topics,
-                        data: log.data.0,
-                    })
+                                        .parse_log_whole(log.into())
+
                     .ok()?; // Skip logs that are of different event type
 
-                let block_number_from_log = parsed_log.params.iter().find_map(|param| {
-                    (param.name == "batchNumber")
-                        .then_some(param.value.clone())
+                let block_number_from_log = get_param(&parsed_log.params, "batchNumber")
                         .and_then(ethabi::Token::into_uint)
-                        .and_then(|batch_number_from_log| {
-                            u32::try_from(batch_number_from_log)
-                                    .ok()
-                                    .map(L1BatchNumber)
-                        })
-                }).expect("Missing expected `batchNumber` parameter in `BlockCommit` event log");
+                        .and_then(|x| u32::try_from(x).ok())
+                        .map(L1BatchNumber)
+                        .expect("Missing expected `batchNumber` parameter in `BlockCommit` event log");
 
                 if block_number_from_log != batch_number {
                     tracing::warn!(
@@ -197,17 +197,13 @@ impl L1TransactionVerifier {
                     return None;
                 }
 
-                let batch_hash = parsed_log.params.iter().find_map(|param| {
-                    (param.name == "batchHash")
-                        .then_some(param.value.clone())
+                let batch_hash = get_param(&parsed_log.params, "batchHash")
                         .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
-                }).expect("Missing expected `batchHash` parameter in `BlockCommit` event log");
+                        .expect("Missing expected `batchHash` parameter in `BlockCommit` event log");
 
-                let commitment = parsed_log.params.into_iter().find_map(|param| {
-                    (param.name == "commitment")
-                        .then_some(param.value)
+                let commitment = get_param(&parsed_log.params, "commitment")
                         .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
-                }).expect("Missing expected `commitment` parameter in `BlockCommit` event log");
+                        .expect("Missing expected `commitment` parameter in `BlockCommit` event log");
 
                 tracing::debug!(
                     "Commit transaction {commit_tx_hash:?} has `BlockCommit` event log with batch_hash={batch_hash:?} and commitment={commitment:?}"
@@ -284,28 +280,21 @@ impl L1TransactionVerifier {
                     return None;
                 }
                 let parsed_log = event
-                    .parse_log_whole(ethabi::RawLog {
-                        topics: log.topics,
-                        data: log.data.0,
-                    })
+                    .parse_log_whole(log.into())
                     .ok()?; // Skip logs that are of different event type
 
-                let block_number_from = parsed_log.params.iter().find_map(|param| {
-                    (param.name == "previousLastVerifiedBatch")
-                        .then_some(param.value.clone())
+                let block_number_from = get_param(&parsed_log.params, "previousLastVerifiedBatch")
                         .and_then(ethabi::Token::into_uint)
                         .and_then(|batch_number_from_log| {
                             u32::try_from(batch_number_from_log).ok()
                         })
-                }).expect("Missing expected `previousLastVerifiedBatch` parameter in `BlocksVerification` event log");
-                let block_number_to = parsed_log.params.iter().find_map(|param| {
-                    (param.name == "currentLastVerifiedBatch")
-                        .then_some(param.value.clone())
+                        .expect("Missing expected `previousLastVerifiedBatch` parameter in `BlocksVerification` event log");
+                let block_number_to = get_param(&parsed_log.params, "currentLastVerifiedBatch")
                         .and_then(ethabi::Token::into_uint)
                         .and_then(|batch_number_to_log| {
                             u32::try_from(batch_number_to_log).ok()
                         })
-                }).expect("Missing expected `currentLastVerifiedBatch` parameter in `BlocksVerification` event log");
+                        .expect("Missing expected `currentLastVerifiedBatch` parameter in `BlocksVerification` event log");
                 Some((
                     block_number_from,
                     block_number_to,
@@ -392,22 +381,18 @@ impl L1TransactionVerifier {
                     return None;
                 }
                 let parsed_log = event
-                    .parse_log_whole(ethabi::RawLog {
-                        topics: log.topics,
-                        data: log.data.0,
-                    })
+                                        .parse_log_whole(log.into())
+
                     .ok()?; // Skip logs that are of different event type
 
-                let block_number_from_log = parsed_log.params.iter().find_map(|param| {
-                    (param.name == "batchNumber")
-                        .then_some(param.value.clone())
+                let block_number_from_log = get_param(&parsed_log.params, "batchNumber")
                         .and_then(ethabi::Token::into_uint)
                         .and_then(|batch_number_from_log| {
                             u32::try_from(batch_number_from_log)
                                     .ok()
                                     .map(L1BatchNumber)
                         })
-                }).expect("Missing expected `batchNumber` parameter in `BlockExecution` event log");
+                        .expect("Missing expected `batchNumber` parameter in `BlockExecution` event log");
 
                 if block_number_from_log != batch_number {
                     tracing::debug!(
@@ -417,17 +402,15 @@ impl L1TransactionVerifier {
                     return None;
                 }
 
-                let batch_hash = parsed_log.params.iter().find_map(|param| {
-                    (param.name == "batchHash")
-                        .then_some(param.value.clone())
-                        .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
-                }).expect("Missing expected `batchHash` parameter in `BlockExecution` event log");
+                let batch_hash = get_param(&parsed_log.params, "batchHash")
+                        .and_then(ethabi::Token::into_fixed_bytes)
+                        .map(|bytes| H256::from_slice(&bytes))
+                        .expect("Missing expected `batchHash` parameter in `BlockExecution` event log");
 
-                let commitment = parsed_log.params.into_iter().find_map(|param| {
-                    (param.name == "commitment")
-                        .then_some(param.value)
-                        .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
-                }).expect("Missing expected `commitment` parameter in `BlockExecution` event log");
+                let commitment = get_param(&parsed_log.params, "commitment")
+                        .and_then(ethabi::Token::into_fixed_bytes)
+                        .map(|bytes| H256::from_slice(&bytes))
+                        .expect("Missing expected `commitment` parameter in `BlockExecution` event log");
 
                 tracing::debug!(
                     "Execute transaction {execute_tx_hash:?} has `BlockExecution` event log with batch_hash={batch_hash:?} and commitment={commitment:?}"
