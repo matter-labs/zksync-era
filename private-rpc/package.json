@@ -29,6 +29,7 @@
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.27.1",
     "drizzle-orm": "^0.36.0",
+    "ethers": "^6.11.1",
     "fastify": "^5.0.0",
     "fastify-type-provider-zod": "^4.0.2",
     "nanoid": "^5.0.8",
