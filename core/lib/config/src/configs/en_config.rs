@@ -25,6 +25,8 @@ pub struct ENConfig {
     pub bridge_addresses_refresh_interval: Option<Duration>,
     #[config(with = Optional(Serde![int]))]
     pub gateway_chain_id: Option<SLChainId>,
+    #[config(with = Optional(Serde![int]))]
+    pub max_batches_to_recheck: Option<u32>,
 }
 
 #[cfg(test)]
@@ -42,6 +44,7 @@ mod tests {
             main_node_rate_limit_rps: NonZeroUsize::new(200).unwrap(),
             gateway_url: None,
             bridge_addresses_refresh_interval: Some(Duration::from_secs(15)),
+            max_batches_to_recheck: Some(15),
         }
     }
 
@@ -64,6 +67,7 @@ mod tests {
             EN_MAIN_NODE_URL=http://127.0.0.1:3050/
             EN_MAIN_NODE_RATE_LIMIT_RPS=200
             EN_BRIDGE_ADDRESSES_REFRESH_INTERVAL="15s"
+            EN_MAX_BATCHES_TO_RECHECK=15
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -85,6 +89,7 @@ mod tests {
             l1_chain_id: 9
             gateway_chain_id: 123
             bridge_addresses_refresh_interval: '15s'
+            max_batches_to_recheck: 15
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -105,6 +110,7 @@ mod tests {
             l1_chain_id: 9
             gateway_chain_id: 123
             bridge_addresses_refresh_interval: '15s'
+            max_batches_to_recheck: 15
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

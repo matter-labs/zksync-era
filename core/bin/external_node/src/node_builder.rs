@@ -275,8 +275,7 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
-        let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
-        let layer = ConsistencyCheckerLayer::new(max_batches_to_recheck);
+        let layer = ConsistencyCheckerLayer::new(self.config.optional.max_batches_to_recheck);
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -340,7 +339,9 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_data_availability_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(DataAvailabilityFetcherLayer);
+        self.node.add_layer(DataAvailabilityFetcherLayer::new(
+            self.config.optional.max_batches_to_recheck,
+        ));
         Ok(self)
     }
 
