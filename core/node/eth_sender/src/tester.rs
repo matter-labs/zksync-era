@@ -14,10 +14,13 @@ use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
-    settlement::SettlementLayer, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
-    SLChainId, H256,
+    aggregated_operations::L1BatchAggregatedActionType,
+    block::L1BatchHeader,
+    commitment::L1BatchCommitmentMode,
+    eth_sender::{EthTx, EthTxFinalityStatus},
+    pubdata_da::PubdataSendingMode,
+    settlement::SettlementLayer,
+    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,
 };
 
 use crate::{
@@ -66,13 +69,24 @@ impl TestL1Batch {
         tester.execute_l1_batch(self.number, confirm).await
     }
 
+    pub async fn fast_finalize_commit_tx(&self, tester: &mut EthSenderTester) {
+        tester
+            .execute_tx(
+                self.number,
+                AggregatedActionType::Commit,
+                true,
+                EthTxFinalityStatus::FastFinalized,
+            )
+            .await;
+    }
+
     pub async fn execute_commit_tx(&self, tester: &mut EthSenderTester) {
         tester
             .execute_tx(
                 self.number,
                 L1BatchAggregatedActionType::Commit,
                 true,
-                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
             )
             .await;
     }
@@ -83,7 +97,7 @@ impl TestL1Batch {
                 self.number,
                 L1BatchAggregatedActionType::PublishProofOnchain,
                 true,
-                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
             )
             .await;
     }
@@ -94,7 +108,7 @@ impl TestL1Batch {
                 self.number,
                 L1BatchAggregatedActionType::Commit,
                 false,
-                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
             )
             .await;
     }
@@ -184,7 +198,7 @@ impl EthSenderTester {
                 crate::tests::mock_multicall_response(call)
             })
             .build();
-        gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        gateway.advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
         let gateway = Box::new(gateway);
 
         let chain_id = SLChainId(505);
@@ -205,7 +219,7 @@ impl EthSenderTester {
                 crate::tests::mock_multicall_response(call)
             })
             .build();
-        l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        l2_gateway.advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
         let l2_gateway = Box::new(l2_gateway);
 
         let gateway_blobs = MockSettlementLayer::builder()
@@ -226,7 +240,8 @@ impl EthSenderTester {
             })
             .with_sender(Address::from_str("0xb10b000000000000000000000000000000000000").unwrap())
             .build();
-        gateway_blobs.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        gateway_blobs
+            .advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
         let gateway_blobs = Box::new(gateway_blobs);
 
         let client: Box<DynClient<L1>> = Box::new(gateway.clone().into_client());
@@ -342,20 +357,11 @@ impl EthSenderTester {
     }
 
     pub async fn get_block_numbers(&self) -> L1BlockNumbers {
-        let latest = self
-            .manager
+        self.manager
             .l1_interface()
             .get_l1_block_numbers(OperatorType::NonBlob)
             .await
             .unwrap()
-            .latest;
-        let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
-        let fast_finality = finalized + 1;
-        L1BlockNumbers {
-            finalized,
-            latest,
-            fast_finality,
-        }
     }
     async fn insert_l1_batch(&self, number: L1BatchNumber) -> L1BatchHeader {
         let header = create_l1_batch(number.0);
@@ -391,7 +397,7 @@ impl EthSenderTester {
         l1_batch_number: L1BatchNumber,
         operation_type: L1BatchAggregatedActionType,
         success: bool,
-        confirmations: u64,
+        finality_status: EthTxFinalityStatus,
     ) {
         let tx = self
             .conn
@@ -402,17 +408,18 @@ impl EthSenderTester {
             .get_last_sent_successfully_eth_tx_by_batch_and_op(l1_batch_number, operation_type)
             .await
             .unwrap();
+
         if !self.settlement_layer.is_gateway() {
             let (gateway, other) = if tx.blob_base_fee_per_gas.is_some() {
                 (self.gateway_blobs.as_ref(), self.gateway.as_ref())
             } else {
                 (self.gateway.as_ref(), self.gateway_blobs.as_ref())
             };
-            gateway.execute_tx(tx.tx_hash, success, confirmations);
-            other.advance_block_number(confirmations);
+            gateway.execute_tx(tx.tx_hash, success, finality_status);
+            other.advance_block_number(1, finality_status);
         } else {
             self.l2_gateway
-                .execute_tx(tx.tx_hash, success, confirmations);
+                .execute_tx(tx.tx_hash, success, finality_status);
         }
     }
 
@@ -476,9 +483,12 @@ impl EthSenderTester {
     }
 
     pub async fn run_eth_sender_tx_manager_iteration_after_n_blocks(&mut self, n: u64) {
-        self.gateway.advance_block_number(n);
-        self.gateway_blobs.advance_block_number(n);
-        self.l2_gateway.advance_block_number(n);
+        self.gateway
+            .advance_block_number(n, EthTxFinalityStatus::Pending);
+        self.gateway_blobs
+            .advance_block_number(n, EthTxFinalityStatus::Pending);
+        self.l2_gateway
+            .advance_block_number(n, EthTxFinalityStatus::Pending);
         let tx_sent_before = self.gateway.sent_tx_count()
             + self.gateway_blobs.sent_tx_count()
             + self.l2_gateway.sent_tx_count();
@@ -579,11 +589,14 @@ impl EthSenderTester {
             } else {
                 (self.gateway.as_ref(), self.gateway_blobs.as_ref())
             };
-            gateway.execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
-            other.advance_block_number(EthSenderTester::WAIT_CONFIRMATIONS);
+            gateway.execute_tx(hash, true, EthTxFinalityStatus::Finalized);
+            other.advance_block_number(
+                EthSenderTester::WAIT_CONFIRMATIONS,
+                EthTxFinalityStatus::Finalized,
+            );
         } else {
             self.l2_gateway
-                .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
+                .execute_tx(hash, true, EthTxFinalityStatus::Finalized);
         }
         self.run_eth_sender_tx_manager_iteration().await;
     }
@@ -628,16 +641,12 @@ impl EthSenderTester {
         );
     }
 
-    pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
+    pub async fn assert_non_finalized_txs_count_equals(&mut self, value: usize) {
         let inflight_count = if !self.settlement_layer.is_gateway() {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(
-                    self.manager.operator_address(OperatorType::NonBlob),
-                    false,
-                    false,
-                )
+                .get_non_final_txs(self.manager.operator_address(OperatorType::NonBlob), false)
                 .await
                 .unwrap()
                 .len()
@@ -645,11 +654,7 @@ impl EthSenderTester {
                     .storage()
                     .await
                     .eth_sender_dal()
-                    .get_inflight_txs(
-                        self.manager.operator_address(OperatorType::Blob),
-                        false,
-                        false,
-                    )
+                    .get_non_final_txs(self.manager.operator_address(OperatorType::Blob), false)
                     .await
                     .unwrap()
                     .len()
@@ -657,11 +662,46 @@ impl EthSenderTester {
             self.storage()
                 .await
                 .eth_sender_dal()
-                .get_inflight_txs(
-                    self.manager.operator_address(OperatorType::Gateway),
-                    false,
-                    true,
-                )
+                .get_non_final_txs(self.manager.operator_address(OperatorType::Gateway), true)
+                .await
+                .unwrap()
+                .len()
+        };
+
+        assert_eq!(
+            inflight_count, value,
+            "Unexpected number of in-flight transactions"
+        );
+    }
+
+    pub async fn revert_blocks(&mut self, count: u64) {
+        self.gateway.revert_block_by_number(count);
+        self.gateway_blobs.revert_block_by_number(count);
+        self.l2_gateway.revert_block_by_number(count);
+    }
+
+    pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
+        let inflight_count = if !self.settlement_layer.is_gateway() {
+            self.storage()
+                .await
+                .eth_sender_dal()
+                .get_inflight_txs(self.manager.operator_address(OperatorType::NonBlob), false)
+                .await
+                .unwrap()
+                .len()
+                + self
+                    .storage()
+                    .await
+                    .eth_sender_dal()
+                    .get_inflight_txs(self.manager.operator_address(OperatorType::Blob), false)
+                    .await
+                    .unwrap()
+                    .len()
+        } else {
+            self.storage()
+                .await
+                .eth_sender_dal()
+                .get_inflight_txs(self.manager.operator_address(OperatorType::Gateway), true)
                 .await
                 .unwrap()
                 .len()

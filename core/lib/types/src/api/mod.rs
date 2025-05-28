@@ -69,8 +69,8 @@ impl Serialize for BlockNumber {
             BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
-            BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
             BlockNumber::FastFinalized => serializer.serialize_str("fast_finalized"),
+            BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
         }
     }
 }
@@ -93,11 +93,11 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "latest" => BlockNumber::Latest,
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
-                    // For zksync safe is finalized, but for compatibility with ethereum it's required to introduce it.
-                    "safe" => BlockNumber::Finalized,
+                    // For zksync safe is l1 committed. Real chances of revert are very low.
+                    "safe" => BlockNumber::Precommitted,
                     "pending" => BlockNumber::Pending,
-                    "precommitted" => BlockNumber::Precommitted,
                     "fast_finalized" => BlockNumber::FastFinalized,
+                    "precommitted" => BlockNumber::Precommitted,
                     num => {
                         let number =
                             U64::deserialize(de::value::BorrowedStrDeserializer::new(num))?;
@@ -629,13 +629,13 @@ pub struct Transaction {
     pub l1_batch_tx_index: Option<U64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum TransactionStatus {
     Pending,
     Included,
-    Precommitted,
     FastFinalized,
+    Precommitted,
     Verified,
     Failed,
 }
@@ -859,7 +859,7 @@ impl Default for TracerConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,

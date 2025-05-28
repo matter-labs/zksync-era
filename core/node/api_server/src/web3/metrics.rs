@@ -234,7 +234,7 @@ struct Web3ConfigLabels {
 }
 
 /// Roughly exponential buckets for the `web3_call_block_diff` metric. The distribution should be skewed towards lower values.
-const BLOCK_DIFF_BUCKETS: Buckets = Buckets::values(&[
+const SMALL_COUNT_BUCKETS: Buckets = Buckets::values(&[
     0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0,
 ]);
 
@@ -254,7 +254,7 @@ pub(crate) struct ApiMetrics {
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     web3_dropped_call_latency: Family<MethodLabels, Histogram<Duration>>,
     /// Difference between the latest sealed L2 block and the resolved L2 block for a web3 call.
-    #[metrics(buckets = BLOCK_DIFF_BUCKETS, labels = ["method"])]
+    #[metrics(buckets = SMALL_COUNT_BUCKETS, labels = ["method"])]
     web3_call_block_diff: LabeledFamily<&'static str, Histogram<u64>>,
     /// Serialized response size in bytes. Only recorded for successful responses.
     #[metrics(buckets = RESPONSE_SIZE_BUCKETS, labels = ["method"], unit = Unit::Bytes)]
@@ -510,6 +510,34 @@ pub(super) struct MempoolCacheMetrics {
 
 #[vise::register]
 pub(super) static MEMPOOL_CACHE_METRICS: vise::Global<MempoolCacheMetrics> = vise::Global::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(super) enum TxReceiptStage {
+    AccountTypes,
+    StoredNonces,
+    DeploymentEvents,
+}
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_web3_tx_receipts")]
+pub(super) struct TxReceiptMetrics {
+    /// Total number of processed receipts per query.
+    #[metrics(buckets = SMALL_COUNT_BUCKETS)]
+    pub total_count: Histogram<usize>,
+    /// Number of distinct addresses queried.
+    #[metrics(buckets = SMALL_COUNT_BUCKETS)]
+    pub initiator_address_count: Histogram<usize>,
+    /// Number of receipts for which nonces should be computed, per query.
+    #[metrics(buckets = SMALL_COUNT_BUCKETS)]
+    pub unknown_nonces_count: Histogram<usize>,
+    /// Latency of a particular receipt processing stage.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub stage_latency: Family<TxReceiptStage, Histogram<Duration>>,
+}
+
+#[vise::register]
+pub(super) static TX_RECEIPT_METRICS: vise::Global<TxReceiptMetrics> = vise::Global::new();
 
 #[cfg(test)]
 mod tests {

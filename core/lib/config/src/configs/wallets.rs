@@ -67,7 +67,7 @@ impl Wallet {
         Ok(())
     }
 
-    pub fn from_private_key_bytes(
+    fn from_private_key_bytes(
         private_key_bytes: H256,
         address: Option<Address>,
     ) -> anyhow::Result<Self> {
