@@ -251,8 +251,7 @@ impl std::fmt::Display for L1BatchId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "L1BatchId
-        (chain_id: {}, batch_number: {})",
+            "L1BatchId(chain_id: {}, batch_number: {})",
             self.chain_id.as_u64(),
             self.batch_number.0
         )
