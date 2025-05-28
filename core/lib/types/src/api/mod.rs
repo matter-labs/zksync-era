@@ -91,7 +91,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
                     // For zksync safe is finalized, but for compatibility with ethereum it's required to introduce it.
-                    "safe" => BlockNumber::Finalized,
+                    "safe" => BlockNumber::L1Committed,
                     "pending" => BlockNumber::Pending,
                     "fast_finalized" => BlockNumber::FastFinalized,
                     num => {
