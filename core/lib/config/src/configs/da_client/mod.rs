@@ -498,7 +498,7 @@ mod tests {
     #[test]
     fn eigenda_v1_config_from_yaml_with_enum_coercion() {
         let yaml = r#"
-          eigen_da:
+          eigen_d_a:
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             settlement_layer_confirmation_depth: 1
             eigenda_eth_rpc: https://holesky.infura.io/
@@ -513,6 +513,9 @@ mod tests {
             blob_version: 0
             polynomial_form: coeff
             version: V1
+            custom_quorum_numbers:
+                - 1
+                - 3
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
