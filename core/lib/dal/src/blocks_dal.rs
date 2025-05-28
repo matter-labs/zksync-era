@@ -1345,7 +1345,7 @@ impl BlocksDal<'_, '_> {
                 eth_txs_history AS commit_tx
                 ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
             WHERE
-                commit_tx.confirmed_at IS NOT NULL
+                commit_tx.finality_status != 'pending'
             ORDER BY
                 number DESC
             LIMIT

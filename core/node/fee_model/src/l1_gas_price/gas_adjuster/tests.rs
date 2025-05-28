@@ -3,7 +3,10 @@ use std::{collections::VecDeque, sync::RwLockReadGuard, time::Duration};
 use test_casing::test_casing;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
-use zksync_types::{commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode};
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, eth_sender::EthTxFinalityStatus,
+    pubdata_da::PubdataSendingMode,
+};
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use super::{GasAdjuster, GasStatistics, GasStatisticsInner};
@@ -96,7 +99,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         .with_fee_history(base_fees)
         .build();
     // 5 sampled blocks + additional block to account for latest block subtraction
-    eth_client.advance_block_number(6);
+    eth_client.advance_block_number(6, EthTxFinalityStatus::Finalized);
 
     let config = test_config();
     let client: Box<DynClient<L1>> = Box::new(eth_client.clone().into_client());
@@ -126,7 +129,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         expected_median_blob_base_fee.into()
     );
 
-    eth_client.advance_block_number(3);
+    eth_client.advance_block_number(3, EthTxFinalityStatus::Finalized);
     adjuster.keep_updated().await.unwrap();
 
     assert_eq!(
@@ -161,7 +164,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
         .with_fee_history(base_fees)
         .build();
     // 5 sampled blocks + additional block to account for latest block subtraction
-    eth_client.advance_block_number(6);
+    eth_client.advance_block_number(6, EthTxFinalityStatus::Finalized);
 
     let config = test_config();
     let client: Box<DynClient<L2>> = Box::new(eth_client.clone().into_client());
@@ -192,7 +195,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
         expected_median_blob_base_fee.into()
     );
 
-    eth_client.advance_block_number(3);
+    eth_client.advance_block_number(3, EthTxFinalityStatus::Finalized);
     adjuster.keep_updated().await.unwrap();
 
     assert_eq!(

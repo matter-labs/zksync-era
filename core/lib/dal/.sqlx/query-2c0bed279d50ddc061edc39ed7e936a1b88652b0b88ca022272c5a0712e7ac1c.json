@@ -80,6 +80,11 @@
       },
       {
         "ordinal": 15,
+        "name": "finality_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -104,6 +109,7 @@
       true,
       true,
       true,
+      false,
       false,
       true
     ]
