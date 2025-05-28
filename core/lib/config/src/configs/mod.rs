@@ -19,6 +19,7 @@ pub use self::{
     fri_prover::FriProverConfig,
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
+    gateway_migrator::GatewayMigratorConfig,
     general::{full_config_schema, GeneralConfig},
     genesis::{GenesisConfig, GenesisConfigWrapper},
     object_store::ObjectStoreConfig,
@@ -56,6 +57,7 @@ pub mod fri_proof_compressor;
 pub mod fri_prover;
 pub mod fri_prover_gateway;
 pub mod fri_witness_generator;
+mod gateway_migrator;
 mod general;
 pub mod genesis;
 pub mod house_keeper;
