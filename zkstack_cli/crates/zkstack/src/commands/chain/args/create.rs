@@ -71,7 +71,7 @@ pub struct ChainCreateArgs {
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
     evm_emulator: Option<bool>,
     #[clap(long, help = "Whether to update git submodules of repo")]
-    update_submodules: Option<bool>,
+    pub update_submodules: Option<bool>,
 }
 
 impl ChainCreateArgs {
