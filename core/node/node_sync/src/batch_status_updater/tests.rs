@@ -11,6 +11,7 @@ use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_
 use zksync_types::{
     block::L1BatchTreeData,
     commitment::L1BatchCommitmentArtifacts,
+    eth_sender::EthTxFinalityStatus,
     web3::{Log, TransactionReceipt},
     L2BlockNumber,
 };
@@ -193,6 +194,7 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             committed_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
             commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(1)),
+            commit_tx_finality: Some(EthTxFinalityStatus::Finalized),
             prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| {
                 let mut h = [0u8; 32];
                 h[0] = 2;
@@ -201,6 +203,7 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             }),
             proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
             prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(1)),
+            prove_tx_finality: Some(EthTxFinalityStatus::Finalized),
             execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| {
                 let mut h = [0u8; 32];
                 h[0] = 3;
@@ -210,6 +213,7 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             executed_at: (stage >= L1BatchStage::Executed)
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
             execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(1)),
+            execute_tx_finality: Some(EthTxFinalityStatus::Finalized),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             fair_pubdata_price: None,
