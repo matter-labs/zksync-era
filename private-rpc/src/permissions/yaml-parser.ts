@@ -13,6 +13,8 @@ import {
 } from '@/permissions/access-rules';
 import { Permission } from '@/permissions/permission';
 import { ResponseIsCaller } from '@/permissions/filter-response';
+import { readFileSync } from 'node:fs';
+import YAML from 'yaml';
 
 const publicSchema = z.object({ type: z.literal('public') });
 const closedSchema = z.object({ type: z.literal('closed') });
@@ -60,8 +62,10 @@ export class YamlParser {
     private yaml: z.infer<typeof yamlSchema>;
     private groups: Group[];
 
-    constructor(yaml: unknown) {
-        this.yaml = yamlSchema.parse(yaml);
+    constructor(filePath: string) {
+        const buf = readFileSync(filePath);
+        const raw = YAML.parse(buf.toString());
+        this.yaml = yamlSchema.parse(raw);
         this.groups = this.yaml.groups.map(({ name, members }) => new Group(name, members));
     }
 
@@ -99,11 +103,11 @@ export class YamlParser {
         }
     }
 
-    parse(): Authorizer {
-        const authorizer = new Authorizer();
+    load_rules(authorizer: Authorizer) {
         this.yaml.contracts.forEach((rawContract) => {
             const readPermissions = rawContract.methods.map((method) => {
-                const selector = this.extractSelector(method);
+                const selector = method.signature === '#BASE_TOKEN_TRANSFER' ? '0x' : this.extractSelector(method);
+
                 const readRule = this.hidrateRule(method.read, method.signature);
                 const writeRule = this.hidrateRule(method.write, method.signature);
                 authorizer.addReadRule(rawContract.address, selector, readRule);
