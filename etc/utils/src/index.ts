@@ -32,6 +32,11 @@ const IGNORED_DIRS = [
 ];
 const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js', '.prettierrc.js'];
 
+/** Logs information with additional data (e.g., a timestamp). */
+export function log(message: string, ...args: any[]) {
+    console.log(`[${new Date().toISOString()}] ${message}`, ...args);
+}
+
 // async executor of shell commands
 // spawns a new shell and can execute arbitrary commands, like "ls -la | grep .env"
 // returns { stdout, stderr }
@@ -46,7 +51,7 @@ export function exec(command: string) {
 // but pipes data to parent's stdout/stderr
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');
-    console.log(`+ ${command}`);
+    log(`+ ${command}`);
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);
