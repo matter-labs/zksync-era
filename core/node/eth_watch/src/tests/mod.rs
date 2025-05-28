@@ -868,7 +868,7 @@ async fn setup_batch_roots(
                 .unwrap();
             connection
                 .blocks_dal()
-                .set_gw_interop_batch_chain_merkle_path(
+                .set_batch_chain_local_merkle_path(
                     batch_number,
                     BatchAndChainMerklePath {
                         batch_proof_len: 0,
