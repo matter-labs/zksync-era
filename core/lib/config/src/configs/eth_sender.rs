@@ -53,6 +53,7 @@ impl EthConfig {
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
+                precommit_params: None,
                 time_in_mempool_multiplier_cap: None,
             },
             gas_adjuster: GasAdjusterConfig {
@@ -174,9 +175,19 @@ pub struct SenderConfig {
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
     #[config(default_t = u64::MAX)]
     pub max_acceptable_base_fee_in_wei: u64,
+    /// Parameters for precommit operation.
+    #[config(nest)]
+    pub precommit_params: Option<PrecommitParams>,
     /// Cap for `b ^ time_in_mempool` used for price calculations.
     #[config(default)]
     pub time_in_mempool_multiplier_cap: Option<u32>,
+}
+
+/// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct PrecommitParams {
+    pub l2_blocks_to_aggregate: u32,
+    pub deadline: Duration,
 }
 
 impl SenderConfig {
@@ -281,6 +292,10 @@ mod tests {
                 is_verifier_pre_fflonk: false,
                 gas_limit_mode: GasLimitMode::Calculated,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
+                precommit_params: Some(PrecommitParams {
+                    l2_blocks_to_aggregate: 1,
+                    deadline: Duration::from_secs(1),
+                }),
                 time_in_mempool_multiplier_cap: Some(10),
             },
             gas_adjuster: GasAdjusterConfig {
@@ -342,6 +357,8 @@ mod tests {
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -396,6 +413,9 @@ mod tests {
           watcher:
             confirmations_for_eth_event: 0
             eth_node_poll_interval: 300
+          precommit_params:
+            l2_blocks_to_aggregate: 1
+            deadline: 1 sec
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: EthConfig = Tester::default()

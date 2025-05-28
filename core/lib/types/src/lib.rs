@@ -58,6 +58,7 @@ pub mod helpers;
 pub mod proto;
 pub mod server_notification;
 pub mod transaction_request;
+pub mod transaction_status_commitment;
 pub mod utils;
 
 /// Denotes the first byte of the special ZKsync's EIP-712-signed transaction.

@@ -35,6 +35,8 @@ pub enum BlockNumber {
     Finalized,
     /// Latest sealed block
     Latest,
+    /// Precommitted
+    Precommitted,
     /// Last block that was committed on L1
     L1Committed,
     /// Earliest block (genesis)
@@ -64,6 +66,7 @@ impl Serialize for BlockNumber {
             BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
+            BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
         }
     }
 }
@@ -89,6 +92,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     // For zksync safe is finalized, but for compatibility with ethereum it's required to introduce it.
                     "safe" => BlockNumber::Finalized,
                     "pending" => BlockNumber::Pending,
+                    "precommitted" => BlockNumber::Precommitted,
                     num => {
                         let number =
                             U64::deserialize(de::value::BorrowedStrDeserializer::new(num))?;
@@ -674,6 +678,7 @@ pub struct Transaction {
 pub enum TransactionStatus {
     Pending,
     Included,
+    Precommitted,
     Verified,
     Failed,
 }
@@ -690,6 +695,7 @@ pub struct TransactionDetails {
     pub eth_commit_tx_hash: Option<H256>,
     pub eth_prove_tx_hash: Option<H256>,
     pub eth_execute_tx_hash: Option<H256>,
+    pub eth_precommit_tx_hash: Option<H256>,
 }
 
 #[derive(Debug, Clone)]
@@ -970,6 +976,9 @@ pub struct BlockDetailsBase {
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
     pub execute_chain_id: Option<SLChainId>,
+    pub precommit_tx_hash: Option<H256>,
+    pub precommitted_at: Option<DateTime<Utc>>,
+    pub precommit_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     // Cost of publishing one byte (in wei).

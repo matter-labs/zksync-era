@@ -14,9 +14,9 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{L1BatchAggregatedActionType, L2BlockAggregatedActionType},
     block::{
-        CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
+        CommonBlockStatistics, CommonL1BatchHeader, L1BatchHeader, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
@@ -43,6 +43,13 @@ use crate::{
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
+}
+
+pub struct TxForPrecommit {
+    pub l2block_number: L2BlockNumber,
+    pub timestamp: i64,
+    pub tx_hash: H256,
+    pub is_success: bool,
 }
 
 impl BlocksDal<'_, '_> {
@@ -345,10 +352,42 @@ impl BlocksDal<'_, '_> {
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
     }
 
+    pub async fn get_l2_blocks_statistics_for_eth_tx_id(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> DalResult<Vec<CommonBlockStatistics>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp
+            FROM
+                miniblocks
+            WHERE
+                eth_precommit_tx_id = $1
+            "#,
+            eth_tx_id as i32
+        )
+        .instrument("get_l1_batch_statistics_for_eth_tx_id")
+        .with_arg("eth_tx_id", &eth_tx_id)
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|row| CommonBlockStatistics {
+            number: row.number as u32,
+            timestamp: row.timestamp as u64,
+            l2_tx_count: row.l2_tx_count as u32,
+            l1_tx_count: row.l1_tx_count as u32,
+        })
+        .collect())
+    }
+
     pub async fn get_l1_batches_statistics_for_eth_tx_id(
         &mut self,
         eth_tx_id: u32,
-    ) -> DalResult<Vec<L1BatchStatistics>> {
+    ) -> DalResult<Vec<CommonBlockStatistics>> {
         Ok(sqlx::query!(
             r#"
             SELECT
@@ -370,8 +409,8 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|row| L1BatchStatistics {
-            number: L1BatchNumber(row.number as u32),
+        .map(|row| CommonBlockStatistics {
+            number: row.number as u32,
             timestamp: row.timestamp as u64,
             l2_tx_count: row.l2_tx_count as u32,
             l1_tx_count: row.l1_tx_count as u32,
@@ -549,14 +588,132 @@ impl BlocksDal<'_, '_> {
         Ok(storage_oracle_info.and_then(DbStorageOracleInfo::into_optional_batch_oracle_info))
     }
 
+    /// The server is doing precommits based on the txs.
+    /// That means, that the last fictive l2 block will never be included into precommit txs and it's the only way how the miniblock will have no txs.
+    /// So we have to check if the last 2 rolling txs hashes for miniblocks are equal and if yes, we can set the final precommit tx id for the batch,
+    /// and that will mean we can commit the batch.
+    pub async fn set_final_precommit_operation(&mut self) -> DalResult<()> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                l1_batches.number AS l1_batch_number,
+                miniblocks.eth_precommit_tx_id,
+                miniblocks.rolling_txs_hash,
+                miniblocks.number AS miniblock_number
+            FROM
+                l1_batches
+            JOIN LATERAL (
+                SELECT
+                    eth_precommit_tx_id,
+                    rolling_txs_hash,
+                    number
+                FROM miniblocks
+                WHERE l1_batch_number = l1_batches.number
+                ORDER BY number DESC
+                LIMIT 2
+            ) miniblocks ON TRUE
+            WHERE
+                l1_batches.number > 0
+                AND l1_batches.is_sealed
+                AND l1_batches.eth_commit_tx_id IS NULL
+                AND l1_batches.final_precommit_eth_tx_id IS NULL
+                AND miniblocks.rolling_txs_hash IS NOT NULL
+            ORDER BY l1_batches.number, miniblocks.number DESC;
+            "#
+        )
+        .instrument("unified_l1_miniblocks_query")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?;
+
+        // Group by l1_batch_number
+        let mut miniblocks_by_batch: HashMap<_, Vec<_>> = HashMap::new();
+        for row in rows {
+            miniblocks_by_batch
+                .entry(row.l1_batch_number)
+                .or_default()
+                .push(row);
+        }
+
+        for (batch_number, miniblocks) in miniblocks_by_batch {
+            assert_eq!(
+                miniblocks.len(),
+                2,
+                "Expected exactly 2 miniblocks for each batch"
+            );
+            // miniblocks[0] is the newest, [1] is previous (because of DESC order)
+            if miniblocks[0].rolling_txs_hash == miniblocks[1].rolling_txs_hash {
+                if let Some(eth_tx_id) = miniblocks[1].eth_precommit_tx_id {
+                    sqlx::query!(
+                        r#"
+                        UPDATE l1_batches
+                        SET final_precommit_eth_tx_id = $1
+                        WHERE number = $2
+                        "#,
+                        eth_tx_id,
+                        batch_number,
+                    )
+                    .instrument("update_final_precommit_eth_tx_id")
+                    .report_latency()
+                    .execute(self.storage)
+                    .await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn set_eth_tx_id_for_l2_blocks(
+        &mut self,
+        number_range: ops::RangeInclusive<L2BlockNumber>,
+        eth_tx_id: u32,
+        aggregation_type: L2BlockAggregatedActionType,
+    ) -> DalResult<()> {
+        match aggregation_type {
+            L2BlockAggregatedActionType::Precommit => {
+                let instrumentation = Instrumented::new("set_eth_tx_id#precommit")
+                    .with_arg("number_range", &number_range)
+                    .with_arg("eth_tx_id", &eth_tx_id);
+
+                let query = sqlx::query!(
+                    r#"
+                    UPDATE miniblocks
+                    SET
+                        eth_precommit_tx_id = $1,
+                        updated_at = NOW()
+                    WHERE
+                        number BETWEEN $2 AND $3
+                        AND eth_precommit_tx_id IS NULL
+                    "#,
+                    eth_tx_id as i32,
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
+                );
+                let result = instrumentation
+                    .clone()
+                    .with(query)
+                    .execute(self.storage)
+                    .await?;
+
+                if result.rows_affected() == 0 {
+                    let err = instrumentation.constraint_error(anyhow::anyhow!(
+                        "Update eth_tx_id that is is not null is not allowed"
+                    ));
+                    return Err(err);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub async fn set_eth_tx_id(
         &mut self,
         number_range: ops::RangeInclusive<L1BatchNumber>,
         eth_tx_id: u32,
-        aggregation_type: AggregatedActionType,
+        aggregation_type: L1BatchAggregatedActionType,
     ) -> DalResult<()> {
         match aggregation_type {
-            AggregatedActionType::Commit => {
+            L1BatchAggregatedActionType::Commit => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#commit")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -588,7 +745,7 @@ impl BlocksDal<'_, '_> {
                     return Err(err);
                 }
             }
-            AggregatedActionType::PublishProofOnchain => {
+            L1BatchAggregatedActionType::PublishProofOnchain => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#prove")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -620,7 +777,7 @@ impl BlocksDal<'_, '_> {
                     return Err(err);
                 }
             }
-            AggregatedActionType::Execute => {
+            L1BatchAggregatedActionType::Execute => {
                 let instrumentation = Instrumented::new("set_eth_tx_id#execute")
                     .with_arg("number_range", &number_range)
                     .with_arg("eth_tx_id", &eth_tx_id);
@@ -754,6 +911,52 @@ impl BlocksDal<'_, '_> {
 
         transaction.commit().await?;
         Ok(())
+    }
+
+    pub async fn get_ready_for_precommit_txs(
+        &mut self,
+        l1_batch_number: Option<L1BatchNumber>,
+    ) -> DalResult<Vec<TxForPrecommit>> {
+        let mut tx = self.storage.start_transaction().await?;
+        // Miniblocks belongs to the non sealed batches don't have batch number,
+        // so for the pending batch we use None
+
+        let txs = sqlx::query!(
+            r#"
+            SELECT
+                transactions.hash, transactions.error,
+                miniblock_number AS "miniblock_number!",
+                miniblocks.timestamp
+            FROM transactions
+            JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
+            WHERE
+                (
+                    transactions.l1_batch_number IS NULL AND $2
+                    OR transactions.l1_batch_number = $1
+                )
+                AND
+                miniblocks.rolling_txs_hash IS NOT NULL
+                AND
+                miniblocks.eth_precommit_tx_id IS NULL
+            ORDER BY miniblock_number, index_in_block
+            "#,
+            l1_batch_number.map(|l1| i64::from(l1.0)),
+            l1_batch_number.is_none(),
+        )
+        .instrument("get_ready_for_precommit_txs")
+        .report_latency()
+        .fetch_all(&mut tx)
+        .await?
+        .into_iter()
+        .map(|row| TxForPrecommit {
+            l2block_number: L2BlockNumber(row.miniblock_number as u32),
+            timestamp: row.timestamp,
+            tx_hash: H256::from_slice(&row.hash),
+            is_success: row.error.is_none(),
+        })
+        .collect();
+
+        Ok(txs)
     }
 
     /// Marks provided L1 batch as sealed and populates it with all the runtime information.
@@ -931,6 +1134,7 @@ impl BlocksDal<'_, '_> {
                 logs_bloom,
                 l2_da_validator_address,
                 pubdata_type,
+                rolling_txs_hash,
                 created_at,
                 updated_at
             )
@@ -956,6 +1160,7 @@ impl BlocksDal<'_, '_> {
                 $18,
                 $19,
                 $20,
+                $21,
                 NOW(),
                 NOW()
             )
@@ -993,6 +1198,9 @@ impl BlocksDal<'_, '_> {
                 .l2_da_validator_address
                 .as_bytes(),
             l2_block_header.pubdata_params.pubdata_type.to_string(),
+            l2_block_header
+                .rolling_txs_hash
+                .map(|h| h.as_bytes().to_vec())
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1023,7 +1231,8 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type
+                pubdata_type,
+                rolling_txs_hash
             FROM
                 miniblocks
             ORDER BY
@@ -1066,7 +1275,8 @@ impl BlocksDal<'_, '_> {
                 gas_limit,
                 logs_bloom,
                 l2_da_validator_address,
-                pubdata_type
+                pubdata_type,
+                rolling_txs_hash
             FROM
                 miniblocks
             WHERE
@@ -1973,8 +2183,8 @@ impl BlocksDal<'_, '_> {
         bootloader_hash: H256,
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
-
         with_da_inclusion_info: bool,
+        send_precommit_txs: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
@@ -2038,15 +2248,20 @@ impl BlocksDal<'_, '_> {
                     data_availability.inclusion_data IS NOT NULL
                     OR $4 IS FALSE
                 )
+                AND (
+                    final_precommit_eth_tx_id IS NOT NULL
+                    OR $5 IS FALSE
+                )
             ORDER BY
                 number
             LIMIT
-                $5
+                $6
             "#,
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
             with_da_inclusion_info,
+            send_precommit_txs,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")
@@ -3221,7 +3436,10 @@ impl BlocksDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{tx::IncludedTxLocation, Address, ProtocolVersion};
+    use zksync_types::{
+        aggregated_operations::AggregatedActionType, tx::IncludedTxLocation, Address,
+        ProtocolVersion,
+    };
 
     use super::*;
     use crate::{
@@ -3229,12 +3447,15 @@ mod tests {
         ConnectionPool, Core, CoreDal,
     };
 
-    async fn save_mock_eth_tx(action_type: AggregatedActionType, conn: &mut Connection<'_, Core>) {
+    async fn save_mock_eth_tx(
+        action_type: L1BatchAggregatedActionType,
+        conn: &mut Connection<'_, Core>,
+    ) {
         conn.eth_sender_dal()
             .save_eth_tx(
                 1,
                 vec![],
-                action_type,
+                AggregatedActionType::L1Batch(action_type),
                 Address::default(),
                 Some(1),
                 None,
@@ -3277,16 +3498,16 @@ mod tests {
 
         insert_mock_l1_batch_header(&mut conn, &header).await;
 
-        save_mock_eth_tx(AggregatedActionType::Commit, &mut conn).await;
-        save_mock_eth_tx(AggregatedActionType::PublishProofOnchain, &mut conn).await;
-        save_mock_eth_tx(AggregatedActionType::Execute, &mut conn).await;
+        save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        save_mock_eth_tx(L1BatchAggregatedActionType::PublishProofOnchain, &mut conn).await;
+        save_mock_eth_tx(L1BatchAggregatedActionType::Execute, &mut conn).await;
 
         assert!(conn
             .blocks_dal()
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
             )
             .await
             .is_ok());
@@ -3296,7 +3517,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
             )
             .await
             .is_err());
@@ -3306,7 +3527,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
             )
             .await
             .is_ok());
@@ -3316,7 +3537,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
             )
             .await
             .is_err());
@@ -3326,7 +3547,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 1,
-                AggregatedActionType::Execute,
+                L1BatchAggregatedActionType::Execute,
             )
             .await
             .is_ok());
@@ -3336,7 +3557,7 @@ mod tests {
             .set_eth_tx_id(
                 L1BatchNumber(1)..=L1BatchNumber(1),
                 2,
-                AggregatedActionType::Execute,
+                L1BatchAggregatedActionType::Execute,
             )
             .await
             .is_err());

@@ -164,10 +164,20 @@ pub(crate) const fn get_priority_txs_l1_data_offset(subversion: MultiVmSubversio
 
 pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 
+// Only present in post-v29
+pub(crate) const TXS_STATUS_ROLLING_HASH_SLOTS: usize = 1;
+
 pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
     subversion: MultiVmSubversion,
 ) -> usize {
-    get_priority_txs_l1_data_offset(subversion) + PRIORITY_TXS_L1_DATA_SLOTS
+    match subversion {
+        MultiVmSubversion::Interop => {
+            get_priority_txs_l1_data_offset(subversion)
+                + PRIORITY_TXS_L1_DATA_SLOTS
+                + TXS_STATUS_ROLLING_HASH_SLOTS
+        }
+        _ => get_priority_txs_l1_data_offset(subversion) + PRIORITY_TXS_L1_DATA_SLOTS,
+    }
 }
 
 /// One of "worst case" scenarios for the number of state diffs in a batch is when 780kb of pubdata is spent
