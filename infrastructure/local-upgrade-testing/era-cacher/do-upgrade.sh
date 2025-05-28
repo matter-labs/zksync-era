@@ -19,7 +19,7 @@ zkstackup -g --local --cargo-features v29
 zkstack dev contracts
 
 cd contracts
-git checkout kl/upgrade
+git checkout vg/v29-upgrade-process-contracts
 cd ..
 
 zkstack dev database migrate --prover false --core true 
