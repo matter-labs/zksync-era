@@ -760,10 +760,9 @@ impl EthSenderDal<'_, '_> {
             "#,
             eth_tx_id as i32
         )
-        .fetch_all(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await?;
-        println!("history_item: {:?}", history_item);
-        Ok(Some(history_item[0].clone()))
+        Ok(history_item)
     }
 
     pub async fn get_last_sent_successfully_eth_tx(
