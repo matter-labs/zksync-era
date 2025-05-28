@@ -45,12 +45,12 @@ use self::{
         UnstableNamespace, Web3Namespace, ZksNamespace,
     },
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
+    receipts::AccountTypesCache,
     state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
 };
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
-    utils::AccountTypesCache,
 };
 
 pub mod backend_jsonrpsee;
@@ -58,6 +58,7 @@ pub mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;
+pub(super) mod receipts;
 pub mod state;
 pub mod testonly;
 #[cfg(test)]
