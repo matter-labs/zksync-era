@@ -117,6 +117,13 @@ struct L1TransactionVerifier {
     sl_chain_id: SLChainId,
 }
 
+enum L1TransactionValidationResult {
+    /// validated successfully
+    Valid,
+    /// returned if validation cannot be performed at the moment and should be retried
+    TryLater,
+}
+
 impl L1TransactionVerifier {
     pub fn new(
         sl_client: Box<dyn EthInterface>,
@@ -137,18 +144,21 @@ impl L1TransactionVerifier {
         &self,
         commit_tx_hash: H256,
         batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        let db_batch = self
+    ) -> anyhow::Result<L1TransactionValidationResult> {
+        let db_batch = match self
             .pool
             .connection_tagged("sync_layer")
             .await?
             .blocks_dal()
             .get_l1_batch_metadata(batch_number)
             .await?
-            .ok_or(anyhow::anyhow!(
-                "Batch {} is not found in the database",
-                batch_number
-            ))?;
+        {
+            Some(batch) => batch,
+            None => {
+                tracing::debug!("Batch {} is not found in the database. Cannot verify commit transaction right now", batch_number);
+                return Ok(L1TransactionValidationResult::TryLater);
+            }
+        };
 
         let receipt = self
             .sl_client
@@ -236,7 +246,7 @@ impl L1TransactionVerifier {
                 "Commit transaction {commit_tx_hash} for batch {} verified successfully",
                 batch_number
             );
-            Ok(())
+            Ok(L1TransactionValidationResult::Valid)
         } else {
             let err = anyhow::anyhow!(
                 "Commit transaction {commit_tx_hash} for batch {} does not have `BlockCommit` event log",
@@ -250,7 +260,7 @@ impl L1TransactionVerifier {
         &self,
         prove_tx_hash: H256,
         batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<L1TransactionValidationResult> {
         let receipt = self
             .sl_client
             .tx_receipt(prove_tx_hash)
@@ -324,7 +334,7 @@ impl L1TransactionVerifier {
                 "Prove transaction {prove_tx_hash} for batch {} verified successfully",
                 batch_number
             );
-            Ok(())
+            Ok(L1TransactionValidationResult::Valid)
         } else {
             let err = anyhow::anyhow!(
                 "Prove transaction {prove_tx_hash} for batch {} does not have `BlocksVerification` event log",
@@ -339,18 +349,24 @@ impl L1TransactionVerifier {
         &self,
         execute_tx_hash: H256,
         batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        let db_batch = self
+    ) -> anyhow::Result<L1TransactionValidationResult> {
+        let db_batch = match self
             .pool
             .connection_tagged("sync_layer")
             .await?
             .blocks_dal()
             .get_l1_batch_metadata(batch_number)
             .await?
-            .ok_or(anyhow::anyhow!(
-                "Batch {} is not found in the database",
-                batch_number
-            ))?;
+        {
+            Some(batch) => batch,
+            None => {
+                tracing::debug!(
+                    "Batch {} is not found in the database. Cannot verify execute right now",
+                    batch_number
+                );
+                return Ok(L1TransactionValidationResult::TryLater);
+            }
+        };
 
         let receipt = self
             .sl_client
@@ -443,7 +459,7 @@ impl L1TransactionVerifier {
                 "Execute transaction {execute_tx_hash} for batch {} verified successfully",
                 batch_number
             );
-            Ok(())
+            Ok(L1TransactionValidationResult::Valid)
         } else {
             let err = anyhow::anyhow!(
                 "Execute transaction {execute_tx_hash} for batch {} does not have the corresponding `BlockExecution` event log",
@@ -510,15 +526,18 @@ impl UpdaterCursor {
                         ));
                     }
                     // Validate the commit transaction against the database.
-                    l1_transaction_verifier
+                    match l1_transaction_verifier
                         .validate_commit_tx_against_db(commit_tx_hash, batch_info.number)
                         .await
-                        .context("Failed to validate commit transaction against the database")?;
-                    Ok((
-                        batch_info.base.commit_tx_hash,
-                        batch_info.base.committed_at,
-                        batch_info.base.commit_chain_id,
-                    ))
+                        .context("Failed to validate commit transaction against the database")?
+                    {
+                        L1TransactionValidationResult::Valid => Ok((
+                            batch_info.base.commit_tx_hash,
+                            batch_info.base.committed_at,
+                            batch_info.base.commit_chain_id,
+                        )),
+                        L1TransactionValidationResult::TryLater => Ok((None, None, None)),
+                    }
                 } else {
                     Ok((None, None, None))
                 }
@@ -533,15 +552,18 @@ impl UpdaterCursor {
                         ));
                     }
                     // Validate the prove transaction events.
-                    l1_transaction_verifier
+                    match l1_transaction_verifier
                         .validate_prove_tx(prove_tx_hash, batch_info.number)
                         .await
-                        .context("Failed to validate prove transaction")?;
-                    Ok((
-                        batch_info.base.prove_tx_hash,
-                        batch_info.base.proven_at,
-                        batch_info.base.prove_chain_id,
-                    ))
+                        .context("Failed to validate prove transaction")?
+                    {
+                        L1TransactionValidationResult::Valid => Ok((
+                            batch_info.base.prove_tx_hash,
+                            batch_info.base.proven_at,
+                            batch_info.base.prove_chain_id,
+                        )),
+                        L1TransactionValidationResult::TryLater => Ok((None, None, None)),
+                    }
                 } else {
                     Ok((None, None, None))
                 }
@@ -557,16 +579,18 @@ impl UpdaterCursor {
                         ));
                     }
                     // Validate the execute transaction events.
-                    l1_transaction_verifier
+                    match l1_transaction_verifier
                         .validate_execute_tx(execute_tx_hash, batch_info.number)
                         .await
-                        .context("Failed to validate execute transaction")?;
-
-                    Ok((
-                        Some(execute_tx_hash),
-                        batch_info.base.executed_at,
-                        batch_info.base.execute_chain_id,
-                    ))
+                        .context("Failed to validate execute transaction")?
+                    {
+                        L1TransactionValidationResult::Valid => Ok((
+                            batch_info.base.execute_tx_hash,
+                            batch_info.base.executed_at,
+                            batch_info.base.execute_chain_id,
+                        )),
+                        L1TransactionValidationResult::TryLater => Ok((None, None, None)),
+                    }
                 } else {
                     Ok((None, None, None))
                 }

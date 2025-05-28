@@ -252,81 +252,76 @@ fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
 
 const MOCK_DIAMON_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
 
-#[derive(Debug, Default)]
-struct MockSlClient;
+fn new_mock_eth_interface() -> Box<dyn EthInterface> {
+    let contract = zksync_contracts::hyperchain_contract();
+    Box::new(
+        MockClient::builder(L1::default())
+            .method("eth_getTransactionReceipt", move |tx_hash: H256| {
+                // Extract the batch number from the tx hash
+                // The batch number is stored in the last 4 bytes
+                let bytes = tx_hash.as_bytes();
+                let tx_type = bytes[0]; // 1 for commit, 2 for prove, 3 for execute
 
-impl MockSlClient {
-    fn into_eth_interface(&self) -> Box<dyn EthInterface> {
-        let contract = zksync_contracts::hyperchain_contract();
-        Box::new(
-            MockClient::builder(L1::default())
-                .method("eth_getTransactionReceipt", move |tx_hash: H256| {
-                    // Extract the batch number from the tx hash
-                    // The batch number is stored in the last 4 bytes
-                    let bytes = tx_hash.as_bytes();
-                    let tx_type = bytes[0]; // 1 for commit, 2 for prove, 3 for execute
+                // Extract batch number from the last 4 bytes
+                let mut batch_number_bytes = [0u8; 4];
+                batch_number_bytes.copy_from_slice(&bytes[28..32]);
+                let batch_number = u32::from_be_bytes(batch_number_bytes);
 
-                    // Extract batch number from the last 4 bytes
-                    let mut batch_number_bytes = [0u8; 4];
-                    batch_number_bytes.copy_from_slice(&bytes[28..32]);
-                    let batch_number = u32::from_be_bytes(batch_number_bytes);
+                let topics: Vec<H256> = match tx_type {
+                    1 => {
+                        //BlockCommit (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
+                        let event = contract.event("BlockCommit").unwrap();
+                        vec![
+                            event.signature(),
+                            H256::from_low_u64_be(batch_number.into()),
+                            H256::zero(),
+                            H256::zero(),
+                        ]
+                    }
+                    2 => {
+                        // BlocksVerification (index_topic_1 uint256 previousLastVerifiedBlock, index_topic_2 uint256 currentLastVerifiedBlock
+                        let event = contract.event("BlocksVerification").unwrap();
+                        vec![
+                            event.signature(),
+                            H256::from_low_u64_be((batch_number - 1).into()),
+                            H256::from_low_u64_be(batch_number.into()),
+                        ]
+                    }
+                    3 => {
+                        // BlockExecution (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
+                        let event = contract.event("BlockExecution").unwrap();
+                        vec![
+                            event.signature(),
+                            H256::from_low_u64_be(batch_number.into()),
+                            H256::zero(),
+                            H256::zero(),
+                        ]
+                    }
+                    _ => return Ok(None),
+                };
 
-                    let topics: Vec<H256> = match tx_type {
-                        1 => {
-                            //BlockCommit (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
-                            let event = contract.event("BlockCommit").unwrap();
-                            vec![
-                                event.signature(),
-                                H256::from_low_u64_be(batch_number.into()),
-                                H256::zero(),
-                                H256::zero(),
-                            ]
-                        }
-                        2 => {
-                            // BlocksVerification (index_topic_1 uint256 previousLastVerifiedBlock, index_topic_2 uint256 currentLastVerifiedBlock
-                            let event = contract.event("BlocksVerification").unwrap();
-                            vec![
-                                event.signature(),
-                                H256::from_low_u64_be((batch_number - 1).into()),
-                                H256::from_low_u64_be(batch_number.into()),
-                            ]
-                        }
-                        3 => {
-                            // BlockExecution (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
-                            let event = contract.event("BlockExecution").unwrap();
-                            vec![
-                                event.signature(),
-                                H256::from_low_u64_be(batch_number.into()),
-                                H256::zero(),
-                                H256::zero(),
-                            ]
-                        }
-                        _ => return Ok(None),
-                    };
+                // Create a receipt with status 1 (success)
+                let mut receipt = TransactionReceipt::default();
+                receipt.status = Some(U64::one());
+                receipt.logs = vec![Log {
+                    address: MOCK_DIAMON_PROXY_ADDRESS,
+                    topics,
+                    data: vec![].into(),
+                    block_hash: None,
+                    block_number: None,
+                    transaction_hash: None,
+                    transaction_index: None,
+                    log_index: None,
+                    transaction_log_index: None,
+                    log_type: Some("Regular".to_string()),
+                    removed: None,
+                    block_timestamp: None,
+                }];
 
-                    // Create a receipt with status 1 (success)
-                    let mut receipt = TransactionReceipt::default();
-                    receipt.status = Some(U64::one());
-                    receipt.logs = vec![Log {
-                        address: MOCK_DIAMON_PROXY_ADDRESS,
-                        topics,
-                        data: vec![].into(),
-                        block_hash: None,
-                        block_number: None,
-                        transaction_hash: None,
-                        transaction_index: None,
-                        log_index: None,
-                        transaction_log_index: None,
-                        log_type: Some("Regular".to_string()),
-                        removed: None,
-                        block_timestamp: None,
-                    }];
-
-                    Ok(Some(receipt))
-                })
-                .build(),
-        )
-    }
+                Ok(Some(receipt))
+            })
+            .build(),
+    )
 }
 
 fn mock_updater(
@@ -334,11 +329,10 @@ fn mock_updater(
     pool: ConnectionPool<Core>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
-    let sl_client = Box::new(MockSlClient);
 
     let mut updater = BatchStatusUpdater::from_parts(
         Box::new(client),
-        sl_client.into_eth_interface(),
+        new_mock_eth_interface(),
         MOCK_DIAMON_PROXY_ADDRESS,
         pool,
         Duration::from_millis(10),
