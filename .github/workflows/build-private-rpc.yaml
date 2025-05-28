@@ -52,9 +52,9 @@ jobs:
 
       - name: login to Docker registries
         run: |
-          docker login -u "${{ secrets.DOCKERHUB_USER }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
-          gcloud auth configure-docker us-docker.pkg.dev -q
+          ci_run docker login -u "${{ secrets.DOCKERHUB_USER }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
-#      - name: push-image
-#        run: |
-#          docker push "$REGISTRY_PATH:${IMAGE_TAG}"
+      - name: push-image
+        run: |
+          ci_run docker push "$REGISTRY_PATH:${IMAGE_TAG}"
