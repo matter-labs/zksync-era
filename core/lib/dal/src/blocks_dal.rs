@@ -608,7 +608,15 @@ impl BlocksDal<'_, '_> {
                     rolling_txs_hash,
                     number
                 FROM miniblocks
-                WHERE l1_batch_number = l1_batches.number
+                LEFT JOIN
+                    eth_txs_history
+                    ON eth_txs_history.eth_tx_id = miniblocks.eth_precommit_tx_id
+                WHERE
+                    l1_batch_number = l1_batches.number
+                    AND (
+                        eth_txs_history.finality_status != 'pending'
+                        OR eth_precommit_tx_id IS NULL
+                    )
                 ORDER BY number DESC
                 LIMIT 2
             ) miniblocks ON TRUE
@@ -636,11 +644,10 @@ impl BlocksDal<'_, '_> {
         }
 
         for (batch_number, miniblocks) in miniblocks_by_batch {
-            assert_eq!(
-                miniblocks.len(),
-                2,
-                "Expected exactly 2 miniblocks for each batch"
-            );
+            if miniblocks.len() != 2 {
+                // We expect exactly 2 miniblocks for each batch. If not we will wait for the next iteration
+                continue;
+            }
             // miniblocks[0] is the newest, [1] is previous (because of DESC order)
             if miniblocks[0].rolling_txs_hash == miniblocks[1].rolling_txs_hash {
                 if let Some(eth_tx_id) = miniblocks[1].eth_precommit_tx_id {

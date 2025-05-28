@@ -103,9 +103,6 @@ eth:
     is_verifier_pre_fflonk: true
     gas_limit_mode: CALCULATED
     max_acceptable_base_fee_in_wei: 100000000000
-    precommit_params:
-      deadline_sec: 10
-      l2_blocks_to_aggregate: 5
   gas_adjuster:
     default_priority_fee_per_gas: 1000000000
     max_base_fee_samples: 100

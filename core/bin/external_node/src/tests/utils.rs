@@ -33,6 +33,7 @@ pub(super) fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         executed_at: None,
         execute_chain_id: None,
         precommit_tx_hash: None,
+        precommit_tx_finality: None,
         precommitted_at: None,
         precommit_chain_id: None,
         l1_gas_price: 0,

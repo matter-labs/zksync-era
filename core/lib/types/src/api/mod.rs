@@ -938,6 +938,7 @@ pub struct BlockDetailsBase {
     pub executed_at: Option<DateTime<Utc>>,
     pub execute_chain_id: Option<SLChainId>,
     pub precommit_tx_hash: Option<H256>,
+    pub precommit_tx_finality: Option<EthTxFinalityStatus>,
     pub precommitted_at: Option<DateTime<Utc>>,
     pub precommit_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,

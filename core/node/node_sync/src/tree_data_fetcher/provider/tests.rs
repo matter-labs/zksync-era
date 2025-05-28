@@ -53,6 +53,7 @@ fn mock_block_details_base(number: u32, hash: Option<H256>) -> api::BlockDetails
         executed_at: None,
         execute_chain_id: None,
         precommit_tx_hash: None,
+        precommit_tx_finality: None,
         precommitted_at: None,
         precommit_chain_id: None,
         l1_gas_price: 10,

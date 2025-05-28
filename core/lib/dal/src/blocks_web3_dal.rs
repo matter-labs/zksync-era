@@ -313,7 +313,10 @@ impl BlocksWeb3Dal<'_, '_> {
                        (
                            SELECT MAX(number)
                            FROM miniblocks
-                           WHERE eth_precommit_tx_id IS NOT NULL
+                           JOIN eth_txs_history ON
+                                    miniblocks.eth_precommit_tx_id = eth_txs_history.eth_tx_id
+                            WHERE
+                                    eth_txs_history.finality_status = 'finalized'
                        ),
                        (
                            SELECT MAX(number)
@@ -322,8 +325,8 @@ impl BlocksWeb3Dal<'_, '_> {
                             (
                                  SELECT number
                                  FROM l1_batches
-                                          JOIN eth_txs ON l1_batches.eth_commit_tx_id = eth_txs.id
-                                 WHERE eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                                          JOIN eth_txs_history ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
+                                 WHERE eth_txs_history.finality_status = 'finalized'
                                  ORDER BY number DESC
                                  LIMIT 1
                             )
@@ -331,7 +334,6 @@ impl BlocksWeb3Dal<'_, '_> {
                         0
                     ) AS number";
                 ),
-
                 api::BlockId::Number(api::BlockNumber::FastFinalized) => (
                     "
                     SELECT COALESCE(
@@ -743,6 +745,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx_data.chain_id AS "execute_chain_id?",
                 precommit_tx.tx_hash AS "precommit_tx_hash?",
                 precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
                 precommit_tx_data.chain_id AS "precommit_chain_id?",
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
@@ -850,6 +853,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 execute_tx_data.chain_id AS "execute_chain_id?",
                 precommit_tx.tx_hash AS "precommit_tx_hash?",
                 precommit_tx.confirmed_at AS "precommitted_at?",
+                precommit_tx.finality_status AS "precommit_tx_finality_status?",
                 precommit_tx_data.chain_id AS "precommit_chain_id?",
                 mb.l1_gas_price,
                 mb.l2_fair_gas_price,

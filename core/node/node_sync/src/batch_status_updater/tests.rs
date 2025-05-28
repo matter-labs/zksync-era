@@ -174,6 +174,7 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
             execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(33)),
             precommit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(1)),
+            precommit_tx_finality: Some(EthTxFinalityStatus::Finalized),
             precommitted_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
             precommit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
