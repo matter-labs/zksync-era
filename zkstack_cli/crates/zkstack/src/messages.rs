@@ -105,8 +105,15 @@ pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
+pub(super) const MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER: &str = "Updating da validator pair...";
 pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
     "Token multiplier setter updated to";
+pub(super) const MSG_DA_VALIDATOR_PAIR_UPDATED_TO: &str = "DA validator pair updated to";
+pub(super) const MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW: &str =
+    "Got the settlement layer address from gateway";
+pub(super) const MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER: &str =
+    "Updating pubdata pricing mode...";
+pub(super) const MSG_PUBDATA_PRICING_MODE_UPDATED_TO: &str = "Pubdata pricing mode updated to";
 pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db path";
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
@@ -350,6 +357,8 @@ pub(super) const MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop private proxy database";
 
 /// Explorer related messages
+pub(super) const MSG_EXPLORER_PRIVIDIUM_HELP: &str =
+    "Enable Prividium mode for this Block Explorer";
 pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
     "Failed to drop explorer database";
 pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
@@ -376,6 +385,15 @@ pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
 pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
     format!("Chain {chain} is not initialized for explorer: run `zkstack explorer init --chain {chain}` first")
 }
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_MODE_PROMPT: &str =
+    "Do you want to enable Prividium mode for this Block Explorer?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_MAX_AGE_PROMPT: &str =
+    "What session max age configuration do you want to use for Prividium mode?";
+
+pub(super) const MSG_EXPLORER_PRIVIDIUM_SESSION_SAME_SITE_PROMPT: &str =
+    "What session same site configuration do you want to use for Prividium mode?";
 
 /// Forge utils related messages
 pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> String {
