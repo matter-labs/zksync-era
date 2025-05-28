@@ -307,6 +307,7 @@ impl BlocksWeb3Dal<'_, '_> {
                     // This query is used to get the latest precommitted miniblock number.
                     // If feature is not enabled, return the latest committed miniblock number.
                     // GREATEST in postgress ignore nulls.
+                    // TODO adapt for finality status
                     "
                     SELECT GREATEST(
                        (
@@ -344,6 +345,8 @@ impl BlocksWeb3Dal<'_, '_> {
                                     l1_batches.eth_execute_tx_id = eth_txs_history.eth_tx_id
                                 WHERE
                                     eth_txs_history.finality_status = 'fast_finalized'
+                                    OR
+                                    eth_txs_history.finality_status = 'finalized'
                                 ORDER BY number DESC LIMIT 1
                             )
                         ),

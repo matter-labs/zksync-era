@@ -209,6 +209,7 @@ mod tests {
     use zksync_node_test_utils::create_l1_batch;
     use zksync_types::{
         commitment::L1BatchCommitmentMode,
+        eth_sender::EthTxFinalityStatus,
         fee_model::{BaseTokenConversionRatio, FeeModelConfigV2},
         pubdata_da::PubdataSendingMode,
         U256,
@@ -406,7 +407,7 @@ mod tests {
                 test_base_fees(1, U256::from(3), U256::from(0)),
             ])
             .build();
-        mock.advance_block_number(2); // Ensure we have enough blocks for the fee history
+        mock.advance_block_number(2, EthTxFinalityStatus::Finalized); // Ensure we have enough blocks for the fee history
 
         let gas_adjuster_config = GasAdjusterConfig {
             internal_enforced_l1_gas_price: Some(l1_gas_price),

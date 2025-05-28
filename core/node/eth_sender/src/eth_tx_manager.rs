@@ -55,10 +55,18 @@ impl EthTxManager {
         let ethereum_client = ethereum_client.map(|eth| eth.for_component("eth_tx_manager"));
         let ethereum_client_blobs =
             ethereum_client_blobs.map(|eth| eth.for_component("eth_tx_manager"));
+        // If `time_in_mempool_multiplier_cap` is set in config then we use it to derive cap for `l1_blocks_cap`.
+        // Otherwise we use `time_in_mempool_in_l1_blocks_cap`.
+        let time_in_mempool_in_l1_blocks_cap =
+            if let Some(multiplier_cap) = config.time_in_mempool_multiplier_cap {
+                derive_l1_block_cap(multiplier_cap, gas_adjuster.get_parameter_b())
+            } else {
+                config.time_in_mempool_in_l1_blocks_cap
+            };
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
-            time_in_mempool_in_l1_blocks_cap: config.time_in_mempool_in_l1_blocks_cap,
+            time_in_mempool_in_l1_blocks_cap,
             max_acceptable_base_fee_in_wei: config.max_acceptable_base_fee_in_wei,
         };
         let l1_interface = Box::new(RealL1Interface {
@@ -547,14 +555,16 @@ impl EthTxManager {
                 blocks.fast_finality.0,
                 blocks.finalized.0
             );
-        // TODO set correct values for health updater
-        // self.health_updater.update(
-        //     EthTxManagerHealthDetails {
-        //         last_finalized_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
-        //         finalized_block,
-        //     }
-        //     .into(),
-        // );
+
+        if finality_status == EthTxFinalityStatus::Finalized {
+            self.health_updater.update(
+                EthTxManagerHealthDetails {
+                    last_finalized_tx: EthTxDetails::new(tx, Some((&tx_status).into())),
+                    finalized_block: blocks.finalized,
+                }
+                .into(),
+            );
+        }
 
         if tx_status.success {
             self.confirm_tx(storage, tx, finality_status, tx_status)
@@ -649,7 +659,7 @@ impl EthTxManager {
                 METRICS.l1_tx_mined_latency[&tx_type_label].observe(tx_latency);
             }
             EthTxFinalityStatus::Pending => {
-                // Do nothing txs just created
+                // Do nothing txs were created, but not sent yet
             }
         }
 
@@ -814,5 +824,29 @@ impl EthTxManager {
     /// Returns the health check for eth tx manager.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+}
+
+fn derive_l1_block_cap(multiplier_cap: u32, b: f64) -> u32 {
+    (multiplier_cap as f64).log(b).ceil() as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::derive_l1_block_cap;
+
+    #[test]
+    fn check_derive_l1_block_cap() {
+        let multiplier_cap = 10;
+        let b = 2.0;
+        let expected_l1_block_cap = 4; // ceil(log_2(10))
+        let actual_l1_block_cap = derive_l1_block_cap(multiplier_cap, b);
+        assert_eq!(actual_l1_block_cap, expected_l1_block_cap);
+
+        let multiplier_cap = 10;
+        let b = 1.01;
+        let expected_l1_block_cap = 232;
+        let actual_l1_block_cap = derive_l1_block_cap(multiplier_cap, b);
+        assert_eq!(actual_l1_block_cap, expected_l1_block_cap);
     }
 }

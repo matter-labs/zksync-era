@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                eth_txs.*\n            FROM\n                eth_txs\n            JOIN eth_txs_history ON eth_txs.confirmed_eth_tx_history_id = eth_txs_history.id\n            WHERE\n                from_addr = $1\n                AND is_gateway = $2\n                AND eth_txs_history.finality_status != 'finalized'\n            ",
+  "query": "\n            SELECT\n                eth_txs.*\n            FROM\n                eth_txs\n            JOIN eth_txs_history ON eth_txs.confirmed_eth_tx_history_id = eth_txs_history.id\n            WHERE\n                from_addr = $1\n                AND is_gateway = $2\n                AND eth_txs_history.finality_status != 'finalized'\n            ORDER BY\n                eth_txs.id\n            ",
   "describe": {
     "columns": [
       {
@@ -115,5 +115,5 @@
       true
     ]
   },
-  "hash": "8971744cb6243237ac57fec8a39d096db5025c8c96564f67c1d46a5d5ee545ee"
+  "hash": "c3d89567845665287b4ffb7aad57d26401c18e6ce8e0e6710a976ce0ecaf9cb1"
 }

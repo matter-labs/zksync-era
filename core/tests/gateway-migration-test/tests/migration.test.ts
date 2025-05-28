@@ -175,18 +175,6 @@ describe('Migration From/To gateway test', function () {
             gatewayInfo?.gatewayProvider
         );
 
-        let gwCurrentBlock = await gatewayInfo?.gatewayProvider.getBlockNumber()!;
-        let l1CurrentBlock = await tester.ethProvider.getBlockNumber();
-        let gwFinalizedBlock = await gatewayInfo?.gatewayProvider.getBlock('finalized');
-        let l1FinalizedBlock = await tester.ethProvider.getBlock('finalized');
-
-        while (gwCurrentBlock < gwFinalizedBlock!.number && l1CurrentBlock < l1FinalizedBlock!.number) {
-            // We have to wait for the block to be finalized on both sides
-            gwFinalizedBlock = await gatewayInfo?.gatewayProvider.getBlock('finalized');
-            l1FinalizedBlock = await tester.ethProvider.getBlock('finalized');
-            await utils.sleep(1);
-        }
-
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
@@ -196,15 +184,6 @@ describe('Migration From/To gateway test', function () {
             expect(slAddressl1 == ZeroAddress);
             expect(slAddressGW != ZeroAddress);
         }
-
-        try {
-            // The L2 will be restarted after the migration finishes.
-            await mainNodeSpawner.mainNode?.waitForShutdown();
-        } catch (e) {
-            console.log('Error while waiting for shutdown', e);
-        }
-        // Node is already killed, so we simply start the new server
-        await mainNodeSpawner.killAndSpawnMainNode();
     });
 
     step('Wait for block finalization', async () => {
