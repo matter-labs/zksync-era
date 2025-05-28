@@ -43,7 +43,6 @@ members = [
   "node/zk_os_tree_manager",
   # Libraries
   "lib/db_connection",
-  "lib/zksync_core_leftovers",
   "lib/basic_types",
   "lib/config",
   "lib/constants",
@@ -215,8 +214,8 @@ trybuild = "1.0"
 # "Internal" dependencies
 vise = "0.3.0"
 vise-exporter = "0.3.0"
-smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
-smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
+smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "3ba8f838a9499190b73579bf111b92a3c14753a7" }
+smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "3ba8f838a9499190b73579bf111b92a3c14753a7" }
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies
@@ -286,7 +285,6 @@ zksync_circuit_breaker = { version = "28.2.1-non-semver-compat", path = "lib/cir
 zksync_config = { version = "28.2.1-non-semver-compat", path = "lib/config" }
 zksync_contract_verifier_lib = { version = "28.2.1-non-semver-compat", path = "lib/contract_verifier" }
 zksync_contracts = { version = "28.2.1-non-semver-compat", path = "lib/contracts" }
-zksync_core_leftovers = { version = "28.2.1-non-semver-compat", path = "lib/zksync_core_leftovers" }
 zksync_dal = { version = "28.2.1-non-semver-compat", path = "lib/dal" }
 zksync_db_connection = { version = "28.2.1-non-semver-compat", path = "lib/db_connection" }
 zksync_eth_client = { version = "28.2.1-non-semver-compat", path = "lib/eth_client" }
