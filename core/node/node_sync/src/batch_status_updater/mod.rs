@@ -14,7 +14,8 @@ use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, eth_sender::EthTxFinalityStatus, ethabi, Address, L1BatchNumber, SLChainId, H256, U64
+    aggregated_operations::AggregatedActionType, api, eth_sender::EthTxFinalityStatus, ethabi,
+    Address, L1BatchNumber, SLChainId, H256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
