@@ -13,4 +13,7 @@ pub struct EthWatchConfig {
     /// How often we want to poll the Ethereum node.
     #[config(default_t = Duration::from_secs(1), with = TimeUnit::Millis)]
     pub eth_node_poll_interval: Duration,
+    /// How many L1 blocks to look back for the priority operations.
+    #[config(default_t = 50_000)]
+    pub event_expiration_blocks: u64,
 }

@@ -126,6 +126,7 @@ impl WiringLayer for EthWatchLayer {
             main_pool,
             self.eth_watch_config.eth_node_poll_interval,
             self.chain_id,
+            self.eth_watch_config.event_expiration_blocks,
         )
         .await?;
 
