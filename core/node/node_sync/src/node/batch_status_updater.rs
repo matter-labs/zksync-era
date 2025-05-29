@@ -50,14 +50,8 @@ impl WiringLayer for BatchStatusUpdaterLayer {
             app_health,
         } = input;
 
-        let sl_client: Box<dyn EthInterface> = match settlement_layer_client {
-            SettlementLayerClient::L1(client) => {
-                Box::new(client.for_component("batch_status_updater"))
-            }
-            SettlementLayerClient::L2(client) => {
-                Box::new(client.for_component("batch_status_updater"))
-            }
-        };
+        let sl_client: Box<dyn EthInterface> = settlement_layer_client.into();
+
         let sl_chain_id = sl_client
             .fetch_chain_id()
             .await
