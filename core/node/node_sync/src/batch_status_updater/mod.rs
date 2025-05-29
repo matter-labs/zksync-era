@@ -433,10 +433,6 @@ impl L1TransactionVerifier {
                         .map(|bytes| H256::from_slice(&bytes))
                         .expect("Missing expected `commitment` parameter in `BlockExecution` event log");
 
-                tracing::debug!(
-                    "Execute transaction {execute_tx_hash:?} has `BlockExecution` event log with batch_hash={batch_hash:?} and commitment={commitment:?}"
-                );
-
                 Some((batch_hash, commitment))
             }).next();
 
