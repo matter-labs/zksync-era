@@ -331,12 +331,14 @@ fn schema() -> anyhow::Result<ConfigSchema> {
         .insert(&DAClientConfig::DESCRIPTION, "da_client")?
         .push_deprecated_alias("da")?;
 
-    // FIXME: should be namespaced (`networks`? `l1`?).
-    schema.insert(&ENConfig::DESCRIPTION, "")?;
+    schema
+        .insert(&ENConfig::DESCRIPTION, "networks")?
+        .push_deprecated_alias("")?;
 
     schema.insert(&Secrets::DESCRIPTION, "")?;
     schema
         .single_mut(&L1Secrets::DESCRIPTION)?
+        .push_alias("networks")?
         .push_deprecated_alias("")?;
     schema
         .single_mut(&DataAvailabilitySecrets::DESCRIPTION)?

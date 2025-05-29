@@ -1,5 +1,6 @@
 # Sample config parsed by the EN.
 postgres:
+  server_url: postgres://postgres:notsecurepassword@localhost:5432/en
   max_connections: 50
   max_connections_master: 10 # Not used; required for config completeness
   statement_timeout_sec: 20
@@ -98,17 +99,12 @@ pruning:
   removal_delay_sec: 120
   data_retention_sec: 86400
 
-# FIXME: namespace
-l1_chain_id: 8
-gateway_chain_id: 277
-l2_chain_id: 270
-main_node_url: https://127.0.0.1:3050/
-main_node_rate_limit_rps: 150
-bridge_addresses_refresh_interval_sec: 300
-
-# Secret configuration
-database:
-  server_url: postgres://postgres:notsecurepassword@localhost:5432/en
-l1:
+networks:
   l1_rpc_url: https://127.0.0.1:8545/
   gateway_rpc_url: https://127.0.0.1:3150/
+  l1_chain_id: 8
+  gateway_chain_id: 277
+  l2_chain_id: 270
+  main_node_url: https://127.0.0.1:3050/
+  main_node_rate_limit_rps: 150
+  bridge_addresses_refresh_interval_sec: 300
