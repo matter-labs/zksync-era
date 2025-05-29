@@ -6,7 +6,10 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext, StopReceiver, Task, TaskId,
 };
-use zksync_web3_decl::node::{EthInterfaceResource, L2InterfaceResource, SettlementModeResource};
+use zksync_web3_decl::{
+    client::{DynClient, L1},
+    node::{SettlementLayerClient, SettlementModeResource},
+};
 
 use crate::GatewayMigrator;
 
@@ -19,8 +22,8 @@ pub struct GatewayMigratorLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    eth_client: EthInterfaceResource,
-    gateway_client: Option<L2InterfaceResource>,
+    eth_client: Box<DynClient<L1>>,
+    gateway_client: SettlementLayerClient,
     contracts: L1ChainContractsResource,
     settlement_mode_resource: SettlementModeResource,
 }
@@ -41,11 +44,16 @@ impl WiringLayer for GatewayMigratorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let gateway_l2_client = match input.gateway_client {
+            SettlementLayerClient::L1(_) => None,
+            SettlementLayerClient::Gateway(client) => {
+                Some(Box::new(client) as Box<dyn EthInterface>)
+            }
+        };
+
         let migrator = GatewayMigrator::new(
-            Box::new(input.eth_client.0),
-            input
-                .gateway_client
-                .map(|a| Box::new(a.0) as Box<dyn EthInterface>),
+            Box::new(input.eth_client),
+            gateway_l2_client,
             self.l2_chain_id,
             input
                 .settlement_mode_resource

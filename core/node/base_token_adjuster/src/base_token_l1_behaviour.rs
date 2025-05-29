@@ -11,7 +11,7 @@ use zksync_config::BaseTokenAdjusterConfig;
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, Options};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
-    base_token_ratio::BaseTokenAPIRatio,
+    base_token_ratio::BaseTokenApiRatio,
     ethabi::{Contract, Token},
     web3::{contract::Tokenize, BlockNumber},
     Address, U256,
@@ -42,7 +42,7 @@ pub enum BaseTokenL1Behaviour {
 }
 
 impl BaseTokenL1Behaviour {
-    pub async fn update_l1(&mut self, new_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
+    pub async fn update_l1(&mut self, new_ratio: BaseTokenApiRatio) -> anyhow::Result<()> {
         let (l1_params, last_persisted_l1_ratio) = match self {
             BaseTokenL1Behaviour::UpdateOnL1 {
                 ref params,
@@ -156,7 +156,7 @@ impl BaseTokenL1Behaviour {
     async fn do_update_l1(
         &self,
         l1_params: &UpdateOnL1Params,
-        api_ratio: BaseTokenAPIRatio,
+        api_ratio: BaseTokenApiRatio,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
     ) -> anyhow::Result<Option<U256>> {
@@ -271,9 +271,8 @@ impl BaseTokenL1Behaviour {
         prev_base_fee_per_gas: Option<u64>,
         prev_priority_fee_per_gas: Option<u64>,
     ) -> (u64, u64) {
-        // Use get_blob_tx_base_fee here instead of get_base_fee to optimise for fast inclusion.
-        // get_base_fee might cause the transaction to be stuck in the mempool for 10+ minutes.
-        let mut base_fee_per_gas = l1_params.gas_adjuster.as_ref().get_blob_tx_base_fee();
+        // Multiply by 2 to optimise for fast inclusion.
+        let mut base_fee_per_gas = l1_params.gas_adjuster.as_ref().get_base_fee(0) * 2;
         let mut priority_fee_per_gas = l1_params.gas_adjuster.as_ref().get_priority_fee();
         if let Some(x) = prev_priority_fee_per_gas {
             // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.

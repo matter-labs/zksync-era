@@ -26,16 +26,15 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_contract_verification_server::node::ContractVerificationApiLayer;
-use zksync_core_leftovers::Component;
 use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
 };
 use zksync_da_dispatcher::node::DataAvailabilityDispatcherLayer;
-use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::{
     node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
-    web3_decl::node::{QueryEthClientLayer, SettlementLayerClientLayer},
+    web3_decl::node::QueryEthClientLayer,
 };
 use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
 use zksync_eth_watch::node::EthWatchLayer;
@@ -78,6 +77,8 @@ use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
     BasicWitnessInputProducerLayer, ProtectiveReadsWriterLayer, VmPlaygroundLayer,
 };
+
+use crate::components::Component;
 
 /// Macro that looks into a path to fetch an optional config,
 /// and clones it into a variable.
@@ -156,10 +157,9 @@ impl MainNodeBuilder {
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = self.configs.postgres_config.clone();
         let secrets = self.secrets.database.clone();
-        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
-            .with_replica(true)
-            .build();
+            .with_replica(true);
         self.node.add_layer(pools_layer);
         Ok(self)
     }
@@ -199,16 +199,6 @@ impl MainNodeBuilder {
             eth_config.l1_rpc_url.context("No L1 RPC URL")?,
         );
         self.node.add_layer(query_eth_client_layer);
-        Ok(self)
-    }
-
-    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_config = self.secrets.l1.clone();
-        let settlement_layer_client_layer = SettlementLayerClientLayer::new(
-            eth_config.l1_rpc_url.context("No L1 RPC URL")?,
-            eth_config.gateway_rpc_url,
-        );
-        self.node.add_layer(settlement_layer_client_layer);
         Ok(self)
     }
 
@@ -740,7 +730,6 @@ impl MainNodeBuilder {
             .add_pools_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_settlement_layer_client_layer()?
             .add_storage_initialization_layer(LayerKind::Task)?;
 
         Ok(self.node.build())
@@ -758,7 +747,6 @@ impl MainNodeBuilder {
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_settlement_layer_client_layer()?
             .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
 

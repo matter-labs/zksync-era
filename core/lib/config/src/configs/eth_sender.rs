@@ -31,7 +31,7 @@ impl EthConfig {
     pub fn for_tests() -> Self {
         Self {
             sender: SenderConfig {
-                wait_confirmations: Some(10),
+                wait_confirmations: None,
                 tx_poll_period: Duration::from_secs(1),
                 aggregate_tx_poll_period: Duration::from_secs(1),
                 max_txs_in_flight: 30,
@@ -53,6 +53,7 @@ impl EthConfig {
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
+                time_in_mempool_multiplier_cap: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -173,6 +174,9 @@ pub struct SenderConfig {
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
     #[config(default_t = u64::MAX)]
     pub max_acceptable_base_fee_in_wei: u64,
+    /// Cap for `b ^ time_in_mempool` used for price calculations.
+    #[config(default)]
+    pub time_in_mempool_multiplier_cap: Option<u32>,
 }
 
 impl SenderConfig {
@@ -190,15 +194,7 @@ impl SenderConfig {
             .transpose()
     }
 
-    // Don't load blobs private key, if it's not required
-    #[deprecated]
-    pub fn private_key_blobs(&self) -> Option<H256> {
-        std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
-            .ok()
-            .map(|pk| pk.parse().unwrap())
-    }
-
-    pub const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
+    const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
         let blocks_per_hour = 3600 / 12;
         // we cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
@@ -285,6 +281,7 @@ mod tests {
                 is_verifier_pre_fflonk: false,
                 gas_limit_mode: GasLimitMode::Calculated,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
+                time_in_mempool_multiplier_cap: Some(10),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -345,6 +342,7 @@ mod tests {
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
+            ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -380,6 +378,7 @@ mod tests {
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
+            time_in_mempool_multiplier_cap: 10
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

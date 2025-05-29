@@ -4024,17 +4024,12 @@ version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
- "futures 0.3.31",
- "serde",
- "serde_json",
- "serde_yaml",
  "tokio",
  "tracing",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
  "zksync_node_genesis",
- "zksync_protobuf",
  "zksync_types",
 ]
 
@@ -8988,7 +8983,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=3ba8f838a9499190b73579bf111b92a3c14753a7#3ba8f838a9499190b73579bf111b92a3c14753a7"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -9004,7 +8999,7 @@ dependencies = [
 [[package]]
 name = "smart-config-commands"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=3ba8f838a9499190b73579bf111b92a3c14753a7#3ba8f838a9499190b73579bf111b92a3c14753a7"
 dependencies = [
  "anstream",
  "anstyle",
@@ -9016,7 +9011,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=3ba8f838a9499190b73579bf111b92a3c14753a7#3ba8f838a9499190b73579bf111b92a3c14753a7"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -12315,18 +12310,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_core_leftovers"
-version = "28.2.1-non-semver-compat"
-dependencies = [
- "anyhow",
- "ctrlc",
- "serde_yaml",
- "tokio",
- "zksync_config",
- "zksync_protobuf",
-]
-
-[[package]]
 name = "zksync_crypto_primitives"
 version = "28.2.1-non-semver-compat"
 dependencies = [
@@ -12667,6 +12650,7 @@ dependencies = [
  "tracing",
  "url",
  "zksync_config",
+ "zksync_node_framework",
  "zksync_types",
 ]
 
@@ -12891,6 +12875,7 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_shared_metrics",
+ "zksync_shared_resources",
  "zksync_storage",
  "zksync_types",
 ]
@@ -12977,7 +12962,6 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
- "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
  "zksync_multivm",
  "zksync_node_fee_model",
@@ -12989,7 +12973,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_shared_resources",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_test_contracts",
  "zksync_types",
@@ -13396,7 +13379,6 @@ dependencies = [
  "zksync_consensus_executor",
  "zksync_consensus_roles",
  "zksync_contract_verification_server",
- "zksync_core_leftovers",
  "zksync_da_clients",
  "zksync_da_dispatcher",
  "zksync_dal",
@@ -13442,9 +13424,11 @@ dependencies = [
 name = "zksync_shared_resources"
 version = "28.2.1-non-semver-compat"
 dependencies = [
+ "anyhow",
  "assert_matches",
  "async-trait",
  "serde",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "zksync_config",

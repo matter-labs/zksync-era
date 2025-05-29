@@ -22,7 +22,8 @@ pub(crate) struct AutoscalerMetrics {
     #[metrics(labels = ["target_cluster", "target_namespace", "gpu"])]
     pub provers: LabeledFamily<(ClusterName, NamespaceName, Gpu), Gauge<usize>, 3>,
     pub jobs: Family<JobLabels, Gauge<usize>>,
-    pub clusters_not_ready: Counter,
+    #[metrics(labels = ["agent_url"])]
+    pub agent_not_ready: LabeledFamily<String, Counter, 1>,
     #[metrics(labels = ["target", "status"])]
     pub calls: LabeledFamily<(String, u16), Counter, 2>,
     #[metrics(labels = ["target_cluster"])]
