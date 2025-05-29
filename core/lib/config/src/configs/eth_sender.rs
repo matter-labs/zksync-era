@@ -31,7 +31,7 @@ impl EthConfig {
     pub fn for_tests() -> Self {
         Self {
             sender: SenderConfig {
-                wait_confirmations: Some(10),
+                wait_confirmations: None,
                 tx_poll_period: Duration::from_secs(1),
                 aggregate_tx_poll_period: Duration::from_secs(1),
                 max_txs_in_flight: 30,
@@ -194,15 +194,7 @@ impl SenderConfig {
             .transpose()
     }
 
-    // Don't load blobs private key, if it's not required
-    #[deprecated]
-    pub fn private_key_blobs(&self) -> Option<H256> {
-        std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
-            .ok()
-            .map(|pk| pk.parse().unwrap())
-    }
-
-    pub const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
+    const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
         let blocks_per_hour = 3600 / 12;
         // we cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6

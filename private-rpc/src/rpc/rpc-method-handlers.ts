@@ -12,6 +12,8 @@ import {
     zks_getRawBlockTransactions,
     zks_sendRawTransactionWithDetailedOutput
 } from '@/rpc/methods';
+import { hexSchema } from '@/schemas/hex';
+import { z } from 'zod';
 
 export const allHandlers = [
     // Filter out debug_* methods
@@ -61,8 +63,8 @@ export const allHandlers = [
     forbiddenMethod('zks_getProof'),
 
     // Restrict methods that require to be called only for the current user
-    onlyCurrentUser('eth_getBalance'),
-    onlyCurrentUser('eth_getTransactionCount'),
+    onlyCurrentUser('eth_getBalance', [z.union([hexSchema, z.string()])]),
+    onlyCurrentUser('eth_getTransactionCount', [z.union([hexSchema, z.string()])]),
     onlyCurrentUser('zks_getAllAccountBalances'),
 
     // Methods with custom logic.
