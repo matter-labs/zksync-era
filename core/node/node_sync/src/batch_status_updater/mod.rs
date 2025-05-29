@@ -117,11 +117,33 @@ struct L1TransactionVerifier {
     sl_chain_id: SLChainId,
 }
 
-enum L1TransactionValidationResult {
-    /// validated successfully
-    Valid,
-    /// returned if validation cannot be performed at the moment and should be retried
-    TryLater,
+#[derive(Debug, thiserror::Error)]
+enum TransactionValidationError {
+    #[error("Batch {batch_number} is not found in the database")]
+    BatchNotFound { batch_number: L1BatchNumber },
+    #[error("Batch transaction {tx_hash} failed on SL")]
+    TransactionFailed { tx_hash: H256 },
+    #[error("Database error")]
+    DatabaseError(#[from] zksync_dal::DalError),
+    #[error("SL client error")]
+    SlClientError(#[from] zksync_eth_client::EnrichedClientError),
+    #[error("Batch tranasction invalid: {reason}")]
+    BatchTransactionInvalid { reason: String },
+    #[error("Other validaion error")]
+    OtherValidationError(#[from] anyhow::Error),
+}
+
+impl TransactionValidationError {
+    fn is_retriable(&self) -> bool {
+        match self {
+            TransactionValidationError::BatchNotFound { .. } => true,
+            TransactionValidationError::TransactionFailed { .. } => false,
+            TransactionValidationError::DatabaseError(_) => false,
+            TransactionValidationError::SlClientError(_) => false,
+            TransactionValidationError::BatchTransactionInvalid { .. } => false,
+            TransactionValidationError::OtherValidationError(_) => false,
+        }
+    }
 }
 
 impl L1TransactionVerifier {
@@ -144,7 +166,7 @@ impl L1TransactionVerifier {
         &self,
         commit_tx_hash: H256,
         batch_number: L1BatchNumber,
-    ) -> anyhow::Result<L1TransactionValidationResult> {
+    ) -> Result<(), TransactionValidationError> {
         let db_batch = match self
             .pool
             .connection_tagged("sync_layer")
@@ -156,7 +178,7 @@ impl L1TransactionVerifier {
             Some(batch) => batch,
             None => {
                 tracing::debug!("Batch {} is not found in the database. Cannot verify commit transaction right now", batch_number);
-                return Ok(L1TransactionValidationResult::TryLater);
+                return Err(TransactionValidationError::BatchNotFound { batch_number });
             }
         };
 
@@ -166,11 +188,9 @@ impl L1TransactionVerifier {
             .await?
             .context("Failed to fetch commit transaction receipt from SL")?;
         if receipt.status != Some(U64::one()) {
-            let err = anyhow::anyhow!(
-                "Commit transaction {commit_tx_hash} for batch {} is not successful",
-                batch_number
-            );
-            return Err(err);
+            return Err(TransactionValidationError::TransactionFailed {
+                tx_hash: commit_tx_hash,
+            });
         }
 
         let event = self
@@ -224,35 +244,25 @@ impl L1TransactionVerifier {
 
         if let Some((batch_hash, commitment)) = commited_batch_info {
             if db_batch.metadata.commitment != commitment {
-                let err = anyhow::anyhow!(
-                    "Commit transaction {commit_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
+                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
                     batch_number,
                     db_batch.metadata.commitment,
-                    commitment
-                );
-                return Err(err);
+                    commitment) });
             }
             if db_batch.metadata.root_hash != batch_hash {
-                let err = anyhow::anyhow!(
-                    "Commit transaction {commit_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
+                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
                     batch_number,
                     db_batch.metadata.root_hash,
-                    batch_hash
-                );
-                return Err(err);
+                    batch_hash)});
             }
             // OK verified successfully the commit transaction.
             tracing::debug!(
                 "Commit transaction {commit_tx_hash} for batch {} verified successfully",
                 batch_number
             );
-            Ok(L1TransactionValidationResult::Valid)
+            Ok(())
         } else {
-            let err = anyhow::anyhow!(
-                "Commit transaction {commit_tx_hash} for batch {} does not have `BlockCommit` event log",
-                batch_number
-            );
-            Err(err)
+            Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} does not have `BlockCommit` event log", batch_number) })
         }
     }
 
@@ -260,18 +270,16 @@ impl L1TransactionVerifier {
         &self,
         prove_tx_hash: H256,
         batch_number: L1BatchNumber,
-    ) -> anyhow::Result<L1TransactionValidationResult> {
+    ) -> Result<(), TransactionValidationError> {
         let receipt = self
             .sl_client
             .tx_receipt(prove_tx_hash)
             .await?
             .context("Failed to fetch prove transaction receipt from SL")?;
         if receipt.status != Some(U64::one()) {
-            let err = anyhow::anyhow!(
-                "Prove transaction {prove_tx_hash} for batch {} is not successful",
-                batch_number
-            );
-            return Err(err);
+            return Err(TransactionValidationError::TransactionFailed {
+                tx_hash: prove_tx_hash,
+            });
         }
 
         let event = self
@@ -312,35 +320,38 @@ impl L1TransactionVerifier {
             }).next();
         if let Some((from, to)) = proved_from_to {
             if from >= batch_number.0 {
-                let err = anyhow::anyhow!(
-                    "Prove transaction {prove_tx_hash} for batch {} has invalid `from` value: expected < {}, got {}",
-                    batch_number,
-                    batch_number.0,
-                    from
-                );
-                return Err(err);
+                return Err(TransactionValidationError::BatchTransactionInvalid {
+                    reason: format!(
+                        "Prove transaction {prove_tx_hash} for batch {} has invalid `from` value: expected < {}, got {}",
+                        batch_number,
+                        batch_number.0,
+                        from
+                    )
+                });
             }
             if to < batch_number.0 {
-                let err = anyhow::anyhow!(
-                    "Prove transaction {prove_tx_hash} for batch {} has invalid `to` value: expected >= {}, got {}",
-                    batch_number,
-                    batch_number.0,
-                    to
-                );
-                return Err(err);
+                return Err(TransactionValidationError::BatchTransactionInvalid {
+                    reason: format!(
+                        "Prove transaction {prove_tx_hash} for batch {} has invalid `to` value: expected >= {}, got {}",
+                        batch_number,
+                        batch_number.0,
+                        to
+                    )
+                });
             }
             // OK verified successfully the prove transaction.
             tracing::debug!(
                 "Prove transaction {prove_tx_hash} for batch {} verified successfully",
                 batch_number
             );
-            Ok(L1TransactionValidationResult::Valid)
+            Ok(())
         } else {
-            let err = anyhow::anyhow!(
-                "Prove transaction {prove_tx_hash} for batch {} does not have `BlocksVerification` event log",
-                batch_number
-            );
-            Err(err)
+            Err(TransactionValidationError::BatchTransactionInvalid {
+                reason: format!(
+                    "Prove transaction {prove_tx_hash} for batch {} does not have `BlocksVerification` event log",
+                    batch_number
+                )
+            })
         }
     }
 
@@ -349,7 +360,7 @@ impl L1TransactionVerifier {
         &self,
         execute_tx_hash: H256,
         batch_number: L1BatchNumber,
-    ) -> anyhow::Result<L1TransactionValidationResult> {
+    ) -> Result<(), TransactionValidationError> {
         let db_batch = match self
             .pool
             .connection_tagged("sync_layer")
@@ -360,11 +371,7 @@ impl L1TransactionVerifier {
         {
             Some(batch) => batch,
             None => {
-                tracing::debug!(
-                    "Batch {} is not found in the database. Cannot verify execute right now",
-                    batch_number
-                );
-                return Ok(L1TransactionValidationResult::TryLater);
+                return Err(TransactionValidationError::BatchNotFound { batch_number });
             }
         };
 
@@ -374,11 +381,9 @@ impl L1TransactionVerifier {
             .await?
             .context("Failed to fetch execute transaction receipt from SL")?;
         if receipt.status != Some(U64::one()) {
-            let err = anyhow::anyhow!(
-                "Execute transaction {execute_tx_hash} for batch {} is not successful",
-                batch_number
-            );
-            return Err(err);
+            return Err(TransactionValidationError::TransactionFailed {
+                tx_hash: execute_tx_hash,
+            });
         }
 
         let event = self
@@ -437,35 +442,38 @@ impl L1TransactionVerifier {
 
         if let Some((batch_hash, commitment)) = commited_batch_info {
             if db_batch.metadata.commitment != commitment {
-                let err = anyhow::anyhow!(
-                    "Execute transaction {execute_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
-                    batch_number,
-                    db_batch.metadata.commitment,
-                    commitment
-                );
-                return Err(err);
+                return Err(TransactionValidationError::BatchTransactionInvalid {
+                    reason: format!(
+                        "Execute transaction {execute_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
+                        batch_number,
+                        db_batch.metadata.commitment,
+                        commitment
+                    )
+                });
             }
             if db_batch.metadata.root_hash != batch_hash {
-                let err = anyhow::anyhow!(
-                    "Execute transaction {execute_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
-                    batch_number,
-                    db_batch.metadata.root_hash,
-                    batch_hash
-                );
-                return Err(err);
+                return Err(TransactionValidationError::BatchTransactionInvalid {
+                    reason: format!(
+                        "Execute transaction {execute_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
+                        batch_number,
+                        db_batch.metadata.root_hash,
+                        batch_hash
+                    )
+                });
             }
             // OK verified successfully the execute transaction.
             tracing::debug!(
                 "Execute transaction {execute_tx_hash} for batch {} verified successfully",
                 batch_number
             );
-            Ok(L1TransactionValidationResult::Valid)
+            Ok(())
         } else {
-            let err = anyhow::anyhow!(
-                "Execute transaction {execute_tx_hash} for batch {} does not have the corresponding `BlockExecution` event log",
-                batch_number
-            );
-            Err(err)
+            Err(TransactionValidationError::BatchTransactionInvalid {
+                reason: format!(
+                    "Execute transaction {execute_tx_hash} for batch {} does not have the corresponding `BlockExecution` event log",
+                    batch_number
+                )
+            })
         }
     }
 }
@@ -514,6 +522,13 @@ impl UpdaterCursor {
         batch_info: &api::L1BatchDetails,
         stage: AggregatedActionType,
     ) -> anyhow::Result<(Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>)> {
+        let map_validation_result =
+            |validtion_result: Result<(), TransactionValidationError>| match validtion_result {
+                Ok(()) => Ok((None, None, None)),
+                Err(err) if err.is_retriable() => Ok((None, None, None)),
+                Err(err) => Err(err.into()),
+            };
+
         match stage {
             AggregatedActionType::Commit => {
                 if let Some(commit_tx_hash) = batch_info.base.commit_tx_hash {
@@ -526,18 +541,11 @@ impl UpdaterCursor {
                         ));
                     }
                     // Validate the commit transaction against the database.
-                    match l1_transaction_verifier
-                        .validate_commit_tx_against_db(commit_tx_hash, batch_info.number)
-                        .await
-                        .context("Failed to validate commit transaction against the database")?
-                    {
-                        L1TransactionValidationResult::Valid => Ok((
-                            batch_info.base.commit_tx_hash,
-                            batch_info.base.committed_at,
-                            batch_info.base.commit_chain_id,
-                        )),
-                        L1TransactionValidationResult::TryLater => Ok((None, None, None)),
-                    }
+                    map_validation_result(
+                        l1_transaction_verifier
+                            .validate_commit_tx_against_db(commit_tx_hash, batch_info.number)
+                            .await,
+                    )
                 } else {
                     Ok((None, None, None))
                 }
@@ -552,18 +560,11 @@ impl UpdaterCursor {
                         ));
                     }
                     // Validate the prove transaction events.
-                    match l1_transaction_verifier
-                        .validate_prove_tx(prove_tx_hash, batch_info.number)
-                        .await
-                        .context("Failed to validate prove transaction")?
-                    {
-                        L1TransactionValidationResult::Valid => Ok((
-                            batch_info.base.prove_tx_hash,
-                            batch_info.base.proven_at,
-                            batch_info.base.prove_chain_id,
-                        )),
-                        L1TransactionValidationResult::TryLater => Ok((None, None, None)),
-                    }
+                    map_validation_result(
+                        l1_transaction_verifier
+                            .validate_prove_tx(prove_tx_hash, batch_info.number)
+                            .await,
+                    )
                 } else {
                     Ok((None, None, None))
                 }
@@ -579,18 +580,11 @@ impl UpdaterCursor {
                         ));
                     }
                     // Validate the execute transaction events.
-                    match l1_transaction_verifier
-                        .validate_execute_tx(execute_tx_hash, batch_info.number)
-                        .await
-                        .context("Failed to validate execute transaction")?
-                    {
-                        L1TransactionValidationResult::Valid => Ok((
-                            batch_info.base.execute_tx_hash,
-                            batch_info.base.executed_at,
-                            batch_info.base.execute_chain_id,
-                        )),
-                        L1TransactionValidationResult::TryLater => Ok((None, None, None)),
-                    }
+                    map_validation_result(
+                        l1_transaction_verifier
+                            .validate_execute_tx(execute_tx_hash, batch_info.number)
+                            .await,
+                    )
                 } else {
                     Ok((None, None, None))
                 }
@@ -622,7 +616,6 @@ impl UpdaterCursor {
         l1_transaction_verifier: &L1TransactionVerifier,
         stage: AggregatedActionType,
     ) -> anyhow::Result<()> {
-        
         let (last_l1_batch, changes_to_update) = match stage {
             AggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
