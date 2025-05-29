@@ -326,8 +326,15 @@ impl LocalConfig {
             ContractVerifierSecrets, ExperimentalDBConfig,
         };
 
+        let mut api = ApiConfig::for_tests();
+        // Set all ports to 0 to assign free ports, so that they don't conflict for high-level tests.
+        api.web3_json_rpc.http_port = 0;
+        api.web3_json_rpc.ws_port = 0;
+        api.merkle_tree.port = 0;
+        api.healthcheck.port = 0;
+
         Self {
-            api: ApiConfig::for_tests(),
+            api,
             db: DBConfig {
                 state_keeper_db_path: temp_dir.path().join("state_keeper_cache"),
                 merkle_tree: MerkleTreeConfig::for_tests(temp_dir.path().join("tree")),
