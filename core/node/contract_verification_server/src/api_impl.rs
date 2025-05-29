@@ -3,7 +3,7 @@ use std::{collections::HashSet, iter, sync::Arc};
 use anyhow::Context as _;
 use axum::{
     body::{to_bytes, Body},
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, Request, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -17,13 +17,17 @@ use zksync_types::{
             VerificationProblem, VerificationRequestStatus,
         },
         contract_identifier::ContractIdentifier,
-        etherscan::{EtherscanRequest, EtherscanRequestPayload, EtherscanResponse},
+        etherscan::{
+            EtherscanGetParams, EtherscanGetPayload, EtherscanPostPayload, EtherscanPostRequest,
+            EtherscanResponse, EtherscanResult,
+        },
     },
     Address,
 };
 
 use super::{api_decl::RestApi, metrics::METRICS};
 
+#[allow(clippy::large_enum_variant)]
 #[derive(serde::Serialize)]
 #[serde(untagged)]
 pub enum APIPostResponse {
@@ -175,26 +179,95 @@ impl RestApi {
             }
             // Etherscan-like verification request in urlencoded form format
             "application/x-www-form-urlencoded" => {
-                let req: EtherscanRequest =
-                    serde_urlencoded::from_bytes::<EtherscanRequest>(&body_bytes)
+                let req: EtherscanPostRequest =
+                    serde_urlencoded::from_bytes::<EtherscanPostRequest>(&body_bytes)
                         .map_err(|e| ApiError::DeserializationError(anyhow::anyhow!(e)))?;
 
-                let etherscan_response = Self::etherscan_action(State(self_), req).await?;
+                let etherscan_response = Self::etherscan_post_action(State(self_), req).await?;
                 return Ok(Json(APIPostResponse::EtherscanResponse(etherscan_response)));
             }
             _ => return Err(ApiError::UnsupportedContentType),
         }
     }
 
-    /// General handler to process Etherscan-like verification requests. Based on the EtherscanRequestPayload
+    async fn etherscan_get_abi(self: Arc<Self>, address: Address) -> EtherscanResponse {
+        match Self::verification_info(State(self), Path(address)).await {
+            // Return the abi only for the target address, omit other matches.
+            Ok(verification_info) if verification_info.request.req.contract_address == address => {
+                EtherscanResponse::successful(verification_info.0.artifacts.abi.to_string())
+            }
+            _ => EtherscanResponse::failed("Contract source code not verified".into()),
+        }
+    }
+
+    async fn etherscan_get_source_code(self: Arc<Self>, address: Address) -> EtherscanResponse {
+        let verification_info = Self::verification_info(State(self), Path(address))
+            .await
+            .ok()
+            .map(|info| info.0);
+        let response = match verification_info {
+            // Return the source code only for the target address, omit other matches.
+            Some(verification_info)
+                if verification_info.request.req.contract_address == address =>
+            {
+                Some(verification_info)
+            }
+            _ => None,
+        };
+        EtherscanResponse {
+            status: "1".to_string(),
+            message: "OK".to_string(),
+            result: EtherscanResult::SourceCode(response.into()),
+        }
+    }
+
+    async fn etherscan_check_verification_status(
+        self: Arc<Self>,
+        verification_id: usize,
+    ) -> EtherscanResponse {
+        match Self::verification_request_status(State(self), Path(verification_id)).await {
+            Ok(verification_status) => verification_status.0.into(),
+            _ => EtherscanResponse::failed("Unable to locate guid".into()),
+        }
+    }
+
+    /// General handler to process Etherscan-like GET requests.
+    #[tracing::instrument(skip(self_, query))]
+    pub async fn etherscan_get_action(
+        State(self_): State<Arc<Self>>,
+        Query(query): Query<EtherscanGetParams>,
+    ) -> ApiResult<EtherscanResponse> {
+        let method_latency = METRICS.call[&"contract_verification_etherscan_get"].start();
+        let payload = match query.get_payload() {
+            Ok(payload) => payload,
+            Err(err) => {
+                return Ok(Json(EtherscanResponse::failed(err.to_string())));
+            }
+        };
+
+        let response = match payload {
+            EtherscanGetPayload::GetAbi(address) => Self::etherscan_get_abi(self_, address).await,
+            EtherscanGetPayload::GetSourceCode(address) => {
+                Self::etherscan_get_source_code(self_, address).await
+            }
+            EtherscanGetPayload::CheckVerifyStatus(verification_id) => {
+                Self::etherscan_check_verification_status(self_, verification_id).await
+            }
+        };
+
+        method_latency.observe();
+        Ok(Json(response))
+    }
+
+    /// General handler to process Etherscan-like POST requests. Based on the EtherscanPostPayload
     /// variant, it either checks the verification status or verifies the source code.
     #[tracing::instrument(skip(self_, request))]
-    async fn etherscan_action(
+    async fn etherscan_post_action(
         State(self_): State<Arc<Self>>,
-        request: EtherscanRequest,
+        request: EtherscanPostRequest,
     ) -> Result<EtherscanResponse, ApiError> {
         match request.payload {
-            EtherscanRequestPayload::CheckVerifyStatus { guid } => {
+            EtherscanPostPayload::CheckVerifyStatus { guid } => {
                 let verification_id = guid.parse::<usize>().map_err(|_| {
                     ApiError::DeserializationError(anyhow::anyhow!(
                         "Invalid verification id format. A number is expected."
@@ -204,7 +277,7 @@ impl RestApi {
                     Self::verification_request_status(State(self_), Path(verification_id)).await?;
                 return Ok(status.into());
             }
-            EtherscanRequestPayload::VerifySourceCode(verification_req) => {
+            EtherscanPostPayload::VerifySourceCode(verification_req) => {
                 let verification_id = Self::verification(
                     State(self_),
                     verification_req
