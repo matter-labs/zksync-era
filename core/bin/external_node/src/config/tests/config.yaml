@@ -81,6 +81,9 @@ api:
     whitelisted_tokens_for_aa:
       - '0x0000000000000000000000000000000000000001'
 
+contracts:
+  l1:
+    diamond_proxy_addr: '0x0000000000000000000000000000000000010001'
 state_keeper:
   l2_block_seal_queue_capacity: 20
   save_call_traces: false

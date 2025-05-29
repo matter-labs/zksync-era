@@ -110,9 +110,7 @@ fn parsing_from_env() {
         # NEW PARAMS: From SharedStateKeeperConfig
         EN_SAVE_CALL_TRACES=false
 
-        # FIXME: not parsed!
         EN_CONTRACTS_DIAMOND_PROXY_ADDR=0x0000000000000000000000000000000000010001
-
         EN_MAIN_NODE_RATE_LIMIT_RPS=150
 
         EN_SNAPSHOTS_RECOVERY_ENABLED=true
@@ -281,6 +279,15 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.l2_block_seal_queue_capacity, 20);
     assert!(config.protective_reads_persistence_enabled);
     assert!(!config.save_call_traces);
+
+    let config: SharedL1ContractsConfig =
+        tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(
+        config.diamond_proxy_addr.unwrap(),
+        "0x0000000000000000000000000000000000010001"
+            .parse()
+            .unwrap()
+    );
 
     let config: SnapshotRecoveryConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert!(config.enabled);

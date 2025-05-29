@@ -12,7 +12,7 @@ use zksync_config::{
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
             SettlementLayerSpecificContracts,
         },
-        en_config::ENConfig,
+        en_config::{ENConfig, SharedL1ContractsConfig},
         CommitmentGeneratorConfig, DataAvailabilitySecrets, L1Secrets, ObservabilityConfig,
         PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
@@ -44,7 +44,6 @@ pub(crate) struct RemoteENConfig {
     pub l1_bridgehub_proxy_addr: Option<Address>,
     pub l1_state_transition_proxy_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::l1_diamond_proxy_address`] instead.
-    #[allow(dead_code)] // FIXME
     l1_diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
@@ -221,15 +220,17 @@ pub(crate) struct LocalConfig {
     pub commitment_generator: CommitmentGeneratorConfig,
     pub timestamp_asserter: TimestampAsserterConfig,
     pub data_availability: Option<DAClientConfig>,
+    pub contracts: SharedL1ContractsConfig,
     pub networks: ENConfig,
     pub consensus: Option<ConsensusConfig>,
     pub secrets: Secrets,
 }
 
 impl LocalConfig {
+    /// Schema is chosen to be compatible both with file-based and env-based configs used for the node
+    /// previously. This leads to deprecated aliases all around, which will hopefully be removed in the midterm.
     pub fn schema() -> anyhow::Result<ConfigSchema> {
         let mut schema = ConfigSchema::default();
-        // FIXME: test
         schema.insert(&PrometheusConfig::DESCRIPTION, "prometheus")?;
         schema
             .insert(&ObservabilityConfig::DESCRIPTION, "observability")?
@@ -277,6 +278,10 @@ impl LocalConfig {
             .push_deprecated_alias("da")?;
 
         schema
+            .insert(&SharedL1ContractsConfig::DESCRIPTION, "contracts.l1")?
+            .push_alias("contracts")? // match aliasing in the main node config
+            .push_deprecated_alias("")?;
+        schema
             .insert(&ENConfig::DESCRIPTION, "networks")?
             .push_deprecated_alias("")?;
 
@@ -303,6 +308,7 @@ impl LocalConfig {
             commitment_generator: repo.parse()?,
             timestamp_asserter: repo.parse()?,
             data_availability: repo.parse_opt()?,
+            contracts: repo.parse()?,
             networks: repo.parse()?,
             consensus: if has_consensus {
                 repo.parse_opt()?
@@ -338,6 +344,7 @@ impl LocalConfig {
             commitment_generator: CommitmentGeneratorConfig::default(),
             timestamp_asserter: TimestampAsserterConfig::default(),
             data_availability: None,
+            contracts: SharedL1ContractsConfig::default(),
             networks: ENConfig::for_tests(),
             consensus: None,
             secrets: Secrets {
@@ -409,9 +416,8 @@ impl ExternalNodeConfig<()> {
             .await
             .context("Unable to fetch required config values from the main node")?;
 
-        /* FIXME: restore
         let remote_diamond_proxy_addr = remote.l1_diamond_proxy_addr;
-        if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
+        if let Some(local_diamond_proxy_addr) = self.local.contracts.diamond_proxy_addr {
             anyhow::ensure!(
                 local_diamond_proxy_addr == remote_diamond_proxy_addr,
                 "L1 diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
@@ -423,7 +429,6 @@ impl ExternalNodeConfig<()> {
                 returned by main node: {remote_diamond_proxy_addr:?}"
             );
         }
-        */
 
         Ok(ExternalNodeConfig {
             local: self.local,
@@ -446,10 +451,10 @@ impl ExternalNodeConfig {
     /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
     /// node so relying on it solely is not recommended.
     pub fn l1_diamond_proxy_address(&self) -> Address {
-        todo!()
-        //self.optional
-        //    .contracts_diamond_proxy_addr
-        //    .unwrap_or(self.remote.l1_diamond_proxy_addr)
+        self.local
+            .contracts
+            .diamond_proxy_addr
+            .unwrap_or(self.remote.l1_diamond_proxy_addr)
     }
 }
 

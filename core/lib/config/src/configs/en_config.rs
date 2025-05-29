@@ -4,7 +4,16 @@ use smart_config::{
     de::{Optional, Serde},
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
+use zksync_basic_types::{url::SensitiveUrl, Address, L1ChainId, L2ChainId, SLChainId};
+
+/// L1 contract configuration shared with the main node.
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct SharedL1ContractsConfig {
+    /// Address of the L1 diamond proxy. EN fetches most contract addresses from the L2 peer,
+    /// but the diamond proxy address is still available locally as the root of trust.
+    pub diamond_proxy_addr: Option<Address>,
+}
 
 /// Temporary config for initializing external node, will be completely replaced by consensus config later
 // FIXME: rename?
