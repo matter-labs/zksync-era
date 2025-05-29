@@ -33,6 +33,7 @@ use zksync_types::{
     block::UnsealedL1BatchHeader, snapshots::SnapshotStorageLog, Address, L1BatchNumber,
     L2BlockNumber, StorageKey, StorageLog, Transaction, ERC20_TRANSFER_TOPIC, H256,
 };
+use zksync_types::block::L1BatchTreeData;
 use zksync_vm_interface::Halt;
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
 
@@ -157,6 +158,8 @@ impl ZkosStateKeeper {
             let context = BatchContext {
                 //todo: gas
                 eip1559_basefee: U256::from(block_params.base_fee),
+                //todo: gas
+                native_price: U256::from(block_params.base_fee / 100),
                 gas_per_pubdata: Default::default(),
                 block_number: cursor.next_l2_block.0 as u64,
                 timestamp: block_params.timestamp(),
@@ -203,6 +206,8 @@ impl ZkosStateKeeper {
 
             tracing::info!("Batch #{} executed successfully", cursor.l1_batch);
 
+            // apply changes to in-memory tree/storage - note that they are not used for execution
+            // todo: remove them completely from state keeper
             for storage_write in batch_output.storage_writes.iter() {
                 self.tree
                     .cold_storage
@@ -222,7 +227,13 @@ impl ZkosStateKeeper {
                 self.preimage_source.inner.insert(*hash, preimage.clone());
             }
 
-            updates_manager.final_extend(batch_output.clone());
+            let tree_data = L1BatchTreeData {
+                hash: bytes32_to_h256(*root),
+                rollup_last_leaf_index: self.tree.storage_tree.next_free_slot - 1
+            };
+
+
+            updates_manager.final_extend(batch_output.clone(), tree_data);
             let initial_writes = self.initial_writes(&updates_manager).await?;
 
             self.push_block_storage_diff(

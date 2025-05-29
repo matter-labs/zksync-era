@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE l1_batches\n            SET\n                l2_l1_merkle_root = $1,\n                updated_at = NOW()\n            WHERE\n                number = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ee7479d10352c37f7639ba39a8cf918985a347550e8bb1994cb61582e8e5b12f"
+}

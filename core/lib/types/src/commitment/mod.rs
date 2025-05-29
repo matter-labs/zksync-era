@@ -382,6 +382,7 @@ impl L1BatchAuxiliaryOutput {
                 blob_hashes,
                 aggregation_root,
             } => {
+                // first we concatenate l2->l1 logs and then chunk again - refactor.
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
                     .chunks(UserL2ToL1Log::SERIALIZED_SIZE)

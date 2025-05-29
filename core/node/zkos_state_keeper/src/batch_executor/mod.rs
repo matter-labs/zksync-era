@@ -69,6 +69,7 @@ impl MainBatchExecutor {
         let handle = spawn_blocking(move || {
             run_batch(
                 context,
+                // note: interface still requires Tree, but it doesn't actually invoke any methods on it
                 storage.clone(),
                 storage,
                 tx_source,

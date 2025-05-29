@@ -8,7 +8,9 @@ use std::{
 
 use anyhow::Context as _;
 use itertools::Itertools;
+use zk_ee::common_structs::L2ToL1Log;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     block::{build_bloom, L1BatchHeader, L2BlockHeader},
     helpers::unix_timestamp_ms,
@@ -110,21 +112,52 @@ impl BlockSealCommand {
             number: self.inner.l1_batch_number,
             timestamp: self.inner.timestamp,
             priority_ops_onchain_data: vec![],
-            l1_tx_count: 0, // TODO: l1_tx_count as u16
+            l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
-            l2_to_l1_logs: self.inner.user_l2_to_l1_logs.clone(),
+            l2_to_l1_logs: vec![], //todo: l2_to_l1_logs are not saved yet
             l2_to_l1_messages: vec![],
             bloom: Default::default(),
             used_contract_hashes: vec![],
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(self.inner.protocol_version),
             system_logs: vec![],
-            pubdata_input: None,
+            pubdata_input: Some(self.inner.block_pubdata.clone().expect("Block pubdata must be set for sealed zkos blocks")),
             fee_address: self.inner.fee_account_address,
             batch_fee_input: self.inner.batch_fee_input,
         };
 
         let final_bootloader_memory = vec![];
+
+        // todo: this is temporarily saved in state keeper - consider moving to a separate component
+        let encoded_l2_l1_logs = self
+            .inner
+            .user_l2_to_l1_logs
+            .iter()
+            .map(|log| {
+                log.encode()
+            });
+
+        // todo - extract constant
+        let l2_l1_merkle_root = MiniMerkleTree::new(encoded_l2_l1_logs, Some(2 << 14))
+            .merkle_root();
+
+        transaction
+            .blocks_dal()
+            .insert_l2_l1_message_root(
+                self.inner.l1_batch_number,
+                l2_l1_merkle_root,
+            )
+            .await?;
+
+        // todo: tree root hash is temporarily saved in state keeper - remove it and make tree save it instead
+
+        transaction
+            .blocks_dal()
+            .save_l1_batch_tree_data(
+                self.inner.l1_batch_number,
+                &self.inner.tree_data.expect("zkos state keeper should fill block hash"),
+            )
+            .await?;
 
         transaction
             .blocks_dal()
@@ -192,6 +225,7 @@ impl BlockSealCommand {
         self.group_by_tx_location(&self.inner.events, |event| event.location.1)
     }
 
+    // todo: this shouldn't be needed - VM returns events and l2_to_l1_logs already grouped
     fn group_by_tx_location<'a, T>(
         &'a self,
         entries: &'a [T],
@@ -210,10 +244,12 @@ impl BlockSealCommand {
         grouped_entries.collect()
     }
 
-    fn extract_user_l2_to_l1_logs(&self) -> Vec<(IncludedTxLocation, Vec<&UserL2ToL1Log>)> {
-        self.group_by_tx_location(&self.inner.user_l2_to_l1_logs, |log| {
-            u32::from(log.0.tx_number_in_block)
-        })
+    fn extract_user_l2_to_l1_logs(&self) -> Vec<(IncludedTxLocation, Vec<&L2ToL1Log>)> {
+        Default::default()
+        // todo: l2_to_l1_logs are not saved for now
+        // self.group_by_tx_location(&self.inner.user_l2_to_l1_logs, |log| {
+        //     u32::from(log.tx_number_in_block)
+        // })
     }
 }
 

@@ -3,7 +3,7 @@
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use std::{collections::HashMap, fmt::Formatter};
-
+use std::str::FromStr;
 use anyhow::Context as _;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
@@ -15,20 +15,9 @@ use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
-use zksync_types::{
-    block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
-    bytecode::BytecodeHash,
-    commitment::{CommitmentInput, L1BatchCommitment},
-    fee_model::BatchFeeInput,
-    protocol_upgrade::decode_genesis_upgrade_event,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    system_contracts::get_system_smart_contracts,
-    u256_to_h256,
-    web3::{BlockNumber, FilterBuilder},
-    zk_evm_types::LogQuery,
-    AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
-    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
-};
+use zksync_types::{block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader}, bytecode::BytecodeHash, commitment::{CommitmentInput, L1BatchCommitment}, fee_model::BatchFeeInput, protocol_upgrade::decode_genesis_upgrade_event, protocol_version::{L1VerifierConfig, ProtocolSemanticVersion}, system_contracts::get_system_smart_contracts, u256_to_h256, web3::{BlockNumber, FilterBuilder}, zk_evm_types::LogQuery, AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256, ethabi};
+use zksync_types::block::L1BatchTreeData;
+use zksync_types::ethabi::Token;
 use zksync_zk_os_merkle_tree::TreeEntry;
 
 use crate::utils::{
@@ -272,7 +261,7 @@ pub async fn insert_genesis_batch_with_custom_state(
         verifier_config,
     )
     .await?;
-    tracing::info!("chain_schema_genesis is complete");
+    tracing::info!("chain_schema_genesis is complete. Deduped log queries: {:?}", deduped_log_queries);
 
     let base_system_contract_hashes = BaseSystemContractsHashes {
         bootloader: genesis_params
@@ -286,19 +275,50 @@ pub async fn insert_genesis_batch_with_custom_state(
         evm_emulator: genesis_params.config.evm_emulator_hash,
     };
 
-    let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
-        deduped_log_queries,
-        base_system_contract_hashes,
-        genesis_params.minor_protocol_version(),
-    );
+    let tree_entries = deduped_log_queries
+        .into_iter()
+        .filter(|log_query| log_query.rw_flag) // only writes
+        .map(|log| {
+            let storage_key =
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+            TreeEntry {
+                key: storage_key.hashed_key(),
+                value: u256_to_h256(log.written_value),
+            }
+        })
+        .collect::<Vec<_>>();
 
-    save_genesis_l1_batch_metadata(
-        &mut transaction,
-        block_commitment.clone(),
-        genesis_batch_params.root_hash,
-        genesis_batch_params.rollup_last_leaf_index,
-    )
-    .await?;
+    let metadata = process_genesis_batch_in_tree(&tree_entries);
+
+    // this commitment matches computation in
+    // core/lib/l1_contract_interface/src/i_executor/structures/stored_batch_info.rs
+    // code will be reused after commitment refactor
+
+    let commitment: H256 = H256::from_str("0xb4f6edf90e4566bffce35f453012ec03c1e52b07a9f0a1ed4e25fdc88259db55").unwrap();
+    let genesis_batch_params = GenesisBatchParams {
+        root_hash: metadata.root_hash,
+        rollup_last_leaf_index: 0, // hardcoded in zkos
+        commitment,
+    };
+
+    let tree_data = L1BatchTreeData {
+        hash: metadata.root_hash,
+        rollup_last_leaf_index: 0,
+    };
+
+    transaction
+        .blocks_dal()
+        .save_l1_batch_tree_data(L1BatchNumber(0), &tree_data)
+        .await?;
+
+
+    transaction
+        .blocks_dal()
+        // set to zero in DEFAULT_L2_LOGS_TREE_ROOT_HASH in
+        // /Users/romanbrodetskiy/src/zksync-era/contracts/l1-contracts/contracts/common/Config.sol
+        .insert_l2_l1_message_root(L1BatchNumber(0), H256::zero())
+        .await?;
+
     transaction.commit().await?;
 
     Ok(genesis_batch_params)

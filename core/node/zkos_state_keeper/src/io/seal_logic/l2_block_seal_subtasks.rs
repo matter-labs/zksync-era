@@ -254,18 +254,19 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
         command: &BlockSealCommand,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
+        //todo: l2_to_l1_logs are not saved currently
         let user_l2_to_l1_logs = command.extract_user_l2_to_l1_logs();
         let user_l2_to_l1_log_count: usize = user_l2_to_l1_logs
             .iter()
             .map(|(_, l2_to_l1_logs)| l2_to_l1_logs.len())
             .sum();
 
-        if !user_l2_to_l1_logs.is_empty() {
-            connection
-                .events_dal()
-                .save_user_l2_to_l1_logs(command.inner.l2_block_number, &user_l2_to_l1_logs)
-                .await?;
-        }
+        // if !user_l2_to_l1_logs.is_empty() {
+        //     connection
+        //         .events_dal()
+        //         .save_user_l2_to_l1_logs(command.inner.l2_block_number, &user_l2_to_l1_logs)
+        //         .await?;
+        // }
         Ok(())
     }
 

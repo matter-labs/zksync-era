@@ -6,7 +6,7 @@ use zksync_types::{
     web3::contract::Error as ContractError,
     H256, U256,
 };
-
+use crate::i_executor::structures::CommitBoojumOSBatchInfo;
 use crate::Tokenizable;
 
 /// `StoredBatchInfo` from `IExecutor.sol`.
@@ -55,6 +55,79 @@ impl StoredBatchInfo {
     }
 }
 
+// modified to match the `StoredBatchInfo` structure from zk os smart contracts:
+// https://github.com/matter-labs/era-contracts/blob/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L64-L73
+// struct StoredBatchInfo {
+//         uint64 batchNumber;
+//         bytes32 batchHash; // For Boojum OS batches we'll store here full state commitment
+//         uint64 indexRepeatedStorageChanges; // For Boojum OS not used, 0
+//         uint256 numberOfLayer1Txs;
+//         bytes32 priorityOperationsHash;
+//         bytes32 l2LogsTreeRoot;
+//         uint256 timestamp; // For Boojum OS not used, 0
+//         bytes32 commitment;// For Boojum OS batches we'll store public input here
+//     }
+//
+
+// todo when L1BatchWithMetadata is refactored, we should convert it to this struct directly
+impl StoredBatchInfo {
+    pub fn new(
+        batch: CommitBoojumOSBatchInfo
+    ) -> Self {
+        Self {
+            batch_number: batch.batch_number.into(),
+            batch_hash: batch.new_state_commitment,
+            index_repeated_storage_changes: 0, // not used in Boojum OS, must be zero
+            number_of_layer1_txs: batch.number_of_layer1_txs,
+            priority_operations_hash: batch.priority_operations_hash,
+            l2_logs_tree_root: batch.l2_logs_tree_root,
+            timestamp: 0.into(), // not used in Boojum OS
+            commitment: Self::public_input_hash(&batch)
+        }
+    }
+
+    // in zkos `commitment` field should contain the public input hash:
+    // https://github.com/matter-labs/era-contracts/blame/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L160-L181
+    //   // Create batch PI for the proof verification
+    //         bytes32 batchOutputsHash = keccak256(
+    //             abi.encodePacked(
+    //                 _newBatch.chainId,
+    //                 _newBatch.firstBlockTimestamp,
+    //                 _newBatch.lastBlockTimestamp,
+    //                 uint160(_newBatch.l2DaValidator),
+    //                 _newBatch.daCommitment,
+    //                 _newBatch.numberOfLayer1Txs,
+    //                 _newBatch.priorityOperationsHash,
+    //                 _newBatch.l2LogsTreeRoot,
+    //                 bytes32(0) // upgrade tx hash
+    //             )
+    //         );
+    // note: the original plan was to use public input hash, but now we only use batchOutputsHash
+
+    // todo: check Token types if hash mismatch
+    fn public_input_hash(
+        batch: &CommitBoojumOSBatchInfo
+    ) -> H256 {
+        //todo: use packed encoding
+        let batch_outputs = ethabi::encode(&[
+            Token::Uint(batch.chain_id),
+            Token::Uint(batch.first_block_timestamp.into()),
+            Token::Uint(batch.last_block_timestamp.into()),
+            Token::Address(batch.l2_da_validator),
+            Token::FixedBytes(batch.da_commitment.as_bytes().to_vec()),
+            Token::Uint(batch.number_of_layer1_txs),
+            Token::FixedBytes(batch.priority_operations_hash.as_bytes().to_vec()),
+            Token::FixedBytes(batch.l2_logs_tree_root.as_bytes().to_vec()),
+            Token::FixedBytes(H256::default().as_bytes().to_vec()), // upgrade tx hash
+        ]);
+        let batch_outputs_hash = web3::keccak256(&batch_outputs);
+        H256(batch_outputs_hash)
+    }
+}
+
+
+// todo: this conversion is only used by legacy methods - not in zkos
+// commitment is not computed correctly here
 impl From<&L1BatchWithMetadata> for StoredBatchInfo {
     fn from(x: &L1BatchWithMetadata) -> Self {
         Self {
@@ -69,6 +142,7 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
         }
     }
 }
+
 
 impl Tokenizable for StoredBatchInfo {
     fn from_token(token: Token) -> Result<Self, ContractError> {

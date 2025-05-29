@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 
 use itertools::{Either, Itertools};
-use zk_ee::common_structs::PreimageType;
+use zk_ee::common_structs::{L2ToL1Log, PreimageType};
 use zk_os_basic_system::system_implementation::io::AccountProperties as BoojumAccountProperties;
 use zk_os_forward_system::run::{
     output::BlockHeader, result_keeper::TxProcessingOutputOwned, BatchOutput,
 };
-use zksync_types::{
-    boojum_os::AccountProperties, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
-    StorageLog, StorageLogKind, Transaction, H256, U256,
-};
+use zksync_types::{boojum_os::AccountProperties, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, Transaction, H256, U256, ExecuteTransactionCommon};
+use zksync_types::block::L1BatchTreeData;
+use zksync_types::priority_op_onchain_data::PriorityOpOnchainData;
 use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmEvent, VmRevertReason};
 use zksync_zkos_vm_runner::zkos_conversions::{
     b160_to_address, bytes32_to_h256, zkos_log_to_vm_event,
@@ -30,16 +28,27 @@ pub struct UpdatesManager {
     pub protocol_version: ProtocolVersionId,
     pub gas_limit: u64,
 
+    // todo: VM returns events and l2 l1 logs grouped by transaction -
+    // reflect it here instead of grouping again later
     pub events: Vec<VmEvent>,
     pub storage_logs: Vec<StorageLog>,
-    pub user_l2_to_l1_logs: Vec<UserL2ToL1Log>, // TODO: not filled currently
+    pub user_l2_to_l1_logs: Vec<L2ToL1Log>,
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     pub new_account_data: Vec<(H256, AccountProperties)>,
+    pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
+    // only filled in after batch sealed
+    // todo: poor abstraction - state transition in this component is not represented on type level
     pub block_header: Option<BlockHeader>,
 
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub cumulative_payload_encoding_size: usize,
     pub cumulative_gas_used: u64,
+    // only filled in after batch sealed
+    // todo: poor abstraction - state transition in this component is not represented on type level
+    pub block_pubdata: Option<Vec<u8>>,
+
+    // todo: this shouldn't be set in state keeper - set in tree instead
+    pub tree_data: Option<L1BatchTreeData>
 }
 
 impl UpdatesManager {
@@ -72,6 +81,9 @@ impl UpdatesManager {
             executed_transactions: Vec::new(),
             cumulative_payload_encoding_size: 0,
             cumulative_gas_used: 0,
+            priority_ops_onchain_data: Vec::new(),
+            block_pubdata: None,
+            tree_data: None
         }
     }
 
@@ -82,9 +94,10 @@ impl UpdatesManager {
         }
     }
 
-    pub fn final_extend(&mut self, mut batch_output: BatchOutput) {
+    // todo: we temporarily pass block hash here - move it to tree
+    pub fn final_extend(&mut self, mut batch_output: BatchOutput, tree_data: L1BatchTreeData) {
         let tx_output_iter = batch_output.tx_results.into_iter().filter_map(|r| r.ok());
-
+        // todo: instead of concatenating them, store grouped by tx
         for (idx, tx_output) in tx_output_iter.enumerate() {
             let location = (self.l1_batch_number, idx as u32);
             let events = tx_output
@@ -92,6 +105,12 @@ impl UpdatesManager {
                 .into_iter()
                 .map(|log| zkos_log_to_vm_event(log, location));
             self.events.extend(events);
+
+            let logs = tx_output
+                .l2_to_l1_logs
+                .into_iter()
+                .map(|log| { log.log });
+            self.user_l2_to_l1_logs.extend(logs);
         }
 
         let (factory_deps, account_data): (Vec<_>, Vec<_>) = batch_output
@@ -128,7 +147,9 @@ impl UpdatesManager {
             .collect();
         self.storage_logs = storage_logs;
 
+        self.tree_data = Some(tree_data);
         self.block_header = Some(batch_output.header);
+        self.block_pubdata = Some(batch_output.pubdata);
     }
 
     pub fn extend_from_executed_transaction(
@@ -151,6 +172,11 @@ impl UpdatesManager {
         };
         let gas_limit = transaction.gas_limit().as_u64();
         let refunded_gas = gas_limit - tx_output.gas_used;
+
+        if let ExecuteTransactionCommon::L1(data) = &transaction.common_data {
+            let onchain_metadata = data.onchain_metadata().onchain_data;
+            self.priority_ops_onchain_data.push(onchain_metadata);
+        }
 
         let executed_transaction = TransactionExecutionResult {
             hash: transaction.hash(),

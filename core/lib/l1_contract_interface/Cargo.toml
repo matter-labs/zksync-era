@@ -26,6 +26,7 @@ sha2.workspace = true
 sha3.workspace = true
 hex.workspace = true
 once_cell.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

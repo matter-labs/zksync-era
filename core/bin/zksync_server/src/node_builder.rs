@@ -876,10 +876,10 @@ impl MainNodeBuilder {
                     self = self.add_contract_verification_api_layer()?;
                 }
                 Component::Tree => {
-                    tracing::warn!("ZKos Tree needs update after merging `main` in `rb-zkos-integration`")
+                    // tracing::warn!("ZKos Tree needs update after merging `main` in `rb-zkos-integration`")
                     // anyhow::bail!("Tree component is not supposed for Zk Os");
-                    // let with_tree_api = components.contains(&Component::TreeApi);
-                    // self = self.add_tree_manager_layer(with_tree_api)?;
+                    let with_tree_api = components.contains(&Component::TreeApi);
+                    self = self.add_tree_manager_layer(with_tree_api)?;
                 }
                 Component::TreeApi => {
                     unreachable!("Tree component is not supposed for Zk Os");

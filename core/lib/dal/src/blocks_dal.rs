@@ -1172,6 +1172,36 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    // standalone method - as other commitment details
+    // required for zkos are included in L1BatchHeader
+    // this will change after commitment refactoring
+    pub async fn insert_l2_l1_message_root(
+        &mut self,
+        number: L1BatchNumber,
+        l2_l1_message_root: H256,
+    ) -> anyhow::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE l1_batches
+            SET
+                l2_l1_merkle_root = $1,
+                updated_at = NOW()
+            WHERE
+                number = $2
+            "#,
+            l2_l1_message_root.as_bytes(),
+            i64::from(number.0),
+        )
+        .instrument("insert_l2_l1_message_root")
+        .with_arg("number", &number)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
+
     pub async fn save_l1_batch_commitment_artifacts(
         &mut self,
         number: L1BatchNumber,
