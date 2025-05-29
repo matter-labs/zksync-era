@@ -283,17 +283,13 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
-        let current_observable_pages = self.observable_pages.inner().current_frame();
+        let returndata_page = returndata_fat_pointer.memory_page;
 
-        if last_callstack_this == CODE_ORACLE_ADDRESS {
-            // When the code oracle decommits a bytecode for the first time,
-            // it needs to keep that heap alive forever.
-            // We keep all heaps of that contract just to be safe.
-            self.observable_pages.clear_frame(timestamp);
-        } else {
-            let returndata_page = returndata_fat_pointer.memory_page;
-
-            for &page in current_observable_pages {
+        // When the code oracle decommits a bytecode for the first time,
+        // it needs to keep that heap alive forever.
+        // We keep all heaps of that contract just to be safe.
+        if last_callstack_this != CODE_ORACLE_ADDRESS {
+            for &page in self.observable_pages.inner().current_frame() {
                 // If the page's number is greater than or equal to the `base_page`,
                 // it means that it was created by the internal calls of this contract.
                 // Returned data must not be cleared, however.
@@ -301,13 +297,15 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
                     self.memory.clear_page(page as usize, timestamp);
                 }
             }
+        }
 
-            self.observable_pages.clear_frame(timestamp);
+        self.observable_pages.clear_frame(timestamp);
+        self.observable_pages.merge_frame(timestamp);
+
+        if last_callstack_this != CODE_ORACLE_ADDRESS {
             self.observable_pages
                 .push_to_frame(returndata_page, timestamp);
         }
-
-        self.observable_pages.merge_frame(timestamp);
     }
 }
 
