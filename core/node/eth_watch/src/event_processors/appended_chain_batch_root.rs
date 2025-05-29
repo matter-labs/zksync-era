@@ -181,10 +181,6 @@ impl EventProcessor for BatchRootProcessor {
 
                 let gw_block_number =
                     Self::get_gw_block_number(&mut transaction, *batch_number).await?;
-                println!(
-                    "gw block number for batch {}: {}",
-                    batch_number, gw_block_number
-                );
                 let gw_chain_agg_proof = self
                     .sl_l2_client
                     .get_chain_log_proof(
@@ -255,13 +251,6 @@ impl BatchRootProcessor {
                 AggregatedActionType::Execute,
             )
             .await;
-
-        // ci only
-        storage
-            .eth_sender_dal()
-            .ci_get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id.unwrap())
-            .await
-            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
 
         let tx = storage
             .eth_sender_dal()

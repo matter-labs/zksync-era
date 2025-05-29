@@ -84,10 +84,6 @@ pub(super) async fn get_chain_root_from_id(
         .get_historical_value_unchecked(chain_root_storage_key.hashed_key(), block_number)
         .await
         .map_err(DalError::generalize)?;
-    println!(
-        "getting chain root for chain id {:?} and block number {:?}: {:?}",
-        chain_id, block_number, chain_root
-    );
     Ok(chain_root)
 }
 
