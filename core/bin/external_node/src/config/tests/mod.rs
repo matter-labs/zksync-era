@@ -3,8 +3,9 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
-use smart_config::{testing::Tester, value::ExposeSecret, ByteSize};
+use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource, Yaml};
 use zksync_config::configs::{
+    api::HealthCheckConfig,
     chain::TimestampAsserterConfig,
     da_client::{
         avail::{AvailClientConfig, AvailFinalityState},
@@ -345,11 +346,16 @@ fn parsing_from_env() {
 
         # API component config
         EN_API_TREE_API_REMOTE_URL=http://tree/
+        # Tree component config
+        EN_TREE_API_PORT=2955
     "#;
     let env = smart_config::Environment::from_dotenv("test.env", env)
         .unwrap()
         .strip_prefix("EN_");
+    test_parsing_general_config(env);
+}
 
+fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let mut tester = Tester::new(schema().unwrap());
     tester.coerce_variant_names().coerce_serde_enums();
     tester
@@ -359,7 +365,7 @@ fn parsing_from_env() {
         )
         .set_env("DATABASE_POOL_SIZE", "50");
 
-    let config: Web3JsonRpcConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: Web3JsonRpcConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.filters_limit, 5_000);
     assert_eq!(config.subscriptions_limit, 5_000);
     assert_eq!(config.req_entities_limit, 1_000);
@@ -398,7 +404,7 @@ fn parsing_from_env() {
     assert_eq!(config.http_port, 2_950);
     assert_eq!(config.ws_port, 2_951);
 
-    let config: HealthCheckConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: HealthCheckConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.slow_time_limit_ms, Some(Duration::from_millis(75)));
     assert_eq!(
         config.hard_time_limit_ms,
@@ -406,7 +412,10 @@ fn parsing_from_env() {
     );
     assert_eq!(config.port, 2_952);
 
-    let db_config: DBConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: MerkleTreeApiConfig = tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(config.port, 2955);
+
+    let db_config: DBConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(
         db_config.state_keeper_db_path.as_os_str(),
         "/db/state-keeper"
@@ -437,7 +446,7 @@ fn parsing_from_env() {
     );
 
     let config: zksync_config::PostgresConfig =
-        tester.for_config().test_complete(env.clone()).unwrap();
+        tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.max_connections, Some(50));
     assert_eq!(
         config.long_connection_threshold_ms,
@@ -447,7 +456,7 @@ fn parsing_from_env() {
     assert_eq!(config.acquire_timeout_sec, Duration::from_secs(15));
     assert_eq!(config.statement_timeout_sec, Duration::from_secs(20));
 
-    let config: SnapshotRecoveryConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: SnapshotRecoveryConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert!(config.enabled);
     assert_eq!(
         config.postgres.max_concurrency,
@@ -474,19 +483,21 @@ fn parsing_from_env() {
         "/tmp/object-store"
     );
 
-    let config: PruningConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: PruningConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert!(config.enabled);
     assert_eq!(config.chunk_size, NonZeroU32::new(5).unwrap());
     assert_eq!(config.removal_delay_sec, Duration::from_secs(120));
     assert_eq!(config.data_retention_sec, Duration::from_secs(86_400));
 
-    let config: TimestampAsserterConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: TimestampAsserterConfig =
+        tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.min_time_till_end_sec, Duration::from_secs(90));
 
-    let config: CommitmentGeneratorConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: CommitmentGeneratorConfig =
+        tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.max_parallelism, Some(NonZeroU32::new(4).unwrap()));
 
-    let config: ENConfig = tester.for_config().test_complete(env.clone()).unwrap();
+    let config: ENConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(
         config.main_node_rate_limit_rps,
         NonZeroUsize::new(150).unwrap()
@@ -500,7 +511,7 @@ fn parsing_from_env() {
     assert_eq!(config.l2_chain_id, L2ChainId::from(270));
     assert_eq!(config.main_node_url.expose_str(), "https://127.0.0.1:3050/");
 
-    let secrets: Secrets = tester.for_config().test(env.clone()).unwrap();
+    let secrets: Secrets = tester.for_config().test(source.clone()).unwrap();
     assert_eq!(
         secrets.database.server_url.unwrap().expose_str(),
         "postgres://postgres:notsecurepassword@localhost:5432/en"
@@ -513,6 +524,13 @@ fn parsing_from_env() {
         secrets.l1.gateway_rpc_url.unwrap().expose_str(),
         "https://127.0.0.1:3150/"
     );
+}
+
+#[test]
+fn parsing_from_yaml() {
+    let yaml = serde_yaml::from_str(include_str!("config.yaml")).unwrap();
+    let yaml = Yaml::new("test.yaml", yaml).unwrap();
+    test_parsing_general_config(yaml);
 }
 
 #[test]

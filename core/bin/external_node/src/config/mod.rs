@@ -14,10 +14,7 @@ use serde::{de, Deserialize, Deserializer};
 use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
-        api::{
-            HealthCheckConfig, MaxResponseSize, MaxResponseSizeOverrides, MerkleTreeApiConfig,
-            Web3JsonRpcConfig,
-        },
+        api::{MaxResponseSize, MaxResponseSizeOverrides, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::TimestampAsserterConfig,
         consensus::{ConsensusConfig, ConsensusSecrets},
         contracts::{
@@ -30,7 +27,7 @@ use zksync_config::{
         PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, DAClientConfig, DBConfig, ObjectStoreConfig,
+    ApiConfig, ConfigRepositoryExt, DAClientConfig, DBConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -297,15 +294,16 @@ where
 fn schema() -> anyhow::Result<ConfigSchema> {
     let mut schema = ConfigSchema::default();
     schema
-        .insert(&Web3JsonRpcConfig::DESCRIPTION, "api.web3_json_rpc")?
+        .insert(&ApiConfig::DESCRIPTION, "api")?
+        .push_deprecated_alias("")?;
+    schema
+        .single_mut(&Web3JsonRpcConfig::DESCRIPTION)?
         .push_alias("api")? // FIXME: is this OK (used for single param)?
         .push_deprecated_alias("")?;
     schema
-        .insert(&HealthCheckConfig::DESCRIPTION, "api.healthcheck")?
-        .push_deprecated_alias("healthcheck")?;
-    schema
-        .insert(&MerkleTreeApiConfig::DESCRIPTION, "api.merkle_tree")?
-        .push_deprecated_alias("merkle_tree.api")?;
+        .single_mut(&MerkleTreeApiConfig::DESCRIPTION)?
+        .push_deprecated_alias("tree.api")?;
+
     schema
         .insert(&DBConfig::DESCRIPTION, "db")?
         .push_deprecated_alias("")?;
