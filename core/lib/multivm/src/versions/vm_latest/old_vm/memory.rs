@@ -286,10 +286,12 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         let is_returndata_page_static = last_callstack_this == CODE_ORACLE_ADDRESS;
         let current_observable_pages = self.observable_pages.inner().current_frame();
 
-        // It is possible that the code oracle runs out of gas after decommitting code.
-        // The page with the code needs to be kept but the zero page is returned instead
-        // in that case.
-        let returndata_page = if is_returndata_page_static {
+        let returndata_page = if is_returndata_page_static && returndata_fat_pointer.length == 0 {
+            // This only happens when the code oracle runs out of gas after decommitting code.
+            // The page with the code needs to be kept but the zero page is returned instead
+            // in that case.
+            // If the page has been decommitted in past, this erroneously keeps an empty heap
+            // alive but that is a very rare case.
             heap_page_from_base(base_page).0
         } else {
             returndata_fat_pointer.memory_page
