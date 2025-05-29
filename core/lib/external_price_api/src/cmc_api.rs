@@ -6,9 +6,9 @@ use serde::Deserialize;
 use tokio::sync::RwLock;
 use url::Url;
 use zksync_config::configs::ExternalPriceApiClientConfig;
-use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-use crate::{address_to_string, utils::get_fraction, PriceAPIClient};
+use crate::{address_to_string, utils::get_fraction, PriceApiClient};
 
 const AUTH_HEADER: &str = "x-cmc_pro_api_key";
 const DEFAULT_API_URL: &str = "https://pro-api.coinmarketcap.com";
@@ -165,12 +165,12 @@ struct CryptocurrencyPlatform {
 }
 
 #[async_trait]
-impl PriceAPIClient for CmcPriceApiClient {
-    async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
+impl PriceApiClient for CmcPriceApiClient {
+    async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenApiRatio> {
         let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
         let (term_ether, term_base_token) = get_fraction(base_token_in_eth)?;
 
-        return Ok(BaseTokenAPIRatio {
+        return Ok(BaseTokenApiRatio {
             numerator: term_base_token,
             denominator: term_ether,
             ratio_timestamp: Utc::now(),
@@ -188,7 +188,7 @@ mod tests {
     use super::*;
     use crate::tests::*;
 
-    fn make_client(server: &MockServer, api_key: Option<String>) -> Box<dyn PriceAPIClient> {
+    fn make_client(server: &MockServer, api_key: Option<String>) -> Box<dyn PriceApiClient> {
         Box::new(CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             source: "coinmarketcap".to_string(),
             base_url: Some(server.base_url()),

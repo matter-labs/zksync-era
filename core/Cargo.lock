@@ -12650,6 +12650,7 @@ dependencies = [
  "tracing",
  "url",
  "zksync_config",
+ "zksync_node_framework",
  "zksync_types",
 ]
 
@@ -12874,6 +12875,7 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_shared_metrics",
+ "zksync_shared_resources",
  "zksync_storage",
  "zksync_types",
 ]
@@ -12960,7 +12962,6 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
- "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
  "zksync_multivm",
  "zksync_node_fee_model",
@@ -12972,7 +12973,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_shared_resources",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_test_contracts",
  "zksync_types",
@@ -13424,9 +13424,11 @@ dependencies = [
 name = "zksync_shared_resources"
 version = "28.2.1-non-semver-compat"
 dependencies = [
+ "anyhow",
  "assert_matches",
  "async-trait",
  "serde",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "zksync_config",

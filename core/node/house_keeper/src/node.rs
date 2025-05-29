@@ -18,13 +18,13 @@ pub struct HouseKeeperLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub replica_pool: PoolResource<ReplicaPool>,
+    replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub l1_batch_metrics_reporter: L1BatchMetricsReporter,
+    l1_batch_metrics_reporter: L1BatchMetricsReporter,
 }
 
 impl HouseKeeperLayer {

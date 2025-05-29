@@ -463,8 +463,18 @@ impl Aggregator {
                 if commitment_mode == L1BatchCommitmentMode::Rollup
                     && self.pubdata_da == PubdataSendingMode::Custom
                 {
-                    tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
-                    (PubdataSendingMode::Blobs, commitment_mode)
+                    if storage
+                        .eth_sender_dal()
+                        .is_using_blobs_in_latest_batch()
+                        .await
+                        .unwrap_or_default()
+                    {
+                        tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Blobs, commitment_mode)
+                    } else {
+                        tracing::warn!("Overriding pubdata sending mode to Calldata, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Calldata, commitment_mode)
+                    }
                 } else if commitment_mode == L1BatchCommitmentMode::Validium
                     && self.pubdata_da != PubdataSendingMode::Custom
                 {

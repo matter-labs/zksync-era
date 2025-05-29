@@ -16,8 +16,10 @@ zksync_config.workspace = true
 zksync_health_check.workspace = true
 zksync_node_framework.workspace = true
 
+anyhow.workspace = true
 async-trait.workspace = true
 serde.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
