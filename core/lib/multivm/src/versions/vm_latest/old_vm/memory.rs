@@ -287,7 +287,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
 
         // When the code oracle decommits a bytecode for the first time,
         // it needs to keep that heap alive forever.
-        // We keep all heaps of that contract just to be safe.
+        // We keep all pages of that contract just to be safe.
         if last_callstack_this != CODE_ORACLE_ADDRESS {
             for &page in self.observable_pages.inner().current_frame() {
                 // If the page's number is greater than or equal to the `base_page`,
