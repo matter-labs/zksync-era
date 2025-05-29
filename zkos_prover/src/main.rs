@@ -1,8 +1,3 @@
-use std::time::SystemTime;
-use anyhow::{anyhow, Result};
-use base64;
-use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
 use air_compiler_cli::{
     prover_utils::{
         create_proofs_internal, create_recursion_proofs, load_binary_from_path,
@@ -10,7 +5,12 @@ use air_compiler_cli::{
     },
     Machine,
 };
+use anyhow::{anyhow, Result};
+use base64;
 use execution_utils::ProgramProof;
+use reqwest::{Client, StatusCode};
+use serde::{Deserialize, Serialize};
+use std::time::SystemTime;
 
 /// Response from GET /next-block
 #[derive(Debug, Deserialize)]
@@ -89,7 +89,11 @@ impl ProofDataClient {
     }
 }
 
-fn create_proof(prover_input: Vec<u32>, binary: &Vec<u32>, gpu_state: &mut GpuSharedState) -> ProgramProof {
+fn create_proof(
+    prover_input: Vec<u32>,
+    binary: &Vec<u32>,
+    gpu_state: &mut GpuSharedState,
+) -> ProgramProof {
     let (proof_list, proof_metadata) = create_proofs_internal(
         binary,
         prover_input,
@@ -100,7 +104,7 @@ fn create_proof(prover_input: Vec<u32>, binary: &Vec<u32>, gpu_state: &mut GpuSh
         #[cfg(feature = "gpu")]
         &mut Some(gpu_state),
         #[cfg(not(feature = "gpu"))]
-        &mut None
+        &mut None,
     );
     let basic_proofs = proof_list.basic_proofs.len();
     let delegation_proofs = proof_list
@@ -115,13 +119,10 @@ fn create_proof(prover_input: Vec<u32>, binary: &Vec<u32>, gpu_state: &mut GpuSh
         #[cfg(feature = "gpu")]
         &mut Some(gpu_state),
         #[cfg(not(feature = "gpu"))]
-        &mut None
+        &mut None,
     );
 
-    program_proof_from_proof_list_and_metadata(
-        &recursion_proof_list,
-        &recursion_proof_metadata,
-    )
+    program_proof_from_proof_list_and_metadata(&recursion_proof_list, &recursion_proof_metadata)
 }
 
 #[tokio::main]
@@ -147,13 +148,28 @@ pub async fn main() {
             .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
             .collect();
 
-        println!("{:?} starting proving block number {}", SystemTime::now(), block_number);
+        println!(
+            "{:?} starting proving block number {}",
+            SystemTime::now(),
+            block_number
+        );
 
         let proof = create_proof(prover_input, &binary, &mut gpu_state);
-        println!("{:?} finished proving block number {}", SystemTime::now(), block_number);
+        println!(
+            "{:?} finished proving block number {}",
+            SystemTime::now(),
+            block_number
+        );
 
         let serialized_proof = serde_json::to_string(&proof).unwrap();
-        let _ = client.submit_proof(block_number, serialized_proof).await.expect("Failed to submit a proof");
-        println!("{:?} submitted proof for block number {}", SystemTime::now(), block_number);
+        let _ = client
+            .submit_proof(block_number, serialized_proof)
+            .await
+            .expect("Failed to submit a proof");
+        println!(
+            "{:?} submitted proof for block number {}",
+            SystemTime::now(),
+            block_number
+        );
     }
 }
