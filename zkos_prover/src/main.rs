@@ -139,7 +139,10 @@ pub async fn main() {
     loop {
         let (block_number, prover_input) = match client.get_next_block().await.unwrap() {
             Some(next_block) => next_block,
-            None => continue,
+            None => {
+              tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+              continue;
+            }
         };
 
         // make prover_input (Vec<u8>) into Vec<u32>:
