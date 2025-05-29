@@ -171,7 +171,6 @@ mod tests {
             NonZeroU32::new(100)
         );
         assert!(config.experimental.merkle_tree_repair_stale_keys);
-        assert!(!config.experimental.protective_reads_persistence_enabled);
     }
 
     #[test]

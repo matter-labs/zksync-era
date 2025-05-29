@@ -5,7 +5,7 @@ use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
-        chain::TimestampAsserterConfig,
+        chain::{SharedStateKeeperConfig, TimestampAsserterConfig},
         consensus::ConsensusConfig,
         contracts::{
             chain::{ChainContracts, L2Contracts},
@@ -215,6 +215,7 @@ pub(crate) struct LocalConfig {
     pub db: DBConfig,
     pub prometheus: PrometheusConfig,
     pub postgres: PostgresConfig,
+    pub state_keeper: SharedStateKeeperConfig,
     pub snapshot_recovery: SnapshotRecoveryConfig,
     pub pruning: PruningConfig,
     pub commitment_generator: CommitmentGeneratorConfig,
@@ -263,6 +264,9 @@ impl LocalConfig {
             .context("no object_store config for snapshot recovery")?
             .push_deprecated_alias("snapshots.object_store")?;
 
+        schema
+            .insert(&SharedStateKeeperConfig::DESCRIPTION, "state_keeper")?
+            .push_deprecated_alias("")?;
         schema.insert(
             &CommitmentGeneratorConfig::DESCRIPTION,
             "commitment_generator",
@@ -293,6 +297,7 @@ impl LocalConfig {
             db: repo.parse()?,
             prometheus: repo.parse()?,
             postgres: repo.parse()?,
+            state_keeper: repo.parse()?,
             snapshot_recovery: repo.parse()?,
             pruning: repo.parse()?,
             commitment_generator: repo.parse()?,
@@ -327,6 +332,7 @@ impl LocalConfig {
                 max_connections: Some(test_pool.max_size()),
                 ..PostgresConfig::default()
             },
+            state_keeper: SharedStateKeeperConfig::default(),
             snapshot_recovery: SnapshotRecoveryConfig::default(),
             pruning: PruningConfig::default(),
             commitment_generator: CommitmentGeneratorConfig::default(),

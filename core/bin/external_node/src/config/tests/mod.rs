@@ -96,10 +96,11 @@ fn parsing_from_env() {
         # NEW PARAMS: From PostgresConfig; not used
         EN_DATABASE_MAX_CONNECTIONS_MASTER=10
 
-        # FIXME: not parsed!
         EN_L2_BLOCK_SEAL_QUEUE_CAPACITY=20
-        # MIGRATION NEEDED: was `EN_PROTECTIVE_READS_PERSISTENCE_ENABLED` (w/o `experimental` prefix)
-        EN_EXPERIMENTAL_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
+        EN_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
+        # NEW PARAMS: From SharedStateKeeperConfig
+        EN_SAVE_CALL_TRACES=false
+
         # FIXME: not parsed!
         EN_CONTRACTS_DIAMOND_PROXY_ADDR=0x0000000000000000000000000000000000010001
 
@@ -234,7 +235,6 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
 
     let config = db_config.experimental;
     assert!(config.merkle_tree_repair_stale_keys);
-    assert!(config.protective_reads_persistence_enabled);
     assert_eq!(
         config.state_keeper_db_block_cache_capacity_mb,
         ByteSize(256 << 20)
@@ -254,6 +254,12 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.slow_query_threshold_ms, Duration::from_millis(1_500));
     assert_eq!(config.acquire_timeout_sec, Duration::from_secs(15));
     assert_eq!(config.statement_timeout_sec, Duration::from_secs(20));
+
+    let config: SharedStateKeeperConfig =
+        tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(config.l2_block_seal_queue_capacity, 20);
+    assert!(config.protective_reads_persistence_enabled);
+    assert!(!config.save_call_traces);
 
     let config: SnapshotRecoveryConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert!(config.enabled);

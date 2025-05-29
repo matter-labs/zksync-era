@@ -22,14 +22,14 @@ use zksync_gateway_migrator::node::SettlementLayerData;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
     node::{MetadataCalculatorLayer, TreeApiClientLayer, TreeApiServerLayer},
-    MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
+    MerkleTreeReaderConfig, MetadataCalculatorConfig,
 };
 use zksync_node_api_server::{
     node::{
         HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
         TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
-    web3::state::InternalApiConfigBase,
+    web3::{state::InternalApiConfigBase, Namespace},
 };
 use zksync_node_consensus::node::ExternalNodeConsensusLayer;
 use zksync_node_db_pruner::node::PruningLayer;
@@ -194,16 +194,18 @@ impl ExternalNodeBuilder {
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
 
         let config = &self.config.local;
-        let persistence_layer = OutputHandlerLayer::new(10) // FIXME
+        let queue_capacity = config.state_keeper.l2_block_seal_queue_capacity;
+        let persistence_layer = OutputHandlerLayer::new(queue_capacity)
             .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
             .with_protective_reads_persistence_enabled(
-                config.db.experimental.protective_reads_persistence_enabled,
+                config.state_keeper.protective_reads_persistence_enabled,
             );
 
         let io_layer = ExternalIOLayer::new(config.networks.l2_chain_id);
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
-        let save_call_traces = true; // FIXME
+        // FIXME: this is backwards / unobvious. Can readily use `config.state_keeper.save_call_traces` instead.
+        let save_call_traces = config.api_namespaces()?.contains(&Namespace::Debug);
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
 
@@ -332,27 +334,13 @@ impl ExternalNodeBuilder {
     }
 
     fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
-        let config = &self.config.local.db.merkle_tree;
-        let experimental = &self.config.local.db.experimental;
+        let mut config = self.config.local.db.merkle_tree.clone();
+        config.mode = MerkleTreeMode::Lightweight; // Force-override the tree mode; full tree isn't supported on EN yet
+
+        let state_keeper = &self.config.local.state_keeper;
         let snapshot_recovery = &self.config.local.snapshot_recovery;
-        let metadata_calculator_config = MetadataCalculatorConfig {
-            db_path: config.path.clone(),
-            max_open_files: config.max_open_files,
-            mode: MerkleTreeMode::Lightweight, // The mode in the config is intentionally ignored
-            delay_interval: config.processing_delay_ms,
-            max_l1_batches_per_iter: config.max_l1_batches_per_iter,
-            multi_get_chunk_size: config.multi_get_chunk_size,
-            block_cache_capacity: config.block_cache_size_mb.0 as usize,
-            include_indices_and_filters_in_block_cache: config
-                .include_indices_and_filters_in_block_cache,
-            memtable_capacity: config.memtable_capacity_mb.0 as usize,
-            stalled_writes_timeout: config.stalled_writes_timeout_sec,
-            sealed_batches_have_protective_reads: experimental.protective_reads_persistence_enabled,
-            recovery: MetadataCalculatorRecoveryConfig {
-                desired_chunk_size: snapshot_recovery.tree.chunk_size,
-                parallel_persistence_buffer: snapshot_recovery.tree.parallel_persistence_buffer,
-            },
-        };
+        let metadata_calculator_config =
+            MetadataCalculatorConfig::from_configs(&config, state_keeper, &snapshot_recovery.tree);
 
         // Configure basic tree layer.
         let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
@@ -366,7 +354,13 @@ impl ExternalNodeBuilder {
         }
 
         // Add stale keys repair task if requested.
-        if experimental.merkle_tree_repair_stale_keys {
+        if self
+            .config
+            .local
+            .db
+            .experimental
+            .merkle_tree_repair_stale_keys
+        {
             layer = layer.with_stale_keys_repair();
         }
 

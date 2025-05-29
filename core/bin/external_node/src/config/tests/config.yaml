@@ -71,6 +71,10 @@ api:
     whitelisted_tokens_for_aa:
       - '0x0000000000000000000000000000000000000001'
 
+state_keeper:
+  l2_block_seal_queue_capacity: 20
+  save_call_traces: false
+  protective_reads_persistence_enabled: true
 commitment_generator:
   max_parallelism: 4
 timestamp_asserter:
