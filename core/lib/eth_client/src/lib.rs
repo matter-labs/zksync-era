@@ -173,7 +173,7 @@ impl From<SettlementLayerClient> for Box<dyn EthInterface> {
     fn from(client: SettlementLayerClient) -> Self {
         match client {
             SettlementLayerClient::L1(client) => Box::new(client),
-            SettlementLayerClient::L2(client) => Box::new(client),
+            SettlementLayerClient::Gateway(client) => Box::new(client),
         }
     }
 }

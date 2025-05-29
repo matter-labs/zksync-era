@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::EthInterface;
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -10,14 +10,17 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_shared_resources::contracts::SettlementLayerContractsResource;
-use zksync_web3_decl::node::{MainNodeClientResource, SettlementLayerClient};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    node::SettlementLayerClient,
+};
 
 use crate::batch_status_updater::BatchStatusUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     pool: PoolResource<MasterPool>,
-    client: MainNodeClientResource,
+    client: Box<DynClient<L2>>,
     settlement_layer_client: SettlementLayerClient,
     sl_chain_contracts: SettlementLayerContractsResource,
     #[context(default)]
@@ -60,7 +63,7 @@ impl WiringLayer for BatchStatusUpdaterLayer {
             .map_err(WiringError::internal)?;
 
         let updater = BatchStatusUpdater::new(
-            client.0,
+            client,
             sl_client,
             sl_chain_contracts
                 .0
