@@ -1,0 +1,25 @@
+[package]
+name = "zkos_prover"
+version = "20.2.0" # x-release-please-version
+edition = "2021"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+
+[dependencies]
+#air-compiler = { git = "https://github.com/matter-labs/air_compiler.git", branch = "main" }
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/air_compiler.git", rev = "d48b8628c25f42a10a047213fdaafe8ce7a53067" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/air_compiler.git", rev = "d48b8628c25f42a10a047213fdaafe8ce7a53067" }
+anyhow = "1.0.98"
+base64 = "0.22.1"
+reqwest = "0.12.15"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "*"
+tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+
+[features]
+gpu = ["air-compiler-cli/gpu"]
