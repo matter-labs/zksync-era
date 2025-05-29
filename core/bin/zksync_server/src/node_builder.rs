@@ -31,10 +31,10 @@ use zksync_da_clients::node::{
     ObjectStorageClientWiringLayer,
 };
 use zksync_da_dispatcher::node::DataAvailabilityDispatcherLayer;
-use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::{
     node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
-    web3_decl::node::{QueryEthClientLayer, SettlementLayerClientLayer},
+    web3_decl::node::QueryEthClientLayer,
 };
 use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
 use zksync_eth_watch::node::EthWatchLayer;
@@ -157,10 +157,9 @@ impl MainNodeBuilder {
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = self.configs.postgres_config.clone();
         let secrets = self.secrets.database.clone();
-        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
-            .with_replica(true)
-            .build();
+            .with_replica(true);
         self.node.add_layer(pools_layer);
         Ok(self)
     }
@@ -200,16 +199,6 @@ impl MainNodeBuilder {
             eth_config.l1_rpc_url.context("No L1 RPC URL")?,
         );
         self.node.add_layer(query_eth_client_layer);
-        Ok(self)
-    }
-
-    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
-        let eth_config = self.secrets.l1.clone();
-        let settlement_layer_client_layer = SettlementLayerClientLayer::new(
-            eth_config.l1_rpc_url.context("No L1 RPC URL")?,
-            eth_config.gateway_rpc_url,
-        );
-        self.node.add_layer(settlement_layer_client_layer);
         Ok(self)
     }
 
@@ -459,6 +448,7 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
@@ -504,6 +494,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit,
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit_sec,
+            request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
@@ -724,8 +715,11 @@ impl MainNodeBuilder {
     /// This task works in pair with precondition, which must be present in every component:
     /// the precondition will prevent node from starting until the database is initialized.
     fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+        let eth_watcher_config = try_load_config!(self.configs.eth).watcher;
+
         self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
+            event_expiration_blocks: eth_watcher_config.event_expiration_blocks,
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {
@@ -741,7 +735,6 @@ impl MainNodeBuilder {
             .add_pools_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_settlement_layer_client_layer()?
             .add_storage_initialization_layer(LayerKind::Task)?;
 
         Ok(self.node.build())
@@ -759,7 +752,6 @@ impl MainNodeBuilder {
             .add_prometheus_exporter_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_mode_data()?
-            .add_settlement_layer_client_layer()?
             .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
 

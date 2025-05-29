@@ -7,14 +7,14 @@ use async_trait::async_trait;
 use rand::Rng;
 use tokio::sync::Mutex;
 use zksync_config::configs::ExternalPriceApiClientConfig;
-use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-use crate::PriceAPIClient;
+use crate::PriceApiClient;
 
 // Struct for a forced price "client" (conversion ratio is always a configured "forced" ratio).
 #[derive(Debug)]
 pub struct ForcedPriceClient {
-    ratio: BaseTokenAPIRatio,
+    ratio: BaseTokenApiRatio,
     previous_numerator: Mutex<NonZeroU64>,
     fluctuation: Option<u32>,
     next_value_fluctuation: u32,
@@ -41,13 +41,13 @@ impl ForcedPriceClient {
 
         let ratio = if numerator < 100 && fluctuation.is_some_and(|f| f > 0) {
             // If numerator is too small we need to multiply by 100 to make sure fluctuations can be applied
-            BaseTokenAPIRatio {
+            BaseTokenApiRatio {
                 numerator: NonZeroU64::new(numerator * 100).unwrap(),
                 denominator: NonZeroU64::new(denominator * 100).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
             }
         } else {
-            BaseTokenAPIRatio {
+            BaseTokenApiRatio {
                 numerator: NonZeroU64::new(numerator).unwrap(),
                 denominator: NonZeroU64::new(denominator).unwrap(),
                 ratio_timestamp: chrono::Utc::now(),
@@ -64,9 +64,9 @@ impl ForcedPriceClient {
 }
 
 #[async_trait]
-impl PriceAPIClient for ForcedPriceClient {
+impl PriceApiClient for ForcedPriceClient {
     /// Returns the configured ratio with fluctuation applied if enabled
-    async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
+    async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenApiRatio> {
         if let Some(fluctation) = self.fluctuation {
             let mut previous_numerator = self.previous_numerator.lock().await;
             let mut rng = rand::thread_rng();
@@ -90,7 +90,7 @@ impl PriceAPIClient for ForcedPriceClient {
             let new_numerator =
                 NonZeroU64::new(rng.gen_range(numerator_range.0..=numerator_range.1))
                     .unwrap_or(self.ratio.numerator);
-            let adjusted_ratio = BaseTokenAPIRatio {
+            let adjusted_ratio = BaseTokenApiRatio {
                 numerator: new_numerator,
                 denominator: self.ratio.denominator,
                 ratio_timestamp: chrono::Utc::now(),

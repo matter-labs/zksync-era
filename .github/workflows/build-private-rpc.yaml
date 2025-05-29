@@ -3,10 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Tag of a built image to deploy"
+        description: "Tag of an image"
         type: string
         required: true
-  pull_request:
 
 env:
   IMAGE_TAG: ${{ github.event.inputs.image_tag || 'v0.1.0' }}

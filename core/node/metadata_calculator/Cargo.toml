@@ -20,6 +20,7 @@ zksync_types.workspace = true
 zksync_config.workspace = true
 zksync_storage.workspace = true
 zksync_shared_metrics.workspace = true
+zksync_shared_resources.workspace = true
 zksync_object_store = { workspace = true, features = ["node_framework"] }
 vise.workspace = true
 

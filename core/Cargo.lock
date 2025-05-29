@@ -7877,9 +7877,9 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust-eigenda-client"
-version = "0.1.4"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ef77a51d47c3c1090a03196078ff0663c6087e530cc74266dee321274ba63ec"
+checksum = "6354c52471d528bf96031903c2af4b6c7ac0b4ca01dfcd2929c789d2aeb8f3d7"
 dependencies = [
  "ark-bn254",
  "async-trait",
@@ -7894,8 +7894,8 @@ dependencies = [
  "prost 0.12.6",
  "rand 0.8.5",
  "reqwest 0.12.15",
+ "rust-eigenda-signers",
  "rust-kzg-bn254",
- "secp256k1",
  "secrecy 0.8.0",
  "serde",
  "serde_json",
@@ -7907,6 +7907,21 @@ dependencies = [
  "tokio-stream",
  "tonic 0.11.0",
  "url",
+]
+
+[[package]]
+name = "rust-eigenda-signers"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e66bd6da7ae667952473228151c829782c2296803e13d59d3770d759e66c9e54"
+dependencies = [
+ "async-trait",
+ "ethereum-types",
+ "hex",
+ "rand 0.8.5",
+ "secp256k1",
+ "thiserror 1.0.69",
+ "tiny-keccak 2.0.2",
 ]
 
 [[package]]
@@ -8401,6 +8416,7 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
+ "rand 0.8.5",
  "secp256k1-sys",
  "serde",
 ]
@@ -12650,6 +12666,7 @@ dependencies = [
  "tracing",
  "url",
  "zksync_config",
+ "zksync_node_framework",
  "zksync_types",
 ]
 
@@ -12874,6 +12891,7 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_shared_metrics",
+ "zksync_shared_resources",
  "zksync_storage",
  "zksync_types",
 ]
@@ -12960,7 +12978,6 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
- "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
  "zksync_multivm",
  "zksync_node_fee_model",
@@ -12972,7 +12989,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_shared_resources",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_test_contracts",
  "zksync_types",
@@ -13424,9 +13440,11 @@ dependencies = [
 name = "zksync_shared_resources"
 version = "28.2.1-non-semver-compat"
 dependencies = [
+ "anyhow",
  "assert_matches",
  "async-trait",
  "serde",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "zksync_config",
