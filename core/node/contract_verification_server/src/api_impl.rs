@@ -190,17 +190,24 @@ impl RestApi {
         }
     }
 
+    /// Returns contract's ABI by its address in Etherscan-like format. If the contract is not verified, it returns
+    /// the same error as Etherscan does.
     async fn etherscan_get_abi(self: Arc<Self>, address: Address) -> EtherscanResponse {
+        let method_latency = METRICS.call[&"etherscan_get_abi"].start();
         match Self::verification_info(State(self), Path(address)).await {
             // Return the abi only for the target address, omit other matches.
             Ok(verification_info) if verification_info.request.req.contract_address == address => {
+                method_latency.observe();
                 EtherscanResponse::successful(verification_info.0.artifacts.abi.to_string())
             }
             _ => EtherscanResponse::failed("Contract source code not verified".into()),
         }
     }
 
+    /// Returns contract's source code by its address in Etherscan-like format. If the contract is not verified, it
+    /// returns an empty source code response like Etherscan does.
     async fn etherscan_get_source_code(self: Arc<Self>, address: Address) -> EtherscanResponse {
+        let method_latency = METRICS.call[&"etherscan_get_source_code"].start();
         let verification_info = Self::verification_info(State(self), Path(address))
             .await
             .ok()
@@ -214,6 +221,7 @@ impl RestApi {
             }
             _ => None,
         };
+        method_latency.observe();
         EtherscanResponse {
             status: "1".to_string(),
             message: "OK".to_string(),
@@ -221,12 +229,19 @@ impl RestApi {
         }
     }
 
+    /// Returns verification status in Etherscan-like format.
     async fn etherscan_check_verification_status(
         self: Arc<Self>,
         verification_id: usize,
     ) -> EtherscanResponse {
+        let method_latency = METRICS.call[&"etherscan_get_source_code"].start();
         match Self::verification_request_status(State(self), Path(verification_id)).await {
-            Ok(verification_status) => verification_status.0.into(),
+            Ok(verification_status) => {
+                method_latency.observe();
+                verification_status.0.into()
+            }
+            // Even though we do not use guids, we return the same error as Etherscan does. In case some tooling
+            // relies on this error message.
             _ => EtherscanResponse::failed("Unable to locate guid".into()),
         }
     }
@@ -237,7 +252,6 @@ impl RestApi {
         State(self_): State<Arc<Self>>,
         Query(query): Query<EtherscanGetParams>,
     ) -> ApiResult<EtherscanResponse> {
-        let method_latency = METRICS.call[&"contract_verification_etherscan_get"].start();
         let payload = match query.get_payload() {
             Ok(payload) => payload,
             Err(err) => {
@@ -255,7 +269,6 @@ impl RestApi {
             }
         };
 
-        method_latency.observe();
         Ok(Json(response))
     }
 
