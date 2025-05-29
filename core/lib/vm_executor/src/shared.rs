@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, MetricsFamily};
 use zksync_multivm::interface::storage::StorageViewStats;
 
 /// Marker for sealed traits. Intentionally not exported from the crate.
@@ -19,6 +19,12 @@ pub(crate) enum InteractionType {
 
 const INTERACTION_AMOUNT_BUCKETS: Buckets = Buckets::exponential(10.0..=10_000_000.0, 10.0);
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct GlobalStorageLabels {
+    /// Was the VM execution interrupted?
+    interrupted: bool,
+}
+
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "runtime_context_storage_interaction")]
 pub(crate) struct RuntimeContextStorageMetrics {
@@ -33,48 +39,54 @@ pub(crate) struct RuntimeContextStorageMetrics {
 }
 
 impl RuntimeContextStorageMetrics {
-    pub fn observe(
-        &self,
+    pub(crate) fn observe(
         op: &str,
+        interrupted: bool,
         total_vm_latency: Duration,
         storage_metrics: &StorageViewStats,
     ) {
         const STORAGE_INVOCATIONS_DEBUG_THRESHOLD: usize = 1_000;
 
+        let metrics = &STORAGE_METRICS[&GlobalStorageLabels { interrupted }];
         let total_storage_invocations = storage_metrics.get_value_storage_invocations
             + storage_metrics.set_value_storage_invocations;
         let total_time_spent_in_storage =
             storage_metrics.time_spent_on_get_value + storage_metrics.time_spent_on_set_value;
 
-        self.amount[&InteractionType::Missed].observe(storage_metrics.storage_invocations_missed);
-        self.amount[&InteractionType::GetValue]
+        metrics.amount[&InteractionType::Missed]
+            .observe(storage_metrics.storage_invocations_missed);
+        metrics.amount[&InteractionType::GetValue]
             .observe(storage_metrics.get_value_storage_invocations);
-        self.amount[&InteractionType::SetValue]
+        metrics.amount[&InteractionType::SetValue]
             .observe(storage_metrics.set_value_storage_invocations);
-        self.amount[&InteractionType::Total].observe(total_storage_invocations);
+        metrics.amount[&InteractionType::Total].observe(total_storage_invocations);
 
-        self.duration[&InteractionType::Missed]
+        metrics.duration[&InteractionType::Missed]
             .observe(storage_metrics.time_spent_on_storage_missed);
-        self.duration[&InteractionType::GetValue].observe(storage_metrics.time_spent_on_get_value);
-        self.duration[&InteractionType::SetValue].observe(storage_metrics.time_spent_on_set_value);
-        self.duration[&InteractionType::Total].observe(total_time_spent_in_storage);
+        metrics.duration[&InteractionType::GetValue]
+            .observe(storage_metrics.time_spent_on_get_value);
+        metrics.duration[&InteractionType::SetValue]
+            .observe(storage_metrics.time_spent_on_set_value);
+        metrics.duration[&InteractionType::Total].observe(total_time_spent_in_storage);
 
         if total_storage_invocations > 0 {
-            self.duration_per_unit[&InteractionType::Total]
+            metrics.duration_per_unit[&InteractionType::Total]
                 .observe(total_time_spent_in_storage.div_f64(total_storage_invocations as f64));
         }
         if storage_metrics.storage_invocations_missed > 0 {
             let duration_per_unit = storage_metrics
                 .time_spent_on_storage_missed
                 .div_f64(storage_metrics.storage_invocations_missed as f64);
-            self.duration_per_unit[&InteractionType::Missed].observe(duration_per_unit);
+            metrics.duration_per_unit[&InteractionType::Missed].observe(duration_per_unit);
         }
 
-        self.ratio
+        metrics
+            .ratio
             .observe(total_time_spent_in_storage.as_secs_f64() / total_vm_latency.as_secs_f64());
 
-        if total_storage_invocations > STORAGE_INVOCATIONS_DEBUG_THRESHOLD {
+        if total_storage_invocations > STORAGE_INVOCATIONS_DEBUG_THRESHOLD || interrupted {
             tracing::info!(
+                interrupted,
                 "{op} resulted in {total_storage_invocations} storage_invocations, {} new_storage_invocations, \
                  {} get_value_storage_invocations, {} set_value_storage_invocations, \
                  vm execution took {total_vm_latency:?}, storage interaction took {total_time_spent_in_storage:?} \
@@ -91,4 +103,5 @@ impl RuntimeContextStorageMetrics {
 }
 
 #[vise::register]
-pub(crate) static STORAGE_METRICS: vise::Global<RuntimeContextStorageMetrics> = vise::Global::new();
+static STORAGE_METRICS: MetricsFamily<GlobalStorageLabels, RuntimeContextStorageMetrics> =
+    MetricsFamily::new();

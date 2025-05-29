@@ -76,7 +76,7 @@ impl TransactionFilter for SequencerSealer {
                 TX_COUNT,
                 &data,
                 &data,
-                ProtocolVersionId::latest(), // FIXME: is it safe to use?
+                ProtocolVersionId::latest(),
             );
             if matches!(resolution, SealResolution::Unexecutable(_)) {
                 let err = sealer.prom_criterion_name().to_owned();
