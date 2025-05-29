@@ -146,8 +146,12 @@ impl AvailClient {
             AvailClientConfig::FullClient(conf) => {
                 let seed_phrase = secrets.seed_phrase.context("Seed phrase is missing")?;
 
-                let sdk_client =
-                    RawAvailClient::new(conf.app_id, seed_phrase.0.expose_secret()).await?;
+                let sdk_client = RawAvailClient::new(
+                    conf.app_id,
+                    seed_phrase.0.expose_secret(),
+                    conf.max_blocks_to_look_back,
+                )
+                .await?;
 
                 Ok(Self {
                     config,

@@ -19,13 +19,12 @@ use zksync_types::H256;
 use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
-/// Maximum number of blocks to look back when searching for an extrinsic in the latest finalized block.
-const MAX_BLOCKS_TO_LOOK_BACK: usize = 5;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RawAvailClient {
     app_id: u32,
     keypair: Keypair,
+    max_blocks_to_look_back: usize,
 }
 
 /// Utility type needed for encoding the call data
@@ -43,11 +42,19 @@ struct BoundedVec<_0>(pub Vec<_0>);
 impl RawAvailClient {
     pub(crate) const MAX_BLOB_SIZE: usize = 1024 * 1024; // 1mb
 
-    pub(crate) async fn new(app_id: u32, seed: &str) -> anyhow::Result<Self> {
+    pub(crate) async fn new(
+        app_id: u32,
+        seed: &str,
+        max_blocks_to_look_back: usize,
+    ) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 
-        Ok(Self { app_id, keypair })
+        Ok(Self {
+            app_id,
+            keypair,
+            max_blocks_to_look_back,
+        })
     }
 
     /// Returns a hex-encoded extrinsic
@@ -300,7 +307,7 @@ impl RawAvailClient {
             .request("chain_getFinalizedHead", rpc_params![])
             .await?;
 
-        for _ in 0..MAX_BLOCKS_TO_LOOK_BACK {
+        for _ in 0..self.max_blocks_to_look_back {
             let Some(block_hash_str) = block_hash.as_str() else {
                 return Err(anyhow::anyhow!(
                     "Invalid block hash from RPC: {:?}",
@@ -349,7 +356,7 @@ impl RawAvailClient {
         tracing::debug!(
             "Extrinsic with hash {} not found in the last {} blocks",
             extrinsic_hash,
-            MAX_BLOCKS_TO_LOOK_BACK
+            self.max_blocks_to_look_back
         );
 
         Ok(None)

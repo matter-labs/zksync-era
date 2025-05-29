@@ -33,6 +33,8 @@ pub struct AvailDefaultConfig {
     #[config(default_t = 3 * TimeUnit::Minutes)]
     #[serde(default = "AvailDefaultConfig::default_dispatch_timeout")]
     pub dispatch_timeout: Duration,
+    #[config(default_t = 5)]
+    pub max_blocks_to_look_back: usize,
 }
 
 impl AvailDefaultConfig {
