@@ -7,10 +7,9 @@ use zksync_config::configs::api::MerkleTreeApiConfig;
 use zksync_node_framework::{
     task::TaskKind, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
+use zksync_shared_resources::tree::TreeApiClient;
 
-use crate::{
-    node::TreeApiClientResource, LazyAsyncTreeReader, MerkleTreeReaderConfig, TreeReaderTask,
-};
+use crate::{LazyAsyncTreeReader, MerkleTreeReaderConfig, TreeReaderTask};
 
 #[derive(Debug)]
 pub struct TreeApiTask {
@@ -51,8 +50,8 @@ impl TreeApiServerLayer {
 }
 
 #[derive(Debug, IntoContext)]
-pub struct TreeApiServerOutput {
-    tree_api_client: TreeApiClientResource,
+pub struct Output {
+    tree_api_client: Arc<dyn TreeApiClient>,
     #[context(task)]
     tree_reader_task: TreeReaderTask,
     #[context(task)]
@@ -62,7 +61,7 @@ pub struct TreeApiServerOutput {
 #[async_trait::async_trait]
 impl WiringLayer for TreeApiServerLayer {
     type Input = ();
-    type Output = TreeApiServerOutput;
+    type Output = Output;
 
     fn layer_name(&self) -> &'static str {
         "tree_api_server"
@@ -75,8 +74,8 @@ impl WiringLayer for TreeApiServerLayer {
             bind_addr,
             tree_reader: tree_reader_task.tree_reader(),
         };
-        Ok(TreeApiServerOutput {
-            tree_api_client: TreeApiClientResource(Arc::new(tree_reader_task.tree_reader())),
+        Ok(Output {
+            tree_api_client: Arc::new(tree_reader_task.tree_reader()),
             tree_api_task,
             tree_reader_task,
         })
