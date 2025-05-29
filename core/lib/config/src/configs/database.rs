@@ -101,6 +101,9 @@ pub struct PostgresConfig {
     /// before acquire methods will return an error.
     #[config(default_t = Duration::from_secs(30))]
     pub acquire_timeout: Duration,
+    /// Number of retries to acquire a connection on a timeout. 0 corresponds to a single connection attempt etc.
+    #[config(default_t = 2)]
+    pub acquire_retries: usize,
     /// Statement timeout in seconds for Postgres connections. Applies only to the replica
     /// connection pool used by the API servers.
     #[config(default_t = Duration::from_secs(10))]
@@ -245,6 +248,7 @@ mod tests {
         assert_eq!(config.acquire_timeout, Duration::from_secs(15));
         assert_eq!(config.long_connection_threshold, Duration::from_secs(3));
         assert_eq!(config.slow_query_threshold, Duration::from_millis(150));
+        assert_eq!(config.acquire_retries, 5);
     }
 
     #[test]
@@ -253,6 +257,7 @@ mod tests {
             DATABASE_POOL_SIZE=50
             DATABASE_POOL_SIZE_MASTER=20
             DATABASE_ACQUIRE_TIMEOUT_SEC=15
+            DATABASE_ACQUIRE_RETRIES=5
             DATABASE_STATEMENT_TIMEOUT_SEC=300
             DATABASE_LONG_CONNECTION_THRESHOLD_MS=3000
             DATABASE_SLOW_QUERY_THRESHOLD_MS=150
@@ -271,6 +276,7 @@ mod tests {
           max_connections: 50
           max_connections_master: 20
           acquire_timeout_sec: 15
+          acquire_retries: 5
           statement_timeout_sec: 300
           long_connection_threshold_ms: 3000
           slow_query_threshold_ms: 150

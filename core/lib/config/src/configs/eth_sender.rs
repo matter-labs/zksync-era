@@ -71,6 +71,7 @@ impl EthConfig {
             },
             watcher: EthWatchConfig {
                 confirmations_for_eth_event: None,
+                event_expiration_blocks: 50000,
                 eth_node_poll_interval: Duration::ZERO,
             },
         }
@@ -299,6 +300,7 @@ mod tests {
             watcher: EthWatchConfig {
                 confirmations_for_eth_event: Some(0),
                 eth_node_poll_interval: Duration::from_millis(300),
+                event_expiration_blocks: 60000,
             },
         }
     }
@@ -308,6 +310,7 @@ mod tests {
         let env = r#"
             ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
             ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
+            ETH_WATCH_EVENT_EXPIRATION_BLOCKS="60000"
             ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
             ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
             ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
@@ -395,6 +398,7 @@ mod tests {
           watcher:
             confirmations_for_eth_event: 0
             eth_node_poll_interval: 300
+            event_expiration_blocks: 60000
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: EthConfig = Tester::default()
@@ -448,6 +452,7 @@ mod tests {
           watcher:
             confirmations_for_eth_event: 0
             eth_node_poll_interval: 300ms
+            event_expiration_blocks: 60000
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: EthConfig = Tester::default()

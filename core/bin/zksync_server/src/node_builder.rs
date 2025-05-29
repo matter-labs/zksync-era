@@ -448,6 +448,7 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
@@ -493,6 +494,7 @@ impl MainNodeBuilder {
                 rpc_config.websocket_requests_per_minute_limit,
             ),
             replication_lag_limit: circuit_breaker_config.replication_lag_limit,
+            request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
@@ -713,8 +715,11 @@ impl MainNodeBuilder {
     /// This task works in pair with precondition, which must be present in every component:
     /// the precondition will prevent node from starting until the database is initialized.
     fn add_storage_initialization_layer(mut self, kind: LayerKind) -> anyhow::Result<Self> {
+        let eth_watcher_config = try_load_config!(self.configs.eth).watcher;
+
         self.node.add_layer(MainNodeInitStrategyLayer {
             genesis: self.genesis_config.clone(),
+            event_expiration_blocks: eth_watcher_config.event_expiration_blocks,
         });
         let mut layer = NodeStorageInitializerLayer::new();
         if matches!(kind, LayerKind::Precondition) {

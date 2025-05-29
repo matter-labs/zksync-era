@@ -15,6 +15,7 @@ use crate::{main_node::MainNodeGenesis, NodeInitializationStrategy};
 #[derive(Debug)]
 pub struct MainNodeInitStrategyLayer {
     pub genesis: GenesisConfig,
+    pub event_expiration_blocks: u64,
 }
 
 #[derive(Debug, FromContext)]
@@ -38,6 +39,7 @@ impl WiringLayer for MainNodeInitStrategyLayer {
         let genesis = Arc::new(MainNodeGenesis {
             contracts: input.contracts.0,
             genesis: self.genesis,
+            event_expiration_blocks: self.event_expiration_blocks,
             l1_client: input.l1_client,
             pool,
         });
