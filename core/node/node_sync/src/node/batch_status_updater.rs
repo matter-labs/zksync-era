@@ -20,7 +20,7 @@ use crate::batch_status_updater::BatchStatusUpdater;
 #[derive(Debug, FromContext)]
 pub struct Input {
     pool: PoolResource<MasterPool>,
-    client: Box<DynClient<L2>>,
+    main_node_client: Box<DynClient<L2>>,
     settlement_layer_client: SettlementLayerClient,
     sl_chain_contracts: SettlementLayerContractsResource,
     #[context(default)]
@@ -49,7 +49,7 @@ impl WiringLayer for BatchStatusUpdaterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let Input {
             pool,
-            client,
+            main_node_client,
             settlement_layer_client,
             sl_chain_contracts,
             app_health,
@@ -63,7 +63,7 @@ impl WiringLayer for BatchStatusUpdaterLayer {
             .map_err(WiringError::internal)?;
 
         let updater = BatchStatusUpdater::new(
-            client,
+            main_node_client,
             sl_client,
             sl_chain_contracts
                 .0
