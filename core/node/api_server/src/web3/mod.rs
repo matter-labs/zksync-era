@@ -12,8 +12,10 @@ use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_shared_resources::api::{BridgeAddressesHandle, SyncState};
+use zksync_shared_resources::{
+    api::{BridgeAddressesHandle, SyncState},
+    tree::TreeApiClient,
+};
 use zksync_types::{try_stoppable, L2BlockNumber, StopContext};
 use zksync_web3_decl::{
     client::{DynClient, L2},
