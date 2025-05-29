@@ -252,7 +252,8 @@ impl BatchRootProcessor {
                 l1_batch_number,
                 AggregatedActionType::Execute,
             )
-            .await;
+            .await
+            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
 
         let tx = storage
             .eth_sender_dal()
