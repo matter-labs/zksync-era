@@ -278,19 +278,31 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
 
     fn finish_global_frame(
         &mut self,
-        _base_page: MemoryPage,
+        base_page: MemoryPage,
         last_callstack_this: Address,
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
-        // Safe to unwrap here, since `finish_global_frame` is never called with empty stack
-        let _current_observable_pages = self.observable_pages.inner().current_frame();
-        let returndata_page = returndata_fat_pointer.memory_page;
+        let is_returndata_page_static = last_callstack_this == CODE_ORACLE_ADDRESS;
+        let current_observable_pages = self.observable_pages.inner().current_frame();
 
-        // This is code oracle and some preimage has been decommitted into its memory.
-        // We must keep this memory page forever for future decommits.
-        let is_returndata_page_static =
-            last_callstack_this == CODE_ORACLE_ADDRESS && returndata_fat_pointer.length > 0;
+        // It is possible that the code oracle runs out of gas after decommitting code.
+        // The page with the code needs to be kept but the zero page is returned instead
+        // in that case.
+        let returndata_page = if is_returndata_page_static {
+            heap_page_from_base(base_page).0
+        } else {
+            returndata_fat_pointer.memory_page
+        };
+
+        for &page in current_observable_pages {
+            // If the page's number is greater than or equal to the `base_page`,
+            // it means that it was created by the internal calls of this contract.
+            // Returned data must not be cleared, however.
+            if page >= base_page.0 && page != returndata_page {
+                self.memory.clear_page(page as usize, timestamp);
+            }
+        }
 
         self.observable_pages.clear_frame(timestamp);
         self.observable_pages.merge_frame(timestamp);
