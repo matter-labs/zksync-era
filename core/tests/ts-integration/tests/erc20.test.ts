@@ -209,7 +209,7 @@ describe('L1 ERC20 contract checks', () => {
     let params: FinalizeWithdrawalParams;
     let bridgehub: ethers.Contract;
     let skipInteropTest = false;
-    test.skip('Can check withdrawal hash in L2-A', async () => {
+    test('Can check withdrawal hash in L2-A', async () => {
         bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
             ArtifactBridgeHub.abi,
@@ -246,7 +246,7 @@ describe('L1 ERC20 contract checks', () => {
         expect(included).toBe(true);
     });
 
-    test.skip('Can check withdrawal hash from L2-B', async () => {
+    test('Can check withdrawal hash from L2-B', async () => {
         // We extract the L2-B RPC URL from the corresponding yaml file to define the L2-B provider
         const url = getL2bUrl(testMaster.environment().l2NodeUrl);
         let l2b_provider = new RetryProvider({ url, timeout: 1200 * 1000 }, undefined, testMaster.reporter);
