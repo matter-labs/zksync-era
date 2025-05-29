@@ -20,6 +20,7 @@ use zksync_config::{
         },
         da_client::DAClientConfig,
         secrets::DataAvailabilitySecrets,
+        snapshot_recovery::TreeRecoveryConfig,
         wallets::Wallets,
         GeneralConfig, Secrets,
     },
@@ -250,13 +251,12 @@ impl MainNodeBuilder {
     }
 
     fn add_metadata_calculator_layer(mut self, with_tree_api: bool) -> anyhow::Result<Self> {
-        let merkle_tree_env_config = self.configs.db_config.merkle_tree.clone();
-        let operations_manager_env_config = self.configs.operations_manager_config.clone();
-        let state_keeper_env_config = try_load_config!(self.configs.state_keeper_config);
-        let metadata_calculator_config = MetadataCalculatorConfig::for_main_node(
-            &merkle_tree_env_config,
-            &operations_manager_env_config,
-            &state_keeper_env_config,
+        let merkle_tree_config = self.configs.db_config.merkle_tree.clone();
+        let state_keeper_config = try_load_config!(self.configs.state_keeper_config).shared;
+        let metadata_calculator_config = MetadataCalculatorConfig::from_configs(
+            &merkle_tree_config,
+            &state_keeper_config,
+            &TreeRecoveryConfig::default(), // Tree recovery is not relevant for the main node
         );
         let mut layer = MetadataCalculatorLayer::new(metadata_calculator_config);
         if with_tree_api {
@@ -272,10 +272,11 @@ impl MainNodeBuilder {
         const OPTIONAL_BYTECODE_COMPRESSION: bool = false;
 
         let sk_config = try_load_config!(self.configs.state_keeper_config);
-        let persistence_layer = OutputHandlerLayer::new(sk_config.l2_block_seal_queue_capacity)
-            .with_protective_reads_persistence_enabled(
-                sk_config.protective_reads_persistence_enabled,
-            );
+        let persistence_layer =
+            OutputHandlerLayer::new(sk_config.shared.l2_block_seal_queue_capacity)
+                .with_protective_reads_persistence_enabled(
+                    sk_config.shared.protective_reads_persistence_enabled,
+                );
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
@@ -285,9 +286,11 @@ impl MainNodeBuilder {
         );
         let db_config = self.configs.db_config.clone();
         let experimental_vm_config = self.configs.experimental_vm_config.clone();
-        let main_node_batch_executor_builder_layer =
-            MainBatchExecutorLayer::new(sk_config.save_call_traces, OPTIONAL_BYTECODE_COMPRESSION)
-                .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
+        let main_node_batch_executor_builder_layer = MainBatchExecutorLayer::new(
+            sk_config.shared.save_call_traces,
+            OPTIONAL_BYTECODE_COMPRESSION,
+        )
+        .with_fast_vm_mode(experimental_vm_config.state_keeper_fast_vm_mode);
 
         let rocksdb_options = RocksdbStorageOptions {
             block_cache_capacity: db_config
@@ -438,7 +441,7 @@ impl MainNodeBuilder {
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let with_debug_namespace = state_keeper_config.save_call_traces;
+        let with_debug_namespace = state_keeper_config.shared.save_call_traces;
 
         let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
             namespaces
@@ -479,7 +482,7 @@ impl MainNodeBuilder {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let circuit_breaker_config = &self.configs.circuit_breaker_config;
-        let with_debug_namespace = state_keeper_config.save_call_traces;
+        let with_debug_namespace = state_keeper_config.shared.save_call_traces;
 
         let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
             namespaces

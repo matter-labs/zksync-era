@@ -27,12 +27,42 @@ impl Default for FeeModelVersion {
     }
 }
 
+/// Part of the state keeper configuration shared between the main and external nodes.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct SharedStateKeeperConfig {
+    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
+    /// sealing will block until some of the L2 blocks from the queue are processed.
+    /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
+    #[config(alias = "miniblock_seal_queue_capacity")]
+    #[config(default_t = 10)]
+    pub l2_block_seal_queue_capacity: usize,
+
+    // FIXME: these 2 params below are not used by EN (but probably should)
+    /// Whether to save call traces when processing blocks in the state keeper.
+    #[config(default_t = true)]
+    pub save_call_traces: bool,
+    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
+    /// Protective reads can be written asynchronously in VM runner instead.
+    /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
+    /// which is capable of saving protective reads is run.
+    #[config(default)]
+    pub protective_reads_persistence_enabled: bool,
+}
+
+/// State keeper config.
+///
+/// # Developer notes
+///
+/// Place here params specific for block creation (i.e., state keeper operation on the main node).
+/// Params relevant to all nodes should be placed in [`SharedStateKeeperConfig`].
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct StateKeeperConfig {
+    #[config(flatten)]
+    pub shared: SharedStateKeeperConfig,
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
     #[config(default_t = 8_192)]
     pub transaction_slots: usize,
-
     /// Number of ms after which an L1 batch is going to be unconditionally sealed.
     #[config(alias = "block_commit_deadline_ms")]
     #[config(default_t = Duration::from_millis(2_500), with = TimeUnit::Millis)]
@@ -41,12 +71,6 @@ pub struct StateKeeperConfig {
     #[config(alias = "miniblock_commit_deadline_ms")]
     #[config(default_t = Duration::from_secs(1), with = TimeUnit::Millis)]
     pub l2_block_commit_deadline_ms: Duration,
-    /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
-    /// sealing will block until some of the L2 blocks from the queue are processed.
-    /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    #[config(alias = "miniblock_seal_queue_capacity")]
-    #[config(default_t = 10)]
-    pub l2_block_seal_queue_capacity: usize,
     /// The max payload size threshold (in bytes) that triggers sealing of an L2 block.
     #[config(alias = "miniblock_max_payload_size")]
     #[config(default_t = ByteSize(1_000_000), with = SizeUnit::Bytes)]
@@ -104,26 +128,17 @@ pub struct StateKeeperConfig {
     /// - 100 MB for the object store-based or no-da validiums
     #[config(with = SizeUnit::Bytes)]
     pub max_pubdata_per_batch: ByteSize,
-
     /// The version of the fee model to use.
     #[config(default_t = FeeModelVersion::V2, with = Serde![str])]
     pub fee_model_version: FeeModelVersion,
     /// Max number of computational gas that validation step is allowed to take.
     #[config(default_t = 300_000)]
     pub validation_computational_gas_limit: u32,
-    #[config(default_t = true)]
-    pub save_call_traces: bool,
     /// The maximal number of circuits that a batch can support.
     /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
     /// the recursion layers' circuits.
     #[config(default_t = 31_100)]
     pub max_circuits_per_batch: usize,
-    /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
-    /// Protective reads can be written asynchronously in VM runner instead.
-    /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
-    /// which is capable of saving protective reads is run.
-    #[config(default)]
-    pub protective_reads_persistence_enabled: bool,
 
     #[config(nest)]
     pub deployment_allowlist: Option<DeploymentAllowlist>,
@@ -134,10 +149,10 @@ impl StateKeeperConfig {
     /// Values mostly repeat the values used in the localhost environment.
     pub fn for_tests() -> Self {
         Self {
+            shared: SharedStateKeeperConfig::default(),
             transaction_slots: 250,
             l1_batch_commit_deadline_ms: Duration::from_millis(2500),
             l2_block_commit_deadline_ms: Duration::from_secs(1),
-            l2_block_seal_queue_capacity: 10,
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
@@ -155,9 +170,7 @@ impl StateKeeperConfig {
             minimal_l2_gas_price: 100000000,
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
-            save_call_traces: true,
             max_circuits_per_batch: 24100,
-            protective_reads_persistence_enabled: true,
             deployment_allowlist: None,
         }
     }
@@ -241,10 +254,14 @@ mod tests {
 
     fn expected_state_keeper_config() -> StateKeeperConfig {
         StateKeeperConfig {
+            shared: SharedStateKeeperConfig {
+                l2_block_seal_queue_capacity: 10,
+                save_call_traces: false,
+                protective_reads_persistence_enabled: true,
+            },
             transaction_slots: 50,
             l1_batch_commit_deadline_ms: Duration::from_millis(2500),
             l2_block_commit_deadline_ms: Duration::from_millis(1000),
-            l2_block_seal_queue_capacity: 10,
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,
@@ -262,9 +279,7 @@ mod tests {
             max_pubdata_per_batch: ByteSize(100_000),
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
-            save_call_traces: false,
             max_circuits_per_batch: 24100,
-            protective_reads_persistence_enabled: true,
             deployment_allowlist: Some(DeploymentAllowlist::Dynamic(DeploymentAllowlistDynamic {
                 http_file_url: "http://deployment-allowlist/".to_owned(),
                 refresh_interval: Duration::from_secs(120),

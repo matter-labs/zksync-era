@@ -7,23 +7,27 @@ use smart_config::{
 use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 
 /// Temporary config for initializing external node, will be completely replaced by consensus config later
+// FIXME: rename?
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ENConfig {
-    // Genesis
+    /// Chain ID of the (L2) network that the node is a part of.
     #[config(with = Serde![int])]
     pub l2_chain_id: L2ChainId,
+    /// Chain ID of the L1 network (e.g., Ethereum mainnet).
     #[config(with = Serde![int])]
     pub l1_chain_id: L1ChainId,
-
-    // Main node configuration
-    #[config(secret, with = Serde![str])]
-    pub main_node_url: SensitiveUrl,
-    #[config(default_t = NonZeroUsize::new(100).unwrap())]
-    pub main_node_rate_limit_rps: NonZeroUsize,
-    #[config(default_t = Duration::from_secs(60))]
-    pub bridge_addresses_refresh_interval: Duration,
+    /// Chain ID of the gateway network, if this network settles on one.
     #[config(with = Optional(Serde![int]))]
     pub gateway_chain_id: Option<SLChainId>,
+    /// URL of an L2 peer node used to sync from.
+    #[config(secret, with = Serde![str])]
+    pub main_node_url: SensitiveUrl,
+    /// Rate limiting configuration for the L2 peer node.
+    #[config(default_t = NonZeroUsize::new(100).unwrap())]
+    pub main_node_rate_limit_rps: NonZeroUsize,
+
+    #[config(default_t = Duration::from_secs(60))]
+    pub bridge_addresses_refresh_interval: Duration,
 }
 
 impl ENConfig {
