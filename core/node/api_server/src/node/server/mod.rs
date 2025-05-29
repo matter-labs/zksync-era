@@ -1,13 +1,10 @@
-use std::{num::NonZeroU32, time::Duration};
+use std::{num::NonZeroU32, sync::Arc, time::Duration};
 
 use tokio::{sync::oneshot, task::JoinHandle};
-use zksync_circuit_breaker::{
-    node::CircuitBreakersResource, replication_lag::ReplicationLagChecker,
-};
+use zksync_circuit_breaker::{replication_lag::ReplicationLagChecker, CircuitBreakers};
 use zksync_config::configs::api::MaxResponseSize;
 use zksync_dal::node::{PoolResource, ReplicaPool};
-use zksync_health_check::node::AppHealthCheckResource;
-use zksync_metadata_calculator::node::TreeApiClientResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -16,20 +13,22 @@ use zksync_node_framework::{
 };
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
-    contracts::{
-        L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource,
-        SettlementLayerContractsResource,
-    },
+    contracts::{L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource},
+    tree::TreeApiClient,
 };
-use zksync_web3_decl::node::{
-    EthInterfaceResource, MainNodeClientResource, SettlementModeResource,
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    node::SettlementModeResource,
 };
 
 use self::sealed_l2_block::SealedL2BlockUpdaterTask;
-use super::resources::{MempoolCacheResource, TxSenderResource};
-use crate::web3::{
-    state::{InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
-    ApiBuilder, ApiServer, Namespace,
+use crate::{
+    tx_sender::TxSender,
+    web3::{
+        mempool_cache::MempoolCache,
+        state::{InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
+        ApiBuilder, ApiServer, Namespace,
+    },
 };
 
 mod sealed_l2_block;
@@ -124,33 +123,31 @@ pub struct Web3ServerLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub bridge_addresses: BridgeAddressesHandle,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub tx_sender: TxSenderResource,
-    pub sync_state: Option<SyncState>,
-    pub tree_api_client: Option<TreeApiClientResource>,
-    pub mempool_cache: MempoolCacheResource,
+    bridge_addresses: BridgeAddressesHandle,
+    replica_pool: PoolResource<ReplicaPool>,
+    tx_sender: TxSender,
+    sync_state: Option<SyncState>,
+    tree_api_client: Option<Arc<dyn TreeApiClient>>,
+    mempool_cache: MempoolCache,
     #[context(default)]
-    pub circuit_breakers: CircuitBreakersResource,
+    circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
-    pub main_node_client: Option<MainNodeClientResource>,
-    pub l1_client: EthInterfaceResource,
-    pub sl_contracts: SettlementLayerContractsResource,
-    pub l1_contracts: L1ChainContractsResource,
-    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
-    pub l2_contracts: L2ContractsResource,
-    pub initial_settlement_mode: SettlementModeResource,
+    app_health: Arc<AppHealthCheck>,
+    main_node_client: Option<Box<DynClient<L2>>>,
+    l1_contracts: L1ChainContractsResource,
+    l1_ecosystem_contracts: L1EcosystemContractsResource,
+    l2_contracts: L2ContractsResource,
+    initial_settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub web3_api_task: Web3ApiTask,
+    web3_api_task: Web3ApiTask,
     #[context(task)]
-    pub garbage_collector_task: ApiTaskGarbageCollector,
+    garbage_collector_task: ApiTaskGarbageCollector,
     #[context(task)]
-    pub sealed_l2_block_updater_task: SealedL2BlockUpdaterTask,
+    sealed_l2_block_updater_task: SealedL2BlockUpdaterTask,
 }
 
 impl Web3ServerLayer {
@@ -198,10 +195,10 @@ impl WiringLayer for Web3ServerLayer {
         let replica_resource_pool = input.replica_pool;
         let updaters_pool = replica_resource_pool.get_custom(1).await?;
         let replica_pool = replica_resource_pool.get().await?;
-        let TxSenderResource(tx_sender) = input.tx_sender;
-        let MempoolCacheResource(mempool_cache) = input.mempool_cache;
+        let tx_sender = input.tx_sender;
+        let mempool_cache = input.mempool_cache;
         let sync_state = input.sync_state;
-        let tree_api_client = input.tree_api_client.map(|client| client.0);
+        let tree_api_client = input.tree_api_client;
 
         let l1_contracts = input.l1_contracts.0;
         let internal_api_config = InternalApiConfig::from_base_and_contracts(
@@ -246,7 +243,7 @@ impl WiringLayer for Web3ServerLayer {
             api_builder = api_builder.with_sync_state(sync_state);
         }
         if let Some(main_node_client) = input.main_node_client {
-            api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client.0)
+            api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client);
         }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
@@ -257,14 +254,12 @@ impl WiringLayer for Web3ServerLayer {
         let api_health_check = server.health_check();
         input
             .app_health
-            .0
             .insert_component(api_health_check)
             .map_err(WiringError::internal)?;
 
         // Insert circuit breaker.
         input
             .circuit_breakers
-            .breakers
             .insert(Box::new(ReplicationLagChecker {
                 pool: replica_pool,
                 replication_lag_limit,
