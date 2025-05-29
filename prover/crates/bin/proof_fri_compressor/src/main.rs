@@ -8,8 +8,6 @@ use std::{
 
 use anyhow::Context as _;
 use clap::Parser;
-use proof_compression_gpu::CompressorBlobStorage;
-// use proof_compression_gpu::SnarkWrapperSetup;
 use tokio_util::sync::CancellationToken;
 use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
@@ -18,7 +16,7 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_proof_fri_compressor_service::proof_fri_compressor_runner;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-use zksync_prover_keystore::keystore::Keystore;
+use zksync_prover_keystore::{compressor::load_all_resources, keystore::Keystore};
 use zksync_task_management::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -92,27 +90,8 @@ async fn main() -> anyhow::Result<()> {
 
     setup_crs_keys(&config);
 
-    // tracing::info!("Loading setup data from disk...");
-    // let setup_start_time = Instant::now();
-
-    // let setup_data_cache = if is_fflonk {
-    //     SnarkWrapperSetup::FFfonk(
-    //         keystore
-    //             .get_full_fflonk_setup_data()
-    //             .context("failed to get setup data for Plonk")?,
-    //     )
-    // } else {
-    //     SnarkWrapperSetup::Plonk(
-    //         keystore
-    //             .get_full_plonk_setup_data()
-    //             .context("failed to get setup data for Plonk")?,
-    //     )
-    // };
-
-    // tracing::info!(
-    //     "Finished loading mappings from disk in {:?}.",
-    //     setup_start_time.elapsed()
-    // );
+    let keystore = Arc::new(keystore);
+    load_all_resources(&keystore, is_fflonk);
 
     PROOF_FRI_COMPRESSOR_INSTANCE_METRICS
         .startup_time
@@ -131,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
         protocol_version,
         is_fflonk,
         cancellation_token.clone(),
-        Arc::new(keystore),
+        keystore,
     );
 
     tracing::info!("Starting proof compressor");

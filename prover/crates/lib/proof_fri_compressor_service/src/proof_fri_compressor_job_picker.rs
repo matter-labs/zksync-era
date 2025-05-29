@@ -89,8 +89,6 @@ impl JobPicker for ProofFriCompressorJobPicker {
             .await
             .context("Failed to get aggregation result coords from blob store")?;
 
-        // let setup_data_cache = Arc::try_unwrap(self.setup_data_cache.clone())
-        //     .map_err(|_| anyhow::anyhow!("Failed to unwrap setup data cache"))?;
         let setup_data_cache = self.setup_data_cache.clone();
         let payload = ProofFriCompressorPayload {
             scheduler_proof: match fri_proof {

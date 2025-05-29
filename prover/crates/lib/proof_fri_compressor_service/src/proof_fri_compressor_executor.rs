@@ -85,8 +85,6 @@ impl Executor for ProofFriCompressorExecutor {
         };
 
         let setup_data_cache = input.setup_data_cache;
-        // let setup_data_cache = Arc::try_unwrap(input.setup_data_cache.clone())
-        //     .map_err(|_| anyhow::anyhow!("Failed to unwrap setup data cache"))?;
 
         let proof_wrapper = run_proof_chain(
             snark_wrapper_mode,

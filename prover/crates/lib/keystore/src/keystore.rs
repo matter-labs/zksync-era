@@ -3,7 +3,7 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, RwLock},
+    sync::Arc,
 };
 
 use anyhow::Context as _;
@@ -25,8 +25,6 @@ use circuit_definitions::{
 };
 #[cfg(feature = "gpu")]
 use fflonk_gpu::{FflonkSnarkVerifierCircuitDeviceSetup, FflonkSnarkVerifierCircuitVK};
-#[cfg(feature = "gpu")]
-use proof_compression_gpu::CompressorSetupData;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::boojum::field::goldilocks::GoldilocksField;
@@ -34,6 +32,8 @@ use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource,
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage, MAX_COMPRESSION_CIRCUITS};
 use zksync_utils::env::Workspace;
 
+#[cfg(feature = "gpu")]
+use crate::compressor::CompressorSetupData;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
 use crate::{GoldilocksProverSetupData, VkCommitments};
