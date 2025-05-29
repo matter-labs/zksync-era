@@ -105,7 +105,7 @@ impl PrometheusConfig {
             let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
             Some(PrometheusExporterConfig::push(
                 gateway_endpoint,
-                self.push_interval(),
+                self.push_interval,
             ))
         } else {
             self.to_pull_config()

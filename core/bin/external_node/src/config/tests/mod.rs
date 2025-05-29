@@ -29,6 +29,15 @@ fn config_schema_can_be_constructed() {
 #[test]
 fn parsing_from_env() {
     let env = r#"
+        # Observability config
+        EN_PROMETHEUS_PORT=3322
+        EN_PROMETHEUS_PUSHGATEWAY_URL=http://prometheus/
+        EN_PROMETHEUS_PUSH_INTERVAL_MS=150
+        EN_LOG_FORMAT=json
+        EN_SENTRY_ENVIRONMENT="mainnet - mainnet2"
+        EN_SENTRY_URL=https://example.com/new
+        EN_LOG_DIRECTIVES=warn,zksync=info
+
         # Optional config, in the order its params were defined.
         EN_FILTERS_LIMIT=5000
         EN_SUBSCRIPTIONS_LIMIT=5000
@@ -164,6 +173,18 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
             "postgres://postgres:notsecurepassword@localhost:5432/en",
         )
         .set_env("DATABASE_POOL_SIZE", "50");
+
+    let config: PrometheusConfig = tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(config.listener_port, Some(3_322));
+    assert_eq!(config.pushgateway_url.unwrap(), "http://prometheus/");
+    assert_eq!(config.push_interval, Duration::from_millis(150));
+
+    let config: ObservabilityConfig = tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(config.log_format, "json");
+    assert_eq!(config.log_directives, "warn,zksync=info");
+    let sentry = config.sentry.unwrap();
+    assert_eq!(sentry.url, "https://example.com/new");
+    assert_eq!(sentry.environment.unwrap(), "mainnet - mainnet2");
 
     let config: Web3JsonRpcConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.filters_limit, 5_000);

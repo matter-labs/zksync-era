@@ -1,4 +1,14 @@
 # Sample config parsed by the EN.
+prometheus:
+  listener_port: 3322
+  pushgateway_url: http://prometheus/
+  push_interval_ms: 150
+observability:
+  log_format: json
+  log_directives: warn,zksync=info
+  sentry_url: https://example.com/new
+  sentry_environment: 'mainnet - mainnet2'
+
 postgres:
   server_url: postgres://postgres:notsecurepassword@localhost:5432/en
   max_connections: 50
