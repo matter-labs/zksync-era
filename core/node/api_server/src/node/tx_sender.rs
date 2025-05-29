@@ -145,7 +145,7 @@ impl WiringLayer for TxSenderLayer {
                 self.tx_sender_config
                     .with_timestamp_asserter_params(TimestampAsserterParams {
                         address,
-                        min_time_till_end: timestamp_asserter_config.min_time_till_end_sec,
+                        min_time_till_end: timestamp_asserter_config.min_time_till_end,
                     })
             }
             None => self.tx_sender_config,

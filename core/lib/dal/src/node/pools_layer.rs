@@ -71,9 +71,9 @@ impl WiringLayer for PoolsLayer {
 
         if self.with_master || self.with_replica {
             ConnectionPool::<Core>::global_config()
-                .set_slow_query_threshold(self.config.slow_query_threshold_ms)?;
+                .set_slow_query_threshold(self.config.slow_query_threshold)?;
             ConnectionPool::<Core>::global_config()
-                .set_long_connection_threshold(self.config.long_connection_threshold_ms)?;
+                .set_long_connection_threshold(self.config.long_connection_threshold)?;
         }
 
         let master_pool = if self.with_master {
@@ -96,9 +96,9 @@ impl WiringLayer for PoolsLayer {
                 self.config.max_connections()?,
             );
             let pool = pool
-                .with_statement_timeout(Some(self.config.statement_timeout_sec))
+                .with_statement_timeout(Some(self.config.statement_timeout))
                 .with_acquire_timeout(
-                    Some(self.config.acquire_timeout_sec),
+                    Some(self.config.acquire_timeout),
                     self.config.acquire_retries,
                 );
             Some(pool)

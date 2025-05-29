@@ -100,16 +100,16 @@ impl<R> ExternalNodeBuilder<R> {
         let config = PostgresConfig {
             max_connections: Some(self.config.postgres.max_connections),
             max_connections_master: Some(self.config.postgres.max_connections),
-            long_connection_threshold_ms: self
+            long_connection_threshold: self
                 .config
                 .optional
                 .long_connection_threshold()
-                .unwrap_or(default_config.long_connection_threshold_ms),
-            slow_query_threshold_ms: self
+                .unwrap_or(default_config.long_connection_threshold),
+            slow_query_threshold: self
                 .config
                 .optional
                 .slow_query_threshold()
-                .unwrap_or(default_config.slow_query_threshold_ms),
+                .unwrap_or(default_config.slow_query_threshold),
             ..default_config
         };
         let secrets = DatabaseSecrets {
@@ -156,8 +156,8 @@ impl<R> ExternalNodeBuilder<R> {
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = HealthCheckConfig {
             port: self.config.required.healthcheck_port,
-            slow_time_limit_ms: self.config.optional.healthcheck_slow_time_limit(),
-            hard_time_limit_ms: self.config.optional.healthcheck_hard_time_limit(),
+            slow_time_limit: self.config.optional.healthcheck_slow_time_limit(),
+            hard_time_limit: self.config.optional.healthcheck_hard_time_limit(),
         };
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)
@@ -572,7 +572,7 @@ impl ExternalNodeBuilder {
             max_vm_concurrency,
             (&self.config).into(),
             TimestampAsserterConfig {
-                min_time_till_end_sec: Duration::from_secs(
+                min_time_till_end: Duration::from_secs(
                     self.config
                         .optional
                         .timestamp_asserter_min_time_till_end_sec
