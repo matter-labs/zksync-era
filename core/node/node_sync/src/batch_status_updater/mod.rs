@@ -622,8 +622,7 @@ impl UpdaterCursor {
         l1_transaction_verifier: &L1TransactionVerifier,
         stage: AggregatedActionType,
     ) -> anyhow::Result<()> {
-        let (l1_tx_hash, happened_at, sl_chain_id) =
-            Self::extract_and_verify_op_data(l1_transaction_verifier, batch_info, stage).await?;
+        
         let (last_l1_batch, changes_to_update) = match stage {
             AggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
@@ -638,13 +637,17 @@ impl UpdaterCursor {
             ),
         };
 
+        if batch_info.number != last_l1_batch.next() {
+            return Ok(());
+        }
+
+        let (l1_tx_hash, happened_at, sl_chain_id) =
+            Self::extract_and_verify_op_data(l1_transaction_verifier, batch_info, stage).await?;
+
         // Check whether we have all data for the update.
         let Some(l1_tx_hash) = l1_tx_hash else {
             return Ok(());
         };
-        if batch_info.number != last_l1_batch.next() {
-            return Ok(());
-        }
 
         let action_str = l1_batch_stage_to_action_str(stage);
         let happened_at = happened_at.with_context(|| {
