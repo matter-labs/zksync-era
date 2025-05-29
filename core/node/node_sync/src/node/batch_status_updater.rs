@@ -16,10 +16,10 @@ use crate::batch_status_updater::BatchStatusUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub pool: PoolResource<MasterPool>,
-    pub client: MainNodeClientResource,
-    pub settlement_layer_client: SettlementLayerClient,
-    pub sl_chain_contracts: SettlementLayerContractsResource,
+    pool: PoolResource<MasterPool>,
+    client: MainNodeClientResource,
+    settlement_layer_client: SettlementLayerClient,
+    sl_chain_contracts: SettlementLayerContractsResource,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
 }
