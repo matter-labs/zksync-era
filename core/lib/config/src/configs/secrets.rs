@@ -151,8 +151,10 @@ mod tests {
             DATABASE_REPLICA_URL=postgres://postgres:notsecurepassword@localhost/zksync_replica_local
             DATABASE_PROVER_URL=postgres://postgres:notsecurepassword@localhost/prover_local
 
-            ETH_CLIENT_WEB3_URL=http://127.0.0.1:8545/
-            ETH_CLIENT_GATEWAY_WEB3_URL=http://127.0.0.1:4050/
+            # Was `ETH_CLIENT_WEB3_URL`
+            L1_ETH_CLIENT_URL=http://127.0.0.1:8545/
+            # Was `ETH_CLIENT_GATEWAY_WEB3_URL`
+            L1_GATEWAY_WEB3_URL=http://127.0.0.1:4050/
 
             DA_CLIENT="Avail"
             DA_SEED_PHRASE="correct horse battery staple"

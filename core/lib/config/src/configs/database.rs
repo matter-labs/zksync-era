@@ -180,6 +180,9 @@ mod tests {
             DATABASE_STATE_KEEPER_DB_PATH="/db/state_keeper"
             DATABASE_MERKLE_TREE_PATH="/db/tree"
             DATABASE_MERKLE_TREE_MODE=lightweight
+            DATABASE_MERKLE_TREE_INCLUDE_INDICES_AND_FILTERS_IN_BLOCK_CACHE=true
+            DATABASE_MERKLE_TREE_PROCESSING_DELAY_MS=0
+            DATABASE_MERKLE_TREE_MAX_OPEN_FILES=512
             DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
             DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB=512
             DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=60
@@ -207,6 +210,9 @@ mod tests {
           merkle_tree:
             path: /db/tree
             mode: LIGHTWEIGHT
+            max_open_files: 512
+            processing_delay_ms: 0
+            include_indices_and_filters_in_block_cache: false
             multi_get_chunk_size: 250
             block_cache_size_mb: 128
             memtable_capacity_mb: 512
@@ -215,8 +221,9 @@ mod tests {
           experimental:
             state_keeper_db_block_cache_capacity_mb: 64
             reads_persistence_enabled: false
-            processing_delay_ms: 0
-            include_indices_and_filters_in_block_cache: false
+            # Moved to `merkle_tree`
+            # processing_delay_ms: 0
+            # include_indices_and_filters_in_block_cache: false
             merkle_tree_repair_stale_keys: true
             state_keeper_db_max_open_files: 100
         "#;
