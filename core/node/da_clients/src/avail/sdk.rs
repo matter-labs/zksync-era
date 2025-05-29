@@ -19,6 +19,8 @@ use zksync_types::H256;
 use crate::utils::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
+/// Maximum number of blocks to look back when searching for an extrinsic in the latest finalized block.
+const MAX_BLOCKS_TO_LOOK_BACK: usize = 5;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RawAvailClient {
@@ -294,42 +296,63 @@ impl RawAvailClient {
         client: &Client,
         extrinsic_hash: &str,
     ) -> anyhow::Result<Option<(String, usize)>> {
-        let block_hash: serde_json::Value = client
+        let mut block_hash: serde_json::Value = client
             .request("chain_getFinalizedHead", rpc_params![])
             .await?;
 
-        let Some(block_hash) = block_hash.as_str() else {
-            return Err(anyhow::anyhow!(
-                "Invalid block hash from RPC: {:?}",
-                block_hash
-            ));
-        };
-
-        let latest_block_result: serde_json::Value = client
-            .request("chain_getBlock", rpc_params![block_hash])
-            .await?;
-
-        let block = latest_block_result
-            .get("block")
-            .ok_or_else(|| anyhow::anyhow!("Invalid block"))?;
-
-        let extrinsics = block
-            .get("extrinsics")
-            .ok_or_else(|| anyhow::anyhow!("No field named extrinsics in block"))?
-            .as_array()
-            .ok_or_else(|| anyhow::anyhow!("Extrinsics field is not an array"))?;
-
-        Ok(Self::find_ext_in_array(extrinsics, extrinsic_hash)
-            .await
-            .map(|index| {
-                (
+        for _ in 0..MAX_BLOCKS_TO_LOOK_BACK {
+            let Some(block_hash_str) = block_hash.as_str() else {
+                return Err(anyhow::anyhow!(
+                    "Invalid block hash from RPC: {:?}",
                     block_hash
+                ));
+            };
+
+            let block_result: serde_json::Value = client
+                .request("chain_getBlock", rpc_params![block_hash_str])
+                .await?;
+
+            let block = block_result
+                .get("block")
+                .ok_or_else(|| anyhow::anyhow!("Invalid block"))?;
+
+            let extrinsics = block
+                .get("extrinsics")
+                .ok_or_else(|| anyhow::anyhow!("No field named extrinsics in block"))?
+                .as_array()
+                .ok_or_else(|| anyhow::anyhow!("Extrinsics field is not an array"))?;
+
+            if let Some(index) = Self::find_ext_in_array(extrinsics, extrinsic_hash).await {
+                return Ok(Some((
+                    block_hash_str
                         .strip_prefix("0x")
-                        .unwrap_or(block_hash)
+                        .unwrap_or(block_hash_str)
                         .to_string(),
                     index,
-                )
-            }))
+                )));
+            }
+
+            let block_number = block
+                .get("header")
+                .ok_or_else(|| anyhow::anyhow!("No field named header in block"))?
+                .as_object()
+                .ok_or_else(|| anyhow::anyhow!("Header field is not an object"))?
+                .get("number")
+                .ok_or_else(|| anyhow::anyhow!("No field named number in block header"))?;
+
+            block_hash = client
+                .request("chain_getBlockHash", rpc_params![block_number])
+                .await
+                .context("Error calling chain_getBlockHash RPC")?;
+        }
+
+        tracing::debug!(
+            "Extrinsic with hash {} not found in the last {} blocks",
+            extrinsic_hash,
+            MAX_BLOCKS_TO_LOOK_BACK
+        );
+
+        Ok(None)
     }
 
     /// Finds the extrinsic with a certain hash in the array of extrinsics
