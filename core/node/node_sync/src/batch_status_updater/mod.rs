@@ -1,6 +1,6 @@
 //! Component responsible for updating L1 batch status.
 
-use std::{fmt, time::Duration};
+use std::{cmp::Ordering, fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -234,10 +234,6 @@ impl L1TransactionVerifier {
                 let commitment = get_param(&parsed_log.params, "commitment")
                         .and_then(ethabi::Token::into_fixed_bytes).map(|bytes| H256::from_slice(&bytes))
                         .expect("Missing expected `commitment` parameter in `BlockCommit` event log");
-
-                tracing::debug!(
-                    "Commit transaction {commit_tx_hash:?} has `BlockCommit` event log with batch_hash={batch_hash:?} and commitment={commitment:?}"
-                );
 
                 Some((batch_hash, commitment))
             }).next();
@@ -519,10 +515,13 @@ impl UpdaterCursor {
         stage: AggregatedActionType,
     ) -> anyhow::Result<(Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>)> {
         let map_validation_result =
-            |validtion_result: Result<(), TransactionValidationError>| match validtion_result {
-                Ok(()) => Ok((None, None, None)),
-                Err(err) if err.is_retriable() => Ok((None, None, None)),
-                Err(err) => Err(err.into()),
+            |validtion_result: Result<(), TransactionValidationError>,
+             op_data: (Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>)| {
+                match validtion_result {
+                    Ok(()) => Ok(op_data),
+                    Err(err) if err.is_retriable() => Ok((None, None, None)),
+                    Err(err) => Err(err.into()),
+                }
             };
 
         match stage {
@@ -541,6 +540,11 @@ impl UpdaterCursor {
                         l1_transaction_verifier
                             .validate_commit_tx_against_db(commit_tx_hash, batch_info.number)
                             .await,
+                        (
+                            Some(commit_tx_hash),
+                            batch_info.base.committed_at,
+                            batch_info.base.commit_chain_id,
+                        ),
                     )
                 } else {
                     Ok((None, None, None))
@@ -560,6 +564,11 @@ impl UpdaterCursor {
                         l1_transaction_verifier
                             .validate_prove_tx(prove_tx_hash, batch_info.number)
                             .await,
+                        (
+                            Some(prove_tx_hash),
+                            batch_info.base.proven_at,
+                            batch_info.base.prove_chain_id,
+                        ),
                     )
                 } else {
                     Ok((None, None, None))
@@ -580,6 +589,11 @@ impl UpdaterCursor {
                         l1_transaction_verifier
                             .validate_execute_tx(execute_tx_hash, batch_info.number)
                             .await,
+                        (
+                            Some(execute_tx_hash),
+                            batch_info.base.executed_at,
+                            batch_info.base.execute_chain_id,
+                        ),
                     )
                 } else {
                     Ok((None, None, None))
@@ -599,19 +613,24 @@ impl UpdaterCursor {
             AggregatedActionType::PublishProofOnchain,
             AggregatedActionType::Execute,
         ] {
-            self.update_stage(status_changes, batch_info, l1_transaction_verifier, stage)
-                .await?;
+            if !self
+                .update_stage(status_changes, batch_info, l1_transaction_verifier, stage)
+                .await?
+            {
+                break;
+            }
         }
         Ok(())
     }
 
+    /// Returns `true` current stage action was validated.
     async fn update_stage(
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::L1BatchDetails,
         l1_transaction_verifier: &L1TransactionVerifier,
         stage: AggregatedActionType,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let (last_l1_batch, changes_to_update) = match stage {
             AggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
@@ -626,16 +645,20 @@ impl UpdaterCursor {
             ),
         };
 
-        if batch_info.number != last_l1_batch.next() {
-            return Ok(());
+        match batch_info.number.cmp(&last_l1_batch.next()) {
+            Ordering::Less => return Ok(true), // this batch and was validated before
+            Ordering::Greater => return Ok(false), // this batch stage and any later stage cannot be validated right now
+            Ordering::Equal => {}                  // this batch can be validated
         }
+
+        tracing::debug!("Updating batch {}", batch_info.number);
 
         let (l1_tx_hash, happened_at, sl_chain_id) =
             Self::extract_and_verify_op_data(l1_transaction_verifier, batch_info, stage).await?;
 
-        // Check whether we have all data for the update.
+        // Check if current stage transaction is valid & exist
         let Some(l1_tx_hash) = l1_tx_hash else {
-            return Ok(());
+            return Ok(false); // If current stage tranasction cannot be validated or does not exist, do not check next staege
         };
 
         let action_str = l1_batch_stage_to_action_str(stage);
@@ -651,7 +674,7 @@ impl UpdaterCursor {
         tracing::info!("Batch {}: {action_str}", batch_info.number);
         FETCHER_METRICS.l1_batch[&stage.into()].set(batch_info.number.0.into());
         *last_l1_batch += 1;
-        Ok(())
+        Ok(true)
     }
 }
 
