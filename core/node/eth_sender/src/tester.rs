@@ -73,7 +73,7 @@ impl TestL1Batch {
         tester
             .execute_tx(
                 self.number,
-                AggregatedActionType::Commit,
+                L1BatchAggregatedActionType::Commit,
                 true,
                 EthTxFinalityStatus::FastFinalized,
             )
