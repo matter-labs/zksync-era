@@ -20,9 +20,23 @@ pub struct ENConfig {
     pub main_node_url: SensitiveUrl,
     #[config(default_t = NonZeroUsize::new(100).unwrap())]
     pub main_node_rate_limit_rps: NonZeroUsize,
-    pub bridge_addresses_refresh_interval: Option<Duration>,
+    #[config(default_t = Duration::from_secs(60))]
+    pub bridge_addresses_refresh_interval: Duration,
     #[config(with = Optional(Serde![int]))]
     pub gateway_chain_id: Option<SLChainId>,
+}
+
+impl ENConfig {
+    pub fn for_tests() -> Self {
+        Self {
+            l2_chain_id: L2ChainId::default(),
+            l1_chain_id: L1ChainId(9),
+            main_node_url: "http://localhost:3050/".parse().unwrap(),
+            main_node_rate_limit_rps: 100.try_into().unwrap(),
+            bridge_addresses_refresh_interval: Duration::from_secs(60),
+            gateway_chain_id: None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -38,7 +52,7 @@ mod tests {
             gateway_chain_id: Some(SLChainId(123)),
             main_node_url: "http://127.0.0.1:3050/".parse().unwrap(),
             main_node_rate_limit_rps: NonZeroUsize::new(200).unwrap(),
-            bridge_addresses_refresh_interval: Some(Duration::from_secs(15)),
+            bridge_addresses_refresh_interval: Duration::from_secs(15),
         }
     }
 

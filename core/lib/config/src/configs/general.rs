@@ -100,6 +100,7 @@ pub struct GeneralConfig {
     pub gateway_migrator_config: GatewayMigratorConfig,
 }
 
+// FIXME: remove EN variant
 pub fn full_config_schema(for_en: bool) -> ConfigSchema {
     let mut schema = ConfigSchema::new(&GeneralConfig::DESCRIPTION, "");
 

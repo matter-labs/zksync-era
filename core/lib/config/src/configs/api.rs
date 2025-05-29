@@ -29,6 +29,20 @@ pub struct ApiConfig {
     pub merkle_tree: MerkleTreeApiConfig,
 }
 
+impl ApiConfig {
+    pub fn for_tests() -> Self {
+        Self {
+            web3_json_rpc: Web3JsonRpcConfig::default(),
+            healthcheck: HealthCheckConfig {
+                port: 3052,
+                slow_time_limit_ms: None,
+                hard_time_limit_ms: None,
+            },
+            merkle_tree: MerkleTreeApiConfig { port: 3053 },
+        }
+    }
+}
+
 /// Response size limits for specific RPC methods.
 ///
 /// The unit of measurement for contained limits depends on the context. In [`MaxResponseSize`],

@@ -6,6 +6,7 @@ use smart_config::{DescribeConfig, DeserializeConfig};
 #[config(derive(Default))]
 pub struct PrometheusConfig {
     /// Port to which the Prometheus exporter server is listening.
+    #[config(alias = "port")]
     pub listener_port: Option<u16>,
     /// URL of the push gateway.
     pub pushgateway_url: Option<String>,

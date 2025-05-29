@@ -1,14 +1,13 @@
-use std::{collections::HashSet, str::FromStr};
+use std::{collections::HashSet, env, str::FromStr};
 
 use anyhow::Context as _;
 use clap::Parser;
 use node_builder::ExternalNodeBuilder;
-use zksync_config::{cli::ConfigArgs, full_config_schema, sources::ConfigFilePaths};
+use smart_config::Prefixed;
+use zksync_config::{cli::ConfigArgs, sources::ConfigFilePaths};
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::config::{
-    generate_consensus_secrets, observability::ObservabilityENConfig, ExternalNodeConfig,
-};
+use crate::config::{generate_consensus_secrets, ExternalNodeConfig, LocalConfig};
 
 mod config;
 mod metadata;
@@ -127,27 +126,31 @@ fn main() -> anyhow::Result<()> {
 
     // Initial setup.
     let opt = Cli::parse();
-    let schema = full_config_schema(true);
+    let schema = LocalConfig::schema().context("Internal error: cannot build config schema")?;
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path.clone(),
         secrets: opt.secrets_path.clone(),
         external_node: opt.external_node_config_path.clone(),
-        consensus: opt.consensus_path.clone(),
+        consensus: if let Some(path) = opt.consensus_path.clone() {
+            Some(path)
+        } else if let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") {
+            Some(path.into())
+        } else {
+            None
+        },
         ..ConfigFilePaths::default()
     };
-    let config_sources = config_file_paths.into_config_sources("EN_")?;
-    let (observability, prometheus_config) = {
+    let mut config_sources = config_file_paths.into_config_sources("EN_")?;
+    // Legacy compatibility: read consensus secrets from one more source.
+    if let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") {
+        let yaml = ConfigFilePaths::read_yaml(path.as_ref())?;
+        config_sources.push(Prefixed::new(yaml, "secrets.consensus"));
+    }
+
+    let observability = {
         // Observability initialization should be performed within tokio context.
         let _rt_guard = runtime.enter();
-        if opt.config_path.is_some() {
-            (config_sources.observability()?.install()?, None)
-        } else {
-            let observability = ObservabilityENConfig::from_env()?;
-            (
-                observability.build_observability()?,
-                observability.prometheus(),
-            )
-        }
+        config_sources.observability()?.install()?
     };
     let repo = config_sources.build_repository(&schema);
 
@@ -161,29 +164,15 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut config = if opt.config_path.is_some() {
-        if opt.enable_consensus {
-            anyhow::ensure!(
-                opt.consensus_path.is_some(),
-                "if --config-path and --enable-consensus are specified, then --consensus-path should be used to specify the location of the consensus config"
-            );
-        }
-        ExternalNodeConfig::from_files(repo, opt.consensus_path.is_some())?
-    } else {
-        ExternalNodeConfig::new(prometheus_config).context("Failed to load node configuration")?
-    };
-
-    if !opt.enable_consensus {
-        config.consensus = None;
-    }
+    let config = ExternalNodeConfig::new(repo, opt.enable_consensus)?;
 
     // Build L1 and L2 clients.
-    let main_node_url = &config.required.main_node_url;
+    let main_node_url = &config.local.networks.main_node_url;
     tracing::info!("Main node URL is: {main_node_url:?}");
     let main_node_client = Client::http(main_node_url.clone())
         .context("failed creating JSON-RPC client for main node")?
-        .for_network(config.required.l2_chain_id.into())
-        .with_allowed_requests_per_second(config.optional.main_node_rate_limit_rps)
+        .for_network(config.local.networks.l2_chain_id.into())
+        .with_allowed_requests_per_second(config.local.networks.main_node_rate_limit_rps)
         .build();
     let main_node_client = Box::new(main_node_client) as Box<DynClient<L2>>;
 

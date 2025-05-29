@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use smart_config::{Environment, Prefixed, Yaml};
+use smart_config::{ConfigSource, Environment, Prefixed, Yaml};
 
 /// Wrapper around configuration sources.
 #[derive(Debug, Default)]
@@ -15,6 +15,11 @@ impl ConfigSources {
     pub fn with_yaml(mut self, path: &Path) -> anyhow::Result<Self> {
         self.0.push(ConfigFilePaths::read_yaml(path)?);
         Ok(self)
+    }
+
+    /// Pushes a config source.
+    pub fn push(&mut self, source: impl ConfigSource) {
+        self.0.push(source);
     }
 }
 
