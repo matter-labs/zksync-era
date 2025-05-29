@@ -1453,6 +1453,7 @@ impl HttpTest for HttpServerBatchStatusTest {
             AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain),
         )
         .await;
+
         storage
             .eth_sender_dal()
             .confirm_tx(

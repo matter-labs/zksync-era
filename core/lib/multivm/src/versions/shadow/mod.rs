@@ -24,8 +24,7 @@ use crate::{
     vm_latest::HistoryEnabled,
 };
 
-// TODO uncomment when  fast vm is updated to support v29
-// mod tests;
+mod tests;
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
 type ShadowedFastVm<S = InMemoryStorage, Tr = ()> =

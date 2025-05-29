@@ -12,9 +12,8 @@ pub use self::{
 mod bytecode;
 mod events;
 mod glue;
-// TODO: uncomment when fast vm is updated to support v29
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 mod tracers;
 mod utils;
 mod version;
