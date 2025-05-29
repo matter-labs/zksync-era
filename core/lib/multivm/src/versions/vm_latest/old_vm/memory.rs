@@ -283,38 +283,31 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
-        let is_returndata_page_static = last_callstack_this == CODE_ORACLE_ADDRESS;
         let current_observable_pages = self.observable_pages.inner().current_frame();
 
-        let returndata_page = if is_returndata_page_static && returndata_fat_pointer.length == 0 {
-            // This only happens when the code oracle runs out of gas after decommitting code.
-            // The page with the code needs to be kept but the zero page is returned instead
-            // in that case.
-            // If the page has been decommitted in past, this erroneously keeps an empty heap
-            // alive but that is a very rare case.
-            heap_page_from_base(base_page).0
+        if last_callstack_this == CODE_ORACLE_ADDRESS {
+            // When the code oracle decommits a bytecode for the first time,
+            // it needs to keep that heap alive forever.
+            // We keep all heaps of that contract just to be safe.
+            self.observable_pages.clear_frame(timestamp);
         } else {
-            returndata_fat_pointer.memory_page
-        };
+            let returndata_page = returndata_fat_pointer.memory_page;
 
-        for &page in current_observable_pages {
-            // If the page's number is greater than or equal to the `base_page`,
-            // it means that it was created by the internal calls of this contract.
-            // Returned data must not be cleared, however.
-            if page >= base_page.0 && page != returndata_page {
-                self.memory.clear_page(page as usize, timestamp);
+            for &page in current_observable_pages {
+                // If the page's number is greater than or equal to the `base_page`,
+                // it means that it was created by the internal calls of this contract.
+                // Returned data must not be cleared, however.
+                if page >= base_page.0 && page != returndata_page {
+                    self.memory.clear_page(page as usize, timestamp);
+                }
             }
-        }
 
-        self.observable_pages.clear_frame(timestamp);
-        self.observable_pages.merge_frame(timestamp);
-
-        // If returndata page is static, we do not add it to the list of observable pages,
-        // effectively preventing it from being cleared in the future.
-        if !is_returndata_page_static {
+            self.observable_pages.clear_frame(timestamp);
             self.observable_pages
                 .push_to_frame(returndata_page, timestamp);
         }
+
+        self.observable_pages.merge_frame(timestamp);
     }
 }
 
