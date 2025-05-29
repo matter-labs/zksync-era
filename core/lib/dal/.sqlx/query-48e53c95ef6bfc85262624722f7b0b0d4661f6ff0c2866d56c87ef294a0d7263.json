@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                eth_txs_history.*,\n                eth_txs.blob_sidecar\n            FROM\n                eth_txs_history\n            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n            WHERE\n                eth_tx_id = $1\n                AND eth_txs_history.confirmed_at IS NOT NULL\n                AND eth_txs.has_failed IS FALSE\n            ORDER BY\n                eth_txs_history.created_at\n            ",
+  "query": "\n            SELECT\n                eth_txs_history.*,\n                eth_txs.blob_sidecar\n            FROM\n                eth_txs_history\n            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n            WHERE\n                eth_tx_id = $1\n                AND eth_txs_history.confirmed_at IS NOT NULL\n                AND eth_txs.has_failed IS FALSE\n            ORDER BY\n                eth_txs_history.created_at DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -120,5 +120,5 @@
       true
     ]
   },
-  "hash": "50c90a47c1287744e7d0ae002eea45c666cb3acdec96613afd5c218feb26c12e"
+  "hash": "48e53c95ef6bfc85262624722f7b0b0d4661f6ff0c2866d56c87ef294a0d7263"
 }

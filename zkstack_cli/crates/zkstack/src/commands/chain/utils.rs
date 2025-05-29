@@ -86,7 +86,7 @@ pub(crate) async fn send_tx(
     spinner.finish();
 
     logger::info(format!(
-        "Transaciton {:#?} completed!",
+        "Transaction {:#?} completed!",
         receipt.transaction_hash
     ));
 

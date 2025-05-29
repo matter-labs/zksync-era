@@ -2201,14 +2201,14 @@ impl BlocksDal<'_, '_> {
         ))
     }
 
-    pub async fn get_gw_interop_batch_chain_merkle_path(
+    pub async fn get_batch_chain_local_merkle_path(
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<BatchAndChainMerklePath>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                gw_interop_batch_chain_merkle_path
+                batch_chain_local_merkle_path
             FROM
                 l1_batches
             WHERE
@@ -2216,19 +2216,18 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(number.0)
         )
-        .instrument("get_gw_interop_batch_chain_merkle_path")
+        .instrument("get_batch_chain_local_merkle_path")
         .with_arg("number", &number)
         .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
         };
-        let Some(gw_interop_batch_chain_merkle_path) = row.gw_interop_batch_chain_merkle_path
-        else {
+        let Some(batch_chain_local_merkle_path) = row.batch_chain_local_merkle_path else {
             return Ok(None);
         };
         Ok(Some(
-            bincode::deserialize(&gw_interop_batch_chain_merkle_path).unwrap(),
+            bincode::deserialize(&batch_chain_local_merkle_path).unwrap(),
         ))
     }
 
@@ -2315,7 +2314,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn set_gw_interop_batch_chain_merkle_path(
+    pub async fn set_batch_chain_local_merkle_path(
         &mut self,
         number: L1BatchNumber,
         proof: BatchAndChainMerklePath,
@@ -2326,14 +2325,14 @@ impl BlocksDal<'_, '_> {
             UPDATE
             l1_batches
             SET
-                gw_interop_batch_chain_merkle_path = $2
+                batch_chain_local_merkle_path = $2
             WHERE
                 number = $1
             "#,
             i64::from(number.0),
             &proof_bin
         )
-        .instrument("set_gw_interop_batch_chain_merkle_path")
+        .instrument("batch_chain_local_merkle_path")
         .with_arg("number", &number)
         .execute(self.storage)
         .await?;

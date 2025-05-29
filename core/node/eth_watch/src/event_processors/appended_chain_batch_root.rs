@@ -170,34 +170,35 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs.clone()) {
-                proof.proof.extend(chain_proof_vector.clone());
-
+            for ((batch_number, _), base_proof) in chain_batches.iter().zip(batch_proofs) {
+                let mut batch_chain_proof = base_proof.clone();
+                batch_chain_proof.proof.extend(chain_proof_vector.clone());
                 transaction
                     .blocks_dal()
-                    .set_batch_chain_merkle_path(*batch_number, proof)
+                    .set_batch_chain_merkle_path(*batch_number, batch_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
-            }
 
-            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs) {
-                let gw_block_number =
-                    Self::get_gw_block_number(&mut transaction, *batch_number).await?;
-                let gw_chain_agg_proof = self
+                let sl_block_number =
+                    Self::get_sl_block_number_at_execute(&mut transaction, *batch_number).await?;
+                let local_chain_agg_proof = self
                     .sl_l2_client
                     .get_chain_log_proof(
-                        BatchOrBlockNumber::BlockNumber(gw_block_number),
+                        BatchOrBlockNumber::BlockNumber(sl_block_number),
                         self.l2_chain_id,
                     )
                     .await?
                     .context("Missing Gateway chain log proof for finalized batch")?;
-                let gw_chain_proof_vector =
-                    Self::chain_proof_vector(gw_block_number.0, gw_chain_agg_proof, sl_chain_id);
-                proof.proof.extend(gw_chain_proof_vector);
+                let local_chain_proof_vector =
+                    Self::chain_proof_vector(sl_block_number.0, local_chain_agg_proof, sl_chain_id);
 
+                let mut local_batch_chain_proof = base_proof;
+                local_batch_chain_proof
+                    .proof
+                    .extend(local_chain_proof_vector);
                 transaction
                     .blocks_dal()
-                    .set_gw_interop_batch_chain_merkle_path(*batch_number, proof)
+                    .set_batch_chain_local_merkle_path(*batch_number, local_batch_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
             }
@@ -241,7 +242,7 @@ impl BatchRootProcessor {
         full_preimage
     }
 
-    async fn get_gw_block_number(
+    async fn get_sl_block_number_at_execute(
         storage: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> Result<L2BlockNumber, EventProcessorError> {
@@ -251,7 +252,8 @@ impl BatchRootProcessor {
                 l1_batch_number,
                 AggregatedActionType::Execute,
             )
-            .await;
+            .await
+            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
 
         let tx = storage
             .eth_sender_dal()

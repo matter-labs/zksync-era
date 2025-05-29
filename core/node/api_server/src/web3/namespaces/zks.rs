@@ -336,7 +336,7 @@ impl ZksNamespace {
                 // Serve a proof to Gateway's MessageRoot
                 storage
                     .blocks_dal()
-                    .get_gw_interop_batch_chain_merkle_path(l1_batch_number)
+                    .get_batch_chain_local_merkle_path(l1_batch_number)
                     .await
                     .map_err(DalError::generalize)
             } else {
