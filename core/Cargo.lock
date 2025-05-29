@@ -4024,17 +4024,12 @@ version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
- "futures 0.3.31",
- "serde",
- "serde_json",
- "serde_yaml",
  "tokio",
  "tracing",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
  "zksync_node_genesis",
- "zksync_protobuf",
  "zksync_types",
 ]
 
@@ -8988,7 +8983,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=3ba8f838a9499190b73579bf111b92a3c14753a7#3ba8f838a9499190b73579bf111b92a3c14753a7"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -9004,7 +8999,7 @@ dependencies = [
 [[package]]
 name = "smart-config-commands"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=3ba8f838a9499190b73579bf111b92a3c14753a7#3ba8f838a9499190b73579bf111b92a3c14753a7"
 dependencies = [
  "anstream",
  "anstyle",
@@ -9016,7 +9011,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=3ba8f838a9499190b73579bf111b92a3c14753a7#3ba8f838a9499190b73579bf111b92a3c14753a7"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -11632,9 +11627,9 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.151.7"
+version = "0.151.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78e54e9c5d566b4e0cefaf62507be89610ca7766dc3397e9222cbe433870b0df"
+checksum = "820fedbd066674163225e8c95ace92277002aaed2e0d18e1656702919fb8c42c"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11642,7 +11637,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.151.7",
+ "zk_evm_abstractions 0.151.8",
 ]
 
 [[package]]
@@ -11688,15 +11683,15 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.151.7"
+version = "0.151.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a567541c98b85f29ccf06f63b96287c82ffb216706b84bb20ad083e4ee49b3d7"
+checksum = "dc75573623393d2a1fa0716ceed1c725a9e238d7eab2ddcc7e08d61c79e54cbd"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.151.7",
+ "zkevm_opcode_defs 0.151.8",
 ]
 
 [[package]]
@@ -11830,9 +11825,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.151.7"
+version = "0.151.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31e6cdb765d11ce237d7e7acd1589d523f186939acb8508f2443df66fd4f094a"
+checksum = "1e50a5bc9bfe4cdea8f057d77df5cd21bcf38e9044b36de3235fbf6e361de53a"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
@@ -12312,18 +12307,6 @@ dependencies = [
  "serde_json",
  "zksync_basic_types",
  "zksync_utils",
-]
-
-[[package]]
-name = "zksync_core_leftovers"
-version = "28.2.1-non-semver-compat"
-dependencies = [
- "anyhow",
- "ctrlc",
- "serde_yaml",
- "tokio",
- "zksync_config",
- "zksync_protobuf",
 ]
 
 [[package]]
@@ -12929,7 +12912,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.151.7",
+ "zk_evm 0.151.8",
  "zk_evm 0.152.3",
  "zksync_contracts",
  "zksync_eth_signer",
@@ -12971,7 +12954,7 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "vise",
- "zk_evm 0.151.7",
+ "zk_evm 0.151.8",
  "zksync_circuit_breaker",
  "zksync_config",
  "zksync_consensus_roles",
@@ -13398,7 +13381,6 @@ dependencies = [
  "zksync_consensus_executor",
  "zksync_consensus_roles",
  "zksync_contract_verification_server",
- "zksync_core_leftovers",
  "zksync_da_clients",
  "zksync_da_dispatcher",
  "zksync_dal",
