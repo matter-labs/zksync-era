@@ -455,6 +455,7 @@ jobs:
         run: |
           CHAINS="era,validium,custom_token,da_migration,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
+          echo "CHAINS=$CHAINS" >> .env
 
       # ----------------------------------------------------------------
       #  Only create/initialize the gateway chain *if* use_gateway_chain=WITH_GATEWAY
