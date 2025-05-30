@@ -42,7 +42,7 @@ state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
   block_commit_deadline_ms: 2000
-  miniblock_commit_deadline_ms: 200
+  miniblock_commit_deadline_ms: 100
   miniblock_seal_queue_capacity: 10
   miniblock_max_payload_size: 1000000
   max_single_tx_gas: 15000000
