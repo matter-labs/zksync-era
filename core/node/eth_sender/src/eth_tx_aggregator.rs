@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Add};
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -773,11 +773,15 @@ impl EthTxAggregator {
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
     ) -> TxData {
-        let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
-
         match op {
             AggregatedOperation::L1Batch(op) => {
-                let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
+                let protocol_version = op.protocol_version();
+
+                let mut args = if protocol_version.is_pre_v29_interop() {
+                    vec![Token::Uint(self.rollup_chain_id.as_u64().into())]
+                } else {
+                    vec![Token::Address(self.state_transition_chain_contract)]
+                };
 
                 let (calldata, sidecar) = match op {
                     L1BatchAggregatedOperation::Commit(
@@ -796,10 +800,12 @@ impl EthTxAggregator {
 
                         args.extend(commit_data_base);
                         let commit_data = args;
-                        let encoding_fn = if is_op_pre_gateway {
+                        let encoding_fn = if protocol_version.is_pre_gateway() {
                             &self.functions.post_shared_bridge_commit
+                        } else if protocol_version.is_pre_v29_interop() {
+                            &self.functions.post_v26_gateway_commit
                         } else {
-                            &self.functions.post_gateway_commit
+                            &self.functions.post_v29_interop_commit
                         };
 
                         let l1_batch_for_sidecar = if PubdataSendingMode::Blobs == *pubdata_da {
@@ -812,10 +818,12 @@ impl EthTxAggregator {
                     }
                     L1BatchAggregatedOperation::PublishProofOnchain(op) => {
                         args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
-                        let encoding_fn = if is_op_pre_gateway {
+                        let encoding_fn = if protocol_version.is_pre_gateway() {
                             &self.functions.post_shared_bridge_prove
+                        } else if protocol_version.is_pre_v29_interop() {
+                            &self.functions.post_v26_gateway_prove
                         } else {
-                            &self.functions.post_gateway_prove
+                            &self.functions.post_v29_timelock_interop_prove
                         };
                         let calldata = encoding_fn
                             .encode_input(&args)
@@ -824,12 +832,16 @@ impl EthTxAggregator {
                     }
                     L1BatchAggregatedOperation::Execute(op) => {
                         args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
-                        let encoding_fn =
-                            if is_op_pre_gateway && chain_protocol_version_id.is_pre_gateway() {
-                                &self.functions.post_shared_bridge_execute
-                            } else {
-                                &self.functions.post_gateway_execute
-                            };
+                        let encoding_fn = if protocol_version.is_pre_gateway()
+                            && chain_protocol_version_id.is_pre_gateway()
+                        {
+                            &self.functions.post_shared_bridge_execute
+                        } else if protocol_version.is_pre_v29_interop() {
+                            &self.functions.post_v26_gateway_execute
+                        } else {
+                            &self.functions.post_v29_interop_execute
+                        };
+
                         let calldata = encoding_fn
                             .encode_input(&args)
                             .expect("Failed to encode execute transaction data");
@@ -845,6 +857,8 @@ impl EthTxAggregator {
                     txs,
                     ..
                 } => {
+                    let mut args = vec![Token::Address(self.state_transition_chain_contract)];
+
                     let precommit_batches = PrecommitBatches {
                         txs,
                         last_l2_block: *last_l2_block,
@@ -853,7 +867,7 @@ impl EthTxAggregator {
                     let precommit_data_base = precommit_batches.into_tokens();
 
                     args.extend(precommit_data_base);
-                    let encoding_fn = &self.functions.precommit;
+                    let encoding_fn = &self.functions.post_v29_interop_precommit;
 
                     let calldata = encoding_fn
                         .encode_input(&args)

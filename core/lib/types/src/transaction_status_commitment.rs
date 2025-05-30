@@ -1,7 +1,4 @@
-use anyhow::Context;
-use zksync_basic_types::web3::contract::{Error, Tokenizable};
-
-use crate::{ethabi::Token, H256};
+use crate::H256;
 
 #[derive(Debug, Clone)]
 pub struct TransactionStatusCommitment {
@@ -9,30 +6,16 @@ pub struct TransactionStatusCommitment {
     pub is_success: bool,
 }
 
-impl Tokenizable for TransactionStatusCommitment {
-    fn from_token(token: Token) -> Result<Self, Error> {
-        (|| {
-            let [Token::FixedBytes(tx_hash), Token::Bool(is_success)]: [Token; 2] = token
-                .into_tuple()
-                .context("not a tuple")?
-                .try_into()
-                .ok()
-                .context("bad length")?
-            else {
-                anyhow::bail!("bad format")
-            };
-            Ok(Self {
-                tx_hash: H256::from_slice(tx_hash.as_slice()),
-                is_success,
-            })
-        })()
-        .map_err(|err| Error::InvalidOutputType(format!("{err:#}")))
-    }
+const PACKED_BYTES_SIZE: usize = 33;
 
-    fn into_token(self) -> Token {
-        Token::Tuple(vec![
-            Token::FixedBytes(self.tx_hash.0.to_vec()),
-            Token::Bool(self.is_success),
-        ])
+impl TransactionStatusCommitment {
+    pub fn get_packed_bytes(&self) -> [u8; PACKED_BYTES_SIZE] {
+        let status_byte = if self.is_success { 1u8 } else { 0u8 };
+
+        let mut data = [0u8; PACKED_BYTES_SIZE];
+        data[0..32].copy_from_slice(self.tx_hash.as_bytes());
+        data[32] = status_byte;
+
+        data
     }
 }
