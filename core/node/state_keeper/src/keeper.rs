@@ -710,7 +710,7 @@ impl StateKeeperInner {
                 );
 
                 if let Some(tx_filter) = &self.deployment_tx_filter {
-                    if !tx.is_l1()
+                    if !(tx.is_l1() || tx.is_protocol_upgrade())
                         && tx_filter
                             .find_not_allowed_deployer(
                                 tx.initiator_account(),
