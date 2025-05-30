@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use assert_matches::assert_matches;
 use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource, Yaml};
 use zksync_config::configs::{
     api::{HealthCheckConfig, MaxResponseSizeOverrides},
@@ -26,8 +27,160 @@ fn config_schema_can_be_constructed() {
     LocalConfig::schema().unwrap();
 }
 
+fn parse_prepared_env(env: smart_config::Environment) -> (LocalConfig, ObservabilityConfig) {
+    let schema = LocalConfig::schema().unwrap();
+    let mut tester = Tester::new(schema);
+    tester.coerce_serde_enums().coerce_variant_names();
+    // Since non-prefixed vars are read using fallbacks, we need to set them via the tester.
+    for (name, value) in env.iter() {
+        if !name.starts_with("en_") {
+            if let Some(value) = value.inner.as_plain_str() {
+                tester.set_env(name.to_uppercase(), value);
+            }
+        }
+    }
+
+    let repo = tester.new_repository().with(env.strip_prefix("EN_"));
+    let observability: ObservabilityConfig = repo.parse().unwrap();
+    (LocalConfig::new(repo, false).unwrap(), observability)
+}
+
+fn assert_common_prepared_env(config: &LocalConfig, observability: &ObservabilityConfig) {
+    assert_eq!(observability.log_format, "plain");
+    assert!(
+        observability.log_directives.contains("warn,zksync=info"),
+        "{observability:?}"
+    );
+    assert!(observability.sentry.url.is_none(), "{observability:?}");
+
+    assert_eq!(config.api.web3_json_rpc.http_port, 3_060);
+    assert_eq!(config.api.web3_json_rpc.ws_port, 3_061);
+    assert_eq!(config.api.healthcheck.port, 3_081);
+    assert_eq!(
+        config.db.state_keeper_db_path.as_os_str(),
+        "./db/ext-node/state_keeper"
+    );
+    assert_eq!(
+        config.db.merkle_tree.path.as_os_str(),
+        "./db/ext-node/lightweight"
+    );
+    let postgres_url = config.secrets.database.server_url.as_ref().unwrap();
+    assert!(
+        postgres_url.expose_str().starts_with("postgres://"),
+        "{postgres_url:?}"
+    );
+}
+
 #[test]
-fn parsing_from_env() {
+fn parsing_prepared_mainnet_env() {
+    let raw = include_str!("mainnet-config.env");
+    let env = smart_config::Environment::from_dotenv("config.env", raw).unwrap();
+    let (config, observability) = parse_prepared_env(env);
+    assert_common_prepared_env(&config, &observability);
+
+    assert_eq!(observability.sentry.environment.unwrap(), "zksync_mainnet");
+    assert_eq!(
+        config.secrets.l1.l1_rpc_url.as_ref().unwrap().expose_str(),
+        "http://127.0.0.1:8545/"
+    );
+    assert_eq!(config.networks.l2_chain_id, L2ChainId::from(324));
+    assert_eq!(config.networks.l1_chain_id, L1ChainId(1));
+    assert_eq!(
+        config.networks.main_node_url.expose_str(),
+        "https://zksync2-mainnet.zksync.io/"
+    );
+}
+
+#[test]
+fn parsing_prepared_testnet_env() {
+    let raw = include_str!("testnet-sepolia-config.env");
+    let env = smart_config::Environment::from_dotenv("config.env", raw).unwrap();
+    let (config, observability) = parse_prepared_env(env);
+    assert_common_prepared_env(&config, &observability);
+
+    assert_eq!(observability.sentry.environment.unwrap(), "zksync_testnet");
+    assert_eq!(
+        config.secrets.l1.l1_rpc_url.as_ref().unwrap().expose_str(),
+        "http://127.0.0.1:8545/"
+    );
+    assert_eq!(config.networks.l2_chain_id, L2ChainId::from(300));
+    assert_eq!(config.networks.l1_chain_id, L1ChainId(11155111));
+    assert_eq!(
+        config.networks.main_node_url.expose_str(),
+        "https://sepolia.era.zksync.dev/"
+    );
+}
+
+fn parse_compose_config_env(raw: &str) -> smart_config::Environment {
+    let compose_config: serde_yaml::Mapping = serde_yaml::from_str(raw).unwrap();
+    let env = compose_config["services"]["external-node"]["environment"]
+        .as_mapping()
+        .unwrap();
+    let env = env.iter().map(|(name, value)| {
+        let name = name.as_str().unwrap();
+        let value = match value {
+            serde_yaml::Value::String(val) => val.clone(),
+            serde_yaml::Value::Number(val) => val.to_string(),
+            serde_yaml::Value::Bool(val) => val.to_string(),
+            _ => panic!("unexpected env value for env var '{name}': {value:?}"),
+        };
+        (name, value)
+    });
+    smart_config::Environment::from_iter("", env)
+}
+
+#[test]
+fn parsing_mainnet_docker_compose_env() {
+    let raw = include_str!("mainnet-external-node-docker-compose.yml");
+    let env = parse_compose_config_env(raw);
+    let (config, observability) = parse_prepared_env(env);
+    assert_common_prepared_env(&config, &observability);
+
+    assert_eq!(
+        config.secrets.l1.l1_rpc_url.as_ref().unwrap().expose_str(),
+        "https://ethereum-rpc.publicnode.com/"
+    );
+    assert_eq!(config.networks.l2_chain_id, L2ChainId::from(324));
+    assert_eq!(config.networks.l1_chain_id, L1ChainId(1));
+    assert_eq!(
+        config.networks.main_node_url.expose_str(),
+        "https://zksync2-mainnet.zksync.io/"
+    );
+    assert!(config.snapshot_recovery.enabled);
+    let recovery_object_store = config.snapshot_recovery.object_store.unwrap();
+    assert_matches!(
+        &recovery_object_store.mode,
+        ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } if bucket_base_url == "zksync-era-mainnet-external-node-snapshots"
+    );
+}
+
+#[test]
+fn parsing_testnet_docker_compose_env() {
+    let raw = include_str!("testnet-external-node-docker-compose.yml");
+    let env = parse_compose_config_env(raw);
+    let (config, observability) = parse_prepared_env(env);
+    assert_common_prepared_env(&config, &observability);
+
+    assert_eq!(
+        config.secrets.l1.l1_rpc_url.as_ref().unwrap().expose_str(),
+        "https://ethereum-sepolia-rpc.publicnode.com/"
+    );
+    assert_eq!(config.networks.l2_chain_id, L2ChainId::from(300));
+    assert_eq!(config.networks.l1_chain_id, L1ChainId(11155111));
+    assert_eq!(
+        config.networks.main_node_url.expose_str(),
+        "https://sepolia.era.zksync.dev/"
+    );
+    assert!(config.snapshot_recovery.enabled);
+    let recovery_object_store = config.snapshot_recovery.object_store.unwrap();
+    assert_matches!(
+        &recovery_object_store.mode,
+        ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } if bucket_base_url == "zksync-era-boojnet-external-node-snapshots"
+    );
+}
+
+#[test]
+fn parsing_from_full_env() {
     let env = r#"
         # Observability config
         EN_PROMETHEUS_PORT=3322
@@ -180,8 +333,8 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let config: ObservabilityConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.log_format, "json");
     assert_eq!(config.log_directives, "warn,zksync=info");
-    let sentry = config.sentry.unwrap();
-    assert_eq!(sentry.url, "https://example.com/new");
+    let sentry = config.sentry;
+    assert_eq!(sentry.url.unwrap(), "https://example.com/new");
     assert_eq!(sentry.environment.unwrap(), "mainnet - mainnet2");
 
     let config: Web3JsonRpcConfig = tester.for_config().test_complete(source.clone()).unwrap();

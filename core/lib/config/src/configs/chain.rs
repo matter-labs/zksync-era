@@ -34,7 +34,7 @@ pub struct SharedStateKeeperConfig {
     /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
     /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
-    #[config(alias = "miniblock_seal_queue_capacity")]
+    #[config(deprecated = "miniblock_seal_queue_capacity")]
     #[config(default_t = 10)]
     pub l2_block_seal_queue_capacity: usize,
 

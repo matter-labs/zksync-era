@@ -68,7 +68,7 @@ impl ConfigFilePaths {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "wallets"));
         }
         if let Some(path) = &self.external_node {
-            sources.push(Prefixed::new(Self::read_yaml(path)?, "external_node"));
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "networks"));
         }
         if let Some(path) = &self.consensus {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "consensus"));

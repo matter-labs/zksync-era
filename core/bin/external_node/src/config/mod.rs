@@ -4,7 +4,7 @@ use anyhow::Context;
 use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig};
 use zksync_config::{
     configs::{
-        api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
+        api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{SharedStateKeeperConfig, TimestampAsserterConfig},
         consensus::ConsensusConfig,
         contracts::{
@@ -228,7 +228,7 @@ pub(crate) struct LocalConfig {
 
 impl LocalConfig {
     /// Schema is chosen to be compatible both with file-based and env-based configs used for the node
-    /// previously. This leads to deprecated aliases all around, which will hopefully be removed in the midterm.
+    /// previously. This leads to deprecated aliases all around, which will hopefully be removed soon-ish.
     pub fn schema() -> anyhow::Result<ConfigSchema> {
         let mut schema = ConfigSchema::default();
         schema.insert(&PrometheusConfig::DESCRIPTION, "prometheus")?;
@@ -236,13 +236,14 @@ impl LocalConfig {
             .insert(&ObservabilityConfig::DESCRIPTION, "observability")?
             .push_deprecated_alias("")?;
 
-        schema
-            .insert(&ApiConfig::DESCRIPTION, "api")?
-            .push_deprecated_alias("")?;
+        schema.insert(&ApiConfig::DESCRIPTION, "api")?;
         schema
             .single_mut(&Web3JsonRpcConfig::DESCRIPTION)?
             .push_alias("api")? // FIXME: is this OK (used for single param)?
             .push_deprecated_alias("")?;
+        schema
+            .single_mut(&HealthCheckConfig::DESCRIPTION)?
+            .push_deprecated_alias("healthcheck")?;
         schema
             .single_mut(&MerkleTreeApiConfig::DESCRIPTION)?
             .push_deprecated_alias("tree.api")?;
