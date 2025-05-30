@@ -26,7 +26,7 @@ use super::{
     executor::{Command, MainBatchExecutor},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
-use crate::shared::{InteractionType, Sealed, STORAGE_METRICS};
+use crate::shared::{InteractionType, RuntimeContextStorageMetrics, Sealed};
 
 #[doc(hidden)]
 pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {
@@ -358,7 +358,12 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     if self.observe_storage_metrics {
                         let storage_stats = storage_view.borrow().stats();
                         let stats_diff = storage_stats.saturating_sub(&prev_storage_stats);
-                        STORAGE_METRICS.observe(&format!("Tx {tx_hash:?}"), latency, &stats_diff);
+                        RuntimeContextStorageMetrics::observe(
+                            &format!("Tx {tx_hash:?}"),
+                            false,
+                            latency,
+                            &stats_diff,
+                        );
                         prev_storage_stats = storage_stats;
                     }
                     if resp.send(result).is_err() {

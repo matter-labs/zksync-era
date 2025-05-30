@@ -1,3 +1,5 @@
+use zksync_types::StopToken;
+
 use crate::{
     interface::{
         storage::WriteStorage,
@@ -16,6 +18,12 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for StorageInvocations {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
+        if self.stop_token.as_ref().is_some_and(StopToken::should_stop) {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::TracerCustom("Requested to stop".to_string()),
+            ));
+        }
+
         let current = state
             .storage
             .storage
