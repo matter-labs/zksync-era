@@ -292,6 +292,7 @@ pub async fn insert_genesis_batch_with_custom_state(
 
     // this commitment matches computation in
     // core/lib/l1_contract_interface/src/i_executor/structures/stored_batch_info.rs
+    //
     // code will be reused after commitment refactor
 
     let commitment: H256 = H256::from_str("0xb4f6edf90e4566bffce35f453012ec03c1e52b07a9f0a1ed4e25fdc88259db55").unwrap();

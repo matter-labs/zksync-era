@@ -9,7 +9,7 @@ use zk_os_basic_system::system_implementation::io::TestingTree;
 use zk_os_forward_system::run::{BatchContext, StorageCommitment};
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::{H256, L1BatchNumber, L2BlockNumber};
 use zksync_zkos_vm_runner::zkos_conversions::{h256_to_bytes32, tx_abi_encode};
 use crate::zkos_proof_data_server::run;
 
@@ -40,7 +40,7 @@ impl ZkosProverInputGenerator {
         let last_processed_block = connection.zkos_prover_dal().last_block_with_generated_input().await?;
 
         tracing::info!("Starting Prover Input Generator - initializing in-memory storages - last processed block {:?}", last_processed_block);
-        let (tree, preimages) = self.initialize_in_memory_storages(last_processed_block).await?;
+        let (mut tree, mut preimages) = self.initialize_in_memory_storages(last_processed_block).await?;
         tracing::info!("initialized in-memory storages");
 
         let mut next_block_to_process = last_processed_block + 1;
@@ -84,7 +84,7 @@ impl ZkosProverInputGenerator {
 
                 let list_source = TxListSource { transactions };
                 let prover_input = zk_os_forward_system::run::generate_proof_input(
-                    PathBuf::from("../app.bin"),
+                    PathBuf::from("/Users/romanbrodetskiy/src/zksync-era/app.bin"),
                     context,
                     storage_commitment,
                     //todo: cloning tree on every block 😅
@@ -105,6 +105,16 @@ impl ZkosProverInputGenerator {
                     prover_input,
                     duration,
                 ).await?;
+
+                // apply changes to in-memory tree/storage
+                // will be removed when the persistent tree is used
+
+                self.apply_block_diff_to_in_memory_storages(
+                    block.number,
+                    &mut tree,
+                    &mut preimages,
+                ).await?;
+
                 next_block_to_process += 1;
             } else {
                 tracing::info!("No blocks to process - waiting");
@@ -135,6 +145,64 @@ impl ZkosProverInputGenerator {
         Ok(transactions)
     }
 
+    async fn apply_block_diff_to_in_memory_storages(
+        &self,
+        block_number: L2BlockNumber,
+        tree: &mut InMemoryTree,
+        preimage_source: &mut InMemoryPreimageSource,
+    ) -> anyhow::Result<()>{
+        let mut conn = self.pool.connection_tagged("zkos_prover_input_generator").await?;
+
+        let storage_logs = conn
+            .storage_logs_dal()
+            .storage_logs_for_block(block_number)
+            .await;
+
+        let mut preimages: HashMap<H256, Vec<u8>> = HashMap::new();
+
+        let factory_deps: HashMap<H256, Vec<u8>> = conn
+            .factory_deps_dal()
+            .get_factory_deps_for_block(block_number)
+            .await;
+
+        let account_props: HashMap<H256, Vec<u8>> = conn
+            .account_properies_dal()
+            .get_l1_batch_account_properties(L1BatchNumber(block_number.0))
+            .await?;
+
+        tracing::info!(
+            "Applying block diff for block {:?} with {:?} storage logs, {:?} factory_deps and {:?} account properties",
+            block_number,
+            storage_logs.len(),
+            factory_deps.len(),
+            account_props.len()
+        );
+
+        preimages.extend(factory_deps);
+        preimages.extend(account_props);
+
+
+        for storage_logs in storage_logs {
+            // todo: awkwardly we need to insert both into cold_storage and storage_tree
+            tree.cold_storage.insert(
+                h256_to_bytes32(storage_logs.hashed_key),
+                h256_to_bytes32(storage_logs.value),
+            );
+            tree.storage_tree.insert(
+                &h256_to_bytes32(storage_logs.hashed_key),
+                &h256_to_bytes32(storage_logs.value),
+            );
+        }
+
+
+        for (hash, value) in preimages {
+            preimage_source
+                .inner
+                .insert(h256_to_bytes32(hash), value);
+        }
+        Ok(())
+    }
+
     async fn initialize_in_memory_storages(&self, l2_block_number: L2BlockNumber) -> anyhow::Result<(InMemoryTree, InMemoryPreimageSource)> {
         let mut tree = InMemoryTree {
             storage_tree: TestingTree::new_in(Global),
@@ -149,7 +217,7 @@ impl ZkosProverInputGenerator {
 
         let all_storage_logs = conn
             .storage_logs_dal()
-            .dump_all_storage_logs_until_batch(l2_block_number)
+            .dump_all_storage_logs_until_batch(l2_block_number + 1)
             .await;
 
         let mut preimages = conn

@@ -669,6 +669,42 @@ impl StorageLogsDal<'_, '_> {
             .collect()
     }
 
+    pub async fn storage_logs_for_block(&mut self, block: L2BlockNumber) -> Vec<DbStorageLog> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                hashed_key,
+                address,
+                key,
+                value,
+                operation_number,
+                miniblock_number
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number = $1
+            ORDER BY
+                miniblock_number,
+                operation_number
+            "#,
+            i64::from(block.0)
+        )
+            .fetch_all(self.storage.conn())
+            .await
+            .expect("storage_logs_for_block");
+
+        rows.into_iter()
+            .map(|row| DbStorageLog {
+                hashed_key: H256::from_slice(&row.hashed_key),
+                address: row.address.as_deref().map(H160::from_slice),
+                key: row.key.as_deref().map(H256::from_slice),
+                value: H256::from_slice(&row.value),
+                operation_number: row.operation_number as u64,
+                l2_block_number: L2BlockNumber(row.miniblock_number as u32),
+            })
+            .collect()
+    }
+
     /// Returns the total number of rows in the `storage_logs` table before and at the specified L2 block.
     ///
     /// **Warning.** This method is slow (requires a full table scan).
