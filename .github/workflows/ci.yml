@@ -5,10 +5,6 @@ on:
   merge_group:
   push:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
-
 jobs:
   changed_files:
     runs-on: ubuntu-latest
