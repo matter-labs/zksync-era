@@ -494,7 +494,7 @@ async fn shutting_down_calculator() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let mut merkle_tree_config = create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
-    merkle_tree_config.processing_delay_ms = Duration::from_secs(30); // chosen to be larger than `RUN_TIMEOUT`
+    merkle_tree_config.processing_delay = Duration::from_secs(30); // chosen to be larger than `RUN_TIMEOUT`
 
     let calculator = setup_calculator_with_options(
         &merkle_tree_config,
@@ -681,7 +681,7 @@ async fn setup_lightweight_calculator(
 fn create_config(db_path: &Path, mode: MerkleTreeMode) -> MerkleTreeConfig {
     MerkleTreeConfig {
         mode,
-        processing_delay_ms: Duration::from_millis(50),
+        processing_delay: Duration::from_millis(50),
         ..MerkleTreeConfig::for_tests(db_path.join("new"))
     }
 }

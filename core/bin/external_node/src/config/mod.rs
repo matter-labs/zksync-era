@@ -473,7 +473,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfigBase {
         Self {
             l1_chain_id: local.networks.l1_chain_id,
             l2_chain_id: local.networks.l2_chain_id,
-            max_tx_size: web3_rpc.max_tx_size,
+            max_tx_size: web3_rpc.max_tx_size.0 as usize,
             estimate_gas_scale_factor: web3_rpc.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_rpc.estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_rpc.estimate_gas_optimize_search,
@@ -510,7 +510,7 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             timestamp_asserter_params: config.remote.l2_timestamp_asserter_addr.map(|address| {
                 TimestampAsserterParams {
                     address,
-                    min_time_till_end: local.timestamp_asserter.min_time_till_end_sec,
+                    min_time_till_end: local.timestamp_asserter.min_time_till_end,
                 }
             }),
         }

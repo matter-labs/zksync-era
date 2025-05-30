@@ -2,13 +2,13 @@
 //! as well as an interface to run the node with the specified components.
 
 use anyhow::{bail, Context as _};
-use zksync_block_reverter::{node::BlockReverterLayer, NodeRole};
+use zksync_block_reverter::{
+    node::{BlockReverterLayer, UnconditionalRevertLayer},
+    NodeRole,
+};
 use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
-    configs::{
-        api::MerkleTreeApiConfig, chain::TimestampAsserterConfig, database::MerkleTreeMode,
-        DataAvailabilitySecrets,
-    },
+    configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode, DataAvailabilitySecrets},
     DAClientConfig,
 };
 use zksync_consistency_checker::node::ConsistencyCheckerLayer;
@@ -16,7 +16,7 @@ use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
 };
-use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
 use zksync_gateway_migrator::node::SettlementLayerData;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
@@ -46,30 +46,33 @@ use zksync_node_sync::node::{
 use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
+use zksync_types::L1BatchNumber;
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
-use zksync_web3_decl::node::{
-    MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClientLayer,
-};
+use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
-use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
+use crate::{
+    config::{ExternalNodeConfig, RemoteENConfig},
+    metrics::framework::ExternalNodeMetricsLayer,
+    Component,
+};
 
 /// Builder for the external node.
 #[derive(Debug)]
-pub(crate) struct ExternalNodeBuilder {
+pub(crate) struct ExternalNodeBuilder<R = RemoteENConfig> {
     pub(crate) node: ZkStackServiceBuilder,
-    config: ExternalNodeConfig,
+    config: ExternalNodeConfig<R>,
 }
 
-impl ExternalNodeBuilder {
+impl<R> ExternalNodeBuilder<R> {
     #[cfg(test)]
-    pub fn new(config: ExternalNodeConfig) -> anyhow::Result<Self> {
+    pub fn new(config: ExternalNodeConfig<R>) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
             config,
         })
     }
 
-    pub fn on_runtime(runtime: tokio::runtime::Runtime, config: ExternalNodeConfig) -> Self {
+    pub fn on_runtime(runtime: tokio::runtime::Runtime, config: ExternalNodeConfig<R>) -> Self {
         Self {
             node: ZkStackServiceBuilder::on_runtime(runtime),
             config,
@@ -93,10 +96,9 @@ impl ExternalNodeBuilder {
         secrets.server_replica_url = secrets.server_url.clone();
         secrets.prover_url = None;
 
-        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
-            .with_replica(true)
-            .build();
+            .with_replica(true);
         self.node.add_layer(pools_layer);
         Ok(self)
     }
@@ -116,32 +118,6 @@ impl ExternalNodeBuilder {
             l2_chain_id: networks.l2_chain_id,
             postgres_pool_size: self.config.local.postgres.max_connections()?,
         });
-        Ok(self)
-    }
-
-    fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(SettlementLayerData::new(
-            zksync_gateway_migrator::node::ENConfig {
-                l1_specific_contracts: self.config.l1_specific_contracts(),
-                l1_chain_contracts: self.config.l1_settelment_contracts(),
-                l2_contracts: self.config.l2_contracts(),
-                chain_id: self.config.local.networks.l2_chain_id,
-                gateway_rpc_url: self.config.local.secrets.l1.gateway_rpc_url.clone(),
-            },
-        ));
-        Ok(self)
-    }
-
-    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
-        let l1_secrets = &self.config.local.secrets.l1;
-        let query_eth_client_layer = SettlementLayerClientLayer::new(
-            l1_secrets
-                .l1_rpc_url
-                .clone()
-                .context("missing L1 RPC URL")?,
-            l1_secrets.gateway_rpc_url.clone(),
-        );
-        self.node.add_layer(query_eth_client_layer);
         Ok(self)
     }
 
@@ -211,7 +187,7 @@ impl ExternalNodeBuilder {
 
         let db_config = &config.db.experimental;
         let rocksdb_options = RocksdbStorageOptions {
-            block_cache_capacity: db_config.state_keeper_db_block_cache_capacity_mb.0 as usize,
+            block_cache_capacity: db_config.state_keeper_db_block_cache_capacity.0 as usize,
             max_open_files: db_config.state_keeper_db_max_open_files,
         };
         let state_keeper_layer =
@@ -242,9 +218,9 @@ impl ExternalNodeBuilder {
         let config = &self.config.local.pruning;
         if config.enabled {
             let layer = PruningLayer::new(
-                config.removal_delay_sec,
+                config.removal_delay,
                 config.chunk_size.get(),
-                config.data_retention_sec,
+                config.data_retention,
             );
             self.node.add_layer(layer);
         } else {
@@ -367,7 +343,7 @@ impl ExternalNodeBuilder {
         // Add tree pruning if needed.
         let pruning = &self.config.local.pruning;
         if pruning.enabled {
-            layer = layer.with_pruning_config(pruning.removal_delay_sec);
+            layer = layer.with_pruning_config(pruning.removal_delay);
         }
 
         self.node.add_layer(layer);
@@ -380,7 +356,7 @@ impl ExternalNodeBuilder {
             db_path: config.path.clone(),
             max_open_files: config.max_open_files,
             multi_get_chunk_size: config.multi_get_chunk_size,
-            block_cache_capacity: config.block_cache_size_mb.0 as usize,
+            block_cache_capacity: config.block_cache_size.0 as usize,
             include_indices_and_filters_in_block_cache: config
                 .include_indices_and_filters_in_block_cache,
         };
@@ -389,30 +365,6 @@ impl ExternalNodeBuilder {
         };
         self.node
             .add_layer(TreeApiServerLayer::new(reader_config, api_config));
-        Ok(self)
-    }
-
-    fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
-        let config = &self.config.local.api.web3_json_rpc;
-        let postgres_storage_config = PostgresStorageCachesConfig {
-            factory_deps_cache_size: config.factory_deps_cache_size_mb.0,
-            initial_writes_cache_size: config.initial_writes_cache_size_mb.0,
-            latest_values_cache_size: config.latest_values_cache_size_mb.0,
-            latest_values_max_block_lag: config.latest_values_max_block_lag.get(),
-        };
-        let max_vm_concurrency = config.vm_concurrency_limit;
-        let tx_sender_layer = TxSenderLayer::new(
-            postgres_storage_config,
-            max_vm_concurrency,
-            (&self.config).into(),
-            TimestampAsserterConfig {
-                min_time_till_end_sec: self.config.local.timestamp_asserter.min_time_till_end_sec,
-            },
-        )
-        .with_whitelisted_tokens_for_aa_cache(true);
-
-        self.node.add_layer(ProxySinkLayer);
-        self.node.add_layer(tx_sender_layer);
         Ok(self)
     }
 
@@ -449,58 +401,6 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
-    fn web3_api_optional_config(&self) -> anyhow::Result<Web3ServerOptionalConfig> {
-        let config = &self.config.local.api.web3_json_rpc;
-        // The refresh interval should be several times lower than the pruning removal delay, so that
-        // soft-pruning will timely propagate to the API server.
-        let pruning_info_refresh_interval = self.config.local.pruning.removal_delay_sec / 5;
-        let namespaces = self
-            .config
-            .local
-            .api_namespaces()
-            .context("failed parsing API namespaces")?;
-
-        Ok(Web3ServerOptionalConfig {
-            namespaces: Some(namespaces),
-            filters_limit: Some(config.filters_limit),
-            subscriptions_limit: Some(config.subscriptions_limit),
-            batch_request_size_limit: Some(config.max_batch_request_size),
-            response_body_size_limit: Some(config.max_response_body_size()),
-            with_extended_tracing: config.extended_api_tracing,
-            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
-            polling_interval: Some(config.pubsub_polling_interval),
-            websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
-            replication_lag_limit: None,               // TODO: Support replication lag limit
-        })
-    }
-
-    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let optional_config = self.web3_api_optional_config()?;
-        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
-
-        self.node.add_layer(Web3ServerLayer::http(
-            self.config.local.api.web3_json_rpc.http_port,
-            internal_api_config_base,
-            optional_config,
-        ));
-
-        Ok(self)
-    }
-
-    fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        // TODO: Support websocket requests per minute limit
-        let optional_config = self.web3_api_optional_config()?;
-        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
-
-        self.node.add_layer(Web3ServerLayer::ws(
-            self.config.local.api.web3_json_rpc.ws_port,
-            internal_api_config_base,
-            optional_config,
-        ));
-
-        Ok(self)
-    }
-
     fn add_reorg_detector_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ReorgDetectorLayer);
         Ok(self)
@@ -515,6 +415,12 @@ impl ExternalNodeBuilder {
             .enable_rolling_back_postgres()
             .enable_rolling_back_merkle_tree(config.merkle_tree.path.clone())
             .enable_rolling_back_state_keeper_cache(config.state_keeper_db_path.clone());
+        self.node.add_layer(layer);
+        Ok(self)
+    }
+
+    fn add_unconditional_revert_layer(mut self, l1_batch: L1BatchNumber) -> anyhow::Result<Self> {
+        let layer = UnconditionalRevertLayer::new(l1_batch);
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -552,6 +458,105 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    pub fn build_for_revert(mut self, l1_batch: L1BatchNumber) -> anyhow::Result<ZkStackService> {
+        self = self
+            .add_pools_layer()?
+            .add_block_reverter_layer()?
+            .add_unconditional_revert_layer(l1_batch)?;
+        Ok(self.node.build())
+    }
+}
+
+/// Layers that depend on the remote configuration.
+impl ExternalNodeBuilder {
+    fn web3_api_optional_config(&self) -> anyhow::Result<Web3ServerOptionalConfig> {
+        let config = &self.config.local.api.web3_json_rpc;
+        // The refresh interval should be several times lower than the pruning removal delay, so that
+        // soft-pruning will timely propagate to the API server.
+        let pruning_info_refresh_interval = self.config.local.pruning.removal_delay / 5;
+        let namespaces = self
+            .config
+            .local
+            .api_namespaces()
+            .context("failed parsing API namespaces")?;
+
+        Ok(Web3ServerOptionalConfig {
+            namespaces: Some(namespaces),
+            filters_limit: Some(config.filters_limit),
+            subscriptions_limit: Some(config.subscriptions_limit),
+            batch_request_size_limit: Some(config.max_batch_request_size),
+            response_body_size_limit: Some(config.max_response_body_size()),
+            with_extended_tracing: config.extended_api_tracing,
+            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
+            polling_interval: Some(config.pubsub_polling_interval),
+            request_timeout: config.request_timeout,
+            websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
+            replication_lag_limit: None,               // TODO: Support replication lag limit
+        })
+    }
+
+    fn add_settlement_layer_data(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(SettlementLayerData::new(
+            zksync_gateway_migrator::node::ENConfig {
+                l1_specific_contracts: self.config.l1_specific_contracts(),
+                l1_chain_contracts: self.config.l1_settelment_contracts(),
+                l2_contracts: self.config.l2_contracts(),
+                chain_id: self.config.local.networks.l2_chain_id,
+                gateway_rpc_url: self.config.local.secrets.l1.gateway_rpc_url.clone(),
+            },
+        ));
+        Ok(self)
+    }
+
+    fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
+        let config = &self.config.local.api.web3_json_rpc;
+        let postgres_storage_config = PostgresStorageCachesConfig {
+            factory_deps_cache_size: config.factory_deps_cache_size.0,
+            initial_writes_cache_size: config.initial_writes_cache_size.0,
+            latest_values_cache_size: config.latest_values_cache_size.0,
+            latest_values_max_block_lag: config.latest_values_max_block_lag.get(),
+        };
+        let max_vm_concurrency = config.vm_concurrency_limit;
+        let tx_sender_layer = TxSenderLayer::new(
+            postgres_storage_config,
+            max_vm_concurrency,
+            (&self.config).into(),
+            self.config.local.timestamp_asserter.clone(),
+        )
+        .with_whitelisted_tokens_for_aa_cache(true);
+
+        self.node.add_layer(ProxySinkLayer);
+        self.node.add_layer(tx_sender_layer);
+        Ok(self)
+    }
+
+    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        let optional_config = self.web3_api_optional_config()?;
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+
+        self.node.add_layer(Web3ServerLayer::http(
+            self.config.local.api.web3_json_rpc.http_port,
+            internal_api_config_base,
+            optional_config,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        // TODO: Support websocket requests per minute limit
+        let optional_config = self.web3_api_optional_config()?;
+        let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
+
+        self.node.add_layer(Web3ServerLayer::ws(
+            self.config.local.api.web3_json_rpc.ws_port,
+            internal_api_config_base,
+            optional_config,
+        ));
+
+        Ok(self)
+    }
+
     pub fn build(mut self, mut components: Vec<Component>) -> anyhow::Result<ZkStackService> {
         // Add "base" layers
         self = self
@@ -562,7 +567,6 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_settlement_layer_client_layer()?
             .add_reorg_detector_layer()?;
 
         // Add layers that must run only on a single component.

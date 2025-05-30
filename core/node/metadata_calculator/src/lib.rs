@@ -27,7 +27,7 @@ use self::{
     updater::TreeUpdater,
 };
 pub use self::{
-    helpers::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo},
+    helpers::{AsyncTreeReader, LazyAsyncTreeReader},
     pruning::MerkleTreePruningTask,
     repair::StaleKeysRepairTask,
 };
@@ -113,14 +113,14 @@ impl MetadataCalculatorConfig {
             db_path: merkle_tree_config.path.clone(),
             max_open_files: merkle_tree_config.max_open_files,
             mode: merkle_tree_config.mode,
-            delay_interval: merkle_tree_config.processing_delay_ms,
+            delay_interval: merkle_tree_config.processing_delay,
             max_l1_batches_per_iter: merkle_tree_config.max_l1_batches_per_iter,
             multi_get_chunk_size: merkle_tree_config.multi_get_chunk_size,
-            block_cache_capacity: merkle_tree_config.block_cache_size_mb.0 as usize,
+            block_cache_capacity: merkle_tree_config.block_cache_size.0 as usize,
             include_indices_and_filters_in_block_cache: merkle_tree_config
                 .include_indices_and_filters_in_block_cache,
-            memtable_capacity: merkle_tree_config.memtable_capacity_mb.0 as usize,
-            stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout_sec,
+            memtable_capacity: merkle_tree_config.memtable_capacity.0 as usize,
+            stalled_writes_timeout: merkle_tree_config.stalled_writes_timeout,
             sealed_batches_have_protective_reads: state_keeper_config
                 .protective_reads_persistence_enabled,
             // The main node isn't supposed to be recovered yet, so this value doesn't matter much

@@ -1,12 +1,14 @@
 //! Dependency injection for the consistency checker.
 
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{
     node::contracts::SettlementLayerContractsResource,
     web3_decl::node::{SettlementLayerClient, SettlementModeResource},
     EthInterface,
 };
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -24,18 +26,18 @@ pub struct ConsistencyCheckerLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub settlement_layer_client: SettlementLayerClient,
-    pub settlement_mode: SettlementModeResource,
-    pub sl_chain_contracts: SettlementLayerContractsResource,
-    pub master_pool: PoolResource<MasterPool>,
+    settlement_layer_client: SettlementLayerClient,
+    settlement_mode: SettlementModeResource,
+    sl_chain_contracts: SettlementLayerContractsResource,
+    master_pool: PoolResource<MasterPool>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub consistency_checker: ConsistencyChecker,
+    consistency_checker: ConsistencyChecker,
 }
 
 impl ConsistencyCheckerLayer {
@@ -58,7 +60,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let settlement_layer_client: Box<dyn EthInterface> = match input.settlement_layer_client {
             SettlementLayerClient::L1(client) => Box::new(client),
-            SettlementLayerClient::L2(client) => Box::new(client),
+            SettlementLayerClient::Gateway(client) => Box::new(client),
         };
 
         let singleton_pool = input.master_pool.get_singleton().await?;
@@ -80,7 +82,6 @@ impl WiringLayer for ConsistencyCheckerLayer {
 
         input
             .app_health
-            .0
             .insert_component(consistency_checker.health_check().clone())
             .map_err(WiringError::internal)?;
 

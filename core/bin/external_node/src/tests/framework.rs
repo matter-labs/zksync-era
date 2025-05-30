@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use zksync_health_check::{node::AppHealthCheckResource, AppHealthCheck};
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::ServiceContext, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
     WiringError, WiringLayer,
@@ -9,11 +9,8 @@ use zksync_node_framework::{
 use zksync_types::{L1ChainId, L2ChainId};
 use zksync_vlog::node::SigintHandlerLayer;
 use zksync_web3_decl::{
-    client::{MockClient, L1, L2},
-    node::{
-        EthInterfaceResource, MainNodeClientLayer, MainNodeClientResource, QueryEthClientLayer,
-        SettlementLayerClient, SettlementLayerClientLayer,
-    },
+    client::{DynClient, MockClient, L1, L2},
+    node::{MainNodeClientLayer, QueryEthClientLayer},
 };
 
 use super::ExternalNodeBuilder;
@@ -35,8 +32,7 @@ pub(super) fn inject_test_layers(
         .add_layer(MockL1ClientLayer {
             client: l1_client.clone(),
         })
-        .add_layer(MockL2ClientLayer { client: l2_client })
-        .add_layer(MockSettlementLayerClientLayer { client: l1_client });
+        .add_layer(MockL2ClientLayer { client: l2_client });
 }
 
 /// A test layer that would stop the node upon request.
@@ -56,7 +52,7 @@ impl WiringLayer for TestSigintLayer {
         SigintHandlerLayer.layer_name()
     }
 
-    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
         Ok(TestSigintTask(self.receiver))
     }
 }
@@ -96,7 +92,7 @@ struct AppHealthHijackLayer {
 #[derive(Debug, FromContext)]
 struct AppHealthHijackInput {
     #[context(default)]
-    app_health_check: AppHealthCheckResource,
+    app_health_check: Arc<AppHealthCheck>,
 }
 
 #[async_trait::async_trait]
@@ -109,7 +105,7 @@ impl WiringLayer for AppHealthHijackLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        self.sender.send(input.app_health_check.0).unwrap();
+        self.sender.send(input.app_health_check).unwrap();
         Ok(())
     }
 }
@@ -122,15 +118,15 @@ struct MockL1ClientLayer {
 #[async_trait::async_trait]
 impl WiringLayer for MockL1ClientLayer {
     type Input = ();
-    type Output = EthInterfaceResource;
+    type Output = Box<DynClient<L1>>;
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
         QueryEthClientLayer::new(L1ChainId(1), "https://example.com".parse().unwrap()).layer_name()
     }
 
-    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(EthInterfaceResource(Box::new(self.client)))
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(Box::new(self.client))
     }
 }
 
@@ -142,7 +138,7 @@ struct MockL2ClientLayer {
 #[async_trait::async_trait]
 impl WiringLayer for MockL2ClientLayer {
     type Input = ();
-    type Output = MainNodeClientResource;
+    type Output = Box<DynClient<L2>>;
 
     fn layer_name(&self) -> &'static str {
         // We don't care about values, we just want to hijack the layer name.
@@ -155,26 +151,6 @@ impl WiringLayer for MockL2ClientLayer {
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(MainNodeClientResource(Box::new(self.client)))
-    }
-}
-
-#[derive(Debug)]
-struct MockSettlementLayerClientLayer {
-    client: MockClient<L1>,
-}
-
-#[async_trait::async_trait]
-impl WiringLayer for MockSettlementLayerClientLayer {
-    type Input = ();
-    type Output = SettlementLayerClient;
-
-    fn layer_name(&self) -> &'static str {
-        // We don't care about values, we just want to hijack the layer name.
-        SettlementLayerClientLayer::new("https://example.com".parse().unwrap(), None).layer_name()
-    }
-
-    async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(SettlementLayerClient::L1(Box::new(self.client)))
+        Ok(Box::new(self.client))
     }
 }

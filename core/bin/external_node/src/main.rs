@@ -5,6 +5,7 @@ use clap::Parser;
 use node_builder::ExternalNodeBuilder;
 use smart_config::Prefixed;
 use zksync_config::{cli::ConfigArgs, sources::ConfigFilePaths};
+use zksync_types::L1BatchNumber;
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::config::{generate_consensus_secrets, ExternalNodeConfig, LocalConfig};
@@ -23,6 +24,11 @@ enum Command {
     GenerateSecrets,
     /// Configuration-related tools.
     Config(ConfigArgs),
+    /// Reverts the node state to the end of the specified L1 batch and then exits.
+    Revert {
+        /// The last L1 batch to be retained after the revert.
+        l1_batch: L1BatchNumber,
+    },
 }
 
 /// External node for ZKsync Era.
@@ -154,17 +160,30 @@ fn main() -> anyhow::Result<()> {
     };
     let repo = config_sources.build_repository(&schema);
 
+    let mut revert_to_l1_batch = None;
     if let Some(cmd) = opt.command {
         match cmd {
-            Command::GenerateSecrets => generate_consensus_secrets(),
+            Command::GenerateSecrets => {
+                generate_consensus_secrets();
+                return Ok(());
+            }
             Command::Config(config_args) => {
-                config_args.run(repo)?;
+                return config_args.run(repo);
+            }
+            Command::Revert { l1_batch } => {
+                // We need to delay revert to after the config is fully read.
+                revert_to_l1_batch = Some(l1_batch);
             }
         }
-        return Ok(());
     }
 
     let config = ExternalNodeConfig::new(repo, opt.enable_consensus)?;
+
+    if let Some(l1_batch) = revert_to_l1_batch {
+        let node = ExternalNodeBuilder::on_runtime(runtime, config).build_for_revert(l1_batch)?;
+        node.run(observability)?;
+        return Ok(());
+    }
 
     // Build L1 and L2 clients.
     let main_node_url = &config.local.networks.main_node_url;
@@ -182,5 +201,5 @@ fn main() -> anyhow::Result<()> {
     let node = ExternalNodeBuilder::on_runtime(runtime, config)
         .build(opt.components.0.into_iter().collect())?;
     node.run(observability)?;
-    anyhow::Ok(())
+    Ok(())
 }

@@ -341,11 +341,11 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.filters_limit, 5_000);
     assert_eq!(config.subscriptions_limit, 5_000);
     assert_eq!(config.req_entities_limit, 1_000);
-    assert_eq!(config.max_tx_size, 1_000_000);
+    assert_eq!(config.max_tx_size, ByteSize(1_000_000));
     assert_eq!(config.vm_execution_cache_misses_limit, Some(1_000));
     assert_eq!(config.fee_history_limit, 100);
     assert_eq!(config.max_batch_request_size, 50);
-    assert_eq!(config.max_response_body_size_mb, ByteSize(5 << 20));
+    assert_eq!(config.max_response_body_size, ByteSize(5 << 20));
     assert_eq!(
         config.max_response_body_size_overrides_mb,
         MaxResponseSizeOverrides::from_iter([
@@ -356,9 +356,9 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.pubsub_polling_interval, Duration::from_millis(200));
     assert_eq!(config.max_nonce_ahead, 33);
     assert_eq!(config.vm_concurrency_limit, 100);
-    assert_eq!(config.factory_deps_cache_size_mb, ByteSize(100 << 20));
-    assert_eq!(config.initial_writes_cache_size_mb, ByteSize(50 << 20));
-    assert_eq!(config.latest_values_cache_size_mb, ByteSize(200 << 20));
+    assert_eq!(config.factory_deps_cache_size, ByteSize(100 << 20));
+    assert_eq!(config.initial_writes_cache_size, ByteSize(50 << 20));
+    assert_eq!(config.latest_values_cache_size, ByteSize(200 << 20));
     assert_eq!(
         config.api_namespaces,
         Some(vec!["zks".to_owned(), "eth".to_owned()])
@@ -377,11 +377,8 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.ws_port, 2_951);
 
     let config: HealthCheckConfig = tester.for_config().test_complete(source.clone()).unwrap();
-    assert_eq!(config.slow_time_limit_ms, Some(Duration::from_millis(75)));
-    assert_eq!(
-        config.hard_time_limit_ms,
-        Some(Duration::from_millis(2_500))
-    );
+    assert_eq!(config.slow_time_limit, Some(Duration::from_millis(75)));
+    assert_eq!(config.hard_time_limit, Some(Duration::from_millis(2_500)));
     assert_eq!(config.port, 2_952);
 
     let config: MerkleTreeApiConfig = tester.for_config().test_complete(source.clone()).unwrap();
@@ -396,19 +393,19 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let config = db_config.merkle_tree;
     assert_eq!(config.path.as_os_str(), "/db/merkle-tree");
     assert_eq!(config.mode, MerkleTreeMode::Lightweight);
-    assert_eq!(config.processing_delay_ms, Duration::from_millis(100));
+    assert_eq!(config.processing_delay, Duration::from_millis(100));
     assert_eq!(config.max_l1_batches_per_iter, 5);
     assert_eq!(config.max_open_files, Some(NonZeroU32::new(1_024).unwrap()));
     assert_eq!(config.multi_get_chunk_size, 1_000);
-    assert_eq!(config.block_cache_size_mb, ByteSize(4 << 30));
+    assert_eq!(config.block_cache_size, ByteSize(4 << 30));
     assert!(config.include_indices_and_filters_in_block_cache);
-    assert_eq!(config.memtable_capacity_mb, ByteSize(256 << 20));
-    assert_eq!(config.stalled_writes_timeout_sec, Duration::from_secs(15));
+    assert_eq!(config.memtable_capacity, ByteSize(256 << 20));
+    assert_eq!(config.stalled_writes_timeout, Duration::from_secs(15));
 
     let config = db_config.experimental;
     assert!(config.merkle_tree_repair_stale_keys);
     assert_eq!(
-        config.state_keeper_db_block_cache_capacity_mb,
+        config.state_keeper_db_block_cache_capacity,
         ByteSize(256 << 20)
     );
     assert_eq!(
@@ -420,12 +417,12 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
         tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.max_connections, Some(50));
     assert_eq!(
-        config.long_connection_threshold_ms,
+        config.long_connection_threshold,
         Duration::from_millis(2_500)
     );
-    assert_eq!(config.slow_query_threshold_ms, Duration::from_millis(1_500));
-    assert_eq!(config.acquire_timeout_sec, Duration::from_secs(15));
-    assert_eq!(config.statement_timeout_sec, Duration::from_secs(20));
+    assert_eq!(config.slow_query_threshold, Duration::from_millis(1_500));
+    assert_eq!(config.acquire_timeout, Duration::from_secs(15));
+    assert_eq!(config.statement_timeout, Duration::from_secs(20));
 
     let config: SharedStateKeeperConfig =
         tester.for_config().test_complete(source.clone()).unwrap();
@@ -472,12 +469,12 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let config: PruningConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert!(config.enabled);
     assert_eq!(config.chunk_size, NonZeroU32::new(5).unwrap());
-    assert_eq!(config.removal_delay_sec, Duration::from_secs(120));
-    assert_eq!(config.data_retention_sec, Duration::from_secs(86_400));
+    assert_eq!(config.removal_delay, Duration::from_secs(120));
+    assert_eq!(config.data_retention, Duration::from_secs(86_400));
 
     let config: TimestampAsserterConfig =
         tester.for_config().test_complete(source.clone()).unwrap();
-    assert_eq!(config.min_time_till_end_sec, Duration::from_secs(90));
+    assert_eq!(config.min_time_till_end, Duration::from_secs(90));
 
     let config: CommitmentGeneratorConfig =
         tester.for_config().test_complete(source.clone()).unwrap();
