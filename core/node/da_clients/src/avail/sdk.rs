@@ -435,13 +435,13 @@ pub struct GasRelayAPISubmissionResponse {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GasRelayAPIStatusResponse {
-    submission: GasRelayAPISubmission,
+    data: GasRelayAPISubmission,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GasRelayAPISubmission {
     block_hash: Option<H256>,
-    extrinsic_index: Option<u64>,
+    tx_index: Option<u64>,
 }
 
 impl GasRelayClient {
@@ -536,8 +536,8 @@ impl GasRelayClient {
                 };
 
             match (
-                status_response.submission.block_hash,
-                status_response.submission.extrinsic_index,
+                status_response.data.block_hash,
+                status_response.data.tx_index,
             ) {
                 (Some(block_hash), Some(ext_idx)) => return Ok(Some((block_hash, ext_idx))),
                 _ => tokio::time::sleep(Self::RETRY_DELAY).await,
