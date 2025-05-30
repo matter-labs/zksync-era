@@ -1,5 +1,18 @@
 # Changelog
 
+## [21.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.1.0...prover-v21.2.0) (2025-05-30)
+
+
+### Features
+
+* **config:** Support serde-style enums in config system ([#4055](https://github.com/matter-labs/zksync-era/issues/4055)) ([84eed67](https://github.com/matter-labs/zksync-era/commit/84eed672bc29d65d2d03e92ca543a4b795556de6))
+* **config:** Use native representation for duration params ([#4072](https://github.com/matter-labs/zksync-era/issues/4072)) ([1674906](https://github.com/matter-labs/zksync-era/commit/167490639795ae231b9e57e8453177a860f2c302))
+
+
+### Bug Fixes
+
+* **prover:** Allow to run prover-autoscaler if several agents aren't available ([#4060](https://github.com/matter-labs/zksync-era/issues/4060)) ([9178bde](https://github.com/matter-labs/zksync-era/commit/9178bde6059ae3dd58c061dba08bda37772a6454))
+
 ## [21.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.0.0...prover-v21.1.0) (2025-05-22)
 
 
