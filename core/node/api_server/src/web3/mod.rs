@@ -12,8 +12,10 @@ use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_shared_resources::api::{BridgeAddressesHandle, SyncState};
+use zksync_shared_resources::{
+    api::{BridgeAddressesHandle, SyncState},
+    tree::TreeApiClient,
+};
 use zksync_types::{try_stoppable, L2BlockNumber, StopContext};
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -43,12 +45,13 @@ use self::{
         UnstableNamespace, Web3Namespace, ZksNamespace,
     },
     pubsub::{EthSubscribe, EthSubscriptionIdProvider, PubSubEvent},
+    receipts::AccountTypesCache,
     state::{Filters, InternalApiConfig, RpcState, SealedL2BlockNumber},
 };
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
-    utils::AccountTypesCache,
+    web3::backend_jsonrpsee::ServerTimeoutMiddleware,
 };
 
 pub mod backend_jsonrpsee;
@@ -56,6 +59,7 @@ pub mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;
+pub(super) mod receipts;
 pub mod state;
 pub mod testonly;
 #[cfg(test)]
@@ -134,6 +138,7 @@ struct OptionalApiParams {
     batch_request_size_limit: Option<usize>,
     response_body_size_limit: Option<MaxResponseSize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
+    request_timeout: Option<Duration>,
     tree_api: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
@@ -243,6 +248,11 @@ impl ApiBuilder {
     ) -> Self {
         self.optional.websocket_requests_per_minute_limit =
             Some(websocket_requests_per_minute_limit);
+        self
+    }
+
+    pub fn with_request_timeout(mut self, timeout: Duration) -> Self {
+        self.optional.request_timeout = Some(timeout);
         self
     }
 
@@ -634,6 +644,7 @@ impl ApiServer {
             };
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
+        let server_request_timeout = self.optional.request_timeout;
         let vm_barrier = self.optional.vm_barrier.clone();
         let health_updater = self.health_updater.clone();
         let method_tracer = self.method_tracer.clone();
@@ -699,6 +710,9 @@ impl ApiServer {
                 extended_tracing.then(|| tower::layer::layer_fn(CorrelationMiddleware::new)),
             )
             .layer(metadata_layer)
+            .option_layer(server_request_timeout.map(|timeout| {
+                tower::layer::layer_fn(move |svc| ServerTimeoutMiddleware::new(svc, timeout))
+            }))
             // We want to capture limit middleware errors with `metadata_layer`; hence, `LimitMiddleware` is placed after it.
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
