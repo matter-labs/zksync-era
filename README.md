@@ -22,10 +22,18 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
           --observability=false 
 ```     
 
-Now run the server. Note that it also runs prover input generator by default
+Now run the server. Note that it also runs prover input generator and prover input server by default
 ```
 zkstack server --ignore-prerequisites --chain era --zkos
 ```
+
+To run prover locally run 
+```
+cd zkos_prover
+cargo run
+```
+
+
 
 **Edit - are they still funded?..**
 On server start, the wallets listed

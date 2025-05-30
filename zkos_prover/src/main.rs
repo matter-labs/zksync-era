@@ -1,3 +1,4 @@
+use std::thread::sleep;
 use air_compiler_cli::{
     prover_utils::{
         create_proofs_internal, create_recursion_proofs, load_binary_from_path,
@@ -44,8 +45,8 @@ impl ProofDataClient {
     /// Fetch the next block to prove.
     /// Returns `Ok(None)` if there's no block pending (204 No Content).
     pub async fn pick_next_prover_job(&self) -> Result<Option<(u32, Vec<u8>)>> {
-        let url = format!("{}/pick-prover-job/FRI", self.base_url);
-        let resp = self.http.get(&url).send().await?;
+        let url = format!("{}/prover-jobs/FRI/pick", self.base_url);
+        let resp = self.http.post(&url).send().await?;
 
         match resp.status() {
             StatusCode::OK => {
@@ -62,7 +63,7 @@ impl ProofDataClient {
     /// Submit a proof for the processed block
     /// Returns the vector of u32 as returned by the server.
     pub async fn submit_proof(&self, block_number: u32, proof: String) -> Result<()> {
-        let url = format!("{}/submit-proof/FRI", self.base_url);
+        let url = format!("{}/prover-jobs/FRI/submit", self.base_url);
         let payload = ProofPayload {
             block_number,
             proof,
@@ -155,10 +156,15 @@ pub async fn main() {
             SystemTime::now(),
             block_number
         );
+        let proof_bytes: Vec<u8> = bincode::serialize(&proof)
+            .expect("failed to bincode-serialize proof");
 
-        let serialized_proof = serde_json::to_string(&proof).unwrap();
+        // 2) base64-encode that binary blob
+        let proof_b64 = base64::encode(&proof_bytes);
+
+
         let _ = client
-            .submit_proof(block_number, serialized_proof)
+            .submit_proof(block_number, proof_b64)
             .await
             .expect("Failed to submit a proof");
         println!(

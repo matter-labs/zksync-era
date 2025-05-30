@@ -4,11 +4,17 @@ CREATE TABLE IF NOT EXISTS zkos_proofs
     input_gen_time_taken        TIME,
     prover_input                BYTEA,
 
-    proof_picked_at             TIMESTAMP,
-    proof_picked_by             VARCHAR,
-    prove_time_taken            TIME,
-    proof                       BYTEA,
-    attempts                    INT,
+    fri_proof_picked_at             TIMESTAMP,
+    fri_proof_picked_by             VARCHAR,
+    fri_prove_time_taken            TIME,
+    fri_proof                       BYTEA,
+    fri_proof_attempts                    INT,
+
+    snark_proof_picked_at             TIMESTAMP,
+    snark_proof_picked_by             VARCHAR,
+    snark_prove_time_taken            TIME,
+    snark_proof                       BYTEA,
+    snark_proof_attempts                    INT,
 
     created_at            TIMESTAMP NOT NULL,
     updated_at            TIMESTAMP NOT NULL

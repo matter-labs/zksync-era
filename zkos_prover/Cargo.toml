@@ -20,6 +20,7 @@ reqwest = "0.12.15"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "*"
 tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+bincode = "1"
 
 [features]
 gpu = ["air-compiler-cli/gpu"]
