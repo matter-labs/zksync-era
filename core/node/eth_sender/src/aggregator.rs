@@ -284,7 +284,7 @@ impl Aggregator {
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let max_l1_batch_timestamp_millis = self
             .config
-            .l1_batch_min_age_before_execute_seconds
+            .l1_batch_min_age_before_execute
             .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
@@ -476,8 +476,18 @@ impl Aggregator {
                 if commitment_mode == L1BatchCommitmentMode::Rollup
                     && self.pubdata_da == PubdataSendingMode::Custom
                 {
-                    tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
-                    (PubdataSendingMode::Blobs, commitment_mode)
+                    if storage
+                        .eth_sender_dal()
+                        .is_using_blobs_in_latest_batch()
+                        .await
+                        .unwrap_or_default()
+                    {
+                        tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Blobs, commitment_mode)
+                    } else {
+                        tracing::warn!("Overriding pubdata sending mode to Calldata, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Calldata, commitment_mode)
+                    }
                 } else if commitment_mode == L1BatchCommitmentMode::Validium
                     && self.pubdata_da != PubdataSendingMode::Custom
                 {

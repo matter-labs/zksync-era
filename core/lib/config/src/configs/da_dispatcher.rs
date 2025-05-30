@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use smart_config::{DescribeConfig, DeserializeConfig};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct DADispatcherConfig {
     /// The interval between the `da_dispatcher's` iterations.
-    #[config(default_t = Duration::from_secs(5), with = TimeUnit::Millis)]
-    pub polling_interval_ms: Duration,
+    #[config(default_t = Duration::from_secs(5))]
+    pub polling_interval: Duration,
     /// The maximum number of rows to query from the database in a single query.
     #[config(default_t = 100)]
     pub max_rows_to_dispatch: u32,
@@ -34,7 +34,7 @@ mod tests {
 
     fn expected_config() -> DADispatcherConfig {
         DADispatcherConfig {
-            polling_interval_ms: Duration::from_secs(5),
+            polling_interval: Duration::from_secs(5),
             max_rows_to_dispatch: 60,
             max_retries: 7,
             use_dummy_inclusion_data: true,

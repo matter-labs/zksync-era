@@ -8,7 +8,6 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use super::resources::MempoolCacheResource;
 use crate::web3::mempool_cache::{MempoolCache, MempoolCacheUpdateTask};
 
 /// Wiring layer for API mempool cache.
@@ -20,14 +19,14 @@ pub struct MempoolCacheLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub replica_pool: PoolResource<ReplicaPool>,
+    replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub mempool_cache: MempoolCacheResource,
+    mempool_cache: MempoolCache,
     #[context(task)]
-    pub update_task: MempoolCacheUpdateTask,
+    update_task: MempoolCacheUpdateTask,
 }
 
 impl MempoolCacheLayer {
@@ -53,7 +52,7 @@ impl WiringLayer for MempoolCacheLayer {
         let mempool_cache = MempoolCache::new(self.capacity);
         let update_task = mempool_cache.update_task(replica_pool, self.update_interval);
         Ok(Output {
-            mempool_cache: mempool_cache.into(),
+            mempool_cache,
             update_task,
         })
     }
