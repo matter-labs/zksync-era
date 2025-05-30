@@ -1,42 +1,36 @@
 **This is a modified version of ZKsync ERA node with experimental support of Zk OS.**
 
-To run the node, use the same instructions as for the original ZKsync ERA node:
+To run the node, please run:
 
+To run dependencies (postgres, geth):
 ```
 zkstack containers
-zkstack ecosystem init
-zkstack server
 ```
 
+Reinstall zkstack (not always needed)
+```
+zkstackup --local
+```
+
+Do a regenesis:
+```
+zkstack ecosystem init --deploy-paymaster --deploy-erc20 \               
+          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_era \
+          --ignore-prerequisites --verbose \
+          --observability=false 
+```     
+
+Now run the server. Note that it also runs prover input generator by default
+```
+zkstack server --ignore-prerequisites --chain era --zkos
+```
+
+**Edit - are they still funded?..**
 On server start, the wallets listed
 [here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) are
 funded. This list can be modified - added wallets are funded on server restart (no regenesis is needed)
-
-**TODOs and missing features:**
-
-**XL**:
-
-- Fee model (zksync-era and zk_ee)
-- Proper sandbox execution in API: full context is provided, validation can be run, maybe smth else (zksync-era and
-  zk_ee)
-- Tracing is not implemented (zksync-era and zk_ee)
-- Tree is not persisted and is rebuilt on every start. We need a persistent implementation (zksync-era)
-
-**L**:
-
-- Current binary is not compatible with the original ZKsync ERA node - we need to support both systems, passing the
-  target mode as binary parameter (zksync-era)
-- L1 Batch and Miniblock header are missing multiple fields. Need to go through them and decide what meaning they have
-  (L, zksync-era and zk_ee)
-- **M**:
-- Genesis is commented out - we need to figure out what's expected there (zksync-era)
-- `zk_ee` [requires](https://github.com/matter-labs/zk_ee/blob/main/forward_system/src/run/tree.rs#L9) `'static` for
-  storage provide - currently `RefCell` is used to satisfy it (zksync-era and zk_ee)
-- Make the error format and conditions in `eth_call` compatible with Ethereum (zksync-era and zk_ee)
-
-**S**:
-
-- we clone the whole tree in state keeper - at least use RefCell instead (zksync-era)
 
 # ZKsync Era: A ZK Rollup For Scaling Ethereum
 
