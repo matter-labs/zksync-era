@@ -1,9 +1,34 @@
-use std::{any::TypeId, fmt};
+use std::{any::TypeId, fmt, sync::Arc};
 
 pub use self::{resource_id::ResourceId, unique::Unique};
+use crate::sealed::Sealed;
 
 mod resource_id;
 mod unique;
+
+/// Marker trait for [`Resource`] kinds. The kind determines wrapper for a resource: no wrapper, `Arc` or `Box`.
+pub trait ResourceKind: Sealed {}
+
+/// Plain resource: no wrapper.
+#[derive(Debug)]
+pub struct Plain(());
+
+impl Sealed for Plain {}
+impl ResourceKind for Plain {}
+
+/// Shared resource, wrapped in an [`Arc`].
+#[derive(Debug)]
+pub struct Shared(());
+
+impl Sealed for Shared {}
+impl ResourceKind for Shared {}
+
+/// Boxed resource, wrapped in a [`Box`].
+#[derive(Debug)]
+pub struct Boxed(());
+
+impl Sealed for Boxed {}
+impl ResourceKind for Boxed {}
 
 /// A trait for anything that can be stored (and retrieved) as a resource.
 ///
@@ -14,7 +39,7 @@ mod unique;
 /// # Example
 ///
 /// ```
-/// # use zksync_node_framework::resource::Resource;
+/// # use zksync_node_framework::resource::{Resource, Shared};
 /// # use std::sync::Arc;
 ///
 /// /// An abstract interface you want to share.
@@ -23,27 +48,37 @@ mod unique;
 ///     fn do_something(&self);
 /// }
 ///
-/// /// Resource wrapper.
-/// #[derive(Clone)]
-/// struct MyResource(Arc<dyn MyInterface>);
-///
-/// impl Resource for MyResource {
+/// impl Resource<Shared> for dyn MyInterface {
 ///     fn name() -> String {
 ///         // It is a helpful practice to follow a structured naming pattern for resource names.
 ///         // For example, you can use a certain prefix for all resources related to a some component, e.g. `api`.
 ///         "common/my_resource".to_string()
 ///     }
 /// }
+///
+/// // The resource can now be injected / requested as `Arc<dyn MyInterface>`
 /// ```
-pub trait Resource: 'static + Send + Sync + std::any::Any {
-    /// Invoked after the wiring phase of the service is done.
-    /// Can be used to perform additional resource preparation, knowing that the resource
-    /// is guaranteed to be requested by all the tasks that need it.
-    fn on_resource_wired(&mut self) {}
-
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a `{Kind}` resource",
+    note = "If `Resource` is implemented for `{Self}`, check its type param: `Plain` (default), `Shared` or `Boxed`",
+    note = "`Boxed` resources must be wrapped in a `Box` and `Shared` resources in an `Arc` when used in dependency injection"
+)]
+pub trait Resource<Kind: ResourceKind = Plain>: 'static + Send + Sync {
     /// Returns the name of the resource.
     /// Used for logging purposes.
     fn name() -> String;
+}
+
+impl<T: Resource<Shared> + ?Sized> Resource for Arc<T> {
+    fn name() -> String {
+        T::name()
+    }
+}
+
+impl<T: Resource<Boxed> + ?Sized> Resource for Box<T> {
+    fn name() -> String {
+        T::name()
+    }
 }
 
 /// Internal, object-safe version of [`Resource`].
@@ -51,12 +86,9 @@ pub trait Resource: 'static + Send + Sync + std::any::Any {
 ///
 /// This trait is implemented for any type that implements [`Resource`], so there is no need to
 /// implement it manually.
-pub(crate) trait StoredResource: 'static + std::any::Any + Send + Sync {
+pub(crate) trait StoredResource: 'static + Send + Sync + std::any::Any {
     /// An object-safe version of [`Resource::name`].
     fn stored_resource_id(&self) -> ResourceId;
-
-    /// An object-safe version of [`Resource::on_resource_wired`].
-    fn stored_resource_wired(&mut self);
 }
 
 impl fmt::Debug for dyn StoredResource {
@@ -70,10 +102,6 @@ impl fmt::Debug for dyn StoredResource {
 impl<T: Resource> StoredResource for T {
     fn stored_resource_id(&self) -> ResourceId {
         ResourceId::of::<T>()
-    }
-
-    fn stored_resource_wired(&mut self) {
-        Resource::on_resource_wired(self);
     }
 }
 

@@ -45,6 +45,13 @@ impl<S: ReadStorage> StorageWithOverrides<S> {
         self.overrides.empty_accounts.insert(account);
     }
 
+    /// Replaces overrides in this storage.
+    #[must_use]
+    pub fn with_overrides(mut self, overrides: StorageOverrides) -> Self {
+        self.overrides = overrides;
+        self
+    }
+
     pub fn into_parts(self) -> (S, StorageOverrides) {
         (self.storage_handle, self.overrides)
     }

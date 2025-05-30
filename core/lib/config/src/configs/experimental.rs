@@ -2,19 +2,15 @@
 
 use std::{num::NonZeroU32, path::PathBuf, time::Duration};
 
-use smart_config::{
-    de::Serde,
-    metadata::{SizeUnit, TimeUnit},
-    ByteSize, DescribeConfig, DeserializeConfig,
-};
+use smart_config::{de::Serde, metadata::SizeUnit, ByteSize, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::{vm::FastVmMode, L1BatchNumber};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct ExperimentalDBConfig {
     /// Block cache capacity of the state keeper RocksDB cache. The default value is 128 MB.
-    #[config(default_t = ByteSize::new(128, SizeUnit::MiB), with = SizeUnit::MiB)]
-    pub state_keeper_db_block_cache_capacity_mb: ByteSize,
+    #[config(default_t = 128 * SizeUnit::MiB)]
+    pub state_keeper_db_block_cache_capacity: ByteSize,
     /// Maximum number of files concurrently opened by state keeper cache RocksDB. Useful to fit into OS limits; can be used
     /// as a rudimentary way to control RAM usage of the cache.
     pub state_keeper_db_max_open_files: Option<NonZeroU32>,
@@ -28,8 +24,8 @@ pub struct ExperimentalDBConfig {
     pub protective_reads_persistence_enabled: bool,
     // Merkle tree config
     /// Processing delay between processing L1 batches in the Merkle tree.
-    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
-    pub processing_delay_ms: Duration,
+    #[config(default_t = Duration::from_millis(100))]
+    pub processing_delay: Duration,
     /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
     /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
     /// correspondingly; otherwise, RocksDB performance can significantly degrade.

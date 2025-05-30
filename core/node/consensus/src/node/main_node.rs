@@ -20,13 +20,13 @@ pub struct MainNodeConsensusLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub consensus_task: MainNodeConsensusTask,
+    consensus_task: MainNodeConsensusTask,
 }
 
 #[async_trait::async_trait]

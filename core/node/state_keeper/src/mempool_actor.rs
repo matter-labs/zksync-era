@@ -56,7 +56,7 @@ impl MempoolFetcher {
             mempool,
             pool,
             batch_fee_input_provider,
-            sync_interval: config.sync_interval_ms,
+            sync_interval: config.sync_interval,
             sync_batch_size: config.sync_batch_size,
             stuck_tx_timeout: config.remove_stuck_txs.then_some(config.stuck_tx_timeout),
             skip_unsafe_deposit_checks: config.skip_unsafe_deposit_checks,
@@ -249,7 +249,7 @@ mod tests {
     use super::*;
 
     const TEST_MEMPOOL_CONFIG: MempoolConfig = MempoolConfig {
-        sync_interval_ms: Duration::from_millis(10),
+        sync_interval: Duration::from_millis(10),
         sync_batch_size: 100,
         capacity: 100,
         stuck_tx_timeout: Duration::ZERO,
@@ -398,7 +398,7 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval_ms * 5).await;
+        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval * 5).await;
         assert_eq!(mempool.stats().l2_transaction_count, 0);
 
         stop_sender.send_replace(true);

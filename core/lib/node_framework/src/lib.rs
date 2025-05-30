@@ -15,6 +15,11 @@ pub mod service;
 pub mod task;
 pub mod wiring_layer;
 
+mod sealed {
+    /// Sealed trait marker. Intentionally not re-exported publicly.
+    pub trait Sealed {}
+}
+
 /// Derive macro for the `FromContext` trait.
 pub use zksync_node_framework_derive::FromContext;
 /// Derive macro for the `IntoContext` trait.

@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::HashSet,
     future::Future,
+    mem,
     num::NonZeroU32,
     pin::Pin,
     sync::Arc,
@@ -25,7 +26,7 @@ use vise::{
 };
 use zksync_web3_decl::jsonrpsee::{
     server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
-    types::{error::ErrorCode, ErrorObject, Request},
+    types::{error::ErrorCode, ErrorObject, Id, Request},
     MethodResponse,
 };
 
@@ -327,6 +328,64 @@ where
     fn call(&self, request: Request<'a>) -> Self::Future {
         self.traffic_tracker.reset();
         self.inner.call(request)
+    }
+}
+
+/// Middleware aborting any request after a configurable timeout.
+#[derive(Debug)]
+pub(crate) struct ServerTimeoutMiddleware<S> {
+    inner: S,
+    timeout: Duration,
+}
+
+impl<S> ServerTimeoutMiddleware<S> {
+    pub fn new(inner: S, timeout: Duration) -> Self {
+        Self { inner, timeout }
+    }
+}
+
+impl<'a, S> RpcServiceT<'a> for ServerTimeoutMiddleware<S>
+where
+    S: Send + Sync + RpcServiceT<'a>,
+{
+    type Future = WithServerTimeout<'a, S::Future>;
+
+    fn call(&self, request: Request<'a>) -> Self::Future {
+        let request_id = request.id.clone();
+        let inner = tokio::time::timeout(self.timeout, self.inner.call(request));
+        WithServerTimeout { request_id, inner }
+    }
+}
+
+pin_project! {
+    #[derive(Debug)]
+    pub(crate) struct WithServerTimeout<'a, F> {
+        request_id: Id<'a>,
+        #[pin]
+        inner: tokio::time::Timeout<F>,
+    }
+}
+
+impl<F: Future<Output = MethodResponse>> Future for WithServerTimeout<'_, F> {
+    type Output = MethodResponse;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let projection = self.project();
+        match projection.inner.poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Ok(response)) => Poll::Ready(response),
+            Poll::Ready(Err(_)) => {
+                let err_code = http::StatusCode::SERVICE_UNAVAILABLE.as_u16().into();
+                let err = ErrorObject::borrowed(
+                    err_code,
+                    "Request timed out due to server being overloaded",
+                    None,
+                );
+                // `replace()` is safe: the future is not polled after it returns `Poll::Ready`
+                let id = mem::replace(projection.request_id, Id::Null);
+                Poll::Ready(MethodResponse::error(id, err))
+            }
+        }
     }
 }
 

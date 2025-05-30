@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -7,7 +9,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_types::try_stoppable;
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::ReorgDetector;
 
@@ -20,16 +22,16 @@ pub struct ReorgDetectorLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub main_node_client: MainNodeClientResource,
-    pub master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
+    master_pool: PoolResource<MasterPool>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub reorg_detector: ReorgDetector,
+    reorg_detector: ReorgDetector,
 }
 
 #[async_trait::async_trait]
@@ -42,13 +44,11 @@ impl WiringLayer for ReorgDetectorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let MainNodeClientResource(main_node_client) = input.main_node_client;
         let pool = input.master_pool.get().await?;
+        let reorg_detector = ReorgDetector::new(input.main_node_client, pool);
 
-        let reorg_detector = ReorgDetector::new(main_node_client, pool);
-
-        let AppHealthCheckResource(app_health) = input.app_health;
-        app_health
+        input
+            .app_health
             .insert_component(reorg_detector.health_check().clone())
             .map_err(WiringError::internal)?;
 

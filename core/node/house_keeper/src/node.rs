@@ -18,7 +18,7 @@ pub struct HouseKeeperLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub replica_pool: PoolResource<ReplicaPool>,
+    replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]

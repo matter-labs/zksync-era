@@ -35,8 +35,8 @@ pub(crate) struct TimeoutSealer {
 impl TimeoutSealer {
     pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
-            block_commit_deadline_ms: config.l1_batch_commit_deadline_ms.as_millis() as u64,
-            l2_block_commit_deadline_ms: config.l2_block_commit_deadline_ms.as_millis() as u64,
+            block_commit_deadline_ms: config.l1_batch_commit_deadline.as_millis() as u64,
+            l2_block_commit_deadline_ms: config.l2_block_commit_deadline.as_millis() as u64,
         }
     }
 }

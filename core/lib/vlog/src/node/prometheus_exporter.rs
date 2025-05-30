@@ -1,6 +1,6 @@
-use zksync_health_check::{
-    node::AppHealthCheckResource, HealthStatus, HealthUpdater, ReactiveHealthCheck,
-};
+use std::sync::Arc;
+
+use zksync_health_check::{AppHealthCheck, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
@@ -23,7 +23,7 @@ pub struct PrometheusExporterTask {
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -47,7 +47,6 @@ impl WiringLayer for PrometheusExporterLayer {
 
         input
             .app_health
-            .0
             .insert_component(prometheus_health_check)
             .map_err(WiringError::internal)?;
 

@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use chrono::Utc;
 use httpmock::MockServer;
-use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
+use zksync_types::{base_token_ratio::BaseTokenApiRatio, Address};
 
-use crate::PriceAPIClient;
+use crate::PriceApiClient;
 
 const TIME_TOLERANCE_MS: i64 = 100;
 /// Uniswap (UNI)
@@ -16,12 +16,12 @@ const TEST_TOKEN_PRICE_ETH: f64 = 0.00269;
 const TEST_BASE_PRICE: f64 = 371.74;
 const PRICE_FLOAT_COMPARE_TOLERANCE: f64 = 0.1;
 
-pub(crate) fn approximate_value(api_price: &BaseTokenAPIRatio) -> f64 {
+pub(crate) fn approximate_value(api_price: &BaseTokenApiRatio) -> f64 {
     api_price.numerator.get() as f64 / api_price.denominator.get() as f64
 }
 
 pub(crate) struct SetupResult {
-    pub(crate) client: Box<dyn PriceAPIClient>,
+    pub(crate) client: Box<dyn PriceApiClient>,
 }
 
 pub(crate) type SetupFn =

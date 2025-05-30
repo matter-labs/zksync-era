@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_resources::tree::TreeApiClient;
 
-use super::TreeApiClientResource;
 use crate::api_server::TreeApiHttpClient;
 
 /// Wiring layer that provides the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
@@ -21,14 +21,14 @@ pub struct TreeApiClientLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     /// Fetched to check whether the `TreeApiClientResource` was already provided by another layer.
-    pub tree_api_client: Option<TreeApiClientResource>,
+    tree_api_client: Option<Arc<dyn TreeApiClient>>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub tree_api_client: Option<TreeApiClientResource>,
+    tree_api_client: Option<Arc<dyn TreeApiClient>>,
 }
 
 impl TreeApiClientLayer {
@@ -64,11 +64,10 @@ impl WiringLayer for TreeApiClientLayer {
         let client = Arc::new(TreeApiHttpClient::new(url));
         input
             .app_health
-            .0
             .insert_custom_component(client.clone())
             .map_err(WiringError::internal)?;
         Ok(Output {
-            tree_api_client: Some(client.into()),
+            tree_api_client: Some(client),
         })
     }
 }

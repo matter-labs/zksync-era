@@ -17,9 +17,9 @@ pub struct DeploymentAllowListLayer {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub shared_allow_list: SharedAllowList,
+    shared_allow_list: SharedAllowList,
     #[context(task)]
-    pub allow_list_task: Option<AllowListTask>,
+    allow_list_task: Option<AllowListTask>,
 }
 
 #[async_trait]

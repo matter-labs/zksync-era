@@ -205,9 +205,6 @@ impl ZkStackService {
         }
 
         // Wiring is now complete.
-        for resource in self.resources.values_mut() {
-            resource.stored_resource_wired();
-        }
         self.resources = HashMap::default(); // Decrement reference counters for resources.
         tracing::info!("Wiring complete");
 
