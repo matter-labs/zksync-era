@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use smart_config::{DescribeConfig, DeserializeConfig};
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
@@ -25,8 +25,8 @@ pub struct ExternalPriceApiClientConfig {
     pub source: String,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
-    #[config(default_t = Duration::from_secs(10), with = TimeUnit::Millis)]
-    pub client_timeout_ms: Duration,
+    #[config(default_t = Duration::from_secs(10))]
+    pub client_timeout: Duration,
     #[config(nest)]
     pub forced: Option<ForcedPriceClientConfig>,
 }
@@ -42,7 +42,7 @@ mod tests {
             source: "no-op".to_string(),
             base_url: Some("https://pro-api.coingecko.com".to_string()),
             api_key: Some("qwerty12345".to_string()),
-            client_timeout_ms: Duration::from_secs(10),
+            client_timeout: Duration::from_secs(10),
             forced: Some(ForcedPriceClientConfig {
                 numerator: Some(100),
                 denominator: Some(1),
