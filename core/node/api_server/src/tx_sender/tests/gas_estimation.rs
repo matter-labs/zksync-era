@@ -528,7 +528,10 @@ async fn limiting_storage_access_during_gas_estimation(vm_mode: FastVmMode) {
 
     let tx = alice.create_expensive_tx(1_000);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let tx_sender = create_real_tx_sender_with_options(pool, vm_mode, 100).await;
+    let tx_sender = create_real_tx_sender_with_options(pool, 100, |options| {
+        options.fast_vm_mode = vm_mode;
+    })
+    .await;
     let block_args = pending_block_args(&tx_sender).await;
 
     let fee_scale_factor = 1.0;
@@ -545,6 +548,42 @@ async fn limiting_storage_access_during_gas_estimation(vm_mode: FastVmMode) {
         .await
         .unwrap_err();
     assert_matches!(err, SubmitTxError::ExecutionReverted(msg, _) if msg.contains("limit reached"));
+}
+
+#[test_casing(3, ALL_VM_MODES)]
+#[tokio::test]
+async fn interrupting_vm_during_gas_estimation(vm_mode: FastVmMode) {
+    let mut alice = Account::random();
+    let state_override = StateBuilder::default().with_expensive_contract().build();
+
+    let tx = alice.create_expensive_tx(1_000);
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    // Artificially delay storage accesses so that the VM doesn't finish execution in a reasonable timeframe.
+    let storage_delay = Duration::from_millis(100);
+    let test_metrics = TestMetrics::leak();
+    let tx_sender = create_real_tx_sender_with_options(pool, usize::MAX, |options| {
+        options.fast_vm_mode = vm_mode;
+        options.storage_delay = Some(storage_delay);
+        options.interrupted_execution_latency_histogram = &test_metrics.interrupted_latency;
+    })
+    .await;
+    let block_args = pending_block_args(&tx_sender).await;
+
+    let fee_scale_factor = 1.0;
+    let acceptable_overestimation = 1_000;
+    let estimation_future = tx_sender.get_txs_fee_in_wei(
+        tx.into(),
+        block_args,
+        fee_scale_factor,
+        acceptable_overestimation,
+        Some(state_override),
+        BinarySearchKind::Full,
+    );
+    tokio::time::timeout(storage_delay * 10, estimation_future)
+        .await
+        .unwrap_err();
+
+    test_metrics.assert_single_interrupt(storage_delay).await;
 }
 
 #[tokio::test]

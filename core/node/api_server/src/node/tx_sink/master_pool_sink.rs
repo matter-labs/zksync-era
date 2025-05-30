@@ -1,22 +1,24 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
 
-use crate::{node::TxSinkResource, tx_sender::master_pool_sink::MasterPoolSink};
+use crate::tx_sender::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
 
 /// Wiring layer for [`MasterPoolSink`], [`TxSink`](zksync_node_api_server::tx_sender::tx_sink::TxSink) implementation.
 pub struct MasterPoolSinkLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub tx_sink: TxSinkResource,
+    tx_sink: Arc<dyn TxSink>,
 }
 
 #[async_trait::async_trait]
@@ -31,7 +33,7 @@ impl WiringLayer for MasterPoolSinkLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
         Ok(Output {
-            tx_sink: MasterPoolSink::new(pool).into(),
+            tx_sink: Arc::new(MasterPoolSink::new(pool)),
         })
     }
 }

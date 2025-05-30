@@ -1,9 +1,5 @@
-use std::time::Duration;
-
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zksync_multivm::interface::{storage::StorageViewStats, VmMemoryMetrics};
-
-use crate::shared::STORAGE_METRICS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "type", rename_all = "snake_case")]
@@ -47,9 +43,7 @@ struct RuntimeContextMemoryMetrics {
 static MEMORY_METRICS: vise::Global<RuntimeContextMemoryMetrics> = vise::Global::new();
 
 pub(super) fn report_vm_memory_metrics(
-    tx_id: &str,
     memory_metrics: &VmMemoryMetrics,
-    vm_execution_took: Duration,
     storage_stats: &StorageViewStats,
 ) {
     MEMORY_METRICS.event_sink_size[&SizeType::Inner].observe(memory_metrics.event_sink_inner);
@@ -69,14 +63,4 @@ pub(super) fn report_vm_memory_metrics(
     MEMORY_METRICS
         .full
         .observe(memory_metrics.full_size() + storage_stats.cache_size);
-
-    report_vm_storage_metrics(tx_id, vm_execution_took, storage_stats);
-}
-
-pub(super) fn report_vm_storage_metrics(
-    tx_id: &str,
-    vm_execution_took: Duration,
-    storage_stats: &StorageViewStats,
-) {
-    STORAGE_METRICS.observe(&format!("Tx {tx_id}"), vm_execution_took, storage_stats);
 }
