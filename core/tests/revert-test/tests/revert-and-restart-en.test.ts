@@ -11,6 +11,7 @@ import {
     Node,
     NodeSpawner,
     NodeType,
+    revertExternalNode,
     waitToCommitBatchesWithoutExecution,
     waitToExecuteBatch
 } from './utils';
@@ -58,6 +59,8 @@ describe('Block reverting test', function () {
     let alice: zksync.Wallet;
     let depositL1BatchNumber: number;
     let batchesCommittedBeforeRevert: bigint;
+    let targetBatchForRevert: bigint;
+    let balanceBeforeRevert: bigint;
 
     const autoKill: boolean = !process.env.NO_KILL;
 
@@ -86,14 +89,14 @@ describe('Block reverting test', function () {
 
         const pathToMainLogs = await logsPath('server.log');
         const mainLogs = await fs.open(pathToMainLogs, 'a');
-        console.log(`Writing main node logs to ${pathToMainLogs}`);
+        utils.log(`Writing main node logs to ${pathToMainLogs}`);
 
         const pathToEnLogs = await logsPath('external_node.log');
         const extLogs = await fs.open(pathToEnLogs, 'a');
-        console.log(`Writing EN logs to ${pathToEnLogs}`);
+        utils.log(`Writing EN logs to ${pathToEnLogs}`);
 
         const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
-        console.log(`enableConsensus = ${enableConsensus}`);
+        utils.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
 
         const mainNodeSpawnOptions = {
@@ -154,15 +157,14 @@ describe('Block reverting test', function () {
         mainNode = await mainNodeSpawner.spawnMainNode(false);
     });
 
-    // FIXME: need 2 batches?
     step('seal another L1 batch', async () => {
         await extNode.createBatchWithDeposit(alice.address, depositAmount);
     });
 
     step('check wallet balance', async () => {
-        const balance = await alice.getBalance();
-        console.log(`Balance before revert: ${balance}`);
-        assert(balance === depositAmount * 2n, 'Incorrect balance after deposits');
+        balanceBeforeRevert = await alice.getBalance();
+        utils.log(`Balance before revert: ${balanceBeforeRevert}`);
+        assert(balanceBeforeRevert === depositAmount * 2n, 'Incorrect balance after deposits');
     });
 
     step('wait for the new batch to be committed', async () => {
@@ -174,7 +176,7 @@ describe('Block reverting test', function () {
     });
 
     step('revert batches', async () => {
-        await executeRevert(
+        targetBatchForRevert = await executeRevert(
             pathToHome,
             chainName,
             operatorAddress,
@@ -191,31 +193,44 @@ describe('Block reverting test', function () {
         await extNode.waitForExit();
     });
 
-    step('Restart EN', async () => {
-        extNode = await extNodeSpawner.spawnExtNode();
-    });
+    for (let stepIndex = 0; stepIndex < 2; stepIndex++) {
+        step('Restart EN', async () => {
+            extNode = await extNodeSpawner.spawnExtNode();
+        });
 
-    step('wait until last deposit is re-executed', async () => {
-        let balanceBefore;
-        let tryCount = 0;
-        while ((balanceBefore = await alice.getBalance()) !== 2n * depositAmount && tryCount < 30) {
-            console.log(`Balance after revert: ${balanceBefore}`);
-            tryCount++;
-            await utils.sleep(1);
+        step('wait until last deposit is re-executed', async () => {
+            let balance;
+            let tryCount = 0;
+            while ((balance = await alice.getBalance()) !== balanceBeforeRevert && tryCount < 30) {
+                utils.log(`Balance after revert: ${balance} (expecting: ${balanceBeforeRevert})`);
+                tryCount++;
+                await utils.sleep(1);
+            }
+            assert(balance === balanceBeforeRevert, 'Incorrect balance after revert');
+        });
+
+        step('execute transaction after revert', async () => {
+            await executeDepositAfterRevert(extNode.tester, alice, depositAmount);
+            const balanceAfter = await alice.getBalance();
+            utils.log(`Balance after another deposit: ${balanceAfter}`);
+            assert(balanceAfter === balanceBeforeRevert + depositAmount, 'Incorrect balance after another deposit');
+        });
+
+        step('check random transfer', async () => {
+            balanceBeforeRevert = await checkRandomTransfer(alice, 1n);
+            utils.log('Balance after transfer', balanceBeforeRevert);
+        });
+
+        if (stepIndex === 0) {
+            step('Terminate external node', async () => {
+                await extNode.terminate();
+            });
+
+            step('revert external node via command', async () => {
+                await revertExternalNode(chainName, targetBatchForRevert);
+            });
         }
-        assert(balanceBefore === 2n * depositAmount, 'Incorrect balance after revert');
-    });
-
-    step('execute transaction after revert', async () => {
-        await executeDepositAfterRevert(extNode.tester, alice, depositAmount);
-        const balanceAfter = await alice.getBalance();
-        console.log(`Balance after another deposit: ${balanceAfter}`);
-        assert(balanceAfter === depositAmount * 3n, 'Incorrect balance after another deposit');
-    });
-
-    step('check random transfer', async () => {
-        await checkRandomTransfer(alice, 1n);
-    });
+    }
 
     after('terminate nodes', async () => {
         await mainNode.terminate();

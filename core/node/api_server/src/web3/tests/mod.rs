@@ -6,6 +6,7 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
+use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, ContractsConfig},
@@ -25,12 +26,15 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     api,
+    api::{BlockNumber, BlockStatus, TransactionStatus},
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     bytecode::{
         testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
         BytecodeHash,
     },
+    eth_sender::EthTxFinalityStatus,
     fee_model::{BatchFeeInput, FeeParams},
     get_deployer_key, get_nonce_key,
     settlement::SettlementLayer,
@@ -373,6 +377,27 @@ async fn seal_l1_batch(
         )
         .await?;
     Ok(())
+}
+
+async fn save_eth_tx(
+    storage: &mut Connection<'_, Core>,
+    batch_number: L1BatchNumber,
+    tx_type: AggregatedActionType,
+) -> H256 {
+    let tx_hash = H256::random();
+    storage
+        .eth_sender_dal()
+        .insert_bogus_confirmed_eth_tx(
+            batch_number,
+            tx_type,
+            tx_hash,
+            Utc::now(),
+            None,
+            EthTxFinalityStatus::Pending,
+        )
+        .await
+        .unwrap();
+    tx_hash
 }
 
 async fn store_events(
@@ -1352,4 +1377,381 @@ impl HttpTest for FeeHistoryTest {
 #[tokio::test]
 async fn getting_fee_history() {
     test_http_server(FeeHistoryTest).await;
+}
+
+#[derive(Debug)]
+struct HttpServerBatchStatusTest;
+
+#[async_trait]
+impl HttpTest for HttpServerBatchStatusTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        let l2_block_number = L2BlockNumber(1);
+        let l1_batch_number = L1BatchNumber(1);
+        let tx1 = create_l2_transaction(10, 200);
+        let tx_results = vec![mock_execute_transaction(tx1.clone().into())];
+        store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
+        seal_l1_batch(&mut storage, l1_batch_number).await?;
+        let commit_eth_tx_hash =
+            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Commit).await;
+
+        // Block is not committed yet.
+        let block = client
+            .get_block_details(l2_block_number.0.into())
+            .await?
+            .unwrap();
+        assert_eq!(block.base.status, BlockStatus::Sealed);
+        assert_eq!(block.base.commit_tx_hash, Some(commit_eth_tx_hash));
+        assert_eq!(
+            block.base.commit_tx_finality,
+            Some(EthTxFinalityStatus::Pending)
+        );
+
+        // Confirm commit transaction. But the block is still not finalized.
+        storage
+            .eth_sender_dal()
+            .confirm_tx(
+                commit_eth_tx_hash,
+                EthTxFinalityStatus::FastFinalized,
+                U256::zero(),
+                0,
+            )
+            .await?;
+        let block = client
+            .get_block_details(l2_block_number.0.into())
+            .await?
+            .unwrap();
+        assert_eq!(block.base.status, BlockStatus::Sealed);
+        assert_eq!(block.base.commit_tx_hash, Some(commit_eth_tx_hash));
+        assert_eq!(
+            block.base.commit_tx_finality,
+            Some(EthTxFinalityStatus::FastFinalized)
+        );
+
+        // Save Execute transaction, but it is not executed yet. So block is still sealed.
+        storage
+            .eth_sender_dal()
+            .confirm_tx(
+                commit_eth_tx_hash,
+                EthTxFinalityStatus::Finalized,
+                U256::zero(),
+                0,
+            )
+            .await?;
+        let prove_eth_tx_hash = save_eth_tx(
+            &mut storage,
+            l1_batch_number,
+            AggregatedActionType::PublishProofOnchain,
+        )
+        .await;
+        storage
+            .eth_sender_dal()
+            .confirm_tx(
+                prove_eth_tx_hash,
+                EthTxFinalityStatus::Finalized,
+                U256::zero(),
+                0,
+            )
+            .await?;
+        let execute_eth_tx_hash =
+            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Execute).await;
+        let block = client
+            .get_block_details(l2_block_number.0.into())
+            .await?
+            .unwrap();
+
+        assert_eq!(block.base.status, BlockStatus::Sealed);
+        assert_eq!(block.base.prove_tx_hash, Some(prove_eth_tx_hash));
+        assert_eq!(
+            block.base.prove_tx_finality,
+            Some(EthTxFinalityStatus::Finalized)
+        );
+        assert_eq!(block.base.execute_tx_hash, Some(execute_eth_tx_hash));
+        assert_eq!(
+            block.base.execute_tx_finality,
+            Some(EthTxFinalityStatus::Pending)
+        );
+
+        // Fast finalize Execute transaction, block should be fast finalized.
+        storage
+            .eth_sender_dal()
+            .confirm_tx(
+                execute_eth_tx_hash,
+                EthTxFinalityStatus::FastFinalized,
+                U256::zero(),
+                0,
+            )
+            .await?;
+        let block = client
+            .get_block_details(l2_block_number.0.into())
+            .await?
+            .unwrap();
+        assert_eq!(block.base.status, BlockStatus::FastFinalized);
+        assert_eq!(
+            block.base.execute_tx_finality,
+            Some(EthTxFinalityStatus::FastFinalized)
+        );
+        let tx = client.get_transaction_details(tx1.hash()).await?.unwrap();
+        assert_eq!(tx.status, TransactionStatus::FastFinalized);
+
+        // Confirm Execute transaction, block should be Verified.
+        storage
+            .eth_sender_dal()
+            .confirm_tx(
+                execute_eth_tx_hash,
+                EthTxFinalityStatus::Finalized,
+                U256::zero(),
+                0,
+            )
+            .await?;
+        let block = client
+            .get_block_details(l2_block_number.0.into())
+            .await?
+            .unwrap();
+        assert_eq!(block.base.status, BlockStatus::Verified);
+        assert_eq!(
+            block.base.execute_tx_finality,
+            Some(EthTxFinalityStatus::Finalized)
+        );
+
+        let tx = client.get_transaction_details(tx1.hash()).await?.unwrap();
+        assert_eq!(tx.status, TransactionStatus::Verified);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn http_server_batch_statuses() {
+    test_http_server(HttpServerBatchStatusTest).await;
+}
+
+#[derive(Debug)]
+struct HttpServerBlockNumberTest;
+
+impl HttpServerBlockNumberTest {
+    async fn save_l1_batch(
+        storage: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<()> {
+        let tx1 = create_l2_transaction(10, 200);
+        let tx_results = vec![mock_execute_transaction(tx1.clone().into())];
+        store_l2_block(storage, L2BlockNumber(l1_batch_number.0), &tx_results).await?;
+        seal_l1_batch(storage, l1_batch_number).await?;
+        Ok(())
+    }
+}
+
+enum PromotionBatchStates {
+    L1Committed,
+    Proved,
+    FastFinalized,
+    Executed(Option<H256>),
+}
+async fn promote_l1_batch_to_the_state(
+    storage: &mut Connection<'_, Core>,
+    l1_batch_number: L1BatchNumber,
+    // We use BlockNumber here, because we want to test exactly how the api will assume block statuses
+    state: PromotionBatchStates,
+) -> anyhow::Result<H256> {
+    let details = storage
+        .blocks_web3_dal()
+        .get_block_details(l1_batch_number.0.into())
+        .await?
+        .unwrap();
+
+    let tx_hash = match state {
+        PromotionBatchStates::L1Committed => {
+            if let Some(tx_hash) = details.base.commit_tx_hash {
+                return Ok(tx_hash);
+            }
+            let commit_eth_tx_hash =
+                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Commit).await;
+            storage
+                .eth_sender_dal()
+                .confirm_tx(
+                    commit_eth_tx_hash,
+                    EthTxFinalityStatus::Finalized,
+                    U256::zero(),
+                    0,
+                )
+                .await?;
+            commit_eth_tx_hash
+        }
+        PromotionBatchStates::Proved => {
+            if let Some(tx_hash) = details.base.prove_tx_hash {
+                return Ok(tx_hash);
+            }
+            let tx_hash = save_eth_tx(
+                storage,
+                l1_batch_number,
+                AggregatedActionType::PublishProofOnchain,
+            )
+            .await;
+            storage
+                .eth_sender_dal()
+                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
+                .await?;
+            tx_hash
+        }
+        PromotionBatchStates::FastFinalized => {
+            if let Some(tx_hash) = details.base.execute_tx_hash {
+                return Ok(tx_hash);
+            }
+            let tx_hash =
+                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await;
+            storage
+                .eth_sender_dal()
+                .confirm_tx(tx_hash, EthTxFinalityStatus::FastFinalized, U256::zero(), 0)
+                .await?;
+            tx_hash
+        }
+        PromotionBatchStates::Executed(tx_hash) => {
+            let tx_hash = if let Some(tx_hash) = tx_hash {
+                tx_hash
+            } else {
+                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await
+            };
+            storage
+                .eth_sender_dal()
+                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
+                .await?;
+            tx_hash
+        }
+    };
+    Ok(tx_hash)
+}
+
+#[async_trait]
+impl HttpTest for HttpServerBlockNumberTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        let l1_batch_number_1 = L1BatchNumber(1);
+        HttpServerBlockNumberTest::save_l1_batch(&mut storage, l1_batch_number_1).await?;
+        let l1_batch_number_2 = L1BatchNumber(2);
+        HttpServerBlockNumberTest::save_l1_batch(&mut storage, l1_batch_number_2).await?;
+        let l1_batch_number_3 = L1BatchNumber(3);
+        HttpServerBlockNumberTest::save_l1_batch(&mut storage, l1_batch_number_3).await?;
+        let l1_batch_number_4 = L1BatchNumber(4);
+        HttpServerBlockNumberTest::save_l1_batch(&mut storage, l1_batch_number_4).await?;
+
+        // Latest block is the latest sealed L2 block.
+        let block = client
+            .get_block_by_number(BlockNumber::Latest, false)
+            .await?
+            .unwrap();
+        assert_eq!(block.l1_batch_number.unwrap(), l1_batch_number_4.0.into());
+
+        // L1Committed block is the zero l2 block. Before none L1 batch is committed.
+        let block = client
+            .get_block_by_number(BlockNumber::L1Committed, false)
+            .await?
+            .unwrap();
+        assert_eq!(block.l1_batch_number.unwrap(), U64::zero());
+
+        // Mark the first L1 batch as L1Committed
+        promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_1,
+            PromotionBatchStates::L1Committed,
+        )
+        .await?;
+        let block = client
+            .get_block_by_number(BlockNumber::L1Committed, false)
+            .await?
+            .unwrap();
+        assert_eq!(block.l1_batch_number.unwrap(), l1_batch_number_1.0.into());
+
+        // Mark the first and second L1 batches as Proved
+        promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_1,
+            PromotionBatchStates::Proved,
+        )
+        .await?;
+        promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_2,
+            PromotionBatchStates::L1Committed,
+        )
+        .await?;
+        promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_2,
+            PromotionBatchStates::Proved,
+        )
+        .await?;
+        let block = client
+            .get_block_by_number(BlockNumber::L1Committed, false)
+            .await?
+            .unwrap();
+        // We don't have a special status for Proved, so the proven L1 batch is the last committed one.
+        assert_eq!(block.l1_batch_number.unwrap(), l1_batch_number_2.0.into());
+
+        // Mark the first and second L1 batch as FastFinalized
+        let execute_tx_hash_1 = promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_1,
+            PromotionBatchStates::FastFinalized,
+        )
+        .await?;
+        let execute_tx_hash_2 = promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_2,
+            PromotionBatchStates::FastFinalized,
+        )
+        .await?;
+        let block = client
+            .get_block_by_number(BlockNumber::FastFinalized, false)
+            .await?
+            .unwrap();
+        assert_eq!(block.l1_batch_number.unwrap(), l1_batch_number_2.0.into());
+
+        // Check that there are no L1 batches in Executed state yet.
+        let block = client
+            .get_block_by_number(BlockNumber::Finalized, false)
+            .await?
+            .unwrap();
+        assert_eq!(block.l1_batch_number.unwrap(), U64::zero());
+
+        // Mark the first L1 batch as Executed
+        promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_1,
+            PromotionBatchStates::Executed(Some(execute_tx_hash_1)),
+        )
+        .await?;
+        let block = client
+            .get_block_by_number(BlockNumber::Finalized, false)
+            .await?
+            .unwrap();
+        assert_eq!(block.l1_batch_number.unwrap(), l1_batch_number_1.0.into());
+
+        // Mark the second L1 batch as Executed. And verify that the latest FastFinalized is also latest Executed.
+        promote_l1_batch_to_the_state(
+            &mut storage,
+            l1_batch_number_2,
+            PromotionBatchStates::Executed(Some(execute_tx_hash_2)),
+        )
+        .await?;
+        let block = client
+            .get_block_by_number(BlockNumber::FastFinalized, false)
+            .await?
+            .unwrap();
+        assert_eq!(block.l1_batch_number.unwrap(), l1_batch_number_2.0.into());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn http_server_block_number_test() {
+    test_http_server(HttpServerBlockNumberTest).await;
 }
