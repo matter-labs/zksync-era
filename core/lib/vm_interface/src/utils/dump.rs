@@ -205,6 +205,10 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         self.inner.finish_batch(pubdata_builder)
     }
+
+    fn gas_remaining(&mut self) -> u32 {
+        self.inner.gas_remaining()
+    }
 }
 
 impl<S, Vm> VmInterfaceHistoryEnabled for DumpingVm<S, Vm>
