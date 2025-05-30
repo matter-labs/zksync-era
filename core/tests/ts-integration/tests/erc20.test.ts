@@ -234,7 +234,13 @@ describe('L1 ERC20 contract checks', () => {
         params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(alice.provider, alice, GW_CHAIN_ID, getGWBlockNumber(params));
+        await waitForInteropRootNonZero(
+            alice.provider,
+            alice,
+            GW_CHAIN_ID,
+            getGWBlockNumber(params),
+            tokenDetails.l2Address
+        );
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -270,7 +276,12 @@ describe('L1 ERC20 contract checks', () => {
         });
         let balance: bigint = 0n;
         while (balance.toString() === '0') {
+            await new Promise((resolve) => setTimeout(resolve, aliceL2b.provider.pollingInterval));
             balance = await aliceL2b.getBalance();
+            await aliceL2b.deposit({
+                token: ETH_ADDRESS,
+                amount: 1
+            });
         }
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
@@ -299,7 +310,8 @@ describe('L1 ERC20 contract checks', () => {
         provider: zksync.Provider,
         alice: zksync.Wallet,
         chainId: bigint,
-        l1BatchNumber: number
+        l1BatchNumber: number,
+        tokenToSend: string = ETH_ADDRESS
     ) {
         const l2InteropRootStorage = new zksync.Contract(
             L2_INTEROP_ROOT_STORAGE_ADDRESS,
@@ -312,7 +324,7 @@ describe('L1 ERC20 contract checks', () => {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
-                token: ETH_ADDRESS
+                token: tokenToSend
             });
             await tx.wait();
 
@@ -330,12 +342,22 @@ describe('L1 ERC20 contract checks', () => {
 
         let l2bUrl = l2aUrl;
         while (l2bUrl === l2aUrl) {
-            const chainConfig = loadConfig({
+            const chain = chains[Math.floor(Math.random() * chains.length)];
+            // Ensure no custom token is used on L2-B, as our test wallet is not funded with them
+            const contractsConfig = loadConfig({
                 pathToHome,
-                chain: chains[Math.floor(Math.random() * chains.length)],
+                chain,
+                config: 'contracts.yaml'
+            });
+            const baseTokenAddr = contractsConfig.l1.base_token_addr;
+            if (baseTokenAddr !== zksync.utils.ETH_ADDRESS_IN_CONTRACTS) continue;
+
+            const generalConfig = loadConfig({
+                pathToHome,
+                chain,
                 config: 'general.yaml'
             });
-            l2bUrl = chainConfig.api.web3_json_rpc.http_url;
+            l2bUrl = generalConfig.api.web3_json_rpc.http_url;
         }
 
         return l2bUrl;
