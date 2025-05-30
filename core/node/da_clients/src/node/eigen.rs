@@ -1,14 +1,14 @@
 use std::{error::Error, sync::Arc};
 
 use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
-use zksync_da_client::{node::DAClientResource, DataAvailabilityClient};
+use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::{
     node::{MasterPool, PoolResource},
     ConnectionPool, Core, CoreDal,
 };
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
-    FromContext, IntoContext,
+    FromContext,
 };
 
 use crate::eigen::{BlobProvider, EigenDAClient};
@@ -27,18 +27,13 @@ impl EigenWiringLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-}
-
-#[derive(Debug, IntoContext)]
-pub struct Output {
-    pub client: DAClientResource,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[async_trait::async_trait]
 impl WiringLayer for EigenWiringLayer {
     type Input = Input;
-    type Output = Output;
+    type Output = Box<dyn DataAvailabilityClient>;
 
     fn layer_name(&self) -> &'static str {
         "eigen_client_layer"
@@ -47,13 +42,9 @@ impl WiringLayer for EigenWiringLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool.get().await?;
         let get_blob_from_db = GetBlobFromDB { pool: master_pool };
-        let client: Box<dyn DataAvailabilityClient> = Box::new(
-            EigenDAClient::new(self.config, self.secrets, Arc::new(get_blob_from_db)).await?,
-        );
-
-        Ok(Self::Output {
-            client: DAClientResource(client),
-        })
+        let client =
+            EigenDAClient::new(self.config, self.secrets, Arc::new(get_blob_from_db)).await?;
+        Ok(Box::new(client))
     }
 }
 

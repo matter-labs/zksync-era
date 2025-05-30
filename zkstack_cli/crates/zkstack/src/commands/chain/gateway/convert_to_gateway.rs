@@ -22,6 +22,7 @@ use zkstack_cli_config::{
         },
         script_params::{DEPLOY_GATEWAY_TX_FILTERER, GATEWAY_VOTE_PREPARATION},
     },
+    override_config,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GatewayConfig,
 };
@@ -32,6 +33,7 @@ use crate::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
         set_transaction_filterer, AdminScriptMode,
     },
+    consts::PATH_TO_GATEWAY_OVERRIDE_CONFIG,
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
@@ -53,6 +55,13 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
     let chain_genesis_config = chain_config.get_genesis_config().await?;
     let genesis_input = GenesisInput::new(&chain_genesis_config)?;
+    override_config(
+        shell,
+        ecosystem_config
+            .link_to_code
+            .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
+        &chain_config,
+    )?;
 
     let chain_deployer_wallet = chain_config
         .get_wallets_config()?
