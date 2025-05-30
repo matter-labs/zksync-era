@@ -2,6 +2,7 @@ use axum::{extract::State, http::StatusCode, response::{IntoResponse, Response},
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use std::time::Duration;
+use axum::extract::DefaultBodyLimit;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tracing::{error, info};
@@ -92,6 +93,7 @@ pub async fn run(pool: ConnectionPool<Core>) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/pick-prover-job/FRI", get(pick_next_prover_job))
         .route("/submit-proof/FRI", post(submit_proof))
+        .layer(DefaultBodyLimit::disable())
         .with_state(shared_pool);
 
     let bind_address = SocketAddr::from(([0, 0, 0, 0], 3124));
