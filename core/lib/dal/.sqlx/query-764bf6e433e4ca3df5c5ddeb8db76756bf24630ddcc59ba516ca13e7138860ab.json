@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_txs\n            SET\n                confirmed_eth_tx_history_id = NULL,\n                gas_used = NULL,\n                has_failed = FALSE\n            WHERE\n                id >= $1\n                AND from_addr = $2\n                AND is_gateway = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "764bf6e433e4ca3df5c5ddeb8db76756bf24630ddcc59ba516ca13e7138860ab"
+}

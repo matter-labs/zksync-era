@@ -1,5 +1,5 @@
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_node_framework::resource::Resource;
+use zksync_node_framework::resource::{self, Resource};
 
 use crate::BoundEthInterface;
 
@@ -13,11 +13,7 @@ impl Resource for SenderConfigResource {
     }
 }
 
-/// A resource that provides L1 interface with signing capabilities to the service.
-#[derive(Debug, Clone)]
-pub struct BoundEthInterfaceResource(pub Box<dyn BoundEthInterface>);
-
-impl Resource for BoundEthInterfaceResource {
+impl Resource<resource::Boxed> for dyn BoundEthInterface {
     fn name() -> String {
         "common/bound_eth_interface".into()
     }

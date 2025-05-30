@@ -7,8 +7,7 @@ pub use self::{
     bridge_addresses::BridgeAddressesUpdaterLayer,
     pk_signing_eth_client::PKSigningEthClientLayer,
     resources::{
-        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-        BoundEthInterfaceResource, SenderConfigResource,
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, SenderConfigResource,
     },
 };
 

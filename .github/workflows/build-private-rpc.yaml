@@ -1,0 +1,59 @@
+name: Private Rpc - Build docker image
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag of an image"
+        type: string
+        required: true
+
+env:
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || 'v0.1.0' }}
+  REGISTRY_PATH: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/private-rpc
+
+jobs:
+  build-images:
+    name: Private Rpc - Build and Push Docker Image
+    runs-on: [ matterlabs-ci-runner-high-performance ]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: "recursive"
+
+      - name: setup-env
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo CI=1 >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo CI=1 >> .env
+          echo IN_DOCKER=1 >> .env
+
+      - name: start-services
+        run: |
+          run_retried docker compose pull zk postgres
+          docker compose up -d zk postgres
+
+      - name: init
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
+          ci_run zk
+          ci_run cp etc/tokens/{test,localhost}.json
+
+      - name: build-image
+        run: |
+          ci_run docker build \
+            --platform linux/amd64 \
+            -t "$REGISTRY_PATH:${IMAGE_TAG}" \
+            private-rpc
+
+      - name: login to Docker registries
+        run: |
+          ci_run docker login -u "${{ secrets.DOCKERHUB_USER }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: push-image
+        run: |
+          ci_run docker push "$REGISTRY_PATH:${IMAGE_TAG}"
