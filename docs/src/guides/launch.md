@@ -40,13 +40,13 @@ To completely reset the dev environment:
 ### Advanced local setup: rollup + validium with ZKsync Gateway
 
 - Stop services from any other previous setup:
-  
+
   ```bash
   zkstack dev clean all
   ```
 
 - Start default ecosystem with `era` config for a rollup chain :
-  
+
   ```bash
   zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
@@ -58,7 +58,7 @@ To completely reset the dev environment:
   ```
 
 - Create additional `validium` chain:
-  
+
   ```bash
   zkstack chain create \
     --chain-name validium \
@@ -71,11 +71,11 @@ To completely reset the dev environment:
     --base-token-price-denominator 1 \
     --set-as-default false \
     --evm-emulator false \
-    --ignore-prerequisites --update-submodules false 
+    --ignore-prerequisites --update-submodules false
   ```
 
 - Initialise `validium` chain:
-  
+
   ```bash
   zkstack chain init \
     --deploy-paymaster \
@@ -86,7 +86,7 @@ To completely reset the dev environment:
   ```
 
 - Create additional `gateway` chain as rollup:
-  
+
   ```bash
   zkstack chain create \
     --chain-name gateway \
@@ -99,11 +99,11 @@ To completely reset the dev environment:
     --base-token-price-denominator 1 \
     --set-as-default false \
     --evm-emulator false \
-    --ignore-prerequisites --update-submodules false 
+    --ignore-prerequisites --update-submodules false
   ```
 
 - Initialise `gateway` chain:
-  
+
   ```bash
   zkstack chain init \
     --deploy-paymaster \
@@ -114,34 +114,35 @@ To completely reset the dev environment:
   ```
 
 - Transform `gateway` chain from rollup to ZKsync Gateway settlement layer:
-  
+
   ```bash
   zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
   ```
+
 - Start `gateway` chain server:
-  
+
   ```bash
-  zkstack server --ignore-prerequisites --chain gateway &> ./gateway.log & 
+  zkstack server --ignore-prerequisites --chain gateway &> ./gateway.log &
   zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
   ```
 
 - Migrate `era` and `validium` chains to settle on `gateway`:
-  
+
   ```bash
   zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
   zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
   ```
 
 - Start `era` and `validium` chains servers:
-  
+
   ```bash
-  zkstack server --ignore-prerequisites --chain era &> ./era.log & 
-  zkstack server --ignore-prerequisites --chain validium &> ./validium.log & 
+  zkstack server --ignore-prerequisites --chain era &> ./era.log &
+  zkstack server --ignore-prerequisites --chain validium &> ./validium.log &
   ```
 
 - Your chains will be running on the following ports:
-  
+
   ```bash
   localhost:3050 - chain era (271)
   localhost:3150 - chain validium (260)
