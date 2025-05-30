@@ -212,20 +212,16 @@ impl RestApi {
             .await
             .ok()
             .map(|info| info.0);
-        let response = match verification_info {
-            // Return the source code only for the target address, omit other matches.
-            Some(verification_info)
-                if verification_info.request.req.contract_address == address =>
-            {
-                Some(verification_info)
-            }
-            _ => None,
-        };
         method_latency.observe();
         EtherscanResponse {
             status: "1".to_string(),
             message: "OK".to_string(),
-            result: EtherscanResult::SourceCode(response.into()),
+            result: EtherscanResult::SourceCode(
+                // Return the source code only for the target address, omit other matches.
+                verification_info
+                    .filter(|info| info.request.req.contract_address == address)
+                    .into(),
+            ),
         }
     }
 
