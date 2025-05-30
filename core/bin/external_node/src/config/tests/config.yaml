@@ -17,6 +17,7 @@ postgres:
   slow_query_threshold_ms: 1500
   long_connection_threshold_ms: 2500
   acquire_timeout_sec: 15
+  acquire_retries: 2
 
 db:
   state_keeper_db_path: /db/state-keeper
@@ -61,7 +62,7 @@ api:
       - zks
       - eth
     latest_values_max_block_lag: 30
-    mempool_cache_update_interval: 75 # FIXME use idiomatic repr
+    mempool_cache_update_interval_ms: 75
     max_response_body_size_mb: 5
     max_response_body_size_overrides_mb:
       zks_getProof: 100
@@ -73,6 +74,7 @@ api:
     estimate_gas_optimize_search: true
     vm_concurrency_limit: 100
     latest_values_cache_size_mb: 200
+    request_timeout_sec: 20
     tree_api_url: http://tree/
     max_batch_request_size: 50
     websocket_requests_per_minute_limit: 1000

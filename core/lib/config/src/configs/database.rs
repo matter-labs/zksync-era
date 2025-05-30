@@ -245,6 +245,9 @@ mod tests {
           merkle_tree:
             path: /db/tree
             mode: LIGHTWEIGHT
+            max_open_files: 512
+            processing_delay: 0ms
+            include_indices_and_filters_in_block_cache: true
             multi_get_chunk_size: 250
             block_cache_size: 128 MB
             memtable_capacity: 512 MB
@@ -253,8 +256,6 @@ mod tests {
           experimental:
             state_keeper_db_block_cache_capacity: 64 MB
             reads_persistence_enabled: false
-            processing_delay: 0ms
-            include_indices_and_filters_in_block_cache: false
             merkle_tree_repair_stale_keys: true
             state_keeper_db_max_open_files: 100
         "#;

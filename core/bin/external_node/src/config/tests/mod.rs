@@ -195,21 +195,13 @@ fn parsing_from_full_env() {
         EN_FILTERS_LIMIT=5000
         EN_SUBSCRIPTIONS_LIMIT=5000
         EN_REQ_ENTITIES_LIMIT=1000
-
-        # FIXME: not parsed (requires idiomatic units)
-        # EN_MAX_TX_SIZE_BYTES=1000000
-        EN_MAX_TX_SIZE=1000000
-
+        EN_MAX_TX_SIZE_BYTES=1000000
         EN_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
         EN_FEE_HISTORY_LIMIT=100
         EN_MAX_BATCH_REQUEST_SIZE=50
         EN_MAX_RESPONSE_BODY_SIZE_MB=5
         EN_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="zks_getProof=100,eth_call=2"
-
-        # FIXME: not parsed (requires idiomatic units)
-        # EN_PUBSUB_POLLING_INTERVAL_MS=200
-        EN_PUBSUB_POLLING_INTERVAL=200
-
+        EN_PUBSUB_POLLING_INTERVAL_MS=200
         EN_MAX_NONCE_AHEAD=33
         EN_VM_CONCURRENCY_LIMIT=100
         EN_FACTORY_DEPS_CACHE_SIZE_MB=100
@@ -217,11 +209,7 @@ fn parsing_from_full_env() {
         EN_LATEST_VALUES_CACHE_SIZE_MB=200
         EN_API_NAMESPACES="zks,eth"
         EN_FILTERS_DISABLED=true
-
-        # FIXME: not parsed (requires idiomatic units)
-        # EN_MEMPOOL_CACHE_UPDATE_INTERVAL_MS=75
-        EN_MEMPOOL_CACHE_UPDATE_INTERVAL=75
-
+        EN_MEMPOOL_CACHE_UPDATE_INTERVAL_MS=75
         EN_MEMPOOL_CACHE_SIZE=1000
         EN_EXTENDED_RPC_TRACING=true
 
@@ -236,6 +224,7 @@ fn parsing_from_full_env() {
         EN_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=1000
         EN_LATEST_VALUES_MAX_BLOCK_LAG=30
         EN_WHITELISTED_TOKENS_FOR_AA=0x0000000000000000000000000000000000000001
+        EN_REQUEST_TIMEOUT_SEC=20
 
         EN_MERKLE_TREE_PROCESSING_DELAY_MS=100
         EN_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=5
@@ -254,6 +243,7 @@ fn parsing_from_full_env() {
         EN_DATABASE_SLOW_QUERY_THRESHOLD_MS=1500
         # NEW PARAMS: From PostgresConfig
         EN_DATABASE_ACQUIRE_TIMEOUT_SEC=15
+        EN_DATABASE_ACQUIRE_RETRIES=2
         EN_DATABASE_STATEMENT_TIMEOUT_SEC=20
         # NEW PARAMS: From PostgresConfig; not used
         EN_DATABASE_MAX_CONNECTIONS_MASTER=10
@@ -373,6 +363,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.estimate_gas_acceptable_overestimation, 2_000);
     assert!(config.estimate_gas_optimize_search);
     assert_eq!(config.gas_price_scale_factor, 1.4);
+    assert_eq!(config.request_timeout, Some(Duration::from_secs(20)));
     assert_eq!(config.http_port, 2_950);
     assert_eq!(config.ws_port, 2_951);
 
@@ -422,6 +413,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     );
     assert_eq!(config.slow_query_threshold, Duration::from_millis(1_500));
     assert_eq!(config.acquire_timeout, Duration::from_secs(15));
+    assert_eq!(config.acquire_retries, 2);
     assert_eq!(config.statement_timeout, Duration::from_secs(20));
 
     let config: SharedStateKeeperConfig =
