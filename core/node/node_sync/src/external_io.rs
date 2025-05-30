@@ -313,7 +313,7 @@ impl StateKeeperIO for ExternalIO {
                     .blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
-                        timestamp: params.first_l2_block.timestamp,
+                        timestamp: params.first_l2_block.timestamp(),
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
@@ -331,6 +331,7 @@ impl StateKeeperIO for ExternalIO {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
+        _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         // Wait for the next L2 block to appear in the queue.
         let Some(action) = self.actions.recv_action(max_wait).await else {
@@ -523,7 +524,7 @@ mod tests {
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
             first_l2_block: L2BlockParams {
-                timestamp: 1,
+                timestamp_ms: 1000,
                 virtual_blocks: 1,
             },
             pubdata_params: Default::default(),
