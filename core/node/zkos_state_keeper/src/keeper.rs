@@ -162,12 +162,15 @@ impl ZkosStateKeeper {
                 native_price: U256::from(block_params.base_fee / 100),
                 gas_per_pubdata: Default::default(),
                 block_number: cursor.next_l2_block.0 as u64,
-                timestamp: block_params.timestamp(),
+                // todo: shall we pass seconds or ms here?
+                timestamp: block_params.timestamp() / 1000,
                 chain_id: self.io.chain_id().as_u64(),
                 gas_limit,
                 coinbase: Default::default(),
                 block_hashes: Default::default(),
             };
+
+            tracing::info!("State keeper is processing block {:?} with context {:?}", cursor.next_l2_block.0, context);
 
             let Some(storage) = self
                 .storage_factory

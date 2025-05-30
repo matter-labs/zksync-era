@@ -64,6 +64,8 @@ pub enum Component {
     ExternalProofIntegrationApi,
     /// VM runner-based component that allows to test experimental VM features. Doesn't save any data to Postgres.
     VmPlayground,
+    /// Runs zkos VM in background to generate prover input. Similar to the Vm Runners, but not based on its framework
+    ZkOsProverInputGenerator,
 }
 
 #[derive(Debug)]
@@ -109,6 +111,9 @@ impl FromStr for Components {
             "vm_playground" => Ok(Components(vec![Component::VmPlayground])),
             "external_proof_integration_api" => {
                 Ok(Components(vec![Component::ExternalProofIntegrationApi]))
+            }
+            "zkos_prover_input_generator" => {
+                Ok(Components(vec![Component::ZkOsProverInputGenerator]))
             }
             other => Err(format!("{} is not a valid component name", other)),
         }

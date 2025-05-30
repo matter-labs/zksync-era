@@ -29,6 +29,7 @@ use crate::{
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
+use crate::zkos_prover_dal::ZkosProverDal;
 
 pub mod account_properties_dal;
 pub mod base_token_dal;
@@ -70,6 +71,7 @@ pub mod vm_runner_dal;
 
 #[cfg(test)]
 mod tests;
+mod zkos_prover_dal;
 
 // This module is private and serves as a way to seal the trait.
 mod private {
@@ -147,6 +149,7 @@ where
     fn server_notifications_dal(&mut self) -> ServerNotificationsDal<'_, 'a>;
 
     fn account_properies_dal(&mut self) -> AccountPropertiesDal<'_, 'a>;
+    fn zkos_prover_dal(&mut self) -> ZkosProverDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -285,8 +288,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
     fn custom_genesis_export_dal(&mut self) -> CustomGenesisExportDal<'_, 'a> {
         CustomGenesisExportDal { storage: self }
     }
-
     fn account_properies_dal(&mut self) -> AccountPropertiesDal<'_, 'a> {
         AccountPropertiesDal { storage: self }
+    }
+    fn zkos_prover_dal(&mut self) -> ZkosProverDal<'_, 'a> {
+        ZkosProverDal { storage: self }
     }
 }

@@ -12,24 +12,17 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
-/// Response from GET /next-block
-#[derive(Debug, Deserialize)]
-struct NextBlockResponse {
-    block_number: u64,
-    block_data: String,
+
+#[derive(Debug, Serialize, Deserialize)]
+struct NextProverJobPayload {
+    block_number: u32,
+    prover_input: String, // base64-encoded
 }
 
-/// Payload for POST /submit-proof
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ProofPayload {
-    block_number: u64,
+    block_number: u32,
     proof: String,
-}
-
-/// Response from POST /submit-proof
-#[derive(Debug, Deserialize)]
-struct ProofResult {
-    result: String,
 }
 
 /// HTTP client for the proof-data server
@@ -50,14 +43,14 @@ impl ProofDataClient {
 
     /// Fetch the next block to prove.
     /// Returns `Ok(None)` if there's no block pending (204 No Content).
-    pub async fn get_next_block(&self) -> Result<Option<(u64, Vec<u8>)>> {
-        let url = format!("{}/next-block", self.base_url);
+    pub async fn pick_next_prover_job(&self) -> Result<Option<(u32, Vec<u8>)>> {
+        let url = format!("{}/pick-prover-job/FRI", self.base_url);
         let resp = self.http.get(&url).send().await?;
 
         match resp.status() {
             StatusCode::OK => {
-                let body: NextBlockResponse = resp.json().await?;
-                let data = base64::decode(&body.block_data)
+                let body: NextProverJobPayload = resp.json().await?;
+                let data = base64::decode(&body.prover_input)
                     .map_err(|e| anyhow!("Failed to decode block data: {}", e))?;
                 Ok(Some((body.block_number, data)))
             }
@@ -68,8 +61,8 @@ impl ProofDataClient {
 
     /// Submit a proof for the processed block
     /// Returns the vector of u32 as returned by the server.
-    pub async fn submit_proof(&self, block_number: u64, proof: String) -> Result<String> {
-        let url = format!("{}/submit-proof", self.base_url);
+    pub async fn submit_proof(&self, block_number: u32, proof: String) -> Result<()> {
+        let url = format!("{}/submit-proof/FRI", self.base_url);
         let payload = ProofPayload {
             block_number,
             proof,
@@ -78,8 +71,7 @@ impl ProofDataClient {
         let resp = self.http.post(&url).json(&payload).send().await?;
 
         if resp.status().is_success() {
-            let body: ProofResult = resp.json().await?;
-            Ok(body.result)
+            Ok(())
         } else {
             Err(anyhow!(
                 "Server returned {} when submitting proof",
@@ -137,7 +129,7 @@ pub async fn main() {
     println!("Starting Zksync OS prover for {}", client.base_url);
 
     loop {
-        let (block_number, prover_input) = match client.get_next_block().await.unwrap() {
+        let (block_number, prover_input) = match client.pick_next_prover_job().await.unwrap() {
             Some(next_block) => next_block,
             None => {
               tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;

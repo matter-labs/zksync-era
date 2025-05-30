@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE zkos_prover_input\n            SET\n                time_taken = NOW() - processing_started_at,\n                prover_input = $2\n            WHERE\n                l2_block_number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "84107e3d4dd0a672e5467825aeb1c8b9167fe100aafbb8d8c52b46a669c62f48"
+}

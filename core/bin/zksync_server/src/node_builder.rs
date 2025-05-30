@@ -15,6 +15,7 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_core_leftovers::Component;
+use zksync_core_leftovers::Component::ZkOsProverInputGenerator;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
@@ -84,6 +85,7 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
+use zksync_node_framework::implementations::layers::zkos_prover_input_generator::ZkOsProverInputGeneratorLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
@@ -764,6 +766,11 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_zkos_prover_input_generator(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ZkOsProverInputGeneratorLayer);
+        Ok(self)
+    }
+
     fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(LogsBloomBackfillLayer);
 
@@ -933,6 +940,9 @@ impl MainNodeBuilder {
                 }
                 Component::ExternalProofIntegrationApi => {
                     self = self.add_external_proof_integration_api_layer()?;
+                }
+                Component::ZkOsProverInputGenerator => {
+                    self = self.add_zkos_prover_input_generator()?;
                 }
             }
         }

@@ -45,3 +45,4 @@ pub mod vm_runner;
 pub mod web3_api;
 pub mod zk_os_tree_manager;
 pub mod zkos_state_keeper;
+pub mod zkos_prover_input_generator;

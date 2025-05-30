@@ -58,6 +58,7 @@ zksync_external_proof_integration_api.workspace = true
 zksync_logs_bloom_backfill.workspace = true
 zksync_zkos_state_keeper.workspace = true
 zksync_zk_os_tree_manager.workspace = true
+zksync_zkos_prover_input_generator.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_gateway_migrator.workspace = true
 

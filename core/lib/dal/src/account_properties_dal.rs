@@ -179,6 +179,45 @@ impl AccountPropertiesDal<'_, '_> {
         Ok(result)
     }
 
+    // todo: used to build prover_input_generator's
+    async fn get_all_account_properties(
+        &mut self,
+        address: Address,
+        l2_block_number: Option<L2BlockNumber>,
+    ) -> DalResult<Option<StorageAccountProperties>> {
+        let Some(l2_block_number) = self.resolve_block_number(l2_block_number).await? else {
+            return Ok(None);
+        };
+        let result = sqlx::query_as!(
+            StorageAccountProperties,
+            r#"
+            SELECT
+                versioning_data,
+                nonce,
+                observable_bytecode_hash,
+                bytecode_hash,
+                nominal_token_balance,
+                bytecode_len,
+                artifacts_len,
+                observable_bytecode_len
+            FROM
+                account_properties
+            WHERE address = $1 AND miniblock_number <= $2
+            ORDER BY
+                miniblock_number DESC
+            LIMIT
+                1
+            "#,
+            address.as_bytes(),
+            l2_block_number,
+        )
+            .instrument("get_all_account_properties")
+            .fetch_optional(self.storage)
+            .await?;
+
+        Ok(result)
+    }
+
     pub async fn get_balance(
         &mut self,
         address: Address,

@@ -1,0 +1,44 @@
+[package]
+name = "zksync_zkos_prover_input_generator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_dal.workspace = true
+zksync_state.workspace = true
+zksync_storage.workspace = true
+zksync_state_keeper.workspace = true
+zksync_utils.workspace = true
+zksync_mempool.workspace = true
+zksync_types.workspace = true
+zksync_zkos_vm_runner.workspace = true
+zksync_vm_interface.workspace = true
+zksync_config.workspace = true
+zksync_node_fee_model.workspace = true
+zksync_protobuf.workspace = true
+
+zk_os_forward_system.workspace = true
+zk_ee.workspace = true
+zk_os_basic_system.workspace = true
+
+anyhow.workspace = true
+ruint.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+serde = { version = "1.0.214", features = ["derive"] }
+hex.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+itertools.workspace = true
+futures.workspace = true
+http = "1.2.0"
+tracing-subscriber = "0.3.19"
+base64 = "0.21.7"
+
+axum.workspace = true

@@ -42,6 +42,7 @@ members = [
   "node/da_clients",
   "node/gateway_migrator",
   "node/zk_os_tree_manager",
+  "node/zkos_prover_input_generator",
   # Libraries
   "lib/db_connection",
   "lib/zksync_core_leftovers",
@@ -367,6 +368,7 @@ zksync_gateway_migrator = { version = "28.1.0-non-semver-compat", path = "node/g
 zksync_zkos_state_keeper = { version = "28.1.0-non-semver-compat", path = "node/zkos_state_keeper" }
 zksync_zkos_vm_runner = { version = "28.1.0-non-semver-compat", path = "node/zkos_vm_runner" }
 zksync_zk_os_tree_manager = { version = "28.1.0-non-semver-compat", path = "node/zk_os_tree_manager" }
+zksync_zkos_prover_input_generator = { version = "28.1.0-non-semver-compat", path = "node/zkos_prover_input_generator" }
 
 [patch.crates-io]
 ark-ff = { git = "https://github.com/arkworks-rs/algebra.git" }

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH next_proof AS (\n            SELECT l2_block_number\n            FROM zkos_proofs\n            WHERE proof_picked_at IS NULL\n               OR proof_picked_at < NOW() - $1::INTERVAL\n            ORDER BY l2_block_number ASC\n            LIMIT 1\n            FOR UPDATE SKIP LOCKED\n        )\n        UPDATE zkos_proofs\n        SET\n            proof_picked_at = NOW(),\n            proof_picked_by = $2,\n            attempts = attempts + 1,\n            updated_at = NOW()\n        FROM next_proof\n        WHERE zkos_proofs.l2_block_number = next_proof.l2_block_number\n        RETURNING zkos_proofs.l2_block_number AS \"l2_block_number!\",\n                  zkos_proofs.prover_input AS \"prover_input!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l2_block_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "prover_input!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "4bffd045e6158a0d6bc37764ccdb8e743789561c721bf866b7c0659ba5ad7fb0"
+}
