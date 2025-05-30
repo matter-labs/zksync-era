@@ -56,12 +56,12 @@ impl EigenDAClient {
         let client = match config.version {
             Version::V1 => {
                 let eth_rpc_url = rust_eigenda_client::config::SecretUrl::new(url);
-        
+
                 let srs_points_source = match config.points {
                     PointsSource::Path { path } => SrsPointsSource::Path(path),
                     PointsSource::Url { g1_url, g2_url } => SrsPointsSource::Url((g1_url, g2_url)),
                 };
-        
+
                 let eigen_config = rust_eigenda_client::config::EigenConfig::new(
                     config.disperser_rpc,
                     eth_rpc_url,
@@ -76,7 +76,7 @@ impl EigenDAClient {
                     SecretKey::from_str(secrets.private_key.0.expose_secret())
                         .map_err(|_| anyhow::anyhow!("Invalid private key"))?,
                 );
-        
+
                 let client = EigenClient::new(eigen_config, signer, blob_provider)
                     .await
                     .map_err(|e| anyhow::anyhow!("Eigen client Error: {:?}", e))?;
