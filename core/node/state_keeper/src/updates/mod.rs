@@ -56,6 +56,7 @@ impl UpdatesManager {
         system_env: &SystemEnv,
         pubdata_params: PubdataParams,
         previous_batch_protocol_version: ProtocolVersionId,
+        previous_block_timestamp: u64,
     ) -> Self {
         let protocol_version = system_env.version;
         Self {
@@ -70,7 +71,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.timestamp,
                 L2BlockNumber(l1_batch_env.first_l2_block.number),
                 l1_batch_env.first_l2_block.prev_block_hash,
-                l1_batch_env.first_l2_block.timestamp, // TODO
+                previous_block_timestamp,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
             ),

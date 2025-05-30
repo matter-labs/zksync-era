@@ -71,6 +71,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
         &default_system_env(),
         Default::default(),
         Default::default(),
+        0,
     )
 }
 

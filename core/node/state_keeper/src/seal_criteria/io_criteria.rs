@@ -320,6 +320,7 @@ mod tests {
             &system_env,
             Default::default(),
             ProtocolVersionId::latest(),
+            0,
         );
         // No txs, should not be sealed.
         let should_seal = sealer

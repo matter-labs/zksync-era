@@ -185,6 +185,7 @@ impl StateKeeperInner {
             &system_env,
             pubdata_params,
             previous_batch_protocol_version,
+            0, // Doesn't matter what we put there, will be overwritten after `pending_l2_blocks` are processed.
         );
         let protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
             .load_protocol_upgrade_tx(&pending_l2_blocks, protocol_version, l1_batch_env.number)
@@ -235,6 +236,7 @@ impl StateKeeperInner {
             &system_env,
             pubdata_params,
             previous_batch_protocol_version,
+            cursor.prev_l2_block_timestamp,
         );
         let batch_executor = self
             .create_batch_executor(

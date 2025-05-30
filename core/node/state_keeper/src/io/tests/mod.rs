@@ -566,6 +566,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         &system_env,
         pubdata_params,
         system_env.version,
+        cursor.prev_l2_block_timestamp,
     );
 
     let tx_hash = tx.hash();
