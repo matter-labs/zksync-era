@@ -7206,17 +7206,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vise-macros"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b03810422b55b87bb8cba95a3708664c049125789a8d79ee524da6ed07ed067d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.89",
-]
-
-[[package]]
 name = "walkdir"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
