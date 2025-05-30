@@ -455,7 +455,6 @@ jobs:
         run: |
           CHAINS="era,validium,custom_token,da_migration,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
-          echo "CHAINS=$CHAINS" >> .env
 
       # ----------------------------------------------------------------
       #  Only create/initialize the gateway chain *if* use_gateway_chain=WITH_GATEWAY
@@ -544,6 +543,7 @@ jobs:
 
       - name: Run integration tests
         run: |
+          echo "CHAINS=${{ env.CHAINS }}" >> .env
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
@@ -551,6 +551,7 @@ jobs:
       - name: Repeat integration tests on push to main to check for flakiness
         if: ${{ (github.ref == 'refs/heads/main') }}
         run: |
+          echo "CHAINS=${{ env.CHAINS }}" >> .env
           for i in {1..10}; do
             echo "Iteration $i"
             mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
