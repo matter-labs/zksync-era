@@ -7,10 +7,13 @@ use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
-use zksync_types::{u256_to_h256, writes::TreeWrite, Address, ProtocolVersionId};
+use zksync_types::{
+    block::L2BlockHeader, u256_to_h256, writes::TreeWrite, Address, L2BlockNumber,
+    ProtocolVersionId,
+};
 
 use crate::{
-    io::StateKeeperOutputHandler,
+    io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperOutputHandler},
     metrics::{L2BlockQueueStage, L2_BLOCK_METRICS},
     updates::{L2BlockSealCommand, UpdatesManager},
 };
@@ -184,6 +187,24 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         let command = updates_manager
             .seal_l2_block_command(self.l2_legacy_shared_bridge_addr, self.pre_insert_txs);
         self.submit_l2_block(command).await;
+        Ok(())
+    }
+
+    async fn handle_l2_block_header(&mut self, header: &L2BlockHeader) -> anyhow::Result<()> {
+        let mut conn = self.pool.connection_tagged("state_keeper").await?;
+        conn.blocks_dal().insert_l2_block(header).await?;
+        Ok(())
+    }
+
+    async fn rollback_pending_l2_block(
+        &mut self,
+        l2_block_to_rollback: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        // We cannot start rollback before block data is sealed fully.
+        self.wait_for_all_commands().await;
+
+        let mut conn = self.pool.connection_tagged("state_keeper").await?;
+        L2BlockSealProcess::clear_pending_l2_block(&mut conn, l2_block_to_rollback - 1).await?;
         Ok(())
     }
 

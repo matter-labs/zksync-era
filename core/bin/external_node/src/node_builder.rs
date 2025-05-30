@@ -12,8 +12,9 @@ use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
-        chain::TimestampAsserterConfig,
+        chain::{MempoolConfig, StateKeeperConfig, TimestampAsserterConfig},
         database::MerkleTreeMode,
+        wallets::AddressWallet,
         DataAvailabilitySecrets, DatabaseSecrets,
     },
     DAClientConfig, PostgresConfig,
@@ -47,13 +48,16 @@ use zksync_node_storage_init::{
     SnapshotRecoveryConfig,
 };
 use zksync_node_sync::node::{
-    BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, ExternalIOLayer, SyncStateUpdaterLayer,
+    BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, LeaderIOLayer, SyncStateUpdaterLayer,
     TreeDataFetcherLayer, ValidateChainIdsLayer,
 };
 use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
-use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
-use zksync_types::L1BatchNumber;
+use zksync_state_keeper::{
+    node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer},
+    RunMode,
+};
+use zksync_types::{commitment::PubdataType, L1BatchNumber};
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{
     MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClientLayer,
@@ -207,7 +211,14 @@ impl<R> ExternalNodeBuilder<R> {
                     self.config.optional.protective_reads_persistence_enabled,
                 );
 
-        let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
+        let io_layer = LeaderIOLayer::new(
+            self.config.required.l2_chain_id,
+            StateKeeperConfig::for_tests(),
+            MempoolConfig::default(),
+            AddressWallet::from_address(Default::default()),
+            PubdataType::Rollup,
+        );
+        // let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
         let save_call_traces = self
@@ -228,6 +239,7 @@ impl<R> ExternalNodeBuilder<R> {
         let state_keeper_layer = StateKeeperLayer::new(
             self.config.required.state_cache_path.clone(),
             rocksdb_options,
+            RunMode::Verify,
         );
         self.node
             .add_layer(io_layer)
@@ -636,7 +648,8 @@ impl ExternalNodeBuilder {
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
             .add_settlement_layer_client_layer()?
-            .add_reorg_detector_layer()?;
+            .add_reorg_detector_layer()?
+            .add_main_node_fee_params_fetcher_layer()?;
 
         // Add layers that must run only on a single component.
         if components.contains(&Component::Core) {
@@ -674,7 +687,6 @@ impl ExternalNodeBuilder {
                         .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
-                        .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?
                         .add_http_web3_api_layer()?;
                 }
@@ -684,7 +696,6 @@ impl ExternalNodeBuilder {
                         .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
-                        .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?
                         .add_ws_web3_api_layer()?;
                 }

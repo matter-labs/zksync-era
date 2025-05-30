@@ -70,7 +70,9 @@ impl WiringLayer for ExternalIOLayer {
         let io = ExternalIO::new(
             io_pool,
             action_queue,
-            Box::new(input.main_node_client.0.for_component("external_io")),
+            Some(Box::new(
+                input.main_node_client.0.for_component("external_io"),
+            )),
             self.chain_id,
         )
         .context("Failed initializing I/O for external node state keeper")?;

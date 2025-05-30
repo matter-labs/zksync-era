@@ -260,6 +260,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         0,
         L2BlockNumber(3),
         H256::zero(),
+        0,
         1,
         ProtocolVersionId::latest(),
     );
@@ -351,6 +352,7 @@ async fn processing_events_when_sealing_l2_block() {
         0,
         l2_block_number,
         H256::zero(),
+        0,
         1,
         ProtocolVersionId::latest(),
     );
@@ -427,6 +429,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         0,
         l2_block_number,
         H256::zero(),
+        0,
         1,
         ProtocolVersionId::latest(),
     );

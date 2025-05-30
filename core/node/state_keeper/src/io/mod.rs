@@ -37,8 +37,8 @@ mod tests;
 pub struct PendingBatchData {
     /// Data used to initialize the pending batch. We have to make sure that all the parameters
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
-    pub(crate) l1_batch_env: L1BatchEnv,
-    pub(crate) system_env: SystemEnv,
+    pub l1_batch_env: L1BatchEnv,
+    pub system_env: SystemEnv,
     pub(crate) pubdata_params: PubdataParams,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
@@ -147,6 +147,10 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     ) -> anyhow::Result<Option<Transaction>>;
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
+    /// Marks the transactions as "not executed", so they can be retrieved from the IO again.
+    async fn rollback_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        Ok(())
+    }
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()>;
 
@@ -169,4 +173,6 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;
+    /// TODO
+    fn set_is_active_leader(&mut self, _value: bool) {}
 }
