@@ -37,6 +37,117 @@ To completely reset the dev environment:
   zkstack ecosystem init
   ```
 
+### Advanced local setup: rollup + validium with ZKsync Gateway
+
+- Stop services from any other previous setup:
+  
+  ```bash
+  zkstack dev clean all
+  ```
+
+- Start default ecosystem with `era` config for a rollup chain :
+  
+  ```bash
+  zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+    --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_era \
+    --ignore-prerequisites --observability=false \
+    --chain era \
+    --update-submodules false
+  ```
+
+- Create additional `validium` chain:
+  
+  ```bash
+  zkstack chain create \
+    --chain-name validium \
+    --chain-id 260 \
+    --prover-mode no-proofs \
+    --wallet-creation localhost \
+    --l1-batch-commit-data-generator-mode rollup \
+    --base-token-address 0x0000000000000000000000000000000000000001 \
+    --base-token-price-nominator 1 \
+    --base-token-price-denominator 1 \
+    --set-as-default false \
+    --evm-emulator false \
+    --ignore-prerequisites --update-submodules false 
+  ```
+
+- Initialise `validium` chain:
+  
+  ```bash
+  zkstack chain init \
+    --deploy-paymaster \
+    --l1-rpc-url=http://localhost:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_second \
+    --chain validium --update-submodules false
+  ```
+
+- Create additional `gateway` chain as rollup:
+  
+  ```bash
+  zkstack chain create \
+    --chain-name gateway \
+    --chain-id 506 \
+    --prover-mode no-proofs \
+    --wallet-creation localhost \
+    --l1-batch-commit-data-generator-mode rollup \
+    --base-token-address 0x0000000000000000000000000000000000000001 \
+    --base-token-price-nominator 1 \
+    --base-token-price-denominator 1 \
+    --set-as-default false \
+    --evm-emulator false \
+    --ignore-prerequisites --update-submodules false 
+  ```
+
+- Initialise `gateway` chain:
+  
+  ```bash
+  zkstack chain init \
+    --deploy-paymaster \
+    --l1-rpc-url=http://localhost:8545 \
+    --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+    --server-db-name=zksync_server_localhost_gateway \
+    --chain gateway --update-submodules false
+  ```
+
+- Transform `gateway` chain from rollup to ZKsync Gateway settlement layer:
+  
+  ```bash
+  zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
+  ```
+- Start `gateway` chain server:
+  
+  ```bash
+  zkstack server --ignore-prerequisites --chain gateway &> ./gateway.log & 
+  zkstack server wait --ignore-prerequisites --verbose --chain gateway
+
+  ```
+
+- Migrate `era` and `validium` chains to settle on `gateway`:
+  
+  ```bash
+  zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
+  zkstack chain gateway migrate-to-gateway --chain validium --gateway-chain-name gateway
+  ```
+
+- Start `era` and `validium` chains servers:
+  
+  ```bash
+  zkstack server --ignore-prerequisites --chain era &> ./era.log & 
+  zkstack server --ignore-prerequisites --chain validium &> ./validium.log & 
+  ```
+
+- Your chains will be running on the following ports:
+  
+  ```bash
+  localhost:3050 - chain era (271)
+  localhost:3150 - chain validium (260)
+  localhost:3250 - chain gateway (506)
+  ```
+
 ### Run observability stack
 
 If you want to run [Dockprom](https://github.com/stefanprodan/dockprom/) stack (Prometheus, Grafana) alongside other
