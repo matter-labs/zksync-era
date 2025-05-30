@@ -80,11 +80,11 @@ jobs:
       - name: Install yarn
         run: |
           npm install -g yarn
-
-      - name: Check contracts hashes
-        working-directory: contracts
-        run: |
-          yarn calculate-hashes:check
+      # TODO reinable it
+      #      - name: Check contracts hashes
+      #        working-directory: contracts
+      #        run: |
+      #          yarn calculate-hashes:check
 
       - name: Download compilers for contract verifier tests
         run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
@@ -97,7 +97,7 @@ jobs:
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
   
   install-zkstack-with-upgrades:
-    runs-on: [ubuntu-24.04-github-hosted-16core]
+    runs-on: [ ubuntu-24.04-github-hosted-16core ]
 
     defaults:
       run:

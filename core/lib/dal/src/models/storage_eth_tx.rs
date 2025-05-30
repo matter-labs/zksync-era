@@ -4,7 +4,7 @@ use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxFinalityStatus, TxHistory},
-    Address, L1BatchNumber, Nonce, SLChainId, H256,
+    Address, Nonce, SLChainId, H256,
 };
 
 #[derive(Debug, Clone)]
@@ -31,12 +31,14 @@ pub struct StorageEthTx {
     pub blob_sidecar: Option<Vec<u8>>,
     pub is_gateway: bool,
     pub chain_id: Option<i64>,
+    pub status: Option<String>,
 }
 
+// Common struct for l2 blocks and l1 batches eth sender stats.
 #[derive(Debug, Default)]
-pub struct L1BatchEthSenderStats {
-    pub saved: Vec<(AggregatedActionType, L1BatchNumber)>,
-    pub mined: Vec<(AggregatedActionType, L1BatchNumber)>,
+pub struct BlocksEthSenderStats {
+    pub saved: Vec<(AggregatedActionType, u32)>,
+    pub mined: Vec<(AggregatedActionType, u32)>,
 }
 
 #[derive(Clone, Debug)]

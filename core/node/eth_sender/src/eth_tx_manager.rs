@@ -11,9 +11,9 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
-use zksync_shared_metrics::BlockL1Stage;
+use zksync_shared_metrics::L1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     eth_sender::{EthTx, EthTxFinalityStatus},
     Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
@@ -300,7 +300,7 @@ impl EthTxManager {
         };
 
         // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
-        if tx.tx_type == AggregatedActionType::Commit {
+        if tx.tx_type == AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) {
             match operator_type {
                 OperatorType::Blob | OperatorType::NonBlob => {
                     // Settlement mode is L1.
@@ -635,7 +635,7 @@ impl EthTxManager {
             .unwrap();
 
         METRICS
-            .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
+            .track_eth_tx_metrics(storage, L1Stage::Mined, tx)
             .await;
 
         tracing::info!(

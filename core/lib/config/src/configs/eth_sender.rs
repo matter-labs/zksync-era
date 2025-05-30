@@ -54,6 +54,7 @@ impl EthConfig {
                 gas_limit_mode: GasLimitMode::Maximum,
                 max_acceptable_base_fee_in_wei: 100000000000,
                 time_in_mempool_multiplier_cap: None,
+                precommit_params: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -177,6 +178,16 @@ pub struct SenderConfig {
     /// Cap for `b ^ time_in_mempool` used for price calculations.
     #[config(default)]
     pub time_in_mempool_multiplier_cap: Option<u32>,
+    /// Parameters for precommit operation.
+    #[config(nest)]
+    pub precommit_params: Option<PrecommitParams>,
+}
+
+/// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct PrecommitParams {
+    pub l2_blocks_to_aggregate: u32,
+    pub deadline: Duration,
 }
 
 impl SenderConfig {
@@ -282,6 +293,10 @@ mod tests {
                 gas_limit_mode: GasLimitMode::Calculated,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
                 time_in_mempool_multiplier_cap: Some(10),
+                precommit_params: Some(PrecommitParams {
+                    l2_blocks_to_aggregate: 1,
+                    deadline: Duration::from_secs(1),
+                }),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -345,6 +360,8 @@ mod tests {
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -381,6 +398,9 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

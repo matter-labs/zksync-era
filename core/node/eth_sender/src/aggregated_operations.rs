@@ -2,15 +2,35 @@ use std::ops;
 
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+    },
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     pubdata_da::PubdataSendingMode,
-    L1BatchNumber, ProtocolVersionId,
+    transaction_status_commitment::TransactionStatusCommitment,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum AggregatedOperation {
+    L1Batch(L1BatchAggregatedOperation),
+    L2Block(L2BlockAggregatedOperation),
+}
+
+#[derive(Debug, Clone)]
+pub enum L2BlockAggregatedOperation {
+    Precommit {
+        l1_batch: L1BatchNumber,
+        first_l2_block: L2BlockNumber,
+        last_l2_block: L2BlockNumber,
+        txs: Vec<TransactionStatusCommitment>,
+    },
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone)]
+pub enum L1BatchAggregatedOperation {
     Commit(
         L1BatchWithMetadata,
         Vec<L1BatchWithMetadata>,
@@ -21,12 +41,12 @@ pub enum AggregatedOperation {
     Execute(ExecuteBatches),
 }
 
-impl AggregatedOperation {
-    pub fn get_action_type(&self) -> AggregatedActionType {
+impl L1BatchAggregatedOperation {
+    pub fn get_action_type(&self) -> L1BatchAggregatedActionType {
         match self {
-            Self::Commit(..) => AggregatedActionType::Commit,
-            Self::PublishProofOnchain(_) => AggregatedActionType::PublishProofOnchain,
-            Self::Execute(_) => AggregatedActionType::Execute,
+            Self::Commit(..) => L1BatchAggregatedActionType::Commit,
+            Self::PublishProofOnchain(_) => L1BatchAggregatedActionType::PublishProofOnchain,
+            Self::Execute(_) => L1BatchAggregatedActionType::Execute,
         }
     }
 
@@ -58,6 +78,39 @@ impl AggregatedOperation {
             Self::Commit(_, l1_batches, _, _) => l1_batches[0].header.protocol_version.unwrap(),
             Self::PublishProofOnchain(op) => op.l1_batches[0].header.protocol_version.unwrap(),
             Self::Execute(op) => op.l1_batches[0].header.protocol_version.unwrap(),
+        }
+    }
+}
+
+impl L2BlockAggregatedOperation {
+    pub fn get_action_type(&self) -> L2BlockAggregatedActionType {
+        match self {
+            Self::Precommit { .. } => L2BlockAggregatedActionType::Precommit,
+        }
+    }
+
+    pub fn l2_blocks_range(&self) -> ops::RangeInclusive<L2BlockNumber> {
+        match self {
+            Self::Precommit {
+                first_l2_block,
+                last_l2_block,
+                ..
+            } => *first_l2_block..=*last_l2_block,
+        }
+    }
+
+    pub fn get_action_caption(&self) -> &'static str {
+        match self {
+            Self::Precommit { .. } => "precommit",
+        }
+    }
+}
+
+impl AggregatedOperation {
+    pub fn get_action_type(&self) -> AggregatedActionType {
+        match self {
+            Self::L1Batch(op) => op.get_action_type().into(),
+            Self::L2Block(op) => op.get_action_type().into(),
         }
     }
 }

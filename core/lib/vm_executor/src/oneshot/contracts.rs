@@ -135,7 +135,7 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
             vm_protocol_defense: BaseSystemContracts::estimate_gas_post_protocol_defense(),
             gateway: BaseSystemContracts::estimate_gas_gateway(),
             vm_evm_emulator: BaseSystemContracts::estimate_gas_evm_emulator(),
-            vm_precompiles: BaseSystemContracts::estimate_gas_precompiles(),
+            vm_precompiles: BaseSystemContracts::estimate_gas(),
             _contracts_kind: PhantomData,
         }
     }
@@ -159,7 +159,7 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             vm_protocol_defense: BaseSystemContracts::playground_post_protocol_defense(),
             gateway: BaseSystemContracts::playground_gateway(),
             vm_evm_emulator: BaseSystemContracts::playground_evm_emulator(),
-            vm_precompiles: BaseSystemContracts::playground_precompiles(),
+            vm_precompiles: BaseSystemContracts::playground(),
             _contracts_kind: PhantomData,
         }
     }
