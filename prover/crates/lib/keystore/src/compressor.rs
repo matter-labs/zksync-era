@@ -387,21 +387,6 @@ fn load_compression_mode1_for_wrapper_setup_data(keystore: &Arc<Keystore>) {
     });
 }
 
-fn load_plonk_snark_wrapper_setup_data(keystore: &Arc<Keystore>) {
-    let keystore = Arc::clone(keystore);
-    thread::spawn(move || {
-        keystore
-            .setup_data_cache_proof_compressor
-            .plonk_setup_data
-            .plonk_snark_wrapper_setup_data
-            .get_or_init(|| {
-                keystore
-                    .get_snark_wrapper_setup_data::<PlonkSnarkWrapper>()
-                    .expect("Failed to load Plonk Snark Wrapper setup data")
-            });
-    });
-}
-
 fn load_fflonk_snark_wrapper_setup_data(keystore: &Arc<Keystore>) {
     let keystore = Arc::clone(keystore);
     thread::spawn(move || {
@@ -427,7 +412,6 @@ pub fn load_all_resources(keystore: &Arc<Keystore>, is_fflonk: bool) {
         load_fflonk_snark_wrapper_setup_data(keystore);
     } else {
         load_compression_mode1_for_wrapper_setup_data(keystore);
-        load_plonk_snark_wrapper_setup_data(keystore);
     }
 }
 
@@ -502,15 +486,9 @@ impl CompressorBlobStorage for Keystore {
             })
     }
 
-    fn get_plonk_snark_wrapper_setup_data(&self) -> &SnarkWrapperSetupData<PlonkSnarkWrapper> {
-        self.setup_data_cache_proof_compressor
-            .plonk_setup_data
-            .plonk_snark_wrapper_setup_data
-            .get_or_init(|| {
-                println!("LOADING PLONK SNARK WRAPPER SETUP DATA IN PLACE");
-                self.get_snark_wrapper_setup_data::<PlonkSnarkWrapper>()
-                    .expect("Failed to load Plonk Snark Wrapper setup data")
-            })
+    fn get_plonk_snark_wrapper_setup_data(&self) -> SnarkWrapperSetupData<PlonkSnarkWrapper> {
+        self.get_snark_wrapper_setup_data::<PlonkSnarkWrapper>()
+            .expect("Failed to load Plonk Snark Wrapper setup data")
     }
 
     fn get_fflonk_snark_wrapper_setup_data(&self) -> &SnarkWrapperSetupData<FflonkSnarkWrapper> {
