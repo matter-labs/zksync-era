@@ -194,7 +194,6 @@ impl RollingTxHashUpdates {
             tx_hash,
             is_success,
         };
-
         self.rolling_hash = keccak256_concat(
             self.rolling_hash,
             H256(keccak256(&status.get_packed_bytes())),
