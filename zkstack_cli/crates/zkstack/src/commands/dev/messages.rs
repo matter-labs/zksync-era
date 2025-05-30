@@ -22,6 +22,13 @@ pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
 pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
     "Precompiles (v28) upgrade checker and calldata generator";
 
+#[cfg(feature = "v29")]
+pub(super) const MSG_V29_ECO_UPGRADE: &str =
+    "Ecosystem (v29) upgrade checker and calldata generator";
+
+#[cfg(feature = "v29")]
+pub(super) const MSG_V29_CHAIN_UPGRADE: &str = "Chain (v29) upgrade checker and calldata generator";
+
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";
@@ -104,6 +111,7 @@ pub(super) const MSG_EVM_TESTS_HELP: &str =
 pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contracts' or 'erc20'";
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
+pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";

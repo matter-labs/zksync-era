@@ -1,4 +1,5 @@
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { Reporter } from './reporter';
 import { AugmentedTransactionResponse } from './transaction-response';

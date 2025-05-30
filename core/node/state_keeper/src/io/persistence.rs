@@ -509,6 +509,7 @@ mod tests {
         updates.set_next_l2_block_params(L2BlockParams {
             timestamp: 1,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates.push_l2_block();
 
@@ -621,6 +622,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
@@ -650,6 +652,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 3,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
@@ -675,6 +678,7 @@ mod tests {
             updates_manager.set_next_l2_block_params(L2BlockParams {
                 timestamp: i,
                 virtual_blocks: 1,
+                interop_roots: vec![],
             });
             updates_manager.push_l2_block();
             persistence.submit_l2_block(seal_command).await;

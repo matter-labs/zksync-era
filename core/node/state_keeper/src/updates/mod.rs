@@ -66,6 +66,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
+                l1_batch_env.first_l2_block.interop_roots.clone(),
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
@@ -90,12 +91,13 @@ impl UpdatesManager {
     }
 
     pub(crate) fn get_next_l2_block_params_or_batch_params(&mut self) -> L2BlockParams {
-        if let Some(next_l2_block_params) = self.next_l2_block_params {
+        if let Some(next_l2_block_params) = self.next_l2_block_params.clone() {
             return next_l2_block_params;
         }
         L2BlockParams {
             timestamp: self.l2_block.timestamp,
             virtual_blocks: self.l2_block.virtual_blocks,
+            interop_roots: vec![],
         }
     }
 
@@ -206,22 +208,31 @@ impl UpdatesManager {
             self.l2_block.get_l2_block_hash(),
             next_l2_block_params.virtual_blocks,
             self.protocol_version,
+            next_l2_block_params.interop_roots,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
         self.l1_batch
             .extend_from_sealed_l2_block(old_l2_block_updates);
     }
 
-    pub fn set_next_l2_block_params(&mut self, l2_block_params: L2BlockParams) {
+    pub fn set_next_l2_block_params(&mut self, mut l2_block_params: L2BlockParams) {
         assert!(
             self.next_l2_block_params.is_none(),
             "next_l2_block_params cannot be set twice"
         );
+        let mut interop_roots = vec![];
+        for interop_root in l2_block_params.interop_roots {
+            if !self.l1_batch.interop_roots.contains(&interop_root) {
+                interop_roots.push(interop_root.clone());
+                self.l1_batch.interop_roots.push(interop_root);
+            }
+        }
+        l2_block_params.interop_roots = interop_roots;
         self.next_l2_block_params = Some(l2_block_params);
     }
 
     pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
-        self.next_l2_block_params
+        self.next_l2_block_params.clone()
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
@@ -289,6 +300,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates_manager.push_l2_block();
 
