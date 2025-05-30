@@ -39,7 +39,7 @@ To completely reset the dev environment:
 
 ### Advanced local setup with ZKsync Gateway
 
-- Stop services from any other previous setup:
+- Delete services from any other previous setup:
 
   ```bash
   zkstack dev clean all
@@ -94,7 +94,8 @@ To completely reset the dev environment:
 - Start `gateway` chain server:
 
   ```bash
-  zkstack server --ignore-prerequisites --chain gateway &> ./gateway.log &
+  mkdir zruns
+  zkstack server --ignore-prerequisites --chain gateway &> ./zruns/gateway.log &
   zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
   ```
@@ -108,7 +109,7 @@ To completely reset the dev environment:
 - Start `era` chain servers:
 
   ```bash
-  zkstack server --ignore-prerequisites --chain era &> ./era.log &
+  zkstack server --ignore-prerequisites --chain era &> ./zruns/era.log &
   ```
 
 - Your chains will be running on the following ports:
