@@ -120,3 +120,6 @@ transactions/
 
 # foundry-zksync
 install
+
+# zksync-os gas bench markers
+markers.bench

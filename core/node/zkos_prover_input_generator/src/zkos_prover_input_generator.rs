@@ -31,8 +31,8 @@ impl ZkosProverInputGenerator {
 
     pub async fn run(self) -> anyhow::Result<()> {
         // todo: should be a different layer
-        // tracing::info!("Starting server in sep thread");
-        // tokio::spawn(run(self.pool.clone()));
+        tracing::info!("Starting HTTP server in a separate thread");
+        tokio::spawn(run(self.pool.clone()));
 
         let mut connection =
             self.pool.connection_tagged("zkos_prover_input_generator").await?;
@@ -117,7 +117,7 @@ impl ZkosProverInputGenerator {
 
                 next_block_to_process += 1;
             } else {
-                tracing::info!("No blocks to process - waiting");
+                tracing::trace!("No blocks to process - waiting");
 
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             }

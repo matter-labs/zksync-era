@@ -54,11 +54,11 @@ impl ZkosProverDal<'_, '_> {
                     l2_block_number, prover_input, input_gen_time_taken, created_at, updated_at
                 )
                 VALUES
-                ($1, $2, $3, NOW(), NOW())
+                ($1, $2, $3::INTERVAL, NOW(), NOW())
                 "#,
                 i64::from(l2block_number.0),
                 db_prover_input,
-                time_taken.as_millis() as i64
+                pg_interval_from_duration(time_taken)
             )
             .instrument("insert_prover_input")
             .report_latency()
