@@ -959,4 +959,31 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap()
     }
+
+    pub async fn is_using_blobs_in_latest_batch(&mut self) -> DalResult<bool> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT blob_sidecar IS NOT NULL AS "is_using_blobs"
+            FROM eth_txs
+            WHERE id = (
+                SELECT MAX(eth_commit_tx_id)
+                FROM l1_batches
+                WHERE
+                    eth_commit_tx_id IS NOT NULL
+                    AND (
+                        SELECT pubdata_type
+                        FROM miniblocks
+                        WHERE l1_batch_number = l1_batches.number
+                        ORDER BY miniblocks.number
+                        LIMIT 1
+                    ) = 'Rollup'
+            )
+            "#
+        )
+        .instrument("is_using_blobs_in_latest_batch")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.is_using_blobs.unwrap_or(false))
+        .unwrap_or(false))
+    }
 }

@@ -1,21 +1,24 @@
+use std::sync::Arc;
+
 use anyhow::Context;
-use zksync_circuit_breaker::{l1_txs::FailedL1TransactionChecker, node::CircuitBreakersResource};
+use zksync_circuit_breaker::{l1_txs::FailedL1TransactionChecker, CircuitBreakers};
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
 use zksync_eth_client::{
     node::{
         contracts::SettlementLayerContractsResource, BoundEthInterfaceForBlobsResource,
-        BoundEthInterfaceForL2Resource, BoundEthInterfaceResource, SenderConfigResource,
+        BoundEthInterfaceForL2Resource, SenderConfigResource,
     },
     web3_decl::node::SettlementModeResource,
+    BoundEthInterface,
 };
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::node::ObjectStoreResource;
+use zksync_object_store::ObjectStore;
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{Aggregator, EthTxAggregator};
@@ -46,19 +49,19 @@ pub struct EthTxAggregatorLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub eth_client: Option<BoundEthInterfaceResource>,
-    pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
-    pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
-    pub object_store: ObjectStoreResource,
-    pub settlement_mode: SettlementModeResource,
-    pub sender_config: SenderConfigResource,
+    master_pool: PoolResource<MasterPool>,
+    replica_pool: PoolResource<ReplicaPool>,
+    eth_client: Option<Box<dyn BoundEthInterface>>,
+    eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
+    object_store: Arc<dyn ObjectStore>,
+    settlement_mode: SettlementModeResource,
+    sender_config: SenderConfigResource,
     #[context(default)]
-    pub circuit_breakers: CircuitBreakersResource,
+    circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
-    pub sl_contracts: SettlementLayerContractsResource,
+    app_health: Arc<AppHealthCheck>,
+    sl_contracts: SettlementLayerContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -118,14 +121,14 @@ impl WiringLayer for EthTxAggregatorLayer {
                 .context("eth_client_gateway missing")?
                 .0
         } else {
-            input.eth_client.context("eth_client missing")?.0
+            input.eth_client.context("eth_client missing")?
         };
 
         let master_pool = input.master_pool.get().await?;
         let replica_pool = input.replica_pool.get().await?;
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
-        let object_store = input.object_store.0;
+        let object_store = input.object_store;
 
         // Create and add tasks.
 
@@ -159,13 +162,11 @@ impl WiringLayer for EthTxAggregatorLayer {
         // Insert circuit breaker.
         input
             .circuit_breakers
-            .breakers
             .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
 
         input
             .app_health
-            .0
             .insert_component(eth_tx_aggregator.health_check())
             .map_err(WiringError::internal)?;
 

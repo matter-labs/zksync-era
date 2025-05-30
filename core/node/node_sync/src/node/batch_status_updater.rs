@@ -1,27 +1,29 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::batch_status_updater::BatchStatusUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub pool: PoolResource<MasterPool>,
-    pub client: MainNodeClientResource,
+    pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub updater: BatchStatusUpdater,
+    updater: BatchStatusUpdater,
 }
 
 /// Wiring layer for `BatchStatusUpdater`, part of the external node.
@@ -40,15 +42,14 @@ impl WiringLayer for BatchStatusUpdaterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let Input {
             pool,
-            client,
+            main_node_client,
             app_health,
         } = input;
 
-        let updater = BatchStatusUpdater::new(client.0, pool.get().await?);
+        let updater = BatchStatusUpdater::new(main_node_client, pool.get().await?);
 
         // Insert healthcheck
         app_health
-            .0
             .insert_component(updater.health_check())
             .map_err(WiringError::internal)?;
 
