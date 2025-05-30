@@ -61,11 +61,13 @@ use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
 use zksync_node_storage_init::node::{
     main_node_strategy::MainNodeInitStrategyLayer, NodeStorageInitializerLayer,
 };
+use zksync_node_sync::node::LeaderIOLayer;
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
 use zksync_state::RocksdbStorageOptions;
-use zksync_state_keeper::node::{
-    MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
+use zksync_state_keeper::{
+    node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer},
+    RunMode,
 };
 use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
@@ -276,7 +278,7 @@ impl MainNodeBuilder {
             .with_protective_reads_persistence_enabled(
                 sk_config.protective_reads_persistence_enabled,
             );
-        let mempool_io_layer = MempoolIOLayer::new(
+        let leader_io_layer = LeaderIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
             self.configs.mempool_config.clone(),
@@ -296,11 +298,14 @@ impl MainNodeBuilder {
                 .0 as usize,
             max_open_files: db_config.experimental.state_keeper_db_max_open_files,
         };
-        let state_keeper_layer =
-            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
+        let state_keeper_layer = StateKeeperLayer::new(
+            db_config.state_keeper_db_path,
+            rocksdb_options,
+            RunMode::Propose,
+        );
         self.node
             .add_layer(persistence_layer)
-            .add_layer(mempool_io_layer)
+            .add_layer(leader_io_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
         Ok(self)

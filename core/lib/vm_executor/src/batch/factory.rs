@@ -351,6 +351,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             }
         }
 
+        let mut snapshots_in_last_block = 0usize;
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
@@ -358,6 +359,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     let (result, latency) = self.execute_tx(*tx, &mut vm).with_context(|| {
                         format!("fatal error executing transaction {tx_hash:?}")
                     })?;
+                    snapshots_in_last_block += 1;
 
                     if self.observe_storage_metrics {
                         let storage_stats = storage_view.borrow().stats();
@@ -371,11 +373,18 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 }
                 Command::RollbackLastTx(resp) => {
                     self.rollback_last_tx(&mut vm);
+                    snapshots_in_last_block -= 1;
                     if resp.send(()).is_err() {
                         break;
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
+                    for _ in 0..snapshots_in_last_block {
+                        vm.pop_snapshot_no_rollback();
+                    }
+                    vm.make_snapshot();
+                    snapshots_in_last_block = 1;
+
                     vm.start_new_l2_block(l2_block_env);
                     if resp.send(()).is_err() {
                         break;
@@ -392,6 +401,15 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 Command::GasRemaining(resp) => {
                     let gas_remaining = vm.gas_remaining();
                     if resp.send(gas_remaining).is_err() {
+                        break;
+                    }
+                }
+                Command::RollbackL2Block(resp) => {
+                    for _ in 0..snapshots_in_last_block {
+                        vm.rollback_to_the_latest_snapshot();
+                    }
+                    snapshots_in_last_block = 0;
+                    if resp.send(()).is_err() {
                         break;
                     }
                 }
@@ -420,9 +438,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         transaction: Transaction,
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
-        // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
-        // was already removed), or that we build on top of it (in which case, it can be removed now).
-        vm.pop_snapshot_no_rollback();
         // Save pre-execution VM snapshot.
         vm.make_snapshot();
 

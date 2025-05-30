@@ -224,7 +224,7 @@ impl TestScenario {
             None,
         );
         let state_keeper = state_keeper_inner.initialize(&stop_receiver).await.unwrap();
-        let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
+        let sk_thread = tokio::spawn(state_keeper.run(Default::default(), stop_receiver));
 
         // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
@@ -523,6 +523,10 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
 
     async fn gas_remaining(&mut self) -> anyhow::Result<u32> {
         Ok(u32::MAX)
+    }
+
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 

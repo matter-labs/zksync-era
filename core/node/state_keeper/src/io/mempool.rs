@@ -16,6 +16,7 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
+    l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
@@ -380,6 +381,23 @@ impl StateKeeperIO for MempoolIO {
         let constraint = self.mempool.rollback(&tx);
         // Insert the transaction back.
         self.mempool.insert(vec![(tx, constraint)], HashMap::new());
+        Ok(())
+    }
+
+    async fn rollback_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+        let mut to_add = Vec::with_capacity(txs.len());
+        for tx in txs
+            .into_iter()
+            .filter(|tx| tx.tx_format() != TransactionType::ProtocolUpgradeTransaction)
+            .rev()
+        {
+            let constraint = self.mempool.rollback(&tx);
+            to_add.push((tx, constraint));
+        }
+
+        to_add.reverse();
+        self.mempool.insert(to_add, HashMap::new());
+
         Ok(())
     }
 

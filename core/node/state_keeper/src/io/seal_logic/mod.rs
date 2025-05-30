@@ -355,48 +355,51 @@ impl L2BlockSealCommand {
         // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
-        let iter = self.l2_block.events.iter().flat_map(|event| {
-            event
-                .indexed_topics
-                .iter()
-                .map(|topic| BloomInput::Raw(topic.as_bytes()))
-                .chain([BloomInput::Raw(event.address.as_bytes())])
-        });
-        let logs_bloom = build_bloom(iter);
-        progress.observe(Some(self.l2_block.events.len()));
+        if is_fictive {
+            let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
+            let iter = self.l2_block.events.iter().flat_map(|event| {
+                event
+                    .indexed_topics
+                    .iter()
+                    .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                    .chain([BloomInput::Raw(event.address.as_bytes())])
+            });
+            let logs_bloom = build_bloom(iter);
+            progress.observe(Some(self.l2_block.events.len()));
 
-        // Seal block header at the last step.
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
-        let definite_vm_version = self
-            .protocol_version
-            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
-            .into();
+            // Seal block header at the last step.
+            let progress =
+                L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
+            let definite_vm_version = self
+                .protocol_version
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
+                .into();
 
-        let l2_block_header = L2BlockHeader {
-            number: self.l2_block.number,
-            timestamp: self.l2_block.timestamp,
-            hash: self.l2_block.get_l2_block_hash(),
-            l1_tx_count: l1_tx_count as u16,
-            l2_tx_count: l2_tx_count as u16,
-            fee_account_address: self.fee_account_address,
-            base_fee_per_gas: self.base_fee_per_gas,
-            batch_fee_input: self.fee_input,
-            base_system_contracts_hashes: self.base_system_contracts_hashes,
-            protocol_version: self.protocol_version,
-            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
-            virtual_blocks: self.l2_block.virtual_blocks,
-            gas_limit: get_max_batch_gas_limit(definite_vm_version),
-            logs_bloom,
-            pubdata_params: self.pubdata_params,
-        };
+            let l2_block_header = L2BlockHeader {
+                number: self.l2_block.number,
+                timestamp: self.l2_block.timestamp,
+                hash: self.l2_block.get_l2_block_hash(),
+                l1_tx_count: l1_tx_count as u16,
+                l2_tx_count: l2_tx_count as u16,
+                fee_account_address: self.fee_account_address,
+                base_fee_per_gas: self.base_fee_per_gas,
+                batch_fee_input: self.fee_input,
+                base_system_contracts_hashes: self.base_system_contracts_hashes,
+                protocol_version: self.protocol_version,
+                gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
+                virtual_blocks: self.l2_block.virtual_blocks,
+                gas_limit: get_max_batch_gas_limit(definite_vm_version),
+                logs_bloom,
+                pubdata_params: self.pubdata_params,
+            };
 
-        let mut connection = strategy.connection().await?;
-        connection
-            .blocks_dal()
-            .insert_l2_block(&l2_block_header)
-            .await?;
-        progress.observe(None);
+            let mut connection = strategy.connection().await?;
+            connection
+                .blocks_dal()
+                .insert_l2_block(&l2_block_header)
+                .await?;
+            progress.observe(None);
+        }
 
         // Report metrics.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ReportTxMetrics, is_fictive);

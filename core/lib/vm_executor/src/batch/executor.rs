@@ -214,6 +214,30 @@ where
         latency.observe();
         Ok(res)
     }
+
+    #[tracing::instrument(skip_all)]
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
+        // indeed has been processed.
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::RollbackL2Block(response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::RollbackL2Block]
+            .start();
+        if response_receiver.await.is_err() {
+            return Err(self.handle.wait_for_error().await);
+        }
+        latency.observe();
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -226,4 +250,5 @@ pub(super) enum Command {
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
     GasRemaining(oneshot::Sender<u32>),
+    RollbackL2Block(oneshot::Sender<()>),
 }

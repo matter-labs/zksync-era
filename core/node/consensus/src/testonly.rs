@@ -512,7 +512,7 @@ impl StateKeeperRunner {
             let io = ExternalIO::new(
                 self.pool.0.clone(),
                 self.actions_queue,
-                Box::<MockMainNodeClient>::default(),
+                Some(Box::<MockMainNodeClient>::default()),
                 L2ChainId::default(),
             )?;
 
@@ -572,7 +572,7 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     state_keeper
-                        .run(stop_recv)
+                        .run(Default::default(), stop_recv)
                         .await
                         .context("StateKeeper::run()")?;
                     Ok(())
@@ -628,7 +628,7 @@ impl StateKeeperRunner {
             let io = ExternalIO::new(
                 self.pool.0.clone(),
                 self.actions_queue,
-                Box::<MockMainNodeClient>::default(),
+                Some(Box::<MockMainNodeClient>::default()),
                 L2ChainId::default(),
             )?;
 
@@ -665,7 +665,7 @@ impl StateKeeperRunner {
                 let stop_recv = stop_recv.clone();
                 async {
                     state_keeper
-                        .run(stop_recv)
+                        .run(Default::default(), stop_recv)
                         .await
                         .context("StateKeeper::run()")?;
                     Ok(())

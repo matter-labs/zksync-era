@@ -1,14 +1,20 @@
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::consensus::Payload;
 use zksync_multivm::{
     interface::{
         storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
         VmExecutionMetrics, VmExecutionResultAndLogs,
     },
-    utils::{get_batch_base_fee, StorageWritesDeduplicator},
+    utils::{
+        get_batch_base_fee, get_max_batch_gas_limit, get_max_gas_per_pubdata_byte,
+        StorageWritesDeduplicator,
+    },
 };
 use zksync_types::{
-    commitment::PubdataParams, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    block::{build_bloom, L2BlockHeader},
+    commitment::PubdataParams,
+    fee_model::BatchFeeInput,
+    Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -32,14 +38,14 @@ pub struct UpdatesManager {
     batch_timestamp: u64,
     pub fee_account_address: Address,
     pub batch_fee_input: BatchFeeInput,
-    base_fee_per_gas: u64,
+    pub base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
     storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
-    pubdata_params: PubdataParams,
+    pub pubdata_params: PubdataParams,
     next_l2_block_params: Option<L2BlockParams>,
     previous_batch_protocol_version: ProtocolVersionId,
 }
@@ -64,6 +70,7 @@ impl UpdatesManager {
                 l1_batch_env.first_l2_block.timestamp,
                 L2BlockNumber(l1_batch_env.first_l2_block.number),
                 l1_batch_env.first_l2_block.prev_block_hash,
+                l1_batch_env.first_l2_block.timestamp, // TODO
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
             ),
@@ -104,11 +111,20 @@ impl UpdatesManager {
     }
 
     pub(crate) fn io_cursor(&self) -> IoCursor {
-        IoCursor {
-            next_l2_block: self.l2_block.number + 1,
-            prev_l2_block_hash: self.l2_block.get_l2_block_hash(),
-            prev_l2_block_timestamp: self.l2_block.timestamp,
-            l1_batch: self.l1_batch.number,
+        if self.l2_block.rolled_back {
+            IoCursor {
+                next_l2_block: self.l2_block.number,
+                prev_l2_block_hash: self.l2_block.prev_block_hash,
+                prev_l2_block_timestamp: self.l2_block.prev_block_timestamp,
+                l1_batch: self.l1_batch.number,
+            }
+        } else {
+            IoCursor {
+                next_l2_block: self.l2_block.number + 1,
+                prev_l2_block_hash: self.l2_block.get_l2_block_hash(),
+                prev_l2_block_timestamp: self.l2_block.timestamp,
+                l1_batch: self.l1_batch.number,
+            }
         }
     }
 
@@ -200,16 +216,32 @@ impl UpdatesManager {
             .next_l2_block_params
             .take()
             .expect("next l2 block params cannot be empty");
-        let new_l2_block_updates = L2BlockUpdates::new(
-            next_l2_block_params.timestamp,
-            self.l2_block.number + 1,
-            self.l2_block.get_l2_block_hash(),
-            next_l2_block_params.virtual_blocks,
-            self.protocol_version,
-        );
+
+        let new_l2_block_updates = if self.l2_block.rolled_back {
+            L2BlockUpdates::new(
+                next_l2_block_params.timestamp,
+                self.l2_block.number,
+                self.l2_block.prev_block_hash,
+                self.l2_block.prev_block_timestamp,
+                next_l2_block_params.virtual_blocks,
+                self.protocol_version,
+            )
+        } else {
+            L2BlockUpdates::new(
+                next_l2_block_params.timestamp,
+                self.l2_block.number + 1,
+                self.l2_block.get_l2_block_hash(),
+                self.l2_block.timestamp,
+                next_l2_block_params.virtual_blocks,
+                self.protocol_version,
+            )
+        };
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
-        self.l1_batch
-            .extend_from_sealed_l2_block(old_l2_block_updates);
+        if !old_l2_block_updates.rolled_back {
+            self.l1_batch
+                .extend_from_sealed_l2_block(old_l2_block_updates);
+        }
+        self.storage_writes_deduplicator.start_snapshot();
     }
 
     pub fn set_next_l2_block_params(&mut self, l2_block_params: L2BlockParams) {
@@ -238,6 +270,58 @@ impl UpdatesManager {
 
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {
         self.l1_batch.txs_encoding_size + self.l2_block.txs_encoding_size
+    }
+
+    pub(crate) fn build_payload(&self) -> Payload {
+        Payload {
+            protocol_version: self.protocol_version(),
+            hash: self.l2_block.get_l2_block_hash(),
+            l1_batch_number: self.l1_batch.number,
+            timestamp: self.l2_block.timestamp,
+            l1_gas_price: self.batch_fee_input.l1_gas_price(),
+            l2_fair_gas_price: self.batch_fee_input.fair_l2_gas_price(),
+            fair_pubdata_price: Some(self.batch_fee_input.fair_pubdata_price()),
+            virtual_blocks: self.l2_block.virtual_blocks,
+            operator_address: self.fee_account_address,
+            transactions: self
+                .l2_block
+                .executed_transactions
+                .iter()
+                .map(|tx| tx.transaction.clone())
+                .collect(),
+            last_in_batch: self.l2_block.executed_transactions.is_empty(),
+            pubdata_params: self.pubdata_params,
+        }
+    }
+
+    pub(crate) fn build_block_header(&self) -> L2BlockHeader {
+        let iter = self.l2_block.events.iter().flat_map(|event| {
+            event
+                .indexed_topics
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain([BloomInput::Raw(event.address.as_bytes())])
+        });
+        let logs_bloom = build_bloom(iter);
+        let definite_vm_version = self.protocol_version().into();
+        L2BlockHeader {
+            number: self.l2_block.number,
+            timestamp: self.l2_block.timestamp,
+            hash: self.l2_block.get_l2_block_hash(),
+            l1_tx_count: self.l2_block.l1_tx_count as u16,
+            l2_tx_count: (self.l2_block.executed_transactions.len() - self.l2_block.l1_tx_count)
+                as u16,
+            fee_account_address: self.fee_account_address,
+            base_fee_per_gas: self.base_fee_per_gas,
+            batch_fee_input: self.batch_fee_input,
+            base_system_contracts_hashes: self.base_system_contract_hashes(),
+            protocol_version: Some(self.protocol_version()),
+            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
+            virtual_blocks: self.l2_block.virtual_blocks,
+            gas_limit: get_max_batch_gas_limit(definite_vm_version),
+            logs_bloom,
+            pubdata_params: self.pubdata_params,
+        }
     }
 }
 

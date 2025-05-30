@@ -5,7 +5,7 @@ use std::{fmt, sync::Arc};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_shared_resources::api::SyncState;
-use zksync_types::L2BlockNumber;
+use zksync_types::{block::L2BlockHeader, L2BlockNumber};
 
 use crate::{io::IoCursor, updates::UpdatesManager};
 
@@ -25,6 +25,19 @@ pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
     async fn handle_l1_batch(
         &mut self,
         _updates_manager: Arc<UpdatesManager>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    /// TODO
+    async fn handle_l2_block_header(&mut self, _header: &L2BlockHeader) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    /// TODO
+    async fn rollback_pending_l2_block(
+        &mut self,
+        _l2_block_to_rollback: L2BlockNumber,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -108,6 +121,48 @@ impl OutputHandler {
                         "failed handling L2 block {:?} on handler {handler:?}",
                         updates_manager.l2_block
                     )
+                })?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(
+        name = "OutputHandler::handle_l2_block_header"
+        skip_all,
+        fields(l2_block = %header.number)
+    )]
+    pub(crate) async fn handle_l2_block_header(
+        &mut self,
+        header: &L2BlockHeader,
+    ) -> anyhow::Result<()> {
+        for handler in &mut self.inner {
+            handler
+                .handle_l2_block_header(header)
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed handling L2 block {:?} on handler {handler:?}",
+                        header.number
+                    )
+                })?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(
+        name = "OutputHandler::rollback_pending_l2_block"
+        skip(self)
+    )]
+    pub(crate) async fn rollback_pending_l2_block(
+        &mut self,
+        l2_block_to_rollback: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        for handler in &mut self.inner {
+            handler
+                .rollback_pending_l2_block(l2_block_to_rollback)
+                .await
+                .with_context(|| {
+                    format!("failed handling L2 block rollback {l2_block_to_rollback} on handler {handler:?}")
                 })?;
         }
         Ok(())

@@ -36,6 +36,7 @@ pub struct StorageWritesDeduplicator {
     // stores the mapping of storage-slot key to its values and the tx number in block
     modified_key_values: HashMap<StorageKey, ModifiedSlot>,
     metrics: DeduplicatedWritesMetrics,
+    snapshot: Option<Vec<UpdateItem>>,
 }
 
 impl StorageWritesDeduplicator {
@@ -67,7 +68,10 @@ impl StorageWritesDeduplicator {
 
     /// Applies storage logs to the state.
     pub fn apply<'a, I: IntoIterator<Item = &'a StorageLogWithPreviousValue>>(&mut self, logs: I) {
-        self.process_storage_logs(logs);
+        let updates = self.process_storage_logs(logs);
+        if let Some(snapshot) = self.snapshot.as_mut() {
+            snapshot.extend(updates);
+        }
     }
 
     /// Returns metrics as if provided storage logs are applied to the state.
@@ -219,6 +223,15 @@ impl StorageWritesDeduplicator {
                 }
             }
         }
+    }
+
+    pub fn start_snapshot(&mut self) {
+        self.snapshot = Some(Vec::new());
+    }
+
+    pub fn rollback_to_snapshot(&mut self) {
+        let snapshot = self.snapshot.take().unwrap();
+        self.rollback(snapshot);
     }
 }
 

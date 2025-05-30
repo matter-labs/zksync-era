@@ -121,7 +121,7 @@ impl StateKeeperHandles {
         let io = ExternalIO::new(
             pool.clone(),
             actions,
-            Box::new(main_node_client),
+            Some(Box::new(main_node_client)),
             L2ChainId::default(),
         )
         .unwrap();
@@ -145,7 +145,7 @@ impl StateKeeperHandles {
         Self {
             stop_sender,
             sync_state,
-            task: tokio::spawn(state_keeper.run(stop_receiver)),
+            task: tokio::spawn(state_keeper.run(Default::default(), stop_receiver)),
         }
     }
 

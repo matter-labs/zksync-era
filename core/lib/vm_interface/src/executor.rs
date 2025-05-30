@@ -47,6 +47,9 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 
     /// Return gas remaining in VM instance.
     async fn gas_remaining(&mut self) -> anyhow::Result<u32>;
+
+    /// Rolls back the last executed l2 block.
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()>;
 }
 
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).

@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
+use zksync_dal::consensus::Payload;
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
@@ -18,9 +19,14 @@ use zksync_multivm::{
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
+    block::{L2BlockExecutionData, L2BlockHeader},
+    commitment::PubdataParams,
+    l2::TransactionType,
+    protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::ProtocolVersionId,
+    try_stoppable,
+    utils::display_timestamp,
+    L1BatchNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -89,6 +95,7 @@ pub struct StateKeeper {
     inner: StateKeeperInner,
     batch_state: BatchState,
     last_l1_batch_sealed_at: Option<Instant>,
+    pending_l2_block_header: Option<L2BlockHeader>,
 }
 
 /// Helper struct that is used for state keeper initialization.
@@ -163,6 +170,7 @@ impl StateKeeperInner {
                     inner: self,
                     batch_state: BatchState::Uninit(cursor),
                     last_l1_batch_sealed_at: None,
+                    pending_l2_block_header: None,
                 });
             }
         };
@@ -205,6 +213,7 @@ impl StateKeeperInner {
                 protocol_upgrade_tx,
             })),
             last_l1_batch_sealed_at: None,
+            pending_l2_block_header: None,
         })
     }
 
@@ -830,19 +839,53 @@ impl StateKeeperInner {
     }
 }
 
+#[derive(Debug, Default)]
+pub enum RunMode {
+    Propose,
+    Verify,
+    #[default]
+    Default,
+}
+
 impl StateKeeper {
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        try_stoppable!(self.run_inner(stop_receiver).await);
+    pub async fn run(
+        self,
+        mode: RunMode,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        try_stoppable!(self.run_inner(mode, stop_receiver).await);
         Ok(())
     }
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(
         mut self,
+        mode: RunMode,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> Result<Infallible, OrStopped> {
         while !is_canceled(&stop_receiver) {
-            self.process_block(&mut stop_receiver).await?;
+            match mode {
+                RunMode::Propose => {
+                    self.propose(&mut stop_receiver).await?;
+                }
+                RunMode::Verify => self.verify(&mut stop_receiver).await?,
+                RunMode::Default => self.run_block(&mut stop_receiver).await?,
+            }
+            // Test rollback.
+            if !self
+                .pending_l2_block_header
+                .as_ref()
+                .is_some_and(|b| b.number.0 == 1)
+            {
+                self.rollback().await?;
+                match mode {
+                    RunMode::Propose => {
+                        self.propose(&mut stop_receiver).await?;
+                    }
+                    RunMode::Verify => self.verify(&mut stop_receiver).await?,
+                    RunMode::Default => self.run_block(&mut stop_receiver).await?,
+                }
+            }
         }
 
         Err(OrStopped::Stopped)
@@ -895,7 +938,6 @@ impl StateKeeper {
                     StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
                 }
 
-                self.seal_batch().await?;
                 return Ok(());
             }
         }
@@ -917,9 +959,7 @@ impl StateKeeper {
                     StateKeeperInner::start_next_l2_block(updates_manager, batch_executor).await?;
                 }
 
-                if updates_manager.l2_block.executed_transactions.is_empty() {
-                    self.seal_batch().await?;
-                } else {
+                if !updates_manager.l2_block.executed_transactions.is_empty() {
                     self.inner.seal_l2_block(updates_manager).await?;
                 }
                 full_latency.observe();
@@ -1057,7 +1097,7 @@ impl StateKeeper {
 
             if matches!(outcome, Outcome::SealBatch | Outcome::SealBlock) {
                 match outcome {
-                    Outcome::SealBatch => self.seal_batch().await?,
+                    Outcome::SealBatch => {}
                     Outcome::SealBlock => self.inner.seal_l2_block(updates_manager).await?,
                     _ => unreachable!(),
                 }
@@ -1071,7 +1111,7 @@ impl StateKeeper {
         Ok(())
     }
 
-    async fn seal_batch(&mut self) -> Result<(), OrStopped> {
+    async fn seal_batch(&mut self) -> anyhow::Result<()> {
         let mut next_cursor = self
             .batch_state
             .unwrap_init_ref_mut()
@@ -1101,6 +1141,120 @@ impl StateKeeper {
                 .observe(last_l1_batch_sealed_at.elapsed());
         }
         self.last_l1_batch_sealed_at = Some(Instant::now());
+
+        Ok(())
+    }
+
+    async fn commit_pending_block(&mut self) -> anyhow::Result<()> {
+        if let Some(pending_l2_block_header) = self.pending_l2_block_header.take() {
+            if pending_l2_block_header.l1_tx_count + pending_l2_block_header.l2_tx_count == 0 {
+                // fictive block -> seal batch.
+                self.seal_batch().await?;
+            } else {
+                // non-fictive block -> finalize block sealing.
+                self.inner
+                    .output_handler
+                    .handle_l2_block_header(&pending_l2_block_header)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn run_block(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<(), OrStopped> {
+        self.commit_pending_block().await?;
+        self.process_block(stop_receiver).await?;
+
+        let batch_state = self.batch_state.unwrap_init_ref_mut();
+        let l2_block_header = batch_state.updates_manager.build_block_header();
+        self.pending_l2_block_header = Some(l2_block_header);
+
+        Ok(())
+    }
+
+    pub async fn propose(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<Payload, OrStopped> {
+        self.inner.io.set_is_active_leader(true);
+        self.run_block(stop_receiver).await?;
+
+        let batch_state = self.batch_state.unwrap_init_ref_mut();
+        let payload = batch_state.updates_manager.build_payload();
+
+        Ok(payload)
+    }
+
+    pub async fn verify(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<(), OrStopped> {
+        self.inner.io.set_is_active_leader(false);
+        self.run_block(stop_receiver).await?;
+
+        Ok(())
+    }
+
+    pub async fn rollback(&mut self) -> anyhow::Result<()> {
+        let header = self.pending_l2_block_header.take().unwrap();
+        tracing::info!("Rolling back block #{}", header.number);
+
+        // Rollback postgres
+        self.inner
+            .output_handler
+            .rollback_pending_l2_block(header.number)
+            .await?;
+        let batch_data = self.batch_state.unwrap_init_ref_mut();
+
+        // Rollback upgrade tx
+        if let Some(tx) = batch_data
+            .updates_manager
+            .l2_block
+            .executed_transactions
+            .first()
+            .cloned()
+        {
+            if tx.transaction.tx_format() == TransactionType::ProtocolUpgradeTransaction {
+                batch_data.protocol_upgrade_tx = Some(tx.transaction.try_into().unwrap());
+            }
+        }
+
+        // Rollback mempool
+        let txs = batch_data
+            .updates_manager
+            .l2_block
+            .executed_transactions
+            .iter()
+            .map(|tx| tx.transaction.clone())
+            .collect();
+        self.inner.io.rollback_block(txs).await?;
+
+        // Rollback batch executor
+        let batch_executor = &mut batch_data.batch_executor;
+        batch_executor.rollback_l2_block().await?;
+
+        // Rollback updates manager
+        let updates_manager = &mut batch_data.updates_manager;
+        // State of `updates_manager` before the first L2 block is special so we have different cases.
+        if updates_manager.l1_batch.executed_transactions.is_empty() {
+            // Rolling back the first L2 block in the batch.
+            updates_manager.l2_block.recreate();
+            updates_manager.storage_writes_deduplicator = StorageWritesDeduplicator::new();
+        } else {
+            // Mark block as rolled back, data will be dropped when starting next block.
+            updates_manager.l2_block.rolled_back = true;
+            // Rollback `storage_writes_deduplicator` if block is not-fictive.
+            // If block is fictive it means that deduplicator wasn't updated.
+            if !updates_manager.l2_block.executed_transactions.is_empty() {
+                updates_manager
+                    .storage_writes_deduplicator
+                    .rollback_to_snapshot();
+            }
+        }
 
         Ok(())
     }

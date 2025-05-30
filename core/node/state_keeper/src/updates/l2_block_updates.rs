@@ -31,8 +31,10 @@ pub struct L2BlockUpdates {
     pub timestamp: u64,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
+    pub prev_block_timestamp: u64,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
+    pub rolled_back: bool,
 }
 
 impl L2BlockUpdates {
@@ -40,6 +42,7 @@ impl L2BlockUpdates {
         timestamp: u64,
         number: L2BlockNumber,
         prev_block_hash: H256,
+        prev_block_timestamp: u64,
         virtual_blocks: u32,
         protocol_version: ProtocolVersionId,
     ) -> Self {
@@ -57,8 +60,10 @@ impl L2BlockUpdates {
             timestamp,
             number,
             prev_block_hash,
+            prev_block_timestamp,
             virtual_blocks,
             protocol_version,
+            rolled_back: false,
         }
     }
 
@@ -179,6 +184,17 @@ impl L2BlockUpdates {
             max_virtual_blocks_to_create: self.virtual_blocks,
         }
     }
+
+    pub(crate) fn recreate(&mut self) {
+        *self = Self::new(
+            self.timestamp,
+            self.number,
+            self.prev_block_hash,
+            self.prev_block_timestamp,
+            self.virtual_blocks,
+            self.protocol_version,
+        );
+    }
 }
 
 #[cfg(test)]
@@ -194,6 +210,7 @@ mod tests {
             0,
             L2BlockNumber(0),
             H256::random(),
+            0,
             0,
             ProtocolVersionId::latest(),
         );
