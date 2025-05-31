@@ -72,8 +72,7 @@ pub struct GenesisSpec {
     /// The validator committee. Represents `zksync_consensus_roles::validator::Committee`.
     #[config(default, with = Entries::WELL_KNOWN.named("key", "weight"))]
     pub validators: Vec<(ValidatorPublicKey, u64)>,
-    /// Leader of the committee. Represents
-    /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
+    /// Leader of the committee.
     pub leader: ValidatorPublicKey,
     /// Address of the registry contract.
     pub registry_address: Option<ethabi::Address>,

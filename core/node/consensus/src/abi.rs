@@ -10,7 +10,7 @@ pub trait Function {
     const NAME: &'static str;
     /// Type representing contract this function belongs to.
     type Contract: AsRef<ethabi::Contract>;
-    /// Typ representing outputs of this function.
+    /// Type representing outputs of this function.
     type Outputs;
     /// Encodes this struct to inputs of this function.
     fn encode(&self) -> Vec<Token>;
@@ -97,6 +97,13 @@ pub(crate) fn into_uint<I: TryFrom<ethabi::Uint>>(t: Token) -> anyhow::Result<I>
     match t {
         Token::Uint(i) => i.try_into().ok().context("overflow"),
         bad => anyhow::bail!("want uint, got {bad:?}"),
+    }
+}
+
+pub(crate) fn into_bool(t: Token) -> anyhow::Result<bool> {
+    match t {
+        Token::Bool(b) => Ok(b),
+        bad => anyhow::bail!("want bool, got {bad:?}"),
     }
 }
 

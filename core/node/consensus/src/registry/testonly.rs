@@ -24,7 +24,8 @@ pub(crate) fn make_tx<F: crate::abi::Function>(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WeightedValidator {
-    pub(crate) weight: validator::Weight,
+    pub(crate) is_leader: bool,
+    pub(crate) weight: u64,
     pub(crate) key: validator::PublicKey,
     pub(crate) pop: validator::ProofOfPossession,
 }
@@ -49,6 +50,7 @@ fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::BLS12_381Sig
 pub(crate) fn gen_validator(rng: &mut impl Rng) -> WeightedValidator {
     let k: validator::SecretKey = rng.gen();
     WeightedValidator {
+        is_leader: rng.gen(),
         key: k.public(),
         weight: rng.gen_range(1..100),
         pop: k.sign_pop(),
@@ -56,13 +58,13 @@ pub(crate) fn gen_validator(rng: &mut impl Rng) -> WeightedValidator {
 }
 
 impl Registry {
-    pub(crate) fn deploy(&self, account: &mut Account) -> (Address, Transaction) {
+    pub(crate) fn deploy(account: &mut Account) -> (RegistryAddress, Transaction) {
         let tx = account.get_deploy_tx(
             &abi::ConsensusRegistry::bytecode(),
             None,
             zksync_test_contracts::TxType::L2,
         );
-        (Address::new(tx.address), tx.tx)
+        (RegistryAddress::new(tx.address), tx.tx)
     }
 
     pub(crate) fn add(
@@ -72,6 +74,7 @@ impl Registry {
     ) -> anyhow::Result<crate::abi::Call<abi::Add>> {
         Ok(self.contract.call(abi::Add {
             node_owner,
+            validator_is_leader: validator.is_leader,
             validator_pub_key: encode_validator_key(&validator.key),
             validator_weight: validator
                 .weight
@@ -93,5 +96,13 @@ impl Registry {
         &self,
     ) -> crate::abi::Call<abi::CommitValidatorCommittee> {
         self.contract.call(abi::CommitValidatorCommittee)
+    }
+
+    pub(crate) fn set_committee_activation_delay(
+        &self,
+        delay: u32,
+    ) -> crate::abi::Call<abi::SetCommitteeActivationDelay> {
+        self.contract
+            .call(abi::SetCommitteeActivationDelay { delay })
     }
 }

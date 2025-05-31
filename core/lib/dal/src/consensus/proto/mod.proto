@@ -137,10 +137,6 @@ message PaymasterParams {
   optional bytes paymaster_input = 2; // required
 }
 
-message ValidatorCommittee {
-  repeated roles.validator.WeightedValidator members = 1; // required
-}
-
 message NodeAddr {
   optional roles.node.PublicKey key = 1; // required
   optional string addr = 2; // required; Host
