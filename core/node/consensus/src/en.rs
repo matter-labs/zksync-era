@@ -152,11 +152,12 @@ impl EN {
                 engine_manager,
             };
             tracing::info!("running the external node executor");
-            executor.run(ctx).await?;
+            executor.run(ctx).await.context("external node executor")?;
 
             Ok(())
         })
         .await;
+
         match res {
             Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
             Err(ctx::Error::Internal(err)) => Err(err),
