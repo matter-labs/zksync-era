@@ -4,7 +4,7 @@ use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxFinalityStatus, TxHistory},
-    Address, L1BatchNumber, Nonce, SLChainId, H256,
+    Address, Nonce, SLChainId, H256,
 };
 
 #[derive(Debug, Clone)]

@@ -12,7 +12,7 @@ use zksync_l1_contract_interface::{
 };
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     api::TransactionRequest,
     block::L1BatchHeader,
     commitment::{
@@ -1059,7 +1059,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            L1BatchAggregatedActionType::Commit,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
         )
         .await;
     assert!(tx.is_none());
@@ -1079,7 +1079,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            L1BatchAggregatedActionType::Commit,
+            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
         )
         .await
         .unwrap();

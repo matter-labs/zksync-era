@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Add};
+use std::collections::HashMap;
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
@@ -927,8 +927,6 @@ impl EthTxAggregator {
         is_gateway: bool,
     ) -> Result<EthTx, EthSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
-        let encoded_aggregated_op =
-            self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let op_type = aggregated_op.get_action_type();
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
