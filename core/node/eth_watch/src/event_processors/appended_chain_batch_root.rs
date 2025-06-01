@@ -7,7 +7,6 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     api::{ChainAggProof, Log},
-    block::BatchOrBlockNumber,
     ethabi, h256_to_u256,
     l2_to_l1_log::{
         BatchAndChainMerklePath, BATCH_LEAF_PADDING, LOG_PROOF_SUPPORTED_METADATA_VERSION,
@@ -119,10 +118,7 @@ impl EventProcessor for BatchRootProcessor {
         for (sl_l1_batch_number, chain_batches) in new_events {
             let chain_agg_proof = self
                 .sl_l2_client
-                .get_chain_log_proof(
-                    BatchOrBlockNumber::BatchNumber(sl_l1_batch_number),
-                    self.l2_chain_id,
-                )
+                .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
                 .await?
                 .context("Missing chain log proof for finalized batch")?;
             let chain_proof_vector =
@@ -170,34 +166,31 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs.clone()) {
-                proof.proof.extend(chain_proof_vector.clone());
-
+            for ((batch_number, _), base_proof) in chain_batches.iter().zip(batch_proofs) {
+                let mut batch_chain_proof = base_proof.clone();
+                batch_chain_proof.proof.extend(chain_proof_vector.clone());
                 transaction
                     .blocks_dal()
-                    .set_batch_chain_merkle_path(*batch_number, proof)
+                    .set_batch_chain_merkle_path(*batch_number, batch_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
-            }
 
-            for ((batch_number, _), mut proof) in chain_batches.iter().zip(batch_proofs) {
                 let gw_block_number =
                     Self::get_gw_block_number(&mut transaction, *batch_number).await?;
+                println!("gw_block_number: {}", gw_block_number);
                 let gw_chain_agg_proof = self
                     .sl_l2_client
-                    .get_chain_log_proof(
-                        BatchOrBlockNumber::BlockNumber(gw_block_number),
-                        self.l2_chain_id,
-                    )
+                    .get_inner_chain_log_proof(gw_block_number, self.l2_chain_id)
                     .await?
                     .context("Missing Gateway chain log proof for finalized batch")?;
                 let gw_chain_proof_vector =
                     Self::chain_proof_vector(gw_block_number.0, gw_chain_agg_proof, sl_chain_id);
-                proof.proof.extend(gw_chain_proof_vector);
 
+                let mut gw_chain_proof = base_proof;
+                gw_chain_proof.proof.extend(gw_chain_proof_vector);
                 transaction
                     .blocks_dal()
-                    .set_gw_interop_batch_chain_merkle_path(*batch_number, proof)
+                    .set_gw_interop_batch_chain_merkle_path(*batch_number, gw_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
             }

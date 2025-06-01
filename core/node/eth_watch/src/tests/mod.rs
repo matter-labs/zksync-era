@@ -5,8 +5,9 @@ use zksync_types::{
     abi,
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     api::ChainAggProof,
-    block::{BatchOrBlockNumber, L1BatchHeader},
+    block::L1BatchHeader,
     commitment::L1BatchCommitmentArtifacts,
+    eth_sender::EthTxFinalityStatus,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2_to_l1_log::BatchAndChainMerklePath,
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
@@ -110,6 +111,7 @@ async fn create_test_watcher(
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();
@@ -217,6 +219,7 @@ async fn test_normal_operation_upgrade_timestamp() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();
@@ -489,6 +492,10 @@ async fn test_batch_root_processor_from_genesis() {
         .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
+    let inner_chain_log_proofs = inner_chain_log_proofs();
+    sl_client
+        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .await;
 
     sl_client.set_last_finalized_block_number(5).await;
 
@@ -576,6 +583,10 @@ async fn test_batch_root_processor_restart() {
         .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
+    let inner_chain_log_proofs = inner_chain_log_proofs();
+    sl_client
+        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .await;
 
     sl_client.set_last_finalized_block_number(14).await;
 
@@ -662,22 +673,10 @@ fn batch_roots() -> Vec<H256> {
     .collect()
 }
 
-fn chain_log_proofs() -> Vec<(BatchOrBlockNumber, ChainAggProof)> {
+fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
     vec![
         (
-            BatchOrBlockNumber::BlockNumber(L2BlockNumber(0)),
-            ChainAggProof {
-                chain_id_leaf_proof: vec![H256::from_slice(
-                    &hex::decode(
-                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
-                    )
-                    .unwrap(),
-                )],
-                chain_id_leaf_proof_mask: 1,
-            },
-        ),
-        (
-            BatchOrBlockNumber::BatchNumber(L1BatchNumber(5)),
+            L1BatchNumber(5),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -697,7 +696,7 @@ fn chain_log_proofs() -> Vec<(BatchOrBlockNumber, ChainAggProof)> {
             },
         ),
         (
-            BatchOrBlockNumber::BatchNumber(L1BatchNumber(9)),
+            L1BatchNumber(9),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -717,7 +716,7 @@ fn chain_log_proofs() -> Vec<(BatchOrBlockNumber, ChainAggProof)> {
             },
         ),
         (
-            BatchOrBlockNumber::BatchNumber(L1BatchNumber(11)),
+            L1BatchNumber(11),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -737,7 +736,7 @@ fn chain_log_proofs() -> Vec<(BatchOrBlockNumber, ChainAggProof)> {
             },
         ),
         (
-            BatchOrBlockNumber::BatchNumber(L1BatchNumber(13)),
+            L1BatchNumber(13),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -757,7 +756,7 @@ fn chain_log_proofs() -> Vec<(BatchOrBlockNumber, ChainAggProof)> {
             },
         ),
         (
-            BatchOrBlockNumber::BatchNumber(L1BatchNumber(14)),
+            L1BatchNumber(14),
             ChainAggProof {
                 chain_id_leaf_proof: vec![
                     H256::from_slice(
@@ -774,6 +773,71 @@ fn chain_log_proofs() -> Vec<(BatchOrBlockNumber, ChainAggProof)> {
                     ),
                 ],
                 chain_id_leaf_proof_mask: 3,
+            },
+        ),
+    ]
+}
+
+fn inner_chain_log_proofs() -> Vec<(L2BlockNumber, ChainAggProof)> {
+    vec![
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
             },
         ),
     ]
@@ -850,7 +914,7 @@ async fn setup_batch_roots(
             .unwrap();
         connection
             .eth_sender_dal()
-            .confirm_tx(tx_hash, U256::zero(), 0)
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
             .await
             .unwrap();
 

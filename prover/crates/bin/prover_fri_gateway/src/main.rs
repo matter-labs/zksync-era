@@ -91,10 +91,9 @@ async fn main() -> anyhow::Result<()> {
                         .run(stop_receiver.clone()),
                 ),
                 tokio::spawn(
-                    proof_gen_data_fetcher
-                        .run(config.api_poll_duration_secs, stop_receiver.clone()),
+                    proof_gen_data_fetcher.run(config.api_poll_duration, stop_receiver.clone()),
                 ),
-                tokio::spawn(proof_submitter.run(config.api_poll_duration_secs, stop_receiver)),
+                tokio::spawn(proof_submitter.run(config.api_poll_duration, stop_receiver)),
             ]
         }
         ApiMode::ProverCluster => {

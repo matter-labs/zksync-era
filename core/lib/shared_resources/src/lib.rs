@@ -5,6 +5,7 @@ use zksync_types::pubdata_da::PubdataSendingMode;
 
 pub mod api;
 pub mod contracts;
+pub mod tree;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PubdataSendingModeResource(pub PubdataSendingMode);

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
 use zksync_multivm::interface::{
@@ -19,12 +19,14 @@ pub struct MockOneshotExecutor {
     call_responses: Box<TxResponseFn>,
     tx_responses: Box<TxResponseFn>,
     tx_validation_traces_responses: Box<TxValidationTracesResponseFn>,
+    vm_delay: Duration,
 }
 
 impl fmt::Debug for MockOneshotExecutor {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("MockTransactionExecutor")
+            .field("vm_delay", &self.vm_delay)
             .finish_non_exhaustive()
     }
 }
@@ -39,6 +41,7 @@ impl Default for MockOneshotExecutor {
                 panic!("Unexpected transaction call: {tx:?}");
             }),
             tx_validation_traces_responses: Box::new(|_, _| ValidationTraces::default()),
+            vm_delay: Duration::ZERO,
         }
     }
 }
@@ -87,7 +90,18 @@ impl MockOneshotExecutor {
         self.tx_responses = Box::new(responses);
     }
 
-    fn mock_inspect(&self, env: &OneshotEnv, args: TxExecutionArgs) -> VmExecutionResultAndLogs {
+    /// Sets an artificial delay for each VM invocation.
+    pub fn set_vm_delay(&mut self, delay: Duration) {
+        self.vm_delay = delay;
+    }
+
+    async fn mock_inspect(
+        &self,
+        env: &OneshotEnv,
+        args: TxExecutionArgs,
+    ) -> VmExecutionResultAndLogs {
+        tokio::time::sleep(self.vm_delay).await;
+
         match env.system.execution_mode {
             TxExecutionMode::EthCall => (self.call_responses)(&args.transaction, env),
             TxExecutionMode::VerifyExecute | TxExecutionMode::EstimateFee => {
@@ -110,7 +124,7 @@ where
         _params: OneshotTracingParams,
     ) -> anyhow::Result<OneshotTransactionExecutionResult> {
         Ok(OneshotTransactionExecutionResult {
-            tx_result: Box::new(self.mock_inspect(&env, args)),
+            tx_result: Box::new(self.mock_inspect(&env, args).await),
             compression_result: Ok(()),
             call_traces: vec![],
         })
@@ -132,6 +146,7 @@ where
         Ok(
             match self
                 .mock_inspect(&env, TxExecutionArgs::for_validation(tx.clone()))
+                .await
                 .result
             {
                 ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),

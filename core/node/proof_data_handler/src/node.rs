@@ -11,7 +11,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::{node::ObjectStoreResource, ObjectStore};
+use zksync_object_store::ObjectStore;
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::ProofDataHandlerClient;
@@ -27,14 +27,14 @@ pub struct ProofDataHandlerLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub object_store: ObjectStoreResource,
+    master_pool: PoolResource<MasterPool>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: ProofDataHandlerTask,
+    task: ProofDataHandlerTask,
 }
 
 impl ProofDataHandlerLayer {
@@ -64,7 +64,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
-        let blob_store = input.object_store.0;
+        let blob_store = input.object_store;
 
         let task = ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,

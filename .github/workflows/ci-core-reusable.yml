@@ -455,6 +455,7 @@ jobs:
         run: |
           CHAINS="era,validium,custom_token,da_migration,consensus"
           echo "CHAINS=$CHAINS" >> $GITHUB_ENV
+          echo "CHAINS=$CHAINS" >> .env
 
       # ----------------------------------------------------------------
       #  Only create/initialize the gateway chain *if* use_gateway_chain=WITH_GATEWAY
@@ -505,10 +506,12 @@ jobs:
         run: |
           ci_run zkstack dev test gateway-migration --from-gateway --chain era --no-deps
 
+      # `sleep 60` because we need to wait until server added all transactions
       - name: Migrate to gateway again
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway --chain era --no-deps
+          ci_run sleep 60
           ci_run pkill -9 zksync_server
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
@@ -558,12 +561,18 @@ jobs:
 
       - name: DA migration tests
         run: |
-          echo "Reducing L1 batch seal timeout and restarting server"
+          echo "Increasing L1 batch seal timeout and restarting server"
           sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/da_migration/configs/general.yaml
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
           ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
           ci_run sleep 60
+          
+          echo "Running integration tests to generate unsealed batches"
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+            "da_migration" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
+          echo "Integration tests completed"
           
           echo "Setting pubdata pricing mode to validium and updating configuration"
           ci_run zkstack chain set-pubdata-pricing-mode --chain da_migration --rollup=false
@@ -578,7 +587,7 @@ jobs:
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
           ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
           echo "Server restart initiated, waiting 60 seconds for startup"
-          ci_run sleep 100
+          ci_run sleep 60
           echo "Server restart wait completed"
           
           echo "Checking that all L1 batches have been committed on L1"

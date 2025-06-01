@@ -17,6 +17,7 @@ pub use crate::transaction_request::{
 };
 use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
+    eth_sender::EthTxFinalityStatus,
     protocol_version::L1VerifierConfig,
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
     tee_types::TeeType,
@@ -33,6 +34,8 @@ pub enum BlockNumber {
     Committed,
     /// Last block that was finalized on L1.
     Finalized,
+    /// Last block that was fast finalized on L1.
+    FastFinalized,
     /// Latest sealed block
     Latest,
     /// Precommitted
@@ -67,6 +70,7 @@ impl Serialize for BlockNumber {
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
             BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
+            BlockNumber::FastFinalized => serializer.serialize_str("fast_finalized"),
         }
     }
 }
@@ -89,10 +93,11 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "latest" => BlockNumber::Latest,
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
-                    // For zksync safe is finalized, but for compatibility with ethereum it's required to introduce it.
-                    "safe" => BlockNumber::Finalized,
+                    // For zksync safe is l1 committed. Real chances of revert are very low.
+                    "safe" => BlockNumber::L1Committed,
                     "pending" => BlockNumber::Pending,
                     "precommitted" => BlockNumber::Precommitted,
+                    "fast_finalized" => BlockNumber::FastFinalized,
                     num => {
                         let number =
                             U64::deserialize(de::value::BorrowedStrDeserializer::new(num))?;
@@ -213,7 +218,9 @@ impl Serialize for LogProofTarget {
         match *self {
             LogProofTarget::Chain => serializer.serialize_str("chain"),
             LogProofTarget::GatewayMessageRoot => serializer.serialize_str("gw_message_root"),
-            _ => serializer.serialize_str("gw_chain_batch_root"),
+            LogProofTarget::GatewayChainBatchRoot => {
+                serializer.serialize_str("gw_chain_batch_root")
+            }
         }
     }
 }
@@ -233,7 +240,13 @@ impl<'de> Deserialize<'de> for LogProofTarget {
                 let result = match value {
                     "chain" => LogProofTarget::Chain,
                     "gw_message_root" => LogProofTarget::GatewayMessageRoot,
-                    _ => LogProofTarget::GatewayChainBatchRoot,
+                    "gw_chain_batch_root" => LogProofTarget::GatewayChainBatchRoot,
+                    _ => {
+                        return Err(E::custom(format!(
+                            "Unsupported LogProofTarget variant: {}",
+                            value
+                        )));
+                    }
                 };
 
                 Ok(result)
@@ -673,12 +686,13 @@ pub struct Transaction {
     pub l1_batch_tx_index: Option<U64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum TransactionStatus {
     Pending,
     Included,
     Precommitted,
+    FastFinalized,
     Verified,
     Failed,
 }
@@ -902,10 +916,11 @@ impl Default for TracerConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,
+    FastFinalized,
     Verified,
 }
 
@@ -969,11 +984,14 @@ pub struct BlockDetailsBase {
     pub status: BlockStatus,
     pub commit_tx_hash: Option<H256>,
     pub committed_at: Option<DateTime<Utc>>,
+    pub commit_tx_finality: Option<EthTxFinalityStatus>,
     pub commit_chain_id: Option<SLChainId>,
     pub prove_tx_hash: Option<H256>,
+    pub prove_tx_finality: Option<EthTxFinalityStatus>,
     pub proven_at: Option<DateTime<Utc>>,
     pub prove_chain_id: Option<SLChainId>,
     pub execute_tx_hash: Option<H256>,
+    pub execute_tx_finality: Option<EthTxFinalityStatus>,
     pub executed_at: Option<DateTime<Utc>>,
     pub execute_chain_id: Option<SLChainId>,
     pub precommit_tx_hash: Option<H256>,
@@ -1159,6 +1177,8 @@ mod tests {
         assert_eq!(format!("{}", block_number), "Latest");
         let block_number = BlockNumber::L1Committed;
         assert_eq!(format!("{}", block_number), "L1Committed");
+        let block_number = BlockNumber::FastFinalized;
+        assert_eq!(format!("{}", block_number), "FastFinalized");
         let block_number = BlockNumber::Earliest;
         assert_eq!(format!("{}", block_number), "Earliest");
         let block_number = BlockNumber::Pending;

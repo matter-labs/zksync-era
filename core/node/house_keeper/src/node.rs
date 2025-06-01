@@ -18,7 +18,7 @@ pub struct HouseKeeperLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub replica_pool: PoolResource<ReplicaPool>,
+    replica_pool: PoolResource<ReplicaPool>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -51,7 +51,7 @@ impl WiringLayer for HouseKeeperLayer {
         // Initialize and add tasks
         let l1_batch_metrics_reporter = BlockMetricsReporter::new(
             self.house_keeper_config
-                .l1_batch_metrics_reporting_interval_ms,
+                .l1_batch_metrics_reporting_interval,
             replica_pool,
         );
 
