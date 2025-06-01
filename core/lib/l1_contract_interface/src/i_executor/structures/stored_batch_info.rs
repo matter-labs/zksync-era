@@ -6,13 +6,26 @@ use zksync_types::{
     web3::contract::Error as ContractError,
     H256, U256,
 };
+use zksync_types::commitment::ZkosCommitment;
 use crate::i_executor::structures::CommitBoojumOSBatchInfo;
 use crate::Tokenizable;
 
-/// `StoredBatchInfo` from `IExecutor.sol`.
+// https://github.com/matter-labs/era-contracts/blob/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L64-L73
+// struct StoredBatchInfo {
+//         uint64 batchNumber;
+//         bytes32 batchHash; // For Boojum OS batches we'll store here full state commitment
+//         uint64 indexRepeatedStorageChanges; // For Boojum OS not used, 0
+//         uint256 numberOfLayer1Txs;
+//         bytes32 priorityOperationsHash;
+//         bytes32 l2LogsTreeRoot;
+//         uint256 timestamp; // For Boojum OS not used, 0
+//         bytes32 commitment;// For Boojum OS batches we'll store public input here
+//     }
+//
 #[derive(Debug, Clone, PartialEq)]
 pub struct StoredBatchInfo {
     pub batch_number: u64,
+    // in zk_os, stage commitement is used here:
     pub batch_hash: H256,
     pub index_repeated_storage_changes: u64,
     pub number_of_layer1_txs: U256,
@@ -55,56 +68,24 @@ impl StoredBatchInfo {
     }
 }
 
-// modified to match the `StoredBatchInfo` structure from zk os smart contracts:
-// https://github.com/matter-labs/era-contracts/blob/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L64-L73
-// struct StoredBatchInfo {
-//         uint64 batchNumber;
-//         bytes32 batchHash; // For Boojum OS batches we'll store here full state commitment
-//         uint64 indexRepeatedStorageChanges; // For Boojum OS not used, 0
-//         uint256 numberOfLayer1Txs;
-//         bytes32 priorityOperationsHash;
-//         bytes32 l2LogsTreeRoot;
-//         uint256 timestamp; // For Boojum OS not used, 0
-//         bytes32 commitment;// For Boojum OS batches we'll store public input here
-//     }
-//
+
 
 // todo when L1BatchWithMetadata is refactored, we should convert it to this struct directly
 impl StoredBatchInfo {
     pub fn new(
-        batch: CommitBoojumOSBatchInfo
+        batch: &ZkosCommitment
     ) -> Self {
         Self {
             batch_number: batch.batch_number.into(),
-            batch_hash: batch.new_state_commitment,
+            batch_hash: batch.state_commitment(),
             index_repeated_storage_changes: 0, // not used in Boojum OS, must be zero
-            number_of_layer1_txs: batch.number_of_layer1_txs,
-            priority_operations_hash: batch.priority_operations_hash,
-            l2_logs_tree_root: batch.l2_logs_tree_root,
-            timestamp: 0.into(), // not used in Boojum OS
-            commitment: Self::public_input_hash(&batch)
+            number_of_layer1_txs: batch.number_of_layer1_txs.into(),
+            priority_operations_hash: batch.priority_operations_hash(),
+            l2_logs_tree_root: batch.l2_to_l1_logs_root_hash,
+            timestamp: 0.into(),
+            commitment: batch.batch_output_hash()
         }
     }
-
-    // in zkos `commitment` field should contain the public input hash:
-    // https://github.com/matter-labs/era-contracts/blame/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L160-L181
-    //   // Create batch PI for the proof verification
-    //         bytes32 batchOutputsHash = keccak256(
-    //             abi.encodePacked(
-    //                 _newBatch.chainId,
-    //                 _newBatch.firstBlockTimestamp,
-    //                 _newBatch.lastBlockTimestamp,
-    //                 uint160(_newBatch.l2DaValidator),
-    //                 _newBatch.daCommitment,
-    //                 _newBatch.numberOfLayer1Txs,
-    //                 _newBatch.priorityOperationsHash,
-    //                 _newBatch.l2LogsTreeRoot,
-    //                 bytes32(0) // upgrade tx hash
-    //             )
-    //         );
-    // note: the original plan was to use public input hash, but now we only use batchOutputsHash
-
-    // todo: check Token types if hash mismatch
     fn public_input_hash(
         batch: &CommitBoojumOSBatchInfo
     ) -> H256 {
@@ -126,10 +107,11 @@ impl StoredBatchInfo {
 }
 
 
-// todo: this conversion is only used by legacy methods - not in zkos
+// todo: this conversion is only used by legacy methods - it will not work correctly in zkos
 // commitment is not computed correctly here
 impl From<&L1BatchWithMetadata> for StoredBatchInfo {
     fn from(x: &L1BatchWithMetadata) -> Self {
+        unimplemented!("unused in zkos, use `ZkosCommitment` instead");
         Self {
             batch_number: x.header.number.0.into(),
             batch_hash: x.metadata.root_hash,

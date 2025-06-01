@@ -3,7 +3,7 @@ use zksync_types::{
     ethabi::{encode, Token},
     pubdata_da::PubdataSendingMode,
 };
-
+use zksync_types::commitment::ZkosCommitment;
 use crate::{
     i_executor::structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
     Tokenizable, Tokenize,
@@ -21,31 +21,41 @@ pub struct CommitBatches<'a> {
 
 impl Tokenize for &CommitBatches<'_> {
     fn into_tokens(self) -> Vec<Token> {
+        // other modes are not yet supported in ZK OS
+        assert_eq!(self.mode, L1BatchCommitmentMode::Rollup);
+        assert_eq!(self.pubdata_da, PubdataSendingMode::Calldata);
         assert_eq!(self.l1_batches.len(), 1, "Only one batch can be committed at a time in zk os");
-        let l1_batch = self.l1_batches.first().unwrap();
+        let last_block_commitment: ZkosCommitment = self.last_committed_l1_batch.into();
 
-        // note: for now we convert `CommitBoojumOSBatchInfo` to `StoredBatchInfo`
-        // as most fields are the same
-        // this will change when we refactor `L1BatchWithMetadata` - we'll use this new base struct instead
-        let stored_batch_info = StoredBatchInfo::new(
-            CommitBoojumOSBatchInfo::new(
-                self.mode,
-                self.last_committed_l1_batch,
-                self.pubdata_da,
-            )
-        );
-        let commit_boojum_os_batch_info =
-            CommitBoojumOSBatchInfo::new(
-                self.mode,
-                l1_batch,
-                self.pubdata_da,
-            );
+        let stored_batch_info = StoredBatchInfo::new(&last_block_commitment);
+
+        let l1_batch = self.l1_batches.first().unwrap();
+        let current_block_commitment: ZkosCommitment = l1_batch.into();
+
+        let commit_boojum_os_batch_info = CommitBoojumOSBatchInfo::new(&current_block_commitment);
+
+
         tracing::info!(
-            "Encoding CommitBatches for batch {}. {:?}; {:?}; Stored Batch Info hash: {}",
+            "Encoding CommitBatches previous batch ({}) - ZkosCommitment: {:?}",
+            self.last_committed_l1_batch.header.number.0,
+            last_block_commitment,
+        );
+
+        tracing::info!(
+            "Encoding CommitBatches current batch ({}) - ZkosCommitment: {:?}",
             self.l1_batches[0].header.number.0,
-            stored_batch_info,
+            current_block_commitment,
+        );
+
+        tracing::info!(
+            "Encoding StoredBatchInfo previous batch ({}) - ZkosCommitment: {:?}",
+            self.last_committed_l1_batch.header.number.0,
+            stored_batch_info.hash(),
+        );
+        tracing::info!(
+            "Encoding CommitBatches for current batch ({}) - CommitBatchInfo: {:?}",
+            self.l1_batches[0].header.number.0,
             commit_boojum_os_batch_info,
-            stored_batch_info.hash()
         );
 
         let mut encoded_data = encode(&[

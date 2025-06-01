@@ -111,7 +111,7 @@ impl BlockSealCommand {
         let l1_batch = L1BatchHeader {
             number: self.inner.l1_batch_number,
             timestamp: self.inner.timestamp,
-            priority_ops_onchain_data: vec![],
+            priority_ops_onchain_data: vec![], //self.inner.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             l2_to_l1_logs: vec![], //todo: l2_to_l1_logs are not saved yet

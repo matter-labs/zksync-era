@@ -142,6 +142,7 @@ pub(super) async fn insert_base_system_contracts_to_factory_deps(
         .await?)
 }
 
+// not used currently
 pub(super) async fn save_genesis_l1_batch_metadata(
     storage: &mut Connection<'_, Core>,
     commitment: L1BatchCommitment,

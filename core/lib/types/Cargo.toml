@@ -35,7 +35,7 @@ hex.workspace = true
 prost = { workspace = true, optional = true }
 tracing.workspace = true
 
-# Crypto stuff
+# Circuit-friendly hash function
 blake2.workspace = true
 
 [dev-dependencies]
