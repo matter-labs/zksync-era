@@ -83,6 +83,7 @@ impl UnstableNamespace {
         Ok(proofs)
     }
 
+    // This method is used for both get_chain_log_proof and get_inner_chain_log_proof
     pub async fn get_chain_log_proof_impl(
         &self,
         batch_or_block_number: BatchOrBlockNumber,
@@ -95,6 +96,7 @@ impl UnstableNamespace {
             .await?;
 
         let l2_block_number = match batch_or_block_number {
+            // Last L2 block number for the given L1 batch number
             BatchOrBlockNumber::BatchNumber(l1_batch_number) => {
                 match connection
                     .blocks_dal()
