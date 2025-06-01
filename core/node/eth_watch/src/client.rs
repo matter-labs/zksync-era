@@ -170,7 +170,6 @@ where
     }
 
     fn get_default_address_list(&self) -> Vec<Address> {
-        // println!("get_default_address_list: {:?}", self.l1_message_root_address);
         let addresses = [
             Some(self.diamond_proxy_addr),
             self.state_transition_manager_address,

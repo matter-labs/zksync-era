@@ -93,6 +93,12 @@ pub(crate) async fn create_chain_inner(
         "ecosystem_config.list_of_chains() after: {:?}",
         ecosystem_config.list_of_chains()
     );
+    let internal_id = ecosystem_config
+        .list_of_chains()
+        .iter()
+        .position(|x| *x == args.chain_name)
+        .unwrap() as u32
+        + 1;
     let link_to_code = resolve_link_to_code(
         shell,
         chain_path.clone(),

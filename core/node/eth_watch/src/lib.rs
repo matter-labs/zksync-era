@@ -83,19 +83,12 @@ impl EthWatch {
 
         let l1_interop_root_processor =
             InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone())).await;
-        // let batch_root_processor = L1BatchRootProcessor::new(
-        //     state.chain_batch_root_number_lower_bound,
-        //     state.batch_merkle_tree,
-        //     chain_id,
-        //     l1_client,
-        // );
 
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
             Box::new(gateway_migration_processor),
             Box::new(l1_interop_root_processor),
-            // Box::new(batch_root_processor), // kl todo,
         ];
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {

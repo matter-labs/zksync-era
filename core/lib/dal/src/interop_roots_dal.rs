@@ -18,10 +18,6 @@ impl InteropRootDal<'_, '_> {
         timestamp: u64,
         // proof: BatchAndChainMerklePath,
     ) -> DalResult<()> {
-        println!(
-            "set_interop_root {:?} {:?} {:?}",
-            chain_id.0, number.0, interop_root
-        );
         let sides = interop_root
             .iter()
             .map(|root| root.as_bytes().to_vec())
