@@ -7,7 +7,6 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     api::{ChainAggProof, Log},
-    block::BatchOrBlockNumber,
     ethabi, h256_to_u256,
     l2_to_l1_log::{
         BatchAndChainMerklePath, BATCH_LEAF_PADDING, LOG_PROOF_SUPPORTED_METADATA_VERSION,
@@ -119,10 +118,7 @@ impl EventProcessor for BatchRootProcessor {
         for (sl_l1_batch_number, chain_batches) in new_events {
             let chain_agg_proof = self
                 .sl_l2_client
-                .get_chain_log_proof(
-                    BatchOrBlockNumber::BatchNumber(sl_l1_batch_number),
-                    self.l2_chain_id,
-                )
+                .get_chain_log_proof(sl_l1_batch_number, self.l2_chain_id)
                 .await?
                 .context("Missing chain log proof for finalized batch")?;
             let chain_proof_vector =
@@ -183,10 +179,7 @@ impl EventProcessor for BatchRootProcessor {
                     Self::get_sl_block_number_at_execute(&mut transaction, *batch_number).await?;
                 let local_chain_agg_proof = self
                     .sl_l2_client
-                    .get_chain_log_proof(
-                        BatchOrBlockNumber::BlockNumber(sl_block_number),
-                        self.l2_chain_id,
-                    )
+                    .get_inner_chain_log_proof(sl_block_number, self.l2_chain_id)
                     .await?
                     .context("Missing Gateway chain log proof for finalized batch")?;
                 let local_chain_proof_vector =

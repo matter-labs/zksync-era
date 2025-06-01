@@ -1,13 +1,18 @@
+use std::sync::Arc;
+
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{node::contracts::SettlementLayerContractsResource, EthInterface};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::{MainNodeClientResource, SettlementLayerClient};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    node::SettlementLayerClient,
+};
 
 use crate::tree_data_fetcher::TreeDataFetcher;
 
@@ -17,18 +22,18 @@ pub struct TreeDataFetcherLayer;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
-    pub gateway_client: SettlementLayerClient,
-    pub settlement_layer_contracts_resource: SettlementLayerContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
+    gateway_client: SettlementLayerClient,
+    settlement_layer_contracts_resource: SettlementLayerContractsResource,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: TreeDataFetcher,
+    task: TreeDataFetcher,
 }
 
 #[async_trait::async_trait]
@@ -42,17 +47,16 @@ impl WiringLayer for TreeDataFetcherLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
-        let MainNodeClientResource(client) = input.main_node_client;
         let sl_client: Box<dyn EthInterface> = match input.gateway_client {
             SettlementLayerClient::L1(client) => Box::new(client),
-            SettlementLayerClient::L2(client) => Box::new(client),
+            SettlementLayerClient::Gateway(client) => Box::new(client),
         };
 
         tracing::warn!(
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let task = TreeDataFetcher::new(client, pool)
+        let task = TreeDataFetcher::new(input.main_node_client, pool)
             .with_sl_data(
                 sl_client,
                 input
@@ -66,7 +70,6 @@ impl WiringLayer for TreeDataFetcherLayer {
         // Insert healthcheck
         input
             .app_health
-            .0
             .insert_component(task.health_check())
             .map_err(WiringError::internal)?;
 

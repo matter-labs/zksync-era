@@ -46,7 +46,7 @@ done
 
 # Start background processes
 for i in "${!chains[@]}"; do
-    full_command="$command ${additional_chain_args[$i]} --chain ${chains[$i]} &> ${log_dir}/${chains[$i]}.log"
+    full_command="CHAINS=$chain_list $command ${additional_chain_args[$i]} --chain ${chains[$i]} &> ${log_dir}/${chains[$i]}.log"
     echo "Running command: $full_command"
     eval "$full_command" &
     pids+=($!)

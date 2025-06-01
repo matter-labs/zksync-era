@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
-use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_shared_resources::tree::TreeApiError;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
@@ -582,8 +582,11 @@ impl ZksNamespace {
         let proofs = match proofs_result {
             Ok(proofs) => proofs,
             Err(TreeApiError::NotReady(_)) => return Err(Web3Error::TreeApiUnavailable),
-            Err(TreeApiError::NoVersion(err)) => {
-                return if err.missing_version > err.version_count {
+            Err(TreeApiError::NoVersion {
+                missing_version,
+                version_count,
+            }) => {
+                return if missing_version > version_count {
                     Ok(None)
                 } else {
                     Err(Web3Error::InternalError(anyhow::anyhow!(

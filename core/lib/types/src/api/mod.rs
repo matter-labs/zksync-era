@@ -214,7 +214,9 @@ impl Serialize for LogProofTarget {
         match *self {
             LogProofTarget::Chain => serializer.serialize_str("chain"),
             LogProofTarget::GatewayMessageRoot => serializer.serialize_str("gw_message_root"),
-            _ => serializer.serialize_str("gw_chain_batch_root"),
+            LogProofTarget::GatewayChainBatchRoot => {
+                serializer.serialize_str("gw_chain_batch_root")
+            }
         }
     }
 }
@@ -234,7 +236,13 @@ impl<'de> Deserialize<'de> for LogProofTarget {
                 let result = match value {
                     "chain" => LogProofTarget::Chain,
                     "gw_message_root" => LogProofTarget::GatewayMessageRoot,
-                    _ => LogProofTarget::GatewayChainBatchRoot,
+                    "gw_chain_batch_root" => LogProofTarget::GatewayChainBatchRoot,
+                    _ => {
+                        return Err(E::custom(format!(
+                            "Unsupported LogProofTarget variant: {}",
+                            value
+                        )));
+                    }
                 };
 
                 Ok(result)
