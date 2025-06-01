@@ -50,8 +50,7 @@ impl WiringLayer for HouseKeeperLayer {
 
         // Initialize and add tasks
         let l1_batch_metrics_reporter = BlockMetricsReporter::new(
-            self.house_keeper_config
-                .l1_batch_metrics_reporting_interval,
+            self.house_keeper_config.l1_batch_metrics_reporting_interval,
             replica_pool,
         );
 

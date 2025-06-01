@@ -14,10 +14,13 @@ use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::{EthTx, EthTxFinalityStatus}, pubdata_da::PubdataSendingMode,
-    settlement::SettlementLayer, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
-    SLChainId, H256,
+    aggregated_operations::L1BatchAggregatedActionType,
+    block::L1BatchHeader,
+    commitment::L1BatchCommitmentMode,
+    eth_sender::{EthTx, EthTxFinalityStatus},
+    pubdata_da::PubdataSendingMode,
+    settlement::SettlementLayer,
+    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,
 };
 
 use crate::{

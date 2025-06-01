@@ -10,7 +10,7 @@ use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, EthTxFinalityStatus},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
 

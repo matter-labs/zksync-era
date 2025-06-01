@@ -12,7 +12,8 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType, L2BlockNumber, ProtocolVersion, H256, eth_sender::EthTxFinalityStatus
+    aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTxFinalityStatus,
+    L2BlockNumber, ProtocolVersion, H256,
 };
 
 use super::*;
