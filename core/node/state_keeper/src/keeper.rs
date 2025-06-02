@@ -874,11 +874,10 @@ impl StateKeeper {
                 RunMode::Default => self.run_block(&mut stop_receiver).await?,
             }
             // Test rollback.
-            if !self
-                .pending_l2_block_header
-                .as_ref()
-                .is_some_and(|b| b.number.0 == 1)
-            {
+            let pending_l2_block_header = self.pending_l2_block_header.as_ref().unwrap();
+            // First block is kinda special, some initial txs must be in there.
+            // If we do rollback then it's possible that some of them won't be included due to batch being closed by timeout.
+            if pending_l2_block_header.number.0 != 1 {
                 self.rollback().await?;
                 match mode {
                     RunMode::Propose => {
@@ -1205,11 +1204,14 @@ impl StateKeeper {
         let header = self.pending_l2_block_header.take().unwrap();
         tracing::info!("Rolling back block #{}", header.number);
 
-        // Rollback postgres
-        self.inner
-            .output_handler
-            .rollback_pending_l2_block(header.number)
-            .await?;
+        // Rollback postgres if block is non-fictive.
+        // If block is fictive then its data wasn't saved.
+        if header.l1_tx_count + header.l2_tx_count > 0 {
+            self.inner
+                .output_handler
+                .rollback_pending_l2_block(header.number)
+                .await?;
+        }
         let batch_data = self.batch_state.unwrap_init_ref_mut();
 
         // Rollback upgrade tx
