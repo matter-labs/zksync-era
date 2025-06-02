@@ -522,8 +522,8 @@ jobs:
       - name: Run servers
         run: |
           # Override config for part of chains to test the default config as well
-#          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
-#          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
+          # ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
+          # ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
           
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
