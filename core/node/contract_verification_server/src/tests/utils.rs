@@ -71,6 +71,7 @@ pub(super) async fn mock_deploy_contract(
 pub(super) fn mock_verification_info(
     id: usize,
     verification_request: &serde_json::Value,
+    abi: Option<serde_json::Value>,
 ) -> VerificationInfo {
     VerificationInfo {
         request: VerificationRequest {
@@ -80,7 +81,7 @@ pub(super) fn mock_verification_info(
         artifacts: CompilationArtifacts {
             bytecode: vec![0xff, 32],
             deployed_bytecode: None,
-            abi: Default::default(),
+            abi: abi.unwrap_or_default(),
             immutable_refs: Default::default(),
         },
         verified_at: Default::default(),
@@ -174,11 +175,49 @@ impl MockApiClient {
         Self::json_response::<usize>(response).await
     }
 
-    pub async fn send_etherscan_request<T>(&self, request: &T) -> EtherscanResponse
+    pub async fn send_etherscan_post_request<T>(&self, request: &T) -> EtherscanResponse
     where
         T: serde::Serialize,
     {
         let response = self.send_form("/contract_verification", request).await;
+        Self::json_response::<EtherscanResponse>(response).await
+    }
+
+    pub async fn etherscan_get_verification_status(&self, id: usize) -> EtherscanResponse {
+        let response = self
+            .send_request(
+                &format!(
+                    "/contract_verification?module=contract&action=checkverifystatus&guid={id}"
+                ),
+                None,
+            )
+            .await;
+        Self::json_response::<EtherscanResponse>(response).await
+    }
+
+    pub async fn etherscan_get_source_code(&self, address: Address) -> EtherscanResponse {
+        let response = self
+            .send_request(
+                &format!(
+                    "/contract_verification?module=contract&action=getsourcecode&address={:#?}",
+                    address
+                ),
+                None,
+            )
+            .await;
+        Self::json_response::<EtherscanResponse>(response).await
+    }
+
+    pub async fn etherscan_get_abi(&self, address: Address) -> EtherscanResponse {
+        let response = self
+            .send_request(
+                &format!(
+                    "/contract_verification?module=contract&action=getabi&address={:#?}",
+                    address
+                ),
+                None,
+            )
+            .await;
         Self::json_response::<EtherscanResponse>(response).await
     }
 
