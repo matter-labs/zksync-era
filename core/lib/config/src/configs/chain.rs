@@ -40,7 +40,6 @@ pub struct SharedStateKeeperConfig {
     #[config(default_t = 10)]
     pub l2_block_seal_queue_capacity: usize,
 
-    // FIXME: these 2 params below are not used by EN (but probably should)
     /// Whether to save call traces when processing blocks in the state keeper.
     #[config(default_t = true)]
     pub save_call_traces: bool,
@@ -176,14 +175,6 @@ impl StateKeeperConfig {
             deployment_allowlist: None,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-#[config(derive(Default))]
-pub struct OperationsManagerConfig {
-    /// Sleep time in ms when there is no new input data
-    #[config(default_t = Duration::from_millis(100), with = Fallback(TimeUnit::Millis))]
-    pub delay_interval: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]

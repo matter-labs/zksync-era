@@ -287,7 +287,6 @@ fn parsing_from_full_env() {
         # Experimental config
         EN_EXPERIMENTAL_STATE_KEEPER_DB_BLOCK_CACHE_CAPACITY_MB=256
         EN_EXPERIMENTAL_STATE_KEEPER_DB_MAX_OPEN_FILES=512
-        # MIGRATION NEEDED: Shorten `EN_EXPERIMENTAL_` -> `EN_` in the following params; considered non-breaking since params were experimental
         EN_SNAPSHOTS_RECOVERY_L1_BATCH=123
         EN_SNAPSHOTS_RECOVERY_DROP_STORAGE_KEY_PREIMAGES=true
         EN_SNAPSHOTS_RECOVERY_TREE_CHUNK_SIZE=50000

@@ -10,7 +10,7 @@ async fn main() {
         .into_config_sources("ZKSYNC_")
         .unwrap();
 
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let repo = config_sources.build_repository(&schema);
     let config: DatabaseSecrets = repo.single().unwrap().parse().unwrap();
 

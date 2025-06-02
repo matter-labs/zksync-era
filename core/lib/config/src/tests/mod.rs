@@ -25,7 +25,7 @@ fn pre_smart_config_files_can_be_parsed() {
         external_node: None,
     };
     let config_sources = paths.into_config_sources("###").unwrap();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let repo = config_sources.build_repository(&schema);
     let general = repo.single::<GeneralConfig>().unwrap().parse().unwrap();
     assert_general_config(general);

@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let repo = config_sources.build_repository(&schema);
     let database_secrets: DatabaseSecrets = repo.parse()?;
     let contract_verifier_secrets: ContractVerifierSecrets = repo.parse()?;
