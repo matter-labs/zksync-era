@@ -62,7 +62,9 @@ pub(crate) fn get_function(contract: &Contract, name: &str) -> Function {
 #[derive(Debug, Clone)]
 pub struct TeeFunctions {
     f_verify_and_attest_on_chain: Function,
-    f_upsert_pcs_certificates: Function,
+    f_upsert_root_certificate: Function,
+    f_upsert_signing_certificate: Function,
+    f_upsert_platform_certificate: Function,
     f_upsert_root_ca_crl: Function,
     f_upsert_pck_crl: Function,
     f_upsert_enclave_identity: Function,
@@ -75,7 +77,9 @@ impl Default for TeeFunctions {
 
         Self {
             f_verify_and_attest_on_chain: get_function(&contract, "verifyAndAttestOnChain"),
-            f_upsert_pcs_certificates: get_function(&contract, "upsertPcsCertificates"),
+            f_upsert_root_certificate: get_function(&contract, "upsertRootCertificate"),
+            f_upsert_signing_certificate: get_function(&contract, "upsertSigningCertificate"),
+            f_upsert_platform_certificate: get_function(&contract, "upsertPlatformCertificate"),
             f_upsert_root_ca_crl: get_function(&contract, "upsertRootCACrl"),
             f_upsert_pck_crl: get_function(&contract, "upsertPckCrl"),
             f_upsert_enclave_identity: get_function(&contract, "upsertEnclaveIdentity"),
@@ -99,16 +103,22 @@ impl TeeFunctions {
         ])
     }
 
-    /// function upsertPcsCertificates(CA[] calldata ca, bytes[] calldata certs) external returns (bytes32[] memory attestationIds){
-    pub fn upsert_pcs_certificates(
-        &self,
-        ca: Vec<CA>,
-        certs: Vec<Vec<u8>>,
-    ) -> zksync_types::ethabi::Result<Bytes> {
-        let ca_u8: Vec<u8> = ca.into_iter().map(|c| u8::from(c)).collect();
+    pub fn upsert_root_certificate(&self, cert: Vec<u8>) -> zksync_types::ethabi::Result<Bytes> {
+        self.f_upsert_root_certificate
+            .encode_input(&[cert.into_token()])
+    }
 
-        self.f_upsert_pcs_certificates
-            .encode_input(&[ca_u8.into_token(), certs.into_token()])
+    pub fn upsert_signing_certificate(&self, cert: Vec<u8>) -> zksync_types::ethabi::Result<Bytes> {
+        self.f_upsert_signing_certificate
+            .encode_input(&[cert.into_token()])
+    }
+
+    pub fn upsert_platform_certificate(
+        &self,
+        cert: Vec<u8>,
+    ) -> zksync_types::ethabi::Result<Bytes> {
+        self.f_upsert_platform_certificate
+            .encode_input(&[cert.into_token()])
     }
 
     /// function upsertRootCACrl(bytes calldata rootcacrl) external returns (bytes32 attestationId){

@@ -29,6 +29,7 @@ pub enum TeeDcapCollateralKind {
     RootCrl,
     PckCa,
     PckCrl,
+    SignCa,
     SgxTcbInfoJson(FMSPC),
     TdxTcbInfoJson(FMSPC),
     SgxQeIdentityJson,
@@ -42,6 +43,7 @@ impl Display for TeeDcapCollateralKind {
             TeeDcapCollateralKind::RootCrl => write!(f, "root_crl"),
             TeeDcapCollateralKind::PckCa => write!(f, "pck_ca"),
             TeeDcapCollateralKind::PckCrl => write!(f, "pck_crl"),
+            TeeDcapCollateralKind::SignCa => write!(f, "sign_ca"),
             TeeDcapCollateralKind::SgxTcbInfoJson(fmspc) => {
                 write!(f, "sgx_tcb_{}", hex::encode(fmspc))
             }
@@ -63,6 +65,7 @@ impl TryFrom<&str> for TeeDcapCollateralKind {
             "root_crl" => Ok(TeeDcapCollateralKind::RootCrl),
             "pck_ca" => Ok(TeeDcapCollateralKind::PckCa),
             "pck_crl" => Ok(TeeDcapCollateralKind::PckCrl),
+            "sign_ca" => Ok(TeeDcapCollateralKind::SignCa),
             "sgx_qe_identity" => Ok(TeeDcapCollateralKind::SgxQeIdentityJson),
             "tdx_qe_identity" => Ok(TeeDcapCollateralKind::TdxQeIdentityJson),
             s if s.starts_with("sgx_tcb_") => {
@@ -349,6 +352,7 @@ mod tests {
             (TeeDcapCollateralKind::RootCrl, "root_crl"),
             (TeeDcapCollateralKind::PckCa, "pck_ca"),
             (TeeDcapCollateralKind::PckCrl, "pck_crl"),
+            (TeeDcapCollateralKind::SignCa, "sign_ca"),
             (TeeDcapCollateralKind::SgxQeIdentityJson, "sgx_qe_identity"),
             (TeeDcapCollateralKind::TdxQeIdentityJson, "tdx_qe_identity"),
         ];
