@@ -794,7 +794,7 @@ pub(crate) async fn admin_l1_l2_tx(
 #[cfg(any(
     feature = "v27_evm_interpreter",
     feature = "v28_precompiles",
-    feature = "v29"
+    feature = "v29_interopA_ff"
 ))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn prepare_upgrade_zk_chain_on_gateway(
