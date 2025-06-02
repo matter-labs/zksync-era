@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
-use zksync_types::{ethabi, Address, L1BatchNumber, SLChainId, H256, U64};
+use zksync_types::{ethabi, Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U64};
 
 /// Verifies the L1 transaction against the database and the SL.
 #[derive(Debug)]
@@ -66,7 +66,7 @@ impl L1TransactionVerifier {
         }
     }
 
-    pub async fn validate_commit_tx_against_db(
+    pub async fn validate_commit_tx(
         &self,
         commit_tx_hash: H256,
         batch_number: L1BatchNumber,
@@ -171,6 +171,27 @@ impl L1TransactionVerifier {
         prove_tx_hash: H256,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
+        let db_batch = match self
+            .pool
+            .connection_tagged("sync_layer")
+            .await?
+            .blocks_dal()
+            .get_l1_batch_metadata(batch_number)
+            .await?
+        {
+            Some(batch) => batch,
+            None => {
+                tracing::debug!("Batch {} is not found in the database. Cannot verify prove transaction right now", batch_number);
+                return Err(TransactionValidationError::BatchNotFound { batch_number });
+            }
+        };
+
+        if let Some(version) = db_batch.header.protocol_version {
+            if version < ProtocolVersionId::Version29 {
+                return Ok(()); // We do not validate Prove TX for protocol versions less then 29.0
+            }
+        }
+
         let receipt = self
             .sl_client
             .tx_receipt(prove_tx_hash)

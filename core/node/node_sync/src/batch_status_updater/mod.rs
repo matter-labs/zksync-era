@@ -170,7 +170,7 @@ impl UpdaterCursor {
                     // Validate the commit transaction against the database.
                     map_validation_result(
                         l1_transaction_verifier
-                            .validate_commit_tx_against_db(commit_tx_hash, batch_info.number)
+                            .validate_commit_tx(commit_tx_hash, batch_info.number)
                             .await,
                         (
                             Some(commit_tx_hash),
