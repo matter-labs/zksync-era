@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use ruint::aliases::U256;
 use tokio::sync::watch;
-use zk_os_basic_system::system_implementation::io::TestingTree;
+use zk_os_basic_system::system_implementation::flat_storage_model::TestingTree;
 use zk_os_forward_system::run::{BatchContext, StorageCommitment};
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -91,7 +91,6 @@ impl ZkosProverInputGenerator {
                     tree.clone(),
                     preimages.clone(),
                     list_source,
-                    NoopTxCallback,
                 ).map_err(|err| anyhow::anyhow!("{}", err.0).context("zk_ee internal error"))?;
 
                 let duration = started_at.elapsed();

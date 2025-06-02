@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zk_os_basic_system::system_implementation::io::ACCOUNT_PROPERTIES_STORAGE_ADDRESS;
+use zk_os_basic_system::system_implementation::flat_storage_model::ACCOUNT_PROPERTIES_STORAGE_ADDRESS;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{h256_to_address, L2BlockNumber};
 

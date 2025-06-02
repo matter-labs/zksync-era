@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use itertools::{Either, Itertools};
 use zk_ee::common_structs::{L2ToL1Log, PreimageType};
-use zk_os_basic_system::system_implementation::io::AccountProperties as BoojumAccountProperties;
+use zk_os_basic_system::system_implementation::flat_storage_model::AccountProperties as BoojumAccountProperties;
 use zk_os_forward_system::run::{
     output::BlockHeader, result_keeper::TxProcessingOutputOwned, BatchOutput,
 };
@@ -122,11 +122,10 @@ impl UpdatesManager {
                     bytes32_to_h256(hash),
                     convert_boojum_account_properties(
                         BoojumAccountProperties::decode(
-                            preimage
+                            &preimage
                                 .try_into()
                                 .expect("Preimage should be exactly 124 bytes"),
                         )
-                        .expect("Failed to decode account properties"),
                     ),
                 )),
             });
@@ -213,7 +212,7 @@ fn convert_boojum_account_properties(p: BoojumAccountProperties) -> AccountPrope
         nonce: p.nonce,
         observable_bytecode_hash: bytes32_to_h256(p.observable_bytecode_hash),
         bytecode_hash: bytes32_to_h256(p.bytecode_hash),
-        nominal_token_balance: U256::from_big_endian(&p.nominal_token_balance.to_be_bytes::<32>()),
+        nominal_token_balance: U256::from_big_endian(&p.balance.to_be_bytes::<32>()),
         bytecode_len: p.bytecode_len,
         artifacts_len: p.artifacts_len,
         observable_bytecode_len: p.observable_bytecode_len,

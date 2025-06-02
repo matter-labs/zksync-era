@@ -9,6 +9,7 @@ pub struct StorageAccountProperties {
     pub nonce: BigDecimal,
     pub observable_bytecode_hash: Vec<u8>,
     pub bytecode_hash: Vec<u8>,
+    // TODO: rename to balance?
     pub nominal_token_balance: BigDecimal,
     pub bytecode_len: i64,
     pub artifacts_len: i64,

@@ -15,7 +15,7 @@ use tracing::info_span;
 use zk_ee::{
     common_structs::derive_flat_storage_key, utils::Bytes32,
 };
-use zk_os_basic_system::system_implementation::io::TestingTree;
+use zk_os_basic_system::system_implementation::flat_storage_model::TestingTree;
 use zk_os_forward_system::run::{
     result_keeper::TxProcessingOutputOwned,
     run_batch,
