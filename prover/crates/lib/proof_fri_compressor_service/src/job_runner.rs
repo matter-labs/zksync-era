@@ -7,7 +7,11 @@ use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_processor::{Backoff, BackoffAndCancellable, JobRunner};
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
-use crate::{ProofFriCompressorExecutor, ProofFriCompressorJobPicker, ProofFriCompressorJobSaver};
+use crate::{
+    proof_fri_compressor_executor::ProofFriCompressorExecutor,
+    proof_fri_compressor_job_picker::ProofFriCompressorJobPicker,
+    proof_fri_compressor_job_saver::ProofFriCompressorJobSaver,
+};
 
 /// Proof Fri Compressor runner implementation.
 pub fn proof_fri_compressor_runner(

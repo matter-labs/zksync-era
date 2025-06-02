@@ -11,13 +11,13 @@ use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 use crate::{
     metrics::PROOF_FRI_COMPRESSOR_METRICS,
+    proof_fri_compressor_executor::ProofFriCompressorExecutor,
     proof_fri_compressor_metadata::ProofFriCompressorMetadata,
-    proof_fri_compressor_payload::ProofFriCompressorPayload, ProofFriCompressorExecutor,
+    proof_fri_compressor_payload::ProofFriCompressorPayload,
 };
 
 /// ProofFriCompressor job picker implementation.
 /// Checking FFLONK verification hash, picks job from database and gets data from object store.
-// #[derive(Debug)]
 pub struct ProofFriCompressorJobPicker {
     pool: ConnectionPool<Prover>,
     blob_store: Arc<dyn ObjectStore>,
@@ -61,7 +61,9 @@ impl JobPicker for ProofFriCompressorJobPicker {
             .fri_protocol_versions_dal()
             .get_l1_verifier_config()
             .await
-            .map_err(|_| anyhow::anyhow!("Failed to get L1 verifier config from database"))?;
+            .map_err(|err| {
+                anyhow::anyhow!("Failed to get L1 verifier config from database: {:?}", err)
+            })?;
 
         let pod_name = get_current_pod_name();
         let Some(l1_batch_id) = conn

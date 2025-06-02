@@ -10,6 +10,3 @@ mod proof_fri_compressor_metadata;
 mod proof_fri_compressor_payload;
 
 pub use job_runner::proof_fri_compressor_runner;
-pub use proof_fri_compressor_executor::ProofFriCompressorExecutor;
-pub use proof_fri_compressor_job_picker::ProofFriCompressorJobPicker;
-pub use proof_fri_compressor_job_saver::ProofFriCompressorJobSaver;

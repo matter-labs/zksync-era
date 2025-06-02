@@ -126,8 +126,8 @@ async fn main() -> anyhow::Result<()> {
                     tracing::info!("Stop signal received, shutting down...");
                     cancellation_token.cancel();
                 },
-                Err(_err) => {
-                    tracing::error!("failed to set up ctrl c listener");
+                Err(err) => {
+                    tracing::error!("Failed to set up ctrl c listener: {:?}", err);
                 }
             }
         }

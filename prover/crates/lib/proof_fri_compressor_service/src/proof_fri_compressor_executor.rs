@@ -79,7 +79,7 @@ impl Executor for ProofFriCompressorExecutor {
         }
 
         let snark_wrapper_mode = if self.is_fflonk {
-            SnarkWrapper::FFfonk
+            SnarkWrapper::Fflonk
         } else {
             SnarkWrapper::Plonk
         };
@@ -90,7 +90,7 @@ impl Executor for ProofFriCompressorExecutor {
             snark_wrapper_mode,
             setup_data_cache,
             input.scheduler_proof.into_inner(),
-        );
+        )?;
 
         let aggregation_result_coords =
             Self::aux_output_witness_to_array(input.aux_output_witness_wrapper.0);
@@ -103,7 +103,7 @@ impl Executor for ProofFriCompressorExecutor {
                     protocol_version: self.protocol_version,
                 })
             }
-            SnarkWrapperProof::FFfonk(proof) => {
+            SnarkWrapperProof::Fflonk(proof) => {
                 L1BatchProofForL1::new_fflonk(FflonkL1BatchProofForL1 {
                     aggregation_result_coords,
                     scheduler_proof: proof,

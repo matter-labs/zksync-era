@@ -221,7 +221,7 @@ impl Keystore {
         ))
     }
 
-    pub fn load_compression_vk(
+    pub fn load_compression_verification_key(
         &self,
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncCompressionLayerVerificationKey> {
@@ -448,7 +448,7 @@ impl Keystore {
     }
 
     #[cfg(any(feature = "gpu", feature = "gpu-light"))]
-    pub fn load_compression_setup_data(
+    pub fn load_compression_layer_setup_data(
         &self,
         circuit: u8,
     ) -> anyhow::Result<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>> {
@@ -464,14 +464,14 @@ impl Keystore {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
         tracing::info!(
-            "loading compression wrapper setup data from path: {:?}",
+            "loading compression layer setup data from path: {:?}",
             filepath
         );
         bincode::deserialize::<GpuProverSetupData<GoldilocksField, CompressionProofsTreeHasher>>(
             &buffer,
         )
         .with_context(|| {
-            format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+            format!("Failed deserializing compression layer setup data at path: {filepath:?}")
         })
     }
 
@@ -581,7 +581,7 @@ impl Keystore {
 
         for circuit in 1..MAX_COMPRESSION_CIRCUITS {
             data_source
-                .set_compression_vk(self.load_compression_vk(circuit)?)
+                .set_compression_vk(self.load_compression_verification_key(circuit)?)
                 .unwrap();
         }
 

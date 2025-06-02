@@ -262,8 +262,8 @@ fn main() -> anyhow::Result<()> {
             #[cfg(feature = "gpu")]
             {
                 let keystore = Keystore::locate();
-                precompute_proof_chain_with_plonk(std::sync::Arc::new(keystore.clone()));
-                precompute_proof_chain_with_fflonk(std::sync::Arc::new(keystore.clone()));
+                precompute_proof_chain_with_plonk(std::sync::Arc::new(keystore.clone()))?;
+                precompute_proof_chain_with_fflonk(std::sync::Arc::new(keystore.clone()))?;
 
                 let commitments = keystore.generate_commitments()?;
                 keystore.save_commitments(&commitments)
@@ -289,7 +289,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 Ok(proof_compression_gpu::create_compact_raw_crs(
-                    keystore.write_compact_raw_crs(),
+                    keystore.write_compact_raw_crs()?,
                 ))
             }
         }

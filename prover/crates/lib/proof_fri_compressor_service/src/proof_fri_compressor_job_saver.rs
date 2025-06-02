@@ -13,7 +13,8 @@ use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 use crate::{
     metrics::PROOF_FRI_COMPRESSOR_METRICS,
-    proof_fri_compressor_metadata::ProofFriCompressorMetadata, ProofFriCompressorExecutor,
+    proof_fri_compressor_executor::ProofFriCompressorExecutor,
+    proof_fri_compressor_metadata::ProofFriCompressorMetadata,
 };
 
 /// ProofFriCompressor job saver implementation.
