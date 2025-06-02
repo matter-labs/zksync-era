@@ -1,0 +1,18 @@
+[package]
+name = "zksync_eth_proof_manager"
+description = "ZKsync Ethereum proof manager"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_types.workspace = true
+zksync_dal.workspace = true
+zksync_config.workspace = true
+zksync_contracts.workspace = true
+zksync_eth_client.workspace = true
