@@ -20,8 +20,7 @@ use crate::commands::dev::messages::{
 };
 #[cfg(feature = "v29_interopA_ff")]
 use crate::commands::dev::messages::{
-    MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE,
-    MSG_V29_INTEROP_A_FF_UPGRADE,
+    MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE, MSG_V29_INTEROP_A_FF_UPGRADE,
 };
 
 pub(crate) mod commands;
