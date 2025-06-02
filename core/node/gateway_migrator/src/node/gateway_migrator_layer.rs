@@ -44,8 +44,8 @@ impl WiringLayer for GatewayMigratorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let gateway_l2_client = match input.gateway_client {
-            SettlementLayerClient::L1(_) => None,
+        let gateway_client = match input.gateway_client {
+            SettlementLayerClient::L1(client) => Some(Box::new(client) as Box<dyn EthInterface>),
             SettlementLayerClient::Gateway(client) => {
                 Some(Box::new(client) as Box<dyn EthInterface>)
             }
@@ -53,7 +53,7 @@ impl WiringLayer for GatewayMigratorLayer {
 
         let migrator = GatewayMigrator::new(
             Box::new(input.eth_client),
-            gateway_l2_client,
+            gateway_client,
             self.l2_chain_id,
             input
                 .settlement_mode_resource
