@@ -78,8 +78,7 @@ pub async fn build_tx_sender(
     let max_concurrency = web3_json_config.vm_concurrency_limit;
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider =
-        ApiFeeInputProvider::new(batch_fee_model_input_provider);
+    let batch_fee_input_provider = ApiFeeInputProvider::new(batch_fee_model_input_provider);
     let executor_options = SandboxExecutorOptions::new(
         tx_sender_config.chain_id,
         AccountTreeId::new(tx_sender_config.fee_account_addr),

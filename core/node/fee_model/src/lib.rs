@@ -101,12 +101,8 @@ pub struct ApiFeeInputProvider {
 }
 
 impl ApiFeeInputProvider {
-    pub fn new(
-        inner: Arc<dyn BatchFeeModelInputProvider>,
-    ) -> Self {
-        Self {
-            inner,
-        }
+    pub fn new(inner: Arc<dyn BatchFeeModelInputProvider>) -> Self {
+        Self { inner }
     }
 }
 

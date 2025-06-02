@@ -80,9 +80,8 @@ impl WiringLayer for L1GasLayer {
             self.fee_model_config,
         ));
 
-        let api_fee_input_provider = Arc::new(ApiFeeInputProvider::new(
-            main_fee_input_provider.clone(),
-        ));
+        let api_fee_input_provider =
+            Arc::new(ApiFeeInputProvider::new(main_fee_input_provider.clone()));
 
         Ok(Output {
             sequencer_fee_input: main_fee_input_provider.into(),
