@@ -121,34 +121,11 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        let mut conn = self
-            .connection_pool
-            .connection_tagged("api_fee_input_provider")
-            .await?;
-        let latest_batch_header = conn
-            .blocks_dal()
-            .get_latest_l1_batch_header()
-            .await?
-            .context("no batches were found in the DB")?;
-
-        if !latest_batch_header.is_sealed {
-            tracing::trace!(
-                latest_batch_number = %latest_batch_header.number,
-                "Found an open batch; reporting its fee input"
-            );
-            return Ok(latest_batch_header.fee_input);
-        }
-
-        tracing::trace!(
-            latest_batch_number = %latest_batch_header.number,
-            "No open batch found; fetching from base provider"
-        );
-        let inner_input = self
+        Ok(self
             .inner
             .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
             .await
-            .context("cannot get batch fee input from base provider")?;
-        Ok(inner_input)
+            .context("cannot get batch fee input from base provider")?)
     }
 
     /// Returns the fee model parameters.
