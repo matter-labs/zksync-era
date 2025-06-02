@@ -8917,7 +8917,6 @@ name = "zksync_config"
 version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
- "rand 0.8.5",
  "secrecy",
  "serde",
  "serde_json",
@@ -8926,7 +8925,6 @@ dependencies = [
  "tracing",
  "zksync_basic_types",
  "zksync_concurrency",
- "zksync_consensus_utils",
  "zksync_crypto_primitives",
  "zksync_vlog",
 ]

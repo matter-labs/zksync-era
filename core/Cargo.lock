@@ -12038,7 +12038,6 @@ version = "28.2.1-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
- "rand 0.8.5",
  "secrecy 0.10.3",
  "serde",
  "serde_json",
@@ -12048,7 +12047,6 @@ dependencies = [
  "tracing",
  "zksync_basic_types",
  "zksync_concurrency",
- "zksync_consensus_utils",
  "zksync_crypto_primitives",
  "zksync_vlog",
 ]
