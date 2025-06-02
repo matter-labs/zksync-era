@@ -205,6 +205,7 @@ impl<R> ExternalNodeBuilder<R> {
             MempoolConfig::default(),
             AddressWallet::from_address(Default::default()),
             PubdataType::Rollup,
+            true,
         );
         // let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
 
