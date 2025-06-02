@@ -107,7 +107,7 @@ fn main() -> anyhow::Result<()> {
     if let Some(command) = opt.cmd {
         match command {
             CliCommand::Config(config_args) => {
-                config_args.run(repo)?;
+                config_args.run(repo, "ZKSYNC_")?;
             }
         }
         return Ok(());
