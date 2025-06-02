@@ -194,7 +194,7 @@ impl MempoolStore {
             self.stashed_accounts.push(stashed_pointer.account);
         }
 
-        tracing::debug!(
+        tracing::trace!(
             "Stashed {} accounts by filter: {:?}",
             self.stashed_accounts.len() - initial_length,
             filter

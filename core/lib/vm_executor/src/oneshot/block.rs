@@ -119,7 +119,7 @@ impl BlockInfo {
                 .context("no L1 batches in storage")?;
             let sealed_l2_block_header = connection
                 .blocks_dal()
-                .get_last_sealed_l2_block_header()
+                .get_l2_block_header(self.resolved_block_number - 1)
                 .await?
                 .context("no L2 blocks in storage")?;
 
