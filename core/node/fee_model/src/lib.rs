@@ -2,7 +2,6 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::fee_model::{
     BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1, FeeParamsV2,
 };
@@ -99,17 +98,14 @@ impl MainNodeFeeInputProvider {
 #[derive(Debug)]
 pub struct ApiFeeInputProvider {
     inner: Arc<dyn BatchFeeModelInputProvider>,
-    connection_pool: ConnectionPool<Core>,
 }
 
 impl ApiFeeInputProvider {
     pub fn new(
         inner: Arc<dyn BatchFeeModelInputProvider>,
-        connection_pool: ConnectionPool<Core>,
     ) -> Self {
         Self {
             inner,
-            connection_pool,
         }
     }
 }
@@ -396,18 +392,12 @@ mod tests {
 
         let mut l1_batch_header = create_l1_batch(1);
         l1_batch_header.batch_fee_input = sealed_batch_fee_input;
-        conn.blocks_dal()
-            .insert_mock_l1_batch(&l1_batch_header)
-            .await
-            .unwrap();
+
         let mut l1_batch_header = create_l1_batch(2);
         l1_batch_header.batch_fee_input = unsealed_batch_fee_input;
-        conn.blocks_dal()
-            .insert_l1_batch(l1_batch_header.to_unsealed_header())
-            .await
-            .unwrap();
+
         let provider: &dyn BatchFeeModelInputProvider =
-            &ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()), pool);
+            &ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()));
         let fee_input = provider.get_batch_fee_input().await.unwrap();
         assert_eq!(fee_input, unsealed_batch_fee_input);
     }
