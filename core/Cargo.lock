@@ -8999,6 +8999,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -9014,6 +9015,7 @@ dependencies = [
 [[package]]
 name = "smart-config-commands"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "anstream",
  "anstyle",
@@ -9025,6 +9027,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
