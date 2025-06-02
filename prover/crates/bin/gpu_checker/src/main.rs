@@ -19,7 +19,10 @@ use zksync_circuit_prover_service::{
     },
     witness_vector_generator::WitnessVectorGeneratorExecutor,
 };
-use zksync_config::{configs::ObservabilityConfig, ObjectStoreConfig};
+use zksync_config::{
+    configs::{observability::SentryConfig, ObservabilityConfig},
+    ObjectStoreConfig,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::boojum::{
@@ -209,7 +212,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config = ObservabilityConfig {
-        sentry: None,
+        sentry: SentryConfig::default(),
         opentelemetry: None,
         log_format: "json".to_string(),
         ..ObservabilityConfig::default()

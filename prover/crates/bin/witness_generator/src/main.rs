@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
         let url = PrometheusExporterConfig::gateway_endpoint(base_url);
         Some(PrometheusExporterConfig::push(
             url,
-            prometheus_config.push_interval(),
+            prometheus_config.push_interval,
         ))
     } else {
         let prometheus_listener_port = config
