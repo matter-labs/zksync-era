@@ -253,8 +253,8 @@ describe('L1 ERC20 contract checks', () => {
     });
 
     test('Can check withdrawal hash from L2-B', async () => {
-        // We get a random L2-B provider URL, different to L2-A's, from the CHAINS environment variable
-        const url = getRandomL2bUrl(testMaster.environment().l2NodeUrl);
+        // We extract the L2-B RPC URL from the corresponding yaml file to define the L2-B provider
+        const url = getL2bUrl(testMaster.environment().l2NodeUrl);
         let l2b_provider = new RetryProvider({ url, timeout: 1200 * 1000 }, undefined, testMaster.reporter);
 
         if (skipInteropTest) {
@@ -336,31 +336,25 @@ describe('L1 ERC20 contract checks', () => {
         console.log('Interop root is non-zero', currentRoot);
     }
 
-    function getRandomL2bUrl(l2aUrl: string) {
+    // Gets the L2-B provider URL, which is Validium (L2-B) for Era (L2-A), and Era (L2-B) for all other chains
+    function getL2bUrl(l2aUrl: string) {
         const pathToHome = path.join(__dirname, '../../../..');
-        const chains = process.env.CHAINS?.split(',') || [];
+        const validiumConfig = loadConfig({
+            pathToHome,
+            chain: 'validium',
+            config: 'general.yaml'
+        });
+        const validiumUrl = validiumConfig.api.web3_json_rpc.http_url;
+        if (validiumUrl !== l2aUrl) return validiumUrl;
 
-        let l2bUrl = l2aUrl;
-        while (l2bUrl === l2aUrl) {
-            const chain = chains[Math.floor(Math.random() * chains.length)];
-            // Ensure no custom token is used on L2-B, as our test wallet is not funded with them
-            const contractsConfig = loadConfig({
-                pathToHome,
-                chain,
-                config: 'contracts.yaml'
-            });
-            const baseTokenAddr = contractsConfig.l1.base_token_addr;
-            if (baseTokenAddr !== zksync.utils.ETH_ADDRESS_IN_CONTRACTS) continue;
-
-            const generalConfig = loadConfig({
-                pathToHome,
-                chain,
-                config: 'general.yaml'
-            });
-            l2bUrl = generalConfig.api.web3_json_rpc.http_url;
-        }
-
-        return l2bUrl;
+        const eraConfig = loadConfig({
+            pathToHome,
+            chain: 'era',
+            config: 'general.yaml'
+        });
+        const eraUrl = eraConfig.api.web3_json_rpc.http_url;
+        if (eraUrl !== l2aUrl) return eraUrl;
+        throw new Error('No valid L2-B provider found');
     }
 
     test('Should claim failed deposit', async () => {
