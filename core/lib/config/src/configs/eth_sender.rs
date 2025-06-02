@@ -360,7 +360,7 @@ mod tests {
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
-            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1"
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 s"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -398,6 +398,9 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: "1 sec"
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
@@ -416,9 +419,6 @@ mod tests {
             confirmations_for_eth_event: 0
             eth_node_poll_interval: 300
             event_expiration_blocks: 60000
-          precommit_params:
-            l2_blocks_to_aggregate: 1
-            deadline: 1 sec
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: EthConfig = Tester::default()
@@ -455,6 +455,9 @@ mod tests {
             gas_limit_mode: Calculated
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
@@ -473,9 +476,6 @@ mod tests {
             confirmations_for_eth_event: 0
             eth_node_poll_interval: 300ms
             event_expiration_blocks: 60000
-          precommit_params:
-            l2_blocks_to_aggregate: 1
-            deadline: 1 sec
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: EthConfig = Tester::default()
