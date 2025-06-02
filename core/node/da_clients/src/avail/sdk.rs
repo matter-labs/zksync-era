@@ -340,7 +340,7 @@ impl RawAvailClient {
             }
 
             // If the extrinsic is not found, we need to look for it in the previous block
-            let block_number = block
+            let block_number_hex = block
                 .get("header")
                 .ok_or_else(|| anyhow::anyhow!("No field named header in block"))?
                 .as_object()
@@ -348,13 +348,17 @@ impl RawAvailClient {
                 .get("number")
                 .ok_or_else(|| anyhow::anyhow!("No field named number in block header"))?;
 
-            let prev_block_number = block_number
-                .as_u64()
-                .ok_or_else(|| anyhow::anyhow!("Invalid block number"))?
-                - 1;
+            let block_number = u64::from_str_radix(
+                block_number_hex
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("Block number is not a hex string"))?
+                    .strip_prefix("0x")
+                    .ok_or_else(|| anyhow::anyhow!("Block number doesn't have 0x prefix"))?,
+                16,
+            )? - 1;
 
             block_hash = client
-                .request("chain_getBlockHash", rpc_params![prev_block_number])
+                .request("chain_getBlockHash", rpc_params![block_number])
                 .await
                 .context("Error calling chain_getBlockHash RPC")?;
         }
