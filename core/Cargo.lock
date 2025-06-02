@@ -12359,6 +12359,7 @@ version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "serde",
  "zksync_node_framework",
  "zksync_types",
@@ -12379,6 +12380,7 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-types",
+ "chrono",
  "flate2",
  "futures 0.3.31",
  "hex",
