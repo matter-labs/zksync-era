@@ -8,7 +8,11 @@ use zksync_block_reverter::{
 };
 use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
-    configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode, DataAvailabilitySecrets},
+    configs::{
+        api::{MerkleTreeApiConfig, Namespace},
+        database::MerkleTreeMode,
+        DataAvailabilitySecrets,
+    },
     DAClientConfig,
 };
 use zksync_consistency_checker::node::ConsistencyCheckerLayer;
@@ -29,7 +33,7 @@ use zksync_node_api_server::{
         HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
         TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
-    web3::{state::InternalApiConfigBase, Namespace},
+    web3::state::InternalApiConfigBase,
 };
 use zksync_node_consensus::node::ExternalNodeConsensusLayer;
 use zksync_node_db_pruner::node::PruningLayer;
@@ -181,7 +185,11 @@ impl<R> ExternalNodeBuilder<R> {
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
         // FIXME: this is backwards / unobvious. Can readily use `config.state_keeper.save_call_traces` instead.
-        let save_call_traces = config.api_namespaces()?.contains(&Namespace::Debug);
+        let save_call_traces = config
+            .api
+            .web3_json_rpc
+            .api_namespaces
+            .contains(&Namespace::Debug);
         let main_node_batch_executor_builder_layer =
             MainBatchExecutorLayer::new(save_call_traces, OPTIONAL_BYTECODE_COMPRESSION);
 
@@ -474,24 +482,19 @@ impl ExternalNodeBuilder {
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
         let pruning_info_refresh_interval = self.config.local.pruning.removal_delay / 5;
-        let namespaces = self
-            .config
-            .local
-            .api_namespaces()
-            .context("failed parsing API namespaces")?;
 
         Ok(Web3ServerOptionalConfig {
-            namespaces: Some(namespaces),
-            filters_limit: Some(config.filters_limit),
-            subscriptions_limit: Some(config.subscriptions_limit),
-            batch_request_size_limit: Some(config.max_batch_request_size),
-            response_body_size_limit: Some(config.max_response_body_size()),
+            namespaces: config.api_namespaces.clone(),
+            filters_limit: config.filters_limit,
+            subscriptions_limit: config.subscriptions_limit,
+            batch_request_size_limit: config.max_batch_request_size,
+            response_body_size_limit: config.max_response_body_size(),
             with_extended_tracing: config.extended_api_tracing,
-            pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
-            polling_interval: Some(config.pubsub_polling_interval),
+            pruning_info_refresh_interval,
+            polling_interval: config.pubsub_polling_interval,
             request_timeout: config.request_timeout,
-            websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
-            replication_lag_limit: None,               // TODO: Support replication lag limit
+            websocket_requests_per_minute_limit: Some(config.websocket_requests_per_minute_limit),
+            replication_lag_limit: None, // TODO: Support replication lag limit
         })
     }
 
@@ -531,7 +534,9 @@ impl ExternalNodeBuilder {
     }
 
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let optional_config = self.web3_api_optional_config()?;
+        let mut optional_config = self.web3_api_optional_config()?;
+        // Not relevant for HTTP server, so we reset to prevent a logged warning.
+        optional_config.websocket_requests_per_minute_limit = None;
         let internal_api_config_base: InternalApiConfigBase = (&self.config).into();
 
         self.node.add_layer(Web3ServerLayer::http(

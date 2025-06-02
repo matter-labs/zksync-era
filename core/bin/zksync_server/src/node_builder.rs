@@ -14,6 +14,7 @@ use zksync_commitment_generator::node::{
 };
 use zksync_config::{
     configs::{
+        api::Namespace,
         consensus::ConsensusConfig,
         contracts::{
             chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
@@ -54,7 +55,7 @@ use zksync_node_api_server::{
         WhitelistedMasterPoolSinkLayer,
     },
     tx_sender::TxSenderConfig,
-    web3::{state::InternalApiConfigBase, Namespace},
+    web3::state::InternalApiConfigBase,
 };
 use zksync_node_consensus::node::MainNodeConsensusLayer;
 use zksync_node_fee_model::node::{GasAdjusterLayer, L1GasLayer};
@@ -427,90 +428,73 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
+    fn create_api_config(
+        &self,
+    ) -> anyhow::Result<(InternalApiConfigBase, Web3ServerOptionalConfig)> {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let with_debug_namespace = state_keeper_config.shared.save_call_traces;
+        let circuit_breaker_config = &self.configs.circuit_breaker_config;
 
-        let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
-            namespaces
-                .iter()
-                .map(|a| a.parse())
-                .collect::<Result<_, _>>()?
-        } else {
-            Namespace::DEFAULT.to_vec()
-        };
-        if with_debug_namespace {
-            namespaces.push(Namespace::Debug)
+        // FIXME: Why doesn't the node do what I'm telling it to do?
+        let mut namespaces = rpc_config.api_namespaces.clone();
+        if state_keeper_config.shared.save_call_traces {
+            namespaces.insert(Namespace::Debug);
         }
-        namespaces.push(Namespace::Snapshots);
+        namespaces.insert(Namespace::Snapshots);
 
         let optional_config = Web3ServerOptionalConfig {
-            namespaces: Some(namespaces),
-            filters_limit: Some(rpc_config.filters_limit),
-            subscriptions_limit: Some(rpc_config.subscriptions_limit),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
-            response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            namespaces,
+            filters_limit: rpc_config.filters_limit,
+            subscriptions_limit: rpc_config.subscriptions_limit,
+            batch_request_size_limit: rpc_config.max_batch_request_size,
+            response_body_size_limit: rpc_config.max_response_body_size(),
+            websocket_requests_per_minute_limit: Some(
+                rpc_config.websocket_requests_per_minute_limit,
+            ),
             request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
-            ..Default::default()
+            // FIXME: WTF does this do in the API server config?
+            replication_lag_limit: circuit_breaker_config.replication_lag_limit,
+            // Pruning isn't supposed to be enabled for the main node at the moment, but we use a reasonable value just in case.
+            pruning_info_refresh_interval: Duration::from_secs(10),
+            polling_interval: rpc_config.pubsub_polling_interval,
         };
-        let http_port = rpc_config.http_port;
-        let internal_config_base = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
+        let base = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
             .with_l1_to_l2_txs_paused(self.configs.mempool_config.l1_to_l2_txs_paused);
+        Ok((base, optional_config))
+    }
 
+    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        let (internal_config_base, mut optional_config) = self.create_api_config()?;
+        // Not relevant for HTTP server, so we reset to prevent a logged warning.
+        optional_config.websocket_requests_per_minute_limit = None;
+
+        let api = self
+            .configs
+            .api_config
+            .as_ref()
+            .context("self.configs.api_config")?;
         self.node.add_layer(Web3ServerLayer::http(
-            http_port,
+            api.web3_json_rpc.http_port,
             internal_config_base,
             optional_config,
         ));
-
         Ok(self)
     }
 
     fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
-        let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
-        let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let circuit_breaker_config = &self.configs.circuit_breaker_config;
-        let with_debug_namespace = state_keeper_config.shared.save_call_traces;
+        let (internal_config_base, optional_config) = self.create_api_config()?;
 
-        let mut namespaces = if let Some(namespaces) = &rpc_config.api_namespaces {
-            namespaces
-                .iter()
-                .map(|a| a.parse())
-                .collect::<Result<_, _>>()?
-        } else {
-            Namespace::DEFAULT.to_vec()
-        };
-        if with_debug_namespace {
-            namespaces.push(Namespace::Debug)
-        }
-        namespaces.push(Namespace::Snapshots);
-
-        let optional_config = Web3ServerOptionalConfig {
-            namespaces: Some(namespaces),
-            filters_limit: Some(rpc_config.filters_limit),
-            subscriptions_limit: Some(rpc_config.subscriptions_limit),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
-            response_body_size_limit: Some(rpc_config.max_response_body_size()),
-            websocket_requests_per_minute_limit: Some(
-                rpc_config.websocket_requests_per_minute_limit,
-            ),
-            replication_lag_limit: circuit_breaker_config.replication_lag_limit,
-            request_timeout: rpc_config.request_timeout,
-            with_extended_tracing: rpc_config.extended_api_tracing,
-            ..Default::default()
-        };
-        let ws_port = rpc_config.ws_port;
-        let internal_config_base = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
-            .with_l1_to_l2_txs_paused(self.configs.mempool_config.l1_to_l2_txs_paused);
-
+        let api = self
+            .configs
+            .api_config
+            .as_ref()
+            .context("self.configs.api_config")?;
         self.node.add_layer(Web3ServerLayer::ws(
-            ws_port,
+            api.web3_json_rpc.ws_port,
             internal_config_base,
             optional_config,
         ));
-
         Ok(self)
     }
 

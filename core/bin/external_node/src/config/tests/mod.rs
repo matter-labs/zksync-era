@@ -1,6 +1,7 @@
 //! Tests for EN configuration.
 
 use std::{
+    collections::HashSet,
     num::{NonZeroU32, NonZeroUsize},
     time::Duration,
 };
@@ -8,7 +9,7 @@ use std::{
 use assert_matches::assert_matches;
 use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource, Yaml};
 use zksync_config::configs::{
-    api::{HealthCheckConfig, MaxResponseSizeOverrides},
+    api::{HealthCheckConfig, MaxResponseSizeOverrides, Namespace},
     chain::TimestampAsserterConfig,
     da_client::{
         avail::{AvailClientConfig, AvailFinalityState},
@@ -350,7 +351,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.latest_values_cache_size, ByteSize(200 << 20));
     assert_eq!(
         config.api_namespaces,
-        Some(vec!["zks".to_owned(), "eth".to_owned()])
+        HashSet::from([Namespace::Zks, Namespace::Eth])
     );
     assert!(config.filters_disabled);
     assert_eq!(

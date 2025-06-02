@@ -24,7 +24,7 @@ use zksync_consensus_roles as roles;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_api_server::{
     tx_sender::{TimestampAsserterParams, TxSenderConfig},
-    web3::{state::InternalApiConfigBase, Namespace},
+    web3::state::InternalApiConfigBase,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, Address, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
@@ -368,18 +368,6 @@ impl LocalConfig {
                 data_availability: None,
                 contract_verifier: ContractVerifierSecrets::default(),
             },
-        }
-    }
-
-    // FIXME: parse namespaces in config
-    pub fn api_namespaces(&self) -> anyhow::Result<Vec<Namespace>> {
-        if let Some(namespaces) = &self.api.web3_json_rpc.api_namespaces {
-            namespaces
-                .iter()
-                .map(|raw| raw.parse().map_err(Into::into))
-                .collect()
-        } else {
-            Ok(Namespace::DEFAULT.to_vec())
         }
     }
 }

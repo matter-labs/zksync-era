@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     num::{NonZeroU32, NonZeroUsize},
     str::FromStr,
@@ -43,6 +43,36 @@ impl ApiConfig {
             merkle_tree: MerkleTreeApiConfig { port: 3053 },
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Namespace {
+    Eth,
+    Net,
+    Web3,
+    Debug,
+    Zks,
+    En,
+    Pubsub,
+    Snapshots,
+    Unstable,
+}
+
+impl Namespace {
+    pub const DEFAULT: [Self; 6] = [
+        Self::Eth,
+        Self::Net,
+        Self::Web3,
+        Self::Zks,
+        Self::En,
+        Self::Pubsub,
+    ];
+}
+
+impl WellKnown for Namespace {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
 }
 
 /// Response size limits for specific RPC methods.
@@ -250,8 +280,8 @@ pub struct Web3JsonRpcConfig {
     #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
     /// Enabled JSON RPC API namespaces. If not set, all namespaces will be available
-    #[config(with = Delimited(","))]
-    pub api_namespaces: Option<Vec<String>>,
+    #[config(with = Delimited(","), default_t = Namespace::DEFAULT.into())]
+    pub api_namespaces: HashSet<Namespace>,
     /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
     #[config(default, alias = "extended_rpc_tracing")]
@@ -394,7 +424,7 @@ mod tests {
                     Address::from_low_u64_be(1),
                     Address::from_low_u64_be(2),
                 ],
-                api_namespaces: Some(vec!["debug".to_string()]),
+                api_namespaces: HashSet::from([Namespace::Debug]),
                 extended_api_tracing: true,
             },
             healthcheck: HealthCheckConfig {

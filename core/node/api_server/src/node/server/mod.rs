@@ -1,8 +1,8 @@
-use std::{num::NonZeroU32, sync::Arc, time::Duration};
+use std::{collections::HashSet, num::NonZeroU32, sync::Arc, time::Duration};
 
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::{replication_lag::ReplicationLagChecker, CircuitBreakers};
-use zksync_config::configs::api::MaxResponseSize;
+use zksync_config::configs::api::{MaxResponseSize, Namespace};
 use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
@@ -27,48 +27,43 @@ use crate::{
     web3::{
         mempool_cache::MempoolCache,
         state::{InternalApiConfig, InternalApiConfigBase, SealedL2BlockNumber},
-        ApiBuilder, ApiServer, Namespace,
+        ApiBuilder, ApiServer,
     },
 };
 
 mod sealed_l2_block;
 
 /// Set of optional variables that can be altered to modify the behavior of API builder.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Web3ServerOptionalConfig {
-    pub namespaces: Option<Vec<Namespace>>,
-    pub filters_limit: Option<usize>,
-    pub subscriptions_limit: Option<usize>,
-    pub batch_request_size_limit: Option<usize>,
-    pub response_body_size_limit: Option<MaxResponseSize>,
+    pub namespaces: HashSet<Namespace>,
+    pub filters_limit: usize,
+    pub subscriptions_limit: usize,
+    pub batch_request_size_limit: usize,
+    pub response_body_size_limit: MaxResponseSize,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     pub request_timeout: Option<Duration>,
     pub with_extended_tracing: bool,
     // Used by circuit breaker.
     pub replication_lag_limit: Option<Duration>,
     // Used by the external node.
-    pub pruning_info_refresh_interval: Option<Duration>,
+    pub pruning_info_refresh_interval: Duration,
     // Used by the external node.
-    pub polling_interval: Option<Duration>,
+    pub polling_interval: Duration,
 }
 
 impl Web3ServerOptionalConfig {
     fn apply(self, mut api_builder: ApiBuilder) -> ApiBuilder {
-        if let Some(namespaces) = self.namespaces {
-            api_builder = api_builder.enable_api_namespaces(namespaces);
-        }
-        if let Some(filters_limit) = self.filters_limit {
-            api_builder = api_builder.with_filter_limit(filters_limit);
-        }
-        if let Some(subscriptions_limit) = self.subscriptions_limit {
-            api_builder = api_builder.with_subscriptions_limit(subscriptions_limit);
-        }
-        if let Some(batch_request_size_limit) = self.batch_request_size_limit {
-            api_builder = api_builder.with_batch_request_size_limit(batch_request_size_limit);
-        }
-        if let Some(response_body_size_limit) = self.response_body_size_limit {
-            api_builder = api_builder.with_response_body_size_limit(response_body_size_limit);
-        }
+        api_builder = api_builder
+            .enable_api_namespaces(self.namespaces)
+            .with_filter_limit(self.filters_limit)
+            .with_subscriptions_limit(self.subscriptions_limit)
+            .with_batch_request_size_limit(self.batch_request_size_limit)
+            .with_response_body_size_limit(self.response_body_size_limit)
+            .with_extended_tracing(self.with_extended_tracing)
+            .with_polling_interval(self.polling_interval)
+            .with_pruning_info_refresh_interval(self.pruning_info_refresh_interval);
+
         if let Some(websocket_requests_per_minute_limit) = self.websocket_requests_per_minute_limit
         {
             api_builder = api_builder
@@ -77,14 +72,6 @@ impl Web3ServerOptionalConfig {
         if let Some(request_timeout) = self.request_timeout {
             api_builder = api_builder.with_request_timeout(request_timeout);
         }
-        if let Some(polling_interval) = self.polling_interval {
-            api_builder = api_builder.with_polling_interval(polling_interval);
-        }
-        if let Some(pruning_info_refresh_interval) = self.pruning_info_refresh_interval {
-            api_builder =
-                api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
-        }
-        api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
     }
 }
@@ -116,7 +103,7 @@ enum Transport {
 pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
-    optional_config: Web3ServerOptionalConfig,
+    optional_config: Web3ServerOptionalConfig, // FIXME: ?????
     internal_api_config_base: InternalApiConfigBase,
 }
 
