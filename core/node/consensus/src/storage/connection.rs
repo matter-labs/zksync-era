@@ -214,7 +214,7 @@ impl<'a> Connection<'a> {
                 fork_number: old.as_ref().map_or(validator::ForkNumber(0), |old| {
                     old.genesis.fork_number.next()
                 }),
-                first_block: txn.next_block(ctx).await.context("next_block()")?,
+                first_block: txn.next_block(ctx).await.wrap("next_block()")?,
                 protocol_version: spec.protocol_version,
                 validators_schedule: spec.validators.clone(),
             }

@@ -123,7 +123,7 @@ impl ConnectionPool {
         let mut blocks: Vec<validator::Block> = vec![];
         for i in state.first.0..state.next().0 {
             let i = validator::BlockNumber(i);
-            let block = conn.block(ctx, i).await.context("block()")?.unwrap();
+            let block = conn.block(ctx, i).await.wrap("block()")?.unwrap();
             blocks.push(block);
         }
         Ok(blocks)
@@ -176,7 +176,7 @@ impl ConnectionPool {
         ctx: &ctx::Ctx,
         last_batch: L1BatchNumber,
     ) -> ctx::Result<()> {
-        let mut conn = self.connection(ctx).await.context("connection()")?;
+        let mut conn = self.connection(ctx).await.wrap("connection()")?;
 
         let (_, last_block) = conn
             .get_l2_block_range_of_l1_batch(ctx, last_batch)
