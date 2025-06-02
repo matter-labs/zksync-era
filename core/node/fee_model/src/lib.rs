@@ -2,6 +2,8 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
+#[cfg(test)]
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::fee_model::{
     BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1, FeeParamsV2,
 };
