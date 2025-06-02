@@ -3,21 +3,25 @@
 use std::{
     collections::HashSet,
     num::{NonZeroU32, NonZeroUsize},
+    path::Path,
     time::Duration,
 };
 
 use assert_matches::assert_matches;
 use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource, Yaml};
-use zksync_config::configs::{
-    api::{HealthCheckConfig, MaxResponseSizeOverrides, Namespace},
-    chain::TimestampAsserterConfig,
-    da_client::{
-        avail::{AvailClientConfig, AvailFinalityState},
-        eigen::PointsSource,
+use zksync_config::{
+    configs::{
+        api::{HealthCheckConfig, MaxResponseSizeOverrides, Namespace},
+        chain::TimestampAsserterConfig,
+        da_client::{
+            avail::{AvailClientConfig, AvailFinalityState},
+            eigen::PointsSource,
+        },
+        database::MerkleTreeMode,
+        object_store::ObjectStoreMode,
+        CommitmentGeneratorConfig,
     },
-    database::MerkleTreeMode,
-    object_store::ObjectStoreMode,
-    CommitmentGeneratorConfig,
+    sources::ConfigFilePaths,
 };
 use zksync_types::{L1BatchNumber, L1ChainId, L2ChainId, SLChainId};
 
@@ -506,6 +510,32 @@ fn parsing_from_yaml() {
     let yaml = serde_yaml::from_str(include_str!("config.yaml")).unwrap();
     let yaml = Yaml::new("test.yaml", yaml).unwrap();
     test_parsing_general_config(yaml);
+}
+
+#[test]
+fn parsing_with_consensus_from_yaml() {
+    let schema = LocalConfig::schema().unwrap();
+
+    // The working dir for tests is set to the crate root.
+    let this_dir_in_crate = Path::new("src/config/tests");
+    let config_paths = ConfigFilePaths {
+        general: Some(this_dir_in_crate.join("config.yaml")),
+        consensus: Some(this_dir_in_crate.join("consensus.yaml")),
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_paths.into_config_sources(None).unwrap();
+    let repo = config_sources.build_repository(&schema);
+
+    let config = LocalConfig::new(repo, true).unwrap();
+    let config = config.consensus.unwrap();
+    assert_eq!(config.port, Some(3_055));
+    assert_eq!(config.max_payload_size, ByteSize(2_500_000));
+    assert_eq!(config.gossip_dynamic_inbound_limit, 100);
+    assert_eq!(config.gossip_static_outbound.len(), 1);
+    let (_, host) = config.gossip_static_outbound.first_key_value().unwrap();
+    assert_eq!(host.0, "127.0.0.1:3154");
+    let genesis_spec = config.genesis_spec.unwrap();
+    assert_eq!(genesis_spec.chain_id, L2ChainId::from(272));
 }
 
 #[test]

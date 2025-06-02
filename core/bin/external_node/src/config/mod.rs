@@ -285,6 +285,7 @@ impl LocalConfig {
         schema
             .insert(&ENConfig::DESCRIPTION, "networks")?
             .push_deprecated_alias("")?;
+        schema.insert(&ConsensusConfig::DESCRIPTION, "consensus")?;
 
         schema.insert(&Secrets::DESCRIPTION, "")?;
         schema
