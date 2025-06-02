@@ -59,7 +59,7 @@ mod tests {
             0,
             L2BlockNumber(0),
             H256::zero(),
-            0,
+            None,
             1,
             ProtocolVersionId::latest(),
         );

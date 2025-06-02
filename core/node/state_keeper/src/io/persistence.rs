@@ -503,7 +503,7 @@ mod tests {
             &default_system_env(),
             Default::default(),
             Default::default(),
-            0,
+            None,
         );
         pool.connection()
             .await

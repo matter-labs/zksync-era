@@ -543,7 +543,7 @@ mod tests {
                 timestamp: 1,
                 number: L2BlockNumber(1),
                 prev_block_hash: Default::default(),
-                prev_block_timestamp: 0,
+                prev_block_timestamp: None,
                 virtual_blocks: Default::default(),
                 protocol_version: ProtocolVersionId::latest(),
                 rolled_back: false,

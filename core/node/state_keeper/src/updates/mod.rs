@@ -56,7 +56,7 @@ impl UpdatesManager {
         system_env: &SystemEnv,
         pubdata_params: PubdataParams,
         previous_batch_protocol_version: ProtocolVersionId,
-        previous_block_timestamp: u64,
+        previous_block_timestamp: Option<u64>,
     ) -> Self {
         let protocol_version = system_env.version;
         Self {
@@ -116,7 +116,7 @@ impl UpdatesManager {
             IoCursor {
                 next_l2_block: self.l2_block.number,
                 prev_l2_block_hash: self.l2_block.prev_block_hash,
-                prev_l2_block_timestamp: self.l2_block.prev_block_timestamp,
+                prev_l2_block_timestamp: self.l2_block.prev_block_timestamp.unwrap(),
                 l1_batch: self.l1_batch.number,
             }
         } else {
@@ -232,7 +232,7 @@ impl UpdatesManager {
                 next_l2_block_params.timestamp,
                 self.l2_block.number + 1,
                 self.l2_block.get_l2_block_hash(),
-                self.l2_block.timestamp,
+                Some(self.l2_block.timestamp),
                 next_l2_block_params.virtual_blocks,
                 self.protocol_version,
             )

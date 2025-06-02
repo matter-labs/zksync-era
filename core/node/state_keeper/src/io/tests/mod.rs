@@ -260,7 +260,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         0,
         L2BlockNumber(3),
         H256::zero(),
-        0,
+        None,
         1,
         ProtocolVersionId::latest(),
     );
@@ -352,7 +352,7 @@ async fn processing_events_when_sealing_l2_block() {
         0,
         l2_block_number,
         H256::zero(),
-        0,
+        None,
         1,
         ProtocolVersionId::latest(),
     );
@@ -429,7 +429,7 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         0,
         l2_block_number,
         H256::zero(),
-        0,
+        None,
         1,
         ProtocolVersionId::latest(),
     );
@@ -566,7 +566,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         &system_env,
         pubdata_params,
         system_env.version,
-        cursor.prev_l2_block_timestamp,
+        Some(cursor.prev_l2_block_timestamp),
     );
 
     let tx_hash = tx.hash();
