@@ -1,6 +1,7 @@
-use crate::interface::pubdata::{L1MessengerL2ToL1Log, PubdataInput};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{bytecode::BytecodeHash, web3::keccak256, writes::compress_state_diffs};
+
+use crate::interface::pubdata::{L1MessengerL2ToL1Log, PubdataInput};
 
 pub(crate) fn build_chained_log_hash(user_logs: &[L1MessengerL2ToL1Log]) -> Vec<u8> {
     let mut chained_log_hash = vec![0u8; 32];
