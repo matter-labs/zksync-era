@@ -1,7 +1,6 @@
 use std::{collections::HashSet, num::NonZeroU32, sync::Arc, time::Duration};
 
 use tokio::{sync::oneshot, task::JoinHandle};
-use zksync_circuit_breaker::{replication_lag::ReplicationLagChecker, CircuitBreakers};
 use zksync_config::configs::api::{MaxResponseSize, Namespace};
 use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_health_check::AppHealthCheck;
@@ -44,12 +43,9 @@ pub struct Web3ServerOptionalConfig {
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     pub request_timeout: Option<Duration>,
     pub with_extended_tracing: bool,
-    // Used by circuit breaker.
-    pub replication_lag_limit: Option<Duration>,
+    pub polling_interval: Duration,
     // Used by the external node.
     pub pruning_info_refresh_interval: Duration,
-    // Used by the external node.
-    pub polling_interval: Duration,
 }
 
 impl Web3ServerOptionalConfig {
@@ -103,7 +99,7 @@ enum Transport {
 pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
-    optional_config: Web3ServerOptionalConfig, // FIXME: ?????
+    optional_config: Web3ServerOptionalConfig,
     internal_api_config_base: InternalApiConfigBase,
 }
 
@@ -116,8 +112,6 @@ pub struct Input {
     sync_state: Option<SyncState>,
     tree_api_client: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: MempoolCache,
-    #[context(default)]
-    circuit_breakers: Arc<CircuitBreakers>,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
     main_node_client: Option<Box<DynClient<L2>>>,
@@ -212,7 +206,6 @@ impl WiringLayer for Web3ServerLayer {
             ApiBuilder::jsonrpsee_backend(internal_api_config, replica_pool.clone())
                 .with_tx_sender(tx_sender)
                 .with_mempool_cache(mempool_cache)
-                .with_extended_tracing(self.optional_config.with_extended_tracing)
                 .with_sealed_l2_block_handle(sealed_l2_block_handle)
                 .with_bridge_addresses_handle(bridge_addresses);
         if let Some(client) = tree_api_client {
@@ -232,7 +225,6 @@ impl WiringLayer for Web3ServerLayer {
         if let Some(main_node_client) = input.main_node_client {
             api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client);
         }
-        let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
 
         let server = api_builder.build()?;
@@ -243,15 +235,6 @@ impl WiringLayer for Web3ServerLayer {
             .app_health
             .insert_component(api_health_check)
             .map_err(WiringError::internal)?;
-
-        // Insert circuit breaker.
-        input
-            .circuit_breakers
-            .insert(Box::new(ReplicationLagChecker {
-                pool: replica_pool,
-                replication_lag_limit,
-            }))
-            .await;
 
         // Add tasks.
         let (task_sender, task_receiver) = oneshot::channel();

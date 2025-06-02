@@ -494,7 +494,6 @@ impl ExternalNodeBuilder {
             polling_interval: config.pubsub_polling_interval,
             request_timeout: config.request_timeout,
             websocket_requests_per_minute_limit: Some(config.websocket_requests_per_minute_limit),
-            replication_lag_limit: None, // TODO: Support replication lag limit
         })
     }
 

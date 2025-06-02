@@ -8,7 +8,7 @@ use tokio::runtime::Runtime;
 use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
-use zksync_circuit_breaker::node::CircuitBreakerCheckerLayer;
+use zksync_circuit_breaker::node::{CircuitBreakerCheckerLayer, ReplicationLagCheckerLayer};
 use zksync_commitment_generator::node::{
     CommitmentGeneratorLayer, L1BatchCommitmentModeValidationLayer,
 };
@@ -433,7 +433,6 @@ impl MainNodeBuilder {
     ) -> anyhow::Result<(InternalApiConfigBase, Web3ServerOptionalConfig)> {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let circuit_breaker_config = &self.configs.circuit_breaker_config;
 
         // FIXME: Why doesn't the node do what I'm telling it to do?
         let mut namespaces = rpc_config.api_namespaces.clone();
@@ -453,8 +452,6 @@ impl MainNodeBuilder {
             ),
             request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
-            // FIXME: WTF does this do in the API server config?
-            replication_lag_limit: circuit_breaker_config.replication_lag_limit,
             // Pruning isn't supposed to be enabled for the main node at the moment, but we use a reasonable value just in case.
             pruning_info_refresh_interval: Duration::from_secs(10),
             polling_interval: rpc_config.pubsub_polling_interval,
@@ -531,6 +528,14 @@ impl MainNodeBuilder {
         self.node
             .add_layer(CircuitBreakerCheckerLayer(circuit_breaker_config));
 
+        Ok(self)
+    }
+
+    fn add_replication_lag_checker_layer(mut self) -> anyhow::Result<Self> {
+        let circuit_breaker_config = &self.configs.circuit_breaker_config;
+        self.node.add_layer(ReplicationLagCheckerLayer {
+            replication_lag_limit: circuit_breaker_config.replication_lag_limit,
+        });
         Ok(self)
     }
 
@@ -756,9 +761,12 @@ impl MainNodeBuilder {
         });
 
         if components.contains(&Component::EthTxAggregator)
-            | components.contains(&Component::EthTxManager)
+            || components.contains(&Component::EthTxManager)
         {
             self = self.add_pk_signing_client_layer()?;
+        }
+        if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
+            self = self.add_replication_lag_checker_layer()?;
         }
 
         // Add "component-specific" layers.
