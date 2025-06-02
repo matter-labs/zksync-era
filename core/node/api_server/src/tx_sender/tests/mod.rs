@@ -1,5 +1,7 @@
 //! Tests for the transaction sender.
 
+use std::time::Instant;
+
 use test_casing::TestCases;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
@@ -41,6 +43,55 @@ const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing:
         ..LoadnextContractExecutionParams::default()
     },
 ]};
+
+#[derive(Debug, vise::Metrics)]
+struct TestMetrics {
+    #[metrics(buckets = vise::Buckets::LATENCIES)]
+    interrupted_latency: vise::Histogram<Duration>,
+}
+
+impl TestMetrics {
+    fn leak() -> &'static Self {
+        Box::leak(Box::<Self>::default())
+    }
+
+    /// Gets number of interrupted VM runs.
+    fn interrupted_stats(&self) -> (usize, Duration) {
+        // We don't have another way to access histogram data right now, other than encoding the histogram.
+        let mut registry = vise::Registry::empty();
+        registry.register_metrics(self);
+        let mut buffer = String::new();
+        registry
+            .encode(&mut buffer, vise::Format::OpenMetrics)
+            .unwrap();
+
+        let mut count = None;
+        let mut sum = None;
+        for line in buffer.lines() {
+            if let Some(count_str) = line.strip_prefix("interrupted_latency_count ") {
+                count = Some(count_str.trim().parse::<usize>().unwrap());
+            } else if let Some(sum_str) = line.strip_prefix("interrupted_latency_sum ") {
+                let sum_secs = sum_str.parse::<f64>().unwrap();
+                sum = Some(Duration::from_secs_f64(sum_secs));
+            }
+        }
+        (count.expect("no count"), sum.expect("no sum"))
+    }
+
+    async fn assert_single_interrupt(&self, storage_delay: Duration) {
+        let started_at = Instant::now();
+        while started_at.elapsed() < storage_delay * 10 {
+            let (interrupt_count, interrupt_latency) = self.interrupted_stats();
+            if interrupt_count > 0 {
+                assert_eq!(interrupt_count, 1);
+                println!("interrupt_latency = {interrupt_latency:?}");
+                return;
+            }
+            tokio::time::sleep(storage_delay / 10).await;
+        }
+        panic!("VM run was not interrupted");
+    }
+}
 
 #[tokio::test]
 async fn getting_nonce_for_account() {
@@ -140,13 +191,16 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 }
 
 async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
-    create_real_tx_sender_with_options(pool, FastVmMode::Shadow, usize::MAX).await
+    create_real_tx_sender_with_options(pool, usize::MAX, |options| {
+        options.set_fast_vm_mode(FastVmMode::Shadow);
+    })
+    .await
 }
 
 async fn create_real_tx_sender_with_options(
     pool: ConnectionPool<Core>,
-    vm_mode: FastVmMode,
     storage_invocations_limit: usize,
+    options_fn: impl FnOnce(&mut SandboxExecutorOptions),
 ) -> TxSender {
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -163,7 +217,7 @@ async fn create_real_tx_sender_with_options(
     )
     .await
     .unwrap();
-    executor_options.set_fast_vm_mode(vm_mode);
+    options_fn(&mut executor_options);
 
     let pg_caches = PostgresStorageCaches::new(1, 1);
     let tx_executor =

@@ -9,7 +9,8 @@ use crate::{
     storage::{ReadStorage, StorageView},
     tracer::{ValidationError, ValidationParams, ValidationTraces},
     BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
-    OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv, TxExecutionArgs,
+    OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv,
+    TransactionExecutionMetrics, TxExecutionArgs,
 };
 
 /// Factory of [`BatchExecutor`]s.
@@ -76,4 +77,29 @@ pub trait TransactionValidator<S: ReadStorage> {
         tx: L2Tx,
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<ValidationTraces, ValidationError>>;
+}
+
+/// Generic transaction filter.
+// TODO: can be used for initiator allowlist
+#[async_trait]
+pub trait TransactionFilter: fmt::Debug + Send + Sync {
+    /// Performs checks on the provided transaction. Returns an error (a human-readable message) if the transaction execution
+    /// does not satisfy this filter.
+    async fn filter_transaction(
+        &self,
+        transaction: &Transaction,
+        metrics: &TransactionExecutionMetrics,
+    ) -> Result<(), String>;
+}
+
+/// Filter that always succeeds.
+#[async_trait]
+impl TransactionFilter for () {
+    async fn filter_transaction(
+        &self,
+        _transaction: &Transaction,
+        _metrics: &TransactionExecutionMetrics,
+    ) -> Result<(), String> {
+        Ok(())
+    }
 }

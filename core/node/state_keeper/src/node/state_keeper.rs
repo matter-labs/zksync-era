@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
-use zksync_health_check::{node::AppHealthCheckResource, ReactiveHealthCheck};
+use zksync_health_check::{AppHealthCheck, ReactiveHealthCheck};
 use zksync_node_framework::{
     service::ShutdownHook, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
     WiringError, WiringLayer,
@@ -12,10 +12,10 @@ use zksync_storage::RocksDB;
 use zksync_types::try_stoppable;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
-use super::resources::{
-    BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource, StateKeeperIOResource,
+use super::resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource};
+use crate::{
+    keeper::RunMode, seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperInner,
 };
-use crate::{keeper::RunMode, AsyncRocksdbCache, StateKeeperInner};
 
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
@@ -27,15 +27,15 @@ pub struct StateKeeperLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub state_keeper_io: StateKeeperIOResource,
-    pub batch_executor: BatchExecutorResource,
-    pub output_handler: OutputHandlerResource,
-    pub conditional_sealer: ConditionalSealerResource,
-    pub master_pool: PoolResource<MasterPool>,
-    pub replica_pool: PoolResource<ReplicaPool>,
-    pub shared_allow_list: Option<SharedAllowList>,
+    state_keeper_io: StateKeeperIOResource,
+    batch_executor: BatchExecutorResource,
+    output_handler: OutputHandlerResource,
+    conditional_sealer: Arc<dyn ConditionalSealer>,
+    master_pool: PoolResource<MasterPool>,
+    replica_pool: PoolResource<ReplicaPool>,
+    shared_allow_list: Option<SharedAllowList>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -86,7 +86,7 @@ impl WiringLayer for StateKeeperLayer {
             .0
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
-        let sealer = input.conditional_sealer.0;
+        let sealer = input.conditional_sealer;
         let master_pool = input.master_pool;
 
         let (storage_factory, mut rocksdb_catchup) = AsyncRocksdbCache::new(
@@ -114,7 +114,6 @@ impl WiringLayer for StateKeeperLayer {
 
         input
             .app_health
-            .0
             .insert_component(state_keeper.health_check())
             .map_err(WiringError::internal)?;
 

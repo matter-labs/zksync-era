@@ -21,6 +21,7 @@ pub struct PoolResource<P: PoolKind> {
     max_connections: u32,
     statement_timeout: Option<Duration>,
     acquire_timeout: Option<Duration>,
+    acquire_retries: usize,
     unbound_pool: Arc<Mutex<Option<ConnectionPool<P::DbMarker>>>>,
     _kind: std::marker::PhantomData<P>,
 }
@@ -32,27 +33,36 @@ impl<P: PoolKind> Resource for PoolResource<P> {
 }
 
 impl<P: PoolKind> PoolResource<P> {
-    pub fn new(
-        url: SensitiveUrl,
-        max_connections: u32,
-        statement_timeout: Option<Duration>,
-        acquire_timeout: Option<Duration>,
-    ) -> Self {
+    pub fn new(url: SensitiveUrl, max_connections: u32) -> Self {
         Self {
             connections_count: Arc::new(AtomicU32::new(0)),
             url,
             max_connections,
-            statement_timeout,
-            acquire_timeout,
+            statement_timeout: None,
+            acquire_timeout: None,
+            acquire_retries: 2,
             unbound_pool: Arc::new(Mutex::new(None)),
             _kind: std::marker::PhantomData,
         }
     }
 
+    #[must_use]
+    pub fn with_statement_timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.statement_timeout = timeout;
+        self
+    }
+
+    #[must_use]
+    pub fn with_acquire_timeout(mut self, timeout: Option<Duration>, retries: usize) -> Self {
+        self.acquire_timeout = timeout;
+        self.acquire_retries = retries;
+        self
+    }
+
     fn builder(&self) -> ConnectionPoolBuilder<P::DbMarker> {
         let mut builder = ConnectionPool::builder(self.url.clone(), self.max_connections);
         builder.set_statement_timeout(self.statement_timeout);
-        builder.set_acquire_timeout(self.acquire_timeout);
+        builder.set_acquire_timeout(self.acquire_timeout, self.acquire_retries);
         builder
     }
 

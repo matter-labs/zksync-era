@@ -161,7 +161,7 @@ fn get_tasks(
     let proof_compressor_job_requeuer = ProofCompressorJobRequeuer::new(
         connection_pool.clone(),
         proof_compressor_config.max_attempts,
-        proof_compressor_config.generation_timeout_in_secs,
+        proof_compressor_config.generation_timeout,
     );
     task_runner.add(
         "ProofCompressorJobRequeuer",
@@ -172,7 +172,7 @@ fn get_tasks(
     let prover_job_requeuer = ProverJobRequeuer::new(
         connection_pool.clone(),
         prover_config.max_attempts,
-        prover_config.generation_timeout_in_secs,
+        prover_config.generation_timeout,
     );
     task_runner.add(
         "ProverJobRequeuer",

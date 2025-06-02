@@ -30,6 +30,7 @@ pub struct ConnectionPoolBuilder<DB: DbMarker> {
     database_url: SensitiveUrl,
     max_size: u32,
     acquire_timeout: Duration,
+    acquire_retries: usize,
     statement_timeout: Option<Duration>,
     _db: PhantomData<DB>,
 }
@@ -41,6 +42,7 @@ impl<DB: DbMarker> fmt::Debug for ConnectionPoolBuilder<DB> {
             .field("database_url", &self.database_url)
             .field("max_size", &self.max_size)
             .field("acquire_timeout", &self.acquire_timeout)
+            .field("acquire_retries", &self.acquire_retries)
             .field("statement_timeout", &self.statement_timeout)
             .field("db", &any::type_name::<DB>())
             .finish()
@@ -56,10 +58,11 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
 
     /// Sets the acquire timeout for a single connection attempt. There are multiple attempts (currently 3)
     /// before `connection*` methods return an error. If not specified, the acquire timeout will not be set.
-    pub fn set_acquire_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
+    pub fn set_acquire_timeout(&mut self, timeout: Option<Duration>, retries: usize) -> &mut Self {
         if let Some(timeout) = timeout {
             self.acquire_timeout = timeout;
         }
+        self.acquire_retries = retries;
         self
     }
 
@@ -100,6 +103,7 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
             database_url: self.database_url.clone(),
             inner: pool,
             max_size: self.max_size,
+            acquire_retries: self.acquire_retries,
             traced_connections: None,
             _db: PhantomData,
         })
@@ -111,6 +115,7 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
             database_url: self.database_url.clone(),
             max_size: 1,
             acquire_timeout: self.acquire_timeout,
+            acquire_retries: self.acquire_retries,
             statement_timeout: self.statement_timeout,
             _db: PhantomData,
         };
@@ -262,6 +267,7 @@ pub struct ConnectionPool<DB: DbMarker> {
     pub(crate) inner: PgPool,
     database_url: SensitiveUrl,
     max_size: u32,
+    acquire_retries: usize,
     pub(crate) traced_connections: Option<Arc<TracedConnections>>,
     _db: PhantomData<DB>,
 }
@@ -273,7 +279,9 @@ impl<DB: DbMarker> fmt::Debug for ConnectionPool<DB> {
             .field("database_url", &self.database_url)
             .field("options", &self.inner.options())
             .field("size", &self.inner.size())
+            .field("max_size", &self.max_size)
             .field("num_idle", &self.inner.num_idle())
+            .field("acquire_retries", &self.acquire_retries)
             .field("db", &any::type_name::<DB>())
             .field("traced_connections", &self.traced_connections)
             .finish()
@@ -314,7 +322,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
             .await
             .expect("failed creating database for tests");
         let mut pool = builder
-            .set_acquire_timeout(Some(Self::TEST_ACQUIRE_TIMEOUT))
+            .set_acquire_timeout(Some(Self::TEST_ACQUIRE_TIMEOUT), 0)
             .build()
             .await
             .expect("cannot build connection pool");
@@ -330,7 +338,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
             .await
             .expect("failed creating database for tests");
         let mut pool = builder
-            .set_acquire_timeout(Some(Self::TEST_ACQUIRE_TIMEOUT))
+            .set_acquire_timeout(Some(Self::TEST_ACQUIRE_TIMEOUT), 0)
             .build()
             .await
             .expect("cannot build connection pool");
@@ -344,6 +352,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
             database_url: database_url.with_sensitive_query_params(&["user", "password"]),
             max_size: max_pool_size,
             acquire_timeout: Duration::from_secs(30), // Default value used by `sqlx`
+            acquire_retries: 2,
             statement_timeout: None,
             _db: PhantomData,
         }
@@ -423,10 +432,9 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         &self,
         tags: Option<&ConnectionTags>,
     ) -> DalResult<PoolConnection<Postgres>> {
-        const DB_CONNECTION_RETRIES: usize = 3;
         const AVG_BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
 
-        for _ in 0..DB_CONNECTION_RETRIES {
+        for _ in 0..self.acquire_retries + 1 {
             CONNECTION_METRICS
                 .pool_size
                 .observe(self.inner.size() as usize);

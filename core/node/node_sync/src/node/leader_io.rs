@@ -6,7 +6,7 @@ use zksync_config::configs::{
     wallets,
 };
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_fee_model::node::SequencerFeeInputResource;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
@@ -14,8 +14,8 @@ use zksync_node_framework::{
 };
 use zksync_shared_resources::{api::SyncState, contracts::L2ContractsResource};
 use zksync_state_keeper::{
-    node::{ConditionalSealerResource, StateKeeperIOResource},
-    MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
+    node::StateKeeperIOResource, seal_criteria::ConditionalSealer, MempoolFetcher, MempoolGuard,
+    MempoolIO, SequencerSealer,
 };
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
@@ -34,7 +34,7 @@ pub struct LeaderIOLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub app_health: AppHealthCheckResource,
+    pub app_health: Arc<AppHealthCheck>,
     pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
     pub l2_contracts: L2ContractsResource,
@@ -45,7 +45,7 @@ pub struct Output {
     sync_state: SyncState,
     action_queue_sender: ActionQueueSenderResource,
     io: StateKeeperIOResource,
-    sealer: ConditionalSealerResource,
+    sealer: Arc<dyn ConditionalSealer>,
     #[context(task)]
     pub mempool_fetcher: MempoolFetcher,
 }
@@ -133,8 +133,8 @@ impl WiringLayer for LeaderIOLayer {
 
         // Create `SyncState` resource.
         let sync_state = SyncState::default();
-        let app_health = &input.app_health.0;
-        app_health
+        input
+            .app_health
             .insert_custom_component(Arc::new(sync_state.clone()))
             .map_err(WiringError::internal)?;
 
@@ -152,7 +152,7 @@ impl WiringLayer for LeaderIOLayer {
             sync_state,
             action_queue_sender: action_queue_sender.into(),
             io: io.into(),
-            sealer: sealer.into(),
+            sealer: Arc::new(sealer),
             mempool_fetcher,
         })
     }
