@@ -38,7 +38,7 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, DynClient, L1, L2},
     namespaces::ZksNamespaceClient,
-    node::{SettlementLayerClient, SettlementModeResource},
+    node::{GatewayClientResource, SettlementLayerClient, SettlementModeResource},
 };
 
 use crate::{current_settlement_layer, gateway_urls};
@@ -76,6 +76,7 @@ pub struct Input {
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
     sl_client: SettlementLayerClient,
+    gateway_client: Option<GatewayClientResource>,
     contracts: SettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: L1ChainContractsResource,
@@ -149,7 +150,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             SettlementLayer::Gateway(_) => {
                 // `unwrap()` is safe: `l2_eth_client` is always initialized when `config.gateway_rpc_url` is set,
                 // which is required for `SettlementLayer::Gateway`.
-                SettlementLayerClient::Gateway(l2_eth_client.unwrap())
+                SettlementLayerClient::Gateway(l2_eth_client.clone().unwrap())
             }
         };
 
@@ -189,6 +190,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             )),
             eth_sender_config: Some(SenderConfigResource(eth_sender_config)),
             sl_client,
+            gateway_client: l2_eth_client.map(GatewayClientResource),
         })
     }
 }
@@ -295,7 +297,9 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
                 // `unwrap()` is safe: `l2_eth_client` is always initialized when `config.gateway_rpc_url` is set,
                 // which is required for `SettlementLayer::Gateway`.
                 SettlementLayerClient::Gateway(
-                    l2_eth_client.expect("Gateway rpc url is not presented"),
+                    l2_eth_client
+                        .clone()
+                        .expect("Gateway rpc url is not presented"),
                 )
             }
         };
@@ -307,6 +311,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             l1_contracts: L1ChainContractsResource(self.config.l1_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
+            gateway_client: l2_eth_client.map(GatewayClientResource),
             eth_sender_config: None,
             pubdata_sending_mode: None,
         })
