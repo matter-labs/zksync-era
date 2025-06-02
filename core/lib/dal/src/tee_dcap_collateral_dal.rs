@@ -23,6 +23,7 @@ pub enum TeeDcapCollateralInfo {
 type FMSPC = [u8; 6];
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum TeeDcapCollateralKind {
     RootCa,
     RootCrl,

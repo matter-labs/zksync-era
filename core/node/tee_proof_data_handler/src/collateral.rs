@@ -1,10 +1,10 @@
-use std::{ops::Sub, sync::Arc};
+use std::sync::Arc;
 
-use chrono::{DateTime, Duration, TimeDelta, Utc};
+use chrono::{DateTime, Duration, Utc};
 use intel_dcap_api::{ApiClient, ApiVersion, CaType, CrlEncoding, PckCrlResponse, TcbInfoResponse};
 use serde_json::Value;
 use sha2::Digest;
-use teepot::quote::TEEType;
+use teepot::quote::{Fmspc, TEEType};
 use tokio::{select, sync::watch};
 use x509_cert::{
     crl::CertificateList,
@@ -23,16 +23,6 @@ use crate::{
     tee_contract::{EnclaveId, TeeFunctions, CA},
 };
 
-#[derive(Debug, Default, Clone)]
-struct CollateralState {
-    functions: TeeFunctions,
-    root_ca_hash: Vec<u8>,
-    pck_ca_hash: Vec<u8>,
-    pck_crl_hash: Vec<u8>,
-    sgx_qe_identity_hash: Vec<u8>,
-    tdx_qe_identity_hash: Vec<u8>,
-}
-
 pub(crate) async fn updater(
     _blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
@@ -46,8 +36,6 @@ pub(crate) async fn updater(
         .connection_tagged("tee_dcap_collateral_updater")
         .await?;
 
-    let mut state = CollateralState::default();
-
     loop {
         select! {
             _ = interval.tick() => {}
@@ -60,19 +48,20 @@ pub(crate) async fn updater(
             }
         }
         let mut dal = connection.tee_dcap_collateral_dal();
-        update_collateral(&mut state, &mut dal, &config).await?
+        update_collateral(&mut dal, &config).await?
     }
 }
 
 async fn update_collateral(
-    state: &mut CollateralState,
     dal: &mut TeeDcapCollateralDal<'_, '_>,
     _config: &TeeProofDataHandlerConfig,
 ) -> Result<(), TeeProcessorError> {
     // TODO: TEE - make config
     let hours_before_expiry = 24 * 7;
 
-    for (kind, when) in dal
+    let functions = TeeFunctions::default();
+
+    for (kind, _when) in dal
         .get_expiring_collateral(hours_before_expiry)
         .await?
         .iter()
@@ -115,8 +104,7 @@ async fn update_collateral(
                     TeeDcapCollateralInfo::Matches
                 ) {
                     let not_after = root_cert.tbs_certificate.validity.not_after;
-                    let calldata = state
-                        .functions
+                    let calldata = functions
                         .upsert_pcs_certificates(vec![CA::ROOT], vec![root_cert.to_der().unwrap()])
                         .unwrap();
                     dal.upsert_collateral(
@@ -126,7 +114,6 @@ async fn update_collateral(
                         &calldata,
                     )
                     .await?;
-                    state.root_ca_hash = hash;
                 }
 
                 let hash = pck_cert.signature.raw_bytes().to_vec();
@@ -137,8 +124,7 @@ async fn update_collateral(
                     TeeDcapCollateralInfo::Matches
                 ) {
                     let not_after = pck_cert.tbs_certificate.validity.not_after;
-                    let calldata = state
-                        .functions
+                    let calldata = functions
                         .upsert_pcs_certificates(
                             vec![CA::PLATFORM],
                             vec![pck_cert.to_der().unwrap()],
@@ -152,7 +138,6 @@ async fn update_collateral(
                         &calldata,
                     )
                     .await?;
-                    state.pck_ca_hash = hash;
                 }
 
                 let hash = sha2::Sha256::new()
@@ -171,10 +156,9 @@ async fn update_collateral(
                         .tbs_cert_list
                         .next_update
                         .map(|t| t.to_system_time().into())
-                        .unwrap_or_else(|| Utc::now() + Duration::days(365));
+                        .unwrap_or_else(|| Utc::now() + Duration::days(30));
 
-                    let calldata = state
-                        .functions
+                    let calldata = functions
                         .upsert_pck_crl(CA::PLATFORM, pck_cert.to_der().unwrap())
                         .unwrap();
 
@@ -185,132 +169,144 @@ async fn update_collateral(
                         &calldata,
                     )
                     .await?;
-
-                    state.pck_crl_hash = hash;
                 }
             }
             TeeDcapCollateralKind::SgxQeIdentityJson => {
-                let client = ApiClient::new_with_version(ApiVersion::V3)
-                    .context("Failed to create Intel DCAP API client")?;
-
-                let qe_identity = client
-                    .get_sgx_qe_identity(None, None)
-                    .await
-                    .context("Failed to get SGX QE identity")?;
-
-                let qe_identity_hash = sha2::Sha256::new()
-                    .chain_update(qe_identity.enclave_identity_json.as_bytes())
-                    .finalize_reset()
-                    .to_vec();
-
-                let enclave_identity_val = serde_json::from_str::<serde_json::Value>(
-                    qe_identity.enclave_identity_json.as_str(),
-                )
-                .context("Failed to parse enclave identity")?;
-
-                let signature = enclave_identity_val
-                    .get("signature")
-                    .unwrap()
-                    .as_str()
-                    .unwrap();
-                let signature = hex::decode(signature).unwrap();
-
-                let enclave_identity_val = enclave_identity_val
-                    .get("enclaveIdentity")
-                    .context("Failed to get enclave identity")?;
-
-                let not_after = get_next_update(&enclave_identity_val)?;
-                let id =
-                    EnclaveId::try_from(enclave_identity_val.get("id").unwrap().as_str().unwrap())
-                        .unwrap();
-                let version = enclave_identity_val
-                    .get("version")
-                    .unwrap()
-                    .as_u64()
-                    .unwrap();
-                let calldata = state
-                    .functions
-                    .upsert_enclave_identity(
-                        id,
-                        version,
-                        qe_identity.enclave_identity_json,
-                        signature,
-                    )
-                    .unwrap();
-
-                dal.upsert_collateral(
-                    &TeeDcapCollateralKind::SgxQeIdentityJson,
-                    not_after,
-                    &qe_identity_hash,
-                    &calldata,
-                )
-                .await?;
-
-                state.sgx_qe_identity_hash = qe_identity_hash;
+                update_sgx_qe_identity(dal, &functions).await?;
             }
             TeeDcapCollateralKind::TdxQeIdentityJson => {
-                let client = ApiClient::new_with_version(ApiVersion::V4)
-                    .context("Failed to create Intel DCAP API client")?;
-
-                let qe_identity = client
-                    .get_sgx_qe_identity(None, None)
-                    .await
-                    .context("Failed to get TDX QE identity")?;
-
-                let qe_identity_hash = sha2::Sha256::new()
-                    .chain_update(qe_identity.enclave_identity_json.as_bytes())
-                    .finalize_reset()
-                    .to_vec();
-
-                let enclave_identity_val = serde_json::from_str::<serde_json::Value>(
-                    qe_identity.enclave_identity_json.as_str(),
-                )
-                .context("Failed to parse enclave identity")?;
-
-                let signature = enclave_identity_val
-                    .get("signature")
-                    .unwrap()
-                    .as_str()
-                    .unwrap();
-                let signature = hex::decode(signature).unwrap();
-
-                let enclave_identity_val = enclave_identity_val
-                    .get("enclaveIdentity")
-                    .context("Failed to get enclave identity")?;
-
-                let not_after = get_next_update(&enclave_identity_val)?;
-                let id =
-                    EnclaveId::try_from(enclave_identity_val.get("id").unwrap().as_str().unwrap())
-                        .unwrap();
-                let version = enclave_identity_val
-                    .get("version")
-                    .unwrap()
-                    .as_u64()
-                    .unwrap();
-                let calldata = state
-                    .functions
-                    .upsert_enclave_identity(
-                        id,
-                        version,
-                        enclave_identity_val.as_str().unwrap().into(),
-                        signature,
-                    )
-                    .unwrap();
-
-                dal.upsert_collateral(
-                    &TeeDcapCollateralKind::TdxQeIdentityJson,
-                    not_after,
-                    &qe_identity_hash,
-                    &calldata,
-                )
-                .await?;
-
-                state.tdx_qe_identity_hash = qe_identity_hash;
+                update_tdx_qe_identity(dal, &functions).await?;
             }
-            TeeDcapCollateralKind::SgxTcbInfoJson(fmspc) => {}
+            TeeDcapCollateralKind::SgxTcbInfoJson(fmspc) => {
+                update_tcb_info(dal, fmspc, TEEType::SGX, &functions).await?;
+            }
+            TeeDcapCollateralKind::TdxTcbInfoJson(fmspc) => {
+                update_tcb_info(dal, fmspc, TEEType::TDX, &functions).await?;
+            }
+            TeeDcapCollateralKind::RootCrl => {
+                // FIXME: TEE
+            }
+            _ => {
+                return Err(TeeProcessorError::GeneralError(
+                    "Unknown collateral kind".into(),
+                ));
+            }
         }
     }
 
+    Ok(())
+}
+
+async fn update_tdx_qe_identity(
+    dal: &mut TeeDcapCollateralDal<'_, '_>,
+    functions: &TeeFunctions,
+) -> Result<(), TeeProcessorError> {
+    let client = ApiClient::new_with_version(ApiVersion::V4)
+        .context("Failed to create Intel DCAP API client")?;
+
+    let qe_identity = client
+        .get_sgx_qe_identity(None, None)
+        .await
+        .context("Failed to get TDX QE identity")?;
+
+    let qe_identity_hash = sha2::Sha256::new()
+        .chain_update(qe_identity.enclave_identity_json.as_bytes())
+        .finalize_reset()
+        .to_vec();
+
+    let enclave_identity_val =
+        serde_json::from_str::<serde_json::Value>(qe_identity.enclave_identity_json.as_str())
+            .context("Failed to parse enclave identity")?;
+
+    let signature = enclave_identity_val
+        .get("signature")
+        .unwrap()
+        .as_str()
+        .unwrap();
+    let signature = hex::decode(signature).unwrap();
+
+    let enclave_identity_val = enclave_identity_val
+        .get("enclaveIdentity")
+        .context("Failed to get enclave identity")?;
+
+    let not_after = get_next_update(&enclave_identity_val)?;
+    let id =
+        EnclaveId::try_from(enclave_identity_val.get("id").unwrap().as_str().unwrap()).unwrap();
+    let version = enclave_identity_val
+        .get("version")
+        .unwrap()
+        .as_u64()
+        .unwrap();
+    let calldata = functions
+        .upsert_enclave_identity(
+            id,
+            version,
+            enclave_identity_val.as_str().unwrap().into(),
+            signature,
+        )
+        .unwrap();
+
+    dal.upsert_collateral(
+        &TeeDcapCollateralKind::TdxQeIdentityJson,
+        not_after,
+        &qe_identity_hash,
+        &calldata,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn update_sgx_qe_identity(
+    dal: &mut TeeDcapCollateralDal<'_, '_>,
+    functions: &TeeFunctions,
+) -> Result<(), TeeProcessorError> {
+    let client = ApiClient::new_with_version(ApiVersion::V3)
+        .context("Failed to create Intel DCAP API client")?;
+
+    let qe_identity = client
+        .get_sgx_qe_identity(None, None)
+        .await
+        .context("Failed to get SGX QE identity")?;
+
+    let qe_identity_hash = sha2::Sha256::new()
+        .chain_update(qe_identity.enclave_identity_json.as_bytes())
+        .finalize_reset()
+        .to_vec();
+
+    let enclave_identity_val =
+        serde_json::from_str::<serde_json::Value>(qe_identity.enclave_identity_json.as_str())
+            .context("Failed to parse enclave identity")?;
+
+    let signature = enclave_identity_val
+        .get("signature")
+        .unwrap()
+        .as_str()
+        .unwrap();
+    let signature = hex::decode(signature).unwrap();
+
+    let enclave_identity_val = enclave_identity_val
+        .get("enclaveIdentity")
+        .context("Failed to get enclave identity")?;
+
+    let not_after = get_next_update(&enclave_identity_val)?;
+    let id =
+        EnclaveId::try_from(enclave_identity_val.get("id").unwrap().as_str().unwrap()).unwrap();
+    let version = enclave_identity_val
+        .get("version")
+        .unwrap()
+        .as_u64()
+        .unwrap();
+    let calldata = functions
+        .upsert_enclave_identity(id, version, qe_identity.enclave_identity_json, signature)
+        .unwrap();
+
+    dal.upsert_collateral(
+        &TeeDcapCollateralKind::SgxQeIdentityJson,
+        not_after,
+        &qe_identity_hash,
+        &calldata,
+    )
+    .await?;
     Ok(())
 }
 
@@ -323,8 +319,6 @@ pub(crate) fn get_next_update(
     let next_update = next_update.as_str().context("nextUpdate is not a string")?;
     let next_update =
         chrono::DateTime::parse_from_rfc3339(next_update).context("Failed to parse nextUpdate")?;
-    // Let's try to refresh it at least 7 days before it expires.
-    let next_update = next_update.sub(TimeDelta::days(7));
     Ok(next_update.to_utc())
 }
 
@@ -334,8 +328,22 @@ pub(crate) async fn update_collateral_for_quote(
 ) -> Result<(), TeeProcessorError> {
     let quote = teepot::quote::Quote::parse(quote_bytes).context("Failed to parse quote")?;
     let fmspc = quote.fmspc().context("Failed to get FMSPC")?;
+    let tee_type = quote.tee_type();
+    let mut dal = connection.tee_dcap_collateral_dal();
+
+    update_tcb_info(&mut dal, &fmspc, tee_type, &TeeFunctions::default()).await?;
+
+    Ok(())
+}
+
+async fn update_tcb_info(
+    dal: &mut TeeDcapCollateralDal<'_, '_>,
+    fmspc: &Fmspc,
+    tee_type: TEEType,
+    functions: &TeeFunctions,
+) -> Result<(), TeeProcessorError> {
     let fmspc_hex = hex::encode(&fmspc);
-    let (tcbinfo_resp, tcb_info_field) = match quote.tee_type() {
+    let (tcbinfo_resp, tcb_info_field) = match tee_type {
         TEEType::SGX => {
             // For the automata contracts, we need version 3 of Intel DCAP API for SGX.
             let client = ApiClient::new_with_version(ApiVersion::V3)
@@ -344,7 +352,7 @@ pub(crate) async fn update_collateral_for_quote(
                 .get_sgx_tcb_info(&fmspc_hex, None, None)
                 .await
                 .context("Failed to get SGX TCB info")?;
-            (tcbinfo, TeeDcapCollateralKind::SgxTcbInfoJson(fmspc))
+            (tcbinfo, TeeDcapCollateralKind::SgxTcbInfoJson(*fmspc))
         }
         TEEType::TDX => {
             // For the automata contracts, we need version 4 of Intel DCAP API for TDX.
@@ -354,7 +362,7 @@ pub(crate) async fn update_collateral_for_quote(
                 .get_tdx_tcb_info(&fmspc_hex, None, None)
                 .await
                 .context("Failed to get TDX TCB info")?;
-            (tcbinfo, TeeDcapCollateralKind::TdxTcbInfoJson(fmspc))
+            (tcbinfo, TeeDcapCollateralKind::TdxTcbInfoJson(*fmspc))
         }
         _ => {
             return Err(TeeProcessorError::GeneralError(
@@ -368,8 +376,6 @@ pub(crate) async fn update_collateral_for_quote(
     let tcb_info_hash = sha2::Sha256::new()
         .chain_update(tcb_info_json.as_bytes())
         .finalize();
-
-    let mut dal = connection.tee_dcap_collateral_dal();
 
     if !matches!(
         dal.check_collateral_status(&tcb_info_field, tcb_info_hash.as_slice())
@@ -388,7 +394,7 @@ pub(crate) async fn update_collateral_for_quote(
             .context("Failed to get tcbInfo")?;
         let not_after = get_next_update(&tcb_info_val)?;
 
-        let calldata = TeeFunctions::default()
+        let calldata = functions
             .upsert_fmspc_tcb(tcb_info_val.as_str().unwrap().into(), signature)
             .unwrap();
         dal.upsert_collateral(

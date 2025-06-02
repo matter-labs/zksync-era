@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO tee_dcap_collateral (\n                kind, not_after, sha256, updated, calldata, eth_tx_id\n            )\n            VALUES ($1, $2, $3, $4, $5, NULL)\n            ON CONFLICT (kind) DO UPDATE SET\n            not_after = excluded.not_after,\n            sha256 = excluded.sha256,\n            updated = excluded.updated,\n            calldata = excluded.calldata,\n            eth_tx_id = NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Timestamptz",
+        "Bytea",
+        "Timestamptz",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "01d9498561cfcab95d0aa3999d11a91db0e1dfaf5cf270abba40d78faf74c71c"
+}
