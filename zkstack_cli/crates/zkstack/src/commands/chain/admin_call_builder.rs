@@ -1,17 +1,8 @@
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
-use std::path::Path;
-
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
-use ethers::types::Bytes;
 use ethers::{
     abi::{decode, ParamType, Token},
     utils::hex,
 };
 use serde::Serialize;
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
-use xshell::Shell;
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
-use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
 #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
