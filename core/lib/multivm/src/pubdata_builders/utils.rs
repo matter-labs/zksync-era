@@ -1,7 +1,5 @@
-use std::str::FromStr;
-
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_types::{bytecode::BytecodeHash, web3::keccak256, writes::compress_state_diffs, H256};
+use zksync_types::{bytecode::BytecodeHash, web3::keccak256, writes::compress_state_diffs};
 
 use crate::interface::pubdata::{L1MessengerL2ToL1Log, PubdataInput};
 
@@ -28,15 +26,10 @@ pub(crate) fn build_logs_root(
         slice.copy_from_slice(&encoded);
         slice
     });
-    // kl todo separate by version?
-    MiniMerkleTree::new_with_empty_leaf_hash(
-        logs,
-        Some(l2_to_l1_logs_tree_size),
-        H256::from_str("72abee45b59e344af8a6e520241c4744aff26ed411f4c4b00f8af09adada43ba").unwrap(),
-    )
-    .merkle_root()
-    .as_bytes()
-    .to_vec()
+    MiniMerkleTree::new(logs, Some(l2_to_l1_logs_tree_size))
+        .merkle_root()
+        .as_bytes()
+        .to_vec()
 }
 
 pub(crate) fn build_chained_message_hash(l2_to_l1_messages: &[Vec<u8>]) -> Vec<u8> {
