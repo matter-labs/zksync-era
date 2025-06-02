@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l2_to_l1_messages\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l2_to_l1_messages",
+        "type_info": "ByteaArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5110364fcaf8a803bafe641c77d64902d0156fc69b77a2e6f527fcc7686358f2"
+}
