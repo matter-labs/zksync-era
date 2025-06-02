@@ -409,7 +409,9 @@ impl From<StorageBlockDetails> for api::BlockDetails {
             if details.number == 0 || execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
                 api::BlockStatus::Verified
             } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
-                api::BlockStatus::FastFinalized
+                api::BlockStatus::Sealed
+                // not enabling this for backwards compatibility
+                // api::BlockStatus::FastFinalized
             } else {
                 api::BlockStatus::Sealed
             };
@@ -508,7 +510,9 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             if details.number == 0 || execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
                 api::BlockStatus::Verified
             } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
-                api::BlockStatus::FastFinalized
+                api::BlockStatus::Sealed
+                // not enabling this for backwards compatibility
+                // api::BlockStatus::FastFinalized
             } else {
                 api::BlockStatus::Sealed
             };
