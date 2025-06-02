@@ -1,7 +1,8 @@
 # TODO(zk os): genesis data taken from server
-genesis_root: 0x90a83ead2ba2194fbbb0f7cd2a017e36cfb4891513546d943a7282c2844d4b6b
+# note: this is not the root, but blake(root, index) - it's used in place of root in zksync os
+genesis_root: "0x6e6e7044cb237fa30937e7e2ee56db7bb3b5d3bd0f46ba7c3a46a6ac4cf2f330"
 genesis_rollup_leaf_index: 0
-genesis_batch_commitment: 0xb4f6edf90e4566bffce35f453012ec03c1e52b07a9f0a1ed4e25fdc88259db55
+genesis_batch_commitment: 0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183
 genesis_protocol_version: 28
 default_aa_hash: 0x010005f72e443c94460f4583fb38ef5d0c5cd9897021c41df840f91465c0392e
 bootloader_hash: 0x0100087fe7df1cf5616646f85bd5eebc8efe5d8deac4d85bea9b9aefd88803dd

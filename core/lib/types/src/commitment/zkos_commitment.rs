@@ -44,7 +44,6 @@ pub struct ZkosCommitment {
 }
 
 impl ZkosCommitment {
-
     // copied from `L1BatchHeader` struct
     pub fn priority_operations_hash(&self) -> H256 {
         let mut rolling_hash: H256 = keccak256(&[]).into();
@@ -60,8 +59,6 @@ impl ZkosCommitment {
     }
 
     pub fn state_commitment(&self) -> H256 {
-        // testing that it fits older logic first
-        return self.tree_root_hash;
         let mut hasher = Blake2s256::new();
         hasher.update(self.tree_root_hash.as_bytes()); // as_u8_ref in ruint
         hasher.update(self.tree_next_free_index.to_be_bytes()); // as_be_bytes in ruint
@@ -98,54 +95,8 @@ impl ZkosCommitment {
         operator_da_input.extend(H256::zero().as_bytes());
         (operator_da_input, operator_da_input_header_hash)
     }
-
-    // used in StoredBatchInfo onchain
-
-    // https://github.com/matter-labs/era-contracts/blame/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L160-L181
-    // in zkos `commitment` field should contain the public input hash:
-    //   // Create batch PI for the proof verification
-    //         bytes32 batchOutputsHash = keccak256(
-    //             abi.encode(
-    //                 _newBatch.chainId,
-    //                 _newBatch.firstBlockTimestamp,
-    //                 _newBatch.lastBlockTimestamp,
-    //                 uint160(_newBatch.l2DaValidator),
-    //                 _newBatch.daCommitment,
-    //                 _newBatch.numberOfLayer1Txs,
-    //                 _newBatch.priorityOperationsHash,
-    //                 _newBatch.l2LogsTreeRoot,
-    //                 bytes32(0) // upgrade tx hash
-    //             )
-    //         );
-    // note: the original plan was to use public input hash, but now we only use batchOutputsHash
-
-    // todo: check Token types if hash mismatch
-    // AKA `commitment`
-    pub fn batch_output_hash(
-        &self
-    ) -> H256 {
-        let (operator_da_input, operator_da_input_header_hash) =
-            self.calculate_operator_da_input();
-
-        //todo: use packed encoding to save on gas (also in smart contracts of course)
-        let batch_outputs = ethabi::encode(&[
-            Token::Uint(self.chain_id.into()),
-            // Token::Uint(batch.first_block_timestamp.into()),
-            // Token::Uint(batch.last_block_timestamp.into()),
-            Token::Uint(self.block_timestamp.into()),
-            Token::Uint(self.block_timestamp.into()),
-            // Token::Address(batch.l2_da_validator),
-            Token::Address(Address::zero()),
-            Token::FixedBytes(operator_da_input_header_hash.as_bytes().to_vec()),
-            Token::Uint(self.number_of_layer1_txs.into()),
-            Token::FixedBytes(self.priority_operations_hash().as_bytes().to_vec()),
-            Token::FixedBytes(self.l2_to_l1_logs_root_hash.as_bytes().to_vec()),
-            Token::FixedBytes(H256::default().as_bytes().to_vec()), // upgrade tx hash
-        ]);
-        let batch_outputs_hash = web3::keccak256(&batch_outputs);
-        H256(batch_outputs_hash)
-    }
 }
+
 
 impl From<&L1BatchWithMetadata> for ZkosCommitment {
     fn from(batch: &L1BatchWithMetadata) -> Self {

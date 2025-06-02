@@ -28,6 +28,11 @@ hex.workspace = true
 once_cell.workspace = true
 tracing.workspace = true
 
+# following are needed to delegate some low level computations (hashing/packin) to zk_ee
+zk_os_basic_system.workspace = true
+zk_ee.workspace = true
+ruint.workspace = true
+
 [dev-dependencies]
 rand.workspace = true
 serde.workspace = true

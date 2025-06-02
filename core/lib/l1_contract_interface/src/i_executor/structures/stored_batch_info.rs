@@ -25,9 +25,9 @@ use crate::Tokenizable;
 #[derive(Debug, Clone, PartialEq)]
 pub struct StoredBatchInfo {
     pub batch_number: u64,
-    // in zk_os, stage commitement is used here:
+    // in zk_os, state commitement is used here:
     pub batch_hash: H256,
-    pub index_repeated_storage_changes: u64,
+    pub index_repeated_storage_changes: u64, // not used in Boojum OS, must be zero
     pub number_of_layer1_txs: U256,
     pub priority_operations_hash: H256,
     pub l2_logs_tree_root: H256,
@@ -68,12 +68,11 @@ impl StoredBatchInfo {
     }
 }
 
-
-
 // todo when L1BatchWithMetadata is refactored, we should convert it to this struct directly
 impl StoredBatchInfo {
     pub fn new(
-        batch: &ZkosCommitment
+        batch: &ZkosCommitment,
+        commitment: [u8; 32]
     ) -> Self {
         Self {
             batch_number: batch.batch_number.into(),
@@ -83,26 +82,8 @@ impl StoredBatchInfo {
             priority_operations_hash: batch.priority_operations_hash(),
             l2_logs_tree_root: batch.l2_to_l1_logs_root_hash,
             timestamp: 0.into(),
-            commitment: batch.batch_output_hash()
+            commitment: commitment.into()
         }
-    }
-    fn public_input_hash(
-        batch: &CommitBoojumOSBatchInfo
-    ) -> H256 {
-        //todo: use packed encoding
-        let batch_outputs = ethabi::encode(&[
-            Token::Uint(batch.chain_id),
-            Token::Uint(batch.first_block_timestamp.into()),
-            Token::Uint(batch.last_block_timestamp.into()),
-            Token::Address(batch.l2_da_validator),
-            Token::FixedBytes(batch.da_commitment.as_bytes().to_vec()),
-            Token::Uint(batch.number_of_layer1_txs),
-            Token::FixedBytes(batch.priority_operations_hash.as_bytes().to_vec()),
-            Token::FixedBytes(batch.l2_logs_tree_root.as_bytes().to_vec()),
-            Token::FixedBytes(H256::default().as_bytes().to_vec()), // upgrade tx hash
-        ]);
-        let batch_outputs_hash = web3::keccak256(&batch_outputs);
-        H256(batch_outputs_hash)
     }
 }
 

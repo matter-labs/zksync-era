@@ -14,6 +14,7 @@ use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, Core
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
+use zksync_multivm::zk_evm_latest::blake2::{Blake2s256, Digest};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader}, bytecode::BytecodeHash, commitment::{CommitmentInput, L1BatchCommitment}, fee_model::BatchFeeInput, protocol_upgrade::decode_genesis_upgrade_event, protocol_version::{L1VerifierConfig, ProtocolSemanticVersion}, system_contracts::get_system_smart_contracts, u256_to_h256, web3::{BlockNumber, FilterBuilder}, zk_evm_types::LogQuery, AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256, ethabi};
 use zksync_types::block::L1BatchTreeData;
@@ -295,16 +296,28 @@ pub async fn insert_genesis_batch_with_custom_state(
     //
     // code will be reused after commitment refactor
 
-    let commitment: H256 = H256::from_str("0xb4f6edf90e4566bffce35f453012ec03c1e52b07a9f0a1ed4e25fdc88259db55").unwrap();
+    let commitment: H256 = H256::from_str("0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183").unwrap();
+
+    // note: for zkos `genesis_root` is blake(root, slot_index)
+    // but the same field is reused over smart contract side - so it has differnt meanings for pre-zkos / zkos.
+    // so we use the same field here as well
+
+    let mut hasher = Blake2s256::new();
+    hasher.update(metadata.root_hash.as_bytes()); // as_u8_ref in ruint
+    hasher.update(metadata.leaf_count.to_be_bytes()); // as_be_bytes in ruint
+
+    // return the final hash
+    let zkos_root_batch_hash= H256::from_slice(&hasher.finalize());
+
     let genesis_batch_params = GenesisBatchParams {
-        root_hash: metadata.root_hash,
-        rollup_last_leaf_index: 0, // hardcoded in zkos
+        root_hash: zkos_root_batch_hash,
+        rollup_last_leaf_index: 0, // hardcoded in zkos - should be set to `0` for all batches
         commitment,
     };
 
     let tree_data = L1BatchTreeData {
         hash: metadata.root_hash,
-        rollup_last_leaf_index: 0,
+        rollup_last_leaf_index: metadata.leaf_count,  // here we dont set zero - as this field is used fopr state_commitment
     };
 
     transaction
