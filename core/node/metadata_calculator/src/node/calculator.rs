@@ -3,15 +3,16 @@ use std::{net::Ipv4Addr, sync::Arc, time::Duration};
 use anyhow::Context;
 use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::ShutdownHook, FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError,
     WiringLayer,
 };
-use zksync_object_store::node::ObjectStoreResource;
+use zksync_object_store::ObjectStore;
+use zksync_shared_resources::tree::TreeApiClient;
 use zksync_storage::RocksDB;
 
-use super::{tree_api_server::TreeApiTask, TreeApiClientResource};
+use super::tree_api_server::TreeApiTask;
 use crate::{
     MerkleTreePruningTask, MetadataCalculator, MetadataCalculatorConfig, StaleKeysRepairTask,
 };
@@ -27,29 +28,29 @@ pub struct MetadataCalculatorLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub replica_pool: PoolResource<ReplicaPool>,
+    master_pool: PoolResource<MasterPool>,
+    replica_pool: PoolResource<ReplicaPool>,
     /// Only needed for `MerkleTreeMode::Full`
-    pub object_store: Option<ObjectStoreResource>,
+    object_store: Option<Arc<dyn ObjectStore>>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub metadata_calculator: MetadataCalculator,
-    pub tree_api_client: TreeApiClientResource,
+    metadata_calculator: MetadataCalculator,
+    tree_api_client: Arc<dyn TreeApiClient>,
     /// Only provided if configuration is provided.
     #[context(task)]
-    pub tree_api_task: Option<TreeApiTask>,
+    tree_api_task: Option<TreeApiTask>,
     /// Only provided if configuration is provided.
     #[context(task)]
-    pub pruning_task: Option<MerkleTreePruningTask>,
+    pruning_task: Option<MerkleTreePruningTask>,
     /// Only provided if enabled in the config.
     #[context(task)]
-    pub stale_keys_repair_task: Option<StaleKeysRepairTask>,
-    pub rocksdb_shutdown_hook: ShutdownHook,
+    stale_keys_repair_task: Option<StaleKeysRepairTask>,
+    rocksdb_shutdown_hook: ShutdownHook,
 }
 
 impl MetadataCalculatorLayer {
@@ -91,7 +92,7 @@ impl WiringLayer for MetadataCalculatorLayer {
         let main_pool = input.master_pool.get().await?;
         // The number of connections in a recovery pool is based on the Era mainnet recovery runs.
         let recovery_pool = input.replica_pool.get_custom(10).await?;
-        let app_health = input.app_health.0;
+        let app_health = input.app_health;
 
         let object_store = match self.config.mode {
             MerkleTreeMode::Lightweight => None,
@@ -105,13 +106,9 @@ impl WiringLayer for MetadataCalculatorLayer {
             }
         };
 
-        let mut metadata_calculator = MetadataCalculator::new(
-            self.config,
-            object_store.map(|store_resource| store_resource.0),
-            main_pool,
-        )
-        .await?
-        .with_recovery_pool(recovery_pool);
+        let mut metadata_calculator = MetadataCalculator::new(self.config, object_store, main_pool)
+            .await?
+            .with_recovery_pool(recovery_pool);
 
         app_health
             .insert_custom_component(Arc::new(metadata_calculator.tree_health_check()))
@@ -128,15 +125,13 @@ impl WiringLayer for MetadataCalculatorLayer {
 
         let pruning_task = self
             .pruning_config
-            .map(
-                |pruning_removal_delay| -> Result<MerkleTreePruningTask, WiringError> {
-                    let pruning_task = metadata_calculator.pruning_task(pruning_removal_delay);
-                    app_health
-                        .insert_component(pruning_task.health_check())
-                        .map_err(|err| WiringError::Internal(err.into()))?;
-                    Ok(pruning_task)
-                },
-            )
+            .map(|pruning_removal_delay| {
+                let pruning_task = metadata_calculator.pruning_task(pruning_removal_delay);
+                app_health
+                    .insert_component(pruning_task.health_check())
+                    .map_err(WiringError::internal)?;
+                Ok::<_, WiringError>(pruning_task)
+            })
             .transpose()?;
 
         let stale_keys_repair_task = if self.stale_keys_repair_enabled {
@@ -145,7 +140,7 @@ impl WiringLayer for MetadataCalculatorLayer {
             None
         };
 
-        let tree_api_client = TreeApiClientResource(Arc::new(metadata_calculator.tree_reader()));
+        let tree_api_client = Arc::new(metadata_calculator.tree_reader());
 
         let rocksdb_shutdown_hook = ShutdownHook::new("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.

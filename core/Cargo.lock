@@ -1723,7 +1723,7 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "block_reverter"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -2740,7 +2740,7 @@ dependencies = [
 
 [[package]]
 name = "custom_genesis_export"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4020,7 +4020,7 @@ dependencies = [
 
 [[package]]
 name = "genesis_generator"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -5543,7 +5543,7 @@ checksum = "23fb14cb19457329c82206317a5663005a4d404783dc74f4252769b0d5f42856"
 
 [[package]]
 name = "loadnext"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5721,7 +5721,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "merkle_tree_consistency_checker"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -7877,9 +7877,9 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
 name = "rust-eigenda-client"
-version = "0.1.4"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ef77a51d47c3c1090a03196078ff0663c6087e530cc74266dee321274ba63ec"
+checksum = "6354c52471d528bf96031903c2af4b6c7ac0b4ca01dfcd2929c789d2aeb8f3d7"
 dependencies = [
  "ark-bn254",
  "async-trait",
@@ -7894,8 +7894,8 @@ dependencies = [
  "prost 0.12.6",
  "rand 0.8.5",
  "reqwest 0.12.15",
+ "rust-eigenda-signers",
  "rust-kzg-bn254",
- "secp256k1",
  "secrecy 0.8.0",
  "serde",
  "serde_json",
@@ -7907,6 +7907,21 @@ dependencies = [
  "tokio-stream",
  "tonic 0.11.0",
  "url",
+]
+
+[[package]]
+name = "rust-eigenda-signers"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e66bd6da7ae667952473228151c829782c2296803e13d59d3770d759e66c9e54"
+dependencies = [
+ "async-trait",
+ "ethereum-types",
+ "hex",
+ "rand 0.8.5",
+ "secp256k1",
+ "thiserror 1.0.69",
+ "tiny-keccak 2.0.2",
 ]
 
 [[package]]
@@ -8401,6 +8416,7 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
+ "rand 0.8.5",
  "secp256k1-sys",
  "serde",
 ]
@@ -8470,7 +8486,7 @@ dependencies = [
 
 [[package]]
 name = "selector_generator"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -8983,7 +8999,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -8999,7 +9015,7 @@ dependencies = [
 [[package]]
 name = "smart-config-commands"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
 dependencies = [
  "anstream",
  "anstyle",
@@ -9011,7 +9027,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=ae8d1a179731cf131d58d28daa5ae98df2609e8a#ae8d1a179731cf131d58d28daa5ae98df2609e8a"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -9041,7 +9057,7 @@ dependencies = [
 
 [[package]]
 name = "snapshots_creator"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -9680,7 +9696,7 @@ dependencies = [
 
 [[package]]
 name = "system-constants-generator"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "codegen",
  "once_cell",
@@ -10658,7 +10674,7 @@ checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "verified_sources_fetcher"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "serde_json",
@@ -10716,7 +10732,7 @@ dependencies = [
 
 [[package]]
 name = "vm-benchmark"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "assert_matches",
  "criterion",
@@ -11709,7 +11725,7 @@ dependencies = [
 
 [[package]]
 name = "zk_os_merkle_tree"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -11733,7 +11749,7 @@ dependencies = [
 
 [[package]]
 name = "zk_os_tree_manager"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -11860,7 +11876,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_base_token_adjuster"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11883,7 +11899,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bincode",
@@ -11928,7 +11944,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_block_reverter"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -11953,7 +11969,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_breaker"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11968,7 +11984,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_commitment_generator"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12017,7 +12033,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -12187,7 +12203,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_consistency_checker"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12214,7 +12230,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contract_verification_server"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12238,7 +12254,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contract_verifier"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -12255,7 +12271,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contract_verifier_lib"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12289,7 +12305,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "bincode",
  "envy",
@@ -12303,7 +12319,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -12331,10 +12347,11 @@ dependencies = [
 
 [[package]]
 name = "zksync_da_client"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "serde",
  "zksync_node_framework",
  "zksync_types",
@@ -12342,7 +12359,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_da_clients"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12355,6 +12372,7 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-types",
+ "chrono",
  "flate2",
  "futures 0.3.31",
  "hex",
@@ -12389,7 +12407,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_da_dispatcher"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12410,7 +12428,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_dal"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12451,7 +12469,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_db_connection"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12469,7 +12487,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12495,7 +12513,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_sender"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12529,7 +12547,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -12540,7 +12558,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_watch"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -12568,7 +12586,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12626,7 +12644,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_price_api"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12642,12 +12660,13 @@ dependencies = [
  "tracing",
  "url",
  "zksync_config",
+ "zksync_node_framework",
  "zksync_types",
 ]
 
 [[package]]
 name = "zksync_external_proof_integration_api"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12696,7 +12715,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_gateway_migrator"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12716,7 +12735,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_health_check"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -12732,7 +12751,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_house_keeper"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12765,7 +12784,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_l1_contract_interface"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -12786,7 +12805,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_logs_bloom_backfill"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12800,7 +12819,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mempool"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "tracing",
  "zksync_types",
@@ -12808,7 +12827,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_merkle_tree"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12837,7 +12856,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_metadata_calculator"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12866,13 +12885,14 @@ dependencies = [
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_shared_metrics",
+ "zksync_shared_resources",
  "zksync_storage",
  "zksync_types",
 ]
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "criterion",
  "once_cell",
@@ -12882,7 +12902,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12916,7 +12936,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_api_server"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -12952,7 +12972,6 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
- "zksync_metadata_calculator",
  "zksync_mini_merkle_tree",
  "zksync_multivm",
  "zksync_node_fee_model",
@@ -12964,7 +12983,6 @@ dependencies = [
  "zksync_shared_metrics",
  "zksync_shared_resources",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_system_constants",
  "zksync_test_contracts",
  "zksync_types",
@@ -12974,7 +12992,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_consensus"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13020,7 +13038,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_db_pruner"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13043,7 +13061,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_fee_model"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13064,7 +13082,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_framework"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13082,7 +13100,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_framework_derive"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -13091,7 +13109,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_genesis"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bincode",
@@ -13112,7 +13130,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_storage_init"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13136,7 +13154,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_sync"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13174,7 +13192,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_test_utils"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "zksync_contracts",
  "zksync_dal",
@@ -13186,7 +13204,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_object_store"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13231,7 +13249,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_data_handler"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13296,7 +13314,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_interface"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "bincode",
  "chrono",
@@ -13315,7 +13333,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_queued_job_processor"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13327,7 +13345,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_reorg_detector"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13349,7 +13367,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_server"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -13400,7 +13418,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_shared_metrics"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "rustc_version 0.4.1",
  "serde",
@@ -13412,11 +13430,13 @@ dependencies = [
 
 [[package]]
 name = "zksync_shared_resources"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
+ "anyhow",
  "assert_matches",
  "async-trait",
  "serde",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "zksync_config",
@@ -13427,7 +13447,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_snapshots_applier"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13466,7 +13486,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_state"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13491,7 +13511,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_state_keeper"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13534,7 +13554,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_storage"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "num_cpus",
  "once_cell",
@@ -13547,7 +13567,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -13555,7 +13575,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_task_management"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -13567,7 +13587,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_tee_proof_data_handler"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13597,7 +13617,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_tee_prover"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13623,7 +13643,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_tee_prover_interface"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "bincode",
  "serde",
@@ -13637,7 +13657,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_tee_verifier"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "bincode",
@@ -13656,7 +13676,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_test_contracts"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "ethabi",
  "foundry-compilers",
@@ -13672,7 +13692,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13704,7 +13724,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13715,7 +13735,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13766,7 +13786,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_executor"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13785,7 +13805,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_interface"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13803,7 +13823,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_runner"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -13839,7 +13859,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "28.2.1-non-semver-compat"
+version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "assert_matches",
