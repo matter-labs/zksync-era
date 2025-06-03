@@ -206,7 +206,7 @@ pub enum LogProofTarget {
     Chain,
     // Gateway's MessageRoot
     GatewayMessageRoot,
-    // GGateway's ChainBatchRoot. Fallback behaviour, used for withdrawals
+    // Gateway's ChainBatchRoot, used for withdrawals
     GatewayChainBatchRoot,
 }
 
