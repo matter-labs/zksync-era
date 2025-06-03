@@ -180,15 +180,21 @@ fn apply_l2_block_inner(
         return;
     }
 
-    bootloader_l2_block
-        .interop_roots
+    let mut sorted_interop_roots = bootloader_l2_block.interop_roots.clone();
+    sorted_interop_roots.sort_by(|a, b| {
+        a.block_number
+            .cmp(&b.block_number)
+            .then_with(|| a.received_timestamp.cmp(&b.received_timestamp))
+    });
+
+    sorted_interop_roots
         .iter()
         .enumerate()
-        .for_each(|(offset, interop_root)| {
+        .for_each(|(offset, interop_root_ref)| {
             apply_interop_root(
                 memory,
                 offset + preexisting_interop_roots_number,
-                interop_root.clone(),
+                interop_root_ref.clone(), // Clone the &InteropRoot to get an owned InteropRoot
                 subversion,
                 bootloader_l2_block.number,
             )
