@@ -567,7 +567,7 @@ jobs:
           
           echo "Running integration tests to generate unsealed batches"
           # run only ETH token checks as it's enough to geenrate some unsealed batches
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --test-pattern="ETH token checks" \
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --test-pattern='ETH token checks'" \
             "da_migration" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
           echo "Integration tests completed"
