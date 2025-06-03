@@ -12007,8 +12007,8 @@ yocto-queue@^1.0.0:
   integrity sha512-9bnSc/HEW2uRy67wc+T8UwauLuPJVn28jb+GtJY16iiKWyvmYJRXVT4UamsAEGQfPohgr2q4Tq0sQbQlxTfi1g==
 
 "zksync-ethers-interop-support@git+https://github.com/zksync-sdk/zksync-ethers#kl/interop-ethers-support-real":
-  version "6.15.2"
-  resolved "git+https://github.com/zksync-sdk/zksync-ethers#3ea7ff32178938eac0f1b697ce7623502eee3dfc"
+  version "6.17.0"
+  resolved "git+https://github.com/zksync-sdk/zksync-ethers#762de4c10ca0f083ec09eae4175c3819294faa92"
 
 zksync-ethers@5.8.0-beta.5:
   version "5.8.0-beta.5"
