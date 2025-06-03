@@ -13,10 +13,7 @@ use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MaxResponseSizeOverrides, Namespace},
         chain::TimestampAsserterConfig,
-        da_client::{
-            avail::{AvailClientConfig, AvailFinalityState},
-            eigen::PointsSource,
-        },
+        da_client::{avail::AvailClientConfig, eigen::PointsSource},
         database::MerkleTreeMode,
         object_store::ObjectStoreMode,
         CommitmentGeneratorConfig,
@@ -574,7 +571,6 @@ fn avail_da_client_from_env() {
     assert_eq!(config.app_id, 1);
     assert_eq!(config.api_node_url, "localhost:12345");
     assert_eq!(config.dispatch_timeout, Duration::from_secs(30));
-    assert_eq!(config.finality_state, AvailFinalityState::InBlock);
 
     let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
     let DataAvailabilitySecrets::Avail(secrets) = secrets else {
