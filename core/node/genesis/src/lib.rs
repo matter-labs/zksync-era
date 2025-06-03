@@ -317,7 +317,7 @@ pub async fn insert_genesis_batch_with_custom_state(
 
     let tree_data = L1BatchTreeData {
         hash: metadata.root_hash,
-        rollup_last_leaf_index: metadata.leaf_count,  // here we dont set zero - as this field is used fopr state_commitment
+        rollup_last_leaf_index: metadata.leaf_count - 1,  // here we dont set zero - as this field is used fopr state_commitment
     };
 
     transaction

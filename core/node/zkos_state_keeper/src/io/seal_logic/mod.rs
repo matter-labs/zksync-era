@@ -21,6 +21,8 @@ use zksync_types::{
     Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, H256,
 };
+use zksync_types::hasher::Hasher;
+use zksync_types::hasher::keccak::KeccakHasher;
 use zksync_vm_interface::{TransactionExecutionResult, VmEvent};
 
 use crate::{
@@ -111,7 +113,7 @@ impl BlockSealCommand {
         let l1_batch = L1BatchHeader {
             number: self.inner.l1_batch_number,
             timestamp: self.inner.timestamp,
-            priority_ops_onchain_data: vec![], //self.inner.priority_ops_onchain_data.clone(),
+            priority_ops_onchain_data: self.inner.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             l2_to_l1_logs: vec![], //todo: l2_to_l1_logs are not saved yet
@@ -138,14 +140,18 @@ impl BlockSealCommand {
             });
 
         // todo - extract constant
-        let l2_l1_merkle_root = MiniMerkleTree::new(encoded_l2_l1_logs, Some(2 << 14))
+        let l2_l1_local_root = MiniMerkleTree::new(encoded_l2_l1_logs.clone().into_iter(), Some(1 << 14))
             .merkle_root();
+        // The result should be Keccak(l2_l1_local_root, aggreagation_root) - we don't compute aggregation root yet
+        let l2_l1_final_root =  KeccakHasher.compress(&l2_l1_local_root, &H256::zero());
+
+
 
         transaction
             .blocks_dal()
             .insert_l2_l1_message_root(
                 self.inner.l1_batch_number,
-                l2_l1_merkle_root,
+                l2_l1_final_root,
             )
             .await?;
 

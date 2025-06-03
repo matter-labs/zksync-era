@@ -104,7 +104,7 @@ impl From<&L1BatchWithMetadata> for ZkosCommitment {
             batch_number: batch.header.number.0,
             block_timestamp: batch.header.timestamp,
             tree_root_hash: batch.metadata.root_hash,
-            tree_next_free_index: batch.metadata.rollup_last_leaf_index,
+            tree_next_free_index: batch.metadata.rollup_last_leaf_index + 1,
             number_of_layer1_txs: batch.header.l1_tx_count,
             number_of_layer2_txs: batch.header.l2_tx_count,
             priority_ops_onchain_data: batch.header.priority_ops_onchain_data.clone(),

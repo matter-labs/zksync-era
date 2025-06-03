@@ -6,10 +6,13 @@ use anyhow::Context;
 use ruint::aliases::U256;
 use tokio::sync::watch;
 use zk_os_basic_system::system_implementation::flat_storage_model::TestingTree;
+use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zk_os_forward_system::run::{BatchContext, StorageCommitment};
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
 use zksync_types::{H256, L1BatchNumber, L2BlockNumber};
+use zksync_types::commitment::ZkosCommitment;
 use zksync_zkos_vm_runner::zkos_conversions::{h256_to_bytes32, tx_abi_encode};
 use crate::zkos_proof_data_server::run;
 
@@ -84,7 +87,7 @@ impl ZkosProverInputGenerator {
 
                 let list_source = TxListSource { transactions };
                 let prover_input = zk_os_forward_system::run::generate_proof_input(
-                    PathBuf::from("/Users/romanbrodetskiy/src/zksync-era/app.bin"),
+                    PathBuf::from("app_logging_enabled.bin"),
                     context,
                     storage_commitment,
                     //todo: cloning tree on every block 😅
@@ -99,6 +102,21 @@ impl ZkosProverInputGenerator {
                     block.number.0,
                     duration
                 );
+
+                let batch = connection
+                    .blocks_dal()
+                    .get_l1_batch_metadata(L1BatchNumber(block.number.0))
+                    .await?
+                    .context("Failed to get L1 batch header for the block")?;
+
+                let zkos_commitment = ZkosCommitment::from(&batch);
+                let expected_batch_output = zkos_commitment_to_vm_batch_output(&zkos_commitment);
+                tracing::info!(
+                    "Block {:?} expected batch output: {:?}",
+                    block.number.0,
+                    expected_batch_output
+                );
+
                 connection.zkos_prover_dal().insert_prover_input(
                     block.number,
                     prover_input,
