@@ -40,7 +40,7 @@ async fn pick_fri_job(
         .await
         .expect("Failed to get DB connection");
 
-    info!("Fetching next FRI block to prove");
+    tracing::trace!("Fetching next FRI block to prove");
     let response = match conn.zkos_prover_dal()
         .pick_next_fri_proof(Duration::from_secs(60), "unknown")
         .await
@@ -105,7 +105,7 @@ async fn pick_snark_job(
         .await
         .expect("Failed to get DB connection");
 
-    info!("Fetching next SNARK block to prove");
+    tracing::trace!("Fetching next SNARK block to prove");
     let response = match conn.zkos_prover_dal()
         .pick_next_snark_proof(Duration::from_secs(3600), "unknown")
         .await

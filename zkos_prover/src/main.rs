@@ -105,7 +105,7 @@ fn create_proof(
         .iter()
         .map(|x| x.1.len())
         .collect::<Vec<_>>();
-    let (recursion_proof_list, recursion_proof_metadata, _) = create_recursion_proofs(
+    let (recursion_proof_list, recursion_proof_metadata) = create_recursion_proofs(
         proof_list,
         proof_metadata,
         &None,
@@ -122,7 +122,7 @@ fn create_proof(
 pub async fn main() {
     let client = ProofDataClient::new("http://localhost:3124");
 
-    let binary = load_binary_from_path(&"../app.bin".to_string());
+    let binary = load_binary_from_path(&"../app_logging_enabled.bin".to_string());
     let mut gpu_state = GpuSharedState::default();
     #[cfg(feature = "gpu")]
     gpu_state.preheat_for_universal_verifier(&binary);
