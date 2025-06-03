@@ -26,7 +26,7 @@ use zksync_types::{
         SnapshotStorageLogsStorageKey,
     },
     web3::BlockNumber,
-    Address, L1BatchNumber, L2ChainId, H160, H256, U256,
+    Address, L1BatchNumber, H160, H256, U256,
 };
 
 pub mod node;
@@ -45,7 +45,6 @@ pub struct BlockReverterEthConfig {
     sl_diamond_proxy_addr: H160,
     sl_validator_timelock_addr: H160,
     default_priority_fee_per_gas: u64,
-    hyperchain_id: L2ChainId,
     settlement_layer: SettlementLayer,
 }
 
@@ -54,14 +53,12 @@ impl BlockReverterEthConfig {
         eth_config: &EthConfig,
         sl_diamond_proxy_addr: Address,
         sl_validator_timelock_addr: Address,
-        hyperchain_id: L2ChainId,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             sl_diamond_proxy_addr,
             sl_validator_timelock_addr,
             default_priority_fee_per_gas: eth_config.gas_adjuster.default_priority_fee_per_gas,
-            hyperchain_id,
             settlement_layer,
         })
     }
@@ -531,7 +528,7 @@ impl BlockReverter {
             .context("`revertBatchesSharedBridge` function must be present in contract")?;
         let data = revert_function
             .encode_input(&[
-                Token::Uint(eth_config.hyperchain_id.as_u64().into()),
+                Token::Address(eth_config.sl_diamond_proxy_addr),
                 Token::Uint(last_l1_batch_to_keep.0.into()),
             ])
             .context("failed encoding `revertBatchesSharedBridge` input")?;
