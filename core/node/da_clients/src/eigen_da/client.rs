@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
-use reqwest::Client;
 use chrono::{DateTime, Utc};
+use reqwest::Client;
 use rust_eigenda_client::{
     client::BlobProvider,
     config::SrsPointsSource,
