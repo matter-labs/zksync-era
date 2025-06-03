@@ -25,7 +25,7 @@ values are set on genesis explicitly. Notably, if in the future we want to upgra
 
 This contract is also responsible for ensuring validity and consistency of batches, L2 blocks and virtual blocks. The
 implementation itself is rather straightforward, but to better understand this contract, please take a look at the
-[page](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20&%20L2%20blocks%20on%20zkSync.md)
+[page](./batches_and_blocks_on_zksync.md)
 about the block processing on ZKsync.
 
 ## AccountCodeStorage
@@ -104,7 +104,7 @@ to an unprovable transaction.
 
 These precompiles simulate the behaviour of the EVM's EcAdd and EcMul precompiles and are fully implemented in Yul
 without circuit counterparts. You can read more about them
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Elliptic%20curve%20precompiles.md).
+[here](./precompiles.md).
 
 ## L2BaseToken & MsgValueSimulator
 
@@ -280,7 +280,7 @@ Then, it is the duty of the L1 smart contracts to make sure that the operator ha
 the commitment of the batch.
 
 The `L1Messenger` is also responsible for validating the total pubdata to be sent on L1. You can read more about it
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md).
+[here](../settlement_contracts/data_availability/pubdata.md).
 
 ## NonceHolder
 
@@ -400,7 +400,7 @@ The protocol, while conceptually complete, contains some known issues which will
 term.
 
 - Fee modeling is yet to be improved. More on it in the
-  [document](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/zkSync%20fee%20model.md)
+  [document](./zksync_fee_model.md)
   on the fee model.
 - We may add some kind of default implementation for the contracts in the kernel space (i.e. if called, they wouldn’t
   revert but behave like an EOA).

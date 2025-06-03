@@ -93,7 +93,7 @@
   - [Consensus](specs/contracts/consensus/README.md)
     - [Consensus Registry](specs/contracts/consensus/consensus-registry.md)
   - [zkEVM](specs/contracts/zkevm/overview.md)
-    - [Batches and blocks on zksync](specs/contracts/zkevm/batches_and_blocks_on_zksync.md)
+    - [Batches and blocks on ZKsync](specs/contracts/zkevm/batches_and_blocks_on_zksync.md)
     - [Bootloader](specs/contracts/zkevm/bootloader.md)
     - [System contracts](specs/contracts/zkevm/system_contracts.md)
     - [Precompiles](specs/contracts/zkevm/precompiles.md)

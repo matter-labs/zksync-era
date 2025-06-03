@@ -461,7 +461,7 @@ equal:
 - Maybe the slot has been already written to in this batch and so we don’t to charge anything for it.
 
 You can read more about how we treat the pubdata
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md).
+[here](../settlement_contracts/data_availability/pubdata.md).
 
 The important part here is that while such refunds are inlined (i.e. unlike the refunds for overhead they happen
 in-place during execution and not after the whole transaction has been processed), they are enforced by the operator.
