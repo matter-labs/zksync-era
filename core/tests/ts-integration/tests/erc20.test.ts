@@ -23,9 +23,8 @@ import {
 } from '../src/constants';
 import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
 import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
-import { loadConfig } from 'utils/src/file-configs';
+import { loadChainConfig, loadConfig } from 'utils/src/file-configs';
 
-const GW_CHAIN_ID = 506n;
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
@@ -234,13 +233,7 @@ describe('L1 ERC20 contract checks', () => {
         params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(
-            alice.provider,
-            alice,
-            GW_CHAIN_ID,
-            getGWBlockNumber(params),
-            tokenDetails.l2Address
-        );
+        await waitForInteropRootNonZero(alice.provider, alice, getGWBlockNumber(params), tokenDetails.l2Address);
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -285,7 +278,7 @@ describe('L1 ERC20 contract checks', () => {
         }
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(l2b_provider, aliceL2b, GW_CHAIN_ID, getGWBlockNumber(params));
+        await waitForInteropRootNonZero(l2b_provider, aliceL2b, getGWBlockNumber(params));
 
         // We use the same proof that was verified in L2-A
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
@@ -309,10 +302,13 @@ describe('L1 ERC20 contract checks', () => {
     async function waitForInteropRootNonZero(
         provider: zksync.Provider,
         alice: zksync.Wallet,
-        chainId: bigint,
         l1BatchNumber: number,
         tokenToSend: string = ETH_ADDRESS
     ) {
+        const pathToHome = path.join(__dirname, '../../../..');
+        const gatewayConfig = loadChainConfig(pathToHome, 'gateway');
+        const gatewayChainId = gatewayConfig.chain_id;
+
         const l2InteropRootStorage = new zksync.Contract(
             L2_INTEROP_ROOT_STORAGE_ADDRESS,
             ArtifactL2InteropRootStorage.abi,
@@ -328,7 +324,7 @@ describe('L1 ERC20 contract checks', () => {
             });
             await tx.wait();
 
-            currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
+            currentRoot = await l2InteropRootStorage.interopRoots(gatewayChainId, l1BatchNumber);
             await new Promise((resolve) => setTimeout(resolve, provider.pollingInterval));
             console.log('currentRoot', currentRoot, count);
             count++;
