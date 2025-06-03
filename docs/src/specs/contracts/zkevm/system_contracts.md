@@ -2,16 +2,16 @@
 
 While most of the primitive EVM opcodes can be supported out of the box (i.e. zero-value calls,
 addition/multiplication/memory/storage management, etc), some of the opcodes are not supported by the VM by default and
-they are implemented via “system contracts” — these contracts are located in a special _kernel space,_ i.e. in the
-address space in range `[0..2^16-1]`, and they have some special privileges, which users’ contracts don’t have. These
-contracts are pre-deployed at the genesis and updating their code can be done only via system upgrade, managed from L1.
+they are implemented via “system contracts” — these contracts are located in a special _kernel space_, i.e. in the
+address space in the range `[0..2^16-1]`, and they have some special privileges, which users’ contracts don’t have. These
+contracts are pre-deployed at genesis and updating their code can be done only via system upgrade, managed from L1.
 
 The use of each system contract will be explained down below.
 
 Most of the details on the implementation and the requirements for the execution of system contracts can be found in the
 doc-comments of their respective code bases. This chapter serves only as a high-level overview of such contracts.
 
-All the codes of system contracts (including `DefaultAccount`s) are part of the protocol and can only be change via a
+All of the system contracts’ code (including `DefaultAccount`s) are part of the protocol and can only be changed via a
 system upgrade through L1.
 
 ## SystemContext
@@ -31,7 +31,7 @@ about the block processing on ZKsync.
 ## AccountCodeStorage
 
 The code hashes of accounts are stored inside the storage of this contract. Whenever a VM calls a contract with address
-`address` it retrieves the value under storage slot `address` of this system contract, if this value is non-zero, it
+`address`, it retrieves the value under storage slot `address` of this system contract; if this value is non-zero, it
 uses this as the code hash of the account.
 
 Whenever a contract is called, the VM asks the operator to provide the preimage for the codehash of the account. That is
@@ -51,22 +51,18 @@ from the bootloader itself for the convenience of not writing this logic in Yul.
 
 ## DefaultAccount
 
-Whenever a contract that does **not** both:
-
-- belong to kernel space
-- have any code deployed on it (the value stored under the corresponding storage slot in `AccountCodeStorage` is zero)
-
-The code of the default account is used. The main purpose of this contract is to provide EOA-like experience for both
-wallet users and contracts that call it, i.e. it should not be distinguishable (apart of spent gas) from EOA accounts on
-Ethereum.
+Whenever a contract does not both belong to kernel space and have any code deployed on it (the value stored under the
+corresponding storage slot in `AccountCodeStorage` is zero), the code of the default account is used. The main purpose
+of this contract is to provide an EOA-like experience for both wallet users and contracts that call it, i.e. it should
+not be distinguishable (apart from spent gas) from EOA accounts on Ethereum.
 
 ## Ecrecover
 
-The implementation of the ecrecover precompile. It is expected to be used frequently, so written in pure yul with a
+The implementation of the ecrecover precompile. It is expected to be used frequently, so written in pure Yul with a
 custom memory layout.
 
-The contract accepts the calldata in the same format as EVM precompile, i.e. the first 32 bytes are the hash, the next
-32 bytes are the v, the next 32 bytes are the r, and the last 32 bytes are the s.
+The contract accepts the calldata in the same format as the EVM precompile, i.e. the first 32 bytes are the hash, the
+next 32 bytes are the v, the next 32 bytes are the r, and the last 32 bytes are the s.
 
 It also validates the input by the same rules as the EVM precompile:
 
@@ -77,11 +73,11 @@ After that, it makes a precompile call and returns empty bytes if the call faile
 
 ## Empty contracts
 
-Some of the contracts are relied upon to have EOA-like behaviour, i.e. they can be always called and get the success
-value in return. An example of such address is 0 address. We also require the bootloader to be callable so that the
-users could transfer ETH to it.
+Some of the contracts are relied upon to have EOA-like behavior, i.e. they can always be called and get the success
+value in return. An example of such an address is the 0 address. We also require the bootloader to be callable so that
+the users could transfer ETH to it.
 
-For these contracts, we insert the `EmptyContract` code upon genesis. It is basically a noop code, which does nothing
+For these contracts, we insert the `EmptyContract` code upon genesis. It is basically a no-op code, which does nothing
 and returns `success=1`.
 
 ## SHA256 & Keccak256
@@ -90,7 +86,7 @@ Note that, unlike Ethereum, keccak256 is a precompile (_not an opcode_) on ZKsyn
 
 These system contracts act as wrappers for their respective crypto precompile implementations. They are expected to be
 used frequently, especially keccak256, since Solidity computes storage slots for mapping and dynamic arrays with its
-help. That's why we wrote contracts on pure yul with optimizing the short input case.
+help. That’s why we wrote contracts in pure Yul optimized for the short-input case.
 
 The system contracts accept the input and transform it into the format that the zk-circuit expects. This way, some of
 the work is shifted from the crypto to smart contracts, which are easier to audit and maintain.
@@ -135,12 +131,12 @@ While using `.send/.transfer` is generally not recommended, as a step towards be
 - Whenever a call is done to the `MsgValueSimulator` system contract, `27000` gas is deducted from the caller's frame and it passed to the `MsgValueSimulator` on top of whatever gas the user has originally provided. The number was chosen to cover for the execution of the transferring of the balances as well as other constant size operations by the `MsgValueSimulator`. Note, that since it will be the frame of `MsgValueSimulator` that will actually call the callee, the constant must also include the cost for decommitting the code of the callee. Decoding bytecode of any size would be prohibitevely expensive and so we support only callees of size up to `100000` bytes.
 - `MsgValueSimulator` ensures that no more than `2300` out of the stipend above gets to the callee, ensuring the reentrancy protection invariant for these functions holds.
 
-Note, that unlike EVM any unused gas from such calls will be refunded.
+Note that, unlike EVM, any unused gas from such calls will be refunded.
 
 The system preserves the following guarantees about `.send/.transfer`:
 
-- No more than `2300` gas will be received by the callee. Note, [that a smaller, but a close amount](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/test-contracts/TransferTest.sol#L33) may be passed.
-- It is not possible to do any storage changes within this stipend. This is enforced by having cold write cost more than `2300` gas. Also, cold write cost always has to be prepaid whenever executing storage writes.
+- No more than `2300` gas will be received by the callee. Note that [a smaller, but a close amount](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/test-contracts/TransferTest.sol#L33) may be passed.
+- It is not possible to do any storage changes within this stipend. This is enforced by having cold writes cost more than `2300` gas. Also, cold writes always have to be prepaid whenever executing storage writes.
 - Any callee with bytecode size of up to `100000` will work.
 
 The system does not guarantee the following:
@@ -194,7 +190,7 @@ the L2 contract). Generally, rollups solve this issue in two ways:
 - Have different derivation rules from Ethereum. That is the path that ZKsync has chosen, mainly because since we have
   different bytecode than on EVM, CREATE2 address derivation would be different in practice anyway.
 
-You can see the rules for our address derivation in `getNewAddressCreate2`/ `getNewAddressCreate` methods in the
+You can see the rules for our address derivation in `getNewAddressCreate2`/`getNewAddressCreate` methods in the
 ContractDeployer.
 
 Note, that we still add a certain constant to the addresses during L1→L2 communication in order to allow ourselves some
@@ -228,8 +224,8 @@ returned by the constructor.
 On Ethereum, the constructor is only part of the initCode that gets executed during the deployment of the contract and
 returns the deployment code of the contract. On ZKsync, there is no separation between deployed code and constructor
 code. The constructor is always a part of the deployment code of the contract. In order to protect it from being called,
-the compiler-generated contracts invoke constructor only if the `isConstructor` flag provided (it is only available for
-the system contracts). You can read more about flags
+the compiler-generated contracts invoke the constructor only if the `isConstructor` flag is provided (it is only
+available for the system contracts). You can read more about flags
 [here](../../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
 
 After execution, the constructor must return an array of:
@@ -239,20 +235,19 @@ struct ImmutableData {
   uint256 index;
   bytes32 value;
 }
-
 ```
 
 basically denoting an array of immutables passed to the contract.
 
 ### **Immutables**
 
-Immutables are stored in the `ImmutableSimulator` system contract. The way how `index` of each immutable is defined is
-part of the compiler specification. This contract treats it simply as mapping from index to value for each particular
+Immutables are stored in the `ImmutableSimulator` system contract. The way the `index` of each immutable is defined is
+part of the compiler specification. This contract treats it simply as a mapping from index to value for each particular
 address.
 
 Whenever a contract needs to access a value of some immutable, they call the
 `ImmutableSimulator.getImmutable(getCodeAddress(), index)`. Note that on ZKsync it is possible to get the current
-execution address you can read more about `getCodeAddress()`
+execution address. You can read more about `getCodeAddress()`
 [here](../../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes).
 
 ### **Return value of the deployment methods**
@@ -264,16 +259,16 @@ If the call succeeded, the address of the deployed contract is returned. If the 
 The implementation of the default account abstraction. This is the code that is used by default for all addresses that
 are not in kernel space and have no contract deployed on them. This address:
 
-- Contains minimal implementation of our account abstraction protocol. Note that it supports the
+- Contains a minimal implementation of our account abstraction protocol. Note that it supports the
   [built-in paymaster flows](https://v2-docs.zksync.io/dev/developer-guides/aa.html#paymasters).
-- When anyone (except bootloader) calls it, it behaves in the same way as a call to an EOA, i.e. it always returns
+- When anyone (except bootloader) calls it, it behaves in the same way as a call to an EOA, i.e. it always returns
   `success = 1, returndatasize = 0` for calls from anyone except for the bootloader.
 
 ## L1Messenger
 
-A contract used for sending arbitrary length L2→L1 messages from ZKsync to L1. While ZKsync natively supports a rather
-limited number of L1→L2 logs, which can transfer only roughly 64 bytes of data a time, we allowed sending
-nearly-arbitrary length L2→L1 messages with the following trick:
+A contract used for sending arbitrary-length L2→L1 messages from ZKsync to L1. While ZKsync natively supports a rather
+limited number of L1→L2 logs, which can transfer only roughly 64 bytes of data at a time, we allow sending nearly-
+arbitrary-length L2→L1 messages with the following trick:
 
 The L1 messenger receives a message, hashes it and sends only its hash as well as the original sender via L2→L1 log.
 Then, it is the duty of the L1 smart contracts to make sure that the operator has provided full preimage of this hash in
@@ -299,26 +294,25 @@ why there are two ways to set a certain nonce as “used”:
 
 - By incrementing the `minNonce` for the account (thus making all nonces that are lower than `minNonce` as used).
 - By setting some non-zero value under the nonce via `setValueUnderNonce`. This way, this key will be marked as used and
-  will no longer be allowed to be used as nonce for accounts. This way it is also rather efficient, since these 32 bytes
-  could be used to store some valuable information.
+will no longer be allowed to be used as a nonce for accounts. This way it is also rather efficient, since these 32
+bytes could be used to store some valuable information.
 
-The accounts upon creation can also provide which type of nonce ordering do they want: Sequential (i.e. it should be
-expected that the nonces grow one by one, just like EOA) or Arbitrary, the nonces may have any values. This ordering is
-not enforced in any way by system contracts, but it is more of a suggestion to the operator on how it should order the
-transactions in the mempool.
+The accounts, upon creation, can also specify which type of nonce ordering they want: Sequential (i.e. it should be
+expected that the nonces grow one by one, just like EOA) or Arbitrary, where the nonces may have any values. This ordering
+is not enforced in any way by system contracts, but it is more of a suggestion to the operator on how they should order
+the transactions in the mempool.
 
 ## EventWriter
 
 A system contract responsible for emitting events.
 
-It accepts in its 0-th extra abi data param the number of topics. In the rest of the extraAbiParams he accepts topics
-for the event to emit. Note, that in reality the event the first topic of the event contains the address of the account.
-Generally, the users should not interact with this contract directly, but only through Solidity syntax of `emit`-ing new
-events.
+It accepts in its 0-th extra ABI data param the number of topics. In the rest of the extra ABI params, it accepts topics
+for the event to emit. Note that, in reality, the first topic of the event contains the address of the account. Generally,
+the users should not interact with this contract directly, but only through Solidity syntax of `emit`-ing new events.
 
 ## Compressor
 
-One of the most expensive resource for a rollup is data availability, so in order to reduce costs for the users we
+One of the most expensive resources for a rollup is data availability, so in order to reduce costs for the users we
 compress the published pubdata in several ways:
 
 - We compress published bytecodes.
@@ -326,25 +320,24 @@ compress the published pubdata in several ways:
 
 This contract contains utility methods that are used to verify the correctness of either bytecode or state diff
 compression. You can read more on how we compress [state diffs](../settlement_contracts/data_availability/compression.md) and [bytecodes](../../../guides/advanced/11_compression.md).
-g
 ### Pubdata Chunk Publisher
 
-This contract is responsible for separating pubdata into chunks that each fit into a [4844 blob](../settlement_contracts/data_availability/rollup_da.md) and calculating the hash of the preimage of said blob. If a chunk's size is less than the total number of bytes for a blob, we pad it on the right with zeroes as the circuits will require that the chunk is of exact size.
+This contract is responsible for separating pubdata into chunks that each fit into a [4844 blob](../settlement_contracts/data_availability/rollup_da.md) and calculating the hash of the preimage of said blob. If a chunk's size is less than the total number of bytes for a blob, we pad it on the right with zeroes, since the circuits require the chunk to be of the exact size.
 
-This contract can be utilized by L2DAValidators, e.g. [RollupL2DAValidator](https://github.com/matter-labs/era-contracts/blob/main/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol) uses it to compress the pubdata into blobs.
+This contract can be used by L2DAValidators, e.g. [RollupL2DAValidator](https://github.com/matter-labs/era-contracts/blob/main/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol) uses it to compress the pubdata into blobs.
 
 ### CodeOracle
 
-It is a contract that accepts the versioned hash of a bytecode and returns the preimage of it. It is similar to the `extcodecopy` functionality on Ethereum.
+It is a contract that accepts a versioned hash of bytecode and returns its preimage. It is similar to the `extcodecopy` functionality on Ethereum.
 
-It works the following way:
+It works as follows:
 
 1. It accepts a versioned hash and double checks that it is marked as “known”, i.e. the operator must know the preimage for such hash.
-2. After that, it uses the `decommit` opcode, which accepts the versioned hash and the number of ergs to spent, which is proportional to the length of the preimage. If the preimage has been decommitted before, the requested cost will be refunded to the user.
+2. After that, it uses the `decommit` opcode, which accepts the versioned hash and the number of ergs to spend, which is proportional to the length of the preimage. If the preimage has been decommitted before, the requested cost will be refunded to the user.
 
-   Note, that the decommitment process does not only happen using the `decommit` opcode, but during calls to contracts. Whenever a contract is called, its code is decommitted into a memory page dedicated to contract code. We never decommit the same preimage twice, regardless of whether it was decommitted via an explicit opcode or during a call to another contract, the previous unpacked bytecode memory page will be reused. When executing `decommit` inside the `CodeOracle` contract, the user will be firstly precharged with maximal possible price and then it will be refunded in case the bytecode has been decommitted before.
+ Note, that the decommitment process does not only happen using the `decommit` opcode, but during calls to contracts. Whenever a contract is called, its code is decommitted into a memory page dedicated to contract code. We never decommit the same preimage twice, regardless of whether it was decommitted via an explicit opcode or during a call to another contract, the previous unpacked bytecode memory page will be reused. When executing `decommit` inside the `CodeOracle` contract, the user will be first precharged with the maximum possible cost and then it will be refunded in case the bytecode has been decommitted before.
 
-3. The `decommit` opcode returns to the slice of the decommitted bytecode. Note, that the returned pointer always has length of 2^21 bytes, regardless of the length of the actual bytecode. So it is the job of the `CodeOracle` system contract to shrink the length of the returned data.
+3. The `decommit` opcode returns a slice of the decommitted bytecode. Note, that the returned pointer always has length of 2^21 bytes, regardless of the length of the actual bytecode. So it is the job of the `CodeOracle` system contract to shrink the length of the returned data.
 
 ### P256Verify
 
@@ -352,7 +345,7 @@ This contract exerts the same behavior as the P256Verify precompile from [RIP-72
 
 ### GasBoundCaller
 
-This is not a system contract, but it will be predeployed on a fixed user space address. This contract allows users to set an upper bound of how much pubdata can a subcall take, regardless of the gas per pubdata. More on how pubdata works on ZKsync can be read [here](./zksync_fee_model.md).
+This is not a system contract, but it will be predeployed on a fixed user space address. This contract allows users to set an upper bound for how much pubdata a subcall can take, regardless of the gas per pubdata. You can read more about how pubdata works on ZKsync [here](./zksync_fee_model.md).
 
 Note, that it is a deliberate decision not to deploy this contract in the kernel space, since it can relay calls to any contracts and so may break the assumption that all system contracts can be trusted.
 
@@ -360,17 +353,13 @@ Note, that it is a deliberate decision not to deploy this contract in the kernel
 
 Usually an upgrade is performed by calling the `forceDeployOnAddresses` function of ContractDeployer out of the name of the `FORCE_DEPLOYER` constant address. However some upgrades may require more complex interactions, e.g. query something from a contract to determine which calls to make etc.
 
-For cases like this `ComplexUpgrader` contract has been created. The assumption is that the implementation of the upgrade is predeployed and the `ComplexUpgrader` would delegatecall to it.
+For cases like this `ComplexUpgrader` contract has been created. The assumption is that the implementation of the upgrade is predeployed and the `ComplexUpgrader` will delegatecall to it.
 
-> Note, that while `ComplexUpgrader` existed even in the previous upgrade, it lacked `forceDeployAndUpgrade` function. This caused some serious limitations. More on how the gateway upgrade process will look like can be read [here](../../upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md).
-
-### Predeployed contracts
-
-There are some contracts need to predeployed, but having kernel space rights is not desirable for them. Such contracts are usuallypredeployed at sequential addresses starting from `2^16`.
+> Note, that while `ComplexUpgrader` existed even in the previous upgrade, it lacked the `forceDeployAndUpgrade` function. This caused some serious limitations. You can read more about how the gateway upgrade process will work [here](../../upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md).
 
 ### Create2Factory
 
-Just a built-in Create2Factory. It allows to deterministically deploy contracts to the samme address on multiple chains.
+Just a built-in Create2Factory. It allows to deterministically deploy contracts to the same address on multiple chains.
 
 ### L2GenesisUpgrade
 
@@ -380,19 +369,19 @@ A contract that is responsible for facilitating initialization of a newly create
 
 `L2Bridgehub`, `L2AssetRouter`, `L2NativeTokenVault`, as well as `L2MessageRoot`.
 
-These contracts are used to facilitate cross-chain communication as well value bridging. You can read more about then in [the asset router spec](../bridging/asset_router_and_ntv/asset_router.md).
+These contracts are used to facilitate cross-chain communication as well as value bridging. You can read more about them in [the asset router spec](../bridging/asset_router_and_ntv/asset_router.md).
 
 Note, that [L2AssetRouter](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridge/asset-router/L2AssetRouter.sol) and [L2NativeTokenVault](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridge/ntv/L2NativeTokenVault.sol) have unique code, however the L2Bridgehub and L2MessageRoot share the same source code with their L1 precompiles, i.e. the L2Bridgehub has [this](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridgehub/Bridgehub.sol) code and L2MessageRoot has [this](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridgehub/MessageRoot.sol) code.
 
 ### SloadContract
 
-During the L2GatewayUpgrade, the system contracts will need to read the storage of some other contracts, despite those lacking getters. The how it is implemented can be read in the `forcedSload` function of the [SystemContractHelper](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/libraries/SystemContractHelper.sol) contract.
+During the L2GatewayUpgrade, the system contracts will need to read the storage of some other contracts, despite the fact that they lack getters.. How it is implemented can be read in the `forcedSload` function of the [SystemContractHelper](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/libraries/SystemContractHelper.sol) contract.
 
 While it is only used for the upgrade, it was decided to leave it as a predeployed contract for future use-cases as well.
 
 ### L2WrappedBaseTokenImplementation
 
-While bridging wrapped base tokens (e.g. WETH) is not yet supported. The address of it is enshrined within the native token vault (both the L1 and L2 one). For consistency with other networks, our WETH token is deployed as a TransparentUpgradeableProxy. To have the deployment process easier, we predeploy the implementation.
+Although bridging wrapped base tokens (e.g., WETH) is not yet supported, its address is enshrined within the native token vault (both the L1 and L2 ones). For consistency with other networks, our WETH token is deployed as a TransparentUpgradeableProxy. To make the deployment process easier, we predeploy the implementation.
 
 ## Known issues to be resolved
 
@@ -400,7 +389,7 @@ The protocol, while conceptually complete, contains some known issues which will
 term.
 
 - Fee modeling is yet to be improved. More on it in the
-  [document](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/zkSync%20fee%20model.md)
-  on the fee model.
+[document](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/zkSync%20fee%20model.md)
+on the fee model.
 - We may add some kind of default implementation for the contracts in the kernel space (i.e. if called, they wouldn’t
-  revert but behave like an EOA).
+revert but behave like an EOA).
