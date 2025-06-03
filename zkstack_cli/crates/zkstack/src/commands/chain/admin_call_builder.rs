@@ -94,7 +94,7 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(any(feature = "v28_precompiles", feature = "v29"))]
+    #[cfg(any(feature = "v28_precompiles", feature = "v29_interopA_ff"))]
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
@@ -143,7 +143,7 @@ impl AdminCallBuilder {
     #[cfg(any(
         feature = "v27_evm_interpreter",
         feature = "v28_precompiles",
-        feature = "v29"
+        feature = "v29_interopA_ff"
     ))]
     pub fn append_execute_upgrade(
         &mut self,
@@ -182,7 +182,7 @@ impl AdminCallBuilder {
     #[cfg(any(
         feature = "v27_evm_interpreter",
         feature = "v28_precompiles",
-        feature = "v29"
+        feature = "v29_interopA_ff"
     ))]
     pub fn display(&self) {
         // Serialize with pretty printing
