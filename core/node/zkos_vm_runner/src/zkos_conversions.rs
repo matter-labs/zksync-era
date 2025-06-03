@@ -14,6 +14,7 @@ use zksync_types::{
     l2::TransactionType,
     ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256,
 };
+use zksync_types::bytecode::BytecodeHash;
 use zksync_vm_interface::VmEvent;
 
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
@@ -46,7 +47,7 @@ pub(crate) struct TransactionData {
     // Note that *only hashes* of these bytecodes are signed by the user
     // and they are used in the ABI encoding of the struct.
     // TODO: include this into the tx signature as part of SMA-1010
-    pub(crate) factory_deps: Vec<Vec<u8>>,
+    pub(crate) factory_deps: Vec<H256>,
     pub(crate) paymaster_input: Vec<u8>,
     pub(crate) reserved_dynamic: Vec<u8>,
     pub(crate) raw_bytes: Option<Vec<u8>>,
@@ -68,8 +69,9 @@ impl TransactionData {
             Token::FixedArray(self.reserved.iter().copied().map(Token::Uint).collect()),
             Token::Bytes(self.data),
             Token::Bytes(self.signature),
-            // todo: factory deps must be empty
-            Token::Array(Vec::new()),
+            Token::Array(self.factory_deps.into_iter().map(|dep| {
+                Token::FixedBytes(dep.as_bytes().to_vec())
+            }).collect()),
             Token::Bytes(self.paymaster_input),
             Token::Bytes(self.reserved_dynamic),
         ])]);
@@ -134,7 +136,11 @@ impl From<Transaction> for TransactionData {
                     ],
                     data: execute_tx.execute.calldata,
                     signature: common_data.signature,
-                    factory_deps: execute_tx.execute.factory_deps,
+                    // todo: currently zksync_os cannot process factory_deps due to a bug
+                    factory_deps: execute_tx.execute.factory_deps
+                        .iter()
+                        .map(|b| BytecodeHash::for_bytecode(b).value())
+                        .collect(),
                     paymaster_input: common_data.paymaster_params.paymaster_input,
                     reserved_dynamic: vec![],
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
@@ -161,7 +167,10 @@ impl From<Transaction> for TransactionData {
                     ],
                     data: execute_tx.execute.calldata,
                     signature: vec![],
-                    factory_deps: execute_tx.execute.factory_deps,
+                    factory_deps: execute_tx.execute.factory_deps
+                        .iter()
+                        .map(|b| BytecodeHash::for_bytecode(b).value())
+                        .collect(),
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
