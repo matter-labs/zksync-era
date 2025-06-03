@@ -698,7 +698,7 @@ impl EthSenderDal<'_, '_> {
         super::BlocksDal {
             storage: &mut transaction,
         }
-        .set_eth_tx_id(
+        .set_eth_tx_id_for_l1_batches(
             l1_batch..=l1_batch,
             eth_tx_id as u32,
             AggregatedActionType::L1Batch(tx_type),

@@ -1160,7 +1160,7 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .set_eth_tx_id(
+            .set_eth_tx_id_for_l1_batches(
                 l1_batch_header.number..=l1_batch_header.number,
                 mocked_commit_eth_tx.id,
                 AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),

@@ -118,6 +118,6 @@ impl From<StorageTxHistory> for TxHistory {
 pub struct L2BlockWithEthTx {
     pub l1_batch_number: L1BatchNumber,
     pub l2_block_number: L2BlockNumber,
-    pub rolling_tx_hash: H256,
+    pub rolling_txs_hash: H256,
     pub precommit_eth_tx_id: Option<i32>,
 }

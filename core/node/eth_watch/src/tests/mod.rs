@@ -899,7 +899,7 @@ async fn setup_batch_roots(
             .unwrap();
         connection
             .blocks_dal()
-            .set_eth_tx_id(
+            .set_eth_tx_id_for_l1_batches(
                 batch_number..=batch_number,
                 eth_tx_id,
                 AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),

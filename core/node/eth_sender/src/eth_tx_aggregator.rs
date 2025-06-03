@@ -714,6 +714,10 @@ impl EthTxAggregator {
         Ok(())
     }
 
+    /// The server is doing precommits based on the txs.
+    /// That means, that the last fictive l2 block will never be included into precommit txs and it's the only way how the miniblock will have no txs.
+    /// So we have to check if the last 2 rolling txs hashes for miniblocks are equal and if yes, we can set the final precommit tx id for the batch,
+    /// and that will mean we can commit the batch.
     async fn set_final_precommit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -721,7 +725,7 @@ impl EthTxAggregator {
         if self.config.precommit_params.is_some() {
             let l2_blocks_by_batch = storage
                 .blocks_dal()
-                .get_l2_block_hashes_by_batches()
+                .get_last_l2_block_rolling_txs_hashes_by_batches()
                 .await?;
             for (batch_number, l2_block) in l2_blocks_by_batch {
                 if l2_block.len() != 2 {
@@ -729,11 +733,11 @@ impl EthTxAggregator {
                     continue;
                 }
                 // l2_blocks[0] is the newest, l2_blocks[1] is previous (because of DESC order)
-                if l2_block[0].rolling_tx_hash == l2_block[1].rolling_tx_hash {
+                if l2_block[0].rolling_txs_hash == l2_block[1].rolling_txs_hash {
                     if let Some(eth_tx_id) = l2_block[1].precommit_eth_tx_id {
                         storage
                             .blocks_dal()
-                            .set_eth_tx_id(
+                            .set_eth_tx_id_for_l1_batches(
                                 batch_number..=batch_number,
                                 eth_tx_id as u32,
                                 AggregatedActionType::L2Block(
@@ -1041,7 +1045,7 @@ impl EthTxAggregator {
             AggregatedOperation::L1Batch(agg_op) => {
                 transaction
                     .blocks_dal()
-                    .set_eth_tx_id(
+                    .set_eth_tx_id_for_l1_batches(
                         agg_op.l1_batch_range(),
                         eth_tx.id,
                         aggregated_op.get_action_type(),
