@@ -311,6 +311,7 @@ mod tests {
           DA_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000000123"
           DA_BLOB_VERSION="0"
           DA_POLYNOMIAL_FORM="coeff"
+          DA_EIGENDA_SIDECAR_RPC="http://localhost:9999"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -337,6 +338,8 @@ mod tests {
         };
         assert_eq!(path, "./resources");
         assert_eq!(config.custom_quorum_numbers, [2, 3]);
+
+        assert_eq!(config.eigenda_sidecar_rpc, "http://localhost:9999");
     }
 
     #[test]
@@ -405,6 +408,7 @@ mod tests {
             cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
             blob_version: 0
             polynomial_form: coeff
+            eigenda_sidecar_rpc: http://localhost:9999
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -443,6 +447,8 @@ mod tests {
         };
         assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");
         assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");
+
+        assert_eq!(config.eigenda_sidecar_rpc, "http://localhost:9999");
     }
 
     #[test]
@@ -466,6 +472,7 @@ mod tests {
             custom_quorum_numbers:
                 - 1
                 - 3
+            eigenda_sidecar_rpc: http://localhost:9999
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -493,6 +500,8 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
+
+        assert_eq!(config.eigenda_sidecar_rpc, "http://localhost:9999");
     }
 
     #[test]
@@ -516,6 +525,7 @@ mod tests {
             custom_quorum_numbers:
                 - 1
                 - 3
+            eigenda_sidecar_rpc: http://localhost:9999
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
