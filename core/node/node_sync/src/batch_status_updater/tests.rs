@@ -163,22 +163,22 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             committed_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
             commit_tx_finality: (stage >= L1BatchStage::Committed)
-                .then(|| EthTxFinalityStatus::Finalized),
+                .then_some(EthTxFinalityStatus::Finalized),
             commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
             prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| H256::repeat_byte(2)),
             prove_tx_finality: (stage >= L1BatchStage::Proven)
-                .then(|| EthTxFinalityStatus::Finalized),
+                .then_some(EthTxFinalityStatus::Finalized),
             proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
             prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(22)),
             execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
             execute_tx_finality: (stage >= L1BatchStage::Executed)
-                .then(|| EthTxFinalityStatus::Finalized),
+                .then_some(EthTxFinalityStatus::Finalized),
             executed_at: (stage >= L1BatchStage::Executed)
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
             execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(33)),
             precommit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(4)),
             precommit_tx_finality: (stage >= L1BatchStage::Committed)
-                .then(|| EthTxFinalityStatus::Finalized),
+                .then_some(EthTxFinalityStatus::Finalized),
             precommitted_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
             precommit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),

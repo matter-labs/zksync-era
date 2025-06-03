@@ -26,7 +26,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_types::{
-    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{BlockNumber, BlockStatus, TransactionStatus},
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
@@ -386,9 +386,6 @@ async fn save_eth_tx(
     tx_type: L1BatchAggregatedActionType,
 ) -> H256 {
     let tx_hash = H256::random();
-    let AggregatedActionType::L1Batch(tx_type) = tx_type else {
-        panic!("Expected L1Batch action type");
-    };
     storage
         .eth_sender_dal()
         .insert_bogus_confirmed_eth_tx(
