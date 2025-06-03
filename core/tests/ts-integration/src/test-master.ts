@@ -1,5 +1,4 @@
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { TestEnvironment, TestContext } from './types';
 import { claimEtherBack } from './context-owner';
