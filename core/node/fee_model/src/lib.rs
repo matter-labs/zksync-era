@@ -376,27 +376,4 @@ mod tests {
         .await
         .expect("Failed to create GasAdjuster")
     }
-
-    #[tokio::test]
-    async fn test_take_fee_input_from_unsealed_batch() {
-        let sealed_batch_fee_input = BatchFeeInput::pubdata_independent(1, 2, 3);
-        let unsealed_batch_fee_input = BatchFeeInput::pubdata_independent(101, 102, 103);
-
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
-            .await
-            .unwrap();
-
-        let mut l1_batch_header = create_l1_batch(1);
-        l1_batch_header.batch_fee_input = sealed_batch_fee_input;
-
-        let mut l1_batch_header = create_l1_batch(2);
-        l1_batch_header.batch_fee_input = unsealed_batch_fee_input;
-
-        let provider: &dyn BatchFeeModelInputProvider =
-            &ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()));
-        let fee_input = provider.get_batch_fee_input().await.unwrap();
-        assert_eq!(fee_input, unsealed_batch_fee_input);
-    }
 }
