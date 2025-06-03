@@ -14,7 +14,7 @@ use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    aggregated_operations::L1BatchAggregatedActionType,
     block::L1BatchHeader,
     commitment::L1BatchCommitmentMode,
     eth_sender::{EthTx, EthTxFinalityStatus},
@@ -405,10 +405,7 @@ impl EthSenderTester {
             .await
             .unwrap()
             .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                l1_batch_number,
-                AggregatedActionType::L1Batch(operation_type),
-            )
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(l1_batch_number, operation_type)
             .await
             .unwrap();
 
@@ -623,10 +620,7 @@ impl EthSenderTester {
             .await
             .unwrap()
             .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                l1_batch_number,
-                AggregatedActionType::L1Batch(operation_type),
-            )
+            .get_last_sent_successfully_eth_tx_by_batch_and_op(l1_batch_number, operation_type)
             .await
             .unwrap();
         let max_id = self

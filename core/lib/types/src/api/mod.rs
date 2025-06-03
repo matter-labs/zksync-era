@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "latest" => BlockNumber::Latest,
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
-                    // For zksync safe is l1 committed. Real chances of revert are very low.
+                    // For zksync safe is l1 precommitted. Real chances of revert are very low.
                     "safe" => BlockNumber::Precommitted,
                     "pending" => BlockNumber::Pending,
                     "fast_finalized" => BlockNumber::FastFinalized,

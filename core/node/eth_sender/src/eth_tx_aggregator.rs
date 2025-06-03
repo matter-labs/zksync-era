@@ -16,7 +16,9 @@ use zksync_l1_contract_interface::{
 };
 use zksync_shared_metrics::L1Stage;
 use zksync_types::{
-    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    aggregated_operations::{
+        AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
+    },
     commitment::{L1BatchWithMetadata, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Function, Token},
@@ -707,11 +709,41 @@ impl EthTxAggregator {
         if self.config.precommit_params.is_some() {
             // If we are using precommit operations,
             // we need to set the final precommit operation for l1 batches
-            storage
+            self.set_final_precommit_operation(storage).await?;
+        }
+        Ok(())
+    }
+
+    async fn set_final_precommit_operation(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<(), EthSenderError> {
+        if self.config.precommit_params.is_some() {
+            let l2_blocks_by_batch = storage
                 .blocks_dal()
-                .set_final_precommit_operation()
-                .await
-                .unwrap();
+                .get_l2_block_hashes_by_batches()
+                .await?;
+            for (batch_number, l2_block) in l2_blocks_by_batch {
+                if l2_block.len() != 2 {
+                    // We expect exactly 2 miniblocks for each batch. If not we will wait for the next iteration
+                    continue;
+                }
+                // l2_blocks[0] is the newest, l2_blocks[1] is previous (because of DESC order)
+                if l2_block[0].rolling_tx_hash == l2_block[1].rolling_tx_hash {
+                    if let Some(eth_tx_id) = l2_block[1].precommit_eth_tx_id {
+                        storage
+                            .blocks_dal()
+                            .set_eth_tx_id(
+                                batch_number..=batch_number,
+                                eth_tx_id as u32,
+                                AggregatedActionType::L2Block(
+                                    L2BlockAggregatedActionType::Precommit,
+                                ),
+                            )
+                            .await?
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -1009,7 +1041,11 @@ impl EthTxAggregator {
             AggregatedOperation::L1Batch(agg_op) => {
                 transaction
                     .blocks_dal()
-                    .set_eth_tx_id(agg_op.l1_batch_range(), eth_tx.id, agg_op.get_action_type())
+                    .set_eth_tx_id(
+                        agg_op.l1_batch_range(),
+                        eth_tx.id,
+                        aggregated_op.get_action_type(),
+                    )
                     .await
                     .unwrap();
             }

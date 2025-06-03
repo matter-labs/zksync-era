@@ -309,27 +309,27 @@ impl BlocksWeb3Dal<'_, '_> {
                     // GREATEST in postgress ignore nulls.
                     "
                     SELECT GREATEST(
-                       (
-                           SELECT MAX(number)
-                           FROM miniblocks
-                           JOIN eth_txs_history ON
-                                    miniblocks.eth_precommit_tx_id = eth_txs_history.eth_tx_id
+                        (
+                            SELECT MAX(number)
+                            FROM miniblocks
+                            JOIN eth_txs_history ON
+                                miniblocks.eth_precommit_tx_id = eth_txs_history.eth_tx_id
                             WHERE
-                                    eth_txs_history.finality_status = 'finalized'
-                       ),
-                       (
-                           SELECT MAX(number)
-                           FROM miniblocks
-                           WHERE l1_batch_number =
+                                eth_txs_history.finality_status = 'finalized'
+                        ),
+                        (
+                            SELECT MAX(number)
+                            FROM miniblocks
+                            WHERE l1_batch_number =
                             (
-                                 SELECT number
-                                 FROM l1_batches
-                                          JOIN eth_txs_history ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
-                                 WHERE eth_txs_history.finality_status = 'finalized'
-                                 ORDER BY number DESC
-                                 LIMIT 1
+                                SELECT number
+                                FROM l1_batches
+                                   JOIN eth_txs_history ON l1_batches.eth_commit_tx_id = eth_txs_history.eth_tx_id
+                                WHERE eth_txs_history.finality_status = 'finalized'
+                                ORDER BY number DESC
+                                LIMIT 1
                             )
-                       ),
+                        ),
                         0
                     ) AS number";
                 ),
@@ -1163,7 +1163,7 @@ mod tests {
             .set_eth_tx_id(
                 l1_batch_header.number..=l1_batch_header.number,
                 mocked_commit_eth_tx.id,
-                L1BatchAggregatedActionType::Commit,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
             )
             .await
             .unwrap();

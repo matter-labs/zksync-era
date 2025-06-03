@@ -4,7 +4,7 @@ use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxFinalityStatus, TxHistory},
-    Address, Nonce, SLChainId, H256,
+    Address, L1BatchNumber, L2BlockNumber, Nonce, SLChainId, H256,
 };
 
 #[derive(Debug, Clone)]
@@ -113,4 +113,11 @@ impl From<StorageTxHistory> for TxHistory {
                 .and_then(|s| EthTxFinalityStatus::from_str(s).ok()),
         }
     }
+}
+
+pub struct L2BlockWithEthTx {
+    pub l1_batch_number: L1BatchNumber,
+    pub l2_block_number: L2BlockNumber,
+    pub rolling_tx_hash: H256,
+    pub precommit_eth_tx_id: Option<i32>,
 }

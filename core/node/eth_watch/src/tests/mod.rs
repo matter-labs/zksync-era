@@ -902,7 +902,7 @@ async fn setup_batch_roots(
             .set_eth_tx_id(
                 batch_number..=batch_number,
                 eth_tx_id,
-                L1BatchAggregatedActionType::Execute,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute),
             )
             .await
             .unwrap();

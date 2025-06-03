@@ -698,7 +698,11 @@ impl EthSenderDal<'_, '_> {
         super::BlocksDal {
             storage: &mut transaction,
         }
-        .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
+        .set_eth_tx_id(
+            l1_batch..=l1_batch,
+            eth_tx_id as u32,
+            AggregatedActionType::L1Batch(tx_type),
+        )
         .await
         .context("set_eth_tx_id()")?;
 
@@ -973,7 +977,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        op_type: AggregatedActionType,
+        op_type: L1BatchAggregatedActionType,
     ) -> Option<u32> {
         let row = sqlx::query!(
             r#"
@@ -993,16 +997,9 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
         .unwrap();
         let eth_tx_id = match op_type {
-            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) => {
-                row.eth_commit_tx_id
-            }
-            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain) => {
-                row.eth_prove_tx_id
-            }
-            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute) => {
-                row.eth_execute_tx_id
-            }
-            _ => panic!("Unsupported"),
+            L1BatchAggregatedActionType::Commit => row.eth_commit_tx_id,
+            L1BatchAggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
+            L1BatchAggregatedActionType::Execute => row.eth_execute_tx_id,
         }
         .unwrap() as u32;
         Some(eth_tx_id)
@@ -1011,7 +1008,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        op_type: AggregatedActionType,
+        op_type: L1BatchAggregatedActionType,
     ) -> Option<TxHistory> {
         let eth_tx_id = self
             .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
