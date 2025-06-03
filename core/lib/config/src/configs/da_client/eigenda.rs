@@ -72,7 +72,7 @@ impl WellKnown for Version {
 /// Configuration for the EigenDA remote disperser client.
 ///
 /// This configuration is meant to be used by both the EigenDA V1 and V2 client.
-/// The M0 stands for Milestone 0, an insecure integration, where the dispersal is not verified.
+/// Both are insecure integrations, where the dispersal is not verified.
 #[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
 pub struct EigenDAConfig {
     // Shared fields between V1 and V2
