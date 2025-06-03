@@ -124,7 +124,30 @@ Whenever anyone wants to do a non-zero value call, they need to call `MsgValueSi
 - Pass the address of the callee in the second extraAbiParam.
 
 More information on the extraAbiParams can be read
-[here](../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
+[here](../../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
+
+## Support for `.send/.transfer`
+
+On Ethereum, whenever a call with non-zero value is done, some additional gas is charged from the caller's frame and in return a `2300` gas stipend is given out to the callee frame. This stipend is usually enough to emit a small event, but it is enforced that it is not possible to change storage within these `2300` gas. This also means that in practice some users might opt to do `call` with 0 gas provided, relying on the `2300` stipend to be passed to the callee. This is the case for `.call/.transfer`.
+
+While using `.send/.transfer` is generally not recommended, as a step towards better EVM compatibility, since vm1.5.0 a _partial_ support of these functions is present with ZKsync Era. It is the done via the following means:
+
+- Whenever a call is done to the `MsgValueSimulator` system contract, `27000` gas is deducted from the caller's frame and it passed to the `MsgValueSimulator` on top of whatever gas the user has originally provided. The number was chosen to cover for the execution of the transferring of the balances as well as other constant size operations by the `MsgValueSimulator`. Note, that since it will be the frame of `MsgValueSimulator` that will actually call the callee, the constant must also include the cost for decommitting the code of the callee. Decoding bytecode of any size would be prohibitevely expensive and so we support only callees of size up to `100000` bytes.
+- `MsgValueSimulator` ensures that no more than `2300` out of the stipend above gets to the callee, ensuring the reentrancy protection invariant for these functions holds.
+
+Note, that unlike EVM any unused gas from such calls will be refunded.
+
+The system preserves the following guarantees about `.send/.transfer`:
+
+- No more than `2300` gas will be received by the callee. Note, [that a smaller, but a close amount](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/test-contracts/TransferTest.sol#L33) may be passed.
+- It is not possible to do any storage changes within this stipend. This is enforced by having cold write cost more than `2300` gas. Also, cold write cost always has to be prepaid whenever executing storage writes.
+- Any callee with bytecode size of up to `100000` will work.
+
+The system does not guarantee the following:
+
+- That callees with bytecode size larger than `100000` will work. Note, that a malicious operator can fail any call to a callee with large bytecode even if it has been decommitted before.
+
+As a conclusion, using `.send/.transfer` should be generally avoided, but when avoiding is not possible it should be used with small callees, e.g. EOAs, which implement `DefaultAccount`.
 
 ## KnownCodeStorage
 
@@ -147,7 +170,7 @@ It is the responsibility of the [ContractDeployer](#contractdeployer--immutables
 those code hashes that are known.
 
 The KnownCodesStorage contract is also responsible for ensuring that all the “known” bytecode hashes are also
-[valid](../../guides/advanced/12_alternative_vm_intro.md#bytecode-validity).
+[valid](../../../guides/advanced/12_alternative_vm_intro.md#bytecode-validity).
 
 ## ContractDeployer & ImmutableSimulator
 
@@ -207,7 +230,7 @@ returns the deployment code of the contract. On ZKsync, there is no separation b
 code. The constructor is always a part of the deployment code of the contract. In order to protect it from being called,
 the compiler-generated contracts invoke constructor only if the `isConstructor` flag provided (it is only available for
 the system contracts). You can read more about flags
-[here](../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
+[here](../../../guides/advanced/12_alternative_vm_intro.md#flags-for-calls).
 
 After execution, the constructor must return an array of:
 
@@ -230,7 +253,7 @@ address.
 Whenever a contract needs to access a value of some immutable, they call the
 `ImmutableSimulator.getImmutable(getCodeAddress(), index)`. Note that on ZKsync it is possible to get the current
 execution address you can read more about `getCodeAddress()`
-[here](../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes).
+[here](../../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes).
 
 ### **Return value of the deployment methods**
 
@@ -302,8 +325,74 @@ compress the published pubdata in several ways:
 - We compress state diffs.
 
 This contract contains utility methods that are used to verify the correctness of either bytecode or state diff
-compression. You can read more on how we compress state diffs and bytecodes in the corresponding
-[document](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
+compression. You can read more on how we compress [state diffs](../settlement_contracts/data_availability/compression.md) and [bytecodes](../../../guides/advanced/11_compression.md).
+g
+### Pubdata Chunk Publisher
+
+This contract is responsible for separating pubdata into chunks that each fit into a [4844 blob](../settlement_contracts/data_availability/rollup_da.md) and calculating the hash of the preimage of said blob. If a chunk's size is less than the total number of bytes for a blob, we pad it on the right with zeroes as the circuits will require that the chunk is of exact size.
+
+This contract can be utilized by L2DAValidators, e.g. [RollupL2DAValidator](https://github.com/matter-labs/era-contracts/blob/main/l2-contracts/contracts/data-availability/RollupL2DAValidator.sol) uses it to compress the pubdata into blobs.
+
+### CodeOracle
+
+It is a contract that accepts the versioned hash of a bytecode and returns the preimage of it. It is similar to the `extcodecopy` functionality on Ethereum.
+
+It works the following way:
+
+1. It accepts a versioned hash and double checks that it is marked as “known”, i.e. the operator must know the preimage for such hash.
+2. After that, it uses the `decommit` opcode, which accepts the versioned hash and the number of ergs to spent, which is proportional to the length of the preimage. If the preimage has been decommitted before, the requested cost will be refunded to the user.
+
+   Note, that the decommitment process does not only happen using the `decommit` opcode, but during calls to contracts. Whenever a contract is called, its code is decommitted into a memory page dedicated to contract code. We never decommit the same preimage twice, regardless of whether it was decommitted via an explicit opcode or during a call to another contract, the previous unpacked bytecode memory page will be reused. When executing `decommit` inside the `CodeOracle` contract, the user will be firstly precharged with maximal possible price and then it will be refunded in case the bytecode has been decommitted before.
+
+3. The `decommit` opcode returns to the slice of the decommitted bytecode. Note, that the returned pointer always has length of 2^21 bytes, regardless of the length of the actual bytecode. So it is the job of the `CodeOracle` system contract to shrink the length of the returned data.
+
+### P256Verify
+
+This contract exerts the same behavior as the P256Verify precompile from [RIP-7212](https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md). Note, that since Era has different gas schedule, we do not comply with the gas costs, but otherwise the interface is identical.
+
+### GasBoundCaller
+
+This is not a system contract, but it will be predeployed on a fixed user space address. This contract allows users to set an upper bound of how much pubdata can a subcall take, regardless of the gas per pubdata. More on how pubdata works on ZKsync can be read [here](./zksync_fee_model.md).
+
+Note, that it is a deliberate decision not to deploy this contract in the kernel space, since it can relay calls to any contracts and so may break the assumption that all system contracts can be trusted.
+
+### ComplexUpgrader
+
+Usually an upgrade is performed by calling the `forceDeployOnAddresses` function of ContractDeployer out of the name of the `FORCE_DEPLOYER` constant address. However some upgrades may require more complex interactions, e.g. query something from a contract to determine which calls to make etc.
+
+For cases like this `ComplexUpgrader` contract has been created. The assumption is that the implementation of the upgrade is predeployed and the `ComplexUpgrader` would delegatecall to it.
+
+> Note, that while `ComplexUpgrader` existed even in the previous upgrade, it lacked `forceDeployAndUpgrade` function. This caused some serious limitations. More on how the gateway upgrade process will look like can be read [here](../../upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md).
+
+### Predeployed contracts
+
+There are some contracts need to predeployed, but having kernel space rights is not desirable for them. Such contracts are usuallypredeployed at sequential addresses starting from `2^16`.
+
+### Create2Factory
+
+Just a built-in Create2Factory. It allows to deterministically deploy contracts to the samme address on multiple chains.
+
+### L2GenesisUpgrade
+
+A contract that is responsible for facilitating initialization of a newly created chain. This is part of a [chain creation flow](../chain_management/chain_genesis.md).
+
+### Bridging-related contracts
+
+`L2Bridgehub`, `L2AssetRouter`, `L2NativeTokenVault`, as well as `L2MessageRoot`.
+
+These contracts are used to facilitate cross-chain communication as well value bridging. You can read more about then in [the asset router spec](../bridging/asset_router_and_ntv/asset_router.md).
+
+Note, that [L2AssetRouter](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridge/asset-router/L2AssetRouter.sol) and [L2NativeTokenVault](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridge/ntv/L2NativeTokenVault.sol) have unique code, however the L2Bridgehub and L2MessageRoot share the same source code with their L1 precompiles, i.e. the L2Bridgehub has [this](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridgehub/Bridgehub.sol) code and L2MessageRoot has [this](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/bridgehub/MessageRoot.sol) code.
+
+### SloadContract
+
+During the L2GatewayUpgrade, the system contracts will need to read the storage of some other contracts, despite those lacking getters. The how it is implemented can be read in the `forcedSload` function of the [SystemContractHelper](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/libraries/SystemContractHelper.sol) contract.
+
+While it is only used for the upgrade, it was decided to leave it as a predeployed contract for future use-cases as well.
+
+### L2WrappedBaseTokenImplementation
+
+While bridging wrapped base tokens (e.g. WETH) is not yet supported. The address of it is enshrined within the native token vault (both the L1 and L2 one). For consistency with other networks, our WETH token is deployed as a TransparentUpgradeableProxy. To have the deployment process easier, we predeploy the implementation.
 
 ## Known issues to be resolved
 

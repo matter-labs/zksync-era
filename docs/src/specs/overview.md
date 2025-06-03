@@ -22,7 +22,7 @@ Transactions can also be submitted via L1. This happens via the same process tha
 [L1<>L2 communication](./contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md). This method
 provides the rollup with censorship resistance, and allows trustless bridges to the L1.
 
-The sequencer collects transactions into blocks [blocks][TODO], similarly to Ethereum. To provide the best UX the
+The sequencer collects transactions into blocks [blocks](./blocks_batches.md), similarly to Ethereum. To provide the best UX the
 protocol has small blocks with quick soft confirmations for the users. Unlike Ethereum, the zkEVM does not just have
 blocks, but also batches, which are just a collection of blocks. A batch is the unit that the prover processes.
 

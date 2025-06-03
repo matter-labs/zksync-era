@@ -9,7 +9,7 @@ On standard Ethereum clients, the workflow for executing blocks is the following
 However, having such flow on ZKsync (i.e. processing transaction one-by-one) would be too inefficient, since we have to
 run the entire proving workflow for each individual transaction. That’s why we need the _bootloader_: instead of running
 N transactions separately, we run the entire batch (set of blocks, more can be found
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20%26%20L2%20blocks%20on%20zkSync.md))
+[here](./batches_and_blocks_on_zksync.md))
 as a single program that accepts the array of transactions as well as some other batch metadata and processes them
 inside a single big “transaction”. The easiest way to think about bootloader is to think in terms of EntryPoint from
 EIP4337: it also accepts the array of transactions and facilitates the Account Abstraction protocol.
