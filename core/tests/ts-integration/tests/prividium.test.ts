@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import { ChildProcess, spawn } from 'node:child_process';
 import fetch from 'node-fetch';
 import { RetryableWallet } from '../src/retry-provider';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import { sleep } from 'utils';
 import { shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { injectPermissionsToFile } from '../src/private-rpc-permissions-editor';

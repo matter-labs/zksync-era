@@ -6,8 +6,7 @@
  * and waiting for the block finalization).
  */
 import { TestMaster } from '../src';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import {
     deployContract,
