@@ -562,7 +562,7 @@ jobs:
           sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/da_migration/configs/general.yaml
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
           ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
-          echo "Server restart initiated, waiting 20 seconds for startup"
+          echo "Server restart initiated, waiting 30 seconds for startup"
           ci_run sleep 30
           
           echo "Running integration tests to generate unsealed batches"
@@ -584,7 +584,7 @@ jobs:
           ci_run zkstack chain deploy-l2da-validator --chain da_migration
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
           ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
-          echo "Server restart initiated, waiting 60 seconds for startup"
+          echo "Server restart initiated, waiting 30 seconds for startup"
           ci_run sleep 30
           echo "Server restart wait completed"
           
@@ -616,7 +616,7 @@ jobs:
             ATTEMPT=$((ATTEMPT+1))
           
             if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
-              echo "Waiting 30 seconds before next attempt..."
+              echo "Waiting 10 seconds before next attempt..."
               sleep 10
             else
               echo "Failed: Query did not return 0 after 5 minutes. Failing the build."
@@ -638,7 +638,7 @@ jobs:
           sudo yq -i '.state_keeper.compute_overhead_part = 1' ./chains/da_migration/configs/general.yaml
           ci_run pkill -f "zksync_server.*chains/da_migration/configs"
           ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
-          echo "Server restart initiated, waiting 60 seconds for startup"
+          echo "Server restart initiated, waiting 30 seconds for startup"
           ci_run sleep 30
           echo "Server restart wait completed"
           
