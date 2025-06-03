@@ -60,9 +60,9 @@ async fn call_forge_tee_deploy(
     forge = fill_forge_private_key(
         forge,
         // FIXME: TEE
-        // ecosystem_config.get_wallets()?.tee_dcap_operator.as_ref(),
-        ecosystem_config.get_wallets()?.deployer.as_ref(),
-        WalletOwner::Deployer,
+        ecosystem_config.get_wallets()?.tee_dcap_operator.as_ref(),
+        //ecosystem_config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::TEE,
     )?;
 
     // Check balance and run forge script

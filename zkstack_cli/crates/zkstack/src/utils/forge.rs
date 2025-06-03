@@ -10,6 +10,7 @@ use crate::{
 pub enum WalletOwner {
     Governor,
     Deployer,
+    TEE,
 }
 
 pub fn fill_forge_private_key(

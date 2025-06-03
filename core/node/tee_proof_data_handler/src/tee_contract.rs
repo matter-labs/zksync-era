@@ -133,17 +133,17 @@ impl TeeFunctions {
             .encode_input(&[U256::from(ca as u8).into_token(), crl.into_token()])
     }
 
-    /// function upsertEnclaveIdentity(uint256 id, uint256 quoteVersion, EnclaveIdentityJsonObj calldata identityJson) external {
+    /// function upsertEnclaveIdentity(uint256 id, uint256 quote_version, EnclaveIdentityJsonObj calldata identityJson) external {
     pub fn upsert_enclave_identity(
         &self,
         id: EnclaveId,
-        version: u64,
+        quote_version: u8,
         identity_json: String,
         signature: Vec<u8>,
     ) -> zksync_types::ethabi::Result<Bytes> {
         self.f_upsert_enclave_identity.encode_input(&[
             U256::from(id as u8).into_token(),
-            U256::from(version).into_token(),
+            U256::from(quote_version).into_token(),
             Token::Tuple(vec![Token::String(identity_json), signature.into_token()]),
         ])
     }
