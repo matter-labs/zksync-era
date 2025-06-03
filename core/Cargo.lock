@@ -12727,6 +12727,7 @@ version = "28.4.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
+ "once_cell",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
