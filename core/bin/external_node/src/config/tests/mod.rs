@@ -547,6 +547,7 @@ fn avail_da_client_from_env() {
         EN_DA_FINALITY_STATE="inBlock"
         # MIGRATION NEEDED (?): Likely wasn't parsed correctly before
         EN_DA_DISPATCH_TIMEOUT_SEC=30
+        EN_DA_MAX_BLOCKS_TO_LOOK_BACK=10
 
         # Secrets
         EN_DA_SECRETS_SEED_PHRASE="correct horse battery staple"
@@ -571,6 +572,7 @@ fn avail_da_client_from_env() {
     assert_eq!(config.app_id, 1);
     assert_eq!(config.api_node_url, "localhost:12345");
     assert_eq!(config.dispatch_timeout, Duration::from_secs(30));
+    assert_eq!(config.max_blocks_to_look_back, 10);
 
     let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
     let DataAvailabilitySecrets::Avail(secrets) = secrets else {
