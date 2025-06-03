@@ -12,6 +12,7 @@ use zksync_types::{
     },
     Address, SLChainId, H160, H256, U256, U64,
 };
+#[cfg(feature = "node_framework")]
 use zksync_web3_decl::node::SettlementLayerClient;
 pub use zksync_web3_decl::{
     self as web3_decl,
@@ -169,6 +170,7 @@ pub trait EthInterface: Sync + Send + fmt::Debug {
     async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
 }
 
+#[cfg(feature = "node_framework")]
 impl From<SettlementLayerClient> for Box<dyn EthInterface> {
     fn from(client: SettlementLayerClient) -> Self {
         match client {
