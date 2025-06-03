@@ -841,6 +841,13 @@ impl StateKeeperIO for TestIO {
     async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         Ok(H256::zero())
     }
+
+    async fn rollback_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        unimplemented!();
+    }
+
+    async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+    }
 }
 
 /// Storage factory that produces empty VM storage for any batch.

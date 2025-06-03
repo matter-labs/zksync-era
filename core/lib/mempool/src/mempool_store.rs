@@ -1,11 +1,11 @@
-use std::collections::{hash_map, BTreeSet, HashMap};
+use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap};
 
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
     TransactionTimeRangeConstraint,
 };
 
-use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
+use crate::types::{AccountTransactions, AdvanceInput, L2TxFilter, MempoolScore};
 
 #[derive(Debug)]
 pub struct MempoolInfo {
@@ -23,7 +23,7 @@ pub struct MempoolStats {
 #[derive(Debug)]
 pub struct MempoolStore {
     /// Pending L1 transactions
-    l1_transactions: HashMap<PriorityOpId, L1Tx>,
+    l1_transactions: BTreeMap<PriorityOpId, L1Tx>,
     /// Pending L2 transactions grouped by initiator address
     l2_transactions_per_account: HashMap<Address, AccountTransactions>,
     /// Global priority queue for L2 transactions. Used for scoring
@@ -39,7 +39,7 @@ pub struct MempoolStore {
 impl MempoolStore {
     pub fn new(next_priority_id: PriorityOpId, capacity: u64) -> Self {
         Self {
-            l1_transactions: HashMap::new(),
+            l1_transactions: BTreeMap::new(),
             l2_transactions_per_account: HashMap::new(),
             l2_priority_queue: BTreeSet::new(),
             next_priority_id,
@@ -242,6 +242,28 @@ impl MempoolStore {
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 panic!("Protocol upgrade tx is not supposed to be in mempool");
+            }
+        }
+    }
+
+    /// Advances mempool state after processed block, i.e. updates `next_priority_id` and next nonces for accounts.
+    pub fn advance_after_block(&mut self, input: AdvanceInput) {
+        if let Some(next_priority_id) = input.next_priority_id {
+            assert!(self.next_priority_id <= next_priority_id);
+            self.next_priority_id = next_priority_id;
+            self.l1_transactions = self.l1_transactions.split_off(&next_priority_id);
+        }
+
+        for (address, nonce) in input.next_account_nonces {
+            if let Some(account_txs) = self.l2_transactions_per_account.get_mut(&address) {
+                // Drop processed txs and update priority queue.
+                let metadata = account_txs.advance(nonce);
+                if let Some(score) = metadata.previous_score {
+                    self.l2_priority_queue.remove(&score);
+                }
+                if let Some(score) = metadata.new_score {
+                    self.l2_priority_queue.insert(score);
+                }
             }
         }
     }

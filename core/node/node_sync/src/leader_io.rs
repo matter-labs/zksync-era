@@ -166,6 +166,10 @@ impl StateKeeperIO for LeaderIO {
         io.rollback_block(txs).await
     }
 
+    async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+        self.mempool_io.advance_nonces(txs).await;
+    }
+
     fn set_is_active_leader(&mut self, value: bool) {
         self.is_active_leader = value;
     }

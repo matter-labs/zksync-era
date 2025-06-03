@@ -1,7 +1,7 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use zksync_types::{
-    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction,
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, PriorityOpId, Transaction,
     TransactionTimeRangeConstraint, U256,
 };
 
@@ -9,7 +9,7 @@ use zksync_types::{
 #[derive(Debug)]
 pub(crate) struct AccountTransactions {
     /// transactions that belong to given account keyed by transaction nonce
-    transactions: HashMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
+    transactions: BTreeMap<Nonce, (L2Tx, TransactionTimeRangeConstraint)>,
     /// account nonce in mempool
     /// equals to committed nonce in db + number of transactions sent to state keeper
     nonce: Nonce,
@@ -18,7 +18,7 @@ pub(crate) struct AccountTransactions {
 impl AccountTransactions {
     pub fn new(nonce: Nonce) -> Self {
         Self {
-            transactions: HashMap::new(),
+            transactions: BTreeMap::new(),
             nonce,
         }
     }
@@ -46,6 +46,29 @@ impl AccountTransactions {
             metadata.previous_score = previous_score;
         }
         metadata
+    }
+
+    pub fn advance(&mut self, nonce: Nonce) -> AccountAdvanceMetadata {
+        if nonce <= self.nonce {
+            // Account nonce is already up-to-date.
+            return AccountAdvanceMetadata::default();
+        }
+
+        let new_score = self
+            .transactions
+            .get(&nonce)
+            .map(|x| Self::score_for_transaction(&x.0));
+        let previous_score = self
+            .transactions
+            .get(&self.nonce)
+            .map(|x| Self::score_for_transaction(&x.0));
+
+        self.transactions = self.transactions.split_off(&nonce);
+
+        AccountAdvanceMetadata {
+            new_score,
+            previous_score,
+        }
     }
 
     /// Returns next transaction to be included in block, its time range constraint and optional
@@ -153,6 +176,18 @@ pub struct L2TxFilter {
     pub fee_per_gas: u64,
     /// Effective pubdata price in gas for transaction. The number of gas per 1 pubdata byte.
     pub gas_per_pubdata: u32,
+}
+
+#[derive(Debug)]
+pub struct AdvanceInput {
+    pub next_priority_id: Option<PriorityOpId>,
+    pub next_account_nonces: Vec<(Address, Nonce)>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct AccountAdvanceMetadata {
+    pub new_score: Option<MempoolScore>,
+    pub previous_score: Option<MempoolScore>,
 }
 
 #[cfg(test)]

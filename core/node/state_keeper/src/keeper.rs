@@ -65,6 +65,13 @@ impl BatchState {
         }
     }
 
+    pub fn unwrap_init_ref(&self) -> &L1BatchData {
+        match self {
+            BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
+            BatchState::Init(data) => data.as_ref(),
+        }
+    }
+
     pub fn unwrap_init_ref_mut(&mut self) -> &mut L1BatchData {
         match self {
             BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
@@ -1115,7 +1122,7 @@ impl StateKeeper {
     async fn seal_batch(&mut self) -> anyhow::Result<()> {
         let mut next_cursor = self
             .batch_state
-            .unwrap_init_ref_mut()
+            .unwrap_init_ref()
             .updates_manager
             .io_cursor();
         let l1_batch_number = next_cursor.l1_batch;
@@ -1157,6 +1164,15 @@ impl StateKeeper {
                     .output_handler
                     .handle_l2_block_header(&pending_l2_block_header)
                     .await?;
+                // Important: should come after header is sealed!
+                let state = self.batch_state.unwrap_init_ref();
+                let mut iter = state
+                    .updates_manager
+                    .l2_block
+                    .executed_transactions
+                    .iter()
+                    .map(|tx| &tx.transaction);
+                self.inner.io.advance_nonces(Box::new(&mut iter)).await;
             }
         }
 
@@ -1170,7 +1186,7 @@ impl StateKeeper {
         self.commit_pending_block().await?;
         self.process_block(stop_receiver).await?;
 
-        let batch_state = self.batch_state.unwrap_init_ref_mut();
+        let batch_state = self.batch_state.unwrap_init_ref();
         let l2_block_header = batch_state.updates_manager.build_block_header();
         self.pending_l2_block_header = Some(l2_block_header);
 
@@ -1184,7 +1200,7 @@ impl StateKeeper {
         self.inner.io.set_is_active_leader(true);
         self.run_block(stop_receiver).await?;
 
-        let batch_state = self.batch_state.unwrap_init_ref_mut();
+        let batch_state = self.batch_state.unwrap_init_ref();
         let payload = batch_state.updates_manager.build_payload();
 
         Ok(payload)

@@ -5,9 +5,9 @@ pub use self::{
     },
     keeper::{RunMode, StateKeeper, StateKeeperInner},
     mempool_actor::MempoolFetcher,
+    mempool_guard::MempoolGuard,
     seal_criteria::SequencerSealer,
     state_keeper_storage::AsyncRocksdbCache,
-    types::MempoolGuard,
     updates::UpdatesManager,
 };
 
@@ -16,6 +16,7 @@ mod health;
 pub mod io;
 mod keeper;
 mod mempool_actor;
+pub(crate) mod mempool_guard;
 pub mod metrics;
 pub mod node;
 pub mod seal_criteria;
@@ -23,7 +24,5 @@ mod state_keeper_storage;
 pub mod testonly;
 #[cfg(test)]
 pub(crate) mod tests;
-pub(crate) mod types;
 pub mod updates;
 pub(crate) mod utils;
-mod v26_utils;

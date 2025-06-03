@@ -326,6 +326,9 @@ impl StateKeeperIO for ExternalIO {
         );
     }
 
+    async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+    }
+
     async fn load_base_system_contracts(
         &self,
         protocol_version: ProtocolVersionId,

@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_mempool::L2TxFilter;
+use zksync_mempool::{AdvanceInput, L2TxFilter};
 use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
@@ -19,7 +19,8 @@ use zksync_types::{
     l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    Transaction, H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -399,6 +400,28 @@ impl StateKeeperIO for MempoolIO {
         self.mempool.insert(to_add, HashMap::new());
 
         Ok(())
+    }
+
+    async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+        let mut next_account_nonces = HashMap::new();
+        let mut next_priority_id = None;
+        for tx in txs.into_iter() {
+            match &tx.common_data {
+                ExecuteTransactionCommon::L1(data) => {
+                    next_priority_id = Some(data.serial_id + 1);
+                }
+                ExecuteTransactionCommon::L2(_) => {
+                    next_account_nonces.insert(tx.initiator_account(), tx.nonce().unwrap() + 1);
+                }
+                ExecuteTransactionCommon::ProtocolUpgrade(_) => {}
+            }
+        }
+
+        let _guard = self.mempool.enter_critical().await;
+        self.mempool.advance_after_block(AdvanceInput {
+            next_priority_id,
+            next_account_nonces: next_account_nonces.into_iter().collect(),
+        });
     }
 
     async fn reject(

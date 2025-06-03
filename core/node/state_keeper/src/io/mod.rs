@@ -148,11 +148,11 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()>;
     /// Marks the transactions as "not executed", so they can be retrieved from the IO again.
-    async fn rollback_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
-        Ok(())
-    }
+    async fn rollback_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()>;
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()>;
+    /// Updates mempool state (mostly nonces) after block is processed.
+    async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>);
 
     /// Loads base system contracts with the specified version.
     async fn load_base_system_contracts(
