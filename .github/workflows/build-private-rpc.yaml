@@ -2,14 +2,10 @@ name: Private Rpc - Build docker image
 on:
   workflow_dispatch:
     inputs:
-      image_tag:
+      image_tag_suffix:
         description: "Tag of an image"
         type: string
         required: true
-
-env:
-  IMAGE_TAG: ${{ github.event.inputs.image_tag || 'v0.1.0' }}
-  REGISTRY_PATH: us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/private-rpc
 
 jobs:
   build-images:
@@ -54,6 +50,8 @@ jobs:
           ci_run docker login -u "${{ secrets.DOCKERHUB_USER }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
           ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
-      - name: push-image
+      - name: Push docker image
         run: |
-          ci_run docker push "$REGISTRY_PATH:${IMAGE_TAG}"
+          docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/private-rpc:${{ github.event.inputs.image_tag_suffix }}
+          docker push matterlabs/private-rpc:${{ github.event.inputs.image_tag_suffix }}
+          docker push ghcr.io/${{ github.repository_owner }}/private-rpc:${{ github.event.inputs.image_tag_suffix }}
