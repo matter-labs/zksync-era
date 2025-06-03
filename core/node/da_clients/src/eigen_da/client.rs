@@ -1,5 +1,6 @@
 use std::{str::FromStr, sync::Arc};
 
+use chrono::{DateTime, Utc};
 use rust_eigenda_client::{
     client::BlobProvider,
     config::SrsPointsSource,
@@ -143,6 +144,7 @@ impl DataAvailabilityClient for EigenDAClient {
     async fn ensure_finality(
         &self,
         dispatch_request_id: String,
+        _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
         match &self.client {
             InnerClient::V1(client) => {
