@@ -12015,8 +12015,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3019428aa59582723f1e6f9e09bd46b15443c35a73b50a980b195c66bd0b67e8"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -12054,8 +12055,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_bft"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4477325c7b53705d230e5ee7759b75c19b2fa9875db748b3aed867249e38b66b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12075,8 +12077,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab1c7a51a3ef123368ecdb4c65c0d44ebea5129a670077fef748434afdb5d30"
 dependencies = [
  "anyhow",
  "blst",
@@ -12095,8 +12098,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_engine"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d32a41fc06d6e7df89f9da72e17c2497128023fb41f17c9f12f8b2818ca80479"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12114,8 +12118,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_executor"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95815b317cd91dd29bfc9adbbe4664cd1778b1113eb6aeecea33af0a63b911d1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12135,8 +12140,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_network"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef3f2fc6b875dcb8dbe9ae258f60d5375247046dd73e5419c844c7ac4bceab7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12171,8 +12177,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a2d0f90412fcf8b5af8144aba0822336ab74c225aeb0e13d1b8f5ec610f8512"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -12192,8 +12199,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dd24c7eef00e445206a1b9408252b644c9a66e4e1c33606a52abbda07539c1f"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -13278,8 +13286,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88bfd8eaea1670c918643f506c7dccd3bd30aaece5e1c17d268cb27f5d045bdb"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.3",
@@ -13298,8 +13307,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.11.1"
-source = "git+https://github.com/matter-labs/era-consensus?branch=bf-fix#6dd7713f9c1fa677ebeb874b91bc72563ffa3726"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "758f98e0f7f4690e360e1f582d175532a544b86835daaff5b83537da000bf523"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
