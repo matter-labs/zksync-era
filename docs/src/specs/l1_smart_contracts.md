@@ -112,8 +112,7 @@ More about L1->L2 operations can be found
 
 L2 -> L1 communication, in contrast to L1 -> L2 communication, is based only on transferring the information, and not on
 the transaction execution on L1. The full description of the mechanism for sending information from L2 to L1 can be
-found
-[here](./contracts/settlement_contracts/data_availability/pubdata.md).
+found [here](./contracts/settlement_contracts/data_availability/pubdata.md).
 
 ### ExecutorFacet
 

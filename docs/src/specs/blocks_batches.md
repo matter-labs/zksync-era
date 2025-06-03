@@ -200,8 +200,8 @@ Since ZKsync is a state-diff based rollup, there is no way to deduce the hashes 
 transactions’ in the batch (because there is no access to the transaction’s hashes). At the same time, in order to
 server `blockhash` method, the VM requires the knowledge of some of the previous L2 block hashes. In order to save up on
 pubdata (by making sure that the same storage slots are reused, i.e. we only have repeated writes) we
-[store](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/SystemContext.sol#L74)
-only the last 257 block hashes. You can read more on what are the repeated writes and how the pubdata is processed
+[store](https://github.com/matter-labs/era-contracts/blob/main/system-contracts/contracts/SystemContext.sol#L74) only
+the last 257 block hashes. You can read more on what are the repeated writes and how the pubdata is processed
 [here](./contracts/settlement_contracts/data_availability/pubdata.md).
 
 We store only the last 257 blocks, since the EVM requires only 256 previous ones and we use 257 as a safe margin.
