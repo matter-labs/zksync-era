@@ -251,10 +251,10 @@ mod tests {
           bridge_api_url: https://turing-bridge-api.avail.so
           timeout: 20s
           dispatch_timeout: 5s
-          finality_state: inBlock
           avail_client_type: FullClient
           api_node_url: wss://turing-rpc.avail.so/ws
           app_id: 123456
+          max_blocks_to_look_back: 5
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

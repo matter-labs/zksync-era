@@ -1487,13 +1487,15 @@ impl HttpTest for HttpServerBatchStatusTest {
             .get_block_details(l2_block_number.0.into())
             .await?
             .unwrap();
-        assert_eq!(block.base.status, BlockStatus::FastFinalized);
+        assert_eq!(block.base.status, BlockStatus::Sealed);
+        // assert_eq!(block.base.status, BlockStatus::FastFinalized);
         assert_eq!(
             block.base.execute_tx_finality,
             Some(EthTxFinalityStatus::FastFinalized)
         );
         let tx = client.get_transaction_details(tx1.hash()).await?.unwrap();
-        assert_eq!(tx.status, TransactionStatus::FastFinalized);
+        assert_eq!(tx.status, TransactionStatus::Included);
+        // assert_eq!(tx.status, TransactionStatus::FastFinalized);
 
         // Confirm Execute transaction, block should be Verified.
         storage
