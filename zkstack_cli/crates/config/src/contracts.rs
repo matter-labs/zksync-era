@@ -8,7 +8,7 @@ use crate::{
         deploy_ecosystem::output::DeployL1Output,
         deploy_l2_contracts::output::{
             ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            Multicall3Output, TimestampAsserterOutput,
+            L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
         },
         register_chain::output::RegisterChainOutput,
     },
@@ -183,6 +183,14 @@ impl ContractsConfig {
         timestamp_asserter_output: &TimestampAsserterOutput,
     ) -> anyhow::Result<()> {
         self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
+        Ok(())
+    }
+
+    pub fn set_l2_da_validator_address(
+        &mut self,
+        output: &L2DAValidatorAddressOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.da_validator_addr = Some(output.l2_da_validator_address);
         Ok(())
     }
 }

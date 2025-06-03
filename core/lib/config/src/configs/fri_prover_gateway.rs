@@ -3,19 +3,17 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de::{Serde, WellKnown},
-    metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct FriProverGatewayConfig {
     pub api_url: String,
-    #[config(default_t = Duration::from_secs(1000), with = TimeUnit::Seconds)]
-    pub api_poll_duration_secs: Duration,
+    #[config(default_t = Duration::from_secs(1000))]
+    pub api_poll_duration: Duration,
     #[config(default)]
     pub api_mode: ApiMode,
     pub port: Option<u16>,
-
     // Configurations for prometheus
     #[config(default_t = 3314)]
     pub prometheus_listener_port: u16,
@@ -44,7 +42,7 @@ mod tests {
     fn expected_config() -> FriProverGatewayConfig {
         FriProverGatewayConfig {
             api_url: "http://private-dns-for-server".to_string(),
-            api_poll_duration_secs: Duration::from_secs(100),
+            api_poll_duration: Duration::from_secs(100),
             api_mode: ApiMode::ProverCluster,
             port: Some(8080),
             prometheus_listener_port: 3316,

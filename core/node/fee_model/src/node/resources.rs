@@ -1,31 +1,15 @@
 use std::sync::Arc;
 
-use zksync_node_framework::resource::Resource;
+use zksync_node_framework::resource::{self, Resource};
 
 use crate::{
     l1_gas_price::{GasAdjuster, TxParamsProvider},
-    BaseTokenRatioProvider, BatchFeeModelInputProvider, NoOpRatioProvider,
+    BaseTokenRatioProvider, BatchFeeModelInputProvider,
 };
 
-/// A resource that provides [`BaseTokenRatioProvider`] implementation to the service.
-#[derive(Debug, Clone)]
-pub struct BaseTokenRatioProviderResource(pub Arc<dyn BaseTokenRatioProvider>);
-
-impl Default for BaseTokenRatioProviderResource {
-    fn default() -> Self {
-        Self(Arc::new(NoOpRatioProvider::default()))
-    }
-}
-
-impl Resource for BaseTokenRatioProviderResource {
+impl Resource<resource::Shared> for dyn BaseTokenRatioProvider {
     fn name() -> String {
         "common/base_token_ratio_provider".into()
-    }
-}
-
-impl<T: BaseTokenRatioProvider> From<Arc<T>> for BaseTokenRatioProviderResource {
-    fn from(provider: Arc<T>) -> Self {
-        Self(provider)
     }
 }
 
@@ -61,34 +45,14 @@ impl<T: BatchFeeModelInputProvider> From<Arc<T>> for ApiFeeInputResource {
     }
 }
 
-/// A resource that provides [`GasAdjuster`] to the service.
-#[derive(Debug, Clone)]
-pub struct GasAdjusterResource(pub Arc<GasAdjuster>);
-
-impl Resource for GasAdjusterResource {
+impl Resource<resource::Shared> for GasAdjuster {
     fn name() -> String {
         "common/gas_adjuster".into()
     }
 }
 
-impl From<Arc<GasAdjuster>> for GasAdjusterResource {
-    fn from(gas_adjuster: Arc<GasAdjuster>) -> Self {
-        Self(gas_adjuster)
-    }
-}
-
-/// A resource that provides [`TxParamsProvider`] implementation to the service.
-#[derive(Debug, Clone)]
-pub struct TxParamsResource(pub Arc<dyn TxParamsProvider>);
-
-impl Resource for TxParamsResource {
+impl Resource<resource::Shared> for dyn TxParamsProvider {
     fn name() -> String {
         "common/tx_params".into()
-    }
-}
-
-impl<T: TxParamsProvider> From<Arc<T>> for TxParamsResource {
-    fn from(provider: Arc<T>) -> Self {
-        Self(provider)
     }
 }

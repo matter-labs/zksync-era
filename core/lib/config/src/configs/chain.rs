@@ -2,11 +2,13 @@ use std::{collections::HashSet, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Optional, Serde},
+    de::Serde,
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::Address;
+
+use crate::utils::Fallback;
 
 /// An enum that represents the version of the fee model to use.
 ///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
@@ -34,13 +36,13 @@ pub struct StateKeeperConfig {
     pub transaction_slots: usize,
 
     /// Number of ms after which an L1 batch is going to be unconditionally sealed.
-    #[config(alias = "block_commit_deadline_ms")]
-    #[config(default_t = Duration::from_millis(2_500), with = TimeUnit::Millis)]
-    pub l1_batch_commit_deadline_ms: Duration,
+    #[config(alias = "block_commit_deadline")]
+    #[config(default_t = Duration::from_millis(2_500))]
+    pub l1_batch_commit_deadline: Duration,
     /// Number of ms after which an L2 block should be sealed by the timeout sealer.
-    #[config(alias = "miniblock_commit_deadline_ms")]
-    #[config(default_t = Duration::from_secs(1), with = TimeUnit::Millis)]
-    pub l2_block_commit_deadline_ms: Duration,
+    #[config(alias = "miniblock_commit_deadline")]
+    #[config(default_t = Duration::from_secs(1))]
+    pub l2_block_commit_deadline: Duration,
     /// Capacity of the queue for asynchronous L2 block sealing. Once this many L2 blocks are queued,
     /// sealing will block until some of the L2 blocks from the queue are processed.
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
@@ -49,7 +51,7 @@ pub struct StateKeeperConfig {
     pub l2_block_seal_queue_capacity: usize,
     /// The max payload size threshold (in bytes) that triggers sealing of an L2 block.
     #[config(alias = "miniblock_max_payload_size")]
-    #[config(default_t = ByteSize(1_000_000), with = SizeUnit::Bytes)]
+    #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
     pub l2_block_max_payload_size: ByteSize,
 
     /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
@@ -102,7 +104,7 @@ pub struct StateKeeperConfig {
     /// - 120kb * n, where `n` is a number of blobs for blob-based rollups
     /// - the DA layer's blob size limit for the DA layer-based validiums
     /// - 100 MB for the object store-based or no-da validiums
-    #[config(with = SizeUnit::Bytes)]
+    #[config(with = Fallback(SizeUnit::Bytes))]
     pub max_pubdata_per_batch: ByteSize,
 
     /// The version of the fee model to use.
@@ -135,8 +137,8 @@ impl StateKeeperConfig {
     pub fn for_tests() -> Self {
         Self {
             transaction_slots: 250,
-            l1_batch_commit_deadline_ms: Duration::from_millis(2500),
-            l2_block_commit_deadline_ms: Duration::from_secs(1),
+            l1_batch_commit_deadline: Duration::from_millis(2500),
+            l2_block_commit_deadline: Duration::from_secs(1),
             l2_block_seal_queue_capacity: 10,
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 6000000,
@@ -167,50 +169,48 @@ impl StateKeeperConfig {
 #[config(derive(Default))]
 pub struct OperationsManagerConfig {
     /// Sleep time in ms when there is no new input data
-    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_millis(100), with = Fallback(TimeUnit::Millis))]
     pub delay_interval: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct CircuitBreakerConfig {
-    #[config(default_t = 2 * TimeUnit::Minutes, with = TimeUnit::Millis)]
-    pub sync_interval_ms: Duration,
+    #[config(default_t = 2 * TimeUnit::Minutes)]
+    pub sync_interval: Duration,
     #[config(default_t = 10)]
     pub http_req_max_retry_number: usize,
-    #[config(default_t = Duration::from_secs(2), with = TimeUnit::Seconds)]
-    pub http_req_retry_interval_sec: Duration,
-    #[config(default_t = Some(Duration::from_secs(100)), with = Optional(TimeUnit::Seconds))]
-    pub replication_lag_limit_sec: Option<Duration>,
+    #[config(default_t = Duration::from_secs(2))]
+    pub http_req_retry_interval: Duration,
+    #[config(default_t = Some(Duration::from_secs(100)))]
+    pub replication_lag_limit: Option<Duration>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct MempoolConfig {
-    #[config(default_t = Duration::from_millis(10), with = TimeUnit::Millis)]
-    pub sync_interval_ms: Duration,
+    #[config(default_t = Duration::from_millis(10))]
+    pub sync_interval: Duration,
     #[config(default_t = 1_000)]
     pub sync_batch_size: usize,
     #[config(default_t = 10_000_000)]
     pub capacity: u64,
-    #[config(default_t = 2 * TimeUnit::Days, with = TimeUnit::Seconds)]
+    #[config(default_t = 2 * TimeUnit::Days, with = Fallback(TimeUnit::Seconds))]
     pub stuck_tx_timeout: Duration,
     #[config(default_t = true)]
     pub remove_stuck_txs: bool,
-    #[config(default_t = Duration::from_millis(100), with = TimeUnit::Millis)]
+    #[config(default_t = Duration::from_millis(100), with = Fallback(TimeUnit::Millis))]
     pub delay_interval: Duration,
     #[config(default)]
     pub l1_to_l2_txs_paused: bool,
-    #[config(default)]
-    pub skip_unsafe_deposit_checks: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct TimestampAsserterConfig {
     /// Minimum time between current `block.timestamp` and the end of the asserted range.
-    #[config(default_t = 1 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
-    pub min_time_till_end_sec: Duration,
+    #[config(default_t = 1 * TimeUnit::Minutes)]
+    pub min_time_till_end: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -242,8 +242,8 @@ mod tests {
     fn expected_state_keeper_config() -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
-            l1_batch_commit_deadline_ms: Duration::from_millis(2500),
-            l2_block_commit_deadline_ms: Duration::from_millis(1000),
+            l1_batch_commit_deadline: Duration::from_millis(2500),
+            l2_block_commit_deadline: Duration::from_millis(1000),
             l2_block_seal_queue_capacity: 10,
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 1_000_000,
@@ -259,7 +259,7 @@ mod tests {
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
-            max_pubdata_per_batch: ByteSize(100_000),
+            max_pubdata_per_batch: ByteSize(131_072),
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
             save_call_traces: false,
@@ -293,7 +293,7 @@ mod tests {
             CHAIN_STATE_KEEPER_PUBDATA_OVERHEAD_PART="1.0"
             CHAIN_STATE_KEEPER_BATCH_OVERHEAD_L1_GAS="800000"
             CHAIN_STATE_KEEPER_MAX_GAS_PER_BATCH="200000000"
-            CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH="100000"
+            CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH="131072"
             CHAIN_STATE_KEEPER_MAX_CIRCUITS_PER_BATCH="24100"
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
@@ -330,7 +330,7 @@ mod tests {
           pubdata_overhead_part: 1.0
           batch_overhead_l1_gas: 800000
           max_gas_per_batch: 200000000
-          max_pubdata_per_batch: 100000
+          max_pubdata_per_batch: 131072
           fee_model_version: V2
           validation_computational_gas_limit: 10000000
           save_call_traces: false
@@ -348,16 +348,53 @@ mod tests {
         assert_eq!(config, expected_state_keeper_config());
     }
 
+    #[test]
+    fn state_keeper_from_idiomatic_yaml() {
+        let yaml = r#"
+          transaction_slots: 50
+          l1_batch_commit_deadline: 2500ms
+          l2_block_commit_deadline: 1 sec
+          l2_block_seal_queue_capacity: 10
+          max_single_tx_gas: 1000000
+          max_allowed_l2_tx_gas_limit: 2000000000
+          reject_tx_at_geometry_percentage: 0.3
+          reject_tx_at_eth_params_percentage: 0.8
+          reject_tx_at_gas_percentage: 0.5
+          close_block_at_geometry_percentage: 0.5
+          close_block_at_eth_params_percentage: 0.2
+          close_block_at_gas_percentage: 0.8
+          minimal_l2_gas_price: 100000000
+          compute_overhead_part: 0.0
+          pubdata_overhead_part: 1.0
+          batch_overhead_l1_gas: 800000
+          max_gas_per_batch: 200000000
+          max_pubdata_per_batch: 128 KB
+          fee_model_version: V2
+          validation_computational_gas_limit: 10000000
+          save_call_traces: false
+          max_circuits_per_batch: 24100
+          l2_block_max_payload_size: 1000000 bytes
+          protective_reads_persistence_enabled: true
+          deployment_allowlist:
+            source: Url
+            http_file_url: http://deployment-allowlist/
+            refresh_interval: 2min
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: StateKeeperConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_state_keeper_config());
+    }
+
     fn expected_mempool_config() -> MempoolConfig {
         MempoolConfig {
-            sync_interval_ms: Duration::from_millis(10),
+            sync_interval: Duration::from_millis(10),
             sync_batch_size: 1000,
             capacity: 1_000_000,
             stuck_tx_timeout: Duration::from_secs(10),
             remove_stuck_txs: true,
             delay_interval: Duration::from_millis(100),
             l1_to_l2_txs_paused: false,
-            skip_unsafe_deposit_checks: true,
         }
     }
 
@@ -371,7 +408,6 @@ mod tests {
             CHAIN_MEMPOOL_DELAY_INTERVAL="100"
             CHAIN_MEMPOOL_CAPACITY="1000000"
             CHAIN_MEMPOOL_L1_TO_L2_TXS_PAUSED="false"
-            CHAIN_MEMPOOL_SKIP_UNSAFE_DEPOSIT_CHECKS="true"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -390,7 +426,23 @@ mod tests {
           remove_stuck_txs: true
           delay_interval: 100
           l1_to_l2_txs_paused: false
-          skip_unsafe_deposit_checks: true
+        "#;
+
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: MempoolConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_mempool_config());
+    }
+
+    #[test]
+    fn mempool_from_idiomatic_yaml() {
+        let yaml = r#"
+          sync_interval_ms: 10
+          sync_batch_size: 1000
+          capacity: 1000000
+          stuck_tx_timeout: 10s
+          remove_stuck_txs: true
+          delay_interval: 100 millis
+          l1_to_l2_txs_paused: false
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -400,10 +452,10 @@ mod tests {
 
     fn expected_circuit_breaker_config() -> CircuitBreakerConfig {
         CircuitBreakerConfig {
-            sync_interval_ms: Duration::from_secs(1),
+            sync_interval: Duration::from_secs(1),
             http_req_max_retry_number: 5,
-            http_req_retry_interval_sec: Duration::from_secs(2),
-            replication_lag_limit_sec: Some(Duration::from_secs(10)),
+            http_req_retry_interval: Duration::from_secs(2),
+            replication_lag_limit: Some(Duration::from_secs(10)),
         }
     }
 
