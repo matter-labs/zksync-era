@@ -392,6 +392,7 @@ mod tests {
             authenticated: true
             blob_version: 0
             polynomial_form: coeff
+            cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
