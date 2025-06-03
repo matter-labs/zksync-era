@@ -539,23 +539,6 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain da_migration
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
-      - name: Run integration tests
-        run: |
-          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
-            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
-            'era:--evm' 'validium:--evm'
-
-      - name: Repeat integration tests on push to main to check for flakiness
-        if: ${{ (github.ref == 'refs/heads/main') }}
-        run: |
-          for i in {1..10}; do
-            echo "Iteration $i"
-            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
-            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
-              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i \
-              'era:--evm' 'validium:--evm'
-          done
-
       - name: DA migration tests
         run: |
           echo "Increasing L1 batch seal timeout and restarting server"
@@ -641,13 +624,23 @@ jobs:
           echo "Server restart initiated, waiting 30 seconds for startup"
           ci_run sleep 30
           echo "Server restart wait completed"
-          
-          echo "Running integration tests"
-          
+
+      - name: Run integration tests
+        run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
-            "da_migration" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
             'era:--evm' 'validium:--evm'
-          echo "Integration tests completed"
+
+      - name: Repeat integration tests on push to main to check for flakiness
+        if: ${{ (github.ref == 'refs/heads/main') }}
+        run: |
+          for i in {1..10}; do
+            echo "Iteration $i"
+            mkdir -p ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i
+            ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
+              ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/$i \
+              'era:--evm' 'validium:--evm'
+          done
 
       - name: Init external nodes
         run: |
