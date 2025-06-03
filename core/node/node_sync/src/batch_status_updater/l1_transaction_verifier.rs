@@ -1,7 +1,10 @@
 use anyhow::Context as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
-use zksync_types::{ethabi, Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U64};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber,
+    ProtocolVersionId, SLChainId, H256, U64,
+};
 
 /// Verifies the L1 transaction against the database and the SL.
 #[derive(Debug)]
@@ -12,6 +15,7 @@ pub struct L1TransactionVerifier {
     contract: ethabi::Contract,
     pool: ConnectionPool<Core>,
     pub sl_chain_id: SLChainId,
+    pub validate_logs_from_protocol_version: ProtocolVersionId,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,15 +67,15 @@ impl L1TransactionVerifier {
             contract: zksync_contracts::hyperchain_contract(),
             pool,
             sl_chain_id,
+            validate_logs_from_protocol_version: ProtocolVersionId::Version29,
         }
     }
 
-    pub async fn validate_commit_tx(
+    async fn get_db_batch(
         &self,
-        commit_tx_hash: H256,
         batch_number: L1BatchNumber,
-    ) -> Result<(), TransactionValidationError> {
-        let db_batch = match self
+    ) -> Result<L1BatchWithMetadata, TransactionValidationError> {
+        match self
             .pool
             .connection_tagged("sync_layer")
             .await?
@@ -79,23 +83,53 @@ impl L1TransactionVerifier {
             .get_l1_batch_metadata(batch_number)
             .await?
         {
-            Some(batch) => batch,
+            Some(batch) => Ok(batch),
             None => {
-                tracing::debug!("Batch {} is not found in the database. Cannot verify commit transaction right now", batch_number);
-                return Err(TransactionValidationError::BatchNotFound { batch_number });
+                tracing::debug!(
+                    "Batch {} is not found in the database. Cannot verify transaction right now",
+                    batch_number
+                );
+                Err(TransactionValidationError::BatchNotFound { batch_number })
             }
-        };
+        }
+    }
 
+    async fn get_transaction_check_success(
+        &self,
+        tx_hash: H256,
+    ) -> Result<TransactionReceipt, TransactionValidationError> {
         let receipt = self
             .sl_client
-            .tx_receipt(commit_tx_hash)
+            .tx_receipt(tx_hash)
             .await?
-            .context("Failed to fetch commit transaction receipt from SL")?;
+            .context("Failed to fetch transaction receipt from SL")?;
         if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::TransactionFailed {
-                tx_hash: commit_tx_hash,
-            });
+            return Err(TransactionValidationError::TransactionFailed { tx_hash });
         }
+        Ok(receipt)
+    }
+
+    async fn should_perform_logs_validation(&self, db_batch: &L1BatchWithMetadata) -> bool {
+        if let Some(version) = db_batch.header.protocol_version {
+            if version < self.validate_logs_from_protocol_version {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub async fn validate_commit_tx(
+        &self,
+        commit_tx_hash: H256,
+        batch_number: L1BatchNumber,
+    ) -> Result<(), TransactionValidationError> {
+        let db_batch = self.get_db_batch(batch_number).await?;
+
+        if !self.should_perform_logs_validation(&db_batch).await {
+            return Ok(());
+        }
+
+        let receipt = self.get_transaction_check_success(commit_tx_hash).await?;
 
         let event = self
             .contract
@@ -171,37 +205,13 @@ impl L1TransactionVerifier {
         prove_tx_hash: H256,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        let db_batch = match self
-            .pool
-            .connection_tagged("sync_layer")
-            .await?
-            .blocks_dal()
-            .get_l1_batch_metadata(batch_number)
-            .await?
-        {
-            Some(batch) => batch,
-            None => {
-                tracing::debug!("Batch {} is not found in the database. Cannot verify prove transaction right now", batch_number);
-                return Err(TransactionValidationError::BatchNotFound { batch_number });
-            }
-        };
+        let db_batch = self.get_db_batch(batch_number).await?;
 
-        if let Some(version) = db_batch.header.protocol_version {
-            if version < ProtocolVersionId::Version29 {
-                return Ok(()); // We do not validate Prove TX for protocol versions less then 29.0
-            }
+        if !self.should_perform_logs_validation(&db_batch).await {
+            return Ok(());
         }
 
-        let receipt = self
-            .sl_client
-            .tx_receipt(prove_tx_hash)
-            .await?
-            .context("Failed to fetch prove transaction receipt from SL")?;
-        if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::TransactionFailed {
-                tx_hash: prove_tx_hash,
-            });
-        }
+        let receipt = self.get_transaction_check_success(prove_tx_hash).await?;
 
         let event = self
             .contract
@@ -282,30 +292,13 @@ impl L1TransactionVerifier {
         execute_tx_hash: H256,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        let db_batch = match self
-            .pool
-            .connection_tagged("sync_layer")
-            .await?
-            .blocks_dal()
-            .get_l1_batch_metadata(batch_number)
-            .await?
-        {
-            Some(batch) => batch,
-            None => {
-                return Err(TransactionValidationError::BatchNotFound { batch_number });
-            }
-        };
+        let db_batch = self.get_db_batch(batch_number).await?;
 
-        let receipt = self
-            .sl_client
-            .tx_receipt(execute_tx_hash)
-            .await?
-            .context("Failed to fetch execute transaction receipt from SL")?;
-        if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::TransactionFailed {
-                tx_hash: execute_tx_hash,
-            });
+        if !self.should_perform_logs_validation(&db_batch).await {
+            return Ok(());
         }
+
+        let receipt = self.get_transaction_check_success(execute_tx_hash).await?;
 
         let event = self
             .contract

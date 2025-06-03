@@ -14,7 +14,7 @@ use zksync_types::{
     commitment::L1BatchCommitmentArtifacts,
     eth_sender::EthTxFinalityStatus,
     web3::{Log, TransactionReceipt},
-    L2BlockNumber, U64,
+    L2BlockNumber, ProtocolVersionId, U64,
 };
 use zksync_web3_decl::client::{MockClient, L1};
 
@@ -398,6 +398,9 @@ fn mock_updater(
         1u64.into(),
     );
     updater.changes_sender = changes_sender;
+    updater
+        .l1_transaction_verifier
+        .validate_logs_from_protocol_version = ProtocolVersionId::latest();
     (updater, changes_receiver)
 }
 
