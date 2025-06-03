@@ -1109,7 +1109,7 @@ impl StateKeeper {
             full_latency.observe();
         }
 
-        Ok(())
+        Err(OrStopped::Stopped)
     }
 
     async fn seal_batch(&mut self) -> anyhow::Result<()> {
