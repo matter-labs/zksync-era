@@ -38,10 +38,10 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, DynClient, L1, L2},
     namespaces::ZksNamespaceClient,
-    node::{SettlementLayerClient, SettlementModeResource},
+    node::{GatewayClientResource, SettlementLayerClient, SettlementModeResource},
 };
 
-use crate::current_settlement_layer;
+use crate::{current_settlement_layer, gateway_urls};
 
 pub struct MainNodeConfig {
     pub l1_specific_contracts: L1SpecificContracts,
@@ -76,6 +76,7 @@ pub struct Input {
 pub struct Output {
     initial_settlement_mode: SettlementModeResource,
     sl_client: SettlementLayerClient,
+    gateway_client: Option<GatewayClientResource>,
     contracts: SettlementLayerContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
     l1_contracts: L1ChainContractsResource,
@@ -124,7 +125,14 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             };
         }
 
-        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
+        let l2_eth_client = get_l2_client(
+            self.config.gateway_rpc_url,
+            self.config
+                .l1_specific_contracts
+                .bridge_hub
+                .expect("Bridge Hub should be always presented"),
+        )
+        .await?;
         let final_settlement_mode = current_settlement_layer(
             &input.eth_client,
             l2_eth_client
@@ -142,7 +150,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             SettlementLayer::Gateway(_) => {
                 // `unwrap()` is safe: `l2_eth_client` is always initialized when `config.gateway_rpc_url` is set,
                 // which is required for `SettlementLayer::Gateway`.
-                SettlementLayerClient::Gateway(l2_eth_client.unwrap())
+                SettlementLayerClient::Gateway(l2_eth_client.clone().unwrap())
             }
         };
 
@@ -182,6 +190,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             )),
             eth_sender_config: Some(SenderConfigResource(eth_sender_config)),
             sl_client,
+            gateway_client: l2_eth_client.map(GatewayClientResource),
         })
     }
 }
@@ -245,7 +254,14 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .context("Error occured while getting current SL mode")?
         };
 
-        let l2_eth_client = get_l2_client(self.config.gateway_rpc_url).await?;
+        let l2_eth_client = get_l2_client(
+            self.config.gateway_rpc_url,
+            self.config
+                .l1_specific_contracts
+                .bridge_hub
+                .expect("Bridgehub should always be presented"),
+        )
+        .await?;
 
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
             SettlementLayer::L1(_) => (
@@ -280,7 +296,11 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             SettlementLayer::Gateway(_) => {
                 // `unwrap()` is safe: `l2_eth_client` is always initialized when `config.gateway_rpc_url` is set,
                 // which is required for `SettlementLayer::Gateway`.
-                SettlementLayerClient::Gateway(l2_eth_client.unwrap())
+                SettlementLayerClient::Gateway(
+                    l2_eth_client
+                        .clone()
+                        .expect("Gateway rpc url is not presented"),
+                )
             }
         };
 
@@ -291,6 +311,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             l1_contracts: L1ChainContractsResource(self.config.l1_chain_contracts),
             l1_ecosystem_contracts: L1EcosystemContractsResource(self.config.l1_specific_contracts),
             l2_contracts: L2ContractsResource(self.config.l2_contracts),
+            gateway_client: l2_eth_client.map(GatewayClientResource),
             eth_sender_config: None,
             pubdata_sending_mode: None,
         })
@@ -299,7 +320,15 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
 
 async fn get_l2_client(
     gateway_rpc_url: Option<SensitiveUrl>,
+    l1_bridgehub_address: Address,
 ) -> anyhow::Result<Option<Box<DynClient<L2>>>> {
+    // If gateway rpc is not presented try to fallback to the default gateway url
+    let gateway_rpc_url = if let Some(url) = gateway_rpc_url {
+        Some(url)
+    } else {
+        gateway_urls::DefaultGatewayUrl::from_bridgehub_address(l1_bridgehub_address)
+            .map(|a| a.to_gateway_url())
+    };
     Ok(if let Some(url) = gateway_rpc_url {
         let client: Client<L2> = Client::http(url.clone()).context("Client::new()")?.build();
         let chain_id = client.fetch_chain_id().await?;
@@ -309,6 +338,10 @@ async fn get_l2_client(
             .build();
         Some(Box::new(client))
     } else {
+        tracing::warn!(
+            "No client was found for gateway, you are working in none \
+            ZkSync ecosystem and haven't specified secret for gateway. During the migration it could cause a downtime"
+        );
         None
     })
 }
