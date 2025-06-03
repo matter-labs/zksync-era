@@ -359,6 +359,7 @@ mod tests {
           DA_POINTS_SOURCE="Path"
           DA_POINTS_PATH="./resources"
           DA_CUSTOM_QUORUM_NUMBERS="2,3"
+          DA_EIGENDA_SIDECAR_RPC="http://localhost:9999"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -385,6 +386,8 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
+
+        assert_eq!(config.eigenda_sidecar_rpc, "http://localhost:9999");
     }
 
     #[test]
