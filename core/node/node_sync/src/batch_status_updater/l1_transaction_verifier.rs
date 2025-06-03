@@ -94,6 +94,29 @@ impl L1TransactionVerifier {
         }
     }
 
+    async fn get_db_protocol_version(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Result<ProtocolVersionId, TransactionValidationError> {
+        match self
+            .pool
+            .connection_tagged("sync_layer")
+            .await?
+            .blocks_dal()
+            .get_batch_protocol_version_id(batch_number)
+            .await?
+        {
+            Some(batch) => Ok(batch),
+            None => {
+                tracing::debug!(
+                    "Batch {} is not found in the database. Cannot verify transaction right now",
+                    batch_number
+                );
+                Err(TransactionValidationError::BatchNotFound { batch_number })
+            }
+        }
+    }
+
     async fn get_transaction_check_success(
         &self,
         tx_hash: H256,
@@ -109,8 +132,11 @@ impl L1TransactionVerifier {
         Ok(receipt)
     }
 
-    async fn should_perform_logs_validation(&self, db_batch: &L1BatchWithMetadata) -> bool {
-        if let Some(version) = db_batch.header.protocol_version {
+    async fn should_perform_logs_validation(
+        &self,
+        protocol_version: Option<ProtocolVersionId>,
+    ) -> bool {
+        if let Some(version) = protocol_version {
             if version < self.validate_logs_from_protocol_version {
                 return false;
             }
@@ -125,7 +151,10 @@ impl L1TransactionVerifier {
     ) -> Result<(), TransactionValidationError> {
         let db_batch = self.get_db_batch(batch_number).await?;
 
-        if !self.should_perform_logs_validation(&db_batch).await {
+        if !self
+            .should_perform_logs_validation(db_batch.header.protocol_version)
+            .await
+        {
             return Ok(());
         }
 
@@ -205,9 +234,12 @@ impl L1TransactionVerifier {
         prove_tx_hash: H256,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        let db_batch = self.get_db_batch(batch_number).await?;
+        let db_protocol_version = self.get_db_protocol_version(batch_number).await?;
 
-        if !self.should_perform_logs_validation(&db_batch).await {
+        if !self
+            .should_perform_logs_validation(Some(db_protocol_version))
+            .await
+        {
             return Ok(());
         }
 
