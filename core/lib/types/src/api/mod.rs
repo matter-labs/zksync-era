@@ -69,8 +69,8 @@ impl Serialize for BlockNumber {
             BlockNumber::L1Committed => serializer.serialize_str("l1_committed"),
             BlockNumber::Earliest => serializer.serialize_str("earliest"),
             BlockNumber::Pending => serializer.serialize_str("pending"),
-            BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
             BlockNumber::FastFinalized => serializer.serialize_str("fast_finalized"),
+            BlockNumber::Precommitted => serializer.serialize_str("precommitted"),
         }
     }
 }
@@ -94,10 +94,10 @@ impl<'de> Deserialize<'de> for BlockNumber {
                     "l1_committed" => BlockNumber::L1Committed,
                     "earliest" => BlockNumber::Earliest,
                     // For zksync safe is l1 committed. Real chances of revert are very low.
-                    "safe" => BlockNumber::L1Committed,
+                    "safe" => BlockNumber::Precommitted,
                     "pending" => BlockNumber::Pending,
-                    "precommitted" => BlockNumber::Precommitted,
                     "fast_finalized" => BlockNumber::FastFinalized,
+                    "precommitted" => BlockNumber::Precommitted,
                     num => {
                         let number =
                             U64::deserialize(de::value::BorrowedStrDeserializer::new(num))?;
@@ -691,8 +691,8 @@ pub struct Transaction {
 pub enum TransactionStatus {
     Pending,
     Included,
-    Precommitted,
     FastFinalized,
+    Precommitted,
     Verified,
     Failed,
 }
@@ -995,6 +995,7 @@ pub struct BlockDetailsBase {
     pub executed_at: Option<DateTime<Utc>>,
     pub execute_chain_id: Option<SLChainId>,
     pub precommit_tx_hash: Option<H256>,
+    pub precommit_tx_finality: Option<EthTxFinalityStatus>,
     pub precommitted_at: Option<DateTime<Utc>>,
     pub precommit_chain_id: Option<SLChainId>,
     pub l1_gas_price: u64,

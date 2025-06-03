@@ -329,11 +329,11 @@ impl GasConsts {
 
     /// Additional gas cost of processing `Execute` operation per batch.
     /// It's applicable iff SL is Ethereum.
-    const L1_BATCH_EXECUTE_BASE_COST: u64 = 30_000;
+    const L1_BATCH_EXECUTE_BASE_COST: u64 = 50_000;
 
     /// Additional gas cost of processing `Execute` operation per L1->L2 tx.
     /// It's applicable iff SL is Ethereum.
-    const L1_OPERATION_EXECUTE_COST: u64 = 12_500;
+    const L1_OPERATION_EXECUTE_COST: u64 = 15_000;
 
     /// Base gas cost of processing `Precommit` operation.
     const PRECOMMIT_BASE_COST: u64 = 200_000;

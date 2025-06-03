@@ -441,8 +441,8 @@ pub(crate) struct StorageTransactionDetails {
     pub eth_commit_tx_hash: Option<String>,
     pub eth_prove_tx_hash: Option<String>,
     pub eth_execute_tx_hash: Option<String>,
-    pub eth_precommit_tx_hash: Option<String>,
     pub eth_execute_tx_finality_status: Option<String>,
+    pub eth_precommit_tx_hash: Option<String>,
 }
 
 impl StorageTransactionDetails {

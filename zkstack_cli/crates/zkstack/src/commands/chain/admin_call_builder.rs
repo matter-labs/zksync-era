@@ -5,11 +5,6 @@ use ethers::{
 use serde::Serialize;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
-#[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
-use ::{
-    ethers::types::Bytes, std::path::Path, xshell::Shell,
-    zkstack_cli_common::forge::ForgeScriptArgs,
-};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
