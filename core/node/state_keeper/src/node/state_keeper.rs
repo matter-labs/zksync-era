@@ -13,13 +13,16 @@ use zksync_types::try_stoppable;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use super::resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource};
-use crate::{seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperInner};
+use crate::{
+    keeper::RunMode, seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperInner,
+};
 
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
 pub struct StateKeeperLayer {
     state_keeper_db_path: PathBuf,
     rocksdb_options: RocksdbStorageOptions,
+    run_mode: RunMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -45,10 +48,15 @@ pub struct Output {
 }
 
 impl StateKeeperLayer {
-    pub fn new(state_keeper_db_path: PathBuf, rocksdb_options: RocksdbStorageOptions) -> Self {
+    pub fn new(
+        state_keeper_db_path: PathBuf,
+        rocksdb_options: RocksdbStorageOptions,
+        run_mode: RunMode,
+    ) -> Self {
         Self {
             state_keeper_db_path,
             rocksdb_options,
+            run_mode,
         }
     }
 }
@@ -99,7 +107,10 @@ impl WiringLayer for StateKeeperLayer {
             input.shared_allow_list.map(DeploymentTxFilter::new),
         );
 
-        let state_keeper = StateKeeperTask { state_keeper_inner };
+        let state_keeper = StateKeeperTask {
+            state_keeper_inner,
+            run_mode: self.run_mode,
+        };
 
         input
             .app_health
@@ -123,6 +134,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     state_keeper_inner: StateKeeperInner,
+    run_mode: RunMode,
 }
 
 impl StateKeeperTask {
@@ -141,7 +153,7 @@ impl Task for StateKeeperTask {
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let state_keeper =
             try_stoppable!(self.state_keeper_inner.initialize(&stop_receiver.0).await);
-        state_keeper.run(stop_receiver.0).await
+        state_keeper.run(self.run_mode, stop_receiver.0).await
     }
 }
 

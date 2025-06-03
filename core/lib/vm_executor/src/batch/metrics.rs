@@ -16,6 +16,7 @@ pub(super) enum ExecutorCommand {
     RollbackLastTx,
     FinishBatch,
     GasRemaining,
+    RollbackL2Block,
 }
 
 const GAS_PER_NANOSECOND_BUCKETS: Buckets = Buckets::values(&[

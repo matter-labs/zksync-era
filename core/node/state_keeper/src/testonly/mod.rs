@@ -78,6 +78,10 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
     async fn gas_remaining(&mut self) -> anyhow::Result<u32> {
         Ok(u32::MAX)
     }
+
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub(crate) async fn apply_genesis_logs(storage: &mut Connection<'_, Core>, logs: &[StorageLog]) {

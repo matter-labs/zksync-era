@@ -43,6 +43,7 @@ once_cell.workspace = true
 itertools.workspace = true
 serde.workspace = true
 hex.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
