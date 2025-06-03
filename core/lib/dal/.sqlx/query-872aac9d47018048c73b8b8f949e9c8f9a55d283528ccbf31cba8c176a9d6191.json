@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l2_block_number,\n                fri_proof IS NOT NULL   AS \"has_fri!\",\n                snark_proof IS NOT NULL AS \"has_snark!\"\n            FROM zkos_proofs\n            ORDER BY l2_block_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l2_block_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "has_fri!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "has_snark!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "872aac9d47018048c73b8b8f949e9c8f9a55d283528ccbf31cba8c176a9d6191"
+}

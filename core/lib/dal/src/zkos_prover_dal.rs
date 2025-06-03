@@ -210,4 +210,79 @@ impl ZkosProverDal<'_, '_> {
 
         Ok(())
     }
+    pub async fn list_available_proofs(
+        &mut self,
+    ) -> DalResult<Vec<(L2BlockNumber, Vec<String>)>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                l2_block_number,
+                fri_proof IS NOT NULL   AS "has_fri!",
+                snark_proof IS NOT NULL AS "has_snark!"
+            FROM zkos_proofs
+            ORDER BY l2_block_number
+            "#
+        )
+            .instrument("list_available_proofs")
+            .report_latency()
+            .fetch_all(self.storage)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let mut proofs = Vec::new();
+                if row.has_fri {
+                    proofs.push("FRI".to_string());
+                }
+                if row.has_snark {
+                    proofs.push("SNARK".to_string());
+                }
+                (L2BlockNumber(row.l2_block_number as u32), proofs)
+            })
+            .collect())
+    }
+
+    /// Retrieve the stored FRI proof for a given block, if present.
+    pub async fn get_fri_proof(
+        &mut self,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<Vec<u8>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT fri_proof
+            FROM zkos_proofs
+            WHERE l2_block_number = $1
+            "#,
+            i64::from(block_number.0),
+        )
+            .instrument("get_fri_proof")
+            .report_latency()
+            .fetch_optional(self.storage)
+            .await?;
+
+        Ok(row.and_then(|r| r.fri_proof))
+    }
+
+    /// Retrieve the stored SNARK proof for a given block, if present.
+    pub async fn get_snark_proof(
+        &mut self,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Option<Vec<u8>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT snark_proof
+            FROM zkos_proofs
+            WHERE l2_block_number = $1
+            "#,
+            i64::from(block_number.0),
+        )
+            .instrument("get_snark_proof")
+            .report_latency()
+            .fetch_optional(self.storage)
+            .await?;
+
+        Ok(row.and_then(|r| r.snark_proof))
+    }
+
 }

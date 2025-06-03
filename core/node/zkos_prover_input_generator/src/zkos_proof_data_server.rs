@@ -7,7 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, Path};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tracing::{error, info};
@@ -26,7 +26,11 @@ struct ProofPayload {
     block_number: u32,
     proof: String,
 }
-
+#[derive(Debug, Serialize, Deserialize)]
+struct AvailableProofsPayload {
+    block_number: u32,
+    available_proofs: Vec<String>,
+}
 /// Handler to fetch the next FRI block to prove
 async fn pick_fri_job(
     State(pool): State<Arc<ConnectionPool<Core>>>,
@@ -158,6 +162,96 @@ async fn submit_snark_proof(
     }
 }
 
+
+/// Handler to list blocks with available proofs
+async fn list_available_proofs(
+    State(pool): State<Arc<ConnectionPool<Core>>>,
+) -> Response {
+    let mut conn = pool
+        .connection_tagged("zkos_proof_data_server")
+        .await
+        .expect("Failed to get DB connection");
+
+    info!("Fetching available proofs per block");
+    // TODO: implement `list_available_proofs` in DAL. Expected signature:
+    //   async fn list_available_proofs(&mut self) -> anyhow::Result<Vec<(L2BlockNumber, Vec<String>)>>
+    match conn
+        .zkos_prover_dal()
+        .list_available_proofs()
+        .await
+    {
+        Ok(rows) => {
+            let payload: Vec<AvailableProofsPayload> = rows
+                .into_iter()
+                .map(|(block_number, proofs)| AvailableProofsPayload {
+                    block_number: block_number.0,
+                    available_proofs: proofs,
+                })
+                .collect();
+            Json(payload).into_response()
+        }
+        Err(err) => {
+            error!("Error fetching available proofs: {}", err);
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// NEW: Handler to fetch a specific proof by type and block number
+async fn get_proof(
+    Path((proof_type, block_number)): Path<(String, u32)>,
+    State(pool): State<Arc<ConnectionPool<Core>>>,
+) -> Response {
+    let mut conn = pool
+        .connection_tagged("zkos_proof_data_server")
+        .await
+        .expect("Failed to get DB connection");
+
+    let block_number_l2 = L2BlockNumber(block_number);
+    match proof_type.as_str() {
+        "FRI" => {
+            info!("Fetching FRI proof for block {}", block_number_l2);
+            // TODO: implement `get_fri_proof` in DAL
+            match conn.zkos_prover_dal().get_fri_proof(block_number_l2).await {
+                Ok(Some(bytes)) => {
+                    let resp = ProofPayload {
+                        block_number,
+                        proof: base64::encode(&bytes),
+                    };
+                    Json(resp).into_response()
+                }
+                Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                Err(err) => {
+                    error!("Error fetching FRI proof: {}", err);
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+            }
+        }
+        "SNARK" => {
+            info!("Fetching SNARK proof for block {}", block_number_l2);
+            // TODO: implement `get_snark_proof` in DAL
+            match conn.zkos_prover_dal().get_snark_proof(block_number_l2).await {
+                Ok(Some(bytes)) => {
+                    let resp = ProofPayload {
+                        block_number,
+                        proof: base64::encode(&bytes),
+                    };
+                    Json(resp).into_response()
+                }
+                Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                Err(err) => {
+                    error!("Error fetching SNARK proof: {}", err);
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+            }
+        }
+        other => {
+            error!("Unknown proof type requested: {}", other);
+            StatusCode::BAD_REQUEST.into_response()
+        }
+    }
+}
+
 /// Create and run the HTTP server
 pub async fn run(pool: ConnectionPool<Core>) -> anyhow::Result<()> {
     let shared_pool = Arc::new(pool);
@@ -181,7 +275,15 @@ pub async fn run(pool: ConnectionPool<Core>) -> anyhow::Result<()> {
             "/prover-jobs/SNARK/submit",
             post(submit_snark_proof),
         )
-        .layer(DefaultBodyLimit::disable())
+        .route(
+            "/prover-jobs/available",
+            get(list_available_proofs),
+        )
+        .route(
+            "/prover-jobs/:proof_type/:block_number",
+            get(get_proof),
+        )
+        .layer(axum::extract::DefaultBodyLimit::disable())
         .with_state(shared_pool);
 
     let bind_address = SocketAddr::from(([0, 0, 0, 0], 3124));
