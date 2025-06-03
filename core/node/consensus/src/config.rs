@@ -70,15 +70,8 @@ impl GenesisSpec {
             None
         } else {
             Some(
-                validator::Schedule::new(
-                    validators,
-                    // TODO: Use default() for this.
-                    validator::LeaderSelection {
-                        frequency: 1,
-                        mode: validator::LeaderSelectionMode::RoundRobin,
-                    },
-                )
-                .context("schedule")?,
+                validator::Schedule::new(validators, validator::LeaderSelection::default())
+                    .context("schedule")?,
             )
         };
 
