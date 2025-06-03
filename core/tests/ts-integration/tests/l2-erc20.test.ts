@@ -6,7 +6,7 @@ import { TestMaster } from '../src';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
 import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';

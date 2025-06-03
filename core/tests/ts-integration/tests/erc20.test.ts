@@ -6,7 +6,8 @@ import { TestMaster } from '../src';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import * as path from 'path';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
@@ -20,7 +21,7 @@ import {
     ArtifactL2InteropRootStorage,
     ArtifactBridgeHub
 } from '../src/constants';
-import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
+import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
 import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
 import { loadConfig } from 'utils/src/file-configs';
 
