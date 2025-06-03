@@ -13280,6 +13280,7 @@ version = "28.1.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "basic_system",
+ "bincode",
  "circuit_definitions",
  "fflonk",
  "hex",
@@ -13293,6 +13294,7 @@ dependencies = [
  "sha3 0.10.8",
  "tracing",
  "zk_ee",
+ "zksync_bellman",
  "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",

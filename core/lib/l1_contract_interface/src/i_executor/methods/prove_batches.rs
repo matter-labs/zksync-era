@@ -14,6 +14,12 @@ use zksync_types::{
     ethabi::{encode, Token},
     U256,
 };
+use bellman::plonk::better_better_cs::proof::Proof as PlonkProof;
+use circuit_definitions::{
+    circuit_definitions::aux_layer::{
+        ZkSyncSnarkWrapperCircuit,
+    },
+};
 
 use crate::{
     i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
@@ -25,7 +31,7 @@ use crate::{
 pub struct ProveBatches {
     pub prev_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
-    pub proofs: Vec<L1BatchProofForL1>,
+    pub proofs: Vec<PlonkProof<Bn256, ZkSyncSnarkWrapperCircuit>>,
     pub should_verify: bool,
 }
 
@@ -45,22 +51,27 @@ impl ProveBatches {
             assert_eq!(self.proofs.len(), 1);
             assert_eq!(self.l1_batches.len(), 1);
 
-            let (verifier_type, proof) = match self.proofs.first().unwrap().inner() {
-                TypedL1BatchProofForL1::Fflonk(proof) => {
-                    let scheduler_proof = proof.scheduler_proof.clone();
+            let verifier_type = U256::from(1); //plonk
+            let (_, proof) = serialize_proof(&self.proofs.first().unwrap());
 
-                    let (_, serialized_proof) = serialize_fflonk_proof(&scheduler_proof);
-                    (U256::from(0), serialized_proof)
-                }
-                TypedL1BatchProofForL1::Plonk(proof) => {
-                    let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
-                    (U256::from(1), serialized_proof)
-                }
-            };
+            // original logic:
+            // let (verifier_type, proof) = match self.proofs.first().unwrap().inner() {
+            //     TypedL1BatchProofForL1::Fflonk(proof) => {
+            //         let scheduler_proof = proof.scheduler_proof.clone();
+            //
+            //         let (_, serialized_proof) = serialize_fflonk_proof(&scheduler_proof);
+            //         (U256::from(0), serialized_proof)
+            //     }
+            //     TypedL1BatchProofForL1::Plonk(proof) => {
+            //         let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
+            //         (U256::from(1), serialized_proof)
+            //     }
+            // };
 
             let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();
-
+            assert!(!should_use_fflonk);
             if protocol_version.is_pre_gateway() {
+                unreachable!("");
                 let proof_input = if should_use_fflonk {
                     Token::Tuple(vec![
                         Token::Array(vec![verifier_type.into_token()]),

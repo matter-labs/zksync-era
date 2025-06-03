@@ -1,10 +1,14 @@
 //! Different interfaces exposed by the `IExecutor.sol`.
 
+use anyhow::Context;
+use bellman::bn256::Bn256;
+use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit;
 use ruint::aliases::{B160, U256};
 use zk_ee::utils::Bytes32;
 use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_types::commitment::ZkosCommitment;
 use zksync_types::H256;
+use bellman::plonk::better_better_cs::proof::{Proof as PlonkProof, Proof};
 
 pub mod commit;
 pub mod methods;
@@ -27,6 +31,11 @@ pub fn zkos_commitment_to_vm_batch_output(commitment: &ZkosCommitment) -> BatchO
         l2_logs_tree_root: h256_to_bytes32(commitment.l2_to_l1_logs_root_hash),
         upgrade_tx_hash: Bytes32::zero(),
     }
+}
+
+pub fn deserialize_snark_plank_proof(bytes: Vec<u8>) -> anyhow::Result<PlonkProof<Bn256, ZkSyncSnarkWrapperCircuit>> {
+    let r: Proof<Bn256, ZkSyncSnarkWrapperCircuit> = bincode::deserialize(&bytes).context("cannot deserialize")?;
+    Ok(r)
 }
 
 pub fn h256_to_bytes32(input: H256) -> Bytes32 {

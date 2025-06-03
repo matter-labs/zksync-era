@@ -20,6 +20,8 @@ crypto_codegen.workspace = true
 kzg.workspace = true
 fflonk.workspace = true
 circuit_definitions.workspace = true
+# shouldn't be needed?
+bellman.workspace = true
 
 anyhow.workspace = true
 sha2.workspace = true
@@ -32,6 +34,7 @@ tracing.workspace = true
 zk_os_basic_system.workspace = true
 zk_ee.workspace = true
 ruint.workspace = true
+bincode.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

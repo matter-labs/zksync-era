@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_l1_contract_interface::deserialize_snark_plank_proof;
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -10,17 +11,7 @@ use zksync_prover_interface::{
     outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
     Bincode,
 };
-use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
-    hasher::keccak::KeccakHasher,
-    helpers::unix_timestamp_ms,
-    l1::L1Tx,
-    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    pubdata_da::PubdataSendingMode,
-    settlement::SettlementLayer,
-    L1BatchNumber, ProtocolVersionId,
-};
+use zksync_types::{aggregated_operations::AggregatedActionType, commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof}, hasher::keccak::KeccakHasher, helpers::unix_timestamp_ms, l1::L1Tx, protocol_version::{L1VerifierConfig, ProtocolSemanticVersion}, pubdata_da::PubdataSendingMode, settlement::SettlementLayer, L1BatchNumber, ProtocolVersionId, L2BlockNumber};
 
 use super::{
     aggregated_operations::AggregatedOperation,
@@ -585,10 +576,26 @@ impl Aggregator {
             })
             .collect();
 
-        let proof =
-            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions).await;
-        let Some(proof) = proof else {
+        let proof_bytes: Option<Vec<u8>> = storage
+            .zkos_prover_dal()
+            .get_snark_proof(L2BlockNumber(batch_to_prove.0))
+            .await
+            .unwrap();
+
+
+        let Some(proof_bytes) = proof_bytes else {
             // The proof for the next L1 batch is not generated yet
+            return None;
+        };
+
+        let proof = deserialize_snark_plank_proof(proof_bytes);
+
+        let Ok(proof) = proof else {
+           tracing::error!(
+                "Failed to deserialize proof for L1 batch {}: {}",
+                batch_to_prove.0,
+                proof.unwrap_err()
+            );
             return None;
         };
 
@@ -741,7 +748,7 @@ async fn extract_ready_subrange(
     )
 }
 
-pub async fn load_wrapped_fri_proofs_for_range(
+pub async fn load_snark_proof(
     l1_batch_number: L1BatchNumber,
     blob_store: &dyn ObjectStore,
     allowed_versions: &[ProtocolSemanticVersion],
