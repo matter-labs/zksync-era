@@ -33,11 +33,10 @@ mod tests {
         ConfigRepository, ConfigSchema, Environment, Yaml,
     };
 
-    use super::{avail::AvailClientConfig, eigenda::PointsSource, *};
+    use super::{avail::AvailClientConfig, *};
     use crate::configs::{
-        da_client::eigenda::{PolynomialForm, Version},
-        object_store::ObjectStoreMode,
-        DataAvailabilitySecrets, Secrets,
+        da_client::eigenda::PolynomialForm, object_store::ObjectStoreMode, DataAvailabilitySecrets,
+        Secrets,
     };
 
     #[test]
@@ -295,19 +294,12 @@ mod tests {
     }
 
     #[test]
-    fn eigenda_v1_config_from_env() {
+    fn eigenda_config_from_env() {
         let env = r#"
           DA_CLIENT="EigenDA"
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
           DA_AUTHENTICATED=false
-          DA_VERSION=V1
-          DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
-          DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-          DA_WAIT_FOR_FINALIZATION=true
-          DA_POINTS_SOURCE="Path"
-          DA_POINTS_PATH="./resources"
-          DA_CUSTOM_QUORUM_NUMBERS="2,3"
           DA_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000000123"
           DA_BLOB_VERSION="0"
           DA_POLYNOMIAL_FORM="coeff"
@@ -327,53 +319,7 @@ mod tests {
             "http://localhost:8545/"
         );
         assert!(!config.authenticated);
-        assert_eq!(config.version, Version::V1);
-        assert_eq!(config.settlement_layer_confirmation_depth, 0);
 
-        assert!(config.wait_for_finalization);
-
-        let PointsSource::Path { path } = &config.points else {
-            panic!("Unexpected config: {config:?}");
-        };
-        assert_eq!(path, "./resources");
-        assert_eq!(config.custom_quorum_numbers, [2, 3]);
-    }
-
-    #[test]
-    fn eigenda_v2_config_from_env() {
-        let env = r#"
-          DA_CLIENT="EigenDA"
-          DA_DISPERSER_RPC="http://localhost:8080"
-          DA_EIGENDA_ETH_RPC="http://localhost:8545"
-          DA_AUTHENTICATED=false
-          DA_VERSION=V2
-          DA_CERT_VERIFIER_ADDR="0x0000000000000000000000000000000000000123"
-          DA_BLOB_VERSION="0"
-          DA_POLYNOMIAL_FORM="coeff"
-          DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
-          DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-          DA_WAIT_FOR_FINALIZATION=true
-          DA_POINTS_SOURCE="Path"
-          DA_POINTS_PATH="./resources"
-          DA_CUSTOM_QUORUM_NUMBERS="2,3"
-        "#;
-        let env = Environment::from_dotenv("test.env", env)
-            .unwrap()
-            .strip_prefix("DA_");
-
-        let config = test_complete::<DAClientConfig>(env).unwrap();
-        let DAClientConfig::EigenDA(config) = config else {
-            panic!("unexpected config: {config:?}");
-        };
-
-        assert_eq!(config.disperser_rpc, "http://localhost:8080");
-        assert_eq!(
-            config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
-            "http://localhost:8545/"
-        );
-        assert!(!config.authenticated);
-
-        assert_eq!(config.version, Version::V2);
         assert_eq!(config.blob_version, 0);
         assert_eq!(
             config.cert_verifier_addr,
@@ -382,34 +328,6 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
-    }
-
-    #[test]
-    fn eigenda_v1_config_from_yaml() {
-        let yaml = r#"
-            client: EigenDA
-            disperser_rpc: https://disperser-holesky.eigenda.xyz:443
-            eigenda_eth_rpc: https://holesky.infura.io/
-            authenticated: true
-            version: V1
-            settlement_layer_confirmation_depth: 1
-            eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-            wait_for_finalization: true
-            points:
-                source: Url
-                g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
-                g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
-            custom_quorum_numbers:
-                - 1
-                - 3
-            cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
-            blob_version: 0
-            polynomial_form: coeff
-        "#;
-        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-
-        let config = test_complete::<DAClientConfig>(yaml).unwrap();
-        assert_eigen_config(&config);
     }
 
     fn assert_eigen_config(config: &DAClientConfig) {
@@ -425,47 +343,18 @@ mod tests {
             "https://holesky.infura.io/"
         );
         assert!(config.authenticated);
-
-        assert_eq!(config.version, Version::V1);
-        assert_eq!(config.settlement_layer_confirmation_depth, 1);
-
-        assert!(config.wait_for_finalization);
-
-        assert_eq!(config.custom_quorum_numbers, [1, 3]);
-        assert_eq!(
-            config.eigenda_svc_manager_address,
-            "0xD4A7E1Bd8015057293f0D0A557088c286942e84b"
-                .parse()
-                .unwrap()
-        );
-        let PointsSource::Url { g1_url, g2_url } = &config.points else {
-            panic!("Unexpected config: {config:?}");
-        };
-        assert_eq!(g1_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point");
-        assert_eq!(g2_url, "https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2");
     }
 
     #[test]
-    fn eigenda_v2_config_from_yaml() {
+    fn eigenda_config_from_yaml() {
         let yaml = r#"
             client: EigenDA
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
             authenticated: true
-            version: V2
             cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
             blob_version: 0
             polynomial_form: coeff
-            settlement_layer_confirmation_depth: 1
-            eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-            wait_for_finalization: true
-            points:
-                source: Url
-                g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
-                g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
-            custom_quorum_numbers:
-                - 1
-                - 3
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
@@ -484,7 +373,6 @@ mod tests {
         );
         assert!(config.authenticated);
 
-        assert_eq!(config.version, Version::V2);
         assert_eq!(config.blob_version, 0);
         assert_eq!(
             config.cert_verifier_addr,
@@ -496,26 +384,14 @@ mod tests {
     }
 
     #[test]
-    fn eigenda_v1_config_from_yaml_with_enum_coercion() {
+    fn eigenda_config_from_yaml_with_enum_coercion() {
         let yaml = r#"
           eigen_d_a:
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
-            settlement_layer_confirmation_depth: 1
             eigenda_eth_rpc: https://holesky.infura.io/
-            eigenda_svc_manager_address: 0xD4A7E1Bd8015057293f0D0A557088c286942e84b
-            wait_for_finalization: true
             authenticated: true
-            points: # This still doesn't correspond to the previous schema!
-              url:
-                g1_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g1.point
-                g2_url: https://raw.githubusercontent.com/lambdaclass/zksync-eigenda-tools/6944c9b09ae819167ee9012ca82866b9c792d8a1/resources/g2.point.powerOf2
-            cert_verifier_addr: 0xfe52fe1940858dcb6e12153e2104ad0fdfbe1162
             blob_version: 0
             polynomial_form: coeff
-            version: V1
-            custom_quorum_numbers:
-                - 1
-                - 3
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

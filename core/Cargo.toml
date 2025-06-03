@@ -237,7 +237,7 @@ pbjson-types = "0.6.0"
 # EigenDA
 rust-eigenda-v2-client = "0.1.2"
 rust-eigenda-v2-common = "0.1.2"
-rust-eigenda-client = "0.1.6"
+rust-eigenda-signers = "0.1.5"
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.

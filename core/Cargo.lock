@@ -3126,15 +3126,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "directories"
-version = "5.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a49173b84e034382284f27f1af4dcbbd231ffa358c0fe316541a7337f376a35"
-dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
 name = "dirs"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4855,18 +4846,6 @@ name = "hex-conservative"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "212ab92002354b4819390025006c897e8140934349e8635c9b077f47b4dcbd20"
-
-[[package]]
-name = "hex-literal"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
-
-[[package]]
-name = "hex-literal"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hkdf"
@@ -8433,40 +8412,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
-name = "rust-eigenda-client"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6354c52471d528bf96031903c2af4b6c7ac0b4ca01dfcd2929c789d2aeb8f3d7"
-dependencies = [
- "ark-bn254",
- "async-trait",
- "backon",
- "byteorder",
- "bytes",
- "ethabi",
- "ethereum-types",
- "hex",
- "hex-literal 0.3.4",
- "num-bigint 0.4.6",
- "prost 0.12.6",
- "rand 0.8.5",
- "reqwest 0.12.15",
- "rust-eigenda-signers",
- "rust-kzg-bn254",
- "secrecy 0.8.0",
- "serde",
- "serde_json",
- "sha3 0.10.8",
- "tempfile",
- "thiserror 1.0.69",
- "tiny-keccak 2.0.2",
- "tokio",
- "tokio-stream",
- "tonic 0.11.0",
- "url",
-]
-
-[[package]]
 name = "rust-eigenda-signers"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8537,32 +8482,6 @@ dependencies = [
  "rust-kzg-bn254-primitives",
  "serde",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "rust-kzg-bn254"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acdae4058a9f604acf7023d99d931d6f30261fff93787bcfd1f1ccfc725b701c"
-dependencies = [
- "ark-bn254",
- "ark-ec",
- "ark-ff 0.5.0",
- "ark-poly",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
- "byteorder",
- "crossbeam-channel",
- "directories",
- "hex-literal 0.4.1",
- "num-bigint 0.4.6",
- "num-traits",
- "num_cpus",
- "rand 0.8.5",
- "rayon",
- "sha2 0.10.8",
- "sys-info",
- "ureq",
 ]
 
 [[package]]
@@ -10348,16 +10267,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sys-info"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b3a0d0aba8bf96a0e1ddfdc352fc53b3df7f39318c71854910c3c4b024ae52c"
-dependencies = [
- "cc",
- "libc",
-]
-
-[[package]]
 name = "system-configuration"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11349,14 +11258,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
 dependencies = [
  "base64 0.22.1",
- "flate2",
  "log",
  "native-tls",
  "once_cell",
- "rustls 0.23.26",
- "rustls-pki-types",
  "url",
- "webpki-roots 0.26.8",
 ]
 
 [[package]]
@@ -13214,7 +13119,7 @@ dependencies = [
  "prost 0.12.6",
  "reqwest 0.12.15",
  "ripemd",
- "rust-eigenda-client",
+ "rust-eigenda-signers",
  "rust-eigenda-v2-client",
  "rust-eigenda-v2-common",
  "scale-encode",
