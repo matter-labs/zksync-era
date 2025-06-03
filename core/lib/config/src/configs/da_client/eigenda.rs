@@ -107,7 +107,7 @@ pub struct EigenDAConfig {
     /// Custom quorum numbers
     #[config(default, with = Delimited(","))]
     pub custom_quorum_numbers: Vec<u8>,
-    // V2 and M1 specific fields
+    // V2 and V2Secure specific fields
     //
     /// Address of the EigenDA cert verifier
     pub cert_verifier_addr: Address,
