@@ -24,5 +24,3 @@ execute their transactions.
 All transactions need to pay fees. The requirements to run a rollup are different than the ones needed to run Ethereum,
 so the ZK Stack has a different [fee model](./zksync_fee_model.md). The fee model is designed to consider all the components
 that are needed to run the rollup: data and proof execution costs on L1, sequencer costs, and prover costs.
-
-If you are interested in more advanced intro to the zkEVM itself, please read it [here](../../../guides/advanced/12_alternative_vm_intro.md).
