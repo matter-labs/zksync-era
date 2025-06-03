@@ -1,4 +1,3 @@
 [submodule "contracts"]
 path = contracts
 url = https://github.com/matter-labs/era-contracts.git
-branch = consensus-registry
