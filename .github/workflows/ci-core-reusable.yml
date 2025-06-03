@@ -558,6 +558,20 @@ jobs:
 
       - name: DA migration tests
         run: |
+          echo "Increasing L1 batch seal timeout and restarting server"
+          sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/da_migration/configs/general.yaml
+          ci_run pkill -f "zksync_server.*chains/da_migration/configs"
+          ci_run zkstack server --ignore-prerequisites --chain da_migration &>> ${{ env.SERVER_LOGS_DIR }}/da_migration.log &
+          echo "Server restart initiated, waiting 20 seconds for startup"
+          ci_run sleep 30
+          
+          echo "Running integration tests to generate unsealed batches"
+          # run only ETH token checks as it's enough to geenrate some unsealed batches
+          ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites --test-pattern="ETH token checks" \
+            "da_migration" ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
+            'era:--evm' 'validium:--evm'
+          echo "Integration tests completed"
+          
           echo "Setting pubdata pricing mode to validium and updating configuration"
           ci_run zkstack chain set-pubdata-pricing-mode --chain da_migration --rollup=false
           sudo yq -i '.l1_batch_commit_data_generator_mode = "Validium"' ./chains/da_migration/configs/genesis.yaml
