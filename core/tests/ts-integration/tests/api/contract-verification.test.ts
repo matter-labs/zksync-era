@@ -1,6 +1,5 @@
 import { TestMaster } from '../../src';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import fetch from 'node-fetch';
 import fs from 'fs';
