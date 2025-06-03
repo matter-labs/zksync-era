@@ -27,6 +27,9 @@ use zksync_da_client::{
 
 use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
+// The JSON RPC Specification defines for the Server error (Reserved for implementation-defined server-errors) the range of codes -32000 to -32099
+const PROOF_NOT_FOUND_ERROR_CODE: i64 = -32001;
+
 #[derive(Debug, Clone)]
 enum InnerClient {
     V1(EigenClient),
@@ -170,6 +173,14 @@ impl EigenDAClient {
             .await
             .map_err(|_| anyhow::anyhow!("Failed to parse response"))?;
 
+        if let Some(error) = json_response.get("error") {
+            if let Some(error_code) = error.get("code") {
+                if error_code.as_i64() != Some(PROOF_NOT_FOUND_ERROR_CODE) {
+                    return Err(anyhow::anyhow!("Failed to get proof for {:?}", blob_key));
+                }
+            }
+        }
+
         if let Some(result) = json_response.get("result") {
             if let Some(proof) = result.as_str() {
                 let proof =
@@ -209,14 +220,11 @@ impl DataAvailabilityClient for EigenDAClient {
             }
         };
 
-        match &self.client {
-            InnerClient::V2Secure(_) => {
-                // In V2Secure, we need to send the blob key to the sidecar for proof generation
-                self.send_blob_key(blob_key.clone())
-                    .await
-                    .map_err(to_retriable_da_error)?;
-            }
-            _ => {}
+        if let InnerClient::V2Secure(_) = &self.client {
+            // In V2Secure, we need to send the blob key to the sidecar for proof generation
+            self.send_blob_key(blob_key.clone())
+                .await
+                .map_err(to_retriable_da_error)?;
         }
 
         Ok(DispatchResponse::from(blob_key))
@@ -285,7 +293,7 @@ impl DataAvailabilityClient for EigenDAClient {
                     if let Some(proof) = self
                         .get_proof(blob_id)
                         .await
-                        .map_err(to_retriable_da_error)?
+                        .map_err(to_non_retriable_da_error)?
                     {
                         Ok(Some(InclusionData { data: proof }))
                     } else {

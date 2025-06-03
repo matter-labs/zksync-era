@@ -117,6 +117,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 "Eval" => zksync_config::configs::da_client::eigenda::PolynomialForm::Eval,
                 _ => anyhow::bail!("Unknown Eigen polynomial form"),
             },
+            eigenda_sidecar_rpc: env::var(format!("{}EIGENDA_SIDECAR_RPC", prefix))?,
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
             DAClientConfig::ObjectStore(envy_load("da_object_store", prefix)?)
