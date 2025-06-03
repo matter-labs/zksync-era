@@ -38,6 +38,7 @@ abigen!(
     ValidatorTimelockAbi,
     r"[
     function hasRole(uint256 _chainId, bytes32 _role, address _account)(bool)
+    function hasRoleForChainId(uint256 _chainId, bytes32 _role, address _account)(bool)
     function PRECOMMITTER_ROLE()(bytes32)
     function COMMITTER_ROLE()(bytes32)
     function PROVER_ROLE()(bytes32)

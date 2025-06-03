@@ -117,7 +117,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
     let gw_validator_timelock_addr = gw_ctm.validator_timelock().await?;
-    let _gw_validator_timelock =
+    let gw_validator_timelock =
         ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 
     let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
@@ -195,27 +195,31 @@ pub(crate) async fn get_migrate_to_gateway_calls(
 
     // 4. If validators are not yet present, please include.
     for validator in [params.validator_1, params.validator_2] {
-        // if !gw_validator_timelock
-        //     .validators(params.l2_chain_id.into(), validator)
-        //     .await?
-        // {
-        let enable_validator_calls = enable_validator_via_gateway(
-            shell,
-            forge_args,
-            foundry_contracts_path,
-            crate::admin_functions::AdminScriptMode::OnlySave,
-            params.l1_bridgehub_addr,
-            params.max_l1_gas_price.into(),
-            params.l2_chain_id,
-            params.gateway_chain_id,
-            validator,
-            gw_validator_timelock_addr,
-            refund_recipient,
-            params.l1_rpc_url.clone(),
-        )
-        .await?;
-        result.extend(enable_validator_calls.calls);
-        // }
+        if !gw_validator_timelock
+            .has_role_for_chain_id(
+                params.l2_chain_id.into(),
+                gw_validator_timelock.committer_role().call().await?,
+                validator,
+            )
+            .await?
+        {
+            let enable_validator_calls = enable_validator_via_gateway(
+                shell,
+                forge_args,
+                foundry_contracts_path,
+                crate::admin_functions::AdminScriptMode::OnlySave,
+                params.l1_bridgehub_addr,
+                params.max_l1_gas_price.into(),
+                params.l2_chain_id,
+                params.gateway_chain_id,
+                validator,
+                gw_validator_timelock_addr,
+                refund_recipient,
+                params.l1_rpc_url.clone(),
+            )
+            .await?;
+            result.extend(enable_validator_calls.calls);
+        }
 
         let current_validator_balance = gw_provider.get_balance(validator, None).await?;
         logger::info(format!(
