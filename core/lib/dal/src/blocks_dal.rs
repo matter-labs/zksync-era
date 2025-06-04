@@ -686,7 +686,9 @@ impl BlocksDal<'_, '_> {
                     .execute(self.storage)
                     .await?;
 
-                if result.rows_affected() == 0 {
+                if result.rows_affected() as u32
+                    != number_range.end().0 - number_range.start().0 + 1
+                {
                     let err = instrumentation.constraint_error(anyhow::anyhow!(
                         "Update eth_precommit_tx_id that is is not null is not allowed"
                     ));
@@ -955,8 +957,8 @@ impl BlocksDal<'_, '_> {
             JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
             WHERE
                 (
-                    transactions.l1_batch_number IS NULL AND $2
-                    OR transactions.l1_batch_number = $1
+                    miniblocks.l1_batch_number IS NULL AND $2
+                    OR miniblocks.l1_batch_number = $1
                 )
                 AND
                 miniblocks.rolling_txs_hash IS NOT NULL
