@@ -69,15 +69,6 @@ impl Executor for ProofFriCompressorExecutor {
             metadata.l1_batch_id
         );
 
-        if metadata
-            .l1_verifier_config
-            .fflonk_snark_wrapper_vk_hash
-            .is_none()
-            && self.is_fflonk
-        {
-            anyhow::bail!("There was no FFLONK verification hash found in the database while trying to run compressor in FFLONK mode, aborting");
-        }
-
         let snark_wrapper_mode = if self.is_fflonk {
             SnarkWrapper::Fflonk
         } else {

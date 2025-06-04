@@ -68,6 +68,12 @@ impl CompressorSetupData {
     }
 }
 
+impl Default for CompressorSetupData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Keystore {
     fn read_file_for_compression(
         &self,
@@ -109,8 +115,7 @@ impl Keystore {
             ProverServiceDataKey::new_compression(CS::MODE)
         };
         let reader = self.read_file_for_compression(key, service_data_type)?;
-        let vk = CS::load_this_vk(reader);
-        vk
+        CS::load_this_vk(reader)
     }
     fn load_compression_precomputation<CS: CompressionStep>(
         &self,
@@ -122,8 +127,7 @@ impl Keystore {
             ProverServiceDataKey::new_compression(CS::MODE)
         };
         let reader = self.read_file_for_compression(key, service_data_type)?;
-        let precomputation = CS::get_precomputation(reader);
-        precomputation
+        CS::get_precomputation(reader)
     }
     fn load_compression_finalization_hint<CS: CompressionStep>(
         &self,
@@ -135,8 +139,7 @@ impl Keystore {
             ProverServiceDataKey::new_compression(CS::MODE)
         };
         let reader = self.read_file_for_compression(key, service_data_type)?;
-        let finalization_hint = CS::load_finalization_hint(reader);
-        finalization_hint
+        CS::load_finalization_hint(reader)
     }
     fn load_compression_previous_vk<CS: CompressionStep>(
         &self,
@@ -151,8 +154,7 @@ impl Keystore {
             ProverServiceDataKey::new_compression(CS::MODE - 1)
         };
         let reader = self.read_file_for_compression(key, service_data_type)?;
-        let previous_vk = CS::load_previous_vk(reader);
-        previous_vk
+        CS::load_previous_vk(reader)
     }
 
     fn load_snark_wrapper_precomputation<WS: SnarkWrapperStep>(
@@ -165,8 +167,7 @@ impl Keystore {
             ProverServiceDataType::PlonkSetupData
         };
         let reader = self.read_file_for_compression(key, service_data_type)?;
-        let precomputation = WS::get_precomputation(reader);
-        precomputation
+        WS::get_precomputation(reader)
     }
     fn load_snark_wrapper_vk<WS: SnarkWrapperStep>(&self) -> anyhow::Result<WS::VK> {
         anyhow::ensure!(WS::IS_FFLONK ^ WS::IS_PLONK);
@@ -179,20 +180,17 @@ impl Keystore {
             ProverServiceDataType::SnarkVerificationKey
         };
         let reader = self.read_file_for_compression(key, service_data_type)?;
-        let vk = WS::load_this_vk(reader);
-        vk
+        WS::load_this_vk(reader)
     }
     fn load_snark_wrapper_finalization_hint<WS: SnarkWrapperStep>(
         &self,
     ) -> anyhow::Result<WS::FinalizationHint> {
-        let finalization_hint = WS::load_finalization_hint();
-        finalization_hint
+        WS::load_finalization_hint()
     }
     fn load_snark_wrapper_crs<WS: SnarkWrapperStep>(&self) -> anyhow::Result<WS::CRS> {
         anyhow::ensure!(WS::IS_FFLONK ^ WS::IS_PLONK);
         let reader = self.read_compact_raw_crs()?;
-        let crs = <WS as SnarkWrapperStep>::load_compact_raw_crs(reader);
-        crs
+        <WS as SnarkWrapperStep>::load_compact_raw_crs(reader)
     }
     fn load_snark_wrapper_previous_vk<WS: SnarkWrapperStep>(
         &self,
@@ -202,8 +200,7 @@ impl Keystore {
         let key = ProverServiceDataKey::new_compression_wrapper(previous_compression_mode);
         let service_data_type = ProverServiceDataType::VerificationKey;
         let reader = self.read_file_for_compression(key, service_data_type)?;
-        let previous_vk = WS::load_previous_vk(reader);
-        previous_vk
+        WS::load_previous_vk(reader)
     }
 
     fn load_compression_setup_data<CS: CompressionStep>(
