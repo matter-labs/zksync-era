@@ -1,6 +1,6 @@
 //! Legacy env var parsing logic. Will be removed after the transition to `smart-config` is complete for EN.
 
-use std::{env, num::ParseIntError, str::FromStr, time::Duration};
+use std::{env, str::FromStr, time::Duration};
 
 use anyhow::Context;
 use serde::de::DeserializeOwned;
@@ -35,11 +35,6 @@ const NO_DA_CLIENT_CONFIG_NAME: &str = "NoDA";
 const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
 const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
 
-const EIGENDA_VERSION_V1: &str = "V1";
-const EIGENDA_VERSION_V2: &str = "V2";
-const EIGENDA_POINTS_PATH: &str = "Path";
-const EIGENDA_POINTS_URL: &str = "Url";
-
 pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig> {
     let client_tag = env::var(format!("{}CLIENT", prefix))?;
     let config = match client_tag.as_str() {
@@ -69,42 +64,6 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 Err(_) => None,
             },
             authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
-            version: match env::var(format!("{}VERSION", prefix))?.as_str() {
-                EIGENDA_VERSION_V1 => zksync_config::configs::da_client::eigenda::Version::V1,
-                EIGENDA_VERSION_V2 => zksync_config::configs::da_client::eigenda::Version::V2,
-                _ => anyhow::bail!("Unknown EigenDA version"),
-            },
-            settlement_layer_confirmation_depth: env::var(format!(
-                "{}SETTLEMENT_LAYER_CONFIRMATION_DEPTH",
-                prefix
-            ))?
-            .parse()?,
-            eigenda_svc_manager_address: Address::from_str(&env::var(format!(
-                "{}EIGENDA_SVC_MANAGER_ADDRESS",
-                prefix
-            ))?)?,
-            wait_for_finalization: env::var(format!("{}WAIT_FOR_FINALIZATION", prefix))?.parse()?,
-            points: match env::var(format!("{}POINTS_SOURCE", prefix))?.as_str() {
-                EIGENDA_POINTS_PATH => {
-                    zksync_config::configs::da_client::eigenda::PointsSource::Path {
-                        path: env::var(format!("{}POINTS_PATH", prefix))?,
-                    }
-                }
-                EIGENDA_POINTS_URL => {
-                    zksync_config::configs::da_client::eigenda::PointsSource::Url {
-                        g1_url: env::var(format!("{}POINTS_LINK_G1", prefix))?,
-                        g2_url: env::var(format!("{}POINTS_LINK_G2", prefix))?,
-                    }
-                }
-                _ => anyhow::bail!("Unknown Eigen points type"),
-            },
-            custom_quorum_numbers: match env::var(format!("{}CUSTOM_QUORUM_NUMBERS", prefix)) {
-                Ok(numbers) => numbers
-                    .split(',')
-                    .map(|s| s.parse().map_err(|e: ParseIntError| anyhow::anyhow!(e)))
-                    .collect::<anyhow::Result<Vec<_>>>()?,
-                Err(_) => vec![],
-            },
             cert_verifier_addr: Address::from_str(&env::var(format!(
                 "{}EIGENDA_CERT_VERIFIER_ADDRESS",
                 prefix
