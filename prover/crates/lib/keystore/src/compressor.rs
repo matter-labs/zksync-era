@@ -142,7 +142,7 @@ impl Keystore {
         &self,
     ) -> anyhow::Result<VerificationKey<GoldilocksField, CS::PreviousStepTreeHasher>> {
         let service_data_type = ProverServiceDataType::VerificationKey;
-        assert!(CS::MODE >= 1);
+        anyhow::ensure!(CS::MODE >= 1);
         let key = if CS::MODE == 1 {
             ProverServiceDataKey::new_recursive(
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
@@ -169,13 +169,13 @@ impl Keystore {
         precomputation
     }
     fn load_snark_wrapper_vk<WS: SnarkWrapperStep>(&self) -> anyhow::Result<WS::VK> {
-        assert!(WS::IS_FFLONK ^ WS::IS_PLONK);
+        anyhow::ensure!(WS::IS_FFLONK ^ WS::IS_PLONK);
         let key = ProverServiceDataKey::snark();
         let service_data_type = if WS::IS_FFLONK {
-            assert_eq!(WS::IS_PLONK, false);
+            anyhow::ensure!(WS::IS_PLONK == false);
             ProverServiceDataType::FflonkSnarkVerificationKey
         } else {
-            assert_eq!(WS::IS_PLONK, true);
+            anyhow::ensure!(WS::IS_PLONK == true);
             ProverServiceDataType::SnarkVerificationKey
         };
         let reader = self.read_file_for_compression(key, service_data_type)?;
@@ -189,7 +189,7 @@ impl Keystore {
         finalization_hint
     }
     fn load_snark_wrapper_crs<WS: SnarkWrapperStep>(&self) -> anyhow::Result<WS::CRS> {
-        assert!(WS::IS_FFLONK ^ WS::IS_PLONK);
+        anyhow::ensure!(WS::IS_FFLONK ^ WS::IS_PLONK);
         let reader = self.read_compact_raw_crs()?;
         let crs = <WS as SnarkWrapperStep>::load_compact_raw_crs(reader);
         crs
@@ -197,7 +197,7 @@ impl Keystore {
     fn load_snark_wrapper_previous_vk<WS: SnarkWrapperStep>(
         &self,
     ) -> anyhow::Result<VerificationKey<GoldilocksField, WS::PreviousStepTreeHasher>> {
-        assert!(WS::IS_FFLONK ^ WS::IS_PLONK);
+        anyhow::ensure!(WS::IS_FFLONK ^ WS::IS_PLONK);
         let previous_compression_mode = WS::PREVIOUS_COMPRESSION_MODE;
         let key = ProverServiceDataKey::new_compression_wrapper(previous_compression_mode);
         let service_data_type = ProverServiceDataType::VerificationKey;
@@ -269,13 +269,13 @@ impl Keystore {
         precomputation: &<WS as ProofSystemDefinition>::Precomputation,
         vk: &<WS as ProofSystemDefinition>::VK,
     ) -> anyhow::Result<()> {
-        assert!(WS::IS_FFLONK ^ WS::IS_PLONK);
+        anyhow::ensure!(WS::IS_FFLONK ^ WS::IS_PLONK);
         let key = ProverServiceDataKey::snark();
         let service_data_type_vk = if WS::IS_FFLONK {
-            assert_eq!(WS::IS_PLONK, false);
+            anyhow::ensure!(WS::IS_PLONK == false);
             ProverServiceDataType::FflonkSnarkVerificationKey
         } else {
-            assert_eq!(WS::IS_PLONK, true);
+            anyhow::ensure!(WS::IS_PLONK == true);
             ProverServiceDataType::SnarkVerificationKey
         };
         let service_data_type_precomputation = if WS::IS_FFLONK {
