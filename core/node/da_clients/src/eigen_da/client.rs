@@ -23,11 +23,11 @@ use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
-pub struct EigenDAClient {
+pub struct EigenClient {
     client: PayloadDisperser,
 }
 
-impl EigenDAClient {
+impl EigenClient {
     pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
         let url = Url::from_str(
             config
@@ -66,7 +66,7 @@ impl EigenDAClient {
 }
 
 #[async_trait::async_trait]
-impl DataAvailabilityClient for EigenDAClient {
+impl DataAvailabilityClient for EigenClient {
     async fn dispatch_blob(
         &self,
         _: u32, // batch number

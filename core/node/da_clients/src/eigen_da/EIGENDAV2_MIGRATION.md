@@ -35,8 +35,6 @@ da_client:
   polynomial_form: coeff
 ```
 
-Note that the client changed from `Eigen` to `EigenDA`
-
 Check the [README.md](./README.md) for more details on the new fields.
 
 ### Note

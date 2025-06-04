@@ -5,7 +5,7 @@ use zksync_node_framework::{
     FromContext,
 };
 
-use crate::eigen_da::EigenDAClient;
+use crate::eigen_da::EigenClient;
 
 #[derive(Debug)]
 pub struct EigenWiringLayer {
@@ -32,7 +32,7 @@ impl WiringLayer for EigenWiringLayer {
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
-        let client = EigenDAClient::new(self.config, self.secrets).await?;
+        let client = EigenClient::new(self.config, self.secrets).await?;
         Ok(Box::new(client))
     }
 }
