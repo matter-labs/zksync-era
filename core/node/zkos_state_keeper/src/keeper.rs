@@ -155,12 +155,11 @@ impl ZkosStateKeeper {
             }
 
             let gas_limit = 100_000_000; // TODO: what value should be used?;
-            //note: should match the one is prover input generation (`zkos_prover_input_generator.rs`)
             let context = BatchContext {
                 //todo: gas
-                eip1559_basefee: U256::from(1),
+                eip1559_basefee: U256::from(block_params.base_fee),
                 //todo: gas
-                native_price: U256::from(1),
+                native_price: U256::from(block_params.base_fee / 100),
                 gas_per_pubdata: Default::default(),
                 block_number: cursor.next_l2_block.0 as u64,
                 // todo: shall we pass seconds or ms here?

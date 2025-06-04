@@ -61,13 +61,11 @@ impl ZkosProverInputGenerator {
             if let Some(block) = connection.blocks_dal().get_l2_block_header(next_block_to_process).await? {
                 tracing::info!("Processing block {:?}", block);
                 let started_at = std::time::Instant::now();
-                //note: should match the original execution (`keeper.rs`)
-
                 let context = BatchContext {
                     //todo: gas
-                    eip1559_basefee: U256::from(1),
+                    eip1559_basefee: U256::from(block.base_fee_per_gas),
                     // copied from keeper.rs
-                    native_price: U256::from(1),
+                    native_price: U256::from(block.base_fee_per_gas / 100),
                     gas_per_pubdata: Default::default(),
                     block_number: block.number.0 as u64,
                     timestamp: block.timestamp,

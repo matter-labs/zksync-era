@@ -267,7 +267,7 @@ fflonk = "=0.32.1"
 #bellman = { package = "zksync_bellman", git = "https://github.com/matter-labs/zksync-crypto", branch = "main" }
 bellman = { package = "zksync_bellman", version = "=0.32.1" }
 
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["no_print", "unlimited_native"] }
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["no_print"] }
 zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
 zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
 zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["evm-compatibility"] }
