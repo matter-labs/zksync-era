@@ -47,10 +47,6 @@ impl ExpectedFeeInput {
         self.expect_for_block(api::BlockNumber::Pending, scale);
     }
 
-    fn expect_custom(&self, expected: BatchFeeInput) {
-        *self.0.lock().unwrap() = expected;
-    }
-
     fn assert_eq(&self, actual: BatchFeeInput) {
         let expected = *self.0.lock().unwrap();
         // We do relaxed comparisons to deal with the fact that the fee input provider may convert inputs to pubdata independent form.

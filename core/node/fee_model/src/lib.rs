@@ -2,8 +2,6 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
-#[cfg(test)]
-use zksync_dal::{ConnectionPool, Core};
 use zksync_types::fee_model::{
     BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1, FeeParamsV2,
 };
@@ -153,8 +151,6 @@ mod tests {
     use l1_gas_price::GasAdjusterClient;
     use zksync_config::GasAdjusterConfig;
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-    use zksync_node_test_utils::create_l1_batch;
     use zksync_types::{
         commitment::L1BatchCommitmentMode,
         eth_sender::EthTxFinalityStatus,
