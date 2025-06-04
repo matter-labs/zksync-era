@@ -11,7 +11,7 @@ use zksync_config::BaseTokenAdjusterConfig;
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, Options};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
-    base_token_ratio::BaseTokenAPIRatio,
+    base_token_ratio::BaseTokenApiRatio,
     ethabi::{Contract, Token},
     web3::{contract::Tokenize, BlockNumber},
     Address, U256,
@@ -42,7 +42,7 @@ pub enum BaseTokenL1Behaviour {
 }
 
 impl BaseTokenL1Behaviour {
-    pub async fn update_l1(&mut self, new_ratio: BaseTokenAPIRatio) -> anyhow::Result<()> {
+    pub async fn update_l1(&mut self, new_ratio: BaseTokenApiRatio) -> anyhow::Result<()> {
         let (l1_params, last_persisted_l1_ratio) = match self {
             BaseTokenL1Behaviour::UpdateOnL1 {
                 ref params,
@@ -78,7 +78,7 @@ impl BaseTokenL1Behaviour {
         }
 
         let max_attempts = l1_params.config.l1_tx_sending_max_attempts;
-        let sleep_duration = l1_params.config.l1_tx_sending_sleep_ms;
+        let sleep_duration = l1_params.config.l1_tx_sending_sleep;
         let mut prev_base_fee_per_gas: Option<u64> = None;
         let mut prev_priority_fee_per_gas: Option<u64> = None;
         let mut last_error = None;
@@ -156,7 +156,7 @@ impl BaseTokenL1Behaviour {
     async fn do_update_l1(
         &self,
         l1_params: &UpdateOnL1Params,
-        api_ratio: BaseTokenAPIRatio,
+        api_ratio: BaseTokenApiRatio,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
     ) -> anyhow::Result<Option<U256>> {
@@ -211,7 +211,7 @@ impl BaseTokenL1Behaviour {
             .context("failed sending `setTokenMultiplier` transaction")?;
 
         let max_attempts = l1_params.config.l1_receipt_checking_max_attempts;
-        let sleep_duration = l1_params.config.l1_receipt_checking_sleep_ms;
+        let sleep_duration = l1_params.config.l1_receipt_checking_sleep;
         for _i in 0..max_attempts {
             let maybe_receipt = (*l1_params.eth_client)
                 .as_ref()

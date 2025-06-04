@@ -5,13 +5,13 @@ use smart_config::{metadata::TimeUnit, DescribeConfig, DeserializeConfig};
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
-    #[config(default_t = 1 * TimeUnit::Minutes, with = TimeUnit::Seconds)]
-    pub proof_generation_timeout_in_secs: Duration,
+    #[config(default_t = 1 * TimeUnit::Minutes)]
+    pub proof_generation_timeout: Duration,
     pub gateway_api_url: Option<String>,
-    #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]
-    pub proof_fetch_interval_in_secs: Duration,
-    #[config(default_t = Duration::from_secs(10), with = TimeUnit::Seconds)]
-    pub proof_gen_data_submit_interval_in_secs: Duration,
+    #[config(default_t = Duration::from_secs(10))]
+    pub proof_fetch_interval: Duration,
+    #[config(default_t = Duration::from_secs(10))]
+    pub proof_gen_data_submit_interval: Duration,
     #[config(default_t = true)]
     pub fetch_zero_chain_id_proofs: bool,
 }
@@ -25,10 +25,10 @@ mod tests {
     fn expected_config() -> ProofDataHandlerConfig {
         ProofDataHandlerConfig {
             http_port: 3320,
-            proof_generation_timeout_in_secs: Duration::from_secs(18000),
+            proof_generation_timeout: Duration::from_secs(18000),
             gateway_api_url: Some("http://gateway/".to_owned()),
-            proof_fetch_interval_in_secs: Duration::from_secs(15),
-            proof_gen_data_submit_interval_in_secs: Duration::from_secs(20),
+            proof_fetch_interval: Duration::from_secs(15),
+            proof_gen_data_submit_interval: Duration::from_secs(20),
             fetch_zero_chain_id_proofs: false,
         }
     }
@@ -59,6 +59,21 @@ mod tests {
           gateway_api_url: "http://gateway/"
           proof_fetch_interval_in_secs: 15
           proof_gen_data_submit_interval_in_secs: 20
+          fetch_zero_chain_id_proofs: false
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config: ProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          http_port: 3320
+          proof_generation_timeout: 5 hours
+          gateway_api_url: "http://gateway/"
+          proof_fetch_interval: 15s
+          proof_gen_data_submit_interval: 20 secs
           fetch_zero_chain_id_proofs: false
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();

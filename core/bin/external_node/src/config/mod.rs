@@ -541,21 +541,21 @@ impl OptionalENConfig {
             filters_limit: web3_json_rpc.filters_limit,
             subscriptions_limit: web3_json_rpc.subscriptions_limit,
             req_entities_limit: web3_json_rpc.req_entities_limit as usize,
-            max_tx_size_bytes: web3_json_rpc.max_tx_size,
+            max_tx_size_bytes: web3_json_rpc.max_tx_size.0 as usize,
             vm_execution_cache_misses_limit: web3_json_rpc.vm_execution_cache_misses_limit,
             fee_history_limit: web3_json_rpc.fee_history_limit,
             max_batch_request_size: web3_json_rpc.max_batch_request_size,
-            max_response_body_size_mb: web3_json_rpc.max_response_body_size_mb.0 as usize
+            max_response_body_size_mb: web3_json_rpc.max_response_body_size.0 as usize
                 / BYTES_IN_MEGABYTE,
             max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides_mb,
             pubsub_polling_interval_ms: web3_json_rpc.pubsub_polling_interval.as_millis() as u64,
             max_nonce_ahead: web3_json_rpc.max_nonce_ahead,
             vm_concurrency_limit: web3_json_rpc.vm_concurrency_limit,
-            factory_deps_cache_size_mb: web3_json_rpc.factory_deps_cache_size_mb.0 as usize
+            factory_deps_cache_size_mb: web3_json_rpc.factory_deps_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            initial_writes_cache_size_mb: web3_json_rpc.initial_writes_cache_size_mb.0 as usize
+            initial_writes_cache_size_mb: web3_json_rpc.initial_writes_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            latest_values_cache_size_mb: web3_json_rpc.latest_values_cache_size_mb.0 as usize
+            latest_values_cache_size_mb: web3_json_rpc.latest_values_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
             filters_disabled: web3_json_rpc.filters_disabled,
             mempool_cache_update_interval_ms: web3_json_rpc
@@ -565,12 +565,12 @@ impl OptionalENConfig {
 
             healthcheck_slow_time_limit_ms: load_config!(
                 general_config.api_config,
-                healthcheck.slow_time_limit_ms
+                healthcheck.slow_time_limit
             )
             .map(|dur: Duration| dur.as_millis() as u64),
             healthcheck_hard_time_limit_ms: load_config!(
                 general_config.api_config,
-                healthcheck.hard_time_limit_ms
+                healthcheck.hard_time_limit
             )
             .map(|dur: Duration| dur.as_millis() as u64),
             estimate_gas_scale_factor: web3_json_rpc.estimate_gas_scale_factor,
@@ -584,13 +584,11 @@ impl OptionalENConfig {
                 .experimental
                 .state_keeper_db_max_open_files,
             merkle_tree_multi_get_chunk_size: merkle_tree.multi_get_chunk_size,
-            merkle_tree_block_cache_size_mb: merkle_tree.block_cache_size_mb.0 as usize
+            merkle_tree_block_cache_size_mb: merkle_tree.block_cache_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            merkle_tree_memtable_capacity_mb: merkle_tree.memtable_capacity_mb.0 as usize
+            merkle_tree_memtable_capacity_mb: merkle_tree.memtable_capacity.0 as usize
                 / BYTES_IN_MEGABYTE,
-            merkle_tree_stalled_writes_timeout_sec: merkle_tree
-                .stalled_writes_timeout_sec
-                .as_secs(),
+            merkle_tree_stalled_writes_timeout_sec: merkle_tree.stalled_writes_timeout.as_secs(),
             merkle_tree_repair_stale_keys: general_config
                 .db_config
                 .experimental
@@ -598,13 +596,13 @@ impl OptionalENConfig {
             database_long_connection_threshold_ms: Some(
                 general_config
                     .postgres_config
-                    .long_connection_threshold_ms
+                    .long_connection_threshold
                     .as_millis() as u64,
             ),
             database_slow_query_threshold_ms: Some(
                 general_config
                     .postgres_config
-                    .slow_query_threshold_ms
+                    .slow_query_threshold
                     .as_millis() as u64,
             ),
             l2_block_seal_queue_capacity: load_config_or_default!(
@@ -629,10 +627,10 @@ impl OptionalENConfig {
                 .and_then(|config| config.object_store.clone()),
             pruning_chunk_size: general_config.pruning.chunk_size.get(),
             pruning_removal_delay_sec: NonZeroU64::new(
-                general_config.pruning.removal_delay_sec.as_secs(),
+                general_config.pruning.removal_delay.as_secs(),
             )
             .unwrap_or_else(|| NonZeroU64::new(1).unwrap()),
-            pruning_data_retention_sec: general_config.pruning.data_retention_sec.as_secs(),
+            pruning_data_retention_sec: general_config.pruning.data_retention.as_secs(),
             protective_reads_persistence_enabled: general_config
                 .db_config
                 .experimental
@@ -640,7 +638,7 @@ impl OptionalENConfig {
             merkle_tree_processing_delay_ms: general_config
                 .db_config
                 .experimental
-                .processing_delay_ms
+                .processing_delay
                 .as_millis() as u64,
             merkle_tree_include_indices_and_filters_in_block_cache: general_config
                 .db_config
@@ -656,7 +654,7 @@ impl OptionalENConfig {
                 .and_then(|dur| NonZeroU64::new(dur.as_secs())),
             timestamp_asserter_min_time_till_end_sec: general_config
                 .timestamp_asserter_config
-                .min_time_till_end_sec
+                .min_time_till_end
                 .as_secs() as u32,
             max_batches_to_recheck: enconfig
                 .max_batches_to_recheck
@@ -1093,7 +1091,7 @@ impl ExperimentalENConfig {
             state_keeper_db_block_cache_capacity_mb: general_config
                 .db_config
                 .experimental
-                .state_keeper_db_block_cache_capacity_mb
+                .state_keeper_db_block_cache_capacity
                 .0 as usize
                 / BYTES_IN_MEGABYTE,
             state_keeper_db_max_open_files: general_config

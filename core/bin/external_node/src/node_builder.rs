@@ -23,7 +23,7 @@ use zksync_da_clients::node::{
     AvailWiringLayer, CelestiaWiringLayer, EigenWiringLayer, NoDAClientWiringLayer,
     ObjectStorageClientWiringLayer,
 };
-use zksync_dal::node::{PoolsLayerBuilder, PostgresMetricsLayer};
+use zksync_dal::node::{PoolsLayer, PostgresMetricsLayer};
 use zksync_eth_client::node::BridgeAddressesUpdaterLayer;
 use zksync_gateway_migrator::node::SettlementLayerData;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
@@ -55,9 +55,7 @@ use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
 use zksync_types::L1BatchNumber;
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
-use zksync_web3_decl::node::{
-    MainNodeClientLayer, QueryEthClientLayer, SettlementLayerClientLayer,
-};
+use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
 use crate::{
     config::{ExternalNodeConfig, RemoteENConfig},
@@ -102,16 +100,16 @@ impl<R> ExternalNodeBuilder<R> {
         let config = PostgresConfig {
             max_connections: Some(self.config.postgres.max_connections),
             max_connections_master: Some(self.config.postgres.max_connections),
-            long_connection_threshold_ms: self
+            long_connection_threshold: self
                 .config
                 .optional
                 .long_connection_threshold()
-                .unwrap_or(default_config.long_connection_threshold_ms),
-            slow_query_threshold_ms: self
+                .unwrap_or(default_config.long_connection_threshold),
+            slow_query_threshold: self
                 .config
                 .optional
                 .slow_query_threshold()
-                .unwrap_or(default_config.slow_query_threshold_ms),
+                .unwrap_or(default_config.slow_query_threshold),
             ..default_config
         };
         let secrets = DatabaseSecrets {
@@ -119,10 +117,9 @@ impl<R> ExternalNodeBuilder<R> {
             server_replica_url: Some(self.config.postgres.database_url()),
             prover_url: None,
         };
-        let pools_layer = PoolsLayerBuilder::empty(config, secrets)
+        let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
-            .with_replica(true)
-            .build();
+            .with_replica(true);
         self.node.add_layer(pools_layer);
         Ok(self)
     }
@@ -146,15 +143,6 @@ impl<R> ExternalNodeBuilder<R> {
         Ok(self)
     }
 
-    fn add_settlement_layer_client_layer(mut self) -> anyhow::Result<Self> {
-        let query_eth_client_layer = SettlementLayerClientLayer::new(
-            self.config.required.eth_client_url.clone(),
-            self.config.optional.gateway_url.clone(),
-        );
-        self.node.add_layer(query_eth_client_layer);
-        Ok(self)
-    }
-
     fn add_main_node_client_layer(mut self) -> anyhow::Result<Self> {
         let layer = MainNodeClientLayer::new(
             self.config.required.main_node_url.clone(),
@@ -168,8 +156,8 @@ impl<R> ExternalNodeBuilder<R> {
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = HealthCheckConfig {
             port: self.config.required.healthcheck_port,
-            slow_time_limit_ms: self.config.optional.healthcheck_slow_time_limit(),
-            hard_time_limit_ms: self.config.optional.healthcheck_hard_time_limit(),
+            slow_time_limit: self.config.optional.healthcheck_slow_time_limit(),
+            hard_time_limit: self.config.optional.healthcheck_hard_time_limit(),
         };
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)
@@ -550,6 +538,7 @@ impl ExternalNodeBuilder {
             subscriptions_limit: Some(self.config.optional.subscriptions_limit),
             batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
+            request_timeout: None,
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
             polling_interval: Some(self.config.optional.polling_interval()),
@@ -584,7 +573,7 @@ impl ExternalNodeBuilder {
             max_vm_concurrency,
             (&self.config).into(),
             TimestampAsserterConfig {
-                min_time_till_end_sec: Duration::from_secs(
+                min_time_till_end: Duration::from_secs(
                     self.config
                         .optional
                         .timestamp_asserter_min_time_till_end_sec
@@ -636,7 +625,6 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_settlement_layer_client_layer()?
             .add_reorg_detector_layer()?;
 
         // Add layers that must run only on a single component.

@@ -1,13 +1,15 @@
-use zksync_da_client::node::DAClientResource;
+use std::sync::Arc;
+
+use zksync_da_client::DataAvailabilityClient;
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_health_check::node::AppHealthCheckResource;
+use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_web3_decl::node::MainNodeClientResource;
+use zksync_web3_decl::client::{DynClient, L2};
 
 use crate::data_availability_fetcher::DataAvailabilityFetcher;
 
@@ -27,17 +29,17 @@ impl DataAvailabilityFetcherLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub main_node_client: MainNodeClientResource,
-    pub da_client: DAClientResource,
+    master_pool: PoolResource<MasterPool>,
+    main_node_client: Box<DynClient<L2>>,
+    da_client: Box<dyn DataAvailabilityClient>,
     #[context(default)]
-    pub app_health: AppHealthCheckResource,
+    app_health: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: DataAvailabilityFetcher,
+    task: DataAvailabilityFetcher,
 }
 
 #[async_trait::async_trait]
@@ -51,17 +53,13 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let pool = input.master_pool.get().await?;
-        let MainNodeClientResource(client) = input.main_node_client;
-        let DAClientResource(da_client) = input.da_client;
 
         tracing::info!("Running data availability fetcher.");
-        let task =
-            DataAvailabilityFetcher::new(client, pool, da_client, self.max_batches_to_recheck);
+        let task = DataAvailabilityFetcher::new(input.main_node_client, pool, input.da_client, self.max_batches_to_recheck);
 
         // Insert healthcheck
         input
             .app_health
-            .0
             .insert_component(task.health_check())
             .map_err(WiringError::internal)?;
 
