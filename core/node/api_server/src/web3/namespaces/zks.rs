@@ -243,20 +243,6 @@ impl ZksNamespace {
         Ok(balances)
     }
 
-    // pub async fn get_l2_to_global_message_root_proof_impl(
-    //     &self,
-    //     block_number: L2BlockNumber,
-    //     sender: Address,
-    //     msg: H256,
-    // ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-    //     todo!() // kl todo
-    // }
-
-    // kl todo figure out levels, we need to serve message roots to:
-    // chainBatchRoot of chain for precommit based
-    // gw's MessageRoot,
-    // gw's chainBatchRoot.
-    // maybe L1's MessageRoot.
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         storage: &mut Connection<'_, Core>,
@@ -296,7 +282,6 @@ impl ZksNamespace {
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
-        // println!("kl toodo merkle tree leaves: {:?}", merkle_tree_leaves);
         let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
@@ -399,7 +384,6 @@ impl ZksNamespace {
 
         let mut storage = self.state.acquire_connection().await?;
         // kl todo for precommit based, we need it based on blocks.
-        // if precommit_log_index.is_none() {
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
