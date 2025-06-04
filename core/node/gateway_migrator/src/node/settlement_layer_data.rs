@@ -334,7 +334,7 @@ async fn get_l2_client(
     // so we can't point to ourselves.
     let is_settlement_layer = is_settlement_layer(eth_client, bridgehub_address, l2_chain_id)
         .await
-        .unwrap_or_default();
+        .context("failed to call whitelistedSettlementLayers on the bridgehub contract")?;
 
     if !is_settlement_layer {
         get_l2_client_unchecked(gateway_rpc_url, bridgehub_address).await
