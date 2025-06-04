@@ -147,7 +147,7 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 
     fn client_type(&self) -> ClientType {
-        ClientType::EigenDA
+        ClientType::Eigen
     }
 
     async fn balance(&self) -> Result<u64, DAError> {

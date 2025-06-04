@@ -157,6 +157,6 @@ enum PubdataType {
   NoDA = 1;
   Avail = 2;
   Celestia = 3;
-  EigenDA = 4;
+  Eigen = 4;
   ObjectStore = 5;
 }
