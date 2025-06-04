@@ -39,22 +39,4 @@ Check the [README.md](./README.md) for more details on the new fields.
 
 ### Note
 
-You should also change your `chains/<YOUR_CHAIN>/configs/secrets.yaml` from:
-
-```yaml
-da_client:
-  client: Eigen
-  private_key: <your_private_key>
-```
-
-To
-
-```yaml
-da_client:
-  client: Eigen
-  private_key: <your_private_key>
-```
-
-- Be sure that your private key has the needed permissions set on the V2 client.
-
 - Remember to run `zkstackup --local` before running the new server after this changes
