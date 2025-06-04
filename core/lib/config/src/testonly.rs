@@ -236,6 +236,7 @@ impl Distribution<configs::AllContractsConfig> for EncodeDist {
             l1_multicall3_addr: rng.gen(),
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: self.sample_opt(|| rng.gen()),
+            message_root_proxy_addr: self.sample_opt(|| rng.gen()),
             transparent_proxy_admin_addr: self.sample_opt(|| rng.gen()),
             l1_bytecode_supplier_addr: self.sample_opt(|| rng.gen()),
             l1_wrapped_base_token_store_addr: self.sample_opt(|| rng.gen()),

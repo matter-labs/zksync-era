@@ -187,6 +187,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
             prev_block_hash: l2_block_env.prev_block_hash,
             virtual_blocks: l2_block_env.max_virtual_blocks_to_create,
             txs: vec![],
+            interop_roots: vec![],
         });
         self.inner.start_new_l2_block(l2_block_env);
     }
@@ -260,6 +261,7 @@ where
             prev_block_hash: l1_batch_env.first_l2_block.prev_block_hash,
             virtual_blocks: l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
             txs: vec![],
+            interop_roots: vec![],
         };
         Self {
             l1_batch_env,
