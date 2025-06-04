@@ -11,7 +11,7 @@ pub mod eigenda;
 pub enum DAClientConfig {
     Avail(AvailConfig),
     Celestia(CelestiaConfig),
-    EigenDA(EigenDAConfig),
+    Eigen(EigenDAConfig),
     ObjectStore(ObjectStoreConfig),
     #[config(alias = "NoDa")]
     NoDA,
@@ -309,7 +309,7 @@ mod tests {
             .strip_prefix("DA_");
 
         let config = test_complete::<DAClientConfig>(env).unwrap();
-        let DAClientConfig::EigenDA(config) = config else {
+        let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
 
@@ -331,7 +331,7 @@ mod tests {
     }
 
     fn assert_eigen_config(config: &DAClientConfig) {
-        let DAClientConfig::EigenDA(config) = config else {
+        let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
         assert_eq!(
@@ -359,7 +359,7 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
         let config = test_complete::<DAClientConfig>(yaml).unwrap();
-        let DAClientConfig::EigenDA(config) = config else {
+        let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
 

@@ -54,7 +54,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
         CELESTIA_CLIENT_CONFIG_NAME => {
             DAClientConfig::Celestia(envy_load("da_celestia_config", prefix)?)
         }
-        EIGENDA_CLIENT_CONFIG_NAME => DAClientConfig::EigenDA(EigenDAConfig {
+        EIGENDA_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(EigenDAConfig {
             disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
             eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
                 // Use a specific L1 RPC URL for the EigenDA client.
