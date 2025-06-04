@@ -81,6 +81,7 @@ impl ZkosProverDal<'_, '_> {
                 SELECT l2_block_number
                 FROM zkos_proofs
                 WHERE prover_input IS NOT NULL
+                AND fri_proof IS NULL
                   AND (
                       fri_proof_picked_at IS NULL
                       OR fri_proof_picked_at < NOW() - $1::INTERVAL
@@ -152,6 +153,7 @@ impl ZkosProverDal<'_, '_> {
                 SELECT l2_block_number
                 FROM zkos_proofs
                 WHERE fri_proof IS NOT NULL
+                AND snark_proof IS NULL
                   AND (
                       snark_proof_picked_at IS NULL
                       OR snark_proof_picked_at < NOW() - $1::INTERVAL
