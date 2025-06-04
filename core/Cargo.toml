@@ -267,15 +267,31 @@ fflonk = "=0.32.1"
 #bellman = { package = "zksync_bellman", git = "https://github.com/matter-labs/zksync-crypto", branch = "main" }
 bellman = { package = "zksync_bellman", version = "=0.32.1" }
 
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["no_print"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["evm-compatibility"] }
-#zk_os_forward_system = { package = "forward_system", path = "../../zk_ee/forward_system", features = ["no_print"] }
-#zk_ee = { package = "zk_ee", path = "../../zk_ee/zk_ee" }
-#zk_os_basic_system = { package = "basic_system", path = "../../zk_ee/basic_system" }
-#zk_os_evm_interpreter = { package = "evm_interpreter", path = "../../zk_ee/evm_interpreter", features = ["evm-compatibility"] }
+# NOTE: before we have versioning in place, we use pinned versions of zksync-os and airbender repos
+# when updating, make sure the following is consistent:
+# * zksync-os revision here
+# * zksync-airbender revision here
+# * zksync-airbender revision in zkos_prover/Cargo.toml
+# * app.bin and app_logging_enabled.bin in root of this repo
+# * binaries used in SNARK wrapping
+# * L1 verifier
+#
+#zk_os_forward_system = { package = "forward_system", path="../../zk_ee/forward_system" }
+#zk_ee = { package = "zk_ee", path="../../zk_ee/zk_ee" }
+#zk_os_basic_system = { package = "basic_system", path="../../zk_ee/basic_system"}
+#zk_os_evm_interpreter = { package = "evm_interpreter", path="../../zk_ee/evm_interpreter" }
 
+
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", rev = "d209c25db69c9dc211e73814b055ff540c9bde43", features = ["no_print"] }
+zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", rev = "d209c25db69c9dc211e73814b055ff540c9bde43"}
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", rev = "d209c25db69c9dc211e73814b055ff540c9bde43"}
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", rev = "d209c25db69c9dc211e73814b055ff540c9bde43", features = ["evm-compatibility"] }
+
+# only used for verifinfg proofs
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
+verifier_common = { package = "verifier_common", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
+full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
 
 # New VM
 zksync_vm2 = "=0.4.0"

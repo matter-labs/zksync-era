@@ -122,7 +122,9 @@ fn create_proof(
 pub async fn main() {
     let client = ProofDataClient::new("http://localhost:3124");
 
-    let binary = load_binary_from_path(&"../app_logging_enabled.bin".to_string());
+    let binary = load_binary_from_path(&"../app.bin".to_string());
+    // use the following binary to debug divergencies.
+    // let binary = load_binary_from_path(&"../app_logging_enabled.bin".to_string());
     let mut gpu_state = GpuSharedState::default();
     #[cfg(feature = "gpu")]
     gpu_state.preheat_for_universal_verifier(&binary);
