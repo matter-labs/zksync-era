@@ -10,12 +10,10 @@ use zksync_prover_interface::{
     CBOR,
 };
 use zksync_prover_job_processor::Executor;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId};
 
 use crate::{
-    metrics::PROOF_FRI_COMPRESSOR_METRICS,
-    proof_fri_compressor_metadata::ProofFriCompressorMetadata,
-    proof_fri_compressor_payload::ProofFriCompressorPayload,
+    metrics::PROOF_FRI_COMPRESSOR_METRICS, proof_fri_compressor_payload::ProofFriCompressorPayload,
 };
 
 /// ProofFriCompressor executor implementation.
@@ -51,22 +49,22 @@ impl ProofFriCompressorExecutor {
 impl Executor for ProofFriCompressorExecutor {
     type Input = ProofFriCompressorPayload;
     type Output = L1BatchProofForL1<CBOR>;
-    type Metadata = ProofFriCompressorMetadata;
+    type Metadata = L1BatchId;
 
     #[tracing::instrument(
         name = "proof_fri_compressor_executor",
         skip_all,
-        fields(l1_batch = % metadata.l1_batch_id)
+        fields(l1_batch = % l1_batch_id)
     )]
     fn execute(
         &self,
         input: Self::Input,
-        metadata: Self::Metadata,
+        l1_batch_id: Self::Metadata,
     ) -> anyhow::Result<Self::Output> {
         let start_time = Instant::now();
         tracing::info!(
             "Started executing proof fri compressor job on batch {}",
-            metadata.l1_batch_id
+            l1_batch_id
         );
 
         let snark_wrapper_mode = if self.is_fflonk {
@@ -108,7 +106,7 @@ impl Executor for ProofFriCompressorExecutor {
             .observe(start_time.elapsed());
         tracing::info!(
             "Finished proof fri compression for job: {:?} took: {:?}",
-            metadata.l1_batch_id,
+            l1_batch_id,
             start_time.elapsed()
         );
         Ok(l1_batch_proof)

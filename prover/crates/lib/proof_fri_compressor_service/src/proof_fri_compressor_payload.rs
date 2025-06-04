@@ -6,7 +6,7 @@ use zksync_prover_fri_types::{
     AuxOutputWitnessWrapper,
 };
 
-/// Payload used as input for Witness Vector Generator.
+/// Payload used as input for Proof FRI Compressor.
 pub struct ProofFriCompressorPayload {
     pub scheduler_proof: ZkSyncRecursionLayerProof,
     pub aux_output_witness_wrapper: AuxOutputWitnessWrapper,

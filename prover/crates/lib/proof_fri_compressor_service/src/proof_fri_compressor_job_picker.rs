@@ -7,12 +7,11 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper};
 use zksync_prover_job_processor::JobPicker;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId};
 
 use crate::{
     metrics::PROOF_FRI_COMPRESSOR_METRICS,
     proof_fri_compressor_executor::ProofFriCompressorExecutor,
-    proof_fri_compressor_metadata::ProofFriCompressorMetadata,
     proof_fri_compressor_payload::ProofFriCompressorPayload,
 };
 
@@ -45,9 +44,7 @@ impl ProofFriCompressorJobPicker {
 impl JobPicker for ProofFriCompressorJobPicker {
     type ExecutorType = ProofFriCompressorExecutor;
 
-    async fn pick_job(
-        &mut self,
-    ) -> anyhow::Result<Option<(ProofFriCompressorPayload, ProofFriCompressorMetadata)>> {
+    async fn pick_job(&mut self) -> anyhow::Result<Option<(ProofFriCompressorPayload, L1BatchId)>> {
         let start_time = Instant::now();
         tracing::info!("Started picking proof fri compressor job",);
 
@@ -56,15 +53,6 @@ impl JobPicker for ProofFriCompressorJobPicker {
             .connection()
             .await
             .context("failed to get db connection")?;
-
-        let l1_verifier_config = conn
-            .fri_protocol_versions_dal()
-            .get_l1_verifier_config()
-            .await
-            .map_err(|err| {
-                anyhow::anyhow!("Failed to get L1 verifier config from database: {:?}", err)
-            })?;
-
         let pod_name = get_current_pod_name();
         let Some(l1_batch_id) = conn
             .fri_proof_compressor_dal()
@@ -103,16 +91,14 @@ impl JobPicker for ProofFriCompressorJobPicker {
             setup_data_cache,
         };
 
-        let metadata = ProofFriCompressorMetadata::new(l1_batch_id, l1_verifier_config);
-
         tracing::info!(
             "Finished picking proof fri compressor job on batch {} in {:?}",
-            metadata.l1_batch_id,
+            l1_batch_id,
             start_time.elapsed()
         );
         PROOF_FRI_COMPRESSOR_METRICS
             .blob_fetch_time
             .observe(start_time.elapsed());
-        Ok(Some((payload, metadata)))
+        Ok(Some((payload, l1_batch_id)))
     }
 }
