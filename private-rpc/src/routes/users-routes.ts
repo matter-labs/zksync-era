@@ -4,6 +4,7 @@ import { addressSchema } from '@/schemas/address';
 import { usersTable } from '@/db/schema';
 import { nanoid } from 'nanoid';
 import { HttpError } from '@/errors';
+import { eq } from 'drizzle-orm';
 
 const createUserSchema = {
     schema: {
@@ -22,6 +23,10 @@ export function usersRoutes(app: WebServer) {
         if (secret !== app.context.createTokenSecret) {
             throw new HttpError('forbidden', 403);
         }
+
+        await app.context.db
+            .delete(usersTable)
+            .where(eq(usersTable.address, address));
 
         await app.context.db.insert(usersTable).values({
             address,
