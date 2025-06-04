@@ -334,14 +334,6 @@ describe('L1 ERC20 contract checks', () => {
     // Gets the L2-B provider URL, which is Validium (L2-B) for Era (L2-A), and Era (L2-B) for all other chains
     function getL2bUrl(l2aUrl: string) {
         const pathToHome = path.join(__dirname, '../../../..');
-        const validiumConfig = loadConfig({
-            pathToHome,
-            chain: 'validium',
-            config: 'general.yaml'
-        });
-        const validiumUrl = validiumConfig.api.web3_json_rpc.http_url;
-        if (validiumUrl !== l2aUrl) return validiumUrl;
-
         const eraConfig = loadConfig({
             pathToHome,
             chain: 'era',
@@ -349,6 +341,14 @@ describe('L1 ERC20 contract checks', () => {
         });
         const eraUrl = eraConfig.api.web3_json_rpc.http_url;
         if (eraUrl !== l2aUrl) return eraUrl;
+
+        const validiumConfig = loadConfig({
+            pathToHome,
+            chain: 'validium',
+            config: 'general.yaml'
+        });
+        const validiumUrl = validiumConfig.api.web3_json_rpc.http_url;
+        if (validiumUrl !== l2aUrl) return validiumUrl;
         throw new Error('No valid L2-B provider found');
     }
 
