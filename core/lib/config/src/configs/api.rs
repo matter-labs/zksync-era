@@ -156,18 +156,18 @@ pub struct Web3JsonRpcConfig {
     /// Max possible limit of subscriptions to be in the state at once.
     #[config(default_t = 10_000)]
     pub subscriptions_limit: usize,
-    /// Interval between polling db for pubsub (in ms).
+    /// Interval between polling the node database for subscriptions.
     #[config(default_t = Duration::from_millis(200), with = Fallback(TimeUnit::Millis))]
     pub pubsub_polling_interval: Duration,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[config(default_t = 50)]
     pub max_nonce_ahead: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
-    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
-    #[config(default_t = 1.5)]
+    /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
+    #[config(default_t = 1.5, validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor: f64,
     /// The factor by which to scale the gasLimit
-    #[config(default_t = 1.3)]
+    #[config(default_t = 1.3, validate(1.0.., "must be higher than one"))]
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[config(default_t = 1_000)]
@@ -176,15 +176,13 @@ pub struct Web3JsonRpcConfig {
     /// considered experimental.
     #[config(default)]
     pub estimate_gas_optimize_search: bool,
-    ///  Max possible size of an ABI encoded tx (in bytes).
+    /// Max possible size of an ABI-encoded transaction.
     #[config(default_t = 10 * SizeUnit::MiB, with = Fallback(SizeUnit::Bytes))]
     pub max_tx_size: ByteSize,
-    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
-    /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
+    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the VM execution is stopped.
     pub vm_execution_cache_misses_limit: Option<usize>,
     /// Max number of VM instances to be concurrently spawned by the API server.
     /// This option can be tweaked down if the API server is running out of memory.
-    /// If not set, the VM concurrency limit will be efficiently disabled.
     #[config(default_t = 2_048)]
     pub vm_concurrency_limit: usize,
     /// Smart contract cache size.
@@ -205,9 +203,10 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 1_024)]
     pub fee_history_limit: u64,
     /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
-    #[config(default_t = 500)]
-    pub max_batch_request_size: usize,
-    /// Maximum response body size in MiBs. Default is 10 MiB.
+    #[config(default_t = NonZeroUsize::new(500).unwrap())]
+    pub max_batch_request_size: NonZeroUsize,
+    /// Maximum response body size. Note that there are overrides (`max_response_body_size_overrides_mb`)
+    /// taking precedence over this param.
     #[config(default_t = 10 * SizeUnit::MiB)]
     pub max_response_body_size: ByteSize,
     /// Method-specific overrides in MiBs for the maximum response body size.
@@ -215,29 +214,29 @@ pub struct Web3JsonRpcConfig {
     pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
-    /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
+    /// Not used for the HTTP server; for it, rate limiting is expected to be configured on the infra level.
     #[config(default_t = NonZeroU32::new(6_000).unwrap())]
     pub websocket_requests_per_minute_limit: NonZeroU32,
     /// Server-side request timeout. A request will be dropped with a 503 error code if its execution exceeds this limit.
     /// If not specified, no server-side request timeout is enforced.
     pub request_timeout: Option<Duration>,
-    /// Tree API url, currently used to proxy `getProof` calls to the tree
+    /// Tree API URL used to proxy `getProof` calls to the tree. For external nodes, it's not necessary to specify
+    /// since the server can communicate with the tree in-process.
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50 milliseconds.
     #[config(default_t = Duration::from_millis(50), with = Fallback(TimeUnit::Millis))]
     pub mempool_cache_update_interval: Duration,
-    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    /// Maximum number of transactions to be stored in the mempool cache.
     #[config(default_t = 10_000)]
     pub mempool_cache_size: usize,
     /// List of L2 token addresses that are white-listed to use by paymasters
     /// (additionally to natively bridged tokens).
     #[config(default, with = Delimited(","))]
     pub whitelisted_tokens_for_aa: Vec<Address>,
-    /// Enabled JSON RPC API namespaces. If not set, all namespaces will be available
+    /// Enabled JSON RPC API namespaces.
     #[config(with = Delimited(","))]
     pub api_namespaces: Option<Vec<String>>,
-    /// Enables extended tracing of RPC calls. This may negatively impact performance for nodes under high load
+    /// Enables extended tracing of RPC calls. This is useful for debugging, but may negatively impact performance for nodes under high load
     /// (hundreds or thousands RPS).
     #[config(default)]
     pub extended_api_tracing: bool,
@@ -274,7 +273,7 @@ impl Web3JsonRpcConfig {
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct HealthCheckConfig {
-    /// Port to which the REST server is listening.
+    /// Port to which the healthcheck server is listening.
     pub port: u16,
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
     /// If not specified, the default value in the health check crate will be used.
@@ -361,7 +360,7 @@ mod tests {
                 latest_values_cache_size: ByteSize::new(256, SizeUnit::MiB),
                 latest_values_max_block_lag: NonZeroU32::new(50).unwrap(),
                 fee_history_limit: 100,
-                max_batch_request_size: 200,
+                max_batch_request_size: NonZeroUsize::new(200).unwrap(),
                 max_response_body_size: ByteSize::new(15, SizeUnit::MiB),
                 max_response_body_size_overrides_mb: [
                     ("eth_call", NonZeroUsize::new(1)),

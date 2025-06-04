@@ -8,7 +8,7 @@ use smart_config::{
 };
 use zksync_basic_types::Address;
 
-use crate::utils::Fallback;
+use crate::utils::{Fallback, ZERO_TO_ONE};
 
 /// An enum that represents the version of the fee model to use.
 ///  - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
@@ -35,11 +35,11 @@ pub struct StateKeeperConfig {
     #[config(default_t = 8_192)]
     pub transaction_slots: usize,
 
-    /// Number of ms after which an L1 batch is going to be unconditionally sealed.
+    /// Deadline after which an L1 batch is going to be unconditionally sealed.
     #[config(alias = "block_commit_deadline")]
     #[config(default_t = Duration::from_millis(2_500))]
     pub l1_batch_commit_deadline: Duration,
-    /// Number of ms after which an L2 block should be sealed by the timeout sealer.
+    /// Deadline after which an L2 block should be sealed by the timeout sealer.
     #[config(alias = "miniblock_commit_deadline")]
     #[config(default_t = Duration::from_secs(1))]
     pub l2_block_commit_deadline: Duration,
@@ -49,37 +49,38 @@ pub struct StateKeeperConfig {
     #[config(alias = "miniblock_seal_queue_capacity")]
     #[config(default_t = 10)]
     pub l2_block_seal_queue_capacity: usize,
-    /// The max payload size threshold (in bytes) that triggers sealing of an L2 block.
+    /// The max payload size threshold that triggers sealing of an L2 block.
     #[config(alias = "miniblock_max_payload_size")]
     #[config(default_t = ByteSize(1_000_000), with = Fallback(SizeUnit::Bytes))]
     pub l2_block_max_payload_size: ByteSize,
 
-    /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
+    /// The max amount of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
     #[config(default_t = 15_000_000)]
     pub max_single_tx_gas: u32,
+    /// Max allowed gas limit for L2 transactions. Also applied on the API server.
     #[config(default_t = 15_000_000_000)]
     pub max_allowed_l2_tx_gas_limit: u64,
 
     /// Configuration option for tx to be rejected in case
     /// it takes more percentage of the block capacity than this value.
-    #[config(default_t = 0.95)]
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
     pub reject_tx_at_geometry_percentage: f64,
     /// Configuration option for tx to be rejected in case
     /// it takes more percentage of the block capacity than this value.
-    #[config(default_t = 0.95)]
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
     pub reject_tx_at_eth_params_percentage: f64,
     /// Configuration option for tx to be rejected in case
     /// it takes more percentage of the block capacity than this value.
-    #[config(default_t = 0.95)]
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
     pub reject_tx_at_gas_percentage: f64,
     /// Denotes the percentage of geometry params used in L2 block that triggers L2 block seal.
-    #[config(default_t = 0.95)]
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
     pub close_block_at_geometry_percentage: f64,
     /// Denotes the percentage of L1 params used in L2 block that triggers L2 block seal.
-    #[config(default_t = 0.95)]
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
     pub close_block_at_eth_params_percentage: f64,
     /// Denotes the percentage of L1 gas used in L2 block that triggers L2 block seal.
-    #[config(default_t = 0.95)]
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
     pub close_block_at_gas_percentage: f64,
 
     // Parameters without defaults.
@@ -89,10 +90,12 @@ pub struct StateKeeperConfig {
     /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
     /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
     /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
+    #[config(validate(ZERO_TO_ONE))]
     pub compute_overhead_part: f64,
     /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
     /// It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
     /// If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
+    #[config(validate(ZERO_TO_ONE))]
     pub pubdata_overhead_part: f64,
     /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
     pub batch_overhead_l1_gas: u64,
@@ -110,12 +113,13 @@ pub struct StateKeeperConfig {
     /// The version of the fee model to use.
     #[config(default_t = FeeModelVersion::V2, with = Serde![str])]
     pub fee_model_version: FeeModelVersion,
-    /// Max number of computational gas that validation step is allowed to take.
+    /// Max number of computational gas that validation step is allowed to take. Also applied on the API server.
     #[config(default_t = 300_000)]
     pub validation_computational_gas_limit: u32,
+    /// Whether to save call traces when executing blocks.
     #[config(default_t = true)]
     pub save_call_traces: bool,
-    /// The maximal number of circuits that a batch can support.
+    /// The maximum number of circuits that a batch can support.
     /// Note, that this number corresponds to the "base layer" circuits, i.e. it does not include
     /// the recursion layers' circuits.
     #[config(default_t = 31_100)]
@@ -126,7 +130,7 @@ pub struct StateKeeperConfig {
     /// which is capable of saving protective reads is run.
     #[config(default)]
     pub protective_reads_persistence_enabled: bool,
-
+    /// Allowed deployers for L2 transactions.
     #[config(nest)]
     pub deployment_allowlist: Option<DeploymentAllowlist>,
 }
@@ -176,31 +180,44 @@ pub struct OperationsManagerConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct CircuitBreakerConfig {
+    /// Interval between circuit breaker checks.
     #[config(default_t = 2 * TimeUnit::Minutes)]
     pub sync_interval: Duration,
+    /// Lag limit for the replica Postgres database if one is used. If set to `null`, the lag is unlimited,
+    /// but the circuit breaker still checks that the replica DB is reachable.
+    #[config(default_t = Some(Duration::from_secs(100)))]
+    pub replication_lag_limit: Option<Duration>,
+
+    // FIXME: remove; unused
     #[config(default_t = 10)]
     pub http_req_max_retry_number: usize,
     #[config(default_t = Duration::from_secs(2))]
     pub http_req_retry_interval: Duration,
-    #[config(default_t = Some(Duration::from_secs(100)))]
-    pub replication_lag_limit: Option<Duration>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct MempoolConfig {
+    /// Interval between syncing iterations for the mempool.
     #[config(default_t = Duration::from_millis(10))]
     pub sync_interval: Duration,
+    /// Number of transactions to fetch from Postgres during a single iteration.
     #[config(default_t = 1_000)]
     pub sync_batch_size: usize,
+    /// Capacity of the mempool, measured in the number of transactions.
     #[config(default_t = 10_000_000)]
     pub capacity: u64,
+    /// Timeout for stuck transactions.
     #[config(default_t = 2 * TimeUnit::Days, with = Fallback(TimeUnit::Seconds))]
     pub stuck_tx_timeout: Duration,
+    /// Whether to remove stuck transactions from the mempool.
     #[config(default_t = true)]
     pub remove_stuck_txs: bool,
+    /// Delay interval for some mempool retrieval operations, such as retrying getting the next transaction
+    /// from the pool to include into a block.
     #[config(default_t = Duration::from_millis(100), with = Fallback(TimeUnit::Millis))]
     pub delay_interval: Duration,
+    /// Whether to pause inclusion of L1 (aka priority) transactions in the mempool. Should be used with care.
     #[config(default)]
     pub l1_to_l2_txs_paused: bool,
 }
@@ -216,8 +233,10 @@ pub struct TimestampAsserterConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(tag = "source")]
 pub enum DeploymentAllowlist {
+    /// Allowlist is fetched from an external source.
     #[config(alias = "Url")]
     Dynamic(DeploymentAllowlistDynamic),
+    /// Allowlist is hard-coded in the config.
     Static {
         /// Allowed deployers of the new contracts.
         addresses: HashSet<Address>,

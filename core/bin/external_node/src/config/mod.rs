@@ -541,7 +541,7 @@ impl OptionalENConfig {
             max_tx_size_bytes: web3_json_rpc.max_tx_size.0 as usize,
             vm_execution_cache_misses_limit: web3_json_rpc.vm_execution_cache_misses_limit,
             fee_history_limit: web3_json_rpc.fee_history_limit,
-            max_batch_request_size: web3_json_rpc.max_batch_request_size,
+            max_batch_request_size: web3_json_rpc.max_batch_request_size.get(),
             max_response_body_size_mb: web3_json_rpc.max_response_body_size.0 as usize
                 / BYTES_IN_MEGABYTE,
             max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides_mb,

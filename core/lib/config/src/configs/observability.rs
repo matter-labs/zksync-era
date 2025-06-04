@@ -10,6 +10,7 @@ use smart_config::{
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct ObservabilityConfig {
+    /// Sentry configuration.
     #[config(nest)]
     pub sentry: Option<SentryConfig>,
     /// Opentelemetry configuration.
@@ -18,7 +19,7 @@ pub struct ObservabilityConfig {
     /// Format of the logs as expected by the `vlog` crate.
     /// Currently must be either `plain` or `json`.
     #[config(default_t = "plain".into(), fallback = &fallback::Env("MISC_LOG_FORMAT"))]
-    pub log_format: String,
+    pub log_format: String, // FIXME: use an enum?
     /// Log directives in format that is used in `RUST_LOG`
     #[config(default_t = "zksync=info".into(), fallback = &fallback::Env("RUST_LOG"))]
     pub log_directives: String,
