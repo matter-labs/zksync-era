@@ -55,7 +55,12 @@ impl WiringLayer for DataAvailabilityFetcherLayer {
         let pool = input.master_pool.get().await?;
 
         tracing::info!("Running data availability fetcher.");
-        let task = DataAvailabilityFetcher::new(input.main_node_client, pool, input.da_client, self.max_batches_to_recheck);
+        let task = DataAvailabilityFetcher::new(
+            input.main_node_client,
+            pool,
+            input.da_client,
+            self.max_batches_to_recheck,
+        );
 
         // Insert healthcheck
         input
