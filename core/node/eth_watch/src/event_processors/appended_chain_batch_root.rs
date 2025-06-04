@@ -244,11 +244,13 @@ impl BatchRootProcessor {
                 l1_batch_number,
                 AggregatedActionType::Execute,
             )
-            .await;
+            .await
+            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?
+            .expect("Execute tx not found");
 
         let tx = storage
             .eth_sender_dal()
-            .get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id.unwrap())
+            .get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id)
             .await
             .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
 
