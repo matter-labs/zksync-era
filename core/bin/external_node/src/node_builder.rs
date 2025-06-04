@@ -314,7 +314,7 @@ impl<R> ExternalNodeBuilder<R> {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
-            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::EigenDA(secret)) => {
+            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
                     config.eigenda_eth_rpc = Some(self.config.required.eth_client_url.clone());
                 }

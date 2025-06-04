@@ -42,7 +42,7 @@ pub struct L1Secrets {
 pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
     Celestia(CelestiaSecrets),
-    EigenDA(EigenSecrets),
+    Eigen(EigenSecrets),
     // Needed for compatibility with the non-secret part of the DA config
     NoDA,
 }

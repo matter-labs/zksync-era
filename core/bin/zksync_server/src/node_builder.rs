@@ -600,7 +600,7 @@ impl MainNodeBuilder {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
-            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::EigenDA(secret)) => {
+            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
                     let l1_secrets = &self.secrets.l1;
                     config.eigenda_eth_rpc = l1_secrets.l1_rpc_url.clone();

@@ -115,7 +115,7 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
         EIGENDA_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
                 .context("Eigen private key not found")?;
-            DataAvailabilitySecrets::EigenDA(EigenSecrets {
+            DataAvailabilitySecrets::Eigen(EigenSecrets {
                 private_key: PrivateKey(private_key.into()),
             })
         }
