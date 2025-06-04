@@ -1,10 +1,26 @@
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use smart_config::{
+    de::{Serde, WellKnown},
     fallback::{self, FallbackSource},
     value::{ValueOrigin, WithOrigin},
     DescribeConfig, DeserializeConfig,
 };
+
+/// Specifies the format of the logs in stdout.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    #[default]
+    Plain,
+    Json,
+}
+
+impl WellKnown for LogFormat {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
+}
 
 /// Configuration for the essential observability stack, like logging and sentry integration.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -16,11 +32,10 @@ pub struct ObservabilityConfig {
     /// Opentelemetry configuration.
     #[config(nest)]
     pub opentelemetry: Option<OpentelemetryConfig>,
-    /// Format of the logs as expected by the `vlog` crate.
-    /// Currently must be either `plain` or `json`.
-    #[config(default_t = "plain".into(), fallback = &fallback::Env("MISC_LOG_FORMAT"))]
-    pub log_format: String, // FIXME: use an enum?
-    /// Log directives in format that is used in `RUST_LOG`
+    /// Format of the logs emitted by the node.
+    #[config(default, fallback = &fallback::Env("MISC_LOG_FORMAT"))]
+    pub log_format: LogFormat,
+    /// Log directives in format that is used in `RUST_LOG` by `log` or `tracing` façades.
     #[config(default_t = "zksync=info".into(), fallback = &fallback::Env("RUST_LOG"))]
     pub log_directives: String,
 }
@@ -92,7 +107,7 @@ mod tests {
                 endpoint: "http://otlp-collector/v1/traces".into(),
                 logs_endpoint: Some("http://otlp-collector/v1/logs".into()),
             }),
-            log_format: "json".into(),
+            log_format: LogFormat::Json,
             log_directives: "zksync=info,zksync_state_keeper=debug".into(),
         }
     }

@@ -12,7 +12,7 @@ use smart_config::{
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
-    configs::{ObservabilityConfig, PrometheusConfig},
+    configs::{observability::LogFormat, ObservabilityConfig, PrometheusConfig},
     sources::ConfigSources,
 };
 
@@ -38,7 +38,7 @@ impl ObservabilityConfig {
         self,
         logs_transform: impl FnOnce(zksync_vlog::Logs) -> zksync_vlog::Logs,
     ) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
-        let logs = logs_transform(zksync_vlog::Logs::try_from(self.clone())?);
+        let logs = logs_transform(zksync_vlog::Logs::from(self.clone()));
         let sentry = Option::<zksync_vlog::Sentry>::try_from(self.clone())?;
         let opentelemetry = Option::<zksync_vlog::OpenTelemetry>::try_from(self.clone())?;
 
@@ -52,12 +52,19 @@ impl ObservabilityConfig {
     }
 }
 
-impl TryFrom<ObservabilityConfig> for zksync_vlog::Logs {
-    type Error = anyhow::Error;
+impl From<LogFormat> for zksync_vlog::logs::LogFormat {
+    fn from(format: LogFormat) -> Self {
+        match format {
+            LogFormat::Plain => Self::Plain,
+            LogFormat::Json => Self::Json,
+        }
+    }
+}
 
-    fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
-        Ok(zksync_vlog::Logs::new(&config.log_format)?
-            .with_log_directives(Some(config.log_directives)))
+impl From<ObservabilityConfig> for zksync_vlog::Logs {
+    fn from(config: ObservabilityConfig) -> Self {
+        zksync_vlog::Logs::new(config.log_format.into())
+            .with_log_directives(Some(config.log_directives))
     }
 }
 
