@@ -194,10 +194,7 @@ mod tests {
                 validation_computational_gas_limit: u32::MAX,
                 operator_address: Address::default(),
                 fee_input: BatchFeeInput::default(),
-                first_l2_block: L2BlockParams {
-                    timestamp_ms: 1000,
-                    virtual_blocks: 1,
-                },
+                first_l2_block: L2BlockParams::new_with_default_virtual_blocks(1000),
                 pubdata_params: Default::default(),
             },
             number: L1BatchNumber(1),
@@ -207,10 +204,7 @@ mod tests {
 
     fn l2_block() -> SyncAction {
         SyncAction::L2Block {
-            params: L2BlockParams {
-                timestamp_ms: 1000,
-                virtual_blocks: 1,
-            },
+            params: L2BlockParams::new_with_default_virtual_blocks(1000),
             number: 1.into(),
         }
     }

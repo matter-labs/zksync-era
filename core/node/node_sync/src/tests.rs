@@ -41,10 +41,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             validation_computational_gas_limit: u32::MAX,
             operator_address: OPERATOR_ADDRESS,
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            first_l2_block: L2BlockParams {
-                timestamp_ms: timestamp * 1000,
-                virtual_blocks: 1,
-            },
+            first_l2_block: L2BlockParams::new_with_default_virtual_blocks(timestamp * 1000),
             pubdata_params: Default::default(),
         },
         number: L1BatchNumber(number),
@@ -399,10 +396,9 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
         .collect();
 
     let open_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp_ms: (snapshot.l2_block_timestamp + 2) * 1000,
-            virtual_blocks: 1,
-        },
+        params: L2BlockParams::new_with_default_virtual_blocks(
+            (snapshot.l2_block_timestamp + 2) * 1000,
+        ),
         number: snapshot.l2_block_number + 2,
     };
     let more_txs = (0..3).map(|_| {
@@ -506,10 +502,9 @@ async fn test_external_io_recovery(
 
     // Send new actions and wait until the new L2 block is sealed.
     let open_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp_ms: (snapshot.l2_block_timestamp + 3) * 1000,
-            virtual_blocks: 1,
-        },
+        params: L2BlockParams::new_with_default_virtual_blocks(
+            (snapshot.l2_block_timestamp + 3) * 1000,
+        ),
         number: snapshot.l2_block_number + 3,
     };
     let actions = vec![open_l2_block, new_tx.into(), SyncAction::SealL2Block];
@@ -577,10 +572,9 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     let first_l1_batch_actions = vec![l1_batch, first_tx.into(), SyncAction::SealL2Block];
 
     let fictive_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp_ms: (snapshot.l2_block_timestamp + 2) * 1000,
-            virtual_blocks: 0,
-        },
+        params: L2BlockParams::new_with_default_virtual_blocks(
+            (snapshot.l2_block_timestamp + 2) * 1000,
+        ),
         number: snapshot.l2_block_number + 2,
     };
     let fictive_l2_block_actions = vec![fictive_l2_block, SyncAction::SealBatch];
@@ -702,10 +696,7 @@ async fn external_io_empty_unsealed_batch() {
     let tx = FetchedTransaction::new(tx.into());
     let open_batch_two = open_l1_batch(2, 2, 3);
     let fictive_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp_ms: 2000,
-            virtual_blocks: 0,
-        },
+        params: L2BlockParams::new_with_default_virtual_blocks(2000),
         number: L2BlockNumber(2),
     };
     let actions1 = vec![open_batch_one, tx.into(), SyncAction::SealL2Block];
@@ -738,10 +729,7 @@ async fn external_io_empty_unsealed_batch() {
     let tx_hash = tx.hash();
     let tx = FetchedTransaction::new(tx.into());
     let fictive_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp_ms: 4000,
-            virtual_blocks: 0,
-        },
+        params: L2BlockParams::new_with_default_virtual_blocks(4000),
         number: L2BlockNumber(4),
     };
     let actions1 = vec![open_batch_two, tx.into(), SyncAction::SealL2Block];

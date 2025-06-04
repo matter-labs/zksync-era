@@ -526,7 +526,7 @@ async fn l2_block_timestamp_updated_after_first_tx() {
         .update_l2_block_timestamp("Update the next l2 block timestamp", new_timestamp_ms)
         .next_tx("New tx", random_tx(1), successful_exec())
         .l2_block_sealed_with("L2 block 2", move |updates| {
-            let actual = updates.l2_block.timestamp_ms;
+            let actual = updates.l2_block.timestamp_ms();
             assert_eq!(
                 actual, new_timestamp_ms,
                 "L2 block timestamp must be updated"

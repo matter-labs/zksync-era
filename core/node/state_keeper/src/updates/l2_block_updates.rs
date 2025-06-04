@@ -28,11 +28,11 @@ pub struct L2BlockUpdates {
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
     pub l1_tx_count: usize,
-    pub timestamp_ms: u64,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
+    timestamp_ms: u64,
 }
 
 impl L2BlockUpdates {
@@ -182,6 +182,44 @@ impl L2BlockUpdates {
 
     pub fn timestamp(&self) -> u64 {
         self.timestamp_ms / 1000
+    }
+
+    pub fn timestamp_ms(&self) -> u64 {
+        self.timestamp_ms
+    }
+
+    #[cfg(test)]
+    pub fn new_with_data(
+        number: L2BlockNumber,
+        timestamp_ms: u64,
+        executed_transactions: Vec<TransactionExecutionResult>,
+        events: Vec<VmEvent>,
+        storage_logs: Vec<StorageLogWithPreviousValue>,
+        user_l2_to_l1_logs: Vec<UserL2ToL1Log>,
+        new_factory_deps: HashMap<H256, Vec<u8>>,
+    ) -> Self {
+        Self {
+            executed_transactions,
+            events,
+            storage_logs,
+            user_l2_to_l1_logs,
+            system_l2_to_l1_logs: Default::default(),
+            new_factory_deps,
+            block_execution_metrics: Default::default(),
+            txs_encoding_size: Default::default(),
+            payload_encoding_size: Default::default(),
+            l1_tx_count: 0,
+            timestamp_ms,
+            number,
+            prev_block_hash: Default::default(),
+            virtual_blocks: Default::default(),
+            protocol_version: ProtocolVersionId::latest(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn set_timestamp_ms(&mut self, value: u64) {
+        self.timestamp_ms = value;
     }
 }
 

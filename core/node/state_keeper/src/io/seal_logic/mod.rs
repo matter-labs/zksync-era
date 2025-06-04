@@ -530,7 +530,7 @@ impl L2BlockSealCommand {
         L2_BLOCK_METRICS.sealed_time.observe(started_at.elapsed());
 
         let l2_block_latency =
-            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp_ms) as f64 / 1_000.0;
+            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp_ms()) as f64 / 1_000.0;
         let stage = &L2BlockStage::Sealed;
         APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(l2_block_latency));
         APP_METRICS.miniblock_number[stage].set(l2_block_number.0.into());

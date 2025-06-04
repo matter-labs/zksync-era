@@ -721,10 +721,7 @@ impl StateKeeperIO for TestIO {
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
-            first_l2_block: L2BlockParams {
-                timestamp_ms: self.timestamp * 1000,
-                virtual_blocks: 1,
-            },
+            first_l2_block: L2BlockParams::new_with_default_virtual_blocks(self.timestamp * 1000),
             pubdata_params: Default::default(),
         };
         self.l2_block_number += 1;
@@ -740,11 +737,7 @@ impl StateKeeperIO for TestIO {
         _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
-        let params = L2BlockParams {
-            timestamp_ms: self.timestamp * 1000,
-            // 1 is just a constant used for tests.
-            virtual_blocks: 1,
-        };
+        let params = L2BlockParams::new_with_default_virtual_blocks(self.timestamp * 1000);
         self.l2_block_number += 1;
         self.timestamp += 1;
         Ok(Some(params))

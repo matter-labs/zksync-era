@@ -258,10 +258,9 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
-                    first_l2_block: L2BlockParams {
-                        timestamp_ms: self.last_timestamp * 1000,
-                        virtual_blocks: 1,
-                    },
+                    first_l2_block: L2BlockParams::new_with_default_virtual_blocks(
+                        self.last_timestamp * 1000,
+                    ),
                     pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
@@ -271,10 +270,7 @@ impl StateKeeper {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::L2Block {
-                params: L2BlockParams {
-                    timestamp_ms: self.last_timestamp * 1000,
-                    virtual_blocks: 0,
-                },
+                params: L2BlockParams::new_with_default_virtual_blocks(self.last_timestamp * 1000),
                 number: self.last_block,
             }
         }

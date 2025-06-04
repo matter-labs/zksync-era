@@ -373,7 +373,7 @@ impl ZkSyncStateKeeper {
         tokio::select! {
             hash_result = self.io.load_batch_state_hash(cursor.l1_batch - 1) => {
                 let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
-                let timestamp_ms = params.first_l2_block.timestamp_ms;
+                let timestamp_ms = params.first_l2_block.timestamp_ms();
                 let (system, l1_batch, pubdata) = params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash);
                 Ok((system, l1_batch, pubdata, timestamp_ms))
             }
@@ -422,7 +422,7 @@ impl ZkSyncStateKeeper {
             updates_manager.l2_block.number + 1,
             updates_manager.l1_batch.number,
             display_timestamp(l2_block_params.timestamp()),
-            l2_block_params.virtual_blocks
+            l2_block_params.virtual_blocks()
         );
         updates_manager.set_next_l2_block_params(l2_block_params);
     }
@@ -498,11 +498,8 @@ impl ZkSyncStateKeeper {
             if index > 0 {
                 Self::set_l2_block_params(
                     updates_manager,
-                    L2BlockParams {
-                        // For re-executing purposes it's ok to not use exact precise millis.
-                        timestamp_ms: l2_block.timestamp * 1000,
-                        virtual_blocks: l2_block.virtual_blocks,
-                    },
+                    // For re-executing purposes it's ok to not use exact precise millis.
+                    L2BlockParams::new(l2_block.timestamp * 1000, l2_block.virtual_blocks),
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
             }

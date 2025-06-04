@@ -173,11 +173,11 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    first_l2_block: L2BlockParams {
-                        // It's ok that we lose info about millis since it's only used for sealing criteria.
-                        timestamp_ms: block.timestamp * 1000,
-                        virtual_blocks: block.virtual_blocks,
-                    },
+                    // It's ok that we lose info about millis since it's only used for sealing criteria.
+                    first_l2_block: L2BlockParams::new(
+                        block.timestamp * 1000,
+                        block.virtual_blocks,
+                    ),
                     pubdata_params: block.pubdata_params,
                 },
                 number: block.l1_batch_number,
@@ -189,11 +189,8 @@ impl IoCursorExt for IoCursor {
             // New batch implicitly means a new L2 block, so we only need to push the L2 block action
             // if it's not a new batch.
             new_actions.push(SyncAction::L2Block {
-                params: L2BlockParams {
-                    // It's ok that we lose info about millis since it's only used for sealing criteria.
-                    timestamp_ms: block.timestamp * 1000,
-                    virtual_blocks: block.virtual_blocks,
-                },
+                // It's ok that we lose info about millis since it's only used for sealing criteria.
+                params: L2BlockParams::new(block.timestamp * 1000, block.virtual_blocks),
                 number: block.number,
             });
             FETCHER_METRICS.miniblock.set(block.number.0.into());

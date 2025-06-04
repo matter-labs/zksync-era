@@ -34,6 +34,8 @@ pub(crate) fn assert_next_block(
         assert_eq!(prev_block.number + 1, next_block.number);
         if protocol_version.is_pre_fast_blocks() {
             assert!(prev_block.timestamp < next_block.timestamp);
+        } else {
+            assert!(prev_block.timestamp <= next_block.timestamp);
         }
     }
     assert_eq!(prev_block.hash, next_block.prev_block_hash);

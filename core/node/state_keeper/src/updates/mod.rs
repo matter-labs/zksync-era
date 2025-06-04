@@ -87,7 +87,7 @@ impl UpdatesManager {
     pub(crate) fn next_l2_block_timestamp_ms_mut(&mut self) -> Option<&mut u64> {
         self.next_l2_block_params
             .as_mut()
-            .map(|params| &mut params.timestamp_ms)
+            .map(|params| params.timestamp_ms_ref_mut())
     }
 
     pub(crate) fn get_next_l2_block_or_batch_timestamp(&mut self) -> u64 {
@@ -200,10 +200,10 @@ impl UpdatesManager {
             .take()
             .expect("next l2 block params cannot be empty");
         let new_l2_block_updates = L2BlockUpdates::new(
-            next_l2_block_params.timestamp_ms,
+            next_l2_block_params.timestamp_ms(),
             self.l2_block.number + 1,
             self.l2_block.get_l2_block_hash(),
-            next_l2_block_params.virtual_blocks,
+            next_l2_block_params.virtual_blocks(),
             self.protocol_version,
         );
         let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
@@ -285,10 +285,8 @@ mod tests {
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
         // Seal an L2 block.
-        updates_manager.set_next_l2_block_params(L2BlockParams {
-            timestamp_ms: 2000,
-            virtual_blocks: 1,
-        });
+        updates_manager
+            .set_next_l2_block_params(L2BlockParams::new_with_default_virtual_blocks(2000));
         updates_manager.push_l2_block();
 
         // Check that L1 batch updates are the same with the pending state

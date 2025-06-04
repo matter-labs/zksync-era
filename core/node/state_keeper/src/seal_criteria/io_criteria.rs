@@ -76,7 +76,7 @@ impl IoSealCriteria for TimeoutSealer {
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
         !manager.l2_block.executed_transactions.is_empty()
-            && (millis_since_epoch() - manager.l2_block.timestamp_ms)
+            && (millis_since_epoch() - manager.l2_block.timestamp_ms())
                 > self.l2_block_commit_deadline_ms
     }
 }
@@ -201,7 +201,9 @@ mod tests {
 
         let mut manager = create_updates_manager();
         // Empty L2 block should not trigger.
-        manager.l2_block.timestamp_ms = millis_since_epoch() - 10_001;
+        manager
+            .l2_block
+            .set_timestamp_ms(millis_since_epoch() - 10_001);
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Empty L2 block shouldn't be sealed"
@@ -217,7 +219,7 @@ mod tests {
         // Check the timestamp logic. This relies on the fact that the test shouldn't run
         // for more than 10 seconds (while the test itself is trivial, it may be preempted
         // by other tests).
-        manager.l2_block.timestamp_ms = millis_since_epoch();
+        manager.l2_block.set_timestamp_ms(millis_since_epoch());
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Non-empty L2 block with too recent timestamp shouldn't be sealed"
