@@ -18,7 +18,8 @@ use zksync_dal::{
 };
 use zksync_eth_client::{
     contracts_loader::{
-        get_server_notifier_addr, get_settlement_layer_from_l1, load_settlement_layer_contracts,
+        get_server_notifier_addr, get_settlement_layer_from_l1, is_settlement_layer,
+        load_settlement_layer_contracts,
     },
     node::SenderConfigResource,
     EthInterface,
@@ -125,14 +126,28 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             };
         }
 
-        let l2_eth_client = get_l2_client(
-            self.config.gateway_rpc_url,
-            self.config
-                .l1_specific_contracts
-                .bridge_hub
-                .expect("Bridge Hub should be always presented"),
+        // If server is settlement layer, server gateway client is this server itself, so we can't point to our self
+        let is_settlement_layer = is_settlement_layer(
+            &input.eth_client,
+            self.config.l1_specific_contracts.bridge_hub.unwrap(),
+            self.config.l2_chain_id,
         )
-        .await?;
+        .await
+        .unwrap_or_default();
+
+        let l2_eth_client = if !is_settlement_layer {
+            get_l2_client(
+                self.config.gateway_rpc_url,
+                self.config
+                    .l1_specific_contracts
+                    .bridge_hub
+                    .expect("Bridge Hub should be always presented"),
+            )
+            .await?
+        } else {
+            None
+        };
+
         let final_settlement_mode = current_settlement_layer(
             &input.eth_client,
             l2_eth_client
@@ -254,14 +269,27 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .context("Error occured while getting current SL mode")?
         };
 
-        let l2_eth_client = get_l2_client(
-            self.config.gateway_rpc_url,
-            self.config
-                .l1_specific_contracts
-                .bridge_hub
-                .expect("Bridgehub should always be presented"),
+        // If server is settlement layer, server gateway client is this server itself, so we can't point to our self
+        let is_settlement_layer = is_settlement_layer(
+            &input.eth_client,
+            self.config.l1_specific_contracts.bridge_hub.unwrap(),
+            self.config.chain_id,
         )
-        .await?;
+        .await
+        .unwrap_or_default();
+
+        let l2_eth_client = if !is_settlement_layer {
+            get_l2_client(
+                self.config.gateway_rpc_url,
+                self.config
+                    .l1_specific_contracts
+                    .bridge_hub
+                    .expect("Bridge Hub should be always presented"),
+            )
+            .await?
+        } else {
+            None
+        };
 
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
             SettlementLayer::L1(_) => (
