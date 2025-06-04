@@ -635,7 +635,7 @@ impl ZkSyncStateKeeper {
                     if L2ChainId::from(message_root.chain_id) == self.io.chain_id() {
                         continue;
                     }
-                    // batch_executor.insert_message_root(message_root).await?;
+                    batch_executor.insert_message_root(message_root).await?;
                 }
             }
 
