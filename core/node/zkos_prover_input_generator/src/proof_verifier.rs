@@ -4,6 +4,7 @@ use air_compiler_cli::prover_utils::{
 };
 use execution_utils::ProgramProof;
 use zk_os_basic_system::system_implementation::system::BatchPublicInput;
+use zksync_l1_contract_interface::i_executor::{batch_output_hash_as_register_values, batch_public_input};
 use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
 use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
 use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
@@ -11,22 +12,10 @@ use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
 pub fn verify_fri_proof(
     previous_batch: L1BatchWithMetadata,
     current_batch: L1BatchWithMetadata,
-    input_program_proof: ProgramProof
+    input_program_proof: ProgramProof,
 ) {
-    let current_batch_commitment = ZkosCommitment::from(&current_batch);
-    let current_batch_output= zkos_commitment_to_vm_batch_output(&current_batch_commitment);
-
-    let prev_batch_commitment = ZkosCommitment::from(&previous_batch);
-
-    let pi = BatchPublicInput {
-        state_before: h256_to_bytes32(prev_batch_commitment.state_commitment()),
-        state_after: h256_to_bytes32(current_batch_commitment.state_commitment()),
-        batch_output: current_batch_output.hash().into(),
-    };
-
-    let pi_hash_u32s =  pi.hash().chunks_exact(4).map(|chunk| {
-        u32::from_be_bytes(chunk.try_into().expect("Slice with incorrect length"))
-    }).collect::<Vec<u32>>();
+    let pi = batch_public_input(&previous_batch, &current_batch);
+    let pi_hash_u32s = batch_output_hash_as_register_values(&pi);
 
     tracing::info!("Public input hash: {:?}", pi_hash_u32s);
 

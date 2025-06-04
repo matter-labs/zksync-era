@@ -10,6 +10,7 @@ use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zk_os_forward_system::run::{BatchContext, StorageCommitment};
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_l1_contract_interface::i_executor::{batch_output_hash_as_register_values, batch_public_input};
 use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
 use zksync_types::{H256, L1BatchNumber, L2BlockNumber};
 use zksync_types::commitment::ZkosCommitment;
@@ -109,13 +110,17 @@ impl ZkosProverInputGenerator {
                     .await?
                     .context("Failed to get L1 batch header for the block")?;
 
-                let zkos_commitment = ZkosCommitment::from(&batch);
-                let expected_batch_output = zkos_commitment_to_vm_batch_output(&zkos_commitment);
-                tracing::info!(
-                    "Block {:?} expected batch output: {:?}",
-                    block.number.0,
-                    expected_batch_output
-                );
+                let prev_batch = connection
+                    .blocks_dal()
+                    .get_l1_batch_metadata(L1BatchNumber(block.number.0 - 1))
+                    .await?
+                    .context("Failed to get L1 batch header for the block")?;
+
+                let expected_batch_public_input = batch_public_input(&prev_batch, &batch);
+                tracing::info!("Block {} Expected batch public input: {:?}", block.number.0, expected_batch_public_input);
+                tracing::info!("Block {} Expected batch public input hash: {:?}", block.number.0, H256::from_slice(&expected_batch_public_input.hash()));
+                tracing::info!("Block {} Expected batch public input hash registers: {:?}", block.number.0, batch_output_hash_as_register_values(&expected_batch_public_input));
+                tracing::info!("Block {} Expected batch output preimage: {:?}", block.number.0, zkos_commitment_to_vm_batch_output(&ZkosCommitment::from(&batch)));
 
                 connection.zkos_prover_dal().insert_prover_input(
                     block.number,
