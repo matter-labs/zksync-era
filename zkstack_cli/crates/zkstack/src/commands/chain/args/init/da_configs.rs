@@ -28,7 +28,7 @@ pub struct ValidiumTypeArgs {
 pub enum ValidiumTypeInternal {
     NoDA,
     Avail,
-    Eigen,
+    EigenDA,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
@@ -41,13 +41,13 @@ pub enum AvailClientTypeInternal {
 pub enum ValidiumType {
     NoDA,
     Avail((AvailConfig, AvailSecrets)),
-    Eigen,
+    EigenDA,
 }
 
 impl ValidiumType {
     pub fn read() -> Self {
         match PromptSelect::new(MSG_VALIDIUM_TYPE_PROMPT, ValidiumTypeInternal::iter()).ask() {
-            ValidiumTypeInternal::Eigen => ValidiumType::Eigen, // Eigen doesn't support configuration through CLI
+            ValidiumTypeInternal::EigenDA => ValidiumType::EigenDA, // Eigen doesn't support configuration through CLI
             ValidiumTypeInternal::NoDA => ValidiumType::NoDA,
             ValidiumTypeInternal::Avail => {
                 let avail_client_type = PromptSelect::new(

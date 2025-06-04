@@ -85,7 +85,7 @@ pub async fn init_configs(
     })?;
 
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) | Some(ValidiumType::Eigen) => {
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => {
             general_config.remove_da_client();
         }
         Some(ValidiumType::Avail((avail_config, _))) => {
@@ -116,7 +116,7 @@ pub async fn init_configs(
     secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone())?;
     secrets.set_consensus_keys(consensus_keys)?;
     match &init_args.validium_config {
-        None | Some(ValidiumType::NoDA) | Some(ValidiumType::Eigen) => { /* Do nothing */ }
+        None | Some(ValidiumType::NoDA) | Some(ValidiumType::EigenDA) => { /* Do nothing */ }
         Some(ValidiumType::Avail((_, avail_secrets))) => {
             secrets.set_avail_secrets(avail_secrets)?;
         }

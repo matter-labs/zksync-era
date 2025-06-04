@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn eigenda_config_from_env() {
+    fn eigen_config_from_env() {
         let env = r#"
           DA_CLIENT="Eigen"
           DA_DISPERSER_RPC="http://localhost:8080"
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn eigenda_config_from_yaml() {
+    fn eigen_config_from_yaml() {
         let yaml = r#"
             client: Eigen
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
@@ -384,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn eigenda_config_from_yaml_with_enum_coercion() {
+    fn eigen_config_from_yaml_with_enum_coercion() {
         let yaml = r#"
           eigen:
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443

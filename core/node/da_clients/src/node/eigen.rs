@@ -28,7 +28,7 @@ impl WiringLayer for EigenWiringLayer {
     type Output = Box<dyn DataAvailabilityClient>;
 
     fn layer_name(&self) -> &'static str {
-        "eigenda_client_layer"
+        "eigen_client_layer"
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {
