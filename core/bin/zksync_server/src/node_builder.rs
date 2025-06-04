@@ -22,7 +22,7 @@ use zksync_config::{
         wallets::Wallets,
         GeneralConfig, Secrets,
     },
-    GenesisConfig, ParsedParams,
+    CapturedParams, GenesisConfig,
 };
 use zksync_contract_verification_server::node::ContractVerificationApiLayer;
 use zksync_da_clients::node::{
@@ -89,7 +89,7 @@ macro_rules! try_load_config {
 
 pub(crate) struct MainNodeBuilder {
     pub node: ZkStackServiceBuilder,
-    pub config_params: ParsedParams,
+    pub config_params: CapturedParams,
     pub configs: GeneralConfig,
     pub wallets: Wallets,
     pub genesis_config: GenesisConfig,

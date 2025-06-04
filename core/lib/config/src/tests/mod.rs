@@ -26,14 +26,17 @@ fn pre_smart_config_files_can_be_parsed() {
     };
     let config_sources = paths.into_config_sources("###").unwrap();
     let schema = full_config_schema(false);
-    let mut repo = config_sources.build_repository(&schema);
-    let general: GeneralConfig = repo.parse().unwrap();
+    let repo = config_sources.build_raw_repository(&schema);
+    let general: GeneralConfig = repo.single().unwrap().parse().unwrap();
     assert_general_config(general);
-    let secrets: Secrets = repo.parse().unwrap();
+    let secrets: Secrets = repo.single().unwrap().parse().unwrap();
     assert_secrets(secrets);
-    repo.parse::<ContractsConfig>().unwrap();
-    repo.parse::<GenesisConfigWrapper>().unwrap();
-    repo.parse::<Wallets>().unwrap();
+    repo.single::<ContractsConfig>().unwrap().parse().unwrap();
+    repo.single::<GenesisConfigWrapper>()
+        .unwrap()
+        .parse()
+        .unwrap();
+    repo.single::<Wallets>().unwrap().parse().unwrap();
 }
 
 // These checks aren't intended to be exhaustive; they mostly check parsing completeness.

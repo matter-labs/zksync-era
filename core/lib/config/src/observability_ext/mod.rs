@@ -34,11 +34,8 @@ impl ConfigSources {
     /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
     /// with the existing file-based configs (e.g., coerce enum variant names).
     pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
-        let mut repo = smart_config::ConfigRepository::new(schema);
-        repo.deserializer_options().coerce_variant_names = true;
-        repo.deserializer_options().coerce_serde_enums = true;
         ConfigRepository {
-            inner: repo.with_all(self.0),
+            inner: self.build_raw_repository(schema),
             parsed_params: None,
         }
     }
@@ -180,21 +177,33 @@ impl ParsedParam {
     }
 }
 
-/// Opaque representation of parsed config parameters.
+/// Opaque representation of captured config parameters.
 #[derive(Debug, Default, Serialize)]
 #[serde(transparent)]
-pub struct ParsedParams(HashMap<String, ParsedParam>);
+pub struct CapturedParams(HashMap<String, ParsedParam>);
+
+impl CapturedParams {
+    /// Returns the number of the contained params.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Checks whether this contains any params.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
 
 #[derive(Debug)]
 pub struct ConfigRepository<'a> {
     inner: smart_config::ConfigRepository<'a>,
-    parsed_params: Option<ParsedParams>,
+    parsed_params: Option<CapturedParams>,
 }
 
 impl ConfigRepository<'_> {
     pub fn capture_parsed_params(&mut self) {
         if self.parsed_params.is_none() {
-            self.parsed_params = Some(ParsedParams::default());
+            self.parsed_params = Some(CapturedParams::default());
         }
     }
 
@@ -233,7 +242,7 @@ impl ConfigRepository<'_> {
 
     /// Returns all captured parsed params, or an empty container if none were captured. Also, observes
     /// the returned params as `INFO` metrics.
-    pub fn into_captured_params(self) -> ParsedParams {
+    pub fn into_captured_params(self) -> CapturedParams {
         let params = self.parsed_params.unwrap_or_default();
         METRICS.observe(&params);
         params
@@ -258,7 +267,7 @@ impl<'a> From<ConfigRepository<'a>> for smart_config::ConfigRepository<'a> {
 #[derive(Debug)]
 struct ObservabilityVisitor<'a> {
     source: Option<&'a value::Map>,
-    parsed_params: Option<&'a mut ParsedParams>,
+    parsed_params: Option<&'a mut CapturedParams>,
     metadata: &'static ConfigMetadata,
     config_prefix: String,
 }
@@ -266,7 +275,7 @@ struct ObservabilityVisitor<'a> {
 impl<'a> ObservabilityVisitor<'a> {
     fn visit<C: DeserializeConfig>(
         repo: &'a smart_config::ConfigRepository<'_>,
-        parsed_params: Option<&'a mut ParsedParams>,
+        parsed_params: Option<&'a mut CapturedParams>,
         prefix: &str,
         config: &C,
     ) {

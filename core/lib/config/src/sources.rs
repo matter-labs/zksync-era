@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use smart_config::{Environment, Prefixed, Yaml};
+use smart_config::{ConfigSchema, Environment, Prefixed, Yaml};
 
 /// Wrapper around configuration sources.
 #[derive(Debug, Default)]
@@ -15,6 +15,17 @@ impl ConfigSources {
     pub fn with_yaml(mut self, path: &Path) -> anyhow::Result<Self> {
         self.0.push(ConfigFilePaths::read_yaml(path)?);
         Ok(self)
+    }
+
+    #[cfg(any(test, feature = "observability_ext"))]
+    pub(crate) fn build_raw_repository(
+        self,
+        schema: &ConfigSchema,
+    ) -> smart_config::ConfigRepository<'_> {
+        let mut repo = smart_config::ConfigRepository::new(schema);
+        repo.deserializer_options().coerce_variant_names = true;
+        repo.deserializer_options().coerce_serde_enums = true;
+        repo.with_all(self.0)
     }
 }
 

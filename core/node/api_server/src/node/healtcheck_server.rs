@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serde::Serialize;
-use zksync_config::{configs::api::HealthCheckConfig, ParsedParams};
+use zksync_config::{configs::api::HealthCheckConfig, CapturedParams};
 use zksync_health_check::{AppHealthCheck, CheckHealth, Health, HealthStatus};
 use zksync_node_framework::{
     service::StopReceiver,
@@ -28,7 +28,7 @@ pub struct BinMetadata {
 #[derive(Debug)]
 pub struct HealthCheckLayer {
     config: HealthCheckConfig,
-    config_params: Option<ParsedParams>,
+    config_params: Option<CapturedParams>,
 }
 
 impl HealthCheckLayer {
@@ -40,7 +40,7 @@ impl HealthCheckLayer {
     }
 
     #[must_use]
-    pub fn with_config_params(mut self, params: ParsedParams) -> Self {
+    pub fn with_config_params(mut self, params: CapturedParams) -> Self {
         self.config_params = Some(params);
         self
     }
@@ -72,6 +72,10 @@ impl WiringLayer for HealthCheckLayer {
         app_health_check.override_limits(self.config.slow_time_limit, self.config.hard_time_limit);
 
         if let (true, Some(params)) = (self.config.expose_config, self.config_params) {
+            tracing::info!(
+                params.len = params.len(),
+                "Exposing config params as part of healthcheck server"
+            );
             let config_health = ConfigHealth(params);
             app_health_check
                 .insert_custom_component(Arc::new(config_health))
@@ -118,7 +122,7 @@ impl Task for HealthCheckTask {
 }
 
 #[derive(Debug)]
-struct ConfigHealth(ParsedParams);
+struct ConfigHealth(CapturedParams);
 
 #[async_trait::async_trait]
 impl CheckHealth for ConfigHealth {

@@ -2,7 +2,7 @@
 
 use vise::{EncodeLabelSet, Info, LabeledFamily, Metrics};
 
-use crate::ParsedParams;
+use crate::CapturedParams;
 
 #[derive(Debug, EncodeLabelSet)]
 struct ConfigParamInfo {
@@ -20,7 +20,7 @@ pub(super) struct ConfigMetrics {
 }
 
 impl ConfigMetrics {
-    pub(super) fn observe(&self, params: &ParsedParams) {
+    pub(super) fn observe(&self, params: &CapturedParams) {
         for (path, param) in &params.0 {
             let info = ConfigParamInfo {
                 value: param.value.as_ref().map(ToString::to_string),

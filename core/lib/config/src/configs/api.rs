@@ -561,6 +561,7 @@ mod tests {
             port: 8081
             slow_time_limit: 250ms
             hard_time_limit: 2s
+            expose_config: true
           merkle_tree:
             port: 8082
         "#;

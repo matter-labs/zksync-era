@@ -25,7 +25,7 @@ use zksync_config::{
         DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
-    ConfigRepository, DAClientConfig, ObjectStoreConfig, ParsedParams,
+    CapturedParams, ConfigRepository, DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -1176,7 +1176,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
     // **NB.** Only filled for file-based configuration right now.
-    pub config_params: Option<ParsedParams>,
+    pub config_params: Option<CapturedParams>,
     pub remote: R,
 }
 
