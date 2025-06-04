@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT kind, calldata\n            FROM tee_dcap_collateral\n            WHERE eth_tx_id IS NULL\n            ",
+  "query": "\n            SELECT kind, calldata\n            FROM tee_dcap_collateral\n            WHERE eth_tx_id IS NULL\n            ORDER BY updated ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "89e184c7d2677c34106c57fb3ae03dc1a506d19888d69bb847fd02c01a64c370"
+  "hash": "0739b79632ee1af26ca2fde2f1548873db477790235edfbf09ea211d5eb43540"
 }

@@ -188,6 +188,7 @@ impl TeeDcapCollateralDal<'_, '_> {
             SELECT kind, calldata
             FROM tee_dcap_collateral
             WHERE eth_tx_id IS NULL
+            ORDER BY updated ASC
             "#
         )
         .instrument("get_pending_collateral_for_eth_tx")
