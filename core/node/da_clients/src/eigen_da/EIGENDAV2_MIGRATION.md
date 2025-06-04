@@ -26,7 +26,7 @@ You need to update the client config to the new format.
 
 ```yaml
 da_client:
-  client: EigenDA
+  client: Eigen
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
   authenticated: true
@@ -53,7 +53,7 @@ To
 
 ```yaml
 da_client:
-  client: EigenDA
+  client: Eigen
   private_key: <your_private_key>
 ```
 
