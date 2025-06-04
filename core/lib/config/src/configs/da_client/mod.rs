@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn eigenda_config_from_env() {
         let env = r#"
-          DA_CLIENT="EigenDA"
+          DA_CLIENT="Eigen"
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
           DA_AUTHENTICATED=false
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn eigenda_config_from_yaml() {
         let yaml = r#"
-            client: EigenDA
+            client: Eigen
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
             authenticated: true
