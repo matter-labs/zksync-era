@@ -369,7 +369,7 @@ impl ReadStorageFactory for ConnectionPool<Core> {
 
 impl ReadStorageZkOs for ArcOwnedStorage {
     fn read(&mut self, key: Bytes32) -> Option<Bytes32> {
-        match self.0.as_ref() {
+        let r = match self.0.as_ref() {
             CommonStorage::Rocksdb(rocksdb) => rocksdb
                 .read_value_inner(bytes32_to_h256(key))
                 .map(h256_to_bytes32),
@@ -387,7 +387,11 @@ impl ReadStorageZkOs for ArcOwnedStorage {
                 value.map(h256_to_bytes32)
             }
             _ => unimplemented!("unexpected storage {:?}", self.0),
-        }
+        };
+
+        tracing::info!("zksync-era TREE requested {:?} returned: {:?}", key, r);
+
+        r
     }
 }
 
@@ -407,7 +411,7 @@ impl ReadStorageTree for ArcOwnedStorage {
 
 impl PreimageSource for ArcOwnedStorage {
     fn get_preimage(&mut self, hash: Bytes32) -> Option<Vec<u8>> {
-        match self.0.as_ref() {
+        let r = match self.0.as_ref() {
             CommonStorage::Rocksdb(rocksdb) => {
                 rocksdb.load_factory_dep_inner(bytes32_to_h256(hash))
             }
@@ -423,7 +427,11 @@ impl PreimageSource for ArcOwnedStorage {
                 }
             }
             _ => unimplemented!("unexpected storage {:?}", self.0),
-        }
+        };
+
+        println!("ZKSYNC-ERA Preimage requested for hash {:?}, returned: {:?}", hash, r);
+
+        r
     }
 }
 

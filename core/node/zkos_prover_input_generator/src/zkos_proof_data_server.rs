@@ -8,12 +8,15 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use axum::extract::{DefaultBodyLimit, Path};
+use execution_utils::ProgramProof;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
+use zksync_types::commitment::ZkosCommitment;
+use crate::proof_verifier::verify_fri_proof;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct NextProverJobPayload {
@@ -74,6 +77,10 @@ async fn submit_fri_proof(
         .await
         .expect("Failed to get DB connection");
 
+    info!("Submitting FRI proof for block {}", payload.block_number);
+
+    tracing::debug!(payload.proof);
+
     let proof_bytes = match base64::decode(&payload.proof) {
         Ok(b) => b,
         Err(err) => {
@@ -82,10 +89,38 @@ async fn submit_fri_proof(
         }
     };
 
-    let block_number = L2BlockNumber(payload.block_number);
-    info!("Submitting FRI proof for block {}", block_number);
+    let current_l1_batch = match conn.blocks_dal()
+        .get_l1_batch_metadata(L1BatchNumber(payload.block_number))
+        .await
+    {
+        Ok(Some(batch)) => batch,
+        _ => {
+            error!("No L1 batch metadata found for block {}", payload.block_number);
+            return StatusCode::NOT_FOUND.into_response();
+        }
+    };
+
+    let previous_l1_batch = match conn.blocks_dal()
+        .get_l1_batch_metadata(L1BatchNumber(payload.block_number - 1))
+        .await
+    {
+        Ok(Some(batch)) => batch,
+        _ => {
+            error!("No L1 batch metadata found for block {}", payload.block_number - 1);
+            return StatusCode::NOT_FOUND.into_response();
+        }
+    };
+
+    let Ok(program_proof) = bincode::deserialize::<ProgramProof>(&proof_bytes) else {
+        error!("Unable to deserialize {}", payload.block_number);
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+
+    verify_fri_proof(previous_l1_batch, current_l1_batch, program_proof);
+
+
     match conn.zkos_prover_dal()
-        .save_fri_proof(block_number, proof_bytes)
+        .save_fri_proof(L2BlockNumber(payload.block_number), proof_bytes)
         .await
     {
         Ok(()) => ().into_response(),
