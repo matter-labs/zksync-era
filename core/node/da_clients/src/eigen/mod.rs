@@ -1,3 +1,3 @@
 mod client;
 
-pub use self::client::EigenClient;
+pub use self::client::EigenDAClient;
