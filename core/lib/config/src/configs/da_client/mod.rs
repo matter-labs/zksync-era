@@ -330,21 +330,6 @@ mod tests {
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
     }
 
-    fn assert_eigen_config(config: &DAClientConfig) {
-        let DAClientConfig::Eigen(config) = config else {
-            panic!("unexpected config: {config:?}");
-        };
-        assert_eq!(
-            config.disperser_rpc,
-            "https://disperser-holesky.eigenda.xyz:443"
-        );
-        assert_eq!(
-            config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
-            "https://holesky.infura.io/"
-        );
-        assert!(config.authenticated);
-    }
-
     #[test]
     fn eigen_config_from_yaml() {
         let yaml = r#"
@@ -381,6 +366,21 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
+    }
+
+    fn assert_eigen_config(config: &DAClientConfig) {
+        let DAClientConfig::Eigen(config) = config else {
+            panic!("unexpected config: {config:?}");
+        };
+        assert_eq!(
+            config.disperser_rpc,
+            "https://disperser-holesky.eigenda.xyz:443"
+        );
+        assert_eq!(
+            config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
+            "https://holesky.infura.io/"
+        );
+        assert!(config.authenticated);
     }
 
     #[test]
