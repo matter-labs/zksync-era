@@ -111,11 +111,6 @@ in [the healthcheck endpoint](#exposed-ports). In this case, they can be accesse
 
 ```shell
 $ curl -s http://127.0.0.1:3081/health | jq '.components.config.details."api.merkle_tree.port"'
-```
-
-...outputting something like
-
-```json
 {
   "origin": "YAML file './chains/era/configs/general.yaml' -> path 'api.merkle_tree.port'",
   "value": 3072
