@@ -8,6 +8,7 @@ import {
     eth_sendRawTransaction,
     forbiddenMethod,
     onlyCurrentUser,
+    validatedEthereumCall,
     whoAmI,
     zks_getRawBlockTransactions,
     zks_sendRawTransactionWithDetailedOutput
@@ -68,7 +69,10 @@ export const allHandlers = [
     onlyCurrentUser('zks_getAllAccountBalances'),
 
     // Methods with custom logic.
-    eth_call,
+    validatedEthereumCall('eth_call'),
+    validatedEthereumCall('eth_estimateGas'),
+    validatedEthereumCall('zks_estimateFee'),
+    validatedEthereumCall('zks_estimateGasL1ToL2'),
     eth_getBlockByHash,
     eth_getBlockByNumber,
     eth_getBlockReceipts,
