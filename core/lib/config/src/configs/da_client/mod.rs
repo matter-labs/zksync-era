@@ -4,7 +4,7 @@ use crate::{AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig};
 
 pub mod avail;
 pub mod celestia;
-pub mod eigenda;
+pub mod eigen;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(tag = "client")]
@@ -35,7 +35,7 @@ mod tests {
 
     use super::{avail::AvailClientConfig, *};
     use crate::configs::{
-        da_client::eigenda::PolynomialForm, object_store::ObjectStoreMode, DataAvailabilitySecrets,
+        da_client::eigen::PolynomialForm, object_store::ObjectStoreMode, DataAvailabilitySecrets,
         Secrets,
     };
 

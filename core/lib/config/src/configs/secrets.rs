@@ -9,7 +9,7 @@ use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
 use crate::configs::{
     consensus::ConsensusSecrets,
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigenda::EigenSecrets},
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
 };
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]

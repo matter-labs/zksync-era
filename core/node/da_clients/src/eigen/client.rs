@@ -11,7 +11,7 @@ use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigenda::{EigenSecrets, PolynomialForm},
+    configs::da_client::eigen::{EigenSecrets, PolynomialForm},
     EigenConfig,
 };
 use zksync_da_client::{

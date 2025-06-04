@@ -1,11 +1,11 @@
-use zksync_config::{configs::da_client::eigenda::EigenSecrets, EigenConfig};
+use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext,
 };
 
-use crate::eigen_da::EigenClient;
+use crate::eigen::EigenClient;
 
 #[derive(Debug)]
 pub struct EigenWiringLayer {

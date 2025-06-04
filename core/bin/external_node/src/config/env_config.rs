@@ -9,7 +9,7 @@ use zksync_config::{
         da_client::{
             avail::{AvailClientConfig, AvailSecrets},
             celestia::CelestiaSecrets,
-            eigenda::EigenSecrets,
+            eigen::EigenSecrets,
         },
         DataAvailabilitySecrets,
     },
@@ -72,8 +72,8 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 .parse()
                 .context("EigenDA blob version not found")?,
             polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
-                "Coeff" => zksync_config::configs::da_client::eigenda::PolynomialForm::Coeff,
-                "Eval" => zksync_config::configs::da_client::eigenda::PolynomialForm::Eval,
+                "Coeff" => zksync_config::configs::da_client::eigen::PolynomialForm::Coeff,
+                "Eval" => zksync_config::configs::da_client::eigen::PolynomialForm::Eval,
                 _ => anyhow::bail!("Unknown Eigen polynomial form"),
             },
         }),
