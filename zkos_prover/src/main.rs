@@ -1,3 +1,7 @@
+use std::fs::File;
+use std::io::{self, Read};
+use std::path::Path;
+
 use std::thread::sleep;
 use air_compiler_cli::{
     prover_utils::{
@@ -118,25 +122,42 @@ fn create_proof(
     program_proof_from_proof_list_and_metadata(&recursion_proof_list, &recursion_proof_metadata)
 }
 
+pub fn serialize_to_file<T: serde::Serialize>(el: &T, filename: &Path) {
+    let mut dst = std::fs::File::create(filename).unwrap();
+    serde_json::to_writer_pretty(&mut dst, el).unwrap();
+}
+
+
 #[tokio::main]
 pub async fn main() {
-    let client = ProofDataClient::new("http://localhost:3124");
+    // let client = ProofDataClient::new("http://64.227.120.222:3124");
 
-    let binary = load_binary_from_path(&"../app_logging_enabled.bin".to_string());
+    let binary = load_binary_from_path(&"/home/evl/anton_app.bin".to_string());
     let mut gpu_state = GpuSharedState::default();
     #[cfg(feature = "gpu")]
     gpu_state.preheat_for_universal_verifier(&binary);
 
-    println!("Starting Zksync OS prover for {}", client.base_url);
+    // println!("Starting Zksync OS prover for {}", client.base_url);
 
-    loop {
-        let (block_number, prover_input) = match client.pick_next_prover_job().await.unwrap() {
-            Some(next_block) => next_block,
-            None => {
-              tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-              continue;
-            }
-        };
+    // loop {
+        // let (block_number, prover_input) = match client.pick_next_prover_job().await.unwrap() {
+
+        //    Some(next_block) => next_block,
+        //    None => {
+        //      tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        //      continue;
+        //    }
+        //};
+
+        // READ FILE HERE
+        let mut file = File::open("/home/evl/anton_proof_input").unwrap();
+
+        // Create a new vector to hold the bytes.
+        let mut prover_input = Vec::new();
+
+        // Read the entire file into the buffer.
+        file.read_to_end(&mut prover_input).unwrap();
+
 
         // make prover_input (Vec<u8>) into Vec<u32>:
         let prover_input: Vec<u32> = prover_input
@@ -146,31 +167,35 @@ pub async fn main() {
 
         println!(
             "{:?} starting proving block number {}",
-            SystemTime::now(),
-            block_number
+            SystemTime::now(), 1
+//            block_number
         );
 
         let proof = create_proof(prover_input, &binary, &mut gpu_state);
         println!(
             "{:?} finished proving block number {}",
-            SystemTime::now(),
-            block_number
+            SystemTime::now(), 1
+            // block_number
         );
-        let proof_bytes: Vec<u8> = bincode::serialize(&proof)
-            .expect("failed to bincode-serialize proof");
+
+        serialize_to_file(&proof, Path::new("home/evl/anton_three_fri"));
+
+
+        //let proof_bytes: Vec<u8> = bincode::serialize(&proof)
+        //    .expect("failed to bincode-serialize proof");
 
         // 2) base64-encode that binary blob
-        let proof_b64 = base64::encode(&proof_bytes);
+        //let proof_b64 = base64::encode(&proof_bytes);
 
 
-        let _ = client
-            .submit_proof(block_number, proof_b64)
-            .await
-            .expect("Failed to submit a proof");
-        println!(
-            "{:?} submitted proof for block number {}",
-            SystemTime::now(),
-            block_number
-        );
-    }
+        // let _ = client
+        //    .submit_proof(block_number, proof_b64)
+        //    .await
+        //    .expect("Failed to submit a proof");
+        //println!(
+        //    "{:?} submitted proof for block number {}",
+        //    SystemTime::now(),
+        //    block_number
+        //);
+    //}
 }
