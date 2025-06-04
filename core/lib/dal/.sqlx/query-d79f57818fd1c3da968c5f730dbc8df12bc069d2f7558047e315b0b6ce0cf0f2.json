@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                batch_chain_local_merkle_path\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "batch_chain_local_merkle_path",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d79f57818fd1c3da968c5f730dbc8df12bc069d2f7558047e315b0b6ce0cf0f2"
+}

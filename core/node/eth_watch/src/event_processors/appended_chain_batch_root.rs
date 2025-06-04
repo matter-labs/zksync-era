@@ -194,7 +194,7 @@ impl EventProcessor for BatchRootProcessor {
                 gw_chain_proof.proof.extend(local_chain_proof_vector);
                 transaction
                     .blocks_dal()
-                    .set_gw_interop_batch_chain_merkle_path(*batch_number, gw_chain_proof)
+                    .set_batch_chain_local_merkle_path(*batch_number, gw_chain_proof)
                     .await
                     .map_err(DalError::generalize)?;
             }
