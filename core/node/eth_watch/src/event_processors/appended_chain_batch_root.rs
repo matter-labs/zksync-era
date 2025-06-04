@@ -167,6 +167,8 @@ impl EventProcessor for BatchRootProcessor {
             });
 
             for ((batch_number, _), base_proof) in chain_batches.iter().zip(batch_proofs) {
+                // The batch chain Merkle path for each batch number shares the same chain proof vector as it hashes to
+                // the same root on the L1
                 let mut batch_chain_proof = base_proof.clone();
                 batch_chain_proof.proof.extend(chain_proof_vector.clone());
                 transaction
@@ -175,6 +177,8 @@ impl EventProcessor for BatchRootProcessor {
                     .await
                     .map_err(DalError::generalize)?;
 
+                // The local batch chain Merkle path for each batch number has different chain proof vector as it hashes to
+                // the root at the GW block number where the containing batch was executed
                 let sl_block_number =
                     Self::get_sl_block_number_at_execute(&mut transaction, *batch_number).await?;
                 println!("gw_block_number: {}", sl_block_number);
