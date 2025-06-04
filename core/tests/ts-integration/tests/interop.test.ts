@@ -38,6 +38,7 @@ import {
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 import { getInteropTriggerData, getInteropBundleData } from '../src/temp-sdk';
+import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
 
 const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110'; // Must have L1 ETH
 const ethFundAmount = ethers.parseEther('1');
@@ -71,6 +72,7 @@ describe('Interop checks', () => {
 
     // Interop2 (Second Chain) Variables
     let interop2Provider: zksync.Provider;
+    let interop2RichWallet: zksync.Wallet;
     let interop2NativeTokenVault: zksync.Contract;
 
     beforeAll(async () => {
@@ -94,6 +96,8 @@ describe('Interop checks', () => {
             undefined,
             testMaster.reporter
         );
+
+        interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
 
         // Initialize Contracts on Interop1
         interop1InteropCenter = new zksync.Contract(
@@ -132,7 +136,7 @@ describe('Interop checks', () => {
         await (
             await veryRichWallet._signerL1!().sendTransaction({
                 to: interop1RichWallet.address,
-                value: ethFundAmount
+                value: ethFundAmount * 20n
             })
         ).wait();
 
@@ -142,6 +146,18 @@ describe('Interop checks', () => {
                 token: ETH_ADDRESS_IN_CONTRACTS,
                 amount: ethFundAmount,
                 to: interop1Wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            })
+        ).wait();
+
+        await (
+            await interop2RichWallet.deposit({
+                token: ETH_ADDRESS_IN_CONTRACTS,
+                amount: ethFundAmount * 10n,
+                to: interop2RichWallet.address,
                 approveERC20: true,
                 approveBaseERC20: true,
                 approveOverrides: { gasPrice },
@@ -178,7 +194,7 @@ describe('Interop checks', () => {
 
         // Compose and send the interop request transaction
         const feeValue = ethers.parseEther('0.2');
-        const tx = await fromInterop1RequestInterop(
+        const receipt = await fromInterop1RequestInterop(
             // Fee payment call starters
             [
                 {
@@ -204,8 +220,11 @@ describe('Interop checks', () => {
                 }
             ]
         );
-        console.log("Interop tx hash: ", tx.hash);
+        console.log("Interop tx hash: ", receipt.hash);
+        let blockDetails = await interop1Provider.getBlockDetails(receipt.blockNumber);
 
+        // Needed else the L2's view of interop root won't be updated
+        await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, (await interop1Provider.getNetwork()).chainId, blockDetails.l1BatchNumber);
         // Broadcast interop transaction from Interop1 to Interop2
         // await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
 
@@ -401,5 +420,37 @@ describe('Interop checks', () => {
             console.log(`Interop transaction status: ${interopStatus}`);
             await new Promise((resolve) => setTimeout(resolve, pollingInterval));
         }
+    }
+
+    async function waitForInteropRootNonZero(
+        provider: zksync.Provider,
+        alice: zksync.Wallet,
+        chainId: bigint,
+        l1BatchNumber: number
+    ) {
+        const l2InteropRootStorage = new zksync.Contract(
+            L2_MESSAGE_ROOT_STORAGE_ADDRESS,
+            ArtifactMessageRootStorage.abi,
+            provider
+        );
+        let currentRoot = ethers.ZeroHash;
+        let count = 0;
+        console.log("chainId", chainId);
+        console.log("l1BatchNumber", l1BatchNumber);
+        while (currentRoot === ethers.ZeroHash && count < 30) {
+            const tx = await alice.transfer({
+                to: alice.address,
+                amount: 1,
+                token: ETH_ADDRESS
+            });
+            await tx.wait();
+
+            currentRoot = await l2InteropRootStorage.msgRoots(parseInt(chainId.toString()), l1BatchNumber);
+            console.log('currentRoot', currentRoot, count);
+            count++;
+        }
+        console.log("chainId", chainId);
+        console.log("l1BatchNumber", l1BatchNumber);
+        console.log('Interop root is non-zero', currentRoot);
     }
 });
