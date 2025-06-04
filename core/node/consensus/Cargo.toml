@@ -16,13 +16,13 @@ zksync_concurrency.workspace = true
 zksync_consensus_crypto.workspace = true
 zksync_consensus_network.workspace = true
 zksync_consensus_roles.workspace = true
-zksync_consensus_storage.workspace = true
+zksync_consensus_engine.workspace = true
 zksync_consensus_executor.workspace = true
 zksync_consensus_bft.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_contracts.workspace = true
 zksync_protobuf.workspace = true
-zksync_dal.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_l1_contract_interface.workspace = true
 zksync_metadata_calculator.workspace = true
 zksync_merkle_tree.workspace = true
@@ -30,10 +30,13 @@ zksync_state_keeper.workspace = true
 zksync_node_sync.workspace = true
 zksync_system_constants.workspace = true
 zksync_types.workspace = true
-zksync_web3_decl.workspace = true
+zksync_web3_decl= { workspace = true, features = ["node_framework"] }
 zksync_state.workspace = true
-zksync_vm_executor.workspace = true
+zksync_vm_executor= { workspace = true, features = ["node_framework"] }
 zksync_vm_interface.workspace = true
+zksync_node_framework.workspace = true
+zksync_shared_resources.workspace = true
+
 anyhow.workspace = true
 async-trait.workspace = true
 secrecy.workspace = true

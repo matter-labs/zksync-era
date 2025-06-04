@@ -14,10 +14,8 @@ publish = false
 [dependencies]
 zksync_prover_dal.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
-zksync_env_config.workspace = true
 zksync_object_store.workspace = true
 zksync_task_management.workspace = true
-zksync_core_leftovers.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_keystore = { workspace = true, features = ["gpu"] }
 zksync_vlog.workspace = true

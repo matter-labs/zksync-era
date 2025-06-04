@@ -11,26 +11,26 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_circuit_breaker = { workspace = true, features = ["node_framework"] }
 zksync_crypto_primitives.workspace = true
 zksync_config.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
-zksync_dal.workspace = true
-zksync_node_sync.workspace = true
-zksync_health_check.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
 zksync_node_fee_model.workspace = true
-zksync_object_store.workspace = true
-zksync_state_keeper.workspace = true
+zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_shared_metrics.workspace = true
 zksync_state.workspace = true
 zksync_system_constants.workspace = true
-zksync_metadata_calculator.workspace = true
-zksync_web3_decl = { workspace = true, features = ["server"] }
+zksync_web3_decl = { workspace = true, features = ["server", "node_framework"] }
 zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
-zksync_vm_executor.workspace = true
+zksync_vm_executor = { workspace = true, features = ["node_framework"] }
+zksync_node_framework.workspace = true
+zksync_shared_resources.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true

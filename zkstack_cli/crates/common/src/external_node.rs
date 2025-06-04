@@ -9,7 +9,6 @@ pub fn run(
     config_path: &str,
     secrets_path: &str,
     en_config_path: &str,
-    consensus_args: Vec<String>,
     additional_args: Vec<String>,
 ) -> anyhow::Result<()> {
     let _dir = shell.push_dir(code_path);
@@ -23,7 +22,6 @@ pub fn run(
             --external-node-config-path {en_config_path}
             "
         )
-        .args(consensus_args)
         .args(additional_args)
         .env_remove("RUSTUP_TOOLCHAIN"),
     )

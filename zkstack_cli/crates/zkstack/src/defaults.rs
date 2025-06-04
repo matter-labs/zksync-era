@@ -9,6 +9,8 @@ lazy_static! {
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
     pub static ref DATABASE_EXPLORER_URL: Url =
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
+    pub static ref DATABASE_PRIVATE_RPC_URL: Url =
+        Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
     pub static ref AVAIL_RPC_URL: Url = Url::parse("wss://turing-rpc.avail.so/ws").unwrap();
     pub static ref AVAIL_BRIDGE_API_URL: Url =
         Url::parse("https://turing-bridge-api.avail.so").unwrap();
@@ -50,6 +52,14 @@ pub fn generate_db_names(config: &ChainConfig) -> DBNames {
             config.name
         ),
     }
+}
+
+pub fn generate_private_rpc_db_name(config: &ChainConfig) -> String {
+    format!(
+        "zksync_private_rpc_{}_{}",
+        config.l1_network.to_string().to_ascii_lowercase(),
+        config.name
+    )
 }
 
 pub fn generate_explorer_db_name(config: &ChainConfig) -> String {

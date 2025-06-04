@@ -1,5 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
+use anyhow::Context;
 use zksync_prover_task::Task;
 
 use super::{
@@ -20,7 +27,7 @@ pub struct Manager {
     namespaces: HashMap<NamespaceName, String>,
     watcher: watcher::Watcher,
     queuer: queuer::Queuer,
-
+    first_invoke_skipped: AtomicBool,
     jobs: Vec<QueueReportFields>,
     scalers: Vec<Box<dyn ScalerTrait + Sync + Send>>,
 }
@@ -51,9 +58,6 @@ impl Manager {
             scale_errors_duration: chrono::Duration::seconds(
                 config.scale_errors_duration.as_secs() as i64,
             ),
-            need_to_move_duration: chrono::Duration::seconds(
-                config.need_to_move_duration.as_secs() as i64,
-            ),
         });
 
         for c in &config.scaler_targets {
@@ -69,6 +73,7 @@ impl Manager {
                         .collect(),
                     c.speed.into_map_gpukey(),
                     scaler_config.clone(),
+                    c.priority.clone(),
                 ))),
                 ScalerTargetType::Simple => scalers.push(Box::new(Scaler::<NoKey>::new(
                     c.queue_report_field,
@@ -80,6 +85,7 @@ impl Manager {
                         .collect(),
                     c.speed.into_map_nokey(),
                     scaler_config.clone(),
+                    c.priority.clone(),
                 ))),
             };
         }
@@ -87,6 +93,7 @@ impl Manager {
             namespaces: config.protocol_versions.clone(),
             watcher,
             queuer,
+            first_invoke_skipped: AtomicBool::new(false),
             jobs,
             scalers,
         }
@@ -96,15 +103,23 @@ impl Manager {
 #[async_trait::async_trait]
 impl Task for Manager {
     async fn invoke(&self) -> anyhow::Result<()> {
-        let queue = self.queuer.get_queue(&self.jobs).await.unwrap();
+        if !self.first_invoke_skipped.load(Ordering::Relaxed) {
+            self.first_invoke_skipped.store(true, Ordering::Relaxed);
+            return Ok(());
+        }
+
+        let queue = self
+            .queuer
+            .get_queue(&self.jobs)
+            .await
+            .context("Failed to get the queue")?;
 
         let mut scale_requests: HashMap<ClusterName, ScaleRequest> = HashMap::new();
         {
             let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
                                                         // consistency.
-            if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
-                AUTOSCALER_METRICS.clusters_not_ready.inc();
-                tracing::warn!("Skipping Manager run: {}", err);
+            if let Err(err) = self.watcher.check_is_ready(&guard) {
+                tracing::error!("Skipping Manager run: {}", err);
                 return Ok(());
             }
 

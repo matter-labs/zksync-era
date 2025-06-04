@@ -2,13 +2,13 @@ use std::{
     fmt::{Debug, Formatter},
     str::FromStr,
     sync::Arc,
-    time,
 };
 
 use async_trait::async_trait;
 use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
+use chrono::{DateTime, Utc};
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use subxt_signer::ExposeSecret;
 use tonic::transport::Endpoint;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
@@ -31,7 +31,7 @@ pub struct CelestiaClient {
 impl CelestiaClient {
     pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
         let grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
-            .timeout(time::Duration::from_millis(config.timeout_ms))
+            .timeout(config.timeout)
             .connect()
             .await?;
 
@@ -89,6 +89,7 @@ impl DataAvailabilityClient for CelestiaClient {
     async fn ensure_finality(
         &self,
         dispatch_request_id: String,
+        _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
         // TODO: return a quick confirmation in `dispatch_blob` and await here
         Ok(Some(FinalityResponse {

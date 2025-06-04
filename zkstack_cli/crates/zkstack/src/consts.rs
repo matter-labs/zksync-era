@@ -14,7 +14,7 @@ pub const L2_BASE_TOKEN_ADDRESS: &str = "0x0000000000000000000000000000000000008
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
-pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app:v2.62.0";
+pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app:v2.73.1";
 /// Path to the JS runtime config for the dapp-portal docker container to be mounted to
 pub const PORTAL_DOCKER_CONFIG_PATH: &str = "/usr/src/app/dist/config.js";
 pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";
@@ -34,3 +34,5 @@ pub const PROVER_JOB_MONITOR_BINARY_NAME: &str = "zksync_prover_job_monitor";
 pub const PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG: &str =
     "etc/env/file_based/overrides/only_real_proofs.yaml";
 pub const PATH_TO_VALIDIUM_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/validium.yaml";
+
+pub const PATH_TO_GATEWAY_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/gateway.yaml";

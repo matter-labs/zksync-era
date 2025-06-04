@@ -1,23 +1,17 @@
-/// Each protocol upgrade required to update genesis config values.
-/// This tool generates the new correct genesis file that could be used for the new chain
-/// Please note, this tool update only yaml file, if you still use env based configuration,
-/// update env values correspondingly
-use std::fs;
+//! Each protocol upgrade required to update genesis config values.
+//! This tool generates the new correct genesis file that could be used for the new chain
+//! Please note, this tool update only yaml file, if you still use env based configuration,
+//! update env values correspondingly
 
 use anyhow::Context as _;
 use clap::Parser;
-use serde_yaml::Serializer;
-use zksync_config::{configs::DatabaseSecrets, GenesisConfig};
-use zksync_contracts::BaseSystemContracts;
-use zksync_core_leftovers::temp_config_store::read_yaml_repr;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_env_config::FromEnv;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_protobuf::{
-    build::{prost_reflect, prost_reflect::ReflectMessage},
-    ProtoRepr,
+use zksync_config::{
+    configs::DatabaseSecrets, full_config_schema, sources::ConfigFilePaths, ConfigRepositoryExt,
+    GenesisConfig,
 };
-use zksync_protobuf_config::proto::genesis::Genesis;
+use zksync_contracts::BaseSystemContracts;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, url::SensitiveUrl, ProtocolVersionId,
 };
@@ -37,25 +31,28 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
-    let database_secrets = match opt.config_path {
-        None => DatabaseSecrets::from_env()?,
-        Some(path) => {
-            let config = read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
-                .context("failed decoding secrets YAML")?;
-            config.database.context("Database secrets must exist")?
-        }
+    let config_file_paths = ConfigFilePaths {
+        secrets: opt.config_path,
+        ..ConfigFilePaths::default()
     };
+    let config_sources =
+        tokio::task::spawn_blocking(|| config_file_paths.into_config_sources("ZKSYNC_")).await??;
 
-    let original_genesis = read_yaml_repr::<Genesis>(&DEFAULT_GENESIS_FILE_PATH.into())?;
+    let schema = full_config_schema(false);
+    let repo = config_sources.build_repository(&schema);
+    let database_secrets: DatabaseSecrets = repo.parse()?;
+
+    let original_genesis: GenesisConfig =
+        tokio::task::spawn_blocking(|| GenesisConfig::read(DEFAULT_GENESIS_FILE_PATH.as_ref()))
+            .await??;
     let db_url = database_secrets.master_url()?;
     let new_genesis = generate_new_config(db_url, original_genesis.clone()).await?;
     if opt.check {
-        assert_eq!(&original_genesis, &new_genesis);
+        assert_eq!(original_genesis, new_genesis);
         println!("Genesis config is up to date");
         return Ok(());
     }
-    let data = encode_yaml(&Genesis::build(&new_genesis))?;
-    fs::write(DEFAULT_GENESIS_FILE_PATH, data)?;
+    tokio::task::spawn_blocking(|| new_genesis.write(DEFAULT_GENESIS_FILE_PATH.as_ref())).await??;
     println!("Genesis successfully generated");
     Ok(())
 }
@@ -101,15 +98,4 @@ async fn generate_new_config(
     updated_genesis.rollup_last_leaf_index = Some(batch_params.rollup_last_leaf_index);
 
     Ok(updated_genesis)
-}
-
-/// Encodes a generated proto message to json for arbitrary `ProtoFmt`.
-pub(crate) fn encode_yaml<T: ReflectMessage>(x: &T) -> anyhow::Result<String> {
-    let mut serializer = Serializer::new(vec![]);
-    let opts = prost_reflect::SerializeOptions::new()
-        .use_proto_field_name(true)
-        .stringify_64_bit_integers(false);
-    x.transcode_to_dynamic()
-        .serialize_with_options(&mut serializer, &opts)?;
-    Ok(String::from_utf8_lossy(&serializer.into_inner()?).to_string())
 }

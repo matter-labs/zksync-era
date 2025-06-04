@@ -119,6 +119,8 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                     logger::warn("The DA validators are not yet set on the diamond proxy.");
                     logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);
                 }
+
+                return Ok(());
             }
             _ => {
                 let msg = message_for_gateway_migration_progress_state(

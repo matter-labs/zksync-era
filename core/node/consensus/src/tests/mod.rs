@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use rand::Rng as _;
 use test_casing::{test_casing, Product};
@@ -5,11 +7,11 @@ use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus as config;
 use zksync_consensus_crypto::TextFmt as _;
+use zksync_consensus_engine::{EngineInterface as _, EngineManager};
 use zksync_consensus_roles::{
     node, validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_consensus_storage::{BlockStore, PersistentBlockStore};
 use zksync_dal::consensus_dal;
 use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
@@ -21,11 +23,6 @@ use crate::{
     storage::{ConnectionPool, Store},
     testonly,
 };
-
-// NOTE: These tests are disabled since we are going to remove L1 batches. Most likely
-//       we will remove all the attester related code as well, but keeping this until
-//       we are sure.
-//mod attestation;
 
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];
@@ -87,6 +84,7 @@ async fn test_verify_pregenesis_block(version: ProtocolVersionId) {
             pool.clone(),
             None,
             Some(sk.connect(ctx).await.unwrap()),
+            Arc::new(None),
         )
         .await
         .unwrap();
@@ -155,7 +153,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
         for i in setup.genesis.first_block.0..sk.last_block().next().0 {
             let i = validator::BlockNumber(i);
             let payload = conn
-                .payload(ctx, i)
+                .block_payload(ctx, i)
                 .await
                 .wrap(i)?
                 .with_context(|| format!("payload for {i:?} not found"))?
@@ -170,13 +168,19 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         scope::run!(ctx, |ctx, s| async {
-            let (store, runner) = Store::new(ctx, pool.clone(), None, None).await.unwrap();
+            let (store, runner) = Store::new(ctx, pool.clone(), None, None, Arc::new(None))
+                .await
+                .unwrap();
             s.spawn_bg(runner.run(ctx));
-            let (block_store, runner) =
-                BlockStore::new(ctx, Box::new(store.clone())).await.unwrap();
+            let (engine_manager, runner) = EngineManager::new(ctx, Box::new(store.clone()))
+                .await
+                .unwrap();
             s.spawn_bg(runner.run(ctx));
-            block_store.queue_block(ctx, block.clone()).await.unwrap();
-            block_store
+            engine_manager
+                .queue_block(ctx, block.clone())
+                .await
+                .unwrap();
+            engine_manager
                 .wait_until_persisted(ctx, block.number())
                 .await
                 .unwrap();
@@ -808,18 +812,17 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         validator.push_random_blocks(rng, account, 5).await;
         validator.seal_batch().await;
         validator_pool
-            .wait_for_batch_info(ctx, validator.last_sealed_batch(), POLL_INTERVAL)
+            .wait_for_batch(ctx, validator.last_sealed_batch(), POLL_INTERVAL)
             .await
-            .wrap("wait_for_batch_info()")?;
+            .wrap("wait_for_batch()")?;
 
-        // The main node is not supposed to be pruned. In particular `ConsensusDal::attestation_status`
-        // does not look for where the last prune happened at, and thus if we prune the block genesis
+        // The main node is not supposed to be pruned. If we prune the block genesis
         // points at, we might never be able to start the Executor.
         tracing::info!("Wait until the external node has all the batches we want to prune");
         node_pool
-            .wait_for_batch_info(ctx, to_prune.next(), POLL_INTERVAL)
+            .wait_for_batch(ctx, to_prune.next(), POLL_INTERVAL)
             .await
-            .wrap("wait_for_batch_info()")?;
+            .wrap("wait_for_batch()")?;
         tracing::info!("Prune some blocks and sync more");
         node_pool
             .prune_batches(ctx, to_prune)

@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use url::Url;
 use xshell::Shell;
 use zkstack_cli_common::db::DatabaseConfig;
+use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_roles::{node, validator};
 
 use crate::{
     da::AvailSecrets,
@@ -11,9 +13,24 @@ use crate::{
 
 #[derive(Debug)]
 pub struct RawConsensusKeys {
-    pub validator: String,
-    pub attester: String,
-    pub node: String,
+    pub validator_public: String,
+    pub node_public: String,
+    pub validator_secret: String,
+    pub node_secret: String,
+}
+
+impl RawConsensusKeys {
+    pub fn generate() -> Self {
+        let validator = validator::SecretKey::generate();
+        let node = node::SecretKey::generate();
+
+        Self {
+            validator_public: validator.public().encode(),
+            node_public: node.public().encode(),
+            validator_secret: validator.encode(),
+            node_secret: node.encode(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -34,6 +51,10 @@ impl SecretsConfig {
 
     pub fn l1_rpc_url(&self) -> anyhow::Result<String> {
         self.0.get("l1.l1_rpc_url")
+    }
+
+    pub fn gateway_rpc_url(&self) -> anyhow::Result<String> {
+        self.0.get("l1.gateway_rpc_url")
     }
 
     pub fn raw_consensus_node_key(&self) -> anyhow::Result<String> {
@@ -77,15 +98,15 @@ impl SecretsConfigPatch {
     }
 
     pub fn set_avail_secrets(&mut self, secrets: &AvailSecrets) -> anyhow::Result<()> {
-        self.0.insert_yaml("da.avail", secrets)
+        self.0.insert_yaml("da_client", secrets)?;
+        self.0.insert("da_client.client", "Avail")
     }
 
     pub fn set_consensus_keys(&mut self, consensus_keys: RawConsensusKeys) -> anyhow::Result<()> {
         self.0
-            .insert("consensus.validator_key", consensus_keys.validator)?;
+            .insert("consensus.validator_key", consensus_keys.validator_secret)?;
         self.0
-            .insert("consensus.attester_key", consensus_keys.attester)?;
-        self.0.insert("consensus.node_key", consensus_keys.node)
+            .insert("consensus.node_key", consensus_keys.node_secret)
     }
 
     pub fn set_consensus_node_key(&mut self, raw_key: &str) -> anyhow::Result<()> {

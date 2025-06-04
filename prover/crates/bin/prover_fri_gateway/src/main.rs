@@ -6,9 +6,12 @@ use client::{proof_gen_data_fetcher::ProofGenDataFetcher, proof_submitter::Proof
 use proof_data_manager::ProofDataManager;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
-use zksync_config::configs::fri_prover_gateway::ApiMode;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_env_config::object_store::ProverObjectStoreConfig;
+use zksync_config::{
+    configs::{fri_prover_gateway::ApiMode, DatabaseSecrets, GeneralConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepositoryExt,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_task_management::ManagedTasks;
@@ -24,20 +27,25 @@ mod traits;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
+    let schema = full_config_schema(false);
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
+    let repo = config_sources.build_repository(&schema);
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
 
     let config = general_config
         .prover_gateway
         .context("prover gateway config")?;
 
-    let postgres_config = general_config.postgres_config.context("postgres config")?;
+    let postgres_config = general_config.postgres_config;
     let pool = ConnectionPool::<Prover>::builder(
         database_secrets.prover_url()?,
         postgres_config.max_connections()?,
@@ -45,14 +53,11 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection pool")?;
-    let object_store_config = ProverObjectStoreConfig(
-        general_config
-            .prover_config
-            .context("prover config")?
-            .prover_object_store
-            .context("object store")?,
-    );
-    let store_factory = ObjectStoreFactory::new(object_store_config.0);
+    let object_store_config = general_config
+        .prover_config
+        .context("prover config")?
+        .prover_object_store;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 
@@ -86,9 +91,9 @@ async fn main() -> anyhow::Result<()> {
                         .run(stop_receiver.clone()),
                 ),
                 tokio::spawn(
-                    proof_gen_data_fetcher.run(config.api_poll_duration(), stop_receiver.clone()),
+                    proof_gen_data_fetcher.run(config.api_poll_duration, stop_receiver.clone()),
                 ),
-                tokio::spawn(proof_submitter.run(config.api_poll_duration(), stop_receiver)),
+                tokio::spawn(proof_submitter.run(config.api_poll_duration, stop_receiver)),
             ]
         }
         ApiMode::ProverCluster => {
@@ -114,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = tasks.wait_single() => {},
          _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            tracing::info!("Stop request received, shutting down");
         }
     }
 

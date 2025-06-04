@@ -3,7 +3,6 @@
 use std::{
     collections::{BTreeMap, HashSet},
     future::Future,
-    path::Path,
     sync::Arc,
     time::Duration,
 };
@@ -12,7 +11,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
@@ -28,6 +27,7 @@ use zksync_merkle_tree::{
     TreeEntryWithProof, TreeInstruction,
 };
 use zksync_shared_metrics::tree::{LoadChangesStage, TreeUpdateStage, METRICS};
+use zksync_shared_resources::tree::MerkleTreeInfo;
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries, WeakRocksDB};
 use zksync_types::{
     block::{L1BatchStatistics, L1BatchTreeData},
@@ -39,16 +39,6 @@ use super::{
     pruning::PruningHandles, MerkleTreeReaderConfig, MetadataCalculatorConfig,
     MetadataCalculatorRecoveryConfig,
 };
-
-/// General information about the Merkle tree.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MerkleTreeInfo {
-    pub mode: MerkleTreeMode,
-    pub root_hash: H256,
-    pub next_l1_batch_number: L1BatchNumber,
-    pub min_l1_batch_number: Option<L1BatchNumber>,
-    pub leaf_count: u64,
-}
 
 /// Health details for a Merkle tree.
 #[derive(Debug, Serialize)]
@@ -139,7 +129,6 @@ pub(super) async fn create_db(config: MetadataCalculatorConfig) -> anyhow::Resul
 }
 
 fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWrapper> {
-    let path = Path::new(config.db_path.as_str());
     let &MetadataCalculatorConfig {
         max_open_files,
         block_cache_capacity,
@@ -155,11 +144,11 @@ fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWr
          {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?}), \
          {memtable_capacity}B memtable capacity, \
          {stalled_writes_timeout:?} stalled writes timeout",
-        path = path.display()
+        path = config.db_path.display()
     );
 
     let mut db = RocksDB::with_options(
-        path,
+        &config.db_path,
         RocksDBOptions {
             block_cache_capacity: Some(block_cache_capacity),
             include_indices_and_filters_in_block_cache,
@@ -191,7 +180,7 @@ pub(super) async fn create_readonly_db(
         } = config;
 
         tracing::info!(
-            "Initializing Merkle tree database at `{db_path}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
+            "Initializing Merkle tree database at `{db_path:?}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
              {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?})"
         );
         let mut db = RocksDB::with_options(

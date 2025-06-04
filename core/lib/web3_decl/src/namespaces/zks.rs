@@ -6,7 +6,7 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -16,7 +16,7 @@ use zksync_types::{
 
 use crate::{
     client::{ForWeb3Network, L2},
-    types::{Bytes, Token},
+    types::Token,
 };
 
 #[cfg_attr(
@@ -73,15 +73,6 @@ pub trait ZksNamespace {
     async fn get_all_account_balances(&self, address: Address)
         -> RpcResult<HashMap<Address, U256>>;
 
-    #[method(name = "getL2ToL1MsgProof")]
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        block: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-        l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>>;
-
     #[method(name = "getL2ToL1LogProof")]
     async fn get_l2_to_l1_log_proof(
         &self,
@@ -123,6 +114,8 @@ pub trait ZksNamespace {
     #[method(name = "getFeeParams")]
     async fn get_fee_params(&self) -> RpcResult<FeeParams>;
 
+    // TODO: remove in favour of `en_getProtocolVersionInfo` once all ENs have been upgraded.
+    #[deprecated]
     #[method(name = "getProtocolVersion")]
     async fn get_protocol_version(
         &self,
@@ -139,10 +132,4 @@ pub trait ZksNamespace {
 
     #[method(name = "getBatchFeeInput")]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
-
-    #[method(name = "sendRawTransactionWithDetailedOutput")]
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        tx_bytes: Bytes,
-    ) -> RpcResult<TransactionDetailedResult>;
 }

@@ -1,8 +1,10 @@
 use std::time::Duration;
 
-use zksync_dal::{ConnectionPool, Core, CoreDal as _};
+use zksync_dal::{
+    node::{MasterPool, PoolResource},
+    ConnectionPool, Core, CoreDal as _,
+};
 use zksync_node_framework::{
-    implementations::resources::pools::{MasterPool, PoolResource},
     FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 use zksync_types::{L1ChainId, L2ChainId, SLChainId};

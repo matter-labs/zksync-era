@@ -56,6 +56,8 @@ pub const EXPLORER_CONFIG_FILE: &str = "explorer.config.json";
 /// Name of explorer docker compose file
 pub const EXPLORER_DOCKER_COMPOSE_FILE: &str = "explorer-docker-compose.yml";
 
+pub const PRIVATE_RPC_DOCKER_COMPOSE_FILE: &str = "private-proxy-docker-compose.yml";
+
 /// Default port for the explorer app
 pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
 /// Default port for the portal app
@@ -66,11 +68,20 @@ pub const DEFAULT_EXPLORER_WORKER_PORT: u16 = 3001;
 pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
 /// Default port for the explorer data fetcher service
 pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
+/// Default session max age for prividium explorer backend
+pub const DEFAULT_PRIVIDIUM_EXPLORER_SESSION_MAX_AGE: u64 = 86400000; // in milliseconds, 1 day
+/// Default session same site for prividium explorer backend
+pub const DEFAULT_PRIVIDIUM_EXPLORER_SESSION_SAME_SITE: &str = "strict";
 
-pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.62.0";
+/// Default port for the private rpc
+pub const DEFAULT_PRIVATE_RPC_PORT: u16 = 4041;
+/// Default token secret for the private rpc
+pub const DEFAULT_PRIVATE_RPC_TOKEN_SECRET: &str = "sososecret";
+
+pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api:v2.73.1";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str =
-    "matterlabs/block-explorer-data-fetcher:v2.62.0";
-pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.62.0";
+    "matterlabs/block-explorer-data-fetcher:v2.73.1";
+pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker:v2.73.1";
 
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;

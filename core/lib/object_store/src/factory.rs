@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use anyhow::Context as _;
 use tokio::sync::OnceCell;
@@ -71,7 +71,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
             ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url,
@@ -86,7 +86,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
             ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
                 let store = StoreWithRetries::try_new(config.max_retries, || {
@@ -96,7 +96,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
 
             ObjectStoreMode::S3WithCredentialFile {
@@ -116,7 +116,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
             ObjectStoreMode::S3AnonymousReadOnly {
                 bucket_base_url,
@@ -132,7 +132,7 @@ impl ObjectStoreFactory {
                     )
                 })
                 .await?;
-                Self::wrap_mirroring(store, config.local_mirror_path.as_ref()).await
+                Self::wrap_mirroring(store, config.local_mirror_path.as_deref()).await
             }
 
             ObjectStoreMode::FileBacked {
@@ -144,7 +144,10 @@ impl ObjectStoreFactory {
                 .await?;
 
                 if let Some(mirror_path) = &config.local_mirror_path {
-                    tracing::warn!("Mirroring doesn't make sense with file-backed object store; ignoring mirror path `{mirror_path}`");
+                    tracing::warn!(
+                        "Mirroring doesn't make sense with file-backed object store; ignoring mirror path `{}`",
+                        mirror_path.display()
+                    );
                 }
                 Ok(Arc::new(store))
             }
@@ -153,10 +156,10 @@ impl ObjectStoreFactory {
 
     async fn wrap_mirroring(
         store: impl ObjectStore,
-        mirror_path: Option<&String>,
+        mirror_path: Option<&Path>,
     ) -> Result<Arc<dyn ObjectStore>, ObjectStoreError> {
         Ok(if let Some(mirror_path) = mirror_path {
-            Arc::new(MirroringObjectStore::new(store, mirror_path.clone()).await?)
+            Arc::new(MirroringObjectStore::new(store, mirror_path.to_owned()).await?)
         } else {
             Arc::new(store)
         })

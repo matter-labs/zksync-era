@@ -49,7 +49,7 @@ impl ProofGenDataSubmitter {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!(
-                    "Stop signal received, proof generation data submitter is shutting down"
+                    "Stop request received, proof generation data submitter is shutting down"
                 );
                 break;
             }
@@ -82,10 +82,10 @@ impl ProofGenDataSubmitter {
 
             tracing::info!(
                 "No proof generation was sent, sleeping for {:?}",
-                self.config.proof_gen_data_submit_interval()
+                self.config.proof_gen_data_submit_interval
             );
 
-            tokio::time::sleep(self.config.proof_gen_data_submit_interval()).await;
+            tokio::time::sleep(self.config.proof_gen_data_submit_interval).await;
         }
 
         Ok(())

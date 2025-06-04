@@ -189,9 +189,9 @@ impl Keystore {
             .with_context(|| format!("Failed deserializing setup-data at path: {filepath:?}"))
     }
 
-    ///
-    ///   Verification keys
-    ///
+    //
+    //   Verification keys
+    //
 
     pub fn load_base_layer_verification_key(
         &self,
@@ -324,9 +324,9 @@ impl Keystore {
         Self::save_json_pretty(filepath, &vk.into_inner())
     }
 
-    ///
-    /// Finalization hints
-    ///
+    //
+    // Finalization hints
+    //
 
     pub fn save_finalization_hints(
         &self,
@@ -356,9 +356,9 @@ impl Keystore {
         )
     }
 
-    ///
-    ///   Snark wrapper
-    ///
+    //
+    //   Snark wrapper
+    //
 
     /// Loads snark verification key
     // For snark wrapper - we're actually returning a raw serialized string, and the parsing happens
@@ -406,9 +406,9 @@ impl Keystore {
         Self::save_json_pretty(filepath, &vk)
     }
 
-    ///
-    /// Setup keys
-    ///
+    //
+    // Setup keys
+    //
 
     pub fn load_cpu_setup_data_for_circuit_type(
         &self,
