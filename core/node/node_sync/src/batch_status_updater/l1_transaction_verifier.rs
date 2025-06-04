@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_types::{
-    commitment::L1BatchWithMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber,
+    commitment::L1BatchMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber,
     ProtocolVersionId, SLChainId, H256, U64,
 };
 
@@ -71,16 +71,16 @@ impl L1TransactionVerifier {
         }
     }
 
-    async fn get_db_batch(
+    async fn get_db_batch_metadata(
         &self,
         batch_number: L1BatchNumber,
-    ) -> Result<L1BatchWithMetadata, TransactionValidationError> {
+    ) -> Result<L1BatchMetadata, TransactionValidationError> {
         match self
             .pool
             .connection_tagged("sync_layer")
             .await?
             .blocks_dal()
-            .get_l1_batch_metadata(batch_number)
+            .get_l1_batch_metadata_only(batch_number)
             .await?
         {
             Some(batch) => Ok(batch),
@@ -93,30 +93,6 @@ impl L1TransactionVerifier {
             }
         }
     }
-
-    async fn get_db_protocol_version(
-        &self,
-        batch_number: L1BatchNumber,
-    ) -> Result<ProtocolVersionId, TransactionValidationError> {
-        match self
-            .pool
-            .connection_tagged("sync_layer")
-            .await?
-            .blocks_dal()
-            .get_batch_protocol_version_id(batch_number)
-            .await?
-        {
-            Some(batch) => Ok(batch),
-            None => {
-                tracing::debug!(
-                    "Batch {} is not found in the database. Cannot verify transaction right now",
-                    batch_number
-                );
-                Err(TransactionValidationError::BatchNotFound { batch_number })
-            }
-        }
-    }
-
     async fn get_transaction_check_success(
         &self,
         tx_hash: H256,
@@ -134,14 +110,31 @@ impl L1TransactionVerifier {
 
     async fn should_perform_logs_validation(
         &self,
-        protocol_version: Option<ProtocolVersionId>,
-    ) -> bool {
-        if let Some(version) = protocol_version {
-            if version < self.validate_logs_from_protocol_version {
-                return false;
+        batch_number: L1BatchNumber,
+    ) -> Result<bool, TransactionValidationError> {
+        match self
+            .pool
+            .connection_tagged("sync_layer")
+            .await?
+            .blocks_dal()
+            .get_batch_protocol_version_id(batch_number)
+            .await?
+        {
+            Some(version) => {
+                if version < self.validate_logs_from_protocol_version {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            }
+            None => {
+                tracing::debug!(
+                    "Batch {} is not found in the database. Cannot verify transaction right now",
+                    batch_number
+                );
+                Err(TransactionValidationError::BatchNotFound { batch_number })
             }
         }
-        true
     }
 
     pub async fn validate_commit_tx(
@@ -149,14 +142,11 @@ impl L1TransactionVerifier {
         commit_tx_hash: H256,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        let db_batch = self.get_db_batch(batch_number).await?;
-
-        if !self
-            .should_perform_logs_validation(db_batch.header.protocol_version)
-            .await
-        {
+        if !(self.should_perform_logs_validation(batch_number).await?) {
             return Ok(());
         }
+
+        let db_batch = self.get_db_batch_metadata(batch_number).await?;
 
         let receipt = self.get_transaction_check_success(commit_tx_hash).await?;
 
@@ -169,7 +159,7 @@ impl L1TransactionVerifier {
             receipt.logs.into_iter().filter_map(|log| {
                 if log.address != self.diamond_proxy_addr {
                     tracing::debug!(
-                        "Log address {} does not match diamond proxy address {}, skipping",
+                        "Log address {} does not match diamond proxy adb_batchddress {}, skipping",
                         log.address,
                         self.diamond_proxy_addr
                     );
@@ -206,16 +196,16 @@ impl L1TransactionVerifier {
             }).next();
 
         if let Some((batch_hash, commitment)) = commited_batch_info {
-            if db_batch.metadata.commitment != commitment {
+            if db_batch.commitment != commitment {
                 return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
                     batch_number,
-                    db_batch.metadata.commitment,
+                    db_batch.commitment,
                     commitment) });
             }
-            if db_batch.metadata.root_hash != batch_hash {
+            if db_batch.root_hash != batch_hash {
                 return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
                     batch_number,
-                    db_batch.metadata.root_hash,
+                    db_batch.root_hash,
                     batch_hash)});
             }
             // OK verified successfully the commit transaction.
@@ -234,12 +224,7 @@ impl L1TransactionVerifier {
         prove_tx_hash: H256,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        let db_protocol_version = self.get_db_protocol_version(batch_number).await?;
-
-        if !self
-            .should_perform_logs_validation(Some(db_protocol_version))
-            .await
-        {
+        if !(self.should_perform_logs_validation(batch_number).await?) {
             return Ok(());
         }
 
@@ -324,11 +309,11 @@ impl L1TransactionVerifier {
         execute_tx_hash: H256,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
-        let db_batch = self.get_db_batch(batch_number).await?;
-
-        if !self.should_perform_logs_validation(&db_batch).await {
+        if !(self.should_perform_logs_validation(batch_number).await?) {
             return Ok(());
         }
+
+        let db_batch = self.get_db_batch_metadata(batch_number).await?;
 
         let receipt = self.get_transaction_check_success(execute_tx_hash).await?;
 
@@ -383,22 +368,22 @@ impl L1TransactionVerifier {
             }).next();
 
         if let Some((batch_hash, commitment)) = commited_batch_info {
-            if db_batch.metadata.commitment != commitment {
+            if db_batch.commitment != commitment {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
                     reason: format!(
                         "Execute transaction {execute_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
                         batch_number,
-                        db_batch.metadata.commitment,
+                        db_batch.commitment,
                         commitment
                     )
                 });
             }
-            if db_batch.metadata.root_hash != batch_hash {
+            if db_batch.root_hash != batch_hash {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
                     reason: format!(
                         "Execute transaction {execute_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
                         batch_number,
-                        db_batch.metadata.root_hash,
+                        db_batch.root_hash,
                         batch_hash
                     )
                 });

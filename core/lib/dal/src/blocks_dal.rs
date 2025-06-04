@@ -19,7 +19,7 @@ use zksync_types::{
         CommonL1BatchHeader, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
-    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
+    commitment::{L1BatchCommitmentArtifacts, L1BatchMetadata, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
@@ -2292,6 +2292,19 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
         self.map_storage_l1_batch(l1_batch).await
+    }
+
+    pub async fn get_l1_batch_metadata_only(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<L1BatchMetadata>> {
+        let Some(storage_batch) = self.get_storage_l1_batch(number).await? else {
+            return Ok(None);
+        };
+        let Ok(metadata) = storage_batch.clone().try_into() else {
+            return Ok(None);
+        };
+        Ok(Some(metadata))
     }
 
     /// Returns the header and optional metadata for an L1 batch with the specified number. If a batch exists
