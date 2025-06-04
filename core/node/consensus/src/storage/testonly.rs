@@ -123,7 +123,7 @@ impl ConnectionPool {
         let mut blocks: Vec<validator::Block> = vec![];
         for i in state.first.0..state.next().0 {
             let i = validator::BlockNumber(i);
-            let block = conn.block(ctx, i).await.context("block()")?.unwrap();
+            let block = conn.block(ctx, i).await.wrap("block()")?.unwrap();
             blocks.push(block);
         }
         Ok(blocks)
@@ -147,10 +147,23 @@ impl ConnectionPool {
         for block in &blocks {
             match block {
                 validator::Block::FinalV1(block) => {
-                    block.verify(&cfg.genesis).context(block.number())?;
+                    block
+                        .verify(
+                            cfg.genesis.hash(),
+                            &cfg.genesis.validators_schedule.clone().unwrap(),
+                        )
+                        .context(block.number())?;
                 }
                 validator::Block::FinalV2(block) => {
-                    block.verify(&cfg.genesis).context(block.number())?;
+                    // Here we are assuming that we are using a static validators schedule. Hence
+                    // getting the epoch number from the genesis config and using epoch 0.
+                    block
+                        .verify(
+                            cfg.genesis.hash(),
+                            validator::EpochNumber(0),
+                            &cfg.genesis.validators_schedule.clone().unwrap(),
+                        )
+                        .context(block.number())?;
                 }
                 validator::Block::PreGenesis(_) => {}
             }
@@ -163,7 +176,7 @@ impl ConnectionPool {
         ctx: &ctx::Ctx,
         last_batch: L1BatchNumber,
     ) -> ctx::Result<()> {
-        let mut conn = self.connection(ctx).await.context("connection()")?;
+        let mut conn = self.connection(ctx).await.wrap("connection()")?;
 
         let (_, last_block) = conn
             .get_l2_block_range_of_l1_batch(ctx, last_batch)
