@@ -10,7 +10,7 @@ use rand::{
 };
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
-use zk_os_merkle_tree::{
+use zksync_zk_os_merkle_tree::{
     unstable, Database, DefaultTreeParams, DeserializeError, HashTree, MerkleTree,
     MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper, TreeEntry, TreeParams,
 };
