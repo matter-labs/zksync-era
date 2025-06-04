@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn eigenda_config_from_yaml_with_enum_coercion() {
         let yaml = r#"
-          eigen_d_a:
+          eigen:
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
             authenticated: true
