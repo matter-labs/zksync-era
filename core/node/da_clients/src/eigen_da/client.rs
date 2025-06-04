@@ -11,8 +11,8 @@ use rust_eigenda_v2_common::{Payload, PayloadForm};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigenda::{EigenDASecrets, PolynomialForm},
-    EigenDAConfig,
+    configs::da_client::eigenda::{EigenSecrets, PolynomialForm},
+    EigenConfig,
 };
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
@@ -28,7 +28,7 @@ pub struct EigenDAClient {
 }
 
 impl EigenDAClient {
-    pub async fn new(config: EigenDAConfig, secrets: EigenDASecrets) -> anyhow::Result<Self> {
+    pub async fn new(config: EigenConfig, secrets: EigenSecrets) -> anyhow::Result<Self> {
         let url = Url::from_str(
             config
                 .eigenda_eth_rpc

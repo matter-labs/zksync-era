@@ -1,6 +1,6 @@
 use smart_config::{DescribeConfig, DeserializeConfig};
 
-use crate::{AvailConfig, CelestiaConfig, EigenDAConfig, ObjectStoreConfig};
+use crate::{AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig};
 
 pub mod avail;
 pub mod celestia;
@@ -11,7 +11,7 @@ pub mod eigenda;
 pub enum DAClientConfig {
     Avail(AvailConfig),
     Celestia(CelestiaConfig),
-    Eigen(EigenDAConfig),
+    Eigen(EigenConfig),
     ObjectStore(ObjectStoreConfig),
     #[config(alias = "NoDa")]
     NoDA,

@@ -9,7 +9,7 @@ use zksync_basic_types::{secrets::APIKey, url::SensitiveUrl};
 
 use crate::configs::{
     consensus::ConsensusSecrets,
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigenda::EigenDASecrets},
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigenda::EigenSecrets},
 };
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
@@ -42,7 +42,7 @@ pub struct L1Secrets {
 pub enum DataAvailabilitySecrets {
     Avail(AvailSecrets),
     Celestia(CelestiaSecrets),
-    EigenDA(EigenDASecrets),
+    EigenDA(EigenSecrets),
     // Needed for compatibility with the non-secret part of the DA config
     NoDA,
 }

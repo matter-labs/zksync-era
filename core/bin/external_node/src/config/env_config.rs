@@ -9,11 +9,11 @@ use zksync_config::{
         da_client::{
             avail::{AvailClientConfig, AvailSecrets},
             celestia::CelestiaSecrets,
-            eigenda::EigenDASecrets,
+            eigenda::EigenSecrets,
         },
         DataAvailabilitySecrets,
     },
-    AvailConfig, DAClientConfig, EigenDAConfig,
+    AvailConfig, DAClientConfig, EigenConfig,
 };
 use zksync_types::{
     secrets::{APIKey, PrivateKey, SeedPhrase},
@@ -54,7 +54,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
         CELESTIA_CLIENT_CONFIG_NAME => {
             DAClientConfig::Celestia(envy_load("da_celestia_config", prefix)?)
         }
-        EIGENDA_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(EigenDAConfig {
+        EIGENDA_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(EigenConfig {
             disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
             eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
                 // Use a specific L1 RPC URL for the EigenDA client.
@@ -115,7 +115,7 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
         EIGENDA_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
                 .context("Eigen private key not found")?;
-            DataAvailabilitySecrets::EigenDA(EigenDASecrets {
+            DataAvailabilitySecrets::EigenDA(EigenSecrets {
                 private_key: PrivateKey(private_key.into()),
             })
         }

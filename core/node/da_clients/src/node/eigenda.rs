@@ -1,4 +1,4 @@
-use zksync_config::{configs::da_client::eigenda::EigenDASecrets, EigenDAConfig};
+use zksync_config::{configs::da_client::eigenda::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
@@ -9,12 +9,12 @@ use crate::eigen_da::EigenDAClient;
 
 #[derive(Debug)]
 pub struct EigenWiringLayer {
-    config: EigenDAConfig,
-    secrets: EigenDASecrets,
+    config: EigenConfig,
+    secrets: EigenSecrets,
 }
 
 impl EigenWiringLayer {
-    pub fn new(config: EigenDAConfig, secrets: EigenDASecrets) -> Self {
+    pub fn new(config: EigenConfig, secrets: EigenSecrets) -> Self {
         Self { config, secrets }
     }
 }

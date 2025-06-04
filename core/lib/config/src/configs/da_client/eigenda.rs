@@ -38,7 +38,7 @@ impl WellKnown for PolynomialForm {
 /// This configuration is meant to be used by the EigenDA V2 client.
 /// It is an insecure integration, where the dispersal is not verified.
 #[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
-pub struct EigenDAConfig {
+pub struct EigenConfig {
     /// URL of the Disperser RPC server
     pub disperser_rpc: String,
     /// URL of the Ethereum RPC server
@@ -58,7 +58,7 @@ pub struct EigenDAConfig {
 
 /// Configuration for the EigenDA secrets.
 #[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
-pub struct EigenDASecrets {
+pub struct EigenSecrets {
     /// Private key used for dispersing the blobs
     #[config(with = FromSecretString)]
     pub private_key: PrivateKey,
