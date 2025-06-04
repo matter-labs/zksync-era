@@ -40,3 +40,6 @@ Check the [README.md](./README.md) for more details on the new fields.
 ### Note
 
 - Remember to run `zkstackup --local` before running the new server after this changes
+
+- Be sure that your private key has the needed permissions set on the V2 client.
+- 
