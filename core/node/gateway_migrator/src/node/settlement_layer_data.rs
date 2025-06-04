@@ -354,12 +354,10 @@ fn adjust_eth_sender_config(
 ) -> SenderConfig {
     if settlement_layer.is_gateway() {
         config.max_aggregated_tx_gas = 30000000000;
-        config.max_eth_tx_data_size = 550_000;
         tracing::warn!(
             "Settling to Gateway requires to adjust ETH sender configs: \
-               max_aggregated_tx_gas = {}, max_eth_tx_data_size = {}",
-            config.max_aggregated_tx_gas,
-            config.max_eth_tx_data_size
+               max_aggregated_tx_gas = {}",
+            config.max_aggregated_tx_gas
         );
         if config.pubdata_sending_mode == PubdataSendingMode::Blobs
             || config.pubdata_sending_mode == PubdataSendingMode::Calldata

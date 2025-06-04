@@ -187,12 +187,6 @@ pub struct CircuitBreakerConfig {
     /// but the circuit breaker still checks that the replica DB is reachable.
     #[config(default_t = Some(Duration::from_secs(100)))]
     pub replication_lag_limit: Option<Duration>,
-
-    // FIXME: remove; unused
-    #[config(default_t = 10)]
-    pub http_req_max_retry_number: usize,
-    #[config(default_t = Duration::from_secs(2))]
-    pub http_req_retry_interval: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -472,8 +466,6 @@ mod tests {
     fn expected_circuit_breaker_config() -> CircuitBreakerConfig {
         CircuitBreakerConfig {
             sync_interval: Duration::from_secs(1),
-            http_req_max_retry_number: 5,
-            http_req_retry_interval: Duration::from_secs(2),
             replication_lag_limit: Some(Duration::from_secs(10)),
         }
     }
