@@ -123,7 +123,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         let txs_index = bootloader_state.free_tx_index();
         let l2_block = bootloader_state.insert_fictive_l2_block();
         let mut memory = vec![];
-        println!("set fictive l2 block number {:?}", l2_block.number);
         apply_l2_block(
             &mut memory,
             l2_block,

@@ -30,6 +30,6 @@ impl InteropRoot {
                     .map(|hash| Token::FixedBytes(u256_to_h256(*hash).as_bytes().to_vec()))
                     .collect(),
             ),
-        ]) //
+        ])
     }
 }

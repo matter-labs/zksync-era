@@ -12022,4 +12022,4 @@ zksync-ethers@^6.9.0:
 
 "zksync-ethers@git+https://github.com/zksync-sdk/zksync-ethers#kl/interop-ethers-support-real":
   version "6.17.0"
-  resolved "git+https://github.com/zksync-sdk/zksync-ethers#0cf0c171bbb07afd9a23b8796935d38ff3ab8661"
+  resolved "git+https://github.com/zksync-sdk/zksync-ethers#c703c0666908527411f1554a21f235d785edf990"

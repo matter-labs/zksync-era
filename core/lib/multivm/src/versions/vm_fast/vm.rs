@@ -583,10 +583,6 @@ where
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
-                    println!(
-                        "applying l2 block in final batch info {:?}",
-                        l2_block.number
-                    );
                     apply_l2_block(
                         &mut memory,
                         l2_block,

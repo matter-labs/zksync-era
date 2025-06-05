@@ -157,7 +157,6 @@ impl BootloaderState {
             self.execution_mode,
             self.last_l2_block().txs.is_empty(),
             self.subversion,
-            // true,
             self.last_l2_block().txs.is_empty(),
             self.get_preexisting_interop_roots_number(),
             self.get_preexisting_blocks_number(),
@@ -221,7 +220,6 @@ impl BootloaderState {
                 tx_index += 1;
             }
             if l2_block.txs.is_empty() {
-                println!("maybe fictive l2 block {:?}", l2_block.number);
                 apply_l2_block(
                     &mut initial_memory,
                     l2_block,
@@ -303,12 +301,8 @@ impl BootloaderState {
                 interop_roots: vec![],
             });
         } else {
-            // println!("block number {:?}", block.number);
             let block = self.last_mut_l2_block();
-            println!("roots before reset {:?}", block.interop_roots);
             block.interop_roots = vec![];
-            // println!("reset interop roots");
-            // println!("roots after reset {:?}", self.last_l2_block().interop_roots);
         }
 
         self.last_l2_block()
