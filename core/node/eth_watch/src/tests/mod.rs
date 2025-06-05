@@ -108,6 +108,7 @@ async fn create_test_watcher(
         Box::new(l1_client.clone()),
         sl_l2_client,
         Some(settlement_layer),
+        None, //
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),

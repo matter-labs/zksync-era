@@ -121,6 +121,16 @@ pub async fn init_configs(
             secrets.set_avail_secrets(avail_secrets)?;
         }
     }
+    // kl todo
+    println!("inserting dependency chain rpc url");
+    // let (dependency_chain_rpc_url, dependency_chain_id) =
+    //     if chain_config.chain_id == L2ChainId::from(271) {
+    //         ("http://localhost:3152", 505)
+    //     } else {
+    //         ("http://localhost:3050", 271)
+    //     };
+    // secrets.insert("l1.dependency_chain_rpc_url", dependency_chain_rpc_url)?;
+    // secrets.insert("l1.dependency_chain_id", dependency_chain_id)?; //
     secrets.save().await?;
 
     let override_validium_config = false; // We've initialized validium params above.
