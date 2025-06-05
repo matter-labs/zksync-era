@@ -83,21 +83,21 @@ pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
 /// Image tag for the explorer api
 pub const EXPLORER_API_DOCKER_IMAGE_TAG: &str = "v2.73.1";
 /// Image tag for the explorer api for prividium
-pub const EXPLORER_API_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "prividium-latest";
+pub const EXPLORER_API_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "v2.75.0-prividium.1";
 
 /// Docker image for the explorer data fetcher
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";
 /// Image tag for the explorer data fetcher
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE_TAG: &str = "v2.73.1";
 /// Image tag for the explorer data fetcher for prividium
-pub const EXPLORER_DATA_FETCHER_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "prividium-latest";
+pub const EXPLORER_DATA_FETCHER_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "v2.75.0-prividium.1";
 
 /// Docker image for the explorer worker
 pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker";
 /// Image tag for the explorer worker
 pub const EXPLORER_WORKER_DOCKER_IMAGE_TAG: &str = "v2.73.1";
 /// Image tag for the explorer worker for prividium
-pub const EXPLORER_WORKER_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "prividium-latest";
+pub const EXPLORER_WORKER_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "v2.75.0-prividium.1";
 
 /// Interval (in milliseconds) for polling new batches to process in explorer app
 pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;

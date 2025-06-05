@@ -19,7 +19,7 @@ pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app";
 /// Image tag for the explorer app
 pub const EXPLORER_APP_DOCKER_IMAGE_TAG: &str = "v2.73.1";
 /// Image tag for the explorer app for prividium
-pub const EXPLORER_APP_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "prividium-latest";
+pub const EXPLORER_APP_PRIVIDIUM_DOCKER_IMAGE_TAG: &str = "v2.75.0-prividium.1";
 /// Path to the JS runtime config for the dapp-portal docker container to be mounted to
 pub const PORTAL_DOCKER_CONFIG_PATH: &str = "/usr/src/app/dist/config.js";
 pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";
