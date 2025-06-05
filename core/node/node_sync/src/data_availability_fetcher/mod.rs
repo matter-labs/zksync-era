@@ -73,7 +73,6 @@ pub struct DataAvailabilityFetcher {
     health_updater: HealthUpdater,
     poll_interval: Duration,
     last_scanned_batch: L1BatchNumber,
-    max_batches_to_recheck: u32,
 }
 
 impl DataAvailabilityFetcher {
@@ -84,7 +83,6 @@ impl DataAvailabilityFetcher {
         client: Box<DynClient<L2>>,
         pool: ConnectionPool<Core>,
         da_client: Box<dyn DataAvailabilityClient>,
-        max_batches_to_recheck: u32,
     ) -> Self {
         Self {
             client: client.for_component("data_availability_fetcher"),
@@ -93,29 +91,24 @@ impl DataAvailabilityFetcher {
             health_updater: ReactiveHealthCheck::new("data_availability_fetcher").1,
             poll_interval: Self::DEFAULT_POLL_INTERVAL,
             last_scanned_batch: L1BatchNumber(0),
-            max_batches_to_recheck,
         }
     }
 
     async fn determine_first_batch_to_scan(&self) -> anyhow::Result<L1BatchNumber> {
-        let last_committed_batch = self
+        let last_checked_by_consistency_checker = self
             .pool
             .connection()
             .await?
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
-            .await?
-            .unwrap_or(L1BatchNumber(0));
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
 
-        let first_batch_to_check: L1BatchNumber = last_committed_batch
-            .0
-            .saturating_sub(self.max_batches_to_recheck + 1) // +1 to cover any race conditions with consistency checker
-            .into();
+        let first_batch_to_check = last_checked_by_consistency_checker + 1;
 
         tracing::debug!(
-            "Determined first batch to scan: {} (last committed batch: {})",
+            "Determined first batch to scan: {} (last checked batch: {})",
             first_batch_to_check,
-            last_committed_batch
+            last_checked_by_consistency_checker
         );
 
         Ok(first_batch_to_check)
