@@ -119,7 +119,7 @@ impl GasAdjusterFeesOracle {
 
             priority_fee_per_gas = max(
                 priority_fee_per_gas,
-                previous_sent_tx.priority_fee_per_gas * MIN_PRICE_BUMP_MULTIPLIER_U64
+                previous_sent_tx.priority_fee_per_gas * MIN_PRICE_BUMP_MULTIPLIER_U64,
             );
         }
         Ok(EthFees {
