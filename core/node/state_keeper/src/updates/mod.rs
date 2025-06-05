@@ -1,8 +1,7 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
-        VmExecutionMetrics, VmExecutionResultAndLogs,
+        Call, FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionMetrics, VmExecutionResultAndLogs,
     },
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
@@ -35,7 +34,6 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
-    storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
@@ -68,7 +66,6 @@ impl UpdatesManager {
                 protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
-            storage_view_cache: None,
             pubdata_params,
             next_l2_block_params: None,
             previous_batch_protocol_version,
@@ -183,14 +180,6 @@ impl UpdatesManager {
         self.l1_batch.finished = Some(finished_batch);
 
         latency.observe();
-    }
-
-    pub fn update_storage_view_cache(&mut self, storage_view_cache: StorageViewCache) {
-        self.storage_view_cache = Some(storage_view_cache);
-    }
-
-    pub fn storage_view_cache(&self) -> Option<StorageViewCache> {
-        self.storage_view_cache.clone()
     }
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
