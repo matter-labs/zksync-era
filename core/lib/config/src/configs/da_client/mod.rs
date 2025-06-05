@@ -1,17 +1,17 @@
 use smart_config::{DescribeConfig, DeserializeConfig};
 
-use crate::{AvailConfig, CelestiaConfig, EigenDAConfig, ObjectStoreConfig};
+use crate::{AvailConfig, CelestiaConfig, EigenConfig, ObjectStoreConfig};
 
 pub mod avail;
 pub mod celestia;
-pub mod eigenda;
+pub mod eigen;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(tag = "client")]
 pub enum DAClientConfig {
     Avail(AvailConfig),
     Celestia(CelestiaConfig),
-    EigenDA(EigenDAConfig),
+    Eigen(EigenConfig),
     ObjectStore(ObjectStoreConfig),
     #[config(alias = "NoDa")]
     NoDA,
@@ -35,7 +35,7 @@ mod tests {
 
     use super::{avail::AvailClientConfig, *};
     use crate::configs::{
-        da_client::eigenda::PolynomialForm, object_store::ObjectStoreMode, DataAvailabilitySecrets,
+        da_client::eigen::PolynomialForm, object_store::ObjectStoreMode, DataAvailabilitySecrets,
         Secrets,
     };
 
@@ -294,9 +294,9 @@ mod tests {
     }
 
     #[test]
-    fn eigenda_config_from_env() {
+    fn eigen_config_from_env() {
         let env = r#"
-          DA_CLIENT="EigenDA"
+          DA_CLIENT="Eigen"
           DA_DISPERSER_RPC="http://localhost:8080"
           DA_EIGENDA_ETH_RPC="http://localhost:8545"
           DA_AUTHENTICATED=false
@@ -309,7 +309,7 @@ mod tests {
             .strip_prefix("DA_");
 
         let config = test_complete::<DAClientConfig>(env).unwrap();
-        let DAClientConfig::EigenDA(config) = config else {
+        let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
 
@@ -330,25 +330,10 @@ mod tests {
         assert_eq!(config.polynomial_form, PolynomialForm::Coeff);
     }
 
-    fn assert_eigen_config(config: &DAClientConfig) {
-        let DAClientConfig::EigenDA(config) = config else {
-            panic!("unexpected config: {config:?}");
-        };
-        assert_eq!(
-            config.disperser_rpc,
-            "https://disperser-holesky.eigenda.xyz:443"
-        );
-        assert_eq!(
-            config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
-            "https://holesky.infura.io/"
-        );
-        assert!(config.authenticated);
-    }
-
     #[test]
-    fn eigenda_config_from_yaml() {
+    fn eigen_config_from_yaml() {
         let yaml = r#"
-            client: EigenDA
+            client: Eigen
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
             authenticated: true
@@ -359,10 +344,13 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
         let config = test_complete::<DAClientConfig>(yaml).unwrap();
-        let DAClientConfig::EigenDA(config) = config else {
+        assert_eigen_config(&config);
+    }
+
+    fn assert_eigen_config(config: &DAClientConfig) {
+        let DAClientConfig::Eigen(config) = config else {
             panic!("unexpected config: {config:?}");
         };
-
         assert_eq!(
             config.disperser_rpc,
             "https://disperser-holesky.eigenda.xyz:443"
@@ -384,9 +372,9 @@ mod tests {
     }
 
     #[test]
-    fn eigenda_config_from_yaml_with_enum_coercion() {
+    fn eigen_config_from_yaml_with_enum_coercion() {
         let yaml = r#"
-          eigen_d_a:
+          eigen:
             disperser_rpc: https://disperser-holesky.eigenda.xyz:443
             eigenda_eth_rpc: https://holesky.infura.io/
             authenticated: true

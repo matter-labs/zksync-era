@@ -258,7 +258,7 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
             match general_config.da_client_type().as_deref() {
                 Some("Avail") => contracts_config.l1.avail_l1_da_validator_addr,
                 Some("NoDA") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
-                Some("EigenDA") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1
+                Some("Eigen") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1
                 Some(unsupported) => {
                     anyhow::bail!("DA client config is not supported: {unsupported:?}");
                 }

@@ -33,7 +33,7 @@ You need to add the following field:
 
 ```yaml
 da_client:
-  client: EigenDA
+  client: Eigen
   private_key: <PRIVATE_KEY>
 ```
 
@@ -47,7 +47,7 @@ So, for example, a client setup that uses the holesky EigenDA V2 client would lo
 da_dispatcher:
   use_dummy_inclusion_data: true
 da_client:
-  client: EigenDA
+  client: Eigen
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
   authenticated: true

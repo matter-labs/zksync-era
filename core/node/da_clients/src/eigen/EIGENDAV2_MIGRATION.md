@@ -26,7 +26,7 @@ You need to update the client config to the new format.
 
 ```yaml
 da_client:
-  client: EigenDA
+  client: Eigen
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
   eigenda_eth_rpc: https://ethereum-holesky-rpc.publicnode.com
   authenticated: true
@@ -35,28 +35,10 @@ da_client:
   polynomial_form: coeff
 ```
 
-Note that the client changed from `Eigen` to `EigenDA`
-
 Check the [README.md](./README.md) for more details on the new fields.
 
 ### Note
 
-You should also change your `chains/<YOUR_CHAIN>/configs/secrets.yaml` from:
-
-```yaml
-da_client:
-  client: Eigen
-  private_key: <your_private_key>
-```
-
-To
-
-```yaml
-da_client:
-  client: EigenDA
-  private_key: <your_private_key>
-```
+- Remember to run `zkstackup --local` before running the new server after this changes
 
 - Be sure that your private key has the needed permissions set on the V2 client.
-
-- Remember to run `zkstackup --local` before running the new server after this changes

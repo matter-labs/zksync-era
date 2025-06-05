@@ -1,20 +1,20 @@
-use zksync_config::{configs::da_client::eigenda::EigenDASecrets, EigenDAConfig};
+use zksync_config::{configs::da_client::eigen::EigenSecrets, EigenConfig};
 use zksync_da_client::DataAvailabilityClient;
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext,
 };
 
-use crate::eigen_da::EigenDAClient;
+use crate::eigen::EigenDAClient;
 
 #[derive(Debug)]
 pub struct EigenWiringLayer {
-    config: EigenDAConfig,
-    secrets: EigenDASecrets,
+    config: EigenConfig,
+    secrets: EigenSecrets,
 }
 
 impl EigenWiringLayer {
-    pub fn new(config: EigenDAConfig, secrets: EigenDASecrets) -> Self {
+    pub fn new(config: EigenConfig, secrets: EigenSecrets) -> Self {
         Self { config, secrets }
     }
 }
@@ -28,7 +28,7 @@ impl WiringLayer for EigenWiringLayer {
     type Output = Box<dyn DataAvailabilityClient>;
 
     fn layer_name(&self) -> &'static str {
-        "eigenda_client_layer"
+        "eigen_client_layer"
     }
 
     async fn wire(self, _: Self::Input) -> Result<Self::Output, WiringError> {

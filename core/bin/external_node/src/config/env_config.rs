@@ -9,11 +9,11 @@ use zksync_config::{
         da_client::{
             avail::{AvailClientConfig, AvailSecrets},
             celestia::CelestiaSecrets,
-            eigenda::EigenDASecrets,
+            eigen::EigenSecrets,
         },
         DataAvailabilitySecrets,
     },
-    AvailConfig, DAClientConfig, EigenDAConfig,
+    AvailConfig, DAClientConfig, EigenConfig,
 };
 use zksync_types::{
     secrets::{APIKey, PrivateKey, SeedPhrase},
@@ -29,7 +29,7 @@ fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T>
 
 const AVAIL_CLIENT_CONFIG_NAME: &str = "Avail";
 const CELESTIA_CLIENT_CONFIG_NAME: &str = "Celestia";
-const EIGENDA_CLIENT_CONFIG_NAME: &str = "EigenDA";
+const EIGEN_CLIENT_CONFIG_NAME: &str = "Eigen";
 const OBJECT_STORE_CLIENT_CONFIG_NAME: &str = "ObjectStore";
 const NO_DA_CLIENT_CONFIG_NAME: &str = "NoDA";
 const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
@@ -54,7 +54,7 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
         CELESTIA_CLIENT_CONFIG_NAME => {
             DAClientConfig::Celestia(envy_load("da_celestia_config", prefix)?)
         }
-        EIGENDA_CLIENT_CONFIG_NAME => DAClientConfig::EigenDA(EigenDAConfig {
+        EIGEN_CLIENT_CONFIG_NAME => DAClientConfig::Eigen(EigenConfig {
             disperser_rpc: env::var(format!("{}DISPERSER_RPC", prefix))?,
             eigenda_eth_rpc: match env::var(format!("{}EIGENDA_ETH_RPC", prefix)) {
                 // Use a specific L1 RPC URL for the EigenDA client.
@@ -72,8 +72,8 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 .parse()
                 .context("EigenDA blob version not found")?,
             polynomial_form: match env::var(format!("{}POLYNOMIAL_FORM", prefix))?.as_str() {
-                "Coeff" => zksync_config::configs::da_client::eigenda::PolynomialForm::Coeff,
-                "Eval" => zksync_config::configs::da_client::eigenda::PolynomialForm::Eval,
+                "Coeff" => zksync_config::configs::da_client::eigen::PolynomialForm::Coeff,
+                "Eval" => zksync_config::configs::da_client::eigen::PolynomialForm::Eval,
                 _ => anyhow::bail!("Unknown Eigen polynomial form"),
             },
         }),
@@ -112,10 +112,10 @@ pub fn da_client_secrets_from_env(prefix: &str) -> anyhow::Result<DataAvailabili
                 private_key: PrivateKey(private_key.into()),
             })
         }
-        EIGENDA_CLIENT_CONFIG_NAME => {
+        EIGEN_CLIENT_CONFIG_NAME => {
             let private_key = env::var(format!("{}SECRETS_PRIVATE_KEY", prefix))
                 .context("Eigen private key not found")?;
-            DataAvailabilitySecrets::EigenDA(EigenDASecrets {
+            DataAvailabilitySecrets::Eigen(EigenSecrets {
                 private_key: PrivateKey(private_key.into()),
             })
         }
