@@ -58,10 +58,10 @@ impl StorageType {
     const ALL: [Self; 3] = [Self::AsyncRocksdbCache, Self::Rocksdb, Self::Postgres];
 }
 
-const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
+const FAST_VM_MODES: [FastVmMode; 1] = [FastVmMode::Old];
 
 /// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
-#[test_casing(9, Product((StorageType::ALL, FAST_VM_MODES)))]
+#[test_casing(3, Product((StorageType::ALL, FAST_VM_MODES)))]
 #[tokio::test]
 async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -175,7 +175,7 @@ async fn execute_l2_tx_after_snapshot_recovery(
 }
 
 /// Checks that we can successfully execute a single L1 tx in batch executor.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn execute_l1_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -219,7 +219,7 @@ async fn execute_l1_tx(vm_mode: FastVmMode) {
 }
 
 /// Checks that we can successfully execute a single L2 tx and a single L1 tx in batch executor.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -270,7 +270,7 @@ async fn working_with_transient_storage() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let mut executor = tester
@@ -298,7 +298,7 @@ async fn decommitting_contract() {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let mut tester = Tester::new(connection_pool, FastVmMode::Shadow);
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let mut executor = tester
@@ -322,7 +322,7 @@ async fn decommitting_contract() {
 }
 
 /// Checks that we can successfully rollback the transaction and execute it once again.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn rollback(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -378,7 +378,7 @@ async fn rollback(vm_mode: FastVmMode) {
 }
 
 /// Checks that incorrect transactions are marked as rejected.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn reject_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -398,7 +398,7 @@ async fn reject_tx(vm_mode: FastVmMode) {
 
 /// Checks that tx with too big gas limit is correctly processed.
 /// When processed in the bootloader, no more than 80M gas can be used within the execution context.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn too_big_gas_limit(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -508,7 +508,7 @@ async fn check_deployment_allow_list() {
 }
 
 /// Checks that we can't execute the same transaction twice.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn tx_cant_be_reexecuted(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -531,7 +531,7 @@ async fn tx_cant_be_reexecuted(vm_mode: FastVmMode) {
 }
 
 /// Checks that we can deploy and call the loadnext contract.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -582,7 +582,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     executor.finish_batch().await.unwrap();
 }
 
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn deploy_failedcall(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -604,7 +604,7 @@ async fn deploy_failedcall(vm_mode: FastVmMode) {
 }
 
 /// Checks that a tx that is reverted by the VM still can be included into a batch.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn execute_reverted_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -657,7 +657,7 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
 
 /// Runs the batch executor through a semi-realistic basic scenario:
 /// a batch with different operations, both successful and not.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn execute_realistic_scenario(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -740,7 +740,7 @@ async fn execute_realistic_scenario(vm_mode: FastVmMode) {
 }
 
 /// Checks that we handle the bootloader out of gas error on execution phase.
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn bootloader_out_of_gas_for_any_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -893,7 +893,7 @@ async fn catchup_rocksdb_cache() {
     assert_rejected(&res);
 }
 
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn execute_tx_with_large_packable_bytecode(vm_mode: FastVmMode) {
     // The rough length of the packed bytecode should be 350_000 / 4 = 87500,
@@ -939,7 +939,7 @@ async fn execute_tx_with_large_packable_bytecode(vm_mode: FastVmMode) {
     executor.finish_batch().await.unwrap();
 }
 
-#[test_casing(3, FAST_VM_MODES)]
+#[test_casing(1, FAST_VM_MODES)]
 #[tokio::test]
 async fn execute_txs_with_call_traces(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;

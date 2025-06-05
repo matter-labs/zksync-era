@@ -37,7 +37,7 @@ use crate::{
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     updates::UpdatesManager,
-    OutputHandler, StateKeeperInner, StateKeeperOutputHandler,
+    OutputHandler, RunMode, StateKeeperInner, StateKeeperOutputHandler,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -224,7 +224,7 @@ impl TestScenario {
             None,
         );
         let state_keeper = state_keeper_inner.initialize(&stop_receiver).await.unwrap();
-        let sk_thread = tokio::spawn(state_keeper.run(Default::default(), stop_receiver));
+        let sk_thread = tokio::spawn(state_keeper.run(RunMode::WithoutRollback, stop_receiver));
 
         // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.

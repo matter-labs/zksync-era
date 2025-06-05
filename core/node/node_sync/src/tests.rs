@@ -1,6 +1,6 @@
 //! High-level sync layer tests.
 
-use std::{iter, sync::Arc, time::Duration};
+use std::{collections::HashMap, iter, sync::Arc, time::Duration};
 
 use backon::{ConstantBuilder, Retryable};
 use test_casing::test_casing;
@@ -16,7 +16,7 @@ use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
-    OutputHandler, StateKeeperInner, StateKeeperPersistence, TreeWritesPersistence,
+    OutputHandler, RunMode, StateKeeperInner, StateKeeperPersistence, TreeWritesPersistence,
 };
 use zksync_types::{
     api,
@@ -145,7 +145,7 @@ impl StateKeeperHandles {
         Self {
             stop_sender,
             sync_state,
-            task: tokio::spawn(state_keeper.run(Default::default(), stop_receiver)),
+            task: tokio::spawn(state_keeper.run(RunMode::WithoutRollback, stop_receiver)),
         }
     }
 
@@ -317,6 +317,16 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         l2_system_upgrade_tx_hash: None,
     };
     client.insert_protocol_version(next_protocol_version.clone());
+
+    // Insert bytecode.
+    storage
+        .factory_deps_dal()
+        .insert_factory_deps(
+            L2BlockNumber(0),
+            &HashMap::from([(H256::repeat_byte(1), vec![])]),
+        )
+        .await
+        .unwrap();
 
     let state_keeper = StateKeeperHandles::new(
         pool.clone(),

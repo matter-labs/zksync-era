@@ -51,9 +51,12 @@ impl StateKeeperOutputHandler for SyncState {
         Ok(())
     }
 
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.l2_block.number;
-        self.set_local_block(sealed_block_number);
+    async fn handle_l2_block(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn handle_l2_block_header(&mut self, header: &L2BlockHeader) -> anyhow::Result<()> {
+        self.set_local_block(header.number);
         Ok(())
     }
 

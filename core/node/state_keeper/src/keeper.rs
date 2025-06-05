@@ -854,6 +854,7 @@ pub enum RunMode {
     Verify,
     #[default]
     Default,
+    WithoutRollback,
 }
 
 impl StateKeeper {
@@ -879,6 +880,10 @@ impl StateKeeper {
                 }
                 RunMode::Verify => self.verify(&mut stop_receiver).await?,
                 RunMode::Default => self.run_block(&mut stop_receiver).await?,
+                RunMode::WithoutRollback => {
+                    self.run_block(&mut stop_receiver).await?;
+                    continue;
+                }
             }
             // Test rollback.
             let pending_l2_block_header = self.pending_l2_block_header.as_ref().unwrap();
@@ -892,6 +897,7 @@ impl StateKeeper {
                     }
                     RunMode::Verify => self.verify(&mut stop_receiver).await?,
                     RunMode::Default => self.run_block(&mut stop_receiver).await?,
+                    RunMode::WithoutRollback => unreachable!(),
                 }
             }
         }

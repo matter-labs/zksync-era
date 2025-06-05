@@ -553,6 +553,10 @@ mod tests {
             vec![],
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
+        output_handler
+            .handle_l2_block_header(&updates.build_block_header())
+            .await
+            .unwrap();
         updates.set_next_l2_block_params(L2BlockParams {
             timestamp: 1,
             virtual_blocks: 1,
@@ -678,7 +682,7 @@ mod tests {
             assert!((&mut submit_future).now_or_never().is_none());
             // ...until L2 block #1 is processed
             let command = sealer.commands_receiver.recv().await.unwrap();
-            command.completion_sender.send(()).unwrap_err(); // completion receiver should be dropped
+            command.completion_sender.send(()).unwrap(); // completion receiver shouldn't be dropped
             submit_future.await;
         }
 
