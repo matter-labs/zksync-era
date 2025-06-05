@@ -22,8 +22,8 @@ fn test_config() -> TeeProofDataHandlerConfig {
     TeeProofDataHandlerConfig {
         http_port: 1337,
         first_processed_batch: L1BatchNumber(0),
-        proof_generation_timeout_in_secs: Duration::from_secs(600),
-        batch_permanently_ignored_timeout_in_hours: Duration::from_secs(10 * 24 * 3_600),
+        proof_generation_timeout: Duration::from_secs(600),
+        batch_permanently_ignored_timeout: Duration::from_secs(10 * 24 * 3_600),
     }
 }
 

@@ -21,8 +21,11 @@ use zksync_web3_decl::{
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::{fill_transaction_receipts, open_readonly_transaction},
-    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
+    utils::open_readonly_transaction,
+    web3::{
+        backend_jsonrpsee::MethodTracer, metrics::API_METRICS, receipts::fill_transaction_receipts,
+        state::RpcState, TypedFilter,
+    },
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;

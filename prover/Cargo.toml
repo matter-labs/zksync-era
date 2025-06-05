@@ -4,7 +4,7 @@ members = ["crates/bin/*", "crates/lib/*"]
 resolver = "2"
 
 [workspace.package]
-version = "21.0.0" # x-release-please-version
+version = "21.1.0" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -65,7 +65,7 @@ tracing-subscriber = "0.3"
 tracing-test = "0.2.5"
 url = "2.5.2"
 vise = "0.3.0"
-smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "ae8d1a179731cf131d58d28daa5ae98df2609e8a" }
+smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "6bc86aa7833ce08276861951ba72b4426a37a893" }
 
 circuit_definitions = "=0.152.3"
 circuit_sequencer_api = "=0.152.3"
@@ -100,19 +100,17 @@ zksync_utils = { path = "../core/lib/utils" }
 zksync_task_management = { path = "../core/lib/task_management" }
 zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
-zksync_core_leftovers = { path = "../core/lib/zksync_core_leftovers" }
-zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { version = "=21.0.0", path = "crates/lib/prover_dal" }
-zksync_prover_fri_types = { version = "=21.0.0", path = "crates/lib/prover_fri_types" }
-zksync_prover_fri_utils = { version = "=21.0.0", path = "crates/lib/prover_fri_utils" }
-zksync_prover_task = { version = "=21.0.0", path = "crates/lib/prover_task" }
-zksync_prover_keystore = { version = "=21.0.0", path = "crates/lib/keystore" }
-zksync_vk_setup_data_generator_server_fri = { version = "=21.0.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
-zksync_prover_job_processor = { version = "=21.0.0", path = "crates/lib/prover_job_processor" }
-zksync_circuit_prover_service = { version = "=21.0.0", path = "crates/lib/circuit_prover_service" }
-zksync_prover_job_monitor = { version = "=21.0.0", path = "crates/bin/prover_job_monitor" }
+zksync_prover_dal = { version = "=21.1.0", path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { version = "=21.1.0", path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { version = "=21.1.0", path = "crates/lib/prover_fri_utils" }
+zksync_prover_task = { version = "=21.1.0", path = "crates/lib/prover_task" }
+zksync_prover_keystore = { version = "=21.1.0", path = "crates/lib/keystore" }
+zksync_vk_setup_data_generator_server_fri = { version = "=21.1.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_processor = { version = "=21.1.0", path = "crates/lib/prover_job_processor" }
+zksync_circuit_prover_service = { version = "=21.1.0", path = "crates/lib/circuit_prover_service" }
+zksync_prover_job_monitor = { version = "=21.1.0", path = "crates/bin/prover_job_monitor" }
 
 # for `perf` profiling
 [profile.perf]

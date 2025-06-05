@@ -8,7 +8,7 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, TxHistory},
     Address, L1BatchNumber, SLChainId, H256, U256,
 };
 
@@ -23,10 +23,85 @@ pub struct EthSenderDal<'a, 'c> {
 }
 
 impl EthSenderDal<'_, '_> {
+    pub async fn get_non_final_txs(
+        &mut self,
+        operator_address: Address,
+        is_gateway: bool,
+    ) -> sqlx::Result<Vec<EthTx>> {
+        let txs = sqlx::query_as!(
+            StorageEthTx,
+            r#"
+            SELECT
+                eth_txs.*
+            FROM
+                eth_txs
+            JOIN eth_txs_history ON eth_txs.confirmed_eth_tx_history_id = eth_txs_history.id
+            WHERE
+                from_addr = $1
+                AND is_gateway = $2
+                AND eth_txs_history.finality_status != 'finalized'
+            ORDER BY
+                eth_txs.id
+            "#,
+            operator_address.as_bytes(),
+            is_gateway,
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+        Ok(txs.into_iter().map(|tx| tx.into()).collect())
+    }
+
+    pub async fn unfinalize_txs(
+        &mut self,
+        operator_address: Address,
+        is_gateway: bool,
+        from_eth_tx_id: u32,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction()")?;
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs
+            SET
+                confirmed_eth_tx_history_id = NULL,
+                gas_used = NULL,
+                has_failed = FALSE
+            WHERE
+                id >= $1
+                AND from_addr = $2
+                AND is_gateway = $3
+            "#,
+            from_eth_tx_id as i32,
+            operator_address.as_bytes(),
+            is_gateway,
+        )
+        .execute(transaction.conn())
+        .await?;
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET
+                confirmed_at = NULL,
+                finality_status = 'pending',
+                sent_successfully = FALSE
+            WHERE
+                eth_tx_id >= $1
+                AND sent_successfully = TRUE
+            "#,
+            from_eth_tx_id as i32,
+        )
+        .execute(transaction.conn())
+        .await?;
+        transaction.commit().await.context("commit_transaction()")?;
+        Ok(())
+    }
+
     pub async fn get_inflight_txs(
         &mut self,
         operator_address: Address,
-        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
@@ -37,13 +112,9 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                (
-                    from_addr = $1
-                    OR
-                    (from_addr IS NULL AND $2)
-                )
+                from_addr = $1
+                AND is_gateway = $2
                 AND confirmed_eth_tx_history_id IS NULL
-                AND is_gateway = $3
                 AND id <= COALESCE(
                     (SELECT
                         eth_tx_id
@@ -51,13 +122,10 @@ impl EthSenderDal<'_, '_> {
                         eth_txs_history
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
-                        eth_txs_history.sent_at_block IS NOT NULL
-                        AND (
-                            from_addr = $1
-                            OR
-                            (from_addr IS NULL AND $2)
-                        )
-                        AND is_gateway = $3
+                        eth_txs_history.finality_status != 'finalized'
+                        AND
+                        from_addr = $1
+                        AND is_gateway = $2
                     ORDER BY eth_tx_id DESC LIMIT 1),
                     0
                 )
@@ -65,7 +133,6 @@ impl EthSenderDal<'_, '_> {
                 id
             "#,
             operator_address.as_bytes(),
-            consider_null_operator_address,
             is_gateway,
         )
         .fetch_all(self.storage.conn())
@@ -209,7 +276,6 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         limit: u64,
         operator_address: Address,
-        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Vec<EthTx>> {
         let txs = sqlx::query_as!(
@@ -220,12 +286,8 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                (
-                    from_addr = $2
-                    OR
-                    (from_addr IS NULL AND $3)
-                )
-                AND is_gateway = $4
+                from_addr = $2
+                AND is_gateway = $3
                 AND id > COALESCE(
                     (SELECT
                         eth_tx_id
@@ -234,12 +296,8 @@ impl EthSenderDal<'_, '_> {
                     JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
-                        AND (
-                            from_addr = $2
-                            OR
-                            (from_addr IS NULL AND $3)
-                        )
-                        AND is_gateway = $4
+                        AND from_addr = $2
+                        AND is_gateway = $3
                         AND sent_successfully = TRUE
                     ORDER BY eth_tx_id DESC LIMIT 1),
                     0
@@ -251,7 +309,6 @@ impl EthSenderDal<'_, '_> {
             "#,
             limit as i64,
             operator_address.as_bytes(),
-            consider_null_operator_address,
             is_gateway
         )
         .fetch_all(self.storage.conn())
@@ -343,11 +400,13 @@ impl EthSenderDal<'_, '_> {
                 predicted_gas_limit,
                 sent_at_block,
                 sent_at,
-                sent_successfully
+                sent_successfully,
+                finality_status
+            
             )
             VALUES
-            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW(), FALSE)
-            ON CONFLICT (tx_hash) DO NOTHING
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8, $9, NOW(), FALSE, 'pending')
+            ON CONFLICT (tx_hash) DO UPDATE SET sent_at_block = $9
             RETURNING
             id
             "#,
@@ -385,29 +444,6 @@ impl EthSenderDal<'_, '_> {
         .map(|row| row.id as u32))
     }
 
-    pub async fn set_sent_at_block(
-        &mut self,
-        eth_txs_history_id: u32,
-        sent_at_block: u32,
-    ) -> sqlx::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE eth_txs_history
-            SET
-                sent_at_block = $2,
-                sent_at = NOW()
-            WHERE
-                id = $1
-                AND sent_at_block IS NULL
-            "#,
-            eth_txs_history_id as i32,
-            sent_at_block as i32
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
-    }
-
     pub async fn set_sent_success(&mut self, eth_txs_history_id: u32) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
@@ -428,6 +464,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn confirm_tx(
         &mut self,
         tx_hash: H256,
+        eth_tx_finality_status: EthTxFinalityStatus,
         gas_used: U256,
         confirmed_at_block: u32,
     ) -> anyhow::Result<()> {
@@ -445,8 +482,9 @@ impl EthSenderDal<'_, '_> {
             SET
                 updated_at = NOW(),
                 confirmed_at = NOW(),
+                finality_status = $2,
                 sent_successfully = TRUE,
-                confirmed_at_block = $2
+                confirmed_at_block = $3
             WHERE
                 tx_hash = $1
             RETURNING
@@ -454,6 +492,7 @@ impl EthSenderDal<'_, '_> {
             eth_tx_id
             "#,
             tx_hash,
+            eth_tx_finality_status.to_string(),
             confirmed_at_block as i32
         )
         .fetch_one(transaction.conn())
@@ -582,6 +621,7 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
         sl_chain_id: Option<SLChainId>,
+        finality_status: EthTxFinalityStatus,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -619,16 +659,16 @@ impl EthSenderDal<'_, '_> {
             // Insert a "sent transaction".
             let eth_history_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
-                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE) \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE, $4) \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,
-                confirmed_at.naive_utc()
+                confirmed_at.naive_utc(),
+                finality_status.to_string()
             )
             .fetch_one(transaction.conn())
             .await?;
-
             // Mark general entry as confirmed.
             sqlx::query!(
                 r#"
@@ -754,7 +794,9 @@ impl EthSenderDal<'_, '_> {
                 AND eth_txs_history.confirmed_at IS NOT NULL
                 AND eth_txs.has_failed IS FALSE
             ORDER BY
-                eth_txs_history.created_at
+                eth_txs_history.created_at DESC
+            LIMIT
+                1
             "#,
             eth_tx_id as i32
         )
@@ -778,7 +820,6 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_next_nonce(
         &mut self,
         from_address: Address,
-        consider_null_operator_address: bool, // TODO (PLA-1118): remove this parameter
         is_gateway: bool,
     ) -> sqlx::Result<Option<u64>> {
         // First query nonce where `from_addr` is set.
@@ -802,35 +843,7 @@ impl EthSenderDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?;
 
-        if let Some(row) = row {
-            return Ok(Some(row.nonce as u64 + 1));
-        }
-
-        // Otherwise, check rows with `from_addr IS NULL`.
-        if consider_null_operator_address {
-            let nonce = sqlx::query!(
-                r#"
-                SELECT
-                    nonce
-                FROM
-                    eth_txs
-                WHERE
-                    from_addr IS NULL
-                    AND is_gateway = $1
-                ORDER BY
-                    id DESC
-                LIMIT
-                    1
-                "#,
-                is_gateway,
-            )
-            .fetch_optional(self.storage.conn())
-            .await?;
-
-            Ok(nonce.map(|row| row.nonce as u64 + 1))
-        } else {
-            Ok(None)
-        }
+        Ok(row.map(|a| a.nonce as u64 + 1))
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
@@ -992,5 +1005,32 @@ impl EthSenderDal<'_, '_> {
         self.get_last_sent_successfully_eth_tx(eth_tx_id)
             .await
             .unwrap()
+    }
+
+    pub async fn is_using_blobs_in_latest_batch(&mut self) -> DalResult<bool> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT blob_sidecar IS NOT NULL AS "is_using_blobs"
+            FROM eth_txs
+            WHERE id = (
+                SELECT MAX(eth_commit_tx_id)
+                FROM l1_batches
+                WHERE
+                    eth_commit_tx_id IS NOT NULL
+                    AND (
+                        SELECT pubdata_type
+                        FROM miniblocks
+                        WHERE l1_batch_number = l1_batches.number
+                        ORDER BY miniblocks.number
+                        LIMIT 1
+                    ) = 'Rollup'
+            )
+            "#
+        )
+        .instrument("is_using_blobs_in_latest_batch")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| row.is_using_blobs.unwrap_or(false))
+        .unwrap_or(false))
     }
 }

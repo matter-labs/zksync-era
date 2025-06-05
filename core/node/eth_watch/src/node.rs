@@ -14,8 +14,8 @@ use zksync_node_framework::{
 };
 use zksync_types::L2ChainId;
 use zksync_web3_decl::{
-    client::{DynClient, Network},
-    node::{EthInterfaceResource, SettlementLayerClient, SettlementModeResource},
+    client::{DynClient, Network, L1},
+    node::{SettlementLayerClient, SettlementModeResource},
 };
 
 use crate::{EthHttpQueryClient, EthWatch, GetLogsClient, ZkSyncExtentionEthClient};
@@ -32,20 +32,20 @@ pub struct EthWatchLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub l1_contracts: L1ChainContractsResource,
-    pub sl_contracts: SettlementLayerContractsResource,
-    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
-    pub master_pool: PoolResource<MasterPool>,
-    pub eth_client: EthInterfaceResource,
-    pub client: SettlementLayerClient,
-    pub settlement_mode: SettlementModeResource,
-    pub dependency_chain_clients: Option<SettlementLayerClient>, //
+    l1_contracts: L1ChainContractsResource,
+    sl_contracts: SettlementLayerContractsResource,
+    l1_ecosystem_contracts: L1EcosystemContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    eth_client: Box<DynClient<L1>>,
+    client: SettlementLayerClient,
+    settlement_mode: SettlementModeResource,
+    dependency_chain_clients: Option<SettlementLayerClient>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub eth_watch: EthWatch,
+    eth_watch: EthWatch,
 }
 
 impl EthWatchLayer {
@@ -93,7 +93,6 @@ impl WiringLayer for EthWatchLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // println!("input in wiring: {:?}", input);
         let main_pool = input.master_pool.get().await?;
-        let client = input.eth_client.0;
 
         tracing::info!(
             "Diamond proxy address settlement_layer: {:#?}",
@@ -105,7 +104,7 @@ impl WiringLayer for EthWatchLayer {
         );
 
         let l1_client = self.create_client(
-            client,
+            input.eth_client,
             &input.l1_contracts.0,
             &input.l1_ecosystem_contracts.0,
         );
@@ -117,7 +116,7 @@ impl WiringLayer for EthWatchLayer {
                 &input.sl_contracts.0,
                 &input.l1_ecosystem_contracts.0,
             )),
-            SettlementLayerClient::L2(client) => Box::new(self.create_client(
+            SettlementLayerClient::Gateway(client) => Box::new(self.create_client(
                 client,
                 &input.sl_contracts.0,
                 &input.l1_ecosystem_contracts.0,
@@ -163,6 +162,7 @@ impl WiringLayer for EthWatchLayer {
             main_pool,
             self.eth_watch_config.eth_node_poll_interval,
             self.chain_id,
+            self.eth_watch_config.event_expiration_blocks,
         )
         .await?;
 

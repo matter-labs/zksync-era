@@ -17,6 +17,7 @@ pub struct MainNodeGenesis {
     pub contracts: SettlementLayerSpecificContracts,
     pub l1_client: Box<DynClient<L1>>,
     pub pool: ConnectionPool<Core>,
+    pub event_expiration_blocks: u64,
 }
 
 impl MainNodeGenesis {
@@ -54,6 +55,7 @@ impl MainNodeGenesis {
             &mut storage,
             &self.l1_client,
             self.contracts.chain_contracts_config.diamond_proxy_addr,
+            self.event_expiration_blocks,
         )
         .await
         .context("Failed to save SetChainId upgrade transaction")?;
