@@ -104,11 +104,6 @@ impl<K: Key> Scaler<K> {
                     .and_then(|inner_map| inner_map.get(&key))
                     .copied()
                     .unwrap_or(0),
-                scale_errors: namespace_value
-                    .scale_errors
-                    .iter()
-                    .filter(|v| v.time > Utc::now() - self.config.scale_errors_duration)
-                    .count(),
                 ..Default::default()
             });
 
@@ -129,6 +124,7 @@ impl<K: Key> Scaler<K> {
             let mut status = PodStatus::from_str(&pod_value.status).unwrap_or_default();
             if status == PodStatus::Pending {
                 if pod_value.out_of_resources {
+                    pool.scale_errors += 1;
                     status = PodStatus::NeedToMove;
                 } else if pod_value.changed < Utc::now() - self.config.long_pending_duration {
                     status = PodStatus::LongPending;

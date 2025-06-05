@@ -1,5 +1,18 @@
 # Changelog
 
+## [28.4.0](https://github.com/matter-labs/zksync-era/compare/core-v28.3.0...core-v28.4.0) (2025-06-02)
+
+
+### Features
+
+* **contract-verifier:** add Etherscan-like endpoints used for contract verification ([#4096](https://github.com/matter-labs/zksync-era/issues/4096)) ([3a28262](https://github.com/matter-labs/zksync-era/commit/3a28262de32dd802891da857524d9c60837abea4))
+
+
+### Bug Fixes
+
+* **api:** rollback finality-related api changes of 28.3.0 ([#4105](https://github.com/matter-labs/zksync-era/issues/4105)) ([1c797c1](https://github.com/matter-labs/zksync-era/commit/1c797c1a392c930e9c48fcf39aea032b546632bd))
+* deprecate submission obj in favor of data obj ([#4083](https://github.com/matter-labs/zksync-era/issues/4083)) ([9ce873d](https://github.com/matter-labs/zksync-era/commit/9ce873d28e46858e3940aefac24746ac9d8fcd64))
+
 ## [28.3.0](https://github.com/matter-labs/zksync-era/compare/core-v28.2.1...core-v28.3.0) (2025-05-29)
 
 
