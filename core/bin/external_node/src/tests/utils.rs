@@ -201,12 +201,20 @@ pub(super) fn mock_eth_client(
                 .unwrap()
                 .short_signature();
 
+            let whitelisted_settlement_layer_sig = contract
+                .function("whitelistedSettlementLayers")
+                .unwrap()
+                .short_signature();
+
             match call_signature {
                 sig if sig == get_zk_chains => {
                     return ethabi::Token::Address(diamond_proxy_addr);
                 }
                 sig if sig == chain_type_manager_sig => {
                     return ethabi::Token::Address(chain_type_manager);
+                }
+                sig if sig == whitelisted_settlement_layer_sig => {
+                    return ethabi::Token::Bool(false);
                 }
                 _ => {}
             }

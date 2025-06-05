@@ -35,8 +35,7 @@ pub(super) fn validator_key(
 pub(super) struct GenesisSpec {
     pub(super) chain_id: validator::ChainId,
     pub(super) protocol_version: validator::ProtocolVersion,
-    pub(super) validators: validator::Committee,
-    pub(super) leader_selection: validator::v1::LeaderSelectionMode,
+    pub(super) validators: Option<validator::Schedule>,
     pub(super) registry_address: Option<ethabi::Address>,
     pub(super) seed_peers: BTreeMap<node::PublicKey, net::Host>,
 }
@@ -46,8 +45,7 @@ impl GenesisSpec {
         Self {
             chain_id: cfg.genesis.chain_id,
             protocol_version: cfg.genesis.protocol_version,
-            validators: cfg.genesis.validators.clone(),
-            leader_selection: cfg.genesis.leader_selection.clone(),
+            validators: cfg.genesis.validators_schedule.clone(),
             registry_address: cfg.registry_address,
             seed_peers: cfg.seed_peers.clone(),
         }
@@ -59,21 +57,28 @@ impl GenesisSpec {
             .iter()
             .enumerate()
             .map(|(i, (key, weight))| {
-                Ok(validator::WeightedValidator {
+                Ok(validator::ValidatorInfo {
                     key: Text::new(&key.0).decode().context("key").context(i)?,
                     weight: *weight,
+                    leader: key == &x.leader,
                 })
             })
             .collect::<anyhow::Result<_>>()
             .context("validators")?;
 
+        let schedule = if validators.is_empty() {
+            None
+        } else {
+            Some(
+                validator::Schedule::new(validators, validator::LeaderSelection::default())
+                    .context("schedule")?,
+            )
+        };
+
         Ok(Self {
             chain_id: validator::ChainId(x.chain_id.as_u64()),
             protocol_version: validator::ProtocolVersion(x.protocol_version.0),
-            leader_selection: validator::v1::LeaderSelectionMode::Sticky(
-                Text::new(&x.leader.0).decode().context("leader")?,
-            ),
-            validators: validator::Committee::new(validators).context("validators")?,
+            validators: schedule,
             registry_address: x.registry_address,
             seed_peers: x
                 .seed_peers
@@ -127,11 +132,9 @@ pub(super) fn executor(
     let mut rpc = executor::RpcConfig::default();
     rpc.get_block_rate = cfg.rpc().get_block_rate();
 
-    let debug_page = cfg.debug_page_addr.map(|addr| network::debug_page::Config {
-        addr,
-        credentials: None,
-        tls: None,
-    });
+    let debug_page = cfg
+        .debug_page_addr
+        .map(|addr| network::debug_page::Config { addr });
 
     Ok(executor::Config {
         build_version,
@@ -142,6 +145,7 @@ pub(super) fn executor(
         node_key: node_key(secrets)
             .context("node_key")?
             .context("missing node_key")?,
+        validator_key: validator_key(secrets).context("validator_key")?,
         gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip_static_inbound

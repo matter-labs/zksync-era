@@ -207,8 +207,6 @@ pub struct MempoolConfig {
     pub delay_interval: Duration,
     #[config(default)]
     pub l1_to_l2_txs_paused: bool,
-    #[config(default)]
-    pub skip_unsafe_deposit_checks: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -403,7 +401,6 @@ mod tests {
             remove_stuck_txs: true,
             delay_interval: Duration::from_millis(100),
             l1_to_l2_txs_paused: false,
-            skip_unsafe_deposit_checks: true,
         }
     }
 
@@ -417,7 +414,6 @@ mod tests {
             CHAIN_MEMPOOL_DELAY_INTERVAL="100"
             CHAIN_MEMPOOL_CAPACITY="1000000"
             CHAIN_MEMPOOL_L1_TO_L2_TXS_PAUSED="false"
-            CHAIN_MEMPOOL_SKIP_UNSAFE_DEPOSIT_CHECKS="true"
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -436,7 +432,6 @@ mod tests {
           remove_stuck_txs: true
           delay_interval: 100
           l1_to_l2_txs_paused: false
-          skip_unsafe_deposit_checks: true
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -454,7 +449,6 @@ mod tests {
           remove_stuck_txs: true
           delay_interval: 100 millis
           l1_to_l2_txs_paused: false
-          skip_unsafe_deposit_checks: true
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();

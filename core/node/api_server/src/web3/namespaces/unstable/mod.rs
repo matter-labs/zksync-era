@@ -23,7 +23,7 @@ use zksync_web3_decl::{error::Web3Error, types::H256};
 
 use crate::{
     execution_sandbox::BlockArgs,
-    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
+    web3::{backend_jsonrpsee::MethodTracer, RpcState},
 };
 
 mod utils;
@@ -243,11 +243,7 @@ impl UnstableNamespace {
             .tx_sender
             .submit_tx(tx, block_args)
             .await
-            .map_err(|err| {
-                tracing::debug!("Send raw transaction error: {err}");
-                API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-                err
-            })?;
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(TransactionDetailedResult {
             transaction_hash: tx_hash,
             storage_logs: submit_output
