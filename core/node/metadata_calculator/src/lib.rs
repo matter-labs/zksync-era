@@ -103,7 +103,6 @@ pub struct MetadataCalculatorConfig {
 }
 
 impl MetadataCalculatorConfig {
-    // FIXME: not using `OperationsManagerConfig` is technically a breaking change, but it seems to have low impact
     pub fn from_configs(
         merkle_tree_config: &MerkleTreeConfig,
         state_keeper_config: &SharedStateKeeperConfig,

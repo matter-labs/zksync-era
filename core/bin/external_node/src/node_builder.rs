@@ -184,7 +184,7 @@ impl<R> ExternalNodeBuilder<R> {
         let io_layer = ExternalIOLayer::new(config.networks.l2_chain_id);
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
-        // FIXME: this is backwards / unobvious. Can readily use `config.state_keeper.save_call_traces` instead.
+        // TODO(PLA-1153): this is backwards / unobvious. Can readily use `config.state_keeper.save_call_traces` instead.
         let save_call_traces = config
             .api
             .web3_json_rpc

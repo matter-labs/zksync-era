@@ -434,7 +434,7 @@ impl MainNodeBuilder {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
 
-        // FIXME: Why doesn't the node do what I'm telling it to do?
+        // TODO(PLA-1153): Make the node do what the config says
         let mut namespaces = rpc_config.api_namespaces.clone();
         if state_keeper_config.shared.save_call_traces {
             namespaces.insert(Namespace::Debug);
