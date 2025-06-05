@@ -11,6 +11,7 @@ import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
 import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
 import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
+import { ARTIFACTS_PATH } from '../src/constants';
 
 describe('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -37,7 +38,6 @@ describe('L2 native ERC20 contract checks', () => {
         l2Wallet = new Wallet(alice.privateKey, l2Provider);
         l1Wallet = new Wallet(alice.privateKey, l1Provider);
         const L2_NATIVE_TOKEN_VAULT_ADDRESS = '0x0000000000000000000000000000000000010004';
-        const ARTIFACTS_PATH = '../../../contracts/l1-contracts/out';
         const l2NtvInterface = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault').abi;
         l2NativeTokenVault = new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2NtvInterface, l2Wallet);
         const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter').abi;

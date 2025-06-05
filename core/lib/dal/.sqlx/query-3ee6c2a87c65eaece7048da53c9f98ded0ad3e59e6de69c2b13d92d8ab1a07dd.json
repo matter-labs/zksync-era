@@ -19,7 +19,8 @@
                 "ProtocolUpgrades",
                 "PriorityTransactions",
                 "ChainBatchRoot",
-                "ServerNotification"
+                "ServerNotification",
+                "InteropRoot"
               ]
             }
           }

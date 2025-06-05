@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                gw_interop_batch_chain_merkle_path\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "gw_interop_batch_chain_merkle_path",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d71dcb2e1c88de1ed861dd932dbd4b3107ac578591908bd22b0e353f3e233388"
+}

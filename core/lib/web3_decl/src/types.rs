@@ -307,6 +307,7 @@ pub enum PubSubResult {
 pub struct EcosystemContractsDto {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Address,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
