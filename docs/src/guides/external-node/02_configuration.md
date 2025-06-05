@@ -68,6 +68,19 @@ There are 7 total supported API namespaces: `eth`, `net`, `web3`, `debug` - stan
 enable using `EN_API_NAMESPACES` and specifying namespace names in a comma-separated list. By default, all but the
 `debug` namespace are enabled.
 
+## API caching
+
+The API server performs in-memory caching of data used for VM invocations (i.e., `eth_call`, `eth_estimateGas`,
+`eth_sendRawTransaction` methods), such as state values and bytecodes. Cache sizes have reasonable defaults, but can be
+adjusted to tradeoff between performance and RAM consumption of the node.
+
+- `EN_LATEST_VALUES_CACHE_SIZE_MB` is the size of the latest values cache, used for VM invocations against the latest
+  block. This is likely to be most utilized of the caches, potentially with hundreds / thousands of hits per VM
+  invocation.
+- `EN_FACTORY_DEPS_CACHE_SIZE_MB` is the size of the bytecodes (aka factory deps) cache.
+- `EN_INITIAL_WRITES_CACHE_SIZE_MB` is the size of the initial writes caches. Initial write info is used as a part of
+  the gas pricing model.
+
 ## Optimizing RAM consumption
 
 With the default config options, a node may consume large amounts of RAM (order of 32–64 GB for larger networks). This
@@ -79,7 +92,7 @@ the Merkle tree (specifically, its RocksDB). Thus, enabling [pruning](08_pruning
 node with [a 6-month pruning target](08_pruning.md#configuration) should consume about 10 GB RAM (vs ~60 GB for an
 archive node).
 
-For archive nodes, RAM consumption by the Merkle tree may be reduced by setting the following 2 options:
+For archive nodes, RAM consumption by the Merkle tree may be reduced by setting the following options:
 
 ```shell
 # Disables pinning indices and filters for the Merkle tree in RAM, which can occupy a large amount of it;
@@ -88,6 +101,9 @@ EN_MERKLE_TREE_INCLUDE_INDICES_AND_FILTERS_IN_BLOCK_CACHE=true
 # **MUST** be used together with the previous option to set the RocksDB cache size. 4–8 GB provides a reasonable performance tradeoff
 # on the Era mainnet as of May 2025. On smaller networks, acceptable values may be smaller.
 EN_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=4096
+# Limits the number of concurrently open files, which in turn influences OS-level page cache. A reasonable value
+# heavily depends on the amount of data in the tree.
+EN_MERKLE_TREE_MAX_OPEN_FILES=1024
 ```
 
 These options can be used together with pruning / snapshot recovery as well, but their _additional_ impact on RAM
