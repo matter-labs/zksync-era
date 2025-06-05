@@ -120,7 +120,7 @@ impl UpdatesManager {
         L2BlockSealCommand {
             l1_batch_number: self.l1_batch.number,
             l2_block: self.l2_block.clone(),
-            first_tx_index: self.l1_batch.executed_transactions.len(),
+            first_tx_index: self.l1_batch.executed_transaction_hashes.len(),
             fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
@@ -225,7 +225,7 @@ impl UpdatesManager {
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
-        self.l1_batch.executed_transactions.len() + self.l2_block.executed_transactions.len()
+        self.l1_batch.executed_transaction_hashes.len() + self.l2_block.executed_transactions.len()
     }
 
     pub(crate) fn pending_l1_transactions_len(&self) -> usize {
@@ -283,7 +283,10 @@ mod tests {
         // Check that only pending state is updated.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
         assert_eq!(updates_manager.l2_block.executed_transactions.len(), 1);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
+        assert_eq!(
+            updates_manager.l1_batch.executed_transaction_hashes.len(),
+            0
+        );
 
         // Seal an L2 block.
         updates_manager.set_next_l2_block_params(L2BlockParams {
@@ -296,6 +299,9 @@ mod tests {
         // and L2 block updates are empty.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
         assert_eq!(updates_manager.l2_block.executed_transactions.len(), 0);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 1);
+        assert_eq!(
+            updates_manager.l1_batch.executed_transaction_hashes.len(),
+            1
+        );
     }
 }
