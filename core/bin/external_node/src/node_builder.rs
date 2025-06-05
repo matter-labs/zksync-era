@@ -263,10 +263,6 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
-        println!(
-            "Adding consistency checker layer with max batches to recheck: {}",
-            self.config.consistency_checker.max_batches_to_recheck
-        );
         let layer =
             ConsistencyCheckerLayer::new(self.config.consistency_checker.max_batches_to_recheck);
         self.node.add_layer(layer);
