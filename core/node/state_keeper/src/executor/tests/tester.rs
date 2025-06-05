@@ -246,6 +246,7 @@ impl Tester {
             timestamp: current_timestamp,
             prev_block_hash: snapshot.l2_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         };
 
         self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env, pubdata_params)

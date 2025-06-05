@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH next_snark AS (\n                SELECT l2_block_number\n                FROM zkos_proofs\n                WHERE\n                    fri_proof IS NOT NULL\n                    AND (\n                        snark_proof_picked_at IS NULL\n                        OR snark_proof_picked_at < NOW() - $1::INTERVAL\n                    )\n                ORDER BY l2_block_number ASC\n                LIMIT 1\n                FOR UPDATE SKIP LOCKED\n            )\n            \n            UPDATE zkos_proofs\n            SET\n                snark_proof_picked_at = NOW(),\n                snark_proof_picked_by = $2,\n                snark_proof_attempts = snark_proof_attempts + 1,\n                updated_at = NOW()\n            FROM next_snark\n            WHERE zkos_proofs.l2_block_number = next_snark.l2_block_number\n            RETURNING\n            zkos_proofs.l2_block_number AS \"l2_block_number!\",\n            zkos_proofs.fri_proof AS \"fri_proof!\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l2_block_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "fri_proof!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "46829338b6d24a8d737d5e27aa7d3919135883e875f34289eb99132cb03376cb"
+}
