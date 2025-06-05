@@ -316,54 +316,55 @@ impl Aggregator {
         storage: &mut Connection<'_, Core>,
         precommit_params: PrecommitParams,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
+        // The first l1 batch needs to be commited is 1, so it's safe to start precommits from batch 1.
         let last_committed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
-            .await
-            .unwrap();
+            .await?;
 
-        let last_sealed_l1_batch = storage
+        let last_committed_finalized_l1_batch = storage
             .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
+            .get_number_of_last_l1_batch_committed_finailized_on_eth()
+            .await?;
 
-        // If we have some sealed, but not committed L1 batches, we need to precommit all txs from this batch,
-        // before sending the commit tx. If all batches were committed and we have only open batch,
-        // we have to start committing the txs from it (last_sealed_l1_batch == last_committed_l1_batch).
-        // If we have no committed  batches, we need to precommit the txs from the first batch.
-        let (actual_batch_number, desired_batch_number_for_db) =
-            match (last_sealed_l1_batch, last_committed_l1_batch) {
-                (None, _) => return Ok(None),
-                (Some(last_sealed_l1_batch), Some(last_committed_l1_batch))
-                    if last_sealed_l1_batch == last_committed_l1_batch =>
-                {
-                    (last_sealed_l1_batch + 1, None)
-                }
-                (Some(_), Some(committed_l1_batch_number)) => (
-                    committed_l1_batch_number + 1,
-                    Some(committed_l1_batch_number + 1),
-                ),
-                (Some(_), None) => (1.into(), Some(1.into())),
-            };
+        if last_committed_l1_batch != last_committed_finalized_l1_batch {
+            // Last committed L1 batch is not finalized yet, skipping precommit operation. So during the transition from using
+            // to non using precommit we have to wait for the last committed batch to be finalized.
+            // Otherwise we can have a race condition and either precommit or commit operation would fail.
+            return Ok(None);
+        }
+
+        let last_committed_l1_batch = last_committed_l1_batch.unwrap_or(L1BatchNumber(0));
 
         let txs = storage
             .blocks_dal()
-            .get_ready_for_precommit_txs(desired_batch_number_for_db)
-            .await
-            .unwrap();
+            .get_ready_for_precommit_txs(last_committed_l1_batch)
+            .await?;
 
         if txs.is_empty() {
             return Ok(None);
         }
 
         // Vec of txs is not empty, so we can unwrap it
-        let first_tx = txs.first().unwrap();
-        let last_tx = txs.last().unwrap();
+        let first_tx = txs.first().cloned().unwrap();
+
+        let l1_batch_number = first_tx.l1_batch_number;
+
+        // If the first transaction is not from the pending batch, we can use it as the actual batch number.
+        let actual_l1_batch_number = l1_batch_number.unwrap_or(last_committed_l1_batch + 1);
+
+        // Filter out transactions that are not in the same batch as the first transaction. If we need to precommit more than one batch,
+        // we will do it in the next iteration.
+        let filtered_txs: Vec<_> = txs
+            .into_iter()
+            .filter(|tx| tx.l1_batch_number == l1_batch_number)
+            .collect();
+
+        let last_tx = filtered_txs.last().unwrap();
 
         // We can skip precommit if we are sending the precommit for not sealed batch and do some batching.
         // If the batch already sealed we have to send it as soon as possible
-        if desired_batch_number_for_db.is_none() {
+        if l1_batch_number.is_none() {
             // We need to check that the first and last L2 blocks are in the same batch
 
             let first_l2_block_age = Utc::now().timestamp() - first_tx.timestamp;
@@ -376,10 +377,10 @@ impl Aggregator {
         }
 
         Ok(Some(L2BlockAggregatedOperation::Precommit {
-            l1_batch: actual_batch_number,
+            l1_batch: actual_l1_batch_number,
             first_l2_block: first_tx.l2block_number,
             last_l2_block: last_tx.l2block_number,
-            txs: txs
+            txs: filtered_txs
                 .into_iter()
                 .map(|tx| TransactionStatusCommitment {
                     tx_hash: tx.tx_hash,

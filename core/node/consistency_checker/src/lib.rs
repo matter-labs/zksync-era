@@ -634,7 +634,7 @@ impl ConsistencyChecker {
             .connection()
             .await?
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
+            .get_number_of_last_l1_batch_committed_finailized_on_eth()
             .await?)
     }
 

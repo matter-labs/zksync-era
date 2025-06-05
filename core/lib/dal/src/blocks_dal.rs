@@ -48,7 +48,9 @@ pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
+#[derive(Debug, Clone)]
 pub struct TxForPrecommit {
+    pub l1_batch_number: Option<L1BatchNumber>,
     pub l2block_number: L2BlockNumber,
     pub timestamp: i64,
     pub tx_hash: H256,
@@ -941,15 +943,17 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_ready_for_precommit_txs(
         &mut self,
-        l1_batch_number: Option<L1BatchNumber>,
+        last_committed_l1_batch: L1BatchNumber,
     ) -> DalResult<Vec<TxForPrecommit>> {
         let mut tx = self.storage.start_transaction().await?;
         // Miniblocks belongs to the non sealed batches don't have batch number,
         // so for the pending batch we use None
 
+        let last_non_committed_l1_batch = last_committed_l1_batch + 1;
         let txs = sqlx::query!(
             r#"
             SELECT
+                miniblocks.l1_batch_number,
                 transactions.hash, transactions.error,
                 miniblock_number AS "miniblock_number!",
                 miniblocks.timestamp
@@ -957,7 +961,7 @@ impl BlocksDal<'_, '_> {
             JOIN transactions ON miniblocks.number = transactions.miniblock_number
             WHERE
                 (
-                    miniblocks.l1_batch_number IS NULL AND $2
+                    miniblocks.l1_batch_number IS NULL
                     OR miniblocks.l1_batch_number = $1
                 )
                 AND
@@ -966,8 +970,7 @@ impl BlocksDal<'_, '_> {
                 miniblocks.eth_precommit_tx_id IS NULL
             ORDER BY miniblock_number, index_in_block
             "#,
-            l1_batch_number.map(|l1| i64::from(l1.0)),
-            l1_batch_number.is_none(),
+            i64::from(last_non_committed_l1_batch.0)
         )
         .instrument("get_ready_for_precommit_txs")
         .report_latency()
@@ -975,6 +978,7 @@ impl BlocksDal<'_, '_> {
         .await?
         .into_iter()
         .map(|row| TxForPrecommit {
+            l1_batch_number: row.l1_batch_number.map(|a| L1BatchNumber(a as u32)),
             l2block_number: L2BlockNumber(row.miniblock_number as u32),
             timestamp: row.timestamp,
             tx_hash: H256::from_slice(&row.hash),
@@ -1569,6 +1573,32 @@ impl BlocksDal<'_, '_> {
 
     /// Returns the number of the last L1 batch for which an Ethereum commit tx was sent and confirmed.
     pub async fn get_number_of_last_l1_batch_committed_on_eth(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                number = 0
+                OR eth_commit_tx_id IS NOT NULL
+                AND commitment IS NOT NULL
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_number_of_last_l1_batch_committed_on_eth")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Returns the number of the last L1 batch for which an Ethereum commit tx was sent and confirmed.
+    pub async fn get_number_of_last_l1_batch_committed_finailized_on_eth(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
         Ok(sqlx::query!(
