@@ -48,10 +48,10 @@ pub fn zkos_commitment_to_vm_batch_output(commitment: &ZkosCommitment) -> BatchO
     }
 }
 
-pub fn batch_output_hash_as_register_values(public_input: &BatchPublicInput) -> Vec<u32> {
+pub fn batch_output_hash_as_register_values(public_input: &BatchPublicInput) -> [u32; 8] {
     public_input.hash().chunks_exact(4).map(|chunk| {
         u32::from_le_bytes(chunk.try_into().expect("Slice with incorrect length"))
-    }).collect()
+    }).collect::<Vec<u32>>().try_into().expect("Hash should be exactly 32 bytes long")
 }
 
 pub fn deserialize_snark_plank_proof(bytes: Vec<u8>) -> anyhow::Result<PlonkProof<Bn256, ZkSyncSnarkWrapperCircuit>> {

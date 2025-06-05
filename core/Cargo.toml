@@ -282,10 +282,10 @@ bellman = { package = "zksync_bellman", version = "=0.32.1" }
 #zk_os_evm_interpreter = { package = "evm_interpreter", path="../../zk_ee/evm_interpreter" }
 
 
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", rev = "2b1cd19a29adff2ad592c65a703dd03bfb7da589", features = ["evm-compatibility"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", rev = "2b1cd19a29adff2ad592c65a703dd03bfb7da589"}
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", rev = "2b1cd19a29adff2ad592c65a703dd03bfb7da589"}
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", rev = "2b1cd19a29adff2ad592c65a703dd03bfb7da589", features = ["evm-compatibility"] }
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", rev = "3246224672077ce39d0555c55773a68fef6153a3", features = ["evm-compatibility"] }
+zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", rev = "3246224672077ce39d0555c55773a68fef6153a3"}
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", rev = "3246224672077ce39d0555c55773a68fef6153a3"}
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", rev = "3246224672077ce39d0555c55773a68fef6153a3", features = ["evm-compatibility"] }
 
 # only used for verifinfg proofs
 air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }

@@ -13,9 +13,9 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
-use zksync_types::commitment::ZkosCommitment;
+use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
 use crate::proof_verifier::verify_fri_proof;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,64 +71,52 @@ async fn pick_fri_job(
 async fn submit_fri_proof(
     State(pool): State<Arc<ConnectionPool<Core>>>,
     Json(payload): Json<ProofPayload>,
-) -> Response {
+) -> Result<Response, (StatusCode, String)> {
     let mut conn = pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
 
-    info!("Submitting FRI proof for block {}", payload.block_number);
+    info!("Received FRI proof for block {}", payload.block_number);
 
-    tracing::debug!(payload.proof);
+    let proof_bytes = base64::decode(&payload.proof).map_err(|err| {
+        error!("Invalid base64 FRI proof: {err}");
+        (StatusCode::BAD_REQUEST, format!("Invalid base64 FRI proof: {err}"))
+    })?;
 
-    let proof_bytes = match base64::decode(&payload.proof) {
-        Ok(b) => b,
-        Err(err) => {
-            error!("Invalid base64 FRI proof: {}", err);
-            return StatusCode::BAD_REQUEST.into_response();
-        }
-    };
-
-    let current_l1_batch = match conn.blocks_dal()
-        .get_l1_batch_metadata(L1BatchNumber(payload.block_number))
+    let current_l1_batch = load_batch_metadata(&mut conn, L1BatchNumber(payload.block_number))
         .await
-    {
-        Ok(Some(batch)) => batch,
-        _ => {
-            error!("No L1 batch metadata found for block {}", payload.block_number);
-            return StatusCode::NOT_FOUND.into_response();
-        }
-    };
-
-    let previous_l1_batch = match conn.blocks_dal()
-        .get_l1_batch_metadata(L1BatchNumber(payload.block_number - 1))
+        .map_err(|err| {
+            error!("Error loading current L1 batch metadata: {}", err);
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Error loading current L1 batch metadata: {}", err))
+        })?;
+    let prev_l1_batch = load_batch_metadata(&mut conn, L1BatchNumber(payload.block_number - 1))
         .await
-    {
-        Ok(Some(batch)) => batch,
-        _ => {
-            error!("No L1 batch metadata found for block {}", payload.block_number - 1);
-            return StatusCode::NOT_FOUND.into_response();
-        }
-    };
+        .map_err(|err| {
+            error!("Error loading previous L1 batch metadata: {}", err);
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Error loading previous L1 batch metadata: {}", err))
+        })?;
 
-    let Ok(program_proof) = bincode::deserialize::<ProgramProof>(&proof_bytes) else {
-        error!("Unable to deserialize {}", payload.block_number);
-        return StatusCode::BAD_REQUEST.into_response();
-    };
+    let program_proof = bincode::deserialize::<ProgramProof>(&proof_bytes)
+        .map_err(|err| {
+            error!("Unable to deserialize FRI proof: {}", err);
+            (StatusCode::BAD_REQUEST, format!("Unable to deserialize FRI proof: {}", err))
+        })?;
 
-    verify_fri_proof(previous_l1_batch, current_l1_batch, program_proof);
+    verify_fri_proof(prev_l1_batch, current_l1_batch, program_proof)
+        .map_err(|err| {
+            error!("FRI proof verification failed: {}", err);
+            (StatusCode::BAD_REQUEST, format!("FRI proof verification failed: {}", err))
+        })?;
 
 
-    match conn.zkos_prover_dal()
+    conn.zkos_prover_dal()
         .save_fri_proof(L2BlockNumber(payload.block_number), proof_bytes)
         .await
-    {
-        Ok(()) => ().into_response(),
-        Err(err) => {
-            error!("Error saving FRI proof: {}", err);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
+        .map_err(|err|
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Error saving FRI proof: {}", err))
+        )?;
+    Ok((StatusCode::NO_CONTENT, "FRI proof submitted successfully".to_string()).into_response())
 }
 
 /// Handler to fetch the next SNARK block to prove
@@ -330,4 +318,15 @@ pub async fn run(pool: ConnectionPool<Core>) -> anyhow::Result<()> {
 
     serve(listener, app).await?;
     Ok(())
+}
+
+async fn load_batch_metadata(
+    connection: &mut Connection<'_, Core>,
+    number: L1BatchNumber,
+) -> Result<L1BatchWithMetadata, String> {
+    connection.blocks_dal()
+        .get_l1_batch_metadata(number)
+        .await
+        .map_err(|e| e.to_string())
+        .and_then(|opt| opt.ok_or_else(|| format!("No metadata found for batch {}", number)))
 }
