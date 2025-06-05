@@ -643,6 +643,7 @@ impl StorageSnapshot {
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             timestamp: 100,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
 
@@ -667,7 +668,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await.unwrap();
+            executor
+                .start_next_l2_block(l2_block_env.clone())
+                .await
+                .unwrap();
         }
 
         for _ in 0..transaction_count {
@@ -689,7 +693,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await.unwrap();
+            executor
+                .start_next_l2_block(l2_block_env.clone())
+                .await
+                .unwrap();
         }
 
         let (finished_batch, _) = executor.finish_batch().await.unwrap();

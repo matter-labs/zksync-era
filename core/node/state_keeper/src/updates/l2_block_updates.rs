@@ -11,7 +11,7 @@ use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
+    InteropRoot, L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 
 use crate::metrics::KEEPER_METRICS;
@@ -33,6 +33,7 @@ pub struct L2BlockUpdates {
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
+    pub interop_roots: Vec<InteropRoot>,
 }
 
 impl L2BlockUpdates {
@@ -42,6 +43,7 @@ impl L2BlockUpdates {
         prev_block_hash: H256,
         virtual_blocks: u32,
         protocol_version: ProtocolVersionId,
+        interop_roots: Vec<InteropRoot>,
     ) -> Self {
         Self {
             executed_transactions: vec![],
@@ -59,6 +61,7 @@ impl L2BlockUpdates {
             prev_block_hash,
             virtual_blocks,
             protocol_version,
+            interop_roots,
         }
     }
 
@@ -177,6 +180,7 @@ impl L2BlockUpdates {
             timestamp: self.timestamp,
             prev_block_hash: self.prev_block_hash,
             max_virtual_blocks_to_create: self.virtual_blocks,
+            interop_roots: self.interop_roots.clone(),
         }
     }
 }
@@ -196,6 +200,7 @@ mod tests {
             H256::random(),
             0,
             ProtocolVersionId::latest(),
+            vec![],
         );
         let tx = create_transaction(10, 100);
         let bootloader_encoding_size = tx.bootloader_encoding_size();

@@ -11,6 +11,7 @@ use zksync_types::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
         TransactionExecutionInfo,
     },
+    block::BatchOrBlockNumber,
     server_notification::GatewayMigrationState,
     tee_types::TeeType,
     L1BatchNumber, L2ChainId,
@@ -77,22 +78,29 @@ impl UnstableNamespace {
 
     pub async fn get_chain_log_proof_impl(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         l2_chain_id: L2ChainId,
     ) -> Result<Option<ChainAggProof>, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
         self.state
             .start_info
-            .ensure_not_pruned(l1_batch_number, &mut connection)
+            .ensure_not_pruned(batch_or_block_number, &mut connection)
             .await?;
 
-        let Some((_, l2_block_number)) = connection
-            .blocks_dal()
-            .get_l2_block_range_of_l1_batch(l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
+            let l2_block_number = match batch_or_block_number {
+                BatchOrBlockNumber::BatchNumber(l1_batch_number) => {
+                    match connection
+                        .blocks_dal()
+                        .get_l2_block_range_of_l1_batch(l1_batch_number)
+                        .await
+                        .map_err(DalError::generalize)?
+                        .map(|(_, end_block)| end_block)
+                    {
+                        Some(block_num) => block_num,
+                        None => return Ok(None),
+                    }
+                }
+                BatchOrBlockNumber::BlockNumber(l2_block_number) => l2_block_number,
         };
         let chain_count_integer = get_chain_count(&mut connection, l2_block_number).await?;
 
@@ -103,7 +111,7 @@ impl UnstableNamespace {
             );
         }
 
-        let Some((chain_id_leaf_proof_mask, _)) = chain_ids
+        let Some((mut chain_id_leaf_proof_mask, _)) = chain_ids
             .iter()
             .find_position(|id| **id == H256::from_low_u64_be(l2_chain_id.as_u64()))
         else {
@@ -124,19 +132,21 @@ impl UnstableNamespace {
             .merkle_root_and_path(chain_id_leaf_proof_mask)
             .1;
 
-        let Some(local_root) = connection
-            .blocks_dal()
-            .get_l1_batch_local_root(l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
-        };
+        if let BatchOrBlockNumber::BatchNumber(l1_batch_number) = batch_or_block_number {
+            let Some(local_root) = connection
+                .blocks_dal()
+                .get_l1_batch_local_root(l1_batch_number)
+                .await
+                .map_err(DalError::generalize)?
+            else {
+                return Ok(None);
+            };
 
-        // Chain tree is the right subtree of the aggregated tree.
-        // We append root of the left subtree to form full proof.
-        let chain_id_leaf_proof_mask = chain_id_leaf_proof_mask | (1 << chain_id_leaf_proof.len());
-        chain_id_leaf_proof.push(local_root);
+            // Chain tree is the right subtree of the aggregated tree.
+            // We append root of the left subtree to form full proof.
+            chain_id_leaf_proof_mask |= 1 << chain_id_leaf_proof.len();
+            chain_id_leaf_proof.push(local_root);
+        }
 
         Ok(Some(ChainAggProof {
             chain_id_leaf_proof,

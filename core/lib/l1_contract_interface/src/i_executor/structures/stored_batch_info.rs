@@ -4,11 +4,16 @@ use zksync_types::{
     ethabi::{self, ParamType, Token},
     parse_h256, web3,
     web3::contract::Error as ContractError,
-    H256, U256,
+    ProtocolVersionId, H256, U256,
 };
 use zksync_types::commitment::ZkosCommitment;
 use crate::i_executor::structures::CommitBoojumOSBatchInfo;
 use crate::Tokenizable;
+
+pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
+]);
 
 // https://github.com/matter-labs/era-contracts/blob/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L64-L73
 // struct StoredBatchInfo {
@@ -30,6 +35,7 @@ pub struct StoredBatchInfo {
     pub index_repeated_storage_changes: u64, // not used in Boojum OS, must be zero
     pub number_of_layer1_txs: U256,
     pub priority_operations_hash: H256,
+    pub dependency_roots_rolling_hash: H256,
     pub l2_logs_tree_root: H256,
     pub timestamp: U256,
     pub commitment: H256,
@@ -43,6 +49,7 @@ impl StoredBatchInfo {
             ParamType::Uint(64),       // `index_repeated_storage_changes`
             ParamType::Uint(256),      // `number_of_layer1_txs`
             ParamType::FixedBytes(32), // `priority_operations_hash`
+            ParamType::FixedBytes(32), // `dependency_roots_rolling_hash`
             ParamType::FixedBytes(32), // `l2_logs_tree_root`
             ParamType::Uint(256),      // `timestamp`
             ParamType::FixedBytes(32), // `commitment`
@@ -66,6 +73,33 @@ impl StoredBatchInfo {
     pub fn hash(&self) -> H256 {
         H256(web3::keccak256(&self.encode()))
     }
+
+    pub fn into_token_with_protocol_version(self, protocol_version: ProtocolVersionId) -> Token {
+        if protocol_version.is_pre_interop() {
+            Token::Tuple(vec![
+                Token::Uint(self.batch_number.into()),
+                Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
+                Token::Uint(self.index_repeated_storage_changes.into()),
+                Token::Uint(self.number_of_layer1_txs),
+                Token::FixedBytes(self.priority_operations_hash.as_bytes().to_vec()),
+                Token::FixedBytes(self.l2_logs_tree_root.as_bytes().to_vec()),
+                Token::Uint(self.timestamp),
+                Token::FixedBytes(self.commitment.as_bytes().to_vec()),
+            ])
+        } else {
+            Token::Tuple(vec![
+                Token::Uint(self.batch_number.into()),
+                Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
+                Token::Uint(self.index_repeated_storage_changes.into()),
+                Token::Uint(self.number_of_layer1_txs),
+                Token::FixedBytes(self.priority_operations_hash.as_bytes().to_vec()),
+                Token::FixedBytes(self.dependency_roots_rolling_hash.as_bytes().to_vec()),
+                Token::FixedBytes(self.l2_logs_tree_root.as_bytes().to_vec()),
+                Token::Uint(self.timestamp),
+                Token::FixedBytes(self.commitment.as_bytes().to_vec()),
+            ])
+        }
+    }
 }
 
 // todo when L1BatchWithMetadata is refactored, we should convert it to this struct directly
@@ -80,6 +114,7 @@ impl StoredBatchInfo {
             index_repeated_storage_changes: 0, // not used in Boojum OS, must be zero
             number_of_layer1_txs: batch.number_of_layer1_txs.into(),
             priority_operations_hash: batch.priority_operations_hash(),
+            dependency_roots_rolling_hash: batch.dependency_roots_rolling_hash,
             l2_logs_tree_root: batch.l2_to_l1_logs_root_hash,
             timestamp: 0.into(),
             commitment: commitment.into()
@@ -99,6 +134,17 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
             index_repeated_storage_changes: x.metadata.rollup_last_leaf_index,
             number_of_layer1_txs: x.header.l1_tx_count.into(),
             priority_operations_hash: x.header.priority_ops_onchain_data_hash(),
+            dependency_roots_rolling_hash: if x.header.system_logs.is_empty() {
+                H256::zero()
+            } else {
+                x.header
+                    .system_logs
+                    .iter()
+                    .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
+                    .unwrap()
+                    .0
+                    .value
+            },
             l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
             timestamp: x.header.timestamp.into(),
             commitment: x.metadata.commitment,
@@ -116,10 +162,11 @@ impl Tokenizable for StoredBatchInfo {
                 Token::Uint(index_repeated_storage_changes),
                 Token::Uint(number_of_layer1_txs),
                 Token::FixedBytes(priority_operations_hash),
+                Token::FixedBytes(dependency_roots_rolling_hash),
                 Token::FixedBytes(l2_logs_tree_root),
                 Token::Uint(timestamp),
                 Token::FixedBytes(commitment),
-            ] : [Token;8] = token
+            ] : [Token;9] = token
                 .into_tuple().context("not a tuple")?
                 .try_into().ok().context("bad length")?
             else { anyhow::bail!("bad format") };
@@ -138,6 +185,8 @@ impl Tokenizable for StoredBatchInfo {
                 number_of_layer1_txs,
                 priority_operations_hash: parse_h256(&priority_operations_hash)
                     .context("priority_operations_hash")?,
+                dependency_roots_rolling_hash: parse_h256(&dependency_roots_rolling_hash)
+                    .context("dependency_roots_rolling_hash")?,
                 l2_logs_tree_root: parse_h256(&l2_logs_tree_root).context("l2_logs_tree_root")?,
                 timestamp,
                 commitment: parse_h256(&commitment).context("commitment")?,
@@ -147,15 +196,6 @@ impl Tokenizable for StoredBatchInfo {
     }
 
     fn into_token(self) -> Token {
-        Token::Tuple(vec![
-            Token::Uint(self.batch_number.into()),
-            Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
-            Token::Uint(self.index_repeated_storage_changes.into()),
-            Token::Uint(self.number_of_layer1_txs),
-            Token::FixedBytes(self.priority_operations_hash.as_bytes().to_vec()),
-            Token::FixedBytes(self.l2_logs_tree_root.as_bytes().to_vec()),
-            Token::Uint(self.timestamp),
-            Token::FixedBytes(self.commitment.as_bytes().to_vec()),
-        ])
+        self.into_token_with_protocol_version(ProtocolVersionId::latest())
     }
 }

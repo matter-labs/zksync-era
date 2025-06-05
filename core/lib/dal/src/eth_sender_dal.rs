@@ -425,7 +425,7 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) -> anyhow::Result<()> {
+    pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256, confirmed_at_block: u32) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
             .start_transaction()
@@ -440,7 +440,8 @@ impl EthSenderDal<'_, '_> {
             SET
                 updated_at = NOW(),
                 confirmed_at = NOW(),
-                sent_successfully = TRUE
+                sent_successfully = TRUE,
+                confirmed_at_block = $2
             WHERE
                 tx_hash = $1
             RETURNING
@@ -448,6 +449,7 @@ impl EthSenderDal<'_, '_> {
             eth_tx_id
             "#,
             tx_hash,
+            confirmed_at_block as i32
         )
         .fetch_one(transaction.conn())
         .await?;
@@ -702,10 +704,40 @@ impl EthSenderDal<'_, '_> {
         Ok(sent_at_block.flatten().map(|block| block as u32))
     }
 
-    pub async fn get_last_sent_successfully_eth_tx(
+    pub async fn get_last_sent_and_confirmed_eth_storage_tx(
         &mut self,
         eth_tx_id: u32,
-    ) -> sqlx::Result<Option<TxHistory>> {
+    ) -> sqlx::Result<Option<StorageTxHistory>> {
+        let history_item = sqlx::query_as!(
+            StorageTxHistory,
+            r#"
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_tx_id = $1
+                AND eth_txs_history.confirmed_at IS NOT NULL
+                AND eth_txs.has_failed IS FALSE
+            ORDER BY
+                eth_txs_history.created_at DESC
+            LIMIT
+                1
+            "#,
+            eth_tx_id as i32
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+        println!("history_item: {:?}", history_item);
+        Ok(Some(history_item[0].clone()))
+    }
+        
+    pub async fn get_last_sent_successfully_eth_storage_tx(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> sqlx::Result<Option<StorageTxHistory>> {
         let history_item = sqlx::query_as!(
             StorageTxHistory,
             r#"
@@ -726,6 +758,16 @@ impl EthSenderDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?;
+        Ok(history_item)
+    }
+
+    pub async fn get_last_sent_successfully_eth_tx(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> sqlx::Result<Option<TxHistory>> {
+        let history_item = self
+            .get_last_sent_successfully_eth_storage_tx(eth_tx_id)
+            .await?;
         Ok(history_item.map(|tx| tx.into()))
     }
 
@@ -905,11 +947,11 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
     }
 
-    pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
+    pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
         op_type: AggregatedActionType,
-    ) -> Option<TxHistory> {
+    ) -> Option<u32> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -933,6 +975,18 @@ impl EthSenderDal<'_, '_> {
             AggregatedActionType::Execute => row.eth_execute_tx_id,
         }
         .unwrap() as u32;
+        Some(eth_tx_id)
+    }
+
+    pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        op_type: AggregatedActionType,
+    ) -> Option<TxHistory> {
+        let eth_tx_id = self
+            .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
+            .await?;
+        
         self.get_last_sent_successfully_eth_tx(eth_tx_id)
             .await
             .unwrap()
