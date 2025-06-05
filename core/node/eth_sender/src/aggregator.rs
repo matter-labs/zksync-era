@@ -320,12 +320,14 @@ impl Aggregator {
         let last_committed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
-            .await?;
+            .await?
+            .unwrap_or(L1BatchNumber(0));
 
         let last_committed_finalized_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_finailized_on_eth()
-            .await?;
+            .await?
+            .unwrap_or(L1BatchNumber(0));
 
         if last_committed_l1_batch != last_committed_finalized_l1_batch {
             // Last committed L1 batch is not finalized yet, skipping precommit operation. So during the transition from using
@@ -333,8 +335,6 @@ impl Aggregator {
             // Otherwise we can have a race condition and either precommit or commit operation would fail.
             return Ok(None);
         }
-
-        let last_committed_l1_batch = last_committed_l1_batch.unwrap_or(L1BatchNumber(0));
 
         let txs = storage
             .blocks_dal()
