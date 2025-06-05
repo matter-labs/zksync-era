@@ -2120,6 +2120,7 @@ impl TransactionsDal<'_, '_> {
             SELECT *
             FROM interop_roots
             WHERE processed_block_number = $1
+            ORDER BY received_timestamp, dependency_block_number;
             "#,
             l2block_number.0 as i32
         )

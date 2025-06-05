@@ -2,8 +2,7 @@
  * This suite contains tests for the Web3 API compatibility and ZKsync-specific extensions.
  */
 import { TestMaster } from '../../src';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import { types } from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
