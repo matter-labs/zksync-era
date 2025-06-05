@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                c.sha256 = $2 AS \"sha_matches!\",\n                transaction_timestamp() < c.not_after AS \"not_after!\",\n                c.update_guard_set IS NULL AS \"update_guard_set!\",\n                (\n                    coalesce(c.update_guard_set, transaction_timestamp()) + $3\n                ) AS \"update_guard_expires!\",\n                (coalesce(c.update_guard_set, transaction_timestamp()) + $3)\n                < transaction_timestamp() AS \"update_guard_expired!\",\n                c.eth_tx_id IS NULL AS \"eth_tx_guard_set!\",\n                e.confirmed_eth_tx_history_id IS NULL AS \"eth_tx_guard_confirmed!\"\n            FROM\n                tee_dcap_collateral_tcb_info_json c\n            LEFT OUTER JOIN eth_txs e ON c.eth_tx_id = e.id\n            WHERE c.kind = $1 AND c.fmspc = $4\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sha_matches!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 1,
+        "name": "not_after!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "update_guard_set!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "update_guard_expires!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "update_guard_expired!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "eth_tx_guard_set!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "eth_tx_guard_confirmed!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_tcb_info_json_kind",
+            "kind": {
+              "Enum": [
+                "sgx_tcb_info_json",
+                "tdx_tcb_info_json"
+              ]
+            }
+          }
+        },
+        "Bytea",
+        "Interval",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "6c1d1dfdf8a704feae761676c84bc8b3a2029a142d94118978454ad8b9a082b2"
+}

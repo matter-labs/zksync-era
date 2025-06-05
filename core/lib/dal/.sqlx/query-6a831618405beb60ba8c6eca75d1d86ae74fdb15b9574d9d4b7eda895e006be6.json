@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_dcap_collateral\n            SET\n                update_guard_set = NULL,\n                sha256 = $2,\n                not_after = $3,\n                eth_tx_id = $4,\n                updated = transaction_timestamp()\n            WHERE\n                kind = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_kind",
+            "kind": {
+              "Enum": [
+                "root_ca",
+                "root_crl",
+                "pck_ca",
+                "pck_crl",
+                "sgx_qe_identity_json",
+                "tdx_qe_identity_json"
+              ]
+            }
+          }
+        },
+        "Bytea",
+        "Timestamptz",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6a831618405beb60ba8c6eca75d1d86ae74fdb15b9574d9d4b7eda895e006be6"
+}

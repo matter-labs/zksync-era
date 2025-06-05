@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_dcap_collateral_tcb_info_json\n            SET\n                update_guard_set = NULL,\n                sha256 = $2,\n                not_after = $3,\n                eth_tx_id = $4,\n                updated = transaction_timestamp()\n            WHERE\n                kind = $1 AND fmspc = $5\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_tcb_info_json_kind",
+            "kind": {
+              "Enum": [
+                "sgx_tcb_info_json",
+                "tdx_tcb_info_json"
+              ]
+            }
+          }
+        },
+        "Bytea",
+        "Timestamptz",
+        "Int4",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c765e4c478048cc88ed1878c6a0ab4556fdb72d65a0ee75487aa955eef564299"
+}

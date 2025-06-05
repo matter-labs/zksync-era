@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE tee_dcap_collateral\n                    SET\n                        update_guard_set = transaction_timestamp(),\n                        eth_tx_id = NULL\n                    WHERE\n                        kind = $1\n                    RETURNING\n                    update_guard_set + $2 AS \"update_guard_expires!\"\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "update_guard_expires!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_kind",
+            "kind": {
+              "Enum": [
+                "root_ca",
+                "root_crl",
+                "pck_ca",
+                "pck_crl",
+                "sgx_qe_identity_json",
+                "tdx_qe_identity_json"
+              ]
+            }
+          }
+        },
+        "Interval"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8665ef0912ad2c4e8de9f83bedb0c56b6647c81067c5312664e3f7edffba381a"
+}

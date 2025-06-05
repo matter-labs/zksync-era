@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE tee_dcap_collateral_tcb_info_json\n                    SET\n                        update_guard_set = NULL,\n                        eth_tx_id = NULL\n                    WHERE\n                        kind = $1 AND\n                        fmspc = $2\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "tee_dcap_collateral_tcb_info_json_kind",
+            "kind": {
+              "Enum": [
+                "sgx_tcb_info_json",
+                "tdx_tcb_info_json"
+              ]
+            }
+          }
+        },
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d149a7b919e9cdc49bc24415ffec714609606fabf69e37a19df65c593581944c"
+}

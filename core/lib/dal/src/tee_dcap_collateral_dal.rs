@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::Core;
@@ -14,6 +15,9 @@ pub enum TeeDcapCollateralInfo {
     /// been tasked with updating the chain by the time specified, at which point a retry may be
     /// necessary.
     PendingUpdateBy(DateTime<Utc>),
+    /// The collateral has been updated, but the transaction to commit it to the chain is still
+    /// pending confirmation.
+    PendingEthSenderCompletion,
     /// No record of the collateral on the chain is present, it must be created
     RecordMissing,
 }
@@ -21,12 +25,32 @@ pub enum TeeDcapCollateralInfo {
 #[derive(sqlx::Type, Debug, Copy, Clone)]
 #[sqlx(type_name = "tee_dcap_collateral_kind", rename_all = "snake_case")]
 pub enum TeeDcapCollateralKind {
+    RootCa,
     RootCrl,
+    PckCa,
     PckCrl,
-    SgxTcbInfoJson,
-    TdxTcbInfoJson,
     SgxQeIdentityJson,
     TdxQeIdentityJson,
+}
+
+#[derive(sqlx::Type, Debug, Copy, Clone)]
+#[sqlx(
+    type_name = "tee_dcap_collateral_tcb_info_json_kind",
+    rename_all = "snake_case"
+)]
+pub enum TeeDcapCollateralTcbInfoJsonKind {
+    SgxTcbInfoJson,
+    TdxTcbInfoJson,
+}
+
+struct CurrentFieldValidator {
+    sha_matches: bool,
+    not_after: bool,
+    update_guard_set: bool,
+    update_guard_expires: DateTime<Utc>,
+    update_guard_expired: bool,
+    eth_tx_guard_set: bool,
+    eth_tx_guard_confirmed: bool,
 }
 
 #[derive(Debug)]
@@ -34,228 +58,365 @@ pub struct TeeDcapCollateralDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 impl TeeDcapCollateralDal<'_, '_> {
-    pub async fn cert_is_current(
-        &mut self,
-        serial_number: &[u8],
-        issuer: &str,
-        sha256: &[u8],
-    ) -> DalResult<TeeDcapCollateralInfo> {
-        let mut tx = self.storage.start_transaction().await?;
-        if let Some(record) = sqlx::query!(
-            r#"
-            SELECT
-                sha256 = $3 AND not_after < transaction_timestamp() AS "sha_matches",
-                CASE
-                    WHEN update_guard_expires IS NOT NULL
-                        THEN update_guard_expires < transaction_timestamp()
-                    ELSE
-                        NULL
-                END AS "guard_expired",
-                update_guard_expires
-            FROM tee_dcap_collateral_certs
-            WHERE
-                serial_number = $1
-                AND issuer = $2
-            "#,
-            serial_number,
-            issuer,
-            sha256,
-        )
-        .instrument("tee_dcap_collateral_cert_is_current")
-        .with_arg("serial_number", &serial_number)
-        .with_arg("issuer", &issuer)
-        .fetch_optional(&mut tx)
-        .await?
-        {
-            match (record.guard_expired, record.sha_matches) {
-                (None, Some(true)) => {
-                    // No record of the guard exists, and the sha matches
-                    Ok(TeeDcapCollateralInfo::Matches)
-                }
-                (Some(true), _) | (None, Some(false)) => {
-                    // The guard either does not exist, or has expired due to the previous caller
-                    // responsible for updating it taking too long to do so. In either case, the
-                    // chain needs to be provided the new collateral and the database updated, and
-                    // it is the callers responsibility to do this.
-                    let guard_expires = sqlx::query_scalar!(
-                        r#"
-                            UPDATE tee_dcap_collateral_certs
-                            SET update_guard_expires = transaction_timestamp() + (
-                                SELECT delay FROM chain_update_delay WHERE id = 1
-                            )
-                            WHERE serial_number = $1
-                            AND issuer = $2
-                            RETURNING update_guard_expires
-                        "#,
-                        serial_number,
-                        issuer
-                    )
-                    .instrument("tee_dcap_collateral_cert_lock")
-                    .with_arg("serial_number", &serial_number)
-                    .with_arg("issuer", &issuer)
-                    .fetch_one(&mut tx)
-                    .await?
-                    .unwrap(); // value is not null as it was just set
-                    Ok(TeeDcapCollateralInfo::UpdateChainBy(guard_expires))
-                }
-                (Some(false), _) => {
-                    // The guard has not yet expired, a previous caller has been tasked with
-                    // updating the information on the chain and reflecting this in the database
-                    // upon completion.
-                    Ok(TeeDcapCollateralInfo::PendingUpdateBy(
-                        record.update_guard_expires.unwrap(),
-                    ))
-                }
-                (_, None) => {
-                    // Case cannot occur as a NOT NULL field cannot produce a null equality check
-                    // unless checked with null, and there is no possibility to pass in a nullish
-                    // sha256.
-                    unreachable!()
-                }
-            }
-        } else {
-            // No record of cert, create record and inform caller they need to put this record on the chain.
-            Ok(TeeDcapCollateralInfo::RecordMissing)
-        }
-    }
-
-    pub async fn cert_updated(
-        &mut self,
-        serial_number: &[u8],
-        issuer: &str,
-        sha256: &[u8],
-        not_after: DateTime<Utc>,
-    ) -> DalResult<()> {
-        let query = sqlx::query!(
-            r#"
-            INSERT INTO tee_dcap_collateral_certs
-            (serial_number, issuer, sha256, not_after, updated, update_guard_expires)
-            VALUES ($1, $2, $3, $4, transaction_timestamp(), NULL)
-            ON CONFLICT (serial_number, issuer)
-            DO UPDATE SET
-            sha256 = $3,
-            not_after = $4,
-            updated = transaction_timestamp(),
-            update_guard_expires = NULL
-            "#,
-            serial_number,
-            issuer,
-            sha256,
-            not_after
-        );
-        query
-            .instrument("tee_dcap_collateral_cert_updated")
-            .with_arg("serial_number", &serial_number)
-            .with_arg("issuer", &issuer)
-            .execute(self.storage)
-            .await?;
-        Ok(())
-    }
-
     pub async fn field_is_current(
         &mut self,
         kind: TeeDcapCollateralKind,
         sha256: &[u8],
+        timeout: PgInterval,
     ) -> DalResult<TeeDcapCollateralInfo> {
         let mut tx = self.storage.start_transaction().await?;
-        if let Some(record) = sqlx::query!(
+        match sqlx::query_as!(
+            CurrentFieldValidator,
             r#"
             SELECT
-                sha256 = $2 AND not_after < transaction_timestamp() AS "sha_matches",
-                CASE
-                    WHEN update_guard_expires IS NOT NULL
-                        THEN update_guard_expires < transaction_timestamp()
-                    ELSE
-                        NULL
-                END AS "guard_expired",
-                update_guard_expires
-            FROM tee_dcap_collateral
-            WHERE kind = $1
+                c.sha256 = $2 AS "sha_matches!",
+                transaction_timestamp() < c.not_after AS "not_after!",
+                c.update_guard_set IS NULL AS "update_guard_set!",
+                (
+                    coalesce(c.update_guard_set, transaction_timestamp()) + $3
+                ) AS "update_guard_expires!",
+                (coalesce(c.update_guard_set, transaction_timestamp()) + $3)
+                < transaction_timestamp() AS "update_guard_expired!",
+                c.eth_tx_id IS NULL AS "eth_tx_guard_set!",
+                e.confirmed_eth_tx_history_id IS NULL AS "eth_tx_guard_confirmed!"
+            FROM
+                tee_dcap_collateral c
+            LEFT OUTER JOIN eth_txs e ON c.eth_tx_id = e.id
+            WHERE c.kind = $1
             "#,
             kind as _,
             sha256,
+            timeout
         )
         .instrument("tee_dcap_collateral_field_is_current")
         .with_arg("field", &kind)
         .fetch_optional(&mut tx)
         .await?
         {
-            match (record.guard_expired, record.sha_matches) {
-                (None, Some(true)) => {
-                    // No record of the guard exists, and the sha matches
-                    Ok(TeeDcapCollateralInfo::Matches)
-                }
-                (Some(true), _) | (None, Some(false)) => {
-                    // The guard either does not exist, or has expired due to the previous caller
-                    // responsible for updating it taking too long to do so. In either case, the
-                    // chain needs to be provided the new collateral and the database updated, and
-                    // it is the callers responsibility to do this.
-                    let guard_expires = sqlx::query_scalar!(
-                        r#"
-                            UPDATE tee_dcap_collateral
-                            SET update_guard_expires = transaction_timestamp() + (
-                                SELECT delay FROM chain_update_delay WHERE id = 1
-                            )
-                            WHERE kind = $1
-                            RETURNING update_guard_expires
-                        "#,
-                        kind as _
-                    )
-                    .instrument("tee_dcap_collateral_field_lock")
-                    .with_arg("kind", &kind)
-                    .fetch_one(&mut tx)
-                    .await?
-                    .unwrap(); // value is not null as it was just set
-                    Ok(TeeDcapCollateralInfo::UpdateChainBy(guard_expires))
-                }
-                (Some(false), _) => {
-                    // The guard has not yet expired, a previous caller has been tasked with
-                    // updating the information on the chain and reflecting this in the database
-                    // upon completion.
-                    Ok(TeeDcapCollateralInfo::PendingUpdateBy(
-                        record.update_guard_expires.unwrap(),
-                    ))
-                }
-                (_, None) => {
-                    // Case cannot occur as a NOT NULL field cannot produce a null equality check
-                    // unless checked with null, and there is no possibility to pass in a nullish
-                    // sha256.
-                    unreachable!()
-                }
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                update_guard_set: false,
+                eth_tx_guard_set: false,
+                ..
+            }) => {
+                // All correct with no guards set
+                Ok(TeeDcapCollateralInfo::Matches)
             }
-        } else {
-            // No record of cert, create record and inform caller they need to put this record on the chain.
-            Ok(TeeDcapCollateralInfo::RecordMissing)
+            Some(CurrentFieldValidator {
+                update_guard_set: true,
+                update_guard_expired: false,
+                update_guard_expires,
+                ..
+            }) => {
+                // Update guard not yet expired
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(update_guard_expires))
+            }
+            Some(CurrentFieldValidator {
+                eth_tx_guard_set: true,
+                eth_tx_guard_confirmed: false,
+                ..
+            }) => {
+                // Waiting for eth sender
+                Ok(TeeDcapCollateralInfo::PendingEthSenderCompletion)
+            }
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                eth_tx_guard_set: true,
+                eth_tx_guard_confirmed: true,
+                ..
+            }) => {
+                // Update confirmed and valid, remove guard
+                sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral
+                    SET
+                        update_guard_set = NULL,
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1
+                    "#,
+                    kind as _
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_eth_tx_guard")
+                .with_arg("field", &kind)
+                .execute(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::Matches)
+            }
+            Some(CurrentFieldValidator { .. }) => {
+                // Some condition is incorrect, set guard
+                // Update confirmed and valid, remove guard
+                let record = sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral
+                    SET
+                        update_guard_set = transaction_timestamp(),
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1
+                    RETURNING
+                    update_guard_set + $2 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    timeout
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
+            }
+            None => {
+                // Record missing from database, needs inserting
+                let record = sqlx::query!(
+                    r#"
+                    INSERT INTO tee_dcap_collateral VALUES (
+                        $1,
+                        transaction_timestamp(),
+                        $2,
+                        transaction_timestamp(),
+                        transaction_timestamp(),
+                        NULL
+                    ) RETURNING
+                    transaction_timestamp() + $3 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    &[],
+                    timeout
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
+            }
         }
     }
 
-    pub async fn field_updated(
+    pub async fn update_field(
         &mut self,
         kind: TeeDcapCollateralKind,
         sha256: &[u8],
         not_after: DateTime<Utc>,
+        eth_tx_id: i32,
     ) -> DalResult<()> {
-        let query = sqlx::query!(
+        sqlx::query!(
             r#"
-            INSERT INTO tee_dcap_collateral
-            (kind, sha256, not_after, updated, update_guard_expires)
-            VALUES ($1, $2, $3, transaction_timestamp(), NULL)
-            ON CONFLICT (kind)
-            DO UPDATE SET
-            sha256 = $2,
-            not_after = $3,
-            updated = transaction_timestamp(),
-            update_guard_expires = NULL
+            UPDATE tee_dcap_collateral
+            SET
+                update_guard_set = NULL,
+                sha256 = $2,
+                not_after = $3,
+                eth_tx_id = $4,
+                updated = transaction_timestamp()
+            WHERE
+                kind = $1
             "#,
             kind as _,
             sha256,
-            not_after
-        );
-        query
-            .instrument("tee_dcap_collateral_updated")
-            .with_arg("kind", &kind)
-            .execute(self.storage)
-            .await?;
+            not_after,
+            eth_tx_id
+        )
+        .instrument("tee_dcap_collateral_update_field")
+        .with_arg("field", &kind)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn tcb_info_is_current(
+        &mut self,
+        kind: TeeDcapCollateralTcbInfoJsonKind,
+        fmspc: &[u8],
+        sha256: &[u8],
+        timeout: PgInterval,
+    ) -> DalResult<TeeDcapCollateralInfo> {
+        let mut tx = self.storage.start_transaction().await?;
+        match sqlx::query_as!(
+            CurrentFieldValidator,
+            r#"
+            SELECT
+                c.sha256 = $2 AS "sha_matches!",
+                transaction_timestamp() < c.not_after AS "not_after!",
+                c.update_guard_set IS NULL AS "update_guard_set!",
+                (
+                    coalesce(c.update_guard_set, transaction_timestamp()) + $3
+                ) AS "update_guard_expires!",
+                (coalesce(c.update_guard_set, transaction_timestamp()) + $3)
+                < transaction_timestamp() AS "update_guard_expired!",
+                c.eth_tx_id IS NULL AS "eth_tx_guard_set!",
+                e.confirmed_eth_tx_history_id IS NULL AS "eth_tx_guard_confirmed!"
+            FROM
+                tee_dcap_collateral_tcb_info_json c
+            LEFT OUTER JOIN eth_txs e ON c.eth_tx_id = e.id
+            WHERE c.kind = $1 AND c.fmspc = $4
+            "#,
+            kind as _,
+            sha256,
+            timeout,
+            fmspc
+        )
+        .instrument("tee_dcap_collateral_tcb_info_is_current")
+        .with_arg("field", &kind)
+        .with_arg("fmspc", &fmspc)
+        .fetch_optional(&mut tx)
+        .await?
+        {
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                update_guard_set: false,
+                eth_tx_guard_set: false,
+                ..
+            }) => {
+                // All correct with no guards set
+                Ok(TeeDcapCollateralInfo::Matches)
+            }
+            Some(CurrentFieldValidator {
+                update_guard_set: true,
+                update_guard_expired: false,
+                update_guard_expires,
+                ..
+            }) => {
+                // Update guard not yet expired
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(update_guard_expires))
+            }
+            Some(CurrentFieldValidator {
+                eth_tx_guard_set: true,
+                eth_tx_guard_confirmed: false,
+                ..
+            }) => {
+                // Waiting for eth sender
+                Ok(TeeDcapCollateralInfo::PendingEthSenderCompletion)
+            }
+            Some(CurrentFieldValidator {
+                sha_matches: true,
+                not_after: true,
+                eth_tx_guard_set: true,
+                eth_tx_guard_confirmed: true,
+                ..
+            }) => {
+                // Update confirmed and valid, remove guard
+                sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral_tcb_info_json
+                    SET
+                        update_guard_set = NULL,
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1 AND
+                        fmspc = $2
+                    "#,
+                    kind as _,
+                    fmspc
+                )
+                .instrument("tee_dcap_collateral_tcb_info_is_current_remote_eth_tx_guard")
+                .with_arg("field", &kind)
+                .with_arg("fmspc", &fmspc)
+                .execute(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::Matches)
+            }
+            Some(CurrentFieldValidator { .. }) => {
+                // Some condition is incorrect, set guard
+                // Update confirmed and valid, remove guard
+                let record = sqlx::query!(
+                    r#"
+                    UPDATE tee_dcap_collateral_tcb_info_json
+                    SET
+                        update_guard_set = transaction_timestamp(),
+                        eth_tx_id = NULL
+                    WHERE
+                        kind = $1 AND fmspc = $3
+                    RETURNING
+                    update_guard_set + $2 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    timeout,
+                    fmspc
+                )
+                .instrument("tee_dcap_collateral_tcb_info_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .with_arg("fmspc", &fmspc)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
+            }
+            None => {
+                // Record missing from database, needs inserting
+                let record = sqlx::query!(
+                    r#"
+                    INSERT INTO tee_dcap_collateral_tcb_info_json VALUES (
+                        $1,
+                        $4,
+                        transaction_timestamp(),
+                        $2,
+                        transaction_timestamp(),
+                        transaction_timestamp(),
+                        NULL
+                    ) RETURNING
+                    transaction_timestamp() + $3 AS "update_guard_expires!"
+                    "#,
+                    kind as _,
+                    &[],
+                    timeout,
+                    fmspc
+                )
+                .instrument("tee_dcap_collateral_field_is_current_remote_update_guard")
+                .with_arg("field", &kind)
+                .fetch_one(&mut tx)
+                .await?;
+                tx.commit().await?;
+                Ok(TeeDcapCollateralInfo::PendingUpdateBy(
+                    record.update_guard_expires,
+                ))
+            }
+        }
+    }
+
+    pub async fn update_tcb_info(
+        &mut self,
+        kind: TeeDcapCollateralKind,
+        fmspc: &[u8],
+        sha256: &[u8],
+        not_after: DateTime<Utc>,
+        eth_tx_id: i32,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE tee_dcap_collateral_tcb_info_json
+            SET
+                update_guard_set = NULL,
+                sha256 = $2,
+                not_after = $3,
+                eth_tx_id = $4,
+                updated = transaction_timestamp()
+            WHERE
+                kind = $1 AND fmspc = $5
+            "#,
+            kind as _,
+            sha256,
+            not_after,
+            eth_tx_id,
+            fmspc
+        )
+        .instrument("tee_dcap_collateral_update_field")
+        .with_arg("field", &kind)
+        .execute(self.storage)
+        .await?;
         Ok(())
     }
 }
