@@ -50,7 +50,7 @@ pub fn zkos_commitment_to_vm_batch_output(commitment: &ZkosCommitment) -> BatchO
 
 pub fn batch_output_hash_as_register_values(public_input: &BatchPublicInput) -> Vec<u32> {
     public_input.hash().chunks_exact(4).map(|chunk| {
-        u32::from_be_bytes(chunk.try_into().expect("Slice with incorrect length"))
+        u32::from_le_bytes(chunk.try_into().expect("Slice with incorrect length"))
     }).collect()
 }
 
