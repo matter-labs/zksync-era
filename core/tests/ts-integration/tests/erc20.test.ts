@@ -6,8 +6,7 @@ import { TestMaster } from '../src';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as path from 'path';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
@@ -21,11 +20,10 @@ import {
     ArtifactL2InteropRootStorage,
     ArtifactBridgeHub
 } from '../src/constants';
-import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
+import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 import { ETH_ADDRESS } from 'zksync-ethers/build/utils';
-import { loadConfig } from 'utils/src/file-configs';
+import { loadChainConfig, loadConfig } from 'utils/src/file-configs';
 
-const GW_CHAIN_ID = 506n;
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
@@ -234,13 +232,7 @@ describe('L1 ERC20 contract checks', () => {
         params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(
-            alice.provider,
-            alice,
-            GW_CHAIN_ID,
-            getGWBlockNumber(params),
-            tokenDetails.l2Address
-        );
+        await waitForInteropRootNonZero(alice.provider, alice, getGWBlockNumber(params), tokenDetails.l2Address);
 
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
             (await alice.provider.getNetwork()).chainId,
@@ -285,7 +277,7 @@ describe('L1 ERC20 contract checks', () => {
         }
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
-        await waitForInteropRootNonZero(l2b_provider, aliceL2b, GW_CHAIN_ID, getGWBlockNumber(params));
+        await waitForInteropRootNonZero(l2b_provider, aliceL2b, getGWBlockNumber(params));
 
         // We use the same proof that was verified in L2-A
         const included = await l2MessageVerification.proveL2MessageInclusionShared(
@@ -309,10 +301,13 @@ describe('L1 ERC20 contract checks', () => {
     async function waitForInteropRootNonZero(
         provider: zksync.Provider,
         alice: zksync.Wallet,
-        chainId: bigint,
         l1BatchNumber: number,
         tokenToSend: string = ETH_ADDRESS
     ) {
+        const pathToHome = path.join(__dirname, '../../../..');
+        const gatewayConfig = loadChainConfig(pathToHome, 'gateway');
+        const gatewayChainId = gatewayConfig.chain_id;
+
         const l2InteropRootStorage = new zksync.Contract(
             L2_INTEROP_ROOT_STORAGE_ADDRESS,
             ArtifactL2InteropRootStorage.abi,
@@ -320,7 +315,7 @@ describe('L1 ERC20 contract checks', () => {
         );
         let currentRoot = ethers.ZeroHash;
         let count = 0;
-        while (currentRoot === ethers.ZeroHash && count < 10) {
+        while (currentRoot === ethers.ZeroHash && count < 20) {
             const tx = await alice.transfer({
                 to: alice.address,
                 amount: 1,
@@ -328,7 +323,7 @@ describe('L1 ERC20 contract checks', () => {
             });
             await tx.wait();
 
-            currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
+            currentRoot = await l2InteropRootStorage.interopRoots(gatewayChainId, l1BatchNumber);
             await new Promise((resolve) => setTimeout(resolve, provider.pollingInterval));
             console.log('currentRoot', currentRoot, count);
             count++;
@@ -339,14 +334,6 @@ describe('L1 ERC20 contract checks', () => {
     // Gets the L2-B provider URL, which is Validium (L2-B) for Era (L2-A), and Era (L2-B) for all other chains
     function getL2bUrl(l2aUrl: string) {
         const pathToHome = path.join(__dirname, '../../../..');
-        const validiumConfig = loadConfig({
-            pathToHome,
-            chain: 'validium',
-            config: 'general.yaml'
-        });
-        const validiumUrl = validiumConfig.api.web3_json_rpc.http_url;
-        if (validiumUrl !== l2aUrl) return validiumUrl;
-
         const eraConfig = loadConfig({
             pathToHome,
             chain: 'era',
@@ -354,6 +341,14 @@ describe('L1 ERC20 contract checks', () => {
         });
         const eraUrl = eraConfig.api.web3_json_rpc.http_url;
         if (eraUrl !== l2aUrl) return eraUrl;
+
+        const validiumConfig = loadConfig({
+            pathToHome,
+            chain: 'validium',
+            config: 'general.yaml'
+        });
+        const validiumUrl = validiumConfig.api.web3_json_rpc.http_url;
+        if (validiumUrl !== l2aUrl) return validiumUrl;
         throw new Error('No valid L2-B provider found');
     }
 
