@@ -52,28 +52,35 @@ impl GenesisSpec {
     }
 
     pub(super) fn parse(x: &configs::consensus::GenesisSpec) -> anyhow::Result<Self> {
-        let validators: Vec<_> = x
-            .validators
-            .iter()
-            .enumerate()
-            .map(|(i, (key, weight))| {
-                Ok(validator::ValidatorInfo {
-                    key: Text::new(&key.0).decode().context("key").context(i)?,
-                    weight: *weight,
-                    leader: key == &x.leader,
-                })
-            })
-            .collect::<anyhow::Result<_>>()
-            .context("validators")?;
-
-        let schedule = if validators.is_empty() {
+        let schedule = if x.validators.is_empty() || x.leader.is_none() {
             None
         } else {
+            let leader = x.leader.as_ref().unwrap(); // safe to unwrap because of the check above
+
+            let validators: Vec<_> = x
+                .validators
+                .iter()
+                .enumerate()
+                .map(|(i, (key, weight))| {
+                    Ok(validator::ValidatorInfo {
+                        key: Text::new(&key.0).decode().context("key").context(i)?,
+                        weight: *weight,
+                        leader: key == leader,
+                    })
+                })
+                .collect::<anyhow::Result<_>>()
+                .context("validators")?;
+
             Some(
                 validator::Schedule::new(validators, validator::LeaderSelection::default())
                     .context("schedule")?,
             )
         };
+
+        anyhow::ensure!(
+            schedule.is_some() || x.registry_address.is_some(),
+            "either validators or registry_address must be present"
+        );
 
         Ok(Self {
             chain_id: validator::ChainId(x.chain_id.as_u64()),
