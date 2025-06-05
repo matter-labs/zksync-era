@@ -18,8 +18,7 @@ import {
 import { shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
 import * as ethers from 'ethers';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as elliptic from 'elliptic';
 import { RetryProvider } from '../src/retry-provider';
 

@@ -9,8 +9,7 @@ import { TestMaster } from '../src';
 import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import {
     scaledGasPrice,

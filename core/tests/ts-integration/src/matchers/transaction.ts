@@ -1,7 +1,6 @@
 import { TestMessage } from './matcher-helpers';
 import { MatcherModifier } from '../modifiers';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import { AugmentedTransactionResponse } from '../transaction-response';
 import { ethers } from 'ethers';
 
