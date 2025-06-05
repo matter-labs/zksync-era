@@ -26,7 +26,7 @@ pub fn verify_fri_proof(
     tracing::info!("Expected values for Public Inputs hash: {:?}", expected_hash_u32s);
 
     // compare expected_hash_u32s with the last 8 values of proof_final_register_values
-    if (&proof_final_register_values[8..] == &expected_hash_u32s) {
+    if (&proof_final_register_values[..8] == &expected_hash_u32s) {
         tracing::info!("Final register values match expected hash values for block {}", current_batch.header.number.0);
         Ok(())
     } else {
