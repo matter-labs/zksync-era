@@ -1,14 +1,13 @@
 use anyhow::Context as _;
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
+    commitment::{L1BatchWithMetadata, ZkosCommitment},
     ethabi::{self, ParamType, Token},
     parse_h256, web3,
     web3::contract::Error as ContractError,
     ProtocolVersionId, H256, U256,
 };
-use zksync_types::commitment::ZkosCommitment;
-use crate::i_executor::structures::CommitBoojumOSBatchInfo;
-use crate::Tokenizable;
+
+use crate::{i_executor::structures::CommitBoojumOSBatchInfo, Tokenizable};
 
 pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -104,10 +103,7 @@ impl StoredBatchInfo {
 
 // todo when L1BatchWithMetadata is refactored, we should convert it to this struct directly
 impl StoredBatchInfo {
-    pub fn new(
-        batch: &ZkosCommitment,
-        commitment: [u8; 32]
-    ) -> Self {
+    pub fn new(batch: &ZkosCommitment, commitment: [u8; 32]) -> Self {
         Self {
             batch_number: batch.batch_number.into(),
             batch_hash: batch.state_commitment(),
@@ -117,11 +113,10 @@ impl StoredBatchInfo {
             dependency_roots_rolling_hash: batch.dependency_roots_rolling_hash,
             l2_logs_tree_root: batch.l2_to_l1_logs_root_hash,
             timestamp: 0.into(),
-            commitment: commitment.into()
+            commitment: commitment.into(),
         }
     }
 }
-
 
 // todo: this conversion is only used by legacy methods - it will not work correctly in zkos
 // commitment is not computed correctly here
@@ -151,7 +146,6 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
         }
     }
 }
-
 
 impl Tokenizable for StoredBatchInfo {
     fn from_token(token: Token) -> Result<Self, ContractError> {

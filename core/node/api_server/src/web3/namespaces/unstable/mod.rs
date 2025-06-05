@@ -87,20 +87,20 @@ impl UnstableNamespace {
             .ensure_not_pruned(batch_or_block_number, &mut connection)
             .await?;
 
-            let l2_block_number = match batch_or_block_number {
-                BatchOrBlockNumber::BatchNumber(l1_batch_number) => {
-                    match connection
-                        .blocks_dal()
-                        .get_l2_block_range_of_l1_batch(l1_batch_number)
-                        .await
-                        .map_err(DalError::generalize)?
-                        .map(|(_, end_block)| end_block)
-                    {
-                        Some(block_num) => block_num,
-                        None => return Ok(None),
-                    }
+        let l2_block_number = match batch_or_block_number {
+            BatchOrBlockNumber::BatchNumber(l1_batch_number) => {
+                match connection
+                    .blocks_dal()
+                    .get_l2_block_range_of_l1_batch(l1_batch_number)
+                    .await
+                    .map_err(DalError::generalize)?
+                    .map(|(_, end_block)| end_block)
+                {
+                    Some(block_num) => block_num,
+                    None => return Ok(None),
                 }
-                BatchOrBlockNumber::BlockNumber(l2_block_number) => l2_block_number,
+            }
+            BatchOrBlockNumber::BlockNumber(l2_block_number) => l2_block_number,
         };
         let chain_count_integer = get_chain_count(&mut connection, l2_block_number).await?;
 

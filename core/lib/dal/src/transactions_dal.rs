@@ -11,8 +11,8 @@ use zksync_db_connection::{
 };
 use zksync_types::{
     block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, h256_to_u256, l1::L1Tx, l2::L2Tx,
-    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, InteropRoot, L1BatchNumber,
-    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, InteropRoot,
+    L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -2144,7 +2144,7 @@ impl TransactionsDal<'_, '_> {
         .collect();
         Ok(records)
     }
-    
+
     async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,

@@ -18,7 +18,8 @@ use zksync_types::{
     commitment::{PubdataParams, PubdataType},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction,
+    H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 

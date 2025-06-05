@@ -19,7 +19,8 @@ use crate::{
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
     etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
     events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    interop_roots_dal::InteropRootDal, proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
+    interop_roots_dal::InteropRootDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
     snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
@@ -28,8 +29,8 @@ use crate::{
     tee_proof_generation_dal::TeeProofGenerationDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
+    zkos_prover_dal::ZkosProverDal,
 };
-use crate::zkos_prover_dal::ZkosProverDal;
 
 pub mod account_properties_dal;
 pub mod base_token_dal;
@@ -47,10 +48,10 @@ pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
 pub mod helpers;
+pub mod interop_roots_dal;
 pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
-pub mod interop_roots_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod pruning_dal;

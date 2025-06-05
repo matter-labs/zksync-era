@@ -13,8 +13,8 @@ use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
     settlement::SettlementLayer,
-    Address, Execute, L1BatchNumber, L2BlockNumber, L1TxCommonData, L2ChainId, PriorityOpId, ProtocolUpgrade,
-    ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
+    Address, Execute, L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, PriorityOpId,
+    ProtocolUpgrade, ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
 use crate::{tests::client::MockEthClient, EthWatch, ZkSyncExtentionEthClient};

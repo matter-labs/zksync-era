@@ -425,7 +425,12 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256, confirmed_at_block: u32) -> anyhow::Result<()> {
+    pub async fn confirm_tx(
+        &mut self,
+        tx_hash: H256,
+        gas_used: U256,
+        confirmed_at_block: u32,
+    ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
             .start_transaction()
@@ -733,7 +738,7 @@ impl EthSenderDal<'_, '_> {
         println!("history_item: {:?}", history_item);
         Ok(Some(history_item[0].clone()))
     }
-        
+
     pub async fn get_last_sent_successfully_eth_storage_tx(
         &mut self,
         eth_tx_id: u32,
@@ -986,7 +991,7 @@ impl EthSenderDal<'_, '_> {
         let eth_tx_id = self
             .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
             .await?;
-        
+
         self.get_last_sent_successfully_eth_tx(eth_tx_id)
             .await
             .unwrap()

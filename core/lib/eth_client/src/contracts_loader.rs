@@ -65,12 +65,11 @@ pub async fn load_settlement_layer_contracts(
             .for_contract(bridgehub_address, &bridgehub_contract())
             .call(sl_client)
             .await?;
-    
-    let message_root_proxy_addr = 
-        CallFunctionArgs::new("messageRoot", ())
-            .for_contract(bridgehub_address, &bridgehub_contract())
-            .call(sl_client)
-            .await?;
+
+    let message_root_proxy_addr = CallFunctionArgs::new("messageRoot", ())
+        .for_contract(bridgehub_address, &bridgehub_contract())
+        .call(sl_client)
+        .await?;
 
     let validator_timelock_addr = CallFunctionArgs::new("validatorTimelock", ())
         .for_contract(ctm_address, &state_transition_manager_contract())

@@ -156,9 +156,7 @@ impl ProtoRepr for proto::Contracts {
             state_transition_proxy_addr: this
                 .state_transition_proxy_addr
                 .map(|a| format!("{:?}", a)),
-            message_root_proxy_addr: this
-                .message_root_proxy_addr
-                .map(|a| format!("{:?}", a)),
+            message_root_proxy_addr: this.message_root_proxy_addr.map(|a| format!("{:?}", a)),
             transparent_proxy_admin_addr: this
                 .transparent_proxy_admin_addr
                 .map(|a| format!("{:?}", a)),

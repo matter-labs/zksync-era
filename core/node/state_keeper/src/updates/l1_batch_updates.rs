@@ -1,6 +1,7 @@
 use zksync_multivm::interface::{FinishedL1Batch, TransactionExecutionResult, VmExecutionMetrics};
 use zksync_types::{
-    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot, L1BatchNumber,
+    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot,
+    L1BatchNumber,
 };
 
 use crate::updates::l2_block_updates::L2BlockUpdates;

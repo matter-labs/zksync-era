@@ -5,7 +5,9 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION},
+    i_executor::structures::{
+        StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
+    },
     Tokenizable,
 };
 
@@ -35,8 +37,8 @@ impl ExecuteBatches {
                     })
                     .collect(),
             )]
-        }   else if internal_protocol_version.is_pre_interop()
-                && chain_protocol_version.is_pre_interop()
+        } else if internal_protocol_version.is_pre_interop()
+            && chain_protocol_version.is_pre_interop()
         {
             let encoded_data = encode(&[
                 Token::Array(

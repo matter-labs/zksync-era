@@ -222,15 +222,19 @@ impl FactoryDepsDal<'_, '_> {
                 factory_deps
             "#
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
-            .collect()
-    }    /// Retrieves all factory deps entries for testing purposes.
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
+        .collect()
+    }
+    /// Retrieves all factory deps entries for testing purposes.
     ///
-    pub async fn get_factory_deps_for_block(&mut self, l2_block_number: L2BlockNumber) -> HashMap<H256, Vec<u8>> {
+    pub async fn get_factory_deps_for_block(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+    ) -> HashMap<H256, Vec<u8>> {
         sqlx::query!(
             r#"
             SELECT
@@ -243,11 +247,11 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             i64::from(l2_block_number.0)
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
-            .collect()
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
+        .collect()
     }
 }
