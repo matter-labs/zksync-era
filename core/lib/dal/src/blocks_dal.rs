@@ -953,8 +953,8 @@ impl BlocksDal<'_, '_> {
                 transactions.hash, transactions.error,
                 miniblock_number AS "miniblock_number!",
                 miniblocks.timestamp
-            FROM transactions
-            JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
+            FROM miniblocks
+            JOIN transactions ON miniblocks.number = transactions.miniblock_number
             WHERE
                 (
                     miniblocks.l1_batch_number IS NULL AND $2
