@@ -473,7 +473,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
         tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.max_parallelism, Some(NonZeroU32::new(4).unwrap()));
 
-    let config: ENConfig = tester.for_config().test_complete(source.clone()).unwrap();
+    let config: NetworksConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(
         config.main_node_rate_limit_rps,
         NonZeroUsize::new(150).unwrap()

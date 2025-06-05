@@ -12,7 +12,7 @@ use zksync_config::{
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
             SettlementLayerSpecificContracts,
         },
-        en_config::{ENConfig, SharedL1ContractsConfig},
+        networks::{NetworksConfig, SharedL1ContractsConfig},
         CommitmentGeneratorConfig, DataAvailabilitySecrets, L1Secrets, ObservabilityConfig,
         PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
@@ -221,7 +221,7 @@ pub(crate) struct LocalConfig {
     pub timestamp_asserter: TimestampAsserterConfig,
     pub data_availability: Option<DAClientConfig>,
     pub contracts: SharedL1ContractsConfig,
-    pub networks: ENConfig,
+    pub networks: NetworksConfig,
     pub consensus: Option<ConsensusConfig>,
     pub secrets: Secrets,
 }
@@ -239,7 +239,7 @@ impl LocalConfig {
         schema.insert(&ApiConfig::DESCRIPTION, "api")?;
         schema
             .single_mut(&Web3JsonRpcConfig::DESCRIPTION)?
-            .push_alias("api")? // FIXME: is this OK (used for single param)?
+            .push_alias("api")?
             .push_deprecated_alias("")?;
         schema
             .single_mut(&HealthCheckConfig::DESCRIPTION)?
@@ -283,7 +283,7 @@ impl LocalConfig {
             .push_alias("contracts")? // match aliasing in the main node config
             .push_deprecated_alias("")?;
         schema
-            .insert(&ENConfig::DESCRIPTION, "networks")?
+            .insert(&NetworksConfig::DESCRIPTION, "networks")?
             .push_deprecated_alias("")?;
         schema.insert(&ConsensusConfig::DESCRIPTION, "consensus")?;
 
@@ -354,7 +354,7 @@ impl LocalConfig {
             timestamp_asserter: TimestampAsserterConfig::default(),
             data_availability: None,
             contracts: SharedL1ContractsConfig::default(),
-            networks: ENConfig::for_tests(),
+            networks: NetworksConfig::for_tests(),
             consensus: None,
             secrets: Secrets {
                 consensus: ConsensusSecrets::default(),

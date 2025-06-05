@@ -15,10 +15,9 @@ pub struct SharedL1ContractsConfig {
     pub diamond_proxy_addr: Option<Address>,
 }
 
-/// Temporary config for initializing external node, will be completely replaced by consensus config later
-// FIXME: rename?
+/// Temporary config for initializing external node, will be completely replaced by consensus config later.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-pub struct ENConfig {
+pub struct NetworksConfig {
     /// Chain ID of the (L2) network that the node is a part of.
     #[config(with = Serde![int])]
     pub l2_chain_id: L2ChainId,
@@ -39,7 +38,7 @@ pub struct ENConfig {
     pub bridge_addresses_refresh_interval: Duration,
 }
 
-impl ENConfig {
+impl NetworksConfig {
     pub fn for_tests() -> Self {
         Self {
             l2_chain_id: L2ChainId::default(),
@@ -58,8 +57,8 @@ mod tests {
 
     use super::*;
 
-    fn expected_config() -> ENConfig {
-        ENConfig {
+    fn expected_config() -> NetworksConfig {
+        NetworksConfig {
             l2_chain_id: L2ChainId::from(271),
             l1_chain_id: L1ChainId(9),
             gateway_chain_id: Some(SLChainId(123)),
@@ -72,7 +71,7 @@ mod tests {
     fn create_schema() -> ConfigSchema {
         let mut schema = ConfigSchema::default();
         schema
-            .insert(&ENConfig::DESCRIPTION, "external_node")
+            .insert(&NetworksConfig::DESCRIPTION, "external_node")
             .unwrap()
             .push_alias("")
             .unwrap();
@@ -95,7 +94,7 @@ mod tests {
 
         let schema = create_schema();
         let repo = ConfigRepository::new(&schema).with(env);
-        let config: ENConfig = repo.single().unwrap().parse().unwrap();
+        let config: NetworksConfig = repo.single().unwrap().parse().unwrap();
         assert_eq!(config, expected_config());
     }
 
@@ -114,7 +113,7 @@ mod tests {
 
         let schema = create_schema();
         let repo = ConfigRepository::new(&schema).with(yaml);
-        let config: ENConfig = repo.single().unwrap().parse().unwrap();
+        let config: NetworksConfig = repo.single().unwrap().parse().unwrap();
         assert_eq!(config, expected_config());
     }
 
@@ -134,7 +133,7 @@ mod tests {
 
         let schema = create_schema();
         let repo = ConfigRepository::new(&schema).with(yaml);
-        let config: ENConfig = repo.single().unwrap().parse().unwrap();
+        let config: NetworksConfig = repo.single().unwrap().parse().unwrap();
         assert_eq!(config, expected_config());
     }
 }
