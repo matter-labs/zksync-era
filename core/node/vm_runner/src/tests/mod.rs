@@ -338,7 +338,7 @@ async fn store_l1_batches(
             .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)
             .await?;
         conn.transactions_dal()
-            .mark_txs_as_executed_in_l1_batch(l1_batch_number, &[tx_result])
+            .mark_txs_as_executed_in_l1_batch(l1_batch_number, &[tx_result.hash])
             .await?;
 
         let metadata = create_l1_batch_metadata(l1_batch_number.0);
