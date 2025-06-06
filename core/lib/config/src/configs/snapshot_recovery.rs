@@ -40,8 +40,6 @@ pub struct SnapshotRecoveryConfig {
     /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
     /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
     /// or was synced from genesis.
-    ///
-    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
     #[config(default)]
     pub enabled: bool,
     /// L1 batch number of the snapshot to use during recovery. Specifying this parameter is mostly useful for testing.

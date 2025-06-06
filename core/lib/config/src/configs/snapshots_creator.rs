@@ -20,10 +20,13 @@ pub struct SnapshotsCreatorConfig {
     ///   regardless of whether the specified snapshot `version` matches.
     #[config(with = Optional(Serde![int]))]
     pub l1_batch_number: Option<L1BatchNumber>,
+    /// Desired number of storage logs to include in a single chunk (persisted to the object store as a single file).
     #[config(default_t = 1_000_000)]
     pub storage_logs_chunk_size: u64,
+    /// Limiter for concurrent Postgres queries. Right now, applied when persisting storage log chunks.
     #[config(default_t = 25)]
     pub concurrent_queries_count: u32,
+    /// Object store to persist the snapshot into.
     #[config(nest)]
     pub object_store: ObjectStoreConfig,
 }
