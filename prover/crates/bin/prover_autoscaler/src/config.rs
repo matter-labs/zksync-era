@@ -168,6 +168,12 @@ pub struct ScalerTarget {
     /// For Simple targets, this is a list of ClusterName.
     #[serde(default)]
     pub priority: Option<PriorityConfig>,
+    /// Optional hysteresis value as percentage of the queue to avoid
+    /// oscillations in scaling.
+    /// Valid values are from 0 to 100.
+    /// Default is 0, which means no hysteresis.
+    #[serde(default)]
+    pub hysteresis: usize,
 }
 
 impl WellKnown for ScalerTarget {
