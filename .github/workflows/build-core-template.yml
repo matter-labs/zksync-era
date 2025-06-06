@@ -240,16 +240,14 @@ jobs:
             SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
             SCCACHE_GCS_RW_MODE=READ_WRITE
             RUSTC_WRAPPER=sccache
-          tags: |            
+          tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-          docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
   create_manifest:
@@ -279,15 +277,42 @@ jobs:
 
       - name: Create Docker manifest
         run: |
-          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
-          platforms=${{ matrix.component.platform }}
+          component="${{ matrix.component.name }}"
+          platforms="${{ matrix.component.platform }}"
+
+          docker_repositories=(
+            "matterlabs/${component}"
+            "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${component}"
+          )
+
           for repo in "${docker_repositories[@]}"; do
             platform_tags=""
             for platform in ${platforms//,/ }; do
               platform=$(echo $platform | tr '/' '-')
               platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
             done
-            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
+
+            # Default: push all four tags
+            manifests=(
+              "${repo}:${IMAGE_TAG_SUFFIX}"
+              "${repo}:2.0-${IMAGE_TAG_SUFFIX}"
+              "${repo}:latest"
+              "${repo}:latest2.0"
+            )
+
+            # If this is matterlabs/external-node, override to only push version+latest* when suffix is set.
+            if [[ "$repo" == "matterlabs/${component}" && "$component" == "external-node" ]]; then
+              manifests=()
+              if [[ -n "$IMAGE_TAG_SUFFIX" ]]; then
+                manifests=(
+                  "${repo}:${IMAGE_TAG_SUFFIX}"
+                  "${repo}:latest"
+                )
+              fi
+              # If IMAGE_TAG_SUFFIX is empty, manifests stays empty → skip pushing anything
+            fi
+
+            for manifest in "${manifests[@]}"; do
               docker manifest create ${manifest} ${platform_tags}
               docker manifest push ${manifest}
             done
