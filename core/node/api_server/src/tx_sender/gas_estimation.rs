@@ -192,6 +192,8 @@ impl TxSender {
                 )
             })?;
 
+        tracing::info!("ensuring sufficient balance; account_code_hash: {account_code_hash}");
+
         if !tx.is_l1() && account_code_hash == H256::zero() {
             let balance = match state_override
                 .and_then(|overrides| overrides.get(&tx.initiator_account()))
@@ -200,6 +202,8 @@ impl TxSender {
                 Some(balance) => balance,
                 None => self.get_balance(&tx.initiator_account()).await?,
             };
+
+            tracing::info!("account balance: {balance}; tx value: {}", tx.execute.value);
 
             if tx.execute.value > balance {
                 tracing::info!(

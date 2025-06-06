@@ -316,7 +316,7 @@ impl SandboxExecutor {
 
         // todo: gas - currently many txs fail with `BaseFeeGreaterThanMaxFee`
         let context = BatchContext {
-            eip1559_basefee: U256::from(100),
+            eip1559_basefee: U256::from(0),
             native_price: U256::from(1),
             gas_per_pubdata: Default::default(),
             block_number: (env.l1_batch.number.0 + 1) as u64,

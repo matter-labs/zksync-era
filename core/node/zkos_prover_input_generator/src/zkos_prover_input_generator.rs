@@ -176,9 +176,9 @@ impl ZkosProverInputGenerator {
     ) -> anyhow::Result<Vec<u32>> {
         let context = BatchContext {
             //todo: gas
-            eip1559_basefee: U256::from(block.base_fee_per_gas),
+            eip1559_basefee: U256::from(1000),
             // copied from keeper.rs
-            native_price: U256::from(block.base_fee_per_gas / 100),
+            native_price: U256::from(1),
             gas_per_pubdata: Default::default(),
             block_number: block.number.0 as u64,
             timestamp: block.timestamp,
