@@ -1,8 +1,4 @@
-use std::{
-    convert::Infallible,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -28,7 +24,7 @@ use crate::{
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
-    metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
+    metrics::{AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
     utils::is_canceled,
@@ -114,7 +110,6 @@ impl BatchState {
 pub struct StateKeeper {
     inner: StateKeeperInner,
     batch_state: BatchState,
-    last_l1_batch_sealed_at: Option<Instant>,
 }
 
 /// Helper struct that is used for state keeper initialization.
@@ -188,7 +183,6 @@ impl StateKeeperInner {
                 return Ok(StateKeeper {
                     inner: self,
                     batch_state: BatchState::Uninit(cursor),
-                    last_l1_batch_sealed_at: None,
                 });
             }
         };
@@ -230,7 +224,6 @@ impl StateKeeperInner {
                 batch_executor,
                 protocol_upgrade_tx,
             })),
-            last_l1_batch_sealed_at: None,
         })
     }
 
@@ -1130,13 +1123,6 @@ impl StateKeeper {
             .handle_l1_batch(Arc::new(state.updates_manager))
             .await
             .with_context(|| format!("failed sealing L1 batch #{}", l1_batch_number))?;
-
-        if let Some(last_l1_batch_sealed_at) = self.last_l1_batch_sealed_at {
-            L1_BATCH_METRICS
-                .seal_delta
-                .observe(last_l1_batch_sealed_at.elapsed());
-        }
-        self.last_l1_batch_sealed_at = Some(Instant::now());
 
         Ok(())
     }
