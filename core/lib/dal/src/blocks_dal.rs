@@ -943,13 +943,11 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_ready_for_precommit_txs(
         &mut self,
-        last_committed_l1_batch: L1BatchNumber,
+        l1_batch: L1BatchNumber,
     ) -> DalResult<Vec<TxForPrecommit>> {
         let mut tx = self.storage.start_transaction().await?;
         // Miniblocks belongs to the non sealed batches don't have batch number,
-        // so for the pending batch we use None
-
-        let last_non_committed_l1_batch = last_committed_l1_batch + 1;
+        // so for the pending batch we use NULl
         let txs = sqlx::query!(
             r#"
             SELECT
@@ -970,7 +968,7 @@ impl BlocksDal<'_, '_> {
                 miniblocks.eth_precommit_tx_id IS NULL
             ORDER BY miniblock_number, index_in_block
             "#,
-            i64::from(last_non_committed_l1_batch.0)
+            i64::from(l1_batch.0)
         )
         .instrument("get_ready_for_precommit_txs")
         .report_latency()
@@ -1582,8 +1580,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = 0
-                OR eth_commit_tx_id IS NOT NULL
+                eth_commit_tx_id IS NOT NULL
                 AND commitment IS NOT NULL
             ORDER BY
                 number DESC
