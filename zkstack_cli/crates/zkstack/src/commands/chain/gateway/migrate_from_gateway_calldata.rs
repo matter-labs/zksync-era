@@ -89,12 +89,10 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 // It is the expected case, it will be handled later in the file
             }
             GatewayMigrationProgressState::AwaitingFinalization => {
-                logger::info("The transaction to migrate chain on top of Gateway has been processed, but the GW chain has not yet finalized it");
-                return Ok(());
+                anyhow::bail!("The transaction to migrate chain on top of Gateway has been processed, but the GW chain has not yet finalized it");
             }
             GatewayMigrationProgressState::PendingManualFinalization => {
-                logger::info("The chain migration to Gateway has been finalized on the Gateway side. Please use the corresponding command to finalize its migration to L1");
-                return Ok(());
+                anyhow::bail!("The chain migration to Gateway has been finalized on the Gateway side. Please use the corresponding command to finalize its migration to L1");
             }
             GatewayMigrationProgressState::Finished => {
                 let l1_provider = get_ethers_provider(&params.l1_rpc_url)?;
@@ -122,14 +120,13 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
 
                 return Ok(());
             }
-            _ => {
-                let msg = message_for_gateway_migration_progress_state(
+            GatewayMigrationProgressState::NotStarted
+            | GatewayMigrationProgressState::NotificationSent
+            | GatewayMigrationProgressState::NotificationReceived(_) => {
+                anyhow::bail!(message_for_gateway_migration_progress_state(
                     state,
                     MigrationDirection::FromGateway,
-                );
-                logger::info(&msg);
-
-                return Ok(());
+                ));
             }
         }
     }
