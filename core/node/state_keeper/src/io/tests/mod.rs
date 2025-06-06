@@ -188,7 +188,7 @@ async fn test_timestamps_are_distinct(
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(l1_batch_params.first_l2_block.timestamp > prev_l2_block_timestamp);
+    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -563,6 +563,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         &system_env,
         pubdata_params,
         system_env.version,
+        l1_batch_env.first_l2_block.timestamp * 1000,
     );
 
     let tx_hash = tx.hash();
@@ -644,7 +645,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     assert_eq!(pending_batch.pending_l2_blocks[0].txs[0].hash(), tx_hash);
 }
 
-/// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps
+/// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps for <= v28.
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
 async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1BatchCommitmentMode) {
@@ -659,11 +660,15 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
     io_cursor.prev_l2_block_timestamp = current_timestamp;
 
     let l2_block_params = mempool
-        .wait_for_new_l2_block_params(&io_cursor, Duration::from_secs(10))
+        .wait_for_new_l2_block_params(
+            &io_cursor,
+            Duration::from_secs(10),
+            ProtocolVersionId::Version28,
+        )
         .await
         .unwrap()
         .expect("no new L2 block params");
-    assert!(l2_block_params.timestamp > current_timestamp);
+    assert!(l2_block_params.timestamp() > current_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -710,7 +715,32 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
         .unwrap()
         .expect("no batch params generated");
 
-    assert_eq!(old_l1_batch_params, new_l1_batch_params);
+    assert_eq!(
+        old_l1_batch_params.protocol_version,
+        new_l1_batch_params.protocol_version
+    );
+    assert_eq!(
+        old_l1_batch_params.validation_computational_gas_limit,
+        new_l1_batch_params.validation_computational_gas_limit
+    );
+    assert_eq!(
+        old_l1_batch_params.operator_address,
+        new_l1_batch_params.operator_address
+    );
+    assert_eq!(old_l1_batch_params.fee_input, new_l1_batch_params.fee_input);
+    assert_eq!(
+        old_l1_batch_params.pubdata_params,
+        new_l1_batch_params.pubdata_params
+    );
+    assert_eq!(
+        old_l1_batch_params.first_l2_block.virtual_blocks,
+        new_l1_batch_params.first_l2_block.virtual_blocks
+    );
+    // Timestamp in millis can be different.
+    assert_eq!(
+        old_l1_batch_params.first_l2_block.timestamp(),
+        new_l1_batch_params.first_l2_block.timestamp()
+    );
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -744,7 +774,7 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .unwrap()
         .expect("no batch params generated");
     assert_eq!(l1_batch_params.fee_input, fee_input);
-    assert_eq!(l1_batch_params.first_l2_block.timestamp, 2);
+    assert_eq!(l1_batch_params.first_l2_block.timestamp(), 2);
 }
 
 #[tokio::test]

@@ -45,6 +45,7 @@ async fn creating_io_cursor_with_genesis() {
     assert_eq!(cursor.l1_batch, L1BatchNumber(1));
     assert_eq!(cursor.next_l2_block, L2BlockNumber(1));
     assert_eq!(cursor.prev_l2_block_timestamp, 0);
+    assert_eq!(cursor.prev_l1_batch_timestamp, 0);
     assert_eq!(
         cursor.prev_l2_block_hash,
         L2BlockHasher::legacy_hash(L2BlockNumber(0))
@@ -77,6 +78,10 @@ async fn creating_io_cursor_with_snapshot_recovery() {
     assert_eq!(
         cursor.prev_l2_block_timestamp,
         snapshot_recovery.l2_block_timestamp
+    );
+    assert_eq!(
+        cursor.prev_l1_batch_timestamp,
+        snapshot_recovery.l1_batch_timestamp
     );
     assert_eq!(cursor.prev_l2_block_hash, snapshot_recovery.l2_block_hash);
 
