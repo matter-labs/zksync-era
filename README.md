@@ -27,18 +27,16 @@ Now run the server. Note that it also runs prover input generator and prover inp
 zkstack server --ignore-prerequisites --chain era --zkos
 ```
 
+Run integartion tests (most are skipped but the ones running in this suite in should be working)
+```
+zkstack dev test integration -v -t zkos --chain era
+```
+
 To run prover locally run 
 ```
 cd zkos_prover
 cargo run
 ```
-
-
-
-**Edit - are they still funded?..**
-On server start, the wallets listed
-[here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) are
-funded. This list can be modified - added wallets are funded on server restart (no regenesis is needed)
 
 # ZKsync Era: A ZK Rollup For Scaling Ethereum
 
