@@ -18,6 +18,6 @@ pub fn num_blobs_created(protocol_version: &ProtocolVersionId) -> usize {
     } else if protocol_version.is_pre_1_5_0() {
         2
     } else {
-        6
+        9
     }
 }
