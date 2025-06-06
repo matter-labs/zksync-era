@@ -68,6 +68,21 @@ impl BatchFeeInput {
                 })
             })
     }
+
+    pub fn scale_linearly(
+        &self,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
+    ) -> BatchFeeInput {
+        match self {
+            BatchFeeInput::L1Pegged(input) => {
+                BatchFeeInput::L1Pegged(input.scale(l1_gas_price_scale_factor))
+            }
+            BatchFeeInput::PubdataIndependent(input) => BatchFeeInput::PubdataIndependent(
+                input.scale_linearly(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor),
+            ),
+        }
+    }
 }
 
 impl Default for BatchFeeInput {
@@ -171,6 +186,15 @@ pub struct L1PeggedBatchFeeModelInput {
     pub l1_gas_price: u64,
 }
 
+impl L1PeggedBatchFeeModelInput {
+    pub fn scale(&self, l1_gas_price_scale_factor: f64) -> L1PeggedBatchFeeModelInput {
+        L1PeggedBatchFeeModelInput {
+            l1_gas_price: (self.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64,
+            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * l1_gas_price_scale_factor) as u64,
+        }
+    }
+}
+
 /// Pubdata price may be independent from L1 gas price.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PubdataIndependentBatchFeeModelInput {
@@ -180,6 +204,25 @@ pub struct PubdataIndependentBatchFeeModelInput {
     pub fair_pubdata_price: u64,
     /// The L1 gas price to provide to the VM. Even if some of the VM versions may not use this value, it is still maintained for backward compatibility.
     pub l1_gas_price: u64,
+}
+
+impl PubdataIndependentBatchFeeModelInput {
+    /// Scales the fee model input linearly based on the provided scale factors. It doesn't account
+    /// for the parameters being dependent on each other, it shouldn't be used anywhere outside API.
+    pub fn scale_linearly(
+        self,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
+    ) -> PubdataIndependentBatchFeeModelInput {
+        clip_batch_fee_model_input_v2(PubdataIndependentBatchFeeModelInput {
+            fair_l2_gas_price: (self.fair_l2_gas_price as f64
+                * (l1_gas_price_scale_factor + l1_pubdata_price_scale_factor)
+                / 2.0) as u64,
+            fair_pubdata_price: (self.fair_pubdata_price as f64 * l1_pubdata_price_scale_factor)
+                as u64,
+            l1_gas_price: (self.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64,
+        })
+    }
 }
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
@@ -246,7 +289,7 @@ pub struct FeeParamsV1 {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeParamsV2 {
-    config: FeeModelConfigV2,
+    pub config: FeeModelConfigV2,
     l1_gas_price: u64,
     l1_pubdata_price: u64,
     conversion_ratio: BaseTokenConversionRatio,

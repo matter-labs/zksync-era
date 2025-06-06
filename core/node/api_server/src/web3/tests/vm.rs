@@ -47,6 +47,10 @@ impl ExpectedFeeInput {
         self.expect_for_block(api::BlockNumber::Pending, scale);
     }
 
+    fn expect_custom(&self, expected: BatchFeeInput) {
+        *self.0.lock().unwrap() = expected;
+    }
+
     fn assert_eq(&self, actual: BatchFeeInput) {
         let expected = *self.0.lock().unwrap();
         // We do relaxed comparisons to deal with the fact that the fee input provider may convert inputs to pubdata independent form.
@@ -165,14 +169,14 @@ impl HttpTest for CallTest {
         // Check that the method handler fetches fee input from the open batch. To do that, we open a new batch
         // with a large fee input; it should be loaded by `ApiFeeInputProvider` and used instead of the input
         // provided by the wrapped mock provider.
-        open_l1_batch(
+        let batch_header = open_l1_batch(
             &mut connection,
             L1BatchNumber(1),
             scaled_sensible_fee_input(3.0),
         )
         .await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
-        self.fee_input.expect_default(1.0);
+        self.fee_input.expect_custom(batch_header.fee_input);
         let call_request = Self::call_request(b"block=2");
         let call_result = client.call(call_request.clone(), None, None).await?;
         assert_eq!(call_result.0, b"output");
@@ -790,14 +794,18 @@ impl HttpTest for TraceCallTest {
         // Check that the method handler fetches fee input from the open batch. To do that, we open a new batch
         // with a large fee input; it should be loaded by `ApiFeeInputProvider` and used instead of the input
         // provided by the wrapped mock provider.
-        open_l1_batch(
+        let batch_header = open_l1_batch(
             &mut connection,
             L1BatchNumber(2),
             scaled_sensible_fee_input(3.0),
         )
         .await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
-        self.fee_input.expect_default(Self::FEE_SCALE);
+        self.fee_input.expect_custom(
+            batch_header
+                .fee_input
+                .scale_linearly(Self::FEE_SCALE, Self::FEE_SCALE),
+        );
         let call_request = CallTest::call_request(b"block=2");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         Self::assert_debug_call(&call_request, &call_result.unwrap_default());

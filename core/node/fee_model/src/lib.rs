@@ -2,6 +2,7 @@ use std::{fmt, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::fee_model::{
     BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1, FeeParamsV2,
 };
@@ -98,11 +99,18 @@ impl MainNodeFeeInputProvider {
 #[derive(Debug)]
 pub struct ApiFeeInputProvider {
     inner: Arc<dyn BatchFeeModelInputProvider>,
+    connection_pool: ConnectionPool<Core>,
 }
 
 impl ApiFeeInputProvider {
-    pub fn new(inner: Arc<dyn BatchFeeModelInputProvider>) -> Self {
-        Self { inner }
+    pub fn new(
+        inner: Arc<dyn BatchFeeModelInputProvider>,
+        connection_pool: ConnectionPool<Core>,
+    ) -> Self {
+        Self {
+            inner,
+            connection_pool,
+        }
     }
 }
 
@@ -113,11 +121,39 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        Ok(self
+        let mut conn = self
+            .connection_pool
+            .connection_tagged("api_fee_input_provider")
+            .await?;
+
+        let latest_batch_header = conn
+            .blocks_dal()
+            .get_latest_l1_batch_header()
+            .await?
+            .context("no batches were found in the DB")?;
+
+        if !latest_batch_header.is_sealed {
+            tracing::trace!(
+                latest_batch_number = %latest_batch_header.number,
+                "Found an open batch; reporting its fee input"
+            );
+            return Ok(latest_batch_header
+                .fee_input
+                .scale_linearly(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor));
+        }
+
+        tracing::trace!(
+            latest_batch_number = %latest_batch_header.number,
+            "No open batch found; fetching from base provider"
+        );
+
+        let inner_input = self
             .inner
             .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
             .await
-            .context("cannot get batch fee input from base provider")?)
+            .context("cannot get batch fee input from base provider")?;
+
+        Ok(inner_input)
     }
 
     /// Returns the fee model parameters.
@@ -151,6 +187,8 @@ mod tests {
     use l1_gas_price::GasAdjusterClient;
     use zksync_config::GasAdjusterConfig;
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_test_utils::create_l1_batch;
     use zksync_types::{
         commitment::L1BatchCommitmentMode,
         eth_sender::EthTxFinalityStatus,
@@ -371,5 +409,34 @@ mod tests {
         )
         .await
         .expect("Failed to create GasAdjuster")
+    }
+
+    #[tokio::test]
+    async fn test_take_fee_input_from_unsealed_batch() {
+        let sealed_batch_fee_input = BatchFeeInput::pubdata_independent(1, 2, 3);
+        let unsealed_batch_fee_input = BatchFeeInput::pubdata_independent(101, 102, 103);
+
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+            .await
+            .unwrap();
+
+        let mut l1_batch_header = create_l1_batch(1);
+        l1_batch_header.batch_fee_input = sealed_batch_fee_input;
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        let mut l1_batch_header = create_l1_batch(2);
+        l1_batch_header.batch_fee_input = unsealed_batch_fee_input;
+        conn.blocks_dal()
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
+            .await
+            .unwrap();
+        let provider: &dyn BatchFeeModelInputProvider =
+            &ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()), pool);
+        let fee_input = provider.get_batch_fee_input().await.unwrap();
+        assert_eq!(fee_input, unsealed_batch_fee_input);
     }
 }

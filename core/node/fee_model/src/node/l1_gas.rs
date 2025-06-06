@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
+use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -25,6 +26,7 @@ pub struct L1GasLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     gas_adjuster: Arc<GasAdjuster>,
+    replica_pool: PoolResource<ReplicaPool>,
     /// If not provided, the base token assumed to be ETH, and the ratio will be constant.
     base_token_ratio_provider: Option<Arc<dyn BaseTokenRatioProvider>>,
 }
@@ -80,8 +82,11 @@ impl WiringLayer for L1GasLayer {
             self.fee_model_config,
         ));
 
-        let api_fee_input_provider =
-            Arc::new(ApiFeeInputProvider::new(main_fee_input_provider.clone()));
+        let replica_pool = input.replica_pool.get().await?;
+        let api_fee_input_provider = Arc::new(ApiFeeInputProvider::new(
+            main_fee_input_provider.clone(),
+            replica_pool,
+        ));
 
         Ok(Output {
             sequencer_fee_input: main_fee_input_provider.into(),
