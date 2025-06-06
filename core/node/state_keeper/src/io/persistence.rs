@@ -10,9 +10,7 @@ use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::{u256_to_h256, writes::TreeWrite, Address, ProtocolVersionId};
 
 use crate::{
-    io::{
-        seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, IoCursor, StateKeeperOutputHandler,
-    },
+    io::StateKeeperOutputHandler,
     metrics::{L2BlockQueueStage, L2_BLOCK_METRICS},
     updates::{L2BlockSealCommand, UpdatesManager},
 };
@@ -182,11 +180,6 @@ impl StateKeeperPersistence {
 
 #[async_trait]
 impl StateKeeperOutputHandler for StateKeeperPersistence {
-    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
-        let mut connection = self.pool.connection_tagged("state_keeper").await?;
-        L2BlockSealProcess::clear_pending_l2_block(&mut connection, cursor.next_l2_block - 1).await
-    }
-
     async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let command = updates_manager
             .seal_l2_block_command(self.l2_legacy_shared_bridge_addr, self.pre_insert_txs);
@@ -484,8 +477,12 @@ mod tests {
         pool: &ConnectionPool<Core>,
     ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
-        let mut updates =
-            UpdatesManager::new(&l1_batch_env, &default_system_env(), Default::default());
+        let mut updates = UpdatesManager::new(
+            &l1_batch_env,
+            &default_system_env(),
+            Default::default(),
+            Default::default(),
+        );
         pool.connection()
             .await
             .unwrap()
@@ -512,6 +509,7 @@ mod tests {
         updates.set_next_l2_block_params(L2BlockParams {
             timestamp: 1,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates.push_l2_block();
 
@@ -624,6 +622,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 2,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
@@ -653,6 +652,7 @@ mod tests {
         updates_manager.set_next_l2_block_params(L2BlockParams {
             timestamp: 3,
             virtual_blocks: 1,
+            interop_roots: vec![],
         });
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
@@ -678,6 +678,7 @@ mod tests {
             updates_manager.set_next_l2_block_params(L2BlockParams {
                 timestamp: i,
                 virtual_blocks: 1,
+                interop_roots: vec![],
             });
             updates_manager.push_l2_block();
             persistence.submit_l2_block(seal_command).await;

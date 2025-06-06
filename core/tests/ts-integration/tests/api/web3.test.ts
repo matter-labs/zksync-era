@@ -2,8 +2,7 @@
  * This suite contains tests for the Web3 API compatibility and ZKsync-specific extensions.
  */
 import { TestMaster } from '../../src';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import { types } from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { anyTransaction, deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
@@ -184,7 +183,6 @@ describe('web3 API compatibility tests', () => {
         ['net_peerCount', [], '0x0'],
         ['net_listening', [], false],
         ['web3_clientVersion', [], 'zkSync/v2.0'],
-        ['eth_protocolVersion', [], 'zks/1'],
         ['eth_accounts', [], []],
         ['eth_coinbase', [], '0x0000000000000000000000000000000000000000'],
         ['eth_getCompilers', [], []],
@@ -192,7 +190,7 @@ describe('web3 API compatibility tests', () => {
         ['eth_mining', [], false],
         ['eth_getUncleCountByBlockNumber', ['0x0'], '0x0'],
         ['eth_maxPriorityFeePerGas', [], '0x0']
-    ])('Should test bogus web3 methods (%s)', async (method: string, input: string[], output: string) => {
+    ])('Should test bogus web3 methods (%s)', async (method: string, input: string[], output: any) => {
         await expect(alice.provider.send(method, input)).resolves.toEqual(output);
     });
 
@@ -200,6 +198,11 @@ describe('web3 API compatibility tests', () => {
         // This test can't be represented as a part of the table, since the input is dynamic.
         const firstBlockHash = (await alice.provider.getBlock(1)).hash;
         await expect(alice.provider.send('eth_getUncleCountByBlockHash', [firstBlockHash])).resolves.toEqual('0x0');
+    });
+
+    test('Should test current protocol version', async () => {
+        // Node should report well-formed semantic protocol version
+        await expect(alice.provider.send('eth_protocolVersion', [])).resolves.toMatch(/^zks\/0\.\d+\.\d+$/);
     });
 
     test('Should test web3 response extensions', async () => {

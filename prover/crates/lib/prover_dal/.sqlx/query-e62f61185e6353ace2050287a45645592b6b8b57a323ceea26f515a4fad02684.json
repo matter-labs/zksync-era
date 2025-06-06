@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE witness_inputs_fri\n            SET\n                status = $1,\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $2\n                AND chain_id = $3\n                AND status != 'successful'\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e62f61185e6353ace2050287a45645592b6b8b57a323ceea26f515a4fad02684"
+}

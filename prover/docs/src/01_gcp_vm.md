@@ -50,8 +50,10 @@ an arrow near "SSH" in the list of options, and choose "Open in browser window".
 
 You should successfully connect to your machine now.
 
-⚠️ Don't forget to remove the VM once you've finished your scope of work. It's OK to keep the machine if you expect to
+```admonish warning
+Don't forget to remove the VM once you've finished your scope of work. It's OK to keep the machine if you expect to
 work with it on the next working day, but otherwise it's better to remove and create a new one when needed.
+```
 
 ## Adding your own ssh key (on local machine)
 

@@ -8,7 +8,6 @@ use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_state::PostgresStorageCaches;
-use zksync_state_keeper::seal_criteria::NoopSealer;
 use zksync_types::L2ChainId;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
@@ -32,9 +31,8 @@ pub(crate) async fn create_test_tx_sender(
     let tx_sender_config = TxSenderConfig::new(
         &state_keeper_config,
         &web3_config,
-        wallets.state_keeper.unwrap().fee_account.address(),
+        wallets.fee_account.unwrap().address(),
         l2_chain_id,
-        None,
     );
 
     let storage_caches = PostgresStorageCaches::new(1, 1);
@@ -42,7 +40,6 @@ pub(crate) async fn create_test_tx_sender(
     let (mut tx_sender, vm_barrier) = crate::tx_sender::build_tx_sender(
         &tx_sender_config,
         &web3_config,
-        &state_keeper_config,
         pool.clone(),
         pool,
         batch_fee_model_input_provider,
@@ -53,7 +50,7 @@ pub(crate) async fn create_test_tx_sender(
 
     let tx_sender_inner = Arc::get_mut(&mut tx_sender.0).unwrap();
     tx_sender_inner.executor = tx_executor;
-    tx_sender_inner.sealer = Arc::new(NoopSealer); // prevents "unexecutable transaction" errors
+    tx_sender_inner.transaction_filter = Arc::new(()); // prevents "unexecutable transaction" errors
     (tx_sender, vm_barrier)
 }
 
@@ -106,6 +103,7 @@ impl ApiServerHandles {
 pub struct TestServerBuilder {
     pool: ConnectionPool<Core>,
     api_config: InternalApiConfig,
+    request_timeout: Option<Duration>,
     tx_executor: MockOneshotExecutor,
     executor_options: Option<SandboxExecutorOptions>,
     method_tracer: Arc<MethodTracer>,
@@ -117,6 +115,7 @@ impl TestServerBuilder {
         Self {
             api_config,
             pool,
+            request_timeout: None,
             tx_executor: MockOneshotExecutor::default(),
             executor_options: None,
             method_tracer: Arc::default(),
@@ -140,6 +139,12 @@ impl TestServerBuilder {
     #[must_use]
     pub fn with_executor_options(mut self, options: SandboxExecutorOptions) -> Self {
         self.executor_options = Some(options);
+        self
+    }
+
+    #[must_use]
+    pub fn with_request_timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.request_timeout = timeout;
         self
     }
 
@@ -173,6 +178,7 @@ impl TestServerBuilder {
         let Self {
             tx_executor,
             executor_options,
+            request_timeout,
             pool,
             api_config,
             method_tracer,
@@ -209,7 +215,8 @@ impl TestServerBuilder {
                 builder
             }
         };
-        let server_handles = server_builder
+
+        let mut server_builder = server_builder
             .with_polling_interval(POLL_INTERVAL)
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
@@ -217,7 +224,12 @@ impl TestServerBuilder {
             .with_method_tracer(method_tracer)
             .enable_api_namespaces(namespaces)
             .with_sealed_l2_block_handle(sealed_l2_block_handle)
-            .with_bridge_addresses_handle(bridge_addresses_handle)
+            .with_bridge_addresses_handle(bridge_addresses_handle);
+        if let Some(timeout) = request_timeout {
+            server_builder = server_builder.with_request_timeout(timeout);
+        }
+
+        let server_handles = server_builder
             .build()
             .expect("Unable to build API server")
             .run(stop_receiver)

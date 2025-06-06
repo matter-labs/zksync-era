@@ -10,7 +10,6 @@ use zkstack_cli_config::{
     traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
     WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
-use zksync_config::configs::gateway::GatewayChainConfig;
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
@@ -28,7 +27,7 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     match ServerCommand::from(args) {
-        ServerCommand::Run(args) => run_server(args, &chain_config, shell),
+        ServerCommand::Run(args) => run_server(args, &chain_config, shell).await,
         ServerCommand::Build => build_server(&chain_config, shell),
         ServerCommand::Wait(args) => wait_for_server(args, &chain_config).await,
     }
@@ -44,7 +43,7 @@ fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()>
     cmd.run().context(MSG_FAILED_TO_BUILD_SERVER_ERR)
 }
 
-fn run_server(
+async fn run_server(
     args: RunServerArgs,
     chain_config: &ChainConfig,
     shell: &Shell,
@@ -63,18 +62,6 @@ fn run_server(
         ServerMode::Normal
     };
 
-    let gateway_config = chain_config.get_gateway_chain_config().ok();
-    let mut gateway_contracts = None;
-    if let Some(gateway_config) = gateway_config {
-        gateway_contracts = if gateway_config.gateway_chain_id.0 != 0_u64 {
-            Some(GatewayChainConfig::get_path_with_base_path(
-                &chain_config.configs,
-            ))
-        } else {
-            None
-        };
-    }
-
     server
         .run(
             shell,
@@ -84,8 +71,7 @@ fn run_server(
             chain_config.configs.join(GENERAL_FILE),
             chain_config.configs.join(SECRETS_FILE),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
-            gateway_contracts,
-            vec![],
+            args.additional_args,
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)
 }
@@ -93,12 +79,9 @@ fn run_server(
 async fn wait_for_server(args: WaitArgs, chain_config: &ChainConfig) -> anyhow::Result<()> {
     let verbose = global_config().verbose;
 
-    let health_check_port = chain_config
-        .get_general_config()
-        .await?
-        .get("api.healthcheck.port")?;
+    let health_check_url = chain_config.get_general_config().await?.healthcheck_url()?;
     logger::info(MSG_WAITING_FOR_SERVER);
-    args.poll_health_check(health_check_port, verbose).await?;
-    logger::info(msg_waiting_for_server_success(health_check_port));
+    args.poll_health_check(&health_check_url, verbose).await?;
+    logger::info(msg_waiting_for_server_success(&health_check_url));
     Ok(())
 }

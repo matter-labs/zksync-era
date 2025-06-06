@@ -11,7 +11,7 @@ use std::{
 
 use rand::{thread_rng, Rng};
 use test_casing::test_casing;
-use zksync_config::SnapshotsCreatorConfig;
+use zksync_config::{ObjectStoreConfig, SnapshotsCreatorConfig};
 use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::{MockObjectStore, ObjectStore};
 use zksync_types::{
@@ -26,17 +26,22 @@ use zksync_types::{
 
 use super::*;
 
-const TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
-    version: 1,
-    l1_batch_number: None,
-    storage_logs_chunk_size: 1_000_000,
-    concurrent_queries_count: 10,
-    object_store: None,
-};
-const SEQUENTIAL_TEST_CONFIG: SnapshotsCreatorConfig = SnapshotsCreatorConfig {
-    concurrent_queries_count: 1,
-    ..TEST_CONFIG
-};
+fn test_config() -> SnapshotsCreatorConfig {
+    SnapshotsCreatorConfig {
+        version: 1,
+        l1_batch_number: None,
+        storage_logs_chunk_size: 1_000_000,
+        concurrent_queries_count: 10,
+        object_store: ObjectStoreConfig::for_tests(),
+    }
+}
+
+fn sequential_test_config() -> SnapshotsCreatorConfig {
+    SnapshotsCreatorConfig {
+        concurrent_queries_count: 1,
+        ..test_config()
+    }
+}
 
 #[derive(Debug)]
 struct TestEventListener {
@@ -246,9 +251,10 @@ async fn prepare_postgres(
         if block_number + 1 < block_count {
             let factory_deps =
                 factory_deps
-                    .into_values()
-                    .map(|bytecode| SnapshotFactoryDependency {
+                    .into_iter()
+                    .map(|(hash, bytecode)| SnapshotFactoryDependency {
                         bytecode: bytecode.into(),
+                        hash: Some(hash),
                     });
             outputs.deps.extend(factory_deps);
 
@@ -286,7 +292,7 @@ async fn persisting_snapshot_metadata() {
     prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
-        .run(TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(test_config(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
@@ -332,7 +338,7 @@ async fn persisting_snapshot_factory_deps() {
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
-        .run(TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(test_config(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
     let snapshot_l1_batch_number = L1BatchNumber(8);
@@ -352,7 +358,7 @@ async fn persisting_snapshot_logs() {
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
-        .run(TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(test_config(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
     let snapshot_l1_batch_number = L1BatchNumber(8);
@@ -371,7 +377,7 @@ async fn persisting_snapshot_logs_with_specified_l1_batch() {
     // L1 batch numbers are intentionally not ordered
     for snapshot_l1_batch_number in [7, 1, 4, 6] {
         let snapshot_l1_batch_number = L1BatchNumber(snapshot_l1_batch_number);
-        let mut config = TEST_CONFIG;
+        let mut config = test_config();
         config.l1_batch_number = Some(snapshot_l1_batch_number);
 
         SnapshotCreator::for_tests(object_store.clone(), pool.clone())
@@ -416,7 +422,7 @@ async fn persisting_snapshot_logs_for_v0_snapshot() {
 
     let config = SnapshotsCreatorConfig {
         version: 0,
-        ..TEST_CONFIG
+        ..test_config()
     };
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .run(config, MIN_CHUNK_COUNT)
@@ -460,7 +466,7 @@ async fn recovery_workflow(specify_batch_after_recovery: bool) {
 
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(0)
-        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(sequential_test_config(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
@@ -484,7 +490,7 @@ async fn recovery_workflow(specify_batch_after_recovery: bool) {
     // Process 2 storage log chunks, then stop.
     let recovery_config = SnapshotsCreatorConfig {
         l1_batch_number: specify_batch_after_recovery.then_some(snapshot_l1_batch_number),
-        ..SEQUENTIAL_TEST_CONFIG
+        ..sequential_test_config()
     };
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(2)
@@ -541,7 +547,7 @@ async fn recovery_workflow_with_new_l1_batch() {
 
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .stop_after_chunk_count(2)
-        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(sequential_test_config(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
@@ -559,7 +565,7 @@ async fn recovery_workflow_with_new_l1_batch() {
 
     // The old snapshot should be completed.
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
-        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .run(sequential_test_config(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
@@ -583,7 +589,7 @@ async fn recovery_workflow_with_varying_chunk_size() {
 
     // Specifying the snapshot L1 batch right away should work fine.
     let snapshot_l1_batch_number = L1BatchNumber(8);
-    let mut config = SEQUENTIAL_TEST_CONFIG;
+    let mut config = sequential_test_config();
     config.l1_batch_number = Some(snapshot_l1_batch_number);
 
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
@@ -621,7 +627,7 @@ async fn creator_fails_if_specified_l1_batch_is_missing() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let object_store = MockObjectStore::arc();
 
-    let mut config = SEQUENTIAL_TEST_CONFIG;
+    let mut config = sequential_test_config();
     config.l1_batch_number = Some(L1BatchNumber(20));
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
         .run(config, MIN_CHUNK_COUNT)

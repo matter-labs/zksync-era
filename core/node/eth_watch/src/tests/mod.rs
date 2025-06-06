@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 
-use zksync_contracts::chain_admin_contract;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     abi,
@@ -8,15 +7,17 @@ use zksync_types::{
     api::ChainAggProof,
     block::L1BatchHeader,
     commitment::L1BatchCommitmentArtifacts,
+    eth_sender::EthTxFinalityStatus,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2_to_l1_log::BatchAndChainMerklePath,
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
-    Address, Execute, L1BatchNumber, L1TxCommonData, L2ChainId, PriorityOpId, ProtocolUpgrade,
-    ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
+    settlement::SettlementLayer,
+    Address, Execute, L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, PriorityOpId,
+    ProtocolUpgrade, ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
-use crate::{tests::client::MockEthClient, EthWatch, L2EthClient};
+use crate::{tests::client::MockEthClient, EthWatch, ZkSyncExtentionEthClient};
 
 mod client;
 
@@ -94,23 +95,24 @@ fn build_upgrade_tx(id: ProtocolVersionId) -> ProtocolUpgradeTx {
 
 async fn create_test_watcher(
     connection_pool: ConnectionPool<Core>,
-    is_gateway: bool,
+    settlement_layer: SettlementLayer,
 ) -> (EthWatch, MockEthClient, MockEthClient) {
     let l1_client = MockEthClient::new(SLChainId(42));
     let sl_client = MockEthClient::new(SL_CHAIN_ID);
-    let sl_l2_client: Option<Box<dyn L2EthClient>> = if is_gateway {
-        Some(Box::new(sl_client.clone()))
+    let sl_l2_client: Box<dyn ZkSyncExtentionEthClient> = if settlement_layer.is_gateway() {
+        Box::new(sl_client.clone())
     } else {
-        None
+        Box::new(l1_client.clone())
     };
     let watcher = EthWatch::new(
-        &chain_admin_contract(),
         Box::new(l1_client.clone()),
         sl_l2_client,
+        Some(settlement_layer),
         None, //
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();
@@ -121,14 +123,15 @@ async fn create_test_watcher(
 async fn create_l1_test_watcher(
     connection_pool: ConnectionPool<Core>,
 ) -> (EthWatch, MockEthClient) {
-    let (watcher, l1_client, _) = create_test_watcher(connection_pool, false).await;
+    let (watcher, l1_client, _) =
+        create_test_watcher(connection_pool, SettlementLayer::L1(SL_CHAIN_ID)).await;
     (watcher, l1_client)
 }
 
 async fn create_gateway_test_watcher(
     connection_pool: ConnectionPool<Core>,
 ) -> (EthWatch, MockEthClient, MockEthClient) {
-    create_test_watcher(connection_pool, true).await
+    create_test_watcher(connection_pool, SettlementLayer::Gateway(SL_CHAIN_ID)).await
 }
 
 #[test_log::test(tokio::test)]
@@ -211,13 +214,13 @@ async fn test_normal_operation_upgrade_timestamp() {
 
     let mut client = MockEthClient::new(SLChainId(42));
     let mut watcher = EthWatch::new(
-        &chain_admin_contract(),
         Box::new(client.clone()),
-        None, //
-        None,
+        Box::new(client.clone()),
+        Some(SettlementLayer::L1(SL_CHAIN_ID)),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();
@@ -490,6 +493,10 @@ async fn test_batch_root_processor_from_genesis() {
         .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
+    let inner_chain_log_proofs = inner_chain_log_proofs();
+    sl_client
+        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .await;
 
     sl_client.set_last_finalized_block_number(5).await;
 
@@ -577,6 +584,10 @@ async fn test_batch_root_processor_restart() {
         .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
+    let inner_chain_log_proofs = inner_chain_log_proofs();
+    sl_client
+        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .await;
 
     sl_client.set_last_finalized_block_number(14).await;
 
@@ -768,6 +779,71 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
     ]
 }
 
+fn inner_chain_log_proofs() -> Vec<(L2BlockNumber, ChainAggProof)> {
+    vec![
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+    ]
+}
+
 async fn setup_batch_roots(
     connection_pool: &ConnectionPool<Core>,
     number_of_processed_batches: usize,
@@ -831,6 +907,17 @@ async fn setup_batch_roots(
             )
             .await
             .unwrap();
+        let tx_hash = H256::random();
+        connection
+            .eth_sender_dal()
+            .insert_tx_history(eth_tx_id, 0, 0, None, None, tx_hash, &[], 0, None)
+            .await
+            .unwrap();
+        connection
+            .eth_sender_dal()
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
+            .await
+            .unwrap();
 
         if i < number_of_processed_batches {
             connection
@@ -843,7 +930,18 @@ async fn setup_batch_roots(
                     },
                 )
                 .await
-                .unwrap()
+                .unwrap();
+            connection
+                .blocks_dal()
+                .set_gw_interop_batch_chain_merkle_path(
+                    batch_number,
+                    BatchAndChainMerklePath {
+                        batch_proof_len: 0,
+                        proof: Vec::new(),
+                    },
+                )
+                .await
+                .unwrap();
         }
     }
 }

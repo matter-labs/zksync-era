@@ -21,6 +21,7 @@ pub const PACKED_SEMVER_MINOR_OFFSET: u32 = 32;
 pub const PACKED_SEMVER_MINOR_MASK: u32 = 0xFFFF;
 
 /// `ProtocolVersionId` is a unique identifier of the protocol version.
+///
 /// Note, that it is an identifier of the `minor` semver version of the protocol, with
 /// the `major` version being `0`. Also, the protocol version on the contracts may contain
 /// potential minor versions, that may have different contract behavior (e.g. Verifier), but it should not
@@ -72,15 +73,17 @@ pub enum ProtocolVersionId {
     Version27,
     Version28,
     Version29,
+    Version30,
+    Version31,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version28
+        Self::Version30
     }
 
     pub const fn next() -> Self {
-        Self::Version29
+        Self::Version31
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -126,10 +129,12 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
-            ProtocolVersionId::Version28 => VmVersion::VmInterop,
+            ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
+            ProtocolVersionId::Version29 => VmVersion::VmInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
 
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
-            ProtocolVersionId::Version29 => VmVersion::VmInterop,
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
         }
     }
 
@@ -165,7 +170,11 @@ impl ProtocolVersionId {
 
     pub fn is_pre_interop(&self) -> bool {
         // note fflonk version has not been merged yet
-        self < &Self::Version28
+        self < &Self::Version29
+    }
+
+    pub fn is_pre_medium_interop(&self) -> bool {
+        self < &Self::Version30
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -313,10 +322,11 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::VmGateway,
             ProtocolVersionId::Version27 => VmVersion::VmEvmEmulator,
-            ProtocolVersionId::Version28 => VmVersion::VmInterop,
-
-            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
+            ProtocolVersionId::Version30 => VmVersion::VmMediumInterop,
+            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
         }
     }
 }

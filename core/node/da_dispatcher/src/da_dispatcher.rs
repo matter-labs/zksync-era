@@ -4,20 +4,13 @@ use anyhow::Context;
 use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
-use zksync_config::{ContractsConfig, DADispatcherConfig};
+use zksync_config::{configs::contracts::chain::L2Contracts, DADispatcherConfig};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    EthInterface,
-};
-use zksync_types::{
-    ethabi, l2_to_l1_log::L2ToL1Log, utils::client_type_to_pubdata_type, web3::CallRequest,
-    Address, L1BatchNumber, H256,
-};
+use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, L1BatchNumber, H256};
 
 use crate::metrics::METRICS;
 
@@ -26,9 +19,7 @@ pub struct DataAvailabilityDispatcher {
     client: Box<dyn DataAvailabilityClient>,
     pool: ConnectionPool<Core>,
     config: DADispatcherConfig,
-    contracts_config: ContractsConfig,
-    settlement_layer_client: Box<DynClient<L1>>,
-
+    l2_contracts: L2Contracts,
     transitional_l2_da_validator_address: Option<Address>, // set only if inclusion_verification_transition_enabled is true
 }
 
@@ -37,25 +28,24 @@ impl DataAvailabilityDispatcher {
         pool: ConnectionPool<Core>,
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
-        contracts_config: ContractsConfig,
-        settlement_layer_client: Box<DynClient<L1>>,
+        l2_contracts: L2Contracts,
     ) -> Self {
         Self {
             pool,
             config,
             client,
-            contracts_config,
-            settlement_layer_client,
-
+            l2_contracts,
             transitional_l2_da_validator_address: None,
         }
     }
 
     pub async fn run(mut self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         self.check_for_misconfiguration().await?;
-        let self_arc = Arc::new(self.clone());
+        let self_arc_dispatch = Arc::new(self.clone());
+        let self_arc_finality = Arc::new(self.clone());
 
         let mut stop_receiver_dispatch = stop_receiver.clone();
+        let mut stop_receiver_finality = stop_receiver.clone();
         let mut stop_receiver_poll_for_inclusion = stop_receiver.clone();
 
         let dispatch_task = tokio::spawn(async move {
@@ -64,13 +54,35 @@ impl DataAvailabilityDispatcher {
                     break;
                 }
 
-                if let Err(err) = self_arc.dispatch().await {
+                if let Err(err) = self_arc_dispatch.dispatch().await {
                     tracing::error!("dispatch error {err:?}");
                 }
 
                 if tokio::time::timeout(
-                    self_arc.config.polling_interval(),
+                    self_arc_dispatch.config.polling_interval,
                     stop_receiver_dispatch.changed(),
+                )
+                .await
+                .is_ok()
+                {
+                    break;
+                }
+            }
+        });
+
+        let finality_task = tokio::spawn(async move {
+            loop {
+                if *stop_receiver_finality.borrow() {
+                    break;
+                }
+
+                if let Err(err) = self_arc_finality.ensure_finality().await {
+                    tracing::error!("poll_for_inclusion error {err:?}");
+                }
+
+                if tokio::time::timeout(
+                    self_arc_finality.config.polling_interval,
+                    stop_receiver_finality.changed(),
                 )
                 .await
                 .is_ok()
@@ -91,7 +103,7 @@ impl DataAvailabilityDispatcher {
                 }
 
                 if tokio::time::timeout(
-                    self.config.polling_interval(),
+                    self.config.polling_interval,
                     stop_receiver_poll_for_inclusion.changed(),
                 )
                 .await
@@ -104,29 +116,35 @@ impl DataAvailabilityDispatcher {
 
         tokio::select! {
             _ = dispatch_task => {},
+            _ = finality_task => {},
             _ = inclusion_task => {},
             _ = stop_receiver.changed() => {},
         }
 
-        tracing::info!("Stop signal received, da_dispatcher is shutting down");
+        tracing::info!("Stop request received, da_dispatcher is shutting down");
         Ok(())
     }
 
-    /// Dispatches the blobs to the data availability layer, and saves the blob_id in the database.
+    /// Dispatches the blobs to the data availability layer, and saves the dispatch_request_id in the database.
     async fn dispatch(&self) -> anyhow::Result<()> {
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
             .data_availability_dal()
-            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch() as usize)
+            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch as usize)
             .await?;
         drop(conn);
 
         for batch in &batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
-            let dispatch_response = retry(self.config.max_retries(), batch.l1_batch_number, || {
-                self.client
-                    .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
-            })
+            let dispatch_response = retry(
+                self.config.max_retries,
+                batch.l1_batch_number,
+                "DA dispatch",
+                || {
+                    self.client
+                        .dispatch_blob(batch.l1_batch_number.0, batch.pubdata.clone())
+                },
+            )
             .await
             .with_context(|| {
                 format!(
@@ -141,12 +159,11 @@ impl DataAvailabilityDispatcher {
 
             let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
-                .insert_l1_batch_da(
+                .insert_l1_batch_da_request_id(
                     batch.l1_batch_number,
-                    dispatch_response.blob_id.as_str(),
+                    dispatch_response.request_id.as_str(),
                     sent_at.naive_utc(),
-                    client_type_to_pubdata_type(self.client.client_type()),
-                    None,
+                    self.client.client_type().into_pubdata_type(),
                     Some(find_l2_da_validator_address(batch.system_logs.as_slice())?),
                 )
                 .await?;
@@ -193,9 +210,60 @@ impl DataAvailabilityDispatcher {
         Ok(())
     }
 
+    async fn ensure_finality(&self) -> anyhow::Result<()> {
+        let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+        let blob = conn
+            .data_availability_dal()
+            .get_first_da_blob_awaiting_finality()
+            .await?;
+        drop(conn);
+
+        let Some(blob) = blob else {
+            return Ok(());
+        };
+
+        // TODO: add metrics for finality latency
+        let finality_response = self
+            .client
+            .ensure_finality(blob.dispatch_request_id.clone())
+            .await;
+
+        match finality_response {
+            Ok(None) => {
+                // Not final yet, do nothing
+            }
+            Ok(Some(finality_response)) => {
+                let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+                conn.data_availability_dal()
+                    .set_blob_id(blob.l1_batch_number, finality_response.blob_id.as_str())
+                    .await?;
+
+                tracing::info!(
+                    "Finality check for a batch_number: {} is successful",
+                    blob.l1_batch_number
+                );
+            }
+            Err(err) => {
+                tracing::warn!(
+                    "Finality check for a batch_number: {} failed with an error: {}",
+                    blob.l1_batch_number,
+                    err.error
+                );
+
+                // remove the entry from the database to resend the blob again
+                let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+                conn.data_availability_dal()
+                    .remove_data_availability_entry(blob.l1_batch_number)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Polls the data availability layer for inclusion data, and saves it in the database.
     async fn poll_for_inclusion(&self) -> anyhow::Result<()> {
-        if self.config.inclusion_verification_transition_enabled() {
+        if self.config.inclusion_verification_transition_enabled {
             if let Some(l2_da_validator) = self.transitional_l2_da_validator_address {
                 // Setting dummy inclusion data to the batches with the old L2 DA validator is necessary
                 // for the transition process. We want to avoid the situation when the batch was sealed
@@ -223,16 +291,23 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
-        let inclusion_data = if self.config.use_dummy_inclusion_data() {
+        let inclusion_data = if self.config.use_dummy_inclusion_data {
             Some(InclusionData { data: vec![] })
         } else {
+            let Some(blob_id) = blob_info.blob_id else {
+                anyhow::bail!(
+                    "Blob ID is not set for batch_number: {}",
+                    blob_info.l1_batch_number
+                );
+            };
+
             self.client
-                .get_inclusion_data(blob_info.blob_id.as_str())
+                .get_inclusion_data(blob_id.as_str())
                 .await
                 .with_context(|| {
                     format!(
                         "failed to get inclusion data for blob_id: {}, batch_number: {}",
-                        blob_info.blob_id, blob_info.l1_batch_number
+                        blob_id, blob_info.l1_batch_number
                     )
                 })?
         };
@@ -268,61 +343,21 @@ impl DataAvailabilityDispatcher {
     }
 
     async fn check_for_misconfiguration(&mut self) -> anyhow::Result<()> {
-        if let Some(no_da_validator) = self.contracts_config.no_da_validium_l1_validator_addr {
-            if self.config.use_dummy_inclusion_data() {
-                let l1_da_validator_address = self.fetch_l1_da_validator_address().await?;
-
-                if l1_da_validator_address != no_da_validator {
-                    anyhow::bail!(
-                        "Dummy inclusion data is enabled, but not the NoDAValidator is used: {:?} != {:?}",
-                        l1_da_validator_address, no_da_validator
-                    )
-                }
-            }
-        }
-
-        if self.config.inclusion_verification_transition_enabled() {
+        if self.config.inclusion_verification_transition_enabled {
             self.transitional_l2_da_validator_address = Some(
-                self.contracts_config
-                    .l2_da_validator_addr
+                self.l2_contracts
+                    .da_validator_addr
                     .context("L2 DA validator address is not set")?,
             );
         }
-
         Ok(())
-    }
-
-    async fn fetch_l1_da_validator_address(&self) -> anyhow::Result<Address> {
-        let signature = ethabi::short_signature("getDAValidatorPair", &[]);
-        let response = self
-            .settlement_layer_client
-            .call_contract_function(
-                CallRequest {
-                    data: Some(signature.into()),
-                    to: Some(self.contracts_config.diamond_proxy_addr),
-                    ..CallRequest::default()
-                },
-                None,
-            )
-            .await
-            .context("Failed to call the DA validator getter")?;
-
-        let validators = ethabi::decode(
-            &[ethabi::ParamType::Address, ethabi::ParamType::Address],
-            response.0.as_slice(),
-        )
-        .context("Failed to decode the DA validator address")?;
-
-        validators[0]
-            .clone()
-            .into_address()
-            .context("Failed to convert DA validator address from Token")
     }
 }
 
 async fn retry<T, Fut, F>(
     max_retries: u16,
     batch_number: L1BatchNumber,
+    action_name: &str,
     mut f: F,
 ) -> Result<T, DAError>
 where
@@ -347,7 +382,7 @@ where
                     .mul_f32(rand::thread_rng().gen_range(0.8..1.2));
                 tracing::warn!(
                     %err,
-                    "Failed DA dispatch request {retries}/{} for batch {batch_number}, retrying in {} milliseconds.",
+                    "Failed {action_name} {retries}/{} for batch {batch_number}, retrying in {} milliseconds.",
                     max_retries+1,
                     sleep_duration.as_millis()
                 );

@@ -20,10 +20,11 @@ const STATE_DIFF_RECORD_SIZE: usize = 156;
 // 2 * 136 - the size that allows for two keccak rounds.
 pub const PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES: usize = 272;
 
-/// In vm there are two types of writes Initial and Repeated. After the first write to the key,
-/// we assign an index to it and in the future we should use index instead of full key.
-/// It allows us to compress the data, as the full key would use 32 bytes, and the index can be
-/// represented only as BYTES_PER_ENUMERATION_INDEX bytes
+/// In VM there are two types of storage writes: Initial and Repeated.
+///
+/// After the first write to the key, we assign an index to it and in the future we should use
+/// index instead of full key. It allows us to compress the data, as the full key would use 32 bytes,
+/// and the index can be represented only as BYTES_PER_ENUMERATION_INDEX bytes.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct InitialStorageWrite {
@@ -119,9 +120,9 @@ impl StateDiffRecord {
 
     /// compression follows the following algorithm:
     /// 1. if repeated write:
-    ///      entry <- enumeration_index || compressed value
+    ///    entry <- enumeration_index || compressed value
     /// 2. if initial write:
-    ///      entry <- blake2(bytes32(address), key) || compressed value
+    ///    entry <- blake2(bytes32(address), key) || compressed value
     ///
     /// size:
     /// - initial:  max of 65 bytes
@@ -130,7 +131,7 @@ impl StateDiffRecord {
     pub fn compress(&self) -> Vec<u8> {
         let mut comp_state_diff = match self.enumeration_index {
             0 => self.derived_key.to_vec(),
-            enumeration_index if enumeration_index <= u32::MAX.into() => {
+            enumeration_index if enumeration_index <= (u32::MAX as u64) => {
                 (self.enumeration_index as u32).to_be_bytes().to_vec()
             }
             enumeration_index => panic!("enumeration_index is too large: {}", enumeration_index),

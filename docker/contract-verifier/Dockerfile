@@ -76,6 +76,7 @@ RUN for VERSION in $(seq -f "v1.5.%g" 0 7); do \
 
 # install solc
 COPY docker/contract-verifier/install-all-solc.sh install-all-solc.sh
+COPY bin/run_retried run_retried
 RUN bash ./install-all-solc.sh
 
 # install vyper

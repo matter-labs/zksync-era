@@ -3,16 +3,17 @@
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
-use zksync_dal::{Connection, ConnectionPool, Core};
+use zksync_contracts::bridgehub_contract;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::create_l2_block;
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
     api, ethabi,
     web3::{BlockId, CallRequest},
     L2BlockNumber, ProtocolVersionId,
 };
-use zksync_web3_decl::client::MockClient;
+use zksync_web3_decl::client::{MockClient, L1};
 
 use super::*;
 use crate::tree_data_fetcher::tests::{
@@ -22,7 +23,6 @@ use crate::tree_data_fetcher::tests::{
 const L1_DIAMOND_PROXY_ADDRESS: Address = Address::repeat_byte(0x22);
 const GATEWAY_DIAMOND_PROXY_ADDRESS: Address = Address::repeat_byte(0x33);
 const L1_CHAIN_ID: u64 = 9;
-const GATEWAY_CHAIN_ID: u64 = 505;
 const ERA_CHAIN_ID: u64 = 270;
 
 static BLOCK_COMMIT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
@@ -42,11 +42,14 @@ fn mock_block_details_base(number: u32, hash: Option<H256>) -> api::BlockDetails
         status: api::BlockStatus::Sealed,
         commit_tx_hash: None,
         committed_at: None,
+        commit_tx_finality: None,
         commit_chain_id: None,
         prove_tx_hash: None,
+        prove_tx_finality: None,
         proven_at: None,
         prove_chain_id: None,
         execute_tx_hash: None,
+        execute_tx_finality: None,
         executed_at: None,
         execute_chain_id: None,
         l1_gas_price: 10,
@@ -157,9 +160,8 @@ impl EthereumParameters {
 
         let l1_block_number = U64::from(l1_block_number);
         let last_commit = self.batches_and_sl_blocks_for_commits.last().copied();
-        let is_increasing = last_commit.map_or(true, |last| {
-            last.0 <= l1_batch_number && last.1 <= l1_block_number
-        });
+        let is_increasing =
+            last_commit.is_none_or(|last| last.0 <= l1_batch_number && last.1 <= l1_block_number);
         assert!(
             is_increasing,
             "Invalid batch number or L1 block number for commit"
@@ -270,24 +272,6 @@ fn mock_l1_client(block_number: U64, logs: Vec<web3::Log>, chain_id: SLChainId) 
         .build()
 }
 
-pub(super) async fn insert_l1_batch_commit_chain_id(
-    storage: &mut Connection<'_, Core>,
-    number: L1BatchNumber,
-    chain_id: SLChainId,
-) {
-    storage
-        .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
-            number,
-            AggregatedActionType::Commit,
-            H256::from_low_u64_be(number.0 as u64),
-            chrono::Utc::now(),
-            Some(chain_id),
-        )
-        .await
-        .unwrap();
-}
-
 #[tokio::test]
 async fn guessing_l1_commit_block_number() {
     let eth_params = EthereumParameters::new_l1(100_000);
@@ -295,12 +279,12 @@ async fn guessing_l1_commit_block_number() {
 
     for timestamp in [0, 100, 1_000, 5_000, 10_000, 100_000] {
         let (guessed_block_number, step_count) =
-            L1DataProvider::guess_l1_commit_block_number(&eth_client, timestamp)
+            SLDataProvider::guess_l1_commit_block_number(&eth_client, timestamp)
                 .await
                 .unwrap();
 
         assert!(
-            guessed_block_number.abs_diff(timestamp.into()) <= L1DataProvider::L1_BLOCK_ACCURACY,
+            guessed_block_number.abs_diff(timestamp.into()) <= SLDataProvider::L1_BLOCK_ACCURACY,
             "timestamp={timestamp}, guessed={guessed_block_number}"
         );
         assert!(step_count > 0);
@@ -308,19 +292,10 @@ async fn guessing_l1_commit_block_number() {
     }
 }
 
-async fn create_l1_data_provider(
-    l1_client: Box<DynClient<L1>>,
-    pool: ConnectionPool<Core>,
-) -> L1DataProvider {
-    L1DataProvider::new(
-        l1_client,
-        L1_DIAMOND_PROXY_ADDRESS,
-        None,
-        pool,
-        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
-    )
-    .await
-    .unwrap()
+async fn create_l1_data_provider(l1_client: Box<DynClient<L1>>) -> SLDataProvider {
+    SLDataProvider::new(Box::new(l1_client), L1_DIAMOND_PROXY_ADDRESS)
+        .await
+        .unwrap()
 }
 
 async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
@@ -337,7 +312,7 @@ async fn test_using_l1_data_provider(l1_batch_timestamps: &[u64]) {
         eth_params.push_commit(number, ts + 1_000); // have a reasonable small diff between batch generation and commitment
     }
 
-    let mut provider = create_l1_data_provider(Box::new(eth_params.client()), pool.clone()).await;
+    let mut provider = create_l1_data_provider(Box::new(eth_params.client())).await;
     for i in 0..l1_batch_timestamps.len() {
         let number = L1BatchNumber(i as u32 + 1);
         let root_hash = provider
@@ -369,73 +344,8 @@ async fn using_l1_data_provider(batch_spacing: u64) {
 }
 
 #[tokio::test]
-async fn using_different_settlement_layers() {
-    let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
-
-    let l1_eth_params = EthereumParameters::new_l1(1_000_000);
-    let gateway_eth_params =
-        EthereumParameters::new(1_000_000, GATEWAY_CHAIN_ID, GATEWAY_DIAMOND_PROXY_ADDRESS);
-    let mut params_array = [l1_eth_params, gateway_eth_params];
-
-    // (index of sl: 0 for l1, 1 for gw; sl block number)
-    let batch_commit_info = [
-        (0, 50_000),
-        (0, 50_500),
-        (1, 30_000),
-        (1, 32_000),
-        (0, 51_000),
-        (1, 60_000),
-    ];
-    let chain_ids = [SLChainId(L1_CHAIN_ID), SLChainId(GATEWAY_CHAIN_ID)];
-    for (i, &(sl_idx, ts)) in batch_commit_info.iter().enumerate() {
-        let number = L1BatchNumber(i as u32 + 1);
-        seal_l1_batch_with_timestamp(&mut storage, number, ts).await;
-        insert_l1_batch_commit_chain_id(&mut storage, number, chain_ids[sl_idx]).await;
-        params_array[sl_idx].push_commit(number, ts + 1_000); // have a reasonable small diff between batch generation and commitment
-    }
-
-    let mut provider = L1DataProvider::new(
-        Box::new(params_array[0].client()),
-        L1_DIAMOND_PROXY_ADDRESS,
-        Some(Box::new(params_array[1].client())),
-        pool,
-        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
-    )
-    .await
-    .unwrap();
-    for i in 0..batch_commit_info.len() {
-        let number = L1BatchNumber(i as u32 + 1);
-        let root_hash = provider
-            .batch_details(number, &get_last_l2_block(&mut storage, number).await)
-            .await
-            .unwrap()
-            .unwrap_or_else(|err| panic!("no root hash for batch #{number}: {err:?}"));
-        assert_eq!(root_hash, H256::repeat_byte(number.0 as u8));
-
-        let past_l1_batch = provider.past_l1_batch.unwrap();
-        assert_eq!(past_l1_batch.number, number);
-        let expected_l1_block_number = batch_commit_info[i].1 + 1_000;
-        assert_eq!(
-            past_l1_batch.l1_commit_block_number,
-            expected_l1_block_number.into()
-        );
-        assert_eq!(
-            past_l1_batch.l1_commit_block_timestamp,
-            expected_l1_block_number.into()
-        );
-        let expected_chain_id = chain_ids[batch_commit_info[i].0];
-        assert_eq!(past_l1_batch.chain_id, expected_chain_id);
-    }
-}
-
-#[tokio::test]
 async fn detecting_reorg_in_l1_data_provider() {
     let l1_batch_number = H256::from_low_u64_be(1);
-    let pool = ConnectionPool::<Core>::test_pool().await;
     // Generate two logs for the same L1 batch #1
     let logs = vec![
         web3::Log {
@@ -463,7 +373,7 @@ async fn detecting_reorg_in_l1_data_provider() {
     ];
     let l1_client = mock_l1_client(200.into(), logs, SLChainId(9));
 
-    let mut provider = create_l1_data_provider(Box::new(l1_client), pool.clone()).await;
+    let mut provider = create_l1_data_provider(Box::new(l1_client)).await;
     let output = provider
         .batch_details(L1BatchNumber(1), &create_l2_block(1))
         .await
@@ -487,8 +397,8 @@ async fn combined_data_provider_errors() {
     let mut main_node_client = MockMainNodeClient::default();
     main_node_client.insert_batch(L1BatchNumber(2), H256::repeat_byte(2));
     let mut provider = CombinedDataProvider::new(main_node_client);
-    let l1_provider = create_l1_data_provider(Box::new(eth_params.client()), pool.clone()).await;
-    provider.set_l1(l1_provider);
+    let l1_provider = create_l1_data_provider(Box::new(eth_params.client())).await;
+    provider.set_sl(l1_provider);
 
     // L1 batch #1 should be obtained from L1
     let root_hash = provider

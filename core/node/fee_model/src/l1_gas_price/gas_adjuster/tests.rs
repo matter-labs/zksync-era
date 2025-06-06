@@ -1,12 +1,13 @@
-use std::{collections::VecDeque, sync::RwLockReadGuard};
+use std::{collections::VecDeque, sync::RwLockReadGuard, time::Duration};
 
 use test_casing::test_casing;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
 use zksync_types::{
-    commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, settlement::SettlementMode,
+    commitment::L1BatchCommitmentMode, eth_sender::EthTxFinalityStatus,
+    pubdata_da::PubdataSendingMode,
 };
-use zksync_web3_decl::client::L2;
+use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use super::{GasAdjuster, GasStatistics, GasStatisticsInner};
 use crate::l1_gas_price::GasAdjusterClient;
@@ -58,7 +59,7 @@ const TEST_PUBDATA_PRICES: [u64; 10] = [
     493216,
 ];
 
-fn test_config(settlement_mode: SettlementMode) -> GasAdjusterConfig {
+fn test_config() -> GasAdjusterConfig {
     GasAdjusterConfig {
         default_priority_fee_per_gas: 5,
         max_base_fee_samples: 5,
@@ -67,12 +68,11 @@ fn test_config(settlement_mode: SettlementMode) -> GasAdjusterConfig {
         internal_l1_pricing_multiplier: 0.8,
         internal_enforced_l1_gas_price: None,
         internal_enforced_pubdata_price: None,
-        poll_period: 5,
-        max_l1_gas_price: None,
+        poll_period: Duration::from_secs(5),
+        max_l1_gas_price: u64::MAX,
         num_samples_for_blob_base_fee_estimate: 3,
         internal_pubdata_pricing_multiplier: 1.0,
-        max_blob_base_fee: None,
-        settlement_mode,
+        max_blob_base_fee: u64::MAX,
     }
 }
 
@@ -99,12 +99,13 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         .with_fee_history(base_fees)
         .build();
     // 5 sampled blocks + additional block to account for latest block subtraction
-    eth_client.advance_block_number(6);
+    eth_client.advance_block_number(6, EthTxFinalityStatus::Finalized);
 
-    let config = test_config(SettlementMode::SettlesToL1);
+    let config = test_config();
+    let client: Box<DynClient<L1>> = Box::new(eth_client.clone().into_client());
     let adjuster = GasAdjuster::new(
-        GasAdjusterClient::from_l1(Box::new(eth_client.clone().into_client())),
-        config,
+        GasAdjusterClient::from(client),
+        config.clone(),
         PubdataSendingMode::Calldata,
         commitment_mode,
     )
@@ -128,7 +129,7 @@ async fn kept_updated(commitment_mode: L1BatchCommitmentMode) {
         expected_median_blob_base_fee.into()
     );
 
-    eth_client.advance_block_number(3);
+    eth_client.advance_block_number(3, EthTxFinalityStatus::Finalized);
     adjuster.keep_updated().await.unwrap();
 
     assert_eq!(
@@ -163,12 +164,14 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
         .with_fee_history(base_fees)
         .build();
     // 5 sampled blocks + additional block to account for latest block subtraction
-    eth_client.advance_block_number(6);
+    eth_client.advance_block_number(6, EthTxFinalityStatus::Finalized);
 
-    let config = test_config(SettlementMode::Gateway);
+    let config = test_config();
+    let client: Box<DynClient<L2>> = Box::new(eth_client.clone().into_client());
+
     let adjuster = GasAdjuster::new(
-        GasAdjusterClient::from_l2(Box::new(eth_client.clone().into_client())),
-        config,
+        GasAdjusterClient::from(client),
+        config.clone(),
         PubdataSendingMode::RelayedL2Calldata,
         commitment_mode,
     )
@@ -192,7 +195,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
         expected_median_blob_base_fee.into()
     );
 
-    eth_client.advance_block_number(3);
+    eth_client.advance_block_number(3, EthTxFinalityStatus::Finalized);
     adjuster.keep_updated().await.unwrap();
 
     assert_eq!(

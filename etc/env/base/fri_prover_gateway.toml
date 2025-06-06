@@ -1,7 +1,6 @@
 [fri_prover_gateway]
 api_url="http://127.0.0.1:3320"
 api_poll_duration_secs=15
-http_port=3324
 prometheus_listener_port=3314
 prometheus_pushgateway_url="http://127.0.0.1:9091"
 prometheus_push_interval_ms=100

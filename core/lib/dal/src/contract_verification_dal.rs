@@ -313,6 +313,33 @@ impl ContractVerificationDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn update_verification_request_compiler_versions(
+        &mut self,
+        id: usize,
+        compiler_version: &str,
+        zk_compiler_version: Option<&str>,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE contract_verification_requests
+            SET
+                compiler_version = $2,
+                zk_compiler_version = $3,
+                updated_at = NOW()
+            WHERE
+                id = $1
+            "#,
+            id as i64,
+            compiler_version,
+            zk_compiler_version,
+        )
+        .instrument("update_verification_request_compiler_versions")
+        .with_arg("id", &id)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_verification_request_status(
         &mut self,
         id: usize,
@@ -383,6 +410,7 @@ impl ContractVerificationDal<'_, '_> {
                         address = $1
                         AND topic1 = $2
                         AND topic4 = $3
+                    ORDER BY miniblock_number DESC, event_index_in_block DESC
                     LIMIT
                         1
                 ) deploy_event
@@ -999,6 +1027,61 @@ mod tests {
             .await
             .unwrap();
         assert!(maybe_req.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_update_verification_request_compiler_versions() {
+        let request = VerificationIncomingRequest {
+            contract_address: Address::repeat_byte(11),
+            source_code_data: SourceCodeData::SolSingleFile("contract Test {}".to_owned()),
+            contract_name: "Test".to_string(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_zksolc_version: Some("v1.5.10".to_owned()),
+                compiler_solc_version: "0.8.20".to_owned(),
+            },
+            optimization_used: true,
+            optimizer_mode: Some("z".to_owned()),
+            constructor_arguments: web3::Bytes(b"test".to_vec()),
+            is_system: false,
+            force_evmla: true,
+            evm_specific: Default::default(),
+        };
+
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let id = conn
+            .contract_verification_dal()
+            .add_contract_verification_request(&request)
+            .await
+            .unwrap();
+
+        let updated_compiler_version = "0.8.27";
+        let updated_zksolc_version = Some("1.5.7");
+
+        conn.contract_verification_dal()
+            .update_verification_request_compiler_versions(
+                id,
+                updated_compiler_version,
+                updated_zksolc_version,
+            )
+            .await
+            .expect("request compiler versions not updated");
+
+        let req = conn
+            .contract_verification_dal()
+            .get_next_queued_verification_request(Duration::from_secs(600))
+            .await
+            .unwrap()
+            .expect("request not queued");
+        assert_eq!(req.id, id);
+        assert_eq!(
+            req.req.compiler_versions.compiler_version(),
+            updated_compiler_version
+        );
+        assert_eq!(
+            req.req.compiler_versions.zk_compiler_version(),
+            updated_zksolc_version
+        );
     }
 
     #[tokio::test]

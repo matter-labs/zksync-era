@@ -8,7 +8,7 @@ use fflonk::{
     },
     FflonkProof,
 };
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::outputs::{L1BatchProofForL1, TypedL1BatchProofForL1};
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{encode, Token},
@@ -16,7 +16,9 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    i_executor::structures::{
+        StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
+    },
     Tokenizable,
 };
 
@@ -31,28 +33,31 @@ pub struct ProveBatches {
 
 impl ProveBatches {
     pub fn conditional_into_tokens(&self, is_verifier_pre_fflonk: bool) -> Vec<Token> {
-        let prev_l1_batch_info = StoredBatchInfo::from(&self.prev_l1_batch).into_token();
+        let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
+        let prev_l1_batch_info = StoredBatchInfo::from(&self.prev_l1_batch)
+            .into_token_with_protocol_version(protocol_version);
         let batches_arg = self
             .l1_batches
             .iter()
-            .map(|batch| StoredBatchInfo::from(batch).into_token())
+            .map(|batch| {
+                StoredBatchInfo::from(batch).into_token_with_protocol_version(protocol_version)
+            })
             .collect();
         let batches_arg = Token::Array(batches_arg);
-        let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
 
         if self.should_verify {
             // currently we only support submitting a single proof
             assert_eq!(self.proofs.len(), 1);
             assert_eq!(self.l1_batches.len(), 1);
 
-            let (verifier_type, proof) = match self.proofs.first().unwrap() {
-                L1BatchProofForL1::Fflonk(proof) => {
+            let (verifier_type, proof) = match self.proofs.first().unwrap().inner() {
+                TypedL1BatchProofForL1::Fflonk(proof) => {
                     let scheduler_proof = proof.scheduler_proof.clone();
 
                     let (_, serialized_proof) = serialize_fflonk_proof(&scheduler_proof);
                     (U256::from(0), serialized_proof)
                 }
-                L1BatchProofForL1::Plonk(proof) => {
+                TypedL1BatchProofForL1::Plonk(proof) => {
                     let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
                     (U256::from(1), serialized_proof)
                 }
@@ -75,6 +80,11 @@ impl ProveBatches {
 
                 vec![prev_l1_batch_info, batches_arg, proof_input]
             } else {
+                let encoding_version = if protocol_version.is_pre_interop() {
+                    PRE_INTEROP_ENCODING_VERSION
+                } else {
+                    SUPPORTED_ENCODING_VERSION
+                };
                 let proof_input = if should_use_fflonk {
                     Token::Array(
                         vec![verifier_type]
@@ -88,7 +98,7 @@ impl ProveBatches {
                 };
 
                 let encoded_data = encode(&[prev_l1_batch_info, batches_arg, proof_input]);
-                let prove_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+                let prove_data = [[encoding_version].to_vec(), encoded_data]
                     .concat()
                     .to_vec();
 
@@ -107,8 +117,13 @@ impl ProveBatches {
                 Token::Tuple(vec![Token::Array(vec![]), Token::Array(vec![])]),
             ]
         } else {
+            let encoding_version = if protocol_version.is_pre_interop() {
+                PRE_INTEROP_ENCODING_VERSION
+            } else {
+                SUPPORTED_ENCODING_VERSION
+            };
             let encoded_data = encode(&[prev_l1_batch_info, batches_arg, Token::Array(vec![])]);
-            let prove_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+            let prove_data = [[encoding_version].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 

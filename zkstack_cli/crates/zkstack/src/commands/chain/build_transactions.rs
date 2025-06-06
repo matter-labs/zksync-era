@@ -2,9 +2,7 @@ use anyhow::Context;
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
 use zkstack_cli_common::{git, logger, spinner::Spinner};
-use zkstack_cli_config::{
-    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
-};
+use zkstack_cli_config::{copy_configs, traits::SaveConfigWithBasePath, EcosystemConfig};
 
 use crate::{
     commands::chain::{
@@ -41,7 +39,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
 
     let mut genesis_config = chain_config.get_genesis_config().await?.patched();
-    update_from_chain_config(&mut genesis_config, &chain_config)?;
+    genesis_config.update_from_chain_config(&chain_config)?;
     // FIXME: config isn't saved; why?
 
     // Copy ecosystem contracts

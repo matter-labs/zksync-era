@@ -216,7 +216,7 @@ can catch these calls and give important insight information for debugging issue
 
 ### **Result ptr pointer**
 
-- [523264..524287]
+- \[523264..524287\]
 
 These are memory slots that are used to track the success status of a transaction. If the transaction with number `i`
 succeeded, the slot `2^19 - 1024 + i` will be marked as 1 and 0 otherwise.

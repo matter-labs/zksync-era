@@ -15,8 +15,7 @@ pub(crate) struct EthFees {
     pub(crate) base_fee_per_gas: u64,
     pub(crate) priority_fee_per_gas: u64,
     pub(crate) blob_base_fee_per_gas: Option<u64>,
-    #[allow(dead_code)]
-    pub(crate) pubdata_price: Option<u64>,
+    pub(crate) max_gas_per_pubdata_price: Option<u64>,
 }
 
 pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
@@ -33,6 +32,7 @@ pub(crate) struct GasAdjusterFeesOracle {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    pub max_acceptable_base_fee_in_wei: u64,
 }
 
 impl GasAdjusterFeesOracle {
@@ -44,37 +44,75 @@ impl GasAdjusterFeesOracle {
             );
         }
     }
+
+    fn is_base_fee_exceeding_limit(&self, value: u64) -> bool {
+        if value > self.max_acceptable_base_fee_in_wei {
+            tracing::warn!(
+                    "base fee per gas: {} exceed max acceptable fee in configuration: {}, skip transaction",
+                    value,
+                    self.max_acceptable_base_fee_in_wei
+            );
+            return true;
+        }
+        false
+    }
+
     fn calculate_fees_with_blob_sidecar(
         &self,
         previous_sent_tx: &Option<TxHistory>,
+        time_in_mempool_in_l1_blocks: u32,
     ) -> Result<EthFees, EthSenderError> {
-        let base_fee_per_gas = self.gas_adjuster.get_blob_tx_base_fee();
-        self.assert_fee_is_not_zero(base_fee_per_gas, "base");
-        let priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
-        let blob_base_fee_per_gas = self.gas_adjuster.get_blob_tx_blob_base_fee();
-        self.assert_fee_is_not_zero(blob_base_fee_per_gas, "blob");
-        let blob_base_fee_per_gas = Some(blob_base_fee_per_gas);
+        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 2.00;
 
+        // we cap it to not allow nearly infinite values when a tx is stuck for a long time
+        let capped_time_in_mempool_in_l1_blocks = min(
+            time_in_mempool_in_l1_blocks,
+            self.time_in_mempool_in_l1_blocks_cap,
+        );
+
+        let base_fee_per_gas = self
+            .gas_adjuster
+            .get_blob_tx_base_fee(capped_time_in_mempool_in_l1_blocks);
+        self.assert_fee_is_not_zero(base_fee_per_gas, "base");
+        if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
+            return Err(EthSenderError::ExceedMaxBaseFee);
+        }
+        let blob_base_fee_per_gas = self
+            .gas_adjuster
+            .get_blob_tx_blob_base_fee(capped_time_in_mempool_in_l1_blocks);
+        self.assert_fee_is_not_zero(blob_base_fee_per_gas, "blob");
+
+        let mut priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
         if let Some(previous_sent_tx) = previous_sent_tx {
-            // for blob transactions on re-sending need to double all gas prices
-            return Ok(EthFees {
-                base_fee_per_gas: max(previous_sent_tx.base_fee_per_gas * 2, base_fee_per_gas),
-                priority_fee_per_gas: max(
-                    previous_sent_tx.priority_fee_per_gas * 2,
-                    priority_fee_per_gas,
-                ),
-                blob_base_fee_per_gas: max(
-                    previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
-                    blob_base_fee_per_gas,
-                ),
-                pubdata_price: None,
-            });
+            self.verify_base_fee_not_too_low_on_resend(
+                previous_sent_tx.id,
+                previous_sent_tx.blob_base_fee_per_gas.unwrap_or(0),
+                blob_base_fee_per_gas,
+                self.gas_adjuster.get_next_block_minimal_blob_base_fee(),
+                MIN_PRICE_BUMP_MULTIPLIER,
+                "blob_base_fee_per_gas",
+            )?;
+
+            self.verify_base_fee_not_too_low_on_resend(
+                previous_sent_tx.id,
+                previous_sent_tx.base_fee_per_gas,
+                base_fee_per_gas,
+                self.gas_adjuster.get_next_block_minimal_base_fee(),
+                MIN_PRICE_BUMP_MULTIPLIER,
+                "base_fee_per_gas",
+            )?;
+
+            priority_fee_per_gas = max(
+                priority_fee_per_gas,
+                (previous_sent_tx.priority_fee_per_gas as f64 * MIN_PRICE_BUMP_MULTIPLIER).ceil()
+                    as u64,
+            );
         }
         Ok(EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
-            blob_base_fee_per_gas,
-            pubdata_price: None,
+            blob_base_fee_per_gas: Some(blob_base_fee_per_gas),
+            max_gas_per_pubdata_price: None,
         })
     }
 
@@ -83,37 +121,37 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool_in_l1_blocks: u32,
     ) -> Result<EthFees, EthSenderError> {
+        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 1.10;
+
         // we cap it to not allow nearly infinite values when a tx is stuck for a long time
         let capped_time_in_mempool_in_l1_blocks = min(
             time_in_mempool_in_l1_blocks,
             self.time_in_mempool_in_l1_blocks_cap,
         );
-        let mut base_fee_per_gas = self
+        let base_fee_per_gas = self
             .gas_adjuster
             .get_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
-        if let Some(previous_sent_tx) = previous_sent_tx {
-            self.verify_base_fee_not_too_low_on_resend(
-                previous_sent_tx.id,
-                previous_sent_tx.base_fee_per_gas,
-                base_fee_per_gas,
-            )?;
+        if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
+            return Err(EthSenderError::ExceedMaxBaseFee);
         }
 
         let mut priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
 
         if let Some(previous_sent_tx) = previous_sent_tx {
-            // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
+            self.verify_base_fee_not_too_low_on_resend(
+                previous_sent_tx.id,
+                previous_sent_tx.base_fee_per_gas,
+                base_fee_per_gas,
+                self.gas_adjuster.get_next_block_minimal_base_fee(),
+                MIN_PRICE_BUMP_MULTIPLIER,
+                "base_fee_per_gas",
+            )?;
+
             priority_fee_per_gas = max(
                 priority_fee_per_gas,
-                (previous_sent_tx.priority_fee_per_gas * 6) / 5 + 1,
-            );
-
-            // same for base_fee_per_gas, we theoretically only need to increase it by 10%, but
-            // we increase it by 20% to have priority_fee not growing faster than base fee
-            base_fee_per_gas = max(
-                base_fee_per_gas,
-                (previous_sent_tx.base_fee_per_gas * 6) / 5 + 1,
+                (previous_sent_tx.priority_fee_per_gas as f64 * MIN_PRICE_BUMP_MULTIPLIER).ceil()
+                    as u64,
             );
         }
 
@@ -130,35 +168,98 @@ impl GasAdjusterFeesOracle {
             base_fee_per_gas,
             blob_base_fee_per_gas: None,
             priority_fee_per_gas,
-            pubdata_price: None,
+            max_gas_per_pubdata_price: None,
+        })
+    }
+
+    fn calculate_fees_for_gateway_tx(
+        &self,
+        previous_sent_tx: &Option<TxHistory>,
+        time_in_mempool_in_l1_blocks: u32,
+    ) -> Result<EthFees, EthSenderError> {
+        const MIN_PRICE_BUMP_MULTIPLIER: f64 = 1.10;
+
+        // we cap it to not allow nearly infinite values when a tx is stuck for a long time
+        let capped_time_in_mempool_in_l1_blocks = min(
+            time_in_mempool_in_l1_blocks,
+            self.time_in_mempool_in_l1_blocks_cap,
+        );
+        let base_fee_per_gas = self
+            .gas_adjuster
+            .get_base_fee(capped_time_in_mempool_in_l1_blocks);
+        self.assert_fee_is_not_zero(base_fee_per_gas, "base");
+        if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
+            return Err(EthSenderError::ExceedMaxBaseFee);
+        }
+
+        let mut gas_per_pubdata = self
+            .gas_adjuster
+            .get_gateway_price_per_pubdata(capped_time_in_mempool_in_l1_blocks);
+
+        if let Some(previous_sent_tx) = previous_sent_tx {
+            self.verify_base_fee_not_too_low_on_resend(
+                previous_sent_tx.id,
+                previous_sent_tx.base_fee_per_gas,
+                base_fee_per_gas,
+                self.gas_adjuster.get_next_block_minimal_base_fee(),
+                MIN_PRICE_BUMP_MULTIPLIER,
+                "base_fee_per_gas",
+            )?;
+
+            // Increase `gas_per_pubdata_fee`.
+            gas_per_pubdata =
+                if let Some(prev_gas_per_pubdata) = previous_sent_tx.max_gas_per_pubdata {
+                    max(
+                        gas_per_pubdata,
+                        (prev_gas_per_pubdata as f64 * MIN_PRICE_BUMP_MULTIPLIER).ceil() as u64,
+                    )
+                } else {
+                    gas_per_pubdata
+                };
+        }
+
+        Ok(EthFees {
+            base_fee_per_gas,
+            blob_base_fee_per_gas: None,
+            // We ignore priority fee for gateway
+            priority_fee_per_gas: 0,
+            max_gas_per_pubdata_price: Some(gas_per_pubdata),
         })
     }
 
     fn verify_base_fee_not_too_low_on_resend(
         &self,
         tx_id: u32,
-        previous_base_fee: u64,
-        base_fee_to_use: u64,
+        previous_fee: u64,
+        fee_to_use: u64,
+        next_block_minimal_fee: u64,
+        min_price_bump_multiplier: f64,
+        fee_type: &str,
     ) -> Result<(), EthSenderError> {
-        let next_block_minimal_base_fee = self.gas_adjuster.get_next_block_minimal_base_fee();
-        if base_fee_to_use < min(next_block_minimal_base_fee, previous_base_fee) {
-            // If the base fee is lower than the previous used one
+        let fee_to_use = fee_to_use as f64;
+        if fee_to_use < (next_block_minimal_fee as f64)
+            || fee_to_use < (previous_fee as f64 * min_price_bump_multiplier).ceil()
+        {
+            // If the fee is lower than the previous used one multiplied by the required factor
             // or is lower than the minimal possible value for the next block, sending is skipped.
             tracing::info!(
-                "Base fee too low for resend detected for tx {}, \
-                 suggested base_fee_per_gas {:?}, \
-                 previous_base_fee {:?}, \
-                 next_block_minimal_base_fee {:?}",
+                "{fee_type} too low for resend detected for tx {}, \
+                 suggested fee {:?}, \
+                 previous_fee {:?}, \
+                 next_block_minimal_fee {:?}, \
+                 min_price_bump_multiplier {:?}",
                 tx_id,
-                base_fee_to_use,
-                previous_base_fee,
-                next_block_minimal_base_fee
+                fee_to_use,
+                previous_fee,
+                next_block_minimal_fee,
+                min_price_bump_multiplier
             );
-            let err = ClientError::Custom("base_fee_per_gas is too low".into());
-            let err = EnrichedClientError::new(err, "increase_priority_fee")
-                .with_arg("base_fee_to_use", &base_fee_to_use)
-                .with_arg("previous_base_fee", &previous_base_fee)
-                .with_arg("next_block_minimal_base_fee", &next_block_minimal_base_fee);
+            let err = ClientError::Custom(format!("{fee_type} is too low"));
+            let err = EnrichedClientError::new(err, "verify_base_fee_not_too_low_on_resend")
+                .with_arg("fee_to_use", &fee_to_use)
+                .with_arg("previous_fee", &previous_fee)
+                .with_arg("next_block_minimal_fee", &next_block_minimal_fee)
+                .with_arg("min_price_bump_multiplier", &min_price_bump_multiplier);
             return Err(err.into());
         }
         Ok(())
@@ -172,11 +273,15 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
         time_in_mempool_in_l1_blocks: u32,
         operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError> {
-        let has_blob_sidecar = operator_type == OperatorType::Blob;
-        if has_blob_sidecar {
-            self.calculate_fees_with_blob_sidecar(previous_sent_tx)
-        } else {
-            self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool_in_l1_blocks)
+        match operator_type {
+            OperatorType::NonBlob => {
+                self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool_in_l1_blocks)
+            }
+            OperatorType::Blob => self
+                .calculate_fees_with_blob_sidecar(previous_sent_tx, time_in_mempool_in_l1_blocks),
+            OperatorType::Gateway => {
+                self.calculate_fees_for_gateway_tx(previous_sent_tx, time_in_mempool_in_l1_blocks)
+            }
         }
     }
 }

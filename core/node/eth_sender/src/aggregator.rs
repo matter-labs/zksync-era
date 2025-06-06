@@ -3,11 +3,13 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::{
+    outputs::{L1BatchProofForL1, L1BatchProofForL1Key},
+    Bincode,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -17,9 +19,8 @@ use zksync_types::{
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementMode,
-    web3::CallRequest,
-    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+    settlement::SettlementLayer,
+    InteropRoot, L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -39,7 +40,6 @@ pub struct Aggregator {
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
-    sl_client: Box<dyn BoundEthInterface>,
     /// If we are operating in 4844 mode we need to wait for commit transaction
     /// to get included before sending the respective prove and execute transactions.
     /// In non-4844 mode of operation we operate with the single address and this
@@ -49,7 +49,7 @@ pub struct Aggregator {
     pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
-    priority_tree_start_index: Option<usize>,
+    settlement_layer: SettlementLayer,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -110,19 +110,15 @@ impl Aggregator {
     pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
-        custom_commit_sender_addr: Option<Address>,
+        custom_commit_sender_addr: bool,
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
-        sl_client: Box<dyn BoundEthInterface>,
-        settlement_mode: SettlementMode,
+        settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
-        let pubdata_da = config.pubdata_sending_mode;
-
-        let operate_4844_mode: bool =
-            custom_commit_sender_addr.is_some() && !settlement_mode.is_gateway();
+        let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
         // We do not have a reliable lower bound for gas needed to execute batches on gateway so we do not aggregate.
-        let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_mode
+        let execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_layer
             .is_gateway()
         {
             if config.max_aggregated_blocks_to_execute > 1 {
@@ -145,7 +141,7 @@ impl Aggregator {
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Execute,
-                    deadline_seconds: config.aggregated_block_execute_deadline,
+                    deadline: config.aggregated_block_execute_deadline,
                     max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
                 }),
                 Box::from(L1GasCriterion::new(
@@ -156,38 +152,37 @@ impl Aggregator {
         };
 
         // It only makes sense to aggregate commit operation when validium chain settles to L1.
-        let commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>> = if settlement_mode
-            == SettlementMode::SettlesToL1
-            && commitment_mode == L1BatchCommitmentMode::Validium
-        {
-            vec![
-                Box::from(NumberCriterion {
-                    op: AggregatedActionType::Commit,
-                    limit: config.max_aggregated_blocks_to_commit,
-                }),
-                Box::from(TimestampDeadlineCriterion {
-                    op: AggregatedActionType::Commit,
-                    deadline_seconds: config.aggregated_block_commit_deadline,
-                    max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
-                }),
-                Box::from(L1GasCriterion::new(
-                    config.max_aggregated_tx_gas,
-                    GasCriterionKind::CommitValidium,
-                )),
-            ]
-        } else {
-            if config.max_aggregated_blocks_to_commit > 1 {
-                tracing::warn!(
-                    "config.max_aggregated_blocks_to_commit is set to {} but \
+        let commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>> =
+            if !settlement_layer.is_gateway() && commitment_mode == L1BatchCommitmentMode::Validium
+            {
+                vec![
+                    Box::from(NumberCriterion {
+                        op: AggregatedActionType::Commit,
+                        limit: config.max_aggregated_blocks_to_commit,
+                    }),
+                    Box::from(TimestampDeadlineCriterion {
+                        op: AggregatedActionType::Commit,
+                        deadline: config.aggregated_block_commit_deadline,
+                        max_allowed_lag: Some(config.timestamp_criteria_max_allowed_lag),
+                    }),
+                    Box::from(L1GasCriterion::new(
+                        config.max_aggregated_tx_gas,
+                        GasCriterionKind::CommitValidium,
+                    )),
+                ]
+            } else {
+                if config.max_aggregated_blocks_to_commit > 1 {
+                    tracing::warn!(
+                        "config.max_aggregated_blocks_to_commit is set to {} but \
                     aggregator does not support aggregating commit operations anymore",
-                    config.max_aggregated_blocks_to_commit
-                );
-            }
-            vec![Box::from(NumberCriterion {
-                op: AggregatedActionType::Commit,
-                limit: 1,
-            })]
-        };
+                        config.max_aggregated_blocks_to_commit
+                    );
+                }
+                vec![Box::from(NumberCriterion {
+                    op: AggregatedActionType::Commit,
+                    limit: 1,
+                })]
+            };
 
         Ok(Self {
             commit_criteria,
@@ -196,15 +191,14 @@ impl Aggregator {
                 limit: 1,
             })],
             execute_criteria,
+            pubdata_da: config.pubdata_sending_mode,
             config,
             blob_store,
             operate_4844_mode,
-            pubdata_da,
             commitment_mode,
             priority_merkle_tree: None,
-            priority_tree_start_index: None,
             pool,
-            sl_client,
+            settlement_layer,
         })
     }
 
@@ -215,6 +209,7 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
         restrictions: OperationSkippingRestrictions,
+        priority_tree_start_index: Option<usize>,
         is_gateway: bool, //
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
@@ -231,6 +226,7 @@ impl Aggregator {
                 storage,
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
+                priority_tree_start_index,
                 is_gateway, //
             )
             .await?,
@@ -253,68 +249,6 @@ impl Aggregator {
                 .await,
             ))
         }
-    }
-
-    async fn query_no_params_method(&self, method_name: &str) -> Result<U256, EthSenderError> {
-        let data = self
-            .sl_client
-            .contract()
-            .function(method_name)
-            .unwrap()
-            .encode_input(&[])
-            .unwrap();
-
-        // Dereference the box to get a reference to the trait object:
-        let bound_ref: &dyn BoundEthInterface = &*self.sl_client;
-
-        // Now call `as_ref()` from `AsRef<dyn EthInterface>` explicitly:
-        let eth_interface: &dyn EthInterface = AsRef::<dyn EthInterface>::as_ref(bound_ref);
-
-        let result = eth_interface
-            .call_contract_function(
-                CallRequest {
-                    data: Some(data.into()),
-                    to: Some(self.sl_client.contract_addr()),
-                    ..CallRequest::default()
-                },
-                None,
-            )
-            .await?;
-
-        Ok(self
-            .sl_client
-            .contract()
-            .function(method_name)
-            .unwrap()
-            .decode_output(&result.0)
-            .unwrap()[0]
-            .clone()
-            .into_uint()
-            .unwrap())
-    }
-
-    async fn get_or_init_priority_tree_start_index(
-        &mut self,
-    ) -> Result<Option<usize>, EthSenderError> {
-        if self.priority_tree_start_index.is_none() {
-            let packed_semver = self.query_no_params_method("getProtocolVersion").await?;
-
-            // We always expect the provided version to be correct, so we panic if it is not
-            let version = ProtocolVersionId::try_from_packed_semver(packed_semver).unwrap();
-
-            // For pre-gateway versions the index is not supported.
-            if version.is_pre_gateway() {
-                return Ok(None);
-            }
-
-            let priority_tree_start_index = self
-                .query_no_params_method("getPriorityTreeStartIndex")
-                .await?;
-
-            self.priority_tree_start_index = Some(priority_tree_start_index.as_usize());
-        }
-
-        Ok(self.priority_tree_start_index)
     }
 
     async fn get_or_init_tree(
@@ -349,12 +283,13 @@ impl Aggregator {
         storage: &mut Connection<'_, Core>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
+        priority_tree_start_index: Option<usize>,
         is_gateway: bool,
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let max_l1_batch_timestamp_millis = self
             .config
-            .l1_batch_min_age_before_execute_seconds
-            .map(|age| unix_timestamp_ms() - age * 1_000);
+            .l1_batch_min_age_before_execute
+            .map(|age| unix_timestamp_ms() - age.as_millis() as u64);
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
@@ -365,20 +300,32 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await
         else {
             return Ok(None);
         };
 
-        let Some(priority_tree_start_index) = self.get_or_init_priority_tree_start_index().await?
-        else {
+        let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
+        for batch in &l1_batches {
+            let interop_roots = storage
+                .interop_root_dal()
+                .get_interop_roots_batch(batch.header.number)
+                .await
+                .unwrap();
+
+            dependency_roots.push(interop_roots);
+        }
+
+        let Some(priority_tree_start_index) = priority_tree_start_index else {
             // The index is not yet applicable to the current system, so we
             // return empty priority operations' proofs.
             let length = l1_batches.len();
             return Ok(Some(ExecuteBatches {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
+                dependency_roots,
                 logs: vec![],
                 messages: vec![],
                 message_roots: vec![], //
@@ -460,6 +407,7 @@ impl Aggregator {
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
+            dependency_roots,
             logs: all_logs,
             messages: all_messages,
             message_roots: all_message_roots, //
@@ -474,6 +422,16 @@ impl Aggregator {
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
     ) -> Option<AggregatedOperation> {
+        // The commit operation is not aggregated at the moment. The code below relies on `limit`
+        // being set to 1 when defining the pubdata commitment mode.
+        if limit != 1 {
+            tracing::error!(
+                "Commit operation is not aggregated anymore. \
+                The limit of commit operation is set to 1."
+            );
+            return None;
+        }
+
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -519,12 +477,66 @@ impl Aggregator {
             &mut self.commit_criteria,
             ready_for_commit_l1_batches,
             last_sealed_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await;
 
-        batches.map(|batches| {
-            AggregatedOperation::Commit(last_committed_l1_batch, batches, self.pubdata_da)
-        })
+        let batches = batches?;
+
+        // Note: the line below only works correctly during rollup <-> validium transitions
+        // if the limit of commit operation is set to 1.
+        let (pubdata_sending_mode, commitment_mode) =
+            self.get_commitment_modes(batches.first()?, storage).await;
+
+        Some(AggregatedOperation::Commit(
+            last_committed_l1_batch,
+            batches,
+            pubdata_sending_mode,
+            commitment_mode,
+        ))
+    }
+
+    async fn get_commitment_modes(
+        &self,
+        batch: &L1BatchWithMetadata,
+        storage: &mut Connection<'_, Core>,
+    ) -> (PubdataSendingMode, L1BatchCommitmentMode) {
+        let pubdata_params = storage
+            .blocks_dal()
+            .get_l1_batch_pubdata_params(batch.header.number)
+            .await
+            .unwrap();
+
+        match pubdata_params {
+            Some(p) => {
+                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type);
+
+                if commitment_mode == L1BatchCommitmentMode::Rollup
+                    && self.pubdata_da == PubdataSendingMode::Custom
+                {
+                    if storage
+                        .eth_sender_dal()
+                        .is_using_blobs_in_latest_batch()
+                        .await
+                        .unwrap_or_default()
+                    {
+                        tracing::warn!("Overriding pubdata sending mode to Blobs, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Blobs, commitment_mode)
+                    } else {
+                        tracing::warn!("Overriding pubdata sending mode to Calldata, most likely rollup -> validium migration is in place");
+                        (PubdataSendingMode::Calldata, commitment_mode)
+                    }
+                } else if commitment_mode == L1BatchCommitmentMode::Validium
+                    && self.pubdata_da != PubdataSendingMode::Custom
+                {
+                    tracing::warn!("Overriding pubdata sending mode to Custom, most likely validium -> rollup migration is in place");
+                    (PubdataSendingMode::Custom, commitment_mode)
+                } else {
+                    (self.pubdata_da, self.commitment_mode)
+                }
+            }
+            None => (self.pubdata_da, self.commitment_mode),
+        }
     }
 
     async fn load_dummy_proof_operations(
@@ -681,6 +693,7 @@ impl Aggregator {
             &mut self.proof_criteria,
             ready_for_proof_l1_batches,
             last_sealed_l1_batch,
+            self.settlement_layer.is_gateway(),
         )
         .await?;
 
@@ -754,14 +767,6 @@ impl Aggregator {
             }
         }
     }
-
-    pub fn pubdata_da(&self) -> PubdataSendingMode {
-        self.pubdata_da
-    }
-
-    pub fn mode(&self) -> L1BatchCommitmentMode {
-        self.commitment_mode
-    }
 }
 
 async fn extract_ready_subrange(
@@ -769,11 +774,17 @@ async fn extract_ready_subrange(
     publish_criteria: &mut [Box<dyn L1BatchPublishCriterion>],
     unpublished_l1_batches: Vec<L1BatchWithMetadata>,
     last_sealed_l1_batch: L1BatchNumber,
+    is_gateway: bool,
 ) -> Option<Vec<L1BatchWithMetadata>> {
     let mut last_l1_batch: Option<L1BatchNumber> = None;
     for criterion in publish_criteria {
         let l1_batch_by_criterion = criterion
-            .last_l1_batch_to_publish(storage, &unpublished_l1_batches, last_sealed_l1_batch)
+            .last_l1_batch_to_publish(
+                storage,
+                &unpublished_l1_batches,
+                last_sealed_l1_batch,
+                is_gateway,
+            )
             .await;
         if let Some(l1_batch) = l1_batch_by_criterion {
             last_l1_batch = Some(last_l1_batch.map_or(l1_batch, |number| number.min(l1_batch)));
@@ -796,11 +807,26 @@ pub async fn load_wrapped_fri_proofs_for_range(
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store
-            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .get::<L1BatchProofForL1>(L1BatchProofForL1Key::Core((l1_batch_number, *version)))
             .await
         {
             Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(ObjectStoreError::KeyNotFound(_)) => {
+                match blob_store
+                    .get::<L1BatchProofForL1<Bincode>>(L1BatchProofForL1Key::Core((
+                        l1_batch_number,
+                        *version,
+                    )))
+                    .await
+                {
+                    Ok(proof) => return Some(proof.into()),
+                    Err(ObjectStoreError::KeyNotFound(_)) => continue, // proof is not ready yet, continue
+                    Err(err) => panic!(
+                        "Failed to load proof for batch {}: {}",
+                        l1_batch_number.0, err
+                    ),
+                }
+            }
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
                 l1_batch_number.0, err

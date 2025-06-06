@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use zksync_contracts::chain_admin_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    api::Log, ethabi::Contract, protocol_upgrade::ProtocolUpgradePreimageOracle,
+    api::Log, protocol_upgrade::ProtocolUpgradePreimageOracle,
     protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256, U256,
 };
 
@@ -26,13 +27,12 @@ pub struct DecentralizedUpgradesEventProcessor {
 impl DecentralizedUpgradesEventProcessor {
     pub fn new(
         last_seen_protocol_version: ProtocolSemanticVersion,
-        chain_admin_contract: &Contract,
         sl_client: Arc<dyn EthClient>,
         l1_client: Arc<dyn EthClient>,
     ) -> Self {
         Self {
             last_seen_protocol_version,
-            update_upgrade_timestamp_signature: chain_admin_contract
+            update_upgrade_timestamp_signature: chain_admin_contract()
                 .event("UpdateUpgradeTimestamp")
                 .context("UpdateUpgradeTimestamp event is missing in ABI")
                 .unwrap()
@@ -177,12 +177,12 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         Ok(events.len())
     }
 
-    fn topic1(&self) -> H256 {
-        self.update_upgrade_timestamp_signature
+    fn topic1(&self) -> Option<H256> {
+        Some(self.update_upgrade_timestamp_signature)
     }
 
     fn event_source(&self) -> EventsSource {
-        EventsSource::SL
+        EventsSource::L1
     }
 
     fn event_type(&self) -> EventType {

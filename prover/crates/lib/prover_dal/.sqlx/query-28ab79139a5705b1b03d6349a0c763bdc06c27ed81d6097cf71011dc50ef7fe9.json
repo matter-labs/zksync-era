@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE scheduler_witness_jobs_fri\n            SET\n                status = 'queued'\n            WHERE\n                (l1_batch_number, chain_id) IN (\n                    SELECT\n                        prover_jobs_fri.l1_batch_number,\n                        prover_jobs_fri.chain_id\n                    FROM\n                        prover_jobs_fri\n                    JOIN\n                        scheduler_witness_jobs_fri swj\n                        ON\n                            prover_jobs_fri.l1_batch_number = swj.l1_batch_number\n                            AND prover_jobs_fri.chain_id = swj.chain_id\n                    WHERE\n                        swj.status = 'waiting_for_proofs'\n                        AND prover_jobs_fri.status = 'successful'\n                        AND prover_jobs_fri.aggregation_round = $1\n                )\n            RETURNING\n            l1_batch_number,\n            chain_id;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "chain_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "28ab79139a5705b1b03d6349a0c763bdc06c27ed81d6097cf71011dc50ef7fe9"
+}

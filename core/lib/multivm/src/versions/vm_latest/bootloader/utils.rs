@@ -1,4 +1,4 @@
-use zksync_types::{ethabi, h256_to_u256, message_root::MessageRoot, ProtocolVersionId, U256};
+use zksync_types::{ethabi, h256_to_u256, InteropRoot, ProtocolVersionId, U256};
 
 use super::tx::BootloaderTx;
 use crate::{
@@ -11,11 +11,12 @@ use crate::{
         bootloader::l2_block::BootloaderL2Block,
         constants::{
             get_bootloader_tx_description_offset, get_compressed_bytecodes_offset,
-            get_message_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
+            get_current_number_of_roots_in_block_offset, get_interop_blocks_begin_offset,
+            get_interop_root_offset, get_operator_provided_l1_messenger_pubdata_offset,
             get_operator_refunds_offset, get_tx_description_offset,
             get_tx_operator_l2_block_info_offset, get_tx_overhead_offset,
             get_tx_trusted_gas_limit_offset, BOOTLOADER_TX_DESCRIPTION_SIZE,
-            MESSAGE_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+            INTEROP_ROOT_SLOTS_SIZE, OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         MultiVmSubversion,
@@ -43,6 +44,9 @@ pub(super) fn apply_tx_to_memory(
     execution_mode: TxExecutionMode,
     start_new_l2_block: bool,
     subversion: MultiVmSubversion,
+    apply_interop_roots: bool,
+    preexisting_interop_roots_number: usize,
+    preexisting_blocks_number: usize,
 ) -> usize {
     let bootloader_description_offset = get_bootloader_tx_description_offset(subversion)
         + BOOTLOADER_TX_DESCRIPTION_SIZE * tx_index;
@@ -78,6 +82,9 @@ pub(super) fn apply_tx_to_memory(
         tx_index,
         start_new_l2_block,
         subversion,
+        apply_interop_roots,
+        preexisting_interop_roots_number,
+        preexisting_blocks_number,
     );
 
     // Note, +1 is moving for pointer
@@ -101,16 +108,32 @@ pub(crate) fn apply_l2_block(
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
     subversion: MultiVmSubversion,
+    apply_interop_roots: bool,
+    preexisting_interop_roots_number: usize,
+    preexisting_blocks_number: usize,
 ) {
-    apply_l2_block_inner(memory, bootloader_l2_block, txs_index, true, subversion)
+    apply_l2_block_inner(
+        memory,
+        bootloader_l2_block,
+        txs_index,
+        true,
+        subversion,
+        apply_interop_roots,
+        preexisting_interop_roots_number,
+        preexisting_blocks_number,
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_l2_block_inner(
     memory: &mut BootloaderMemory,
     bootloader_l2_block: &BootloaderL2Block,
     txs_index: usize,
     start_new_l2_block: bool,
     subversion: MultiVmSubversion,
+    apply_interop_roots: bool,
+    preexisting_interop_roots_number: usize,
+    preexisting_blocks_number: usize,
 ) {
     // Since L2 block information start from the `TX_OPERATOR_L2_BLOCK_INFO_OFFSET` and each
     // L2 block info takes `TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO` slots, the position where the L2 block info
@@ -134,54 +157,147 @@ fn apply_l2_block_inner(
                 U256::zero()
             },
         ),
-    ])
+    ]);
+
+    if subversion != MultiVmSubversion::Interop {
+        return;
+    }
+
+    println!("block_number: {}", bootloader_l2_block.number);
+    println!(
+        "preexisting_interop_roots_number: {}",
+        preexisting_interop_roots_number
+    );
+    println!(
+        "applying interop roots {}",
+        bootloader_l2_block.interop_roots.len()
+    );
+
+    // dbg!(memory.clone());
+
+    if !apply_interop_roots {
+        println!("not applying interop roots");
+        return;
+    }
+
+    bootloader_l2_block
+        .interop_roots
+        .iter()
+        .enumerate()
+        .for_each(|(offset, interop_root)| {
+            apply_interop_root(
+                memory,
+                offset + preexisting_interop_roots_number,
+                interop_root.clone(),
+                subversion,
+                bootloader_l2_block.number,
+            )
+        });
+
+    if !start_new_l2_block {
+        return;
+    }
+
+    apply_interop_root_number_in_block_number(
+        memory,
+        subversion,
+        bootloader_l2_block.interop_roots.len(),
+        preexisting_blocks_number,
+    );
 }
 
-pub(crate) fn apply_message_root(
+pub(crate) fn apply_interop_root(
     memory: &mut BootloaderMemory,
-    message_root_offset: usize,
-    message_root: &MessageRoot,
+    interop_root_offset: usize,
+    interop_root: InteropRoot,
     subversion: MultiVmSubversion,
+    l2_block_number: u32,
 ) {
-    let msg_root_slot = get_message_root_offset(subversion);
-    // println!("msg_root_slot 2: {}", msg_root_slot);
-    // println!("message_root_offset: {}", message_root_offset);
-    // println!("message_root: {:?}", message_root);
+    let interop_root_slot = get_interop_root_offset(subversion);
+    // println!("interop_root_slot 2: {}", interop_root_slot);
+    // println!("interop_root_offset: {}", interop_root_offset);
+    println!("setting interop_root: {:?}", interop_root);
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
-        U256::from(message_root.chain_id),
-        U256::from(message_root.block_number),
-        U256::from(message_root.sides.len()),
+        U256::from(l2_block_number),
+        U256::from(interop_root.chain_id),
+        U256::from(interop_root.block_number),
+        U256::from(interop_root.sides.len()),
     ];
 
-    u256_words.extend(message_root.sides.iter().cloned());
+    u256_words.extend(interop_root.sides);
     // println!("u256_words: {:?}", u256_words);
     // println!(
     //     "zipped 0 {:?}",
-    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[0]
     // );
     // println!(
     //     "zipped 1 {:?}",
-    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[1]
     // );
     // println!(
     //     "zipped 2 {:?}",
-    //     (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-    //         ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
     //         .zip(u256_words.clone())
     //         .collect::<Vec<_>>()[2]
+    // );
+    // println!(
+    //     "zipped 3 {:?}",
+    //     (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+    //         ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
+    //         .zip(u256_words.clone())
+    //         .collect::<Vec<_>>()[3]
     // ); // Map the U256 words into memory slots
     memory.extend(
-        (msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE
-            ..msg_root_slot + message_root_offset * MESSAGE_ROOT_SLOTS_SIZE + u256_words.len())
+        (interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE
+            ..interop_root_slot + interop_root_offset * INTEROP_ROOT_SLOTS_SIZE + u256_words.len())
             .zip(u256_words),
     )
+}
+
+pub(crate) fn apply_interop_root_number_in_block_number(
+    memory: &mut BootloaderMemory,
+    subversion: MultiVmSubversion,
+    number_of_interop_roots: usize,
+    preexisting_blocks_number: usize,
+) {
+    let mut number_of_written_blocks = 0;
+    if let Some(_index) = memory.iter().position(|(slot, value)| {
+        if *slot < get_interop_blocks_begin_offset(subversion)
+            || *slot >= get_interop_root_offset(subversion)
+        {
+            return false;
+        }
+        println!("finding emptyslot: {}", slot);
+        println!("finding empty value: {}", value);
+        true
+        // *value != U256::from(1)
+    }) {
+        number_of_written_blocks += 1;
+    }
+    let mut first_empty_slot =
+        get_interop_blocks_begin_offset(subversion) + number_of_written_blocks;
+    if number_of_written_blocks == 0 {
+        first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
+    }
+    println!("first_empty_slot: {}", first_empty_slot);
+    println!("number_of_interop_roots: {}", number_of_interop_roots);
+    let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
+    println!("pushing to memory: {}", number_of_interop_roots_plus_one);
+    memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
+    println!("memory: {:?}", memory[memory.len() - 2]);
+    println!("memory: {:?}", memory[memory.len() - 1]);
+    memory.extend(vec![(
+        get_current_number_of_roots_in_block_offset(subversion),
+        preexisting_blocks_number.into(),
+    )]);
 }
 
 fn bootloader_memory_input(
@@ -227,7 +343,10 @@ pub(crate) fn apply_pubdata_to_memory(
 
             (l1_messenger_pubdata_start_slot, pubdata)
         }
-        MultiVmSubversion::Gateway | MultiVmSubversion::EvmEmulator => {
+        MultiVmSubversion::Gateway
+        | MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Interop => {
             // Skipping the first slot as it will be filled by the bootloader itself:
             // It is for the selector of the call to the L1Messenger.
             let l1_messenger_pubdata_start_slot =
@@ -262,10 +381,10 @@ pub(crate) fn apply_pubdata_to_memory(
 /// # Current layout
 ///
 /// - 0 byte (MSB): server-side tx execution mode
-///     In the server, we may want to execute different parts of the transaction in the different context
-///     For example, when checking validity, we don't want to actually execute transaction and have side effects.
+///   In the server, we may want to execute different parts of the transaction in the different context
+///   For example, when checking validity, we don't want to actually execute transaction and have side effects.
 ///
-///     Possible values:
+///   Possible values:
 ///     - 0x00: validate & execute (normal mode)
 ///     - 0x02: execute but DO NOT validate
 ///

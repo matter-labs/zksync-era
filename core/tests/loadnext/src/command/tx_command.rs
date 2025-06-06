@@ -70,6 +70,7 @@ impl TxType {
 }
 
 /// Modifier to be applied to the transaction in order to make it incorrect.
+///
 /// Incorrect transactions are a significant part of loadtest, because we want to ensure
 /// that server is resilient for all the possible kinds of user input.
 #[derive(Debug, Copy, Clone, PartialEq)]

@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
-use zksync_types::contract_verification::api::CompilationArtifacts;
+use serde_json::Value;
+use zksync_types::contract_verification::api::{CompilationArtifacts, ImmutableReference};
 
 pub(crate) use self::{
     solc::{Solc, SolcInput},
@@ -61,6 +62,41 @@ fn process_contract_name(original_name: &str, extension: &str) -> (String, Strin
             format!("{original_name}.{extension}"),
             original_name.to_owned(),
         )
+    }
+}
+
+/// Parses `/evm/deployedBytecode/immutableReferences`
+/// If the path doesn't exist or isn't an object, returns `None`.
+fn parse_immutable_refs(
+    refs_val: Option<&Value>,
+) -> Option<HashMap<String, Vec<ImmutableReference>>> {
+    let obj = refs_val?.as_object()?;
+
+    let mut map = HashMap::new();
+    for (placeholder_key, spans_val) in obj {
+        if let Some(spans_arr) = spans_val.as_array() {
+            let mut spans_vec = Vec::new();
+            for item in spans_arr {
+                let start = item
+                    .get("start")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or_default() as usize;
+                let length = item
+                    .get("length")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or_default() as usize;
+                spans_vec.push(ImmutableReference { start, length });
+            }
+            if !spans_vec.is_empty() {
+                map.insert(placeholder_key.clone(), spans_vec);
+            }
+        }
+    }
+
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
     }
 }
 
@@ -125,6 +161,11 @@ fn parse_standard_json_output(
         None
     };
 
+    // Need to extract immutable references if any are present
+    let immutable_refs =
+        parse_immutable_refs(contract.pointer("/evm/deployedBytecode/immutableReferences"))
+            .unwrap_or_default();
+
     let mut abi = contract["abi"].clone();
     if abi.is_null() {
         // ABI is undefined for Yul contracts when compiled with standalone `solc`. For uniformity with `zksolc`,
@@ -142,6 +183,7 @@ fn parse_standard_json_output(
         bytecode,
         deployed_bytecode,
         abi,
+        immutable_refs,
     })
 }
 

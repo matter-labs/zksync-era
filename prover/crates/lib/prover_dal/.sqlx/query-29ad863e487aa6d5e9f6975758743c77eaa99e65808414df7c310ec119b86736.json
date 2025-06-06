@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE prover_jobs_fri\n            SET\n                status = $1,\n                updated_at = NOW()\n            WHERE\n                (id, chain_id) IN (\n                    SELECT\n                        id,\n                        chain_id\n                    FROM\n                        prover_jobs_fri\n                    WHERE\n                        id = $2\n                        AND chain_id = $3\n                )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "29ad863e487aa6d5e9f6975758743c77eaa99e65808414df7c310ec119b86736"
+}

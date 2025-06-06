@@ -1,12 +1,16 @@
 use anyhow::Context as _;
-use zksync_config::{configs::EcosystemContracts, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
-    api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
-    L2BlockNumber,
+    api::{en, ProtocolVersionInfo},
+    protocol_version::ProtocolSemanticVersion,
+    tokens::TokenInfo,
+    Address, L1BatchNumber, L2BlockNumber,
 };
-use zksync_web3_decl::error::Web3Error;
+use zksync_web3_decl::{
+    error::Web3Error,
+    types::{EcosystemContractsDto, GenesisConfigDto},
+};
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 
@@ -37,52 +41,6 @@ impl EnNamespace {
         Ok(Some(en::ConsensusGlobalConfig(
             zksync_protobuf::serde::Serialize
                 .proto_fmt(&cfg, serde_json::value::Serializer)
-                .unwrap(),
-        )))
-    }
-
-    pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
-        let mut conn = self.state.acquire_connection().await?;
-        let Some(cfg) = conn
-            .consensus_dal()
-            .global_config()
-            .await
-            .context("global_config()")?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(en::ConsensusGenesis(
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(&cfg.genesis, serde_json::value::Serializer)
-                .unwrap(),
-        )))
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub async fn attestation_status_impl(
-        &self,
-    ) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let Some(status) = self
-            .state
-            .acquire_connection()
-            .await?
-            // unwrap is ok, because we start outermost transaction.
-            .transaction_builder()
-            .unwrap()
-            // run readonly transaction to perform consistent reads.
-            .set_readonly()
-            .build()
-            .await
-            .context("TransactionBuilder::build()")?
-            .consensus_dal()
-            .attestation_status()
-            .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(en::AttestationStatus(
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(&status, serde_json::value::Serializer)
                 .unwrap(),
         )))
     }
@@ -147,32 +105,36 @@ impl EnNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_ecosystem_contracts_impl(&self) -> Result<EcosystemContracts, Web3Error> {
-        Ok(self
-            .state
-            .api_config
-            .l1_bridgehub_proxy_addr
-            .map(|bridgehub_proxy_addr| EcosystemContracts {
-                bridgehub_proxy_addr,
-                state_transition_proxy_addr: self
-                    .state
-                    .api_config
-                    .l1_state_transition_proxy_addr
-                    .unwrap(),
-                transparent_proxy_admin_addr: self
-                    .state
-                    .api_config
-                    .l1_transparent_proxy_admin_addr
-                    .unwrap(),
-                l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
-                l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
-                message_root_proxy_addr: self.state.api_config.message_root_proxy_addr,
-            })
-            .context("Shared bridge doesn't supported")?)
+    pub async fn get_l1_ecosystem_contracts_impl(
+        &self,
+    ) -> Result<EcosystemContractsDto, Web3Error> {
+        Ok(EcosystemContractsDto {
+            bridgehub_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .bridgehub_proxy_addr
+                .unwrap(),
+            state_transition_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .state_transition_proxy_addr,
+            // Return backward compatible zero address. Meanwhile, this value is useless for external users.
+            transparent_proxy_admin_addr: Address::zero(),
+            l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
+            server_notifier_addr: self.state.api_config.server_notifier_addr,
+            message_root_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .message_root_proxy_addr,
+        })
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn genesis_config_impl(&self) -> Result<GenesisConfig, Web3Error> {
+    pub async fn genesis_config_impl(&self) -> Result<GenesisConfigDto, Web3Error> {
         // If this method will cause some load, we can cache everything in memory
         let mut storage = self.state.acquire_connection().await?;
         let genesis_batch = storage
@@ -204,13 +166,13 @@ impl EnNamespace {
             .map_err(DalError::generalize)?
             .context("Genesis not finished")?;
 
-        let config = GenesisConfig {
-            protocol_version: Some(protocol_version),
-            genesis_root_hash: Some(genesis_batch.metadata.root_hash),
-            rollup_last_leaf_index: Some(genesis_batch.metadata.rollup_last_leaf_index),
-            genesis_commitment: Some(genesis_batch.metadata.commitment),
-            bootloader_hash: Some(genesis_batch.header.base_system_contracts_hashes.bootloader),
-            default_aa_hash: Some(genesis_batch.header.base_system_contracts_hashes.default_aa),
+        let config = GenesisConfigDto {
+            protocol_version,
+            genesis_root_hash: genesis_batch.metadata.root_hash,
+            rollup_last_leaf_index: genesis_batch.metadata.rollup_last_leaf_index,
+            genesis_commitment: genesis_batch.metadata.commitment,
+            bootloader_hash: genesis_batch.header.base_system_contracts_hashes.bootloader,
+            default_aa_hash: genesis_batch.header.base_system_contracts_hashes.default_aa,
             evm_emulator_hash: genesis_batch
                 .header
                 .base_system_contracts_hashes
@@ -225,8 +187,6 @@ impl EnNamespace {
                 .state
                 .api_config
                 .l1_batch_commit_data_generator_mode,
-            // external node should initialise itself from a snapshot
-            custom_genesis_state_path: None,
         };
         Ok(config)
     }
@@ -237,5 +197,30 @@ impl EnNamespace {
             .tx_sender
             .read_whitelisted_tokens_for_aa_cache()
             .await)
+    }
+
+    pub async fn get_protocol_version_info_impl(
+        &self,
+        version_id: Option<u16>,
+    ) -> Result<Option<ProtocolVersionInfo>, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        let version_id = match version_id {
+            Some(version_id) => version_id,
+            None => {
+                storage
+                    .protocol_versions_dal()
+                    .latest_semantic_version()
+                    .await
+                    .map_err(DalError::generalize)?
+                    .context("expected some version to be present in DB")?
+                    .minor as u16
+            }
+        };
+        let protocol_version_info = storage
+            .protocol_versions_web3_dal()
+            .get_protocol_version_info_by_id(version_id)
+            .await
+            .map_err(DalError::generalize)?;
+        Ok(protocol_version_info)
     }
 }

@@ -20,7 +20,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let secrets_path = chain.path_to_secrets_config().canonicalize().unwrap();
     let dal = get_core_dal(shell, None).await?;
     reset_database(shell, ecosystem.link_to_code, dal).await?;
-    let _a = shell.push_dir("core");
+    let _dir = shell.push_dir("core");
     Cmd::new(cmd!(shell,"cargo run --package genesis_generator --bin genesis_generator -- --config-path={secrets_path}")).run()?;
     spinner.finish();
     Ok(())

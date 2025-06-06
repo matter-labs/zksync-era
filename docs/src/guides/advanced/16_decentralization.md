@@ -16,8 +16,6 @@ That will output something like this (but with different keys obviously):
 ```
 #validator:public:bls12_381:84fe19a96b6443ca7ce...98dec0870f6d8aa95c8164102f0d62e4c47e3566c4e5c32354d
 validator_key: validator:secret:bls12_381:1de85683e6decbfcf6c12aa42a5c8bfa98d7ae796dee068ae73dc784a58f5213
-# attester:public:secp256k1:02e262af8c97536b9e479c6d60f213920e759faf4086d8352e98bc25d06b4142e3
-attester_key: attester:secret:secp256k1:1111eb31c2389613f3ceb4288eadda35780e98df4cabb2b7663882262f72e422
 # node:public:ed25519:acb7e350cf53e3b4c2042e2c8044734384cee51f58a0fa052fd7e0c9c3f4b20d
 node_key: node:secret:ed25519:0effb1d7c335d23606f656ca1ba87566144d5af2984bd7486379d4f83a204ba2
 ```
@@ -60,7 +58,6 @@ And the secrets you generated to your `secrets.yaml` config file:
 ```yaml
 consensus:
   validator_key: validator:secret:???
-  attester_key: attester:secret:???
   node_key: node:secret:???
 ```
 
@@ -96,7 +93,6 @@ And a `consensus_secrets.yaml` file with the with the secrets you generated prev
 
 ```yaml
 validator_key: validator:secret:???
-attester_key: attester:secret:???
 node_key: node:secret:???
 ```
 
@@ -147,7 +143,6 @@ using SOPS).
 ```yaml
 consensus:
   validator_key: validator:secret:???
-  attester_key: attester:secret:???
   node_key: node:secret:???
 ```
 

@@ -8,27 +8,28 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
-pub use self::client::{EthClient, EthHttpQueryClient, L2EthClient};
+pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient};
 use self::{
-    client::{L2EthClientW, RETRY_LIMIT},
+    client::RETRY_LIMIT,
     event_processors::{
-        EventProcessor, EventProcessorError, MessageRootProcessor, PriorityOpsEventProcessor,
+        EventProcessor, EventProcessorError, InteropRootProcessor, PriorityOpsEventProcessor,
     },
     metrics::METRICS,
 };
 use crate::event_processors::{
     BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
+    GatewayMigrationProcessor,
 };
 
 mod client;
 mod event_processors;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -47,6 +48,7 @@ pub struct EthWatch {
     sl_client: Arc<dyn EthClient>,
     dependency_l2_chain_clients: Option<Vec<Arc<dyn EthClient>>>, //
     poll_interval: Duration,
+    event_expiration_blocks: u64,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
 }
@@ -54,88 +56,91 @@ pub struct EthWatch {
 impl EthWatch {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
-        sl_l2_client: Option<Box<dyn L2EthClient>>,
-        dependency_l2_chain_clients: Option<Vec<Box<dyn L2EthClient>>>, //
+        sl_client: Box<dyn ZkSyncExtentionEthClient>,
+        sl_layer: Option<SettlementLayer>,
+        dependency_l2_chain_clients: Option<Vec<Box<dyn ZkSyncExtentionEthClient>>>, //
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
+        event_expiration_blocks: u64,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
-        let sl_l2_client: Option<Arc<dyn L2EthClient>> = sl_l2_client.map(Into::into);
-        let dependency_l2_chain_clients: Option<Vec<Arc<dyn L2EthClient>>> =
+        let sl_client: Arc<dyn ZkSyncExtentionEthClient> = sl_client.into();
+        let dependency_l2_chain_clients: Option<Vec<Arc<dyn ZkSyncExtentionEthClient>>> =
             dependency_l2_chain_clients
-                .map(|clients| clients.into_iter().map(|client| client.into()).collect()); //
-        let sl_client: Arc<dyn EthClient> = if let Some(sl_l2_client) = sl_l2_client.clone() {
-            Arc::new(L2EthClientW(sl_l2_client))
-        } else {
-            l1_client.clone()
-        };
-        let dependency_chain_clients =
+                .map(|clients| clients.into_iter().map(|client| client.into()).collect());
+        let dependency_chain_clients: Option<Vec<Arc<dyn EthClient>>> =
             if let Some(dependency_l2_chain_clients) = dependency_l2_chain_clients.clone() {
                 Some(
                     dependency_l2_chain_clients
                         .into_iter()
-                        .map(|client| Arc::new(L2EthClientW(client)) as Arc<dyn EthClient>)
-                        .collect::<Vec<Arc<dyn EthClient>>>(),
+                        .map(|client| client.clone().into_base())
+                        .collect(),
                 )
             } else {
                 None
-            }; //
-               // println!("dependency_chain_clients: {:?}", dependency_chain_clients);
+            };
 
-        let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
-        // tracing::info!("initialized state: {state:?}");
+        let sl_eth_client = sl_client.clone().into_base();
+
+        let state = Self::initialize_state(&mut storage, sl_eth_client.as_ref()).await?;
+        tracing::info!("initialized state: {state:?}");
+
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_client.clone())?;
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id, sl_eth_client.clone())?;
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
-            chain_admin_contract,
-            sl_client.clone(),
+            sl_eth_client.clone(),
             l1_client.clone(),
         );
-        let l1_message_root_processor = MessageRootProcessor::new(EventsSource::L1, None, None);
-        // let
+        let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
+
+        let l1_interop_root_processor =
+            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone()), None)
+                .await;
         // let batch_root_processor = L1BatchRootProcessor::new(
         //     state.chain_batch_root_number_lower_bound,
         //     state.batch_merkle_tree,
         //     chain_id,
         //     l1_client,
         // );
+
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
-            Box::new(l1_message_root_processor),
+            Box::new(gateway_migration_processor),
+            Box::new(l1_interop_root_processor),
             // Box::new(batch_root_processor), // kl todo,
-            // Box::new()
         ];
-        if let Some(sl_l2_client) = sl_l2_client {
+
+        if let Some(SettlementLayer::Gateway(_)) = sl_layer {
             let batch_root_processor = BatchRootProcessor::new(
                 state.chain_batch_root_number_lower_bound,
                 state.batch_merkle_tree,
                 chain_id,
-                sl_l2_client.clone(),
+                sl_client.clone(),
             );
-            let sl_message_root_processor =
-                MessageRootProcessor::new(EventsSource::SL, None, Some(sl_l2_client));
+            let sl_interop_root_processor =
+                InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client), None).await;
             event_processors.push(Box::new(batch_root_processor));
-            event_processors.push(Box::new(sl_message_root_processor));
+            event_processors.push(Box::new(sl_interop_root_processor));
         }
         // println!("dependency_chain_clients chain_id {:?}", dependency_chain_clients.clone().as_ref().unwrap()[0].chain_id().await);
-        if let Some(_) = dependency_l2_chain_clients.clone() {
-            let dependency_message_root_processor =
-                MessageRootProcessor::new(EventsSource::Dependency, Some(0), None);
-            event_processors.push(Box::new(dependency_message_root_processor)); //
-        }
+        // if let Some(_) = dependency_l2_chain_clients.clone() {
+        //     let dependency_message_root_processor =
+        //         InteropRootProcessor::new(EventsSource::Dependency, Some(0), None, None).await;
+        //     event_processors.push(Box::new(dependency_message_root_processor)); //
+        // }
         Ok(Self {
             l1_client,
-            sl_client,
+            sl_client: sl_eth_client,
             dependency_l2_chain_clients: dependency_chain_clients, //
             poll_interval,
+            event_expiration_blocks,
             event_processors,
             pool,
         })
@@ -209,7 +214,7 @@ impl EthWatch {
             }
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop request received, eth_watch is shutting down");
         Ok(())
     }
 
@@ -228,6 +233,7 @@ impl EthWatch {
                 .as_ref(), //
             };
             let chain_id = client.chain_id().await?;
+
             let to_block = if processor.only_finalized_block() {
                 client.finalized_block_number().await?
             } else {
@@ -239,7 +245,7 @@ impl EthWatch {
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
-                    to_block.saturating_sub(PRIORITY_EXPIRATION),
+                    to_block.saturating_sub(self.event_expiration_blocks),
                 )
                 .await
                 .map_err(DalError::generalize)?;
@@ -285,6 +291,7 @@ impl EthWatch {
                 .await
                 .map_err(DalError::generalize)?;
         }
+
         Ok(())
     }
 }

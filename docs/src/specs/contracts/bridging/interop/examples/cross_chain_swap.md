@@ -1,5 +1,4 @@
 ## Simple Example
-[back to readme](../../../README.md)
 
 Imagine you have contracts on chains B, C, and D, and you’d like them to send "reports" to the Headquarters (HQ)
 contract on chain A every time a customer makes a purchase.

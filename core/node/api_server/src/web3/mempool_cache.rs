@@ -9,6 +9,7 @@ use zksync_types::H256;
 use super::metrics::MEMPOOL_CACHE_METRICS;
 
 /// Used for `eth_newPendingTransactionFilter` requests on API servers
+///
 /// Stores all transactions accepted by the mempool and provides a way to query all that are newer than a given timestamp.
 /// Updates the cache based on interval passed in the constructor
 #[derive(Debug, Clone)]

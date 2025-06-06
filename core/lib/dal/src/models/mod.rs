@@ -17,6 +17,7 @@ pub mod storage_tee_proof;
 pub mod storage_transaction;
 pub mod storage_verification_request;
 
+pub mod server_notification;
 #[cfg(test)]
 mod tests;
 

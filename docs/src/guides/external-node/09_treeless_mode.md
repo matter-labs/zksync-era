@@ -53,11 +53,11 @@ The tree fetcher currently does not have configurable parameters.
 The tree fetcher can be freely switched on or off during the node lifetime; i.e., it's not required to commit to running
 or not running it when initializing a node.
 
-> [!TIP]
->
-> Switching on the tree fetcher during [snapshot recovery](07_snapshots_recovery.md) can significantly speed it up
-> (order of 2–3 hours for the mainnet) because the node no longer needs to recover the Merkle tree before starting
-> catching up.
+```admonish tip
+Switching on the tree fetcher during [snapshot recovery](07_snapshots_recovery.md) can significantly speed it up
+(order of 2–3 hours for the mainnet) because the node no longer needs to recover the Merkle tree before starting
+catching up.
+```
 
 ## Monitoring tree fetcher
 

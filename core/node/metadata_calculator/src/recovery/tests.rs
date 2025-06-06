@@ -1,6 +1,6 @@
 //! Tests for metadata calculator snapshot recovery.
 
-use std::{path::Path, sync::Mutex};
+use std::{path::Path, sync::Mutex, time::Duration};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -10,13 +10,18 @@ use zksync_config::configs::{
     chain::{OperationsManagerConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::CoreDal;
+use zksync_dal::{
+    custom_genesis_export_dal::{GenesisState, StorageLogRow},
+    CoreDal,
+};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, recovery::PersistenceThreadHandle, TreeInstruction};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{
+    insert_genesis_batch, insert_genesis_batch_with_custom_state, GenesisParams,
+};
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_storage::RocksDB;
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, StorageLog};
 
 use super::*;
 use crate::{
@@ -86,8 +91,7 @@ async fn basic_recovery_workflow() {
         let tree = tree
             .recover(init_params, recovery_options, &pool, &stop_receiver)
             .await
-            .unwrap()
-            .expect("Tree recovery unexpectedly aborted");
+            .unwrap();
 
         assert_eq!(tree.root_hash(), root_hash);
         let health = health_check.check_health().await;
@@ -175,8 +179,7 @@ async fn recovery_workflow_for_partial_pruning() {
             &stop_receiver,
         )
         .await
-        .unwrap()
-        .expect("Tree recovery unexpectedly aborted");
+        .unwrap();
 
     assert_eq!(tree.root_hash(), recovery_root_hash);
     drop(tree); // Release exclusive lock on RocksDB
@@ -281,11 +284,11 @@ async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
         .await
         .unwrap()
         .expect("no init params");
-    assert!(tree
+    let err = tree
         .recover(init_params, recovery_options, &pool, &stop_receiver)
         .await
-        .unwrap()
-        .is_none());
+        .unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 
     // Emulate a restart and recover 2 more chunks (or 1 + emulated persistence crash).
     let (mut tree, handle) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
@@ -311,7 +314,7 @@ async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
         let err = format!("{:#}", recovery_result.unwrap_err());
         assert!(err.contains("emulated persistence crash"), "{err}");
     } else {
-        assert!(recovery_result.unwrap().is_none());
+        assert_matches!(recovery_result.unwrap_err(), OrStopped::Stopped);
     }
 
     // Emulate another restart and recover remaining chunks.
@@ -329,8 +332,7 @@ async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
     let tree = tree
         .recover(init_params, recovery_options, &pool, &stop_receiver)
         .await
-        .unwrap()
-        .expect("Tree recovery unexpectedly aborted");
+        .unwrap();
     assert_eq!(tree.root_hash(), root_hash);
 }
 
@@ -360,16 +362,15 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     .await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let merkle_tree_config = MerkleTreeConfig {
-        path: temp_dir.path().to_str().unwrap().to_owned(),
-        ..MerkleTreeConfig::default()
-    };
+    let merkle_tree_config = MerkleTreeConfig::for_tests(temp_dir.path().to_owned());
     let calculator_config = MetadataCalculatorConfig::for_main_node(
         &merkle_tree_config,
-        &OperationsManagerConfig { delay_interval: 50 },
+        &OperationsManagerConfig {
+            delay_interval: Duration::from_millis(50),
+        },
         &StateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..Default::default()
+            ..StateKeeperConfig::for_tests()
         },
     );
     let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
@@ -604,6 +605,115 @@ async fn pruning_during_recovery_is_detected() {
 
     // Because of an abrupt error, terminating a RocksDB instance needs to be handled explicitly.
     tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+        .await
+        .unwrap();
+}
+
+async fn insert_large_genesis(storage: &mut Connection<'_, Core>) -> Vec<StorageLog> {
+    let log_count = InitParameters::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY * 2;
+    let genesis_logs = gen_storage_logs(100..(log_count + 100), 1).pop().unwrap();
+    let genesis_state = GenesisState {
+        storage_logs: genesis_logs
+            .iter()
+            .map(|log| StorageLogRow {
+                address: log.key.address().0,
+                key: log.key.key().0,
+                value: log.value.0,
+            })
+            .collect(),
+        factory_deps: vec![], // Not necessary for tests
+    };
+    insert_genesis_batch_with_custom_state(storage, &GenesisParams::mock(), Some(genesis_state))
+        .await
+        .unwrap();
+    genesis_logs
+}
+
+#[tokio::test]
+async fn init_params_for_large_genesis_state() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let genesis_logs = insert_large_genesis(&mut pool.connection().await.unwrap()).await;
+
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let init_params = InitParameters::new(&pool, &config)
+        .await
+        .unwrap()
+        .expect("no init params");
+    assert_eq!(init_params.l1_batch, L1BatchNumber(0));
+    assert_eq!(init_params.l2_block, L2BlockNumber(0));
+    assert_eq!(init_params.log_count, genesis_logs.len() as u64);
+    assert!(init_params.expected_root_hash.is_some());
+}
+
+#[tokio::test]
+async fn entire_workflow_with_large_genesis_state() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut genesis_logs = insert_large_genesis(&mut pool.connection().await.unwrap()).await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+
+    let config = mock_config(temp_dir.path());
+    let calculator = MetadataCalculator::new(config, None, pool).await.unwrap();
+    let tree_reader = calculator.tree_reader();
+
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let calculator_task = tokio::spawn(calculator.run(stop_receiver));
+    let tree_reader = tree_reader.wait().await.unwrap();
+    let tree_info = tree_reader.info().await;
+    assert_eq!(tree_info.leaf_count, genesis_logs.len() as u64);
+
+    genesis_logs.sort_unstable_by_key(|log| log.key);
+    let tree_instructions: Vec<_> = genesis_logs
+        .into_iter()
+        .enumerate()
+        .map(|(i, log)| TreeInstruction::write(log.key.hashed_key_u256(), i as u64 + 1, log.value))
+        .collect();
+    let expected_genesis_root_hash =
+        ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
+    assert_eq!(tree_info.root_hash, expected_genesis_root_hash);
+
+    stop_sender.send_replace(true);
+    calculator_task.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn fault_tolerance_for_large_genesis_state() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    insert_large_genesis(&mut pool.connection().await.unwrap()).await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let (tree, _) = create_tree_recovery(temp_dir.path(), L1BatchNumber(0), &config).await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
+    // Process 3 chunks and stop.
+    let recovered_chunk_count = 3;
+    let recovery_options = RecoveryOptions {
+        chunk_count: 10,
+        concurrency_limit: 1,
+        events: Box::new(TestEventListener::new(recovered_chunk_count, stop_sender)),
+    };
+    let init_params = InitParameters::new(&pool, &config)
+        .await
+        .unwrap()
+        .expect("no init params");
+    let err = tree
+        .recover(init_params, recovery_options, &pool, &stop_receiver)
+        .await
+        .unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
+
+    // Restart recovery and process the remaining chunks
+    let (tree, _) = create_tree_recovery(temp_dir.path(), L1BatchNumber(0), &config).await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let recovery_options = RecoveryOptions {
+        chunk_count: 10,
+        concurrency_limit: 1,
+        events: Box::new(
+            TestEventListener::new(u64::MAX, stop_sender)
+                .expect_recovered_chunks(recovered_chunk_count),
+        ),
+    };
+    tree.recover(init_params, recovery_options, &pool, &stop_receiver)
         .await
         .unwrap();
 }

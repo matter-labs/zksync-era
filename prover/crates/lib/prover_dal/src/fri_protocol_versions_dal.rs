@@ -2,7 +2,7 @@ use zksync_basic_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     H256,
 };
-use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
 use crate::Prover;
 
@@ -16,7 +16,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         &mut self,
         id: ProtocolSemanticVersion,
         l1_verifier_config: L1VerifierConfig,
-    ) -> DalResult<()> {
+    ) -> Result<(), DalError> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -42,6 +42,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .instrument("save_prover_protocol_version")
         .execute(self.storage)
         .await?;
+
         Ok(())
     }
 

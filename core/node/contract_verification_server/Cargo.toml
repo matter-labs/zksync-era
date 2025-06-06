@@ -11,21 +11,25 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_dal.workspace = true
+zksync_config.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_types = { workspace = true, features = ["contract-verification"] }
+zksync_node_framework.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 tokio = { workspace = true, features = ["time"] }
 tower-http = { workspace = true, features = ["cors"] }
 tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
 
 [dev-dependencies]
 zksync_node_test_utils.workspace = true
 
 http-body-util.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 test-casing.workspace = true
 tower.workspace = true

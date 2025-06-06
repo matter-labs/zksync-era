@@ -112,6 +112,7 @@ pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
 
 /// VM Hooks are used for communication between bootloader and tracers.
+///
 /// The 'type' / 'opcode' is put into VM_HOOK_POSITION slot,
 /// and VM_HOOKS_PARAMS_COUNT parameters (each 32 bytes) are put in the slots before.
 /// So the layout looks like this:

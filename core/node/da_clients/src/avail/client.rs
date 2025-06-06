@@ -1,15 +1,15 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use http::StatusCode;
 use jsonrpsee::ws_client::WsClientBuilder;
+use reqwest::Url;
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use subxt_signer::ExposeSecret;
-use url::Url;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
-    types::{ClientType, DAError, DispatchResponse, InclusionData},
+    types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{
@@ -128,7 +128,7 @@ impl AvailClient {
             AvailClientConfig::GasRelay(conf) => {
                 let gas_relay_api_key = secrets
                     .gas_relay_api_key
-                    .ok_or_else(|| anyhow::anyhow!("Gas relay API key is missing"))?;
+                    .context("Gas relay API key is missing")?;
                 let gas_relay_client = GasRelayClient::new(
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
@@ -143,14 +143,13 @@ impl AvailClient {
                 })
             }
             AvailClientConfig::FullClient(conf) => {
-                let seed_phrase = secrets
-                    .seed_phrase
-                    .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
+                let seed_phrase = secrets.seed_phrase.context("Seed phrase is missing")?;
 
                 let sdk_client = RawAvailClient::new(
                     conf.app_id,
                     seed_phrase.0.expose_secret(),
-                    conf.finality_state()?,
+                    conf.finality_state,
+                    conf.dispatch_timeout,
                 )
                 .await?;
 
@@ -198,15 +197,39 @@ impl DataAvailabilityClient for AvailClient {
                 Ok(DispatchResponse::from(format!("{}:{}", block_hash, tx_id)))
             }
             AvailClientMode::GasRelay(client) => {
-                let (block_hash, extrinsic_index) = client
+                let submission_id = client
                     .post_data(data)
                     .await
                     .map_err(to_retriable_da_error)?;
                 Ok(DispatchResponse {
-                    blob_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                    request_id: submission_id,
                 })
             }
         }
+    }
+
+    async fn ensure_finality(
+        &self,
+        dispatch_request_id: String,
+    ) -> Result<Option<FinalityResponse>, DAError> {
+        Ok(match self.sdk_client.as_ref() {
+            AvailClientMode::Default(_) => Some(FinalityResponse {
+                blob_id: dispatch_request_id,
+            }),
+            AvailClientMode::GasRelay(client) => {
+                let Some((block_hash, extrinsic_index)) = client
+                    .check_finality(dispatch_request_id)
+                    .await
+                    .map_err(to_retriable_da_error)?
+                else {
+                    return Ok(None);
+                };
+
+                Some(FinalityResponse {
+                    blob_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                })
+            }
+        })
     }
 
     async fn get_inclusion_data(
@@ -231,7 +254,7 @@ impl DataAvailabilityClient for AvailClient {
         let response = self
             .api_client
             .get(url)
-            .timeout(Duration::from_millis(self.config.timeout_ms as u64))
+            .timeout(self.config.timeout)
             .send()
             .await
             .map_err(to_retriable_da_error)?;

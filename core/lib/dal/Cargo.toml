@@ -14,6 +14,7 @@ links = "zksync_dal_proto"
 
 [dependencies]
 vise.workspace = true
+zksync_multivm.workspace = true
 zksync_vm_interface.workspace = true
 zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
@@ -27,9 +28,15 @@ zksync_protobuf.workspace = true
 zksync_db_connection.workspace = true
 zksync_l1_contract_interface.workspace = true
 
+# DI-specific dependencies
+zksync_node_framework = { workspace = true, optional = true }
+zksync_config = { workspace = true, optional = true }
+zksync_health_check = { workspace = true, optional = true }
+
 itertools.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
 prost.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -61,3 +68,7 @@ zksync_concurrency.workspace = true
 
 [build-dependencies]
 zksync_protobuf_build.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework", "dep:zksync_config", "zksync_health_check/node_framework"]

@@ -1,25 +1,18 @@
 use anyhow::Context as _;
-use zksync_consensus_crypto::keccak256::Keccak256;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStoreState, Last, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 
-pub use crate::consensus::{proto, AttestationStatus, BlockMetadata, GlobalConfig, Payload};
-use crate::{Core, CoreDal};
+pub use crate::consensus::{proto, BlockMetadata, GlobalConfig, Payload};
+use crate::{consensus::BlockCertificate, Core, CoreDal};
 
 #[cfg(test)]
 mod tests;
-
-/// Hash of the batch.
-pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
-    attester::BatchHash(Keccak256::from_bytes(info.hash().0))
-}
 
 /// Verifies that the transition from `old` to `new` is admissible.
 pub fn verify_config_transition(old: &GlobalConfig, new: &GlobalConfig) -> anyhow::Result<()> {
@@ -80,14 +73,9 @@ pub enum InsertCertificateError {
 impl ConsensusDal<'_, '_> {
     /// Fetch consensus global config.
     pub async fn global_config(&mut self) -> anyhow::Result<Option<GlobalConfig>> {
-        // global_config contains a superset of genesis information.
-        // genesis column is deprecated and will be removed once the main node
-        // is fully upgraded.
-        // For now we keep the information between both columns in sync.
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                genesis,
                 global_config
             FROM
                 consensus_replica_state
@@ -106,14 +94,6 @@ impl ConsensusDal<'_, '_> {
         };
         if let Some(global_config) = row.global_config {
             return Ok(Some(d.proto_fmt(&global_config).context("global_config")?));
-        }
-        if let Some(genesis) = row.genesis {
-            let genesis: validator::Genesis = d.proto_fmt(&genesis).context("genesis")?;
-            return Ok(Some(GlobalConfig {
-                genesis,
-                registry_address: None,
-                seed_peers: [].into(),
-            }));
         }
         Ok(None)
     }
@@ -156,9 +136,6 @@ impl ConsensusDal<'_, '_> {
 
         // Reset the consensus state.
         let s = zksync_protobuf::serde::Serialize;
-        let genesis = s
-            .proto_fmt(&want.genesis, serde_json::value::Serializer)
-            .unwrap();
         let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
         let state = s
             .proto_fmt(&ReplicaState::default(), serde_json::value::Serializer)
@@ -190,12 +167,11 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-            consensus_replica_state (fake_key, global_config, genesis, state)
+            consensus_replica_state (fake_key, global_config, state)
             VALUES
-            (TRUE, $1, $2, $3)
+            (TRUE, $1, $2)
             "#,
             global_config,
-            genesis,
             state,
         )
         .instrument("try_update_global_config#INSERT INTO consensus_replica_state")
@@ -344,10 +320,12 @@ impl ConsensusDal<'_, '_> {
 
         // If there is a cert in storage, then the block range visible to consensus
         // is [first block, block of last cert].
+        // Also tries to fetch the last cert from the old column
+        // This is a temporary solution to support the transition to the new column.
         if let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate
+                certificate, versioned_certificate
             FROM
                 miniblocks_consensus
             ORDER BY
@@ -361,15 +339,38 @@ impl ConsensusDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?
         {
-            return Ok(BlockStoreState {
-                first,
-                last: Some(Last::Final(
-                    zksync_protobuf::serde::Deserialize {
-                        deny_unknown_fields: true,
-                    }
-                    .proto_fmt(row.certificate)?,
-                )),
-            });
+            let d = zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            };
+
+            // First try to use versioned_certificate
+            let cert: Option<BlockCertificate> = row
+                .versioned_certificate
+                .as_ref()
+                .map(|cert| d.proto_fmt(cert))
+                .transpose()?;
+
+            if let Some(cert) = cert {
+                return Ok(BlockStoreState {
+                    first,
+                    last: Some(cert.into()),
+                });
+            }
+
+            // If versioned_certificate is None, try to use certificate
+            // This is for backward compatibility
+            let qc = row
+                .certificate
+                .as_ref()
+                .map(|cert| d.proto_fmt(cert))
+                .transpose()?;
+
+            if let Some(qc) = qc {
+                return Ok(BlockStoreState {
+                    first,
+                    last: Some(Last::FinalV1(qc)),
+                });
+            }
         }
 
         // Otherwise it is [first block, min(genesis.first_block-1,last block)].
@@ -378,6 +379,7 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("next_block()")?
             .min(cfg.genesis.first_block);
+
         Ok(BlockStoreState {
             first,
             // unwrap is ok, because `next > first >= 0`.
@@ -393,11 +395,11 @@ impl ConsensusDal<'_, '_> {
     pub async fn block_certificate(
         &mut self,
         block_number: validator::BlockNumber,
-    ) -> anyhow::Result<Option<validator::CommitQC>> {
+    ) -> anyhow::Result<Option<BlockCertificate>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate
+                certificate, versioned_certificate
             FROM
                 miniblocks_consensus
             WHERE
@@ -412,43 +414,106 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(
-            zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt(row.certificate)?,
-        ))
+
+        let d = zksync_protobuf::serde::Deserialize {
+            deny_unknown_fields: true,
+        };
+
+        // First try to use versioned_certificate
+        let cert = row
+            .versioned_certificate
+            .as_ref()
+            .map(|cert| d.proto_fmt(cert))
+            .transpose()?;
+
+        if cert.is_some() {
+            return Ok(cert);
+        }
+
+        // If versioned_certificate is None, try to use certificate
+        // This is for backward compatibility
+        let qc = row
+            .certificate
+            .as_ref()
+            .map(|cert| d.proto_fmt(cert))
+            .transpose()?;
+
+        if qc.is_some() {
+            return Ok(qc);
+        }
+
+        Ok(None)
     }
 
-    /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
-    pub async fn batch_certificate(
+    /// Gets the number of the last L2 block that was certified. It might have gaps before it,
+    /// depending on the order in which certificates have been collected.
+    pub async fn last_block_certificate_number(
         &mut self,
-        batch_number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<attester::BatchQC>> {
+    ) -> anyhow::Result<Option<validator::BlockNumber>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                certificate
+                number
             FROM
-                l1_batches_consensus
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::try_from(batch_number.0)?
+                miniblocks_consensus
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
         )
-        .instrument("batch_certificate")
+        .instrument("last_block_certificate_number")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
         };
-        Ok(Some(
-            zksync_protobuf::serde::Deserialize {
-                deny_unknown_fields: true,
-            }
-            .proto_fmt(row.certificate)?,
-        ))
+
+        Ok(Some(validator::BlockNumber(
+            row.number.try_into().context("overflow")?,
+        )))
+    }
+
+    /// Inserts a certificate for the L2 block `cert.header().number`.
+    /// Fails if certificate doesn't match the stored block.
+    pub async fn insert_block_certificate(
+        &mut self,
+        cert: &BlockCertificate,
+    ) -> Result<(), InsertCertificateError> {
+        use InsertCertificateError as E;
+
+        // Extract block number and payload hash based on certificate variant
+        let block_number = cert.number();
+        let payload_hash = cert.payload_hash();
+
+        let want_payload = self
+            .block_payload(block_number)
+            .await?
+            .ok_or(E::MissingPayload)?;
+
+        if payload_hash != want_payload.encode().hash() {
+            return Err(E::PayloadMismatch(want_payload));
+        }
+
+        sqlx::query!(
+            r#"
+            INSERT INTO
+            miniblocks_consensus (number, versioned_certificate)
+            VALUES
+            ($1, $2)
+            "#,
+            i64::try_from(block_number.0).context("overflow")?,
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(cert, serde_json::value::Serializer)
+                .unwrap(),
+        )
+        .instrument("insert_block_certificate")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -514,89 +579,52 @@ impl ConsensusDal<'_, '_> {
         }))
     }
 
-    /// Inserts a certificate for the L2 block `cert.header().number`.
-    /// Fails if certificate doesn't match the stored block.
-    pub async fn insert_block_certificate(
+    /// Persist the validator committee that will be active at the given block.
+    pub async fn insert_validator_committee(
         &mut self,
-        cert: &validator::CommitQC,
-    ) -> Result<(), InsertCertificateError> {
-        use InsertCertificateError as E;
-        let header = &cert.message.proposal;
-        let want_payload = self
-            .block_payload(cert.message.proposal.number)
-            .await?
-            .ok_or(E::MissingPayload)?;
-        if header.payload != want_payload.encode().hash() {
-            return Err(E::PayloadMismatch(want_payload));
-        }
-        sqlx::query!(
-            r#"
-            INSERT INTO
-            miniblocks_consensus (number, certificate)
-            VALUES
-            ($1, $2)
-            "#,
-            i64::try_from(header.number.0).context("overflow")?,
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(cert, serde_json::value::Serializer)
-                .unwrap(),
-        )
-        .instrument("insert_block_certificate")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-        Ok(())
-    }
-
-    /// Persist the attester committee for the given batch.
-    pub async fn upsert_attester_committee(
-        &mut self,
-        number: attester::BatchNumber,
-        committee: &attester::Committee,
+        block_number: validator::BlockNumber,
+        committee: &validator::Committee,
     ) -> anyhow::Result<()> {
         let committee = zksync_protobuf::serde::Serialize
-            .proto_repr::<proto::AttesterCommittee, _>(committee, serde_json::value::Serializer)
+            .proto_repr::<proto::ValidatorCommittee, _>(committee, serde_json::value::Serializer)
             .unwrap();
         sqlx::query!(
             r#"
             INSERT INTO
-            l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
+            consensus_committees (active_at_block, validators)
             VALUES
-            ($1, $2, NOW())
-            ON CONFLICT (l1_batch_number) DO
-            UPDATE
-            SET
-            l1_batch_number = $1,
-            attesters = $2,
-            updated_at = NOW()
+            ($1, $2)
             "#,
-            i64::try_from(number.0).context("overflow")?,
+            i64::try_from(block_number.0).context("overflow")?,
             committee
         )
-        .instrument("upsert_attester_committee")
+        .instrument("insert_validator_committee")
         .report_latency()
         .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    /// Fetches the attester committee for the L1 batch with the given number.
-    pub async fn attester_committee(
+    /// Fetches the validator committee for the L2 block with the given number.
+    pub async fn get_validator_committee(
         &mut self,
-        n: attester::BatchNumber,
-    ) -> anyhow::Result<Option<attester::Committee>> {
+        block_number: validator::BlockNumber,
+    ) -> anyhow::Result<Option<validator::Committee>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                attesters
+                validators
             FROM
-                l1_batches_consensus_committees
+                consensus_committees
             WHERE
-                l1_batch_number = $1
+                active_at_block <= $1
+            ORDER BY
+                active_at_block DESC
+            LIMIT 1
             "#,
-            i64::try_from(n.0)?
+            i64::try_from(block_number.0)?
         )
-        .instrument("attester_committee")
+        .instrument("validator_committee")
         .report_latency()
         .fetch_optional(self.storage)
         .await?
@@ -607,184 +635,18 @@ impl ConsensusDal<'_, '_> {
             zksync_protobuf::serde::Deserialize {
                 deny_unknown_fields: true,
             }
-            .proto_repr::<proto::AttesterCommittee, _>(row.attesters)?,
+            .proto_repr::<proto::ValidatorCommittee, _>(row.validators)?,
         ))
     }
 
-    /// Fetches the L1 batch info for the given number.
-    pub async fn batch_info(
-        &mut self,
-        number: attester::BatchNumber,
-    ) -> anyhow::Result<Option<StoredBatchInfo>> {
-        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
+    /// Checks if the L1 batch and metadata is stored in the database.
+    pub async fn is_batch_stored(&mut self, number: L1BatchNumber) -> anyhow::Result<bool> {
         Ok(self
             .storage
             .blocks_dal()
-            .get_l1_batch_metadata(n)
+            .get_l1_batch_header(number)
             .await
-            .context("get_l1_batch_metadata()")?
-            .map(|x| StoredBatchInfo::from(&x)))
-    }
-
-    /// Inserts a certificate for the L1 batch.
-    /// Noop if a certificate for the same L1 batch is already present.
-    /// Verification against previously stored attester committee is performed.
-    /// Batch hash verification is performed.
-    pub async fn insert_batch_certificate(
-        &mut self,
-        cert: &attester::BatchQC,
-    ) -> anyhow::Result<()> {
-        let cfg = self
-            .global_config()
-            .await
-            .context("global_config()")?
-            .context("genesis is missing")?;
-        let committee = self
-            .attester_committee(cert.message.number)
-            .await
-            .context("attester_committee()")?
-            .context("attester committee is missing")?;
-        let hash = batch_hash(
-            &self
-                .batch_info(cert.message.number)
-                .await
-                .context("batch()")?
-                .context("batch is missing")?,
-        );
-        anyhow::ensure!(cert.message.hash == hash, "hash mismatch");
-        cert.verify(cfg.genesis.hash(), &committee)
-            .context("cert.verify()")?;
-        sqlx::query!(
-            r#"
-            INSERT INTO
-            l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
-            VALUES
-            ($1, $2, NOW(), NOW())
-            "#,
-            i64::try_from(cert.message.number.0).context("overflow")?,
-            // Unwrap is ok, because serialization should always succeed.
-            zksync_protobuf::serde::Serialize
-                .proto_fmt(cert, serde_json::value::Serializer)
-                .unwrap(),
-        )
-        .instrument("insert_batch_certificate")
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-        Ok(())
-    }
-
-    /// Gets a number of the last L1 batch that was inserted. It might have gaps before it,
-    /// depending on the order in which votes have been collected over gossip by consensus.
-    pub async fn last_batch_certificate_number(
-        &mut self,
-    ) -> anyhow::Result<Option<attester::BatchNumber>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                l1_batch_number
-            FROM
-                l1_batches_consensus
-            ORDER BY
-                l1_batch_number DESC
-            LIMIT
-                1
-            "#
-        )
-        .instrument("last_batch_certificate_number")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(attester::BatchNumber(
-            row.l1_batch_number.try_into().context("overflow")?,
-        )))
-    }
-
-    /// Number of L1 batch that the L2 block belongs to.
-    /// None if the L2 block doesn't exist.
-    pub async fn batch_of_block(
-        &mut self,
-        block: validator::BlockNumber,
-    ) -> anyhow::Result<Option<attester::BatchNumber>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                COALESCE(
-                    miniblocks.l1_batch_number,
-                    (
-                        SELECT
-                            (MAX(number) + 1)
-                        FROM
-                            l1_batches
-                        WHERE
-                            is_sealed
-                    ),
-                    (
-                        SELECT
-                            MAX(l1_batch_number) + 1
-                        FROM
-                            snapshot_recovery
-                    )
-                ) AS "l1_batch_number!"
-            FROM
-                miniblocks
-            WHERE
-                number = $1
-            "#,
-            i64::try_from(block.0).context("overflow")?,
-        )
-        .instrument("batch_of_block")
-        .report_latency()
-        .fetch_optional(self.storage)
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(attester::BatchNumber(
-            row.l1_batch_number.try_into().context("overflow")?,
-        )))
-    }
-
-    /// Global attestation status.
-    /// Includes the next batch that the attesters should vote for.
-    /// None iff the consensus genesis is missing (i.e. consensus wasn't enabled) or
-    /// L2 block with number `genesis.first_block` doesn't exist yet.
-    ///
-    /// This is a main node only query.
-    /// ENs should call the attestation_status RPC of the main node.
-    pub async fn attestation_status(&mut self) -> anyhow::Result<Option<AttestationStatus>> {
-        let Some(cfg) = self.global_config().await.context("genesis()")? else {
-            return Ok(None);
-        };
-        let Some(next_batch_to_attest) = async {
-            // First batch that we don't have a certificate for.
-            if let Some(last) = self
-                .last_batch_certificate_number()
-                .await
-                .context("last_batch_certificate_number()")?
-            {
-                return Ok(Some(last + 1));
-            }
-            // Otherwise start with the batch containing the first block of the fork.
-            self.batch_of_block(cfg.genesis.first_block)
-                .await
-                .context("batch_of_block()")
-        }
-        .await?
-        else {
-            tracing::info!(%cfg.genesis.first_block, "genesis block not found");
-            return Ok(None);
-        };
-        Ok(Some(AttestationStatus {
-            genesis: cfg.genesis.hash(),
-            // We never attest batch 0 for technical reasons:
-            // * it is not supported to read state before batch 0.
-            // * the registry contract needs to be deployed before we can start operating on it
-            next_batch_to_attest: next_batch_to_attest.max(attester::BatchNumber(1)),
-        }))
+            .context("get_l1_batch_header()")?
+            .is_some())
     }
 }

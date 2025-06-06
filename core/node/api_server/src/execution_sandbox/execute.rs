@@ -2,30 +2,39 @@
 
 use std::{
     fmt,
-    time::{Duration, Instant},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant, SystemTime},
 };
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, sync::Mutex};
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
-        storage::StorageWithOverrides,
+        storage::{ReadStorage, StorageWithOverrides},
         tracer::TimestampAsserterParams,
-        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics,
-        TxExecutionArgs, VmEvent,
+        utils::{DivergenceHandler, VmDump},
+        Call, DeduplicatedWritesMetrics, ExecutionResult, OneshotEnv, OneshotTracingParams,
+        TransactionExecutionMetrics, TxExecutionArgs, VmEvent,
     },
     utils::StorageWritesDeduplicator,
 };
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, StorageLog, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
+    StorageLog, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};
+#[cfg(test)]
+use crate::execution_sandbox::testonly;
 use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
@@ -70,7 +79,7 @@ impl SandboxAction {
 
 /// Output of [`SandboxExecutor::execute_in_sandbox()`].
 #[derive(Debug, Clone)]
-pub(crate) struct SandboxExecutionOutput {
+pub struct SandboxExecutionOutput {
     /// Output of the VM.
     pub result: ExecutionResult,
     /// Write logs produced by the VM.
@@ -85,16 +94,34 @@ pub(crate) struct SandboxExecutionOutput {
     pub are_published_bytecodes_ok: bool,
 }
 
-type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
+impl SandboxExecutionOutput {
+    pub fn mock_success() -> Self {
+        Self {
+            result: ExecutionResult::Success { output: Vec::new() },
+            write_logs: Vec::new(),
+            events: Vec::new(),
+            call_traces: Vec::new(),
+            metrics: TransactionExecutionMetrics {
+                writes: DeduplicatedWritesMetrics::default(),
+                vm: Default::default(),
+                gas_remaining: 0,
+                gas_refunded: 0,
+            },
+            are_published_bytecodes_ok: true,
+        }
+    }
+}
+
+pub(super) type SandboxStorage = StorageWithOverrides<PostgresStorage<'static>>;
 
 /// Higher-level wrapper around a oneshot VM executor used in the API server.
 #[async_trait]
-pub(crate) trait SandboxExecutorEngine:
-    Send + Sync + fmt::Debug + TransactionValidator<SandboxStorage>
+pub(crate) trait SandboxExecutorEngine<S: ReadStorage = SandboxStorage>:
+    Send + Sync + fmt::Debug + TransactionValidator<S>
 {
     async fn execute_in_sandbox(
         &self,
-        storage: SandboxStorage,
+        storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
@@ -102,17 +129,14 @@ pub(crate) trait SandboxExecutorEngine:
 }
 
 #[async_trait]
-impl<T> SandboxExecutorEngine for T
+impl<S, T> SandboxExecutorEngine<S> for T
 where
-    T: OneshotExecutor<SandboxStorage>
-        + TransactionValidator<SandboxStorage>
-        + Send
-        + Sync
-        + fmt::Debug,
+    S: ReadStorage + Send + 'static,
+    T: OneshotExecutor<S> + TransactionValidator<S> + Send + Sync + fmt::Debug,
 {
     async fn execute_in_sandbox(
         &self,
-        storage: SandboxStorage,
+        storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
         tracing_params: OneshotTracingParams,
@@ -150,6 +174,7 @@ pub(crate) struct SandboxExecutor {
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
     pub(super) timestamp_asserter_params: Option<TimestampAsserterParams>,
+    vm_divergence_counter: Arc<AtomicUsize>,
 }
 
 impl SandboxExecutor {
@@ -161,17 +186,101 @@ impl SandboxExecutor {
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor.set_fast_vm_mode(options.fast_vm_mode);
-        #[cfg(test)]
-        executor.panic_on_divergence();
+
+        let vm_divergence_counter = Arc::<AtomicUsize>::default();
+        if cfg!(test) {
+            // Panic on divergence in order to fail the running test.
+            executor.set_divergence_handler(DivergenceHandler::new(|err, _| {
+                panic!("{err}");
+            }));
+        } else {
+            let rt_handle = Handle::current();
+            let store = options.vm_dump_store.clone();
+            let vm_divergence_counter_for_handler = vm_divergence_counter.clone();
+            let last_dump_timestamp = Mutex::new(None);
+
+            executor.set_divergence_handler(DivergenceHandler::new(move |_, vm_dump| {
+                vm_divergence_counter_for_handler.fetch_add(1, Ordering::Relaxed);
+                if let Some(store) = &store {
+                    if let Err(err) = rt_handle.block_on(Self::dump_vm_state(
+                        &last_dump_timestamp,
+                        store.as_ref(),
+                        vm_dump,
+                    )) {
+                        tracing::error!("Saving VM dump failed: {err:#}");
+                    }
+                }
+            }));
+        }
+
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+        executor.set_interrupted_execution_latency_histogram(
+            options.interrupted_execution_latency_histogram,
+        );
+
+        #[cfg(test)]
+        let engine: Box<dyn SandboxExecutorEngine> =
+            if let Some(storage_delay) = options.storage_delay {
+                Box::new(testonly::SlowExecutor::new(executor, storage_delay))
+            } else {
+                Box::new(executor)
+            };
+        #[cfg(not(test))]
+        let engine = Box::new(executor);
 
         Self {
-            engine: Box::new(executor),
+            engine,
             options,
             storage_caches: Some(caches),
             timestamp_asserter_params,
+            vm_divergence_counter,
         }
+    }
+
+    pub(crate) fn vm_mode(&self) -> FastVmMode {
+        self.options.fast_vm_mode
+    }
+
+    pub(crate) fn vm_divergence_counter(&self) -> Arc<AtomicUsize> {
+        self.vm_divergence_counter.clone()
+    }
+
+    async fn dump_vm_state(
+        last_dump_timestamp: &Mutex<Option<Instant>>,
+        store: &dyn ObjectStore,
+        vm_dump: VmDump,
+    ) -> anyhow::Result<()> {
+        /// Minimum interval between VM dumps.
+        const DUMP_INTERVAL: Duration = Duration::from_secs(600); // 10 minutes
+
+        let mut last_dump_timestamp = last_dump_timestamp.lock().await;
+        let now = Instant::now();
+        let should_dump = last_dump_timestamp.is_none_or(|ts| {
+            now.checked_duration_since(ts)
+                .is_some_and(|elapsed| elapsed >= DUMP_INTERVAL)
+        });
+        if !should_dump {
+            return Ok(());
+        }
+        *last_dump_timestamp = Some(now);
+        drop(last_dump_timestamp); // We don't need to hold a lock any longer, in particular across the `await` point below
+
+        let ts = SystemTime::UNIX_EPOCH
+            .elapsed()
+            .context("invalid wall clock time")?
+            .as_millis();
+        let dump_filename = format!("shadow_vm_dump_api_{ts}.json");
+        let vm_dump = serde_json::to_vec(&vm_dump).context("failed serializing VM dump")?;
+        store
+            .put_raw(Bucket::VmDumps, &dump_filename, vm_dump)
+            .await
+            .context("failed saving VM dump to object store")?;
+        tracing::info!(
+            dump_filename,
+            "Saved VM dump for diverging VM execution in object store"
+        );
+        Ok(())
     }
 
     pub(crate) async fn mock(executor: MockOneshotExecutor) -> Self {
@@ -187,6 +296,7 @@ impl SandboxExecutor {
             options,
             storage_caches: None,
             timestamp_asserter_params: None,
+            vm_divergence_counter: Arc::default(),
         }
     }
 
@@ -207,7 +317,7 @@ impl SandboxExecutor {
         let storage = if let Some(state_override) = state_override {
             tokio::task::spawn_blocking(|| apply_state_override(storage, state_override))
                 .await
-                .context("applying state override failed")?
+                .context("applying state override panicked")?
         } else {
             // Do not spawn a new thread in the most frequent case.
             StorageWithOverrides::new(storage)

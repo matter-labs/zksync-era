@@ -1,6 +1,6 @@
 use thiserror::Error;
 use zksync_multivm::interface::ExecutionResult;
-use zksync_types::{l2::error::TxCheckError, U256};
+use zksync_types::{l2::error::TxCheckError, Address, U256};
 use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::execution_sandbox::{SandboxExecutionError, ValidationError};
@@ -18,7 +18,7 @@ pub enum SubmitTxError {
     IncorrectTx(#[from] TxCheckError),
     #[error("insufficient funds for gas + value. balance: {0}, fee: {1}, value: {2}")]
     NotEnoughBalanceForFeeValue(U256, U256, U256),
-    #[error("execution reverted{}{}" , if .0.is_empty() { "" } else { ": " }, .0)]
+    #[error("execution reverted{}{}", if.0.is_empty() { "" } else { ": " }, .0)]
     ExecutionReverted(String, Vec<u8>),
     #[error("exceeds block gas limit")]
     GasLimitIsTooBig,
@@ -43,7 +43,7 @@ pub enum SubmitTxError {
     #[error("max priority fee per gas higher than max fee per gas")]
     MaxPriorityFeeGreaterThanMaxFee,
     #[error(
-        "virtual machine entered unexpected state. please contact developers and provide transaction details \
+    "virtual machine entered unexpected state. please contact developers and provide transaction details \
         that caused this error. Error description: {0}"
     )]
     UnexpectedVMBehavior(String),
@@ -60,6 +60,8 @@ pub enum SubmitTxError {
     /// Currently only triggered during gas estimation for L1 and protocol upgrade transactions.
     #[error("integer overflow computing base token amount to mint")]
     MintedAmountOverflow,
+    #[error("transaction failed block.timestamp assertion")]
+    FailedBlockTimestampAssertion,
 
     /// Error returned from main node.
     #[error("{0}")]
@@ -67,8 +69,8 @@ pub enum SubmitTxError {
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
-    #[error("transaction failed block.timestamp assertion")]
-    FailedBlockTimestampAssertion,
+    #[error("contract deployer address {0} is not in the allow list")]
+    DeployerNotInAllowList(Address),
 }
 
 impl SubmitTxError {
@@ -96,9 +98,10 @@ impl SubmitTxError {
             Self::IntrinsicGas => "intrinsic-gas",
             Self::FailedToPublishCompressedBytecodes => "failed-to-publish-compressed-bytecodes",
             Self::MintedAmountOverflow => "minted-amount-overflow",
+            Self::FailedBlockTimestampAssertion => "failed-block-timestamp-assertion",
             Self::ProxyError(_) => "proxy-error",
             Self::Internal(_) => "internal",
-            Self::FailedBlockTimestampAssertion => "failed-block-timestamp-assertion",
+            Self::DeployerNotInAllowList(_) => "deployer-not-in-allow-list",
         }
     }
 

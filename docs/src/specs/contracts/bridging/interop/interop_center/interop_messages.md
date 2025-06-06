@@ -1,5 +1,4 @@
 # Interop Messages
-[back to readme](../../../README.md)
 
 In this section, we’re going to cover the lowest level of the interop stack: **Interop Messages** — the interface that
 forms the foundation for everything else.

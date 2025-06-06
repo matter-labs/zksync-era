@@ -1,6 +1,6 @@
 //! Test utils.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops};
 
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_dal::{Connection, Core, CoreDal};
@@ -19,8 +19,8 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
-    Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
-    ProtocolVersionId, StorageLog, H256, U256,
+    AccountTreeId, Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce,
+    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
 use zksync_vm_interface::{
     L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionResult, TxExecutionMode,
@@ -56,6 +56,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
             timestamp,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         },
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
             fair_l2_gas_price: 1,
@@ -432,4 +433,73 @@ pub async fn recover(
         .unwrap();
     storage.commit().await.unwrap();
     snapshot_recovery
+}
+
+/// Inserts initial writes for the specified L1 batch based on storage logs.
+pub async fn insert_initial_writes_for_batch(
+    connection: &mut Connection<'_, Core>,
+    l1_batch_number: L1BatchNumber,
+) {
+    let mut written_non_zero_slots: Vec<_> = connection
+        .storage_logs_dal()
+        .get_touched_slots_for_executed_l1_batch(l1_batch_number)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter_map(|(key, value)| (!value.is_zero()).then_some(key))
+        .collect();
+    written_non_zero_slots.sort_unstable();
+
+    let hashed_keys: Vec<_> = written_non_zero_slots
+        .iter()
+        .map(|key| key.hashed_key())
+        .collect();
+    let pre_written_slots = connection
+        .storage_logs_dedup_dal()
+        .filter_written_slots(&hashed_keys)
+        .await
+        .unwrap();
+
+    let keys_to_insert: Vec<_> = written_non_zero_slots
+        .into_iter()
+        .filter(|key| !pre_written_slots.contains(&key.hashed_key()))
+        .map(|key| key.hashed_key())
+        .collect();
+    connection
+        .storage_logs_dedup_dal()
+        .insert_initial_writes(l1_batch_number, &keys_to_insert)
+        .await
+        .unwrap();
+}
+
+/// Generates storage logs using provided indices as seeds.
+pub fn generate_storage_logs(indices: ops::Range<u32>) -> Vec<StorageLog> {
+    // Addresses and keys of storage logs must be sorted for the `multi_block_workflow` test.
+    let mut accounts = [
+        "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2",
+        "ef4bb7b21c5fe7432a7d63876cc59ecc23b46636",
+        "89b8988a018f5348f52eeac77155a793adf03ecc",
+        "782806db027c08d36b2bed376b4271d1237626b3",
+        "b2b57b76717ee02ae1327cc3cf1f40e76f692311",
+    ]
+    .map(|s| AccountTreeId::new(s.parse::<Address>().unwrap()));
+    accounts.sort_unstable();
+
+    let account_keys = (indices.start / 5)..(indices.end / 5);
+    let proof_keys = accounts.iter().flat_map(|&account| {
+        account_keys
+            .clone()
+            .map(move |i| StorageKey::new(account, H256::from_low_u64_be(i.into())))
+    });
+    let proof_values = indices.map(|i| H256::from_low_u64_be(i.into()));
+
+    let logs: Vec<_> = proof_keys
+        .zip(proof_values)
+        .map(|(proof_key, proof_value)| StorageLog::new_write_log(proof_key, proof_value))
+        .collect();
+    for window in logs.windows(2) {
+        let [prev, next] = window else { unreachable!() };
+        assert!(prev.key < next.key);
+    }
+    logs
 }

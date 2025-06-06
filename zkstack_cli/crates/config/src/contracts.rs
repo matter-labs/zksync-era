@@ -8,7 +8,7 @@ use crate::{
         deploy_ecosystem::output::DeployL1Output,
         deploy_l2_contracts::output::{
             ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            Multicall3Output, TimestampAsserterOutput,
+            L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
         },
         register_chain::output::RegisterChainOutput,
     },
@@ -49,10 +49,12 @@ impl ContractsConfig {
             .deployed_addresses
             .bridgehub
             .bridgehub_proxy_addr;
-        self.ecosystem_contracts.message_root_proxy_addr = deploy_l1_output
-            .deployed_addresses
-            .bridgehub
-            .message_root_proxy_addr;
+        self.ecosystem_contracts.message_root_proxy_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridgehub
+                .message_root_proxy_addr,
+        );
         self.ecosystem_contracts.state_transition_proxy_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -179,6 +181,14 @@ impl ContractsConfig {
         self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
         Ok(())
     }
+
+    pub fn set_l2_da_validator_address(
+        &mut self,
+        output: &L2DAValidatorAddressOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.da_validator_addr = Some(output.l2_da_validator_address);
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
@@ -190,7 +200,8 @@ impl ZkStackConfig for ContractsConfig {}
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
-    pub message_root_proxy_addr: Address,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_root_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     // `Option` to be able to parse configs from pre-gateway protocol version.

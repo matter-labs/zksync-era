@@ -1,5 +1,4 @@
 # Interop Trigger and Interop Transactions
-[back to readme](../../../README.md)
 
 ## Basics
 

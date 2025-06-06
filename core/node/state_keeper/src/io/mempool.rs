@@ -16,10 +16,10 @@ use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
     commitment::{PubdataParams, PubdataType},
-    message_root::MessageRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction,
+    H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -32,7 +32,8 @@ use crate::{
     mempool_actor::l2_tx_filter,
     metrics::{L2BlockSealReason, AGGREGATION_METRICS, KEEPER_METRICS},
     seal_criteria::{
-        IoSealCriteria, L2BlockMaxPayloadSizeSealer, TimeoutSealer, UnexecutableReason,
+        io_criteria::{L2BlockMaxPayloadSizeSealer, ProtocolUpgradeSealer, TimeoutSealer},
+        IoSealCriteria, UnexecutableReason,
     },
     updates::UpdatesManager,
     utils::millis_since_epoch,
@@ -40,6 +41,7 @@ use crate::{
 };
 
 /// Mempool-based sequencer for the state keeper.
+///
 /// Receives transactions from the database through the mempool filtering logic.
 /// Decides which batch parameters should be used for the new batch.
 /// This is an IO for the main server application.
@@ -49,6 +51,7 @@ pub struct MempoolIO {
     pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
     l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer,
+    protocol_upgrade_sealer: ProtocolUpgradeSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
@@ -62,10 +65,29 @@ pub struct MempoolIO {
     pubdata_type: PubdataType,
 }
 
+#[async_trait]
 impl IoSealCriteria for MempoolIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
-        self.timeout_sealer
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
+        if self
+            .timeout_sealer
             .should_seal_l1_batch_unconditionally(manager)
+            .await?
+        {
+            return Ok(true);
+        }
+
+        if self
+            .protocol_upgrade_sealer
+            .should_seal_l1_batch_unconditionally(manager)
+            .await?
+        {
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
@@ -175,6 +197,7 @@ impl StateKeeperIO for MempoolIO {
                     timestamp: unsealed_storage_batch.timestamp,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
+                    interop_roots: vec![],
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
@@ -261,6 +284,7 @@ impl StateKeeperIO for MempoolIO {
                     timestamp,
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
+                    interop_roots: vec![],
                 },
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
@@ -288,6 +312,7 @@ impl StateKeeperIO for MempoolIO {
             timestamp,
             // This value is effectively ignored by the protocol.
             virtual_blocks: 1,
+            interop_roots: vec![],
         }))
     }
 
@@ -334,7 +359,7 @@ impl StateKeeperIO for MempoolIO {
                 // goes outside of the allowed range while being in the mempool
                 let matches_range = constraint
                     .timestamp_asserter_range
-                    .map_or(true, |x| x.contains(&l2_block_timestamp));
+                    .is_none_or(|x| x.contains(&l2_block_timestamp));
 
                 if !matches_range {
                     self.reject(
@@ -431,13 +456,20 @@ impl StateKeeperIO for MempoolIO {
             .map_err(Into::into)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
+    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        storage
-            .message_root_dal()
-            .get_latest_message_root()
-            .await
-            .map_err(Into::into)
+        Ok(storage.interop_root_dal().get_new_interop_roots().await?)
+    }
+
+    async fn load_l2_block_interop_root(
+        &self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<InteropRoot>> {
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
+        Ok(storage
+            .interop_root_dal()
+            .get_interop_roots(l2block_number)
+            .await?)
     }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
@@ -521,9 +553,10 @@ impl MempoolIO {
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
-            pool,
+            pool: pool.clone(),
             timeout_sealer: TimeoutSealer::new(config),
             l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
+            protocol_upgrade_sealer: ProtocolUpgradeSealer::new(pool),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider: L1BatchParamsProvider::uninitialized(),

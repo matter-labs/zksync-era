@@ -27,18 +27,13 @@ zkstack_cli_types = { version = "0.1.2", path = "crates/types" }
 zkstack_cli_git_version_macro = { version = "0.1.2", path = "crates/git_version_macro" }
 
 # ZkSync deps
-zksync_config = { path = "../core/lib/config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
 zksync_system_constants = { path = "../core/lib/constants" }
 zksync_types = { path = "../core/lib/types" }
 zksync_web3_decl = { path = "../core/lib/web3_decl" }
-zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
-zksync_consensus_roles = "=0.8.0"
-zksync_consensus_crypto = "=0.8.0"
-zksync_consensus_utils = "=0.8.0"
-zksync_protobuf = "=0.8.0"
-zksync_protobuf_build = "=0.8.0"
+zksync_consensus_roles = "=0.9.0"
+zksync_consensus_crypto = "=0.9.0"
 
 # External dependencies
 anyhow = "1.0.82"
@@ -65,7 +60,7 @@ sqlx = { version = "0.8.1", features = [
     "postgres",
 ] }
 strum = { version = "0.26", features = ["derive"] }
-thiserror = "1.0.57"
+thiserror = "2.0.12"
 tokio = { version = "1.37", features = ["full"] }
 toml = "0.8.12"
 url = { version = "2.5.0", features = ["serde"] }
@@ -78,3 +73,6 @@ reqwest = { version = "0.12.8", features = ["blocking"] }
 
 [profile.release]
 strip = true
+
+[patch.crates-io]
+vise = { git = "https://github.com/matter-labs/vise.git", rev = "51669f42f60c50b3a521662a4ecd71212a303299" }

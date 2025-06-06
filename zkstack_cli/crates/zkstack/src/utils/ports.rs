@@ -437,7 +437,7 @@ mod tests {
             prometheus:
                 listener_port: 3412
             reth:
-                image: "ghcr.io/paradigmxyz/reth:v1.0.6"
+                image: "ghcr.io/paradigmxyz/reth:v1.3.7"
                 ports:
                     - 127.0.0.1:8546:8545
             postgres:

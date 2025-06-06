@@ -13,14 +13,22 @@ pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
 pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_UPGRADE_CALLDATA: &str =
-    "Gateway upgrade checker and calldata generator";
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_FINALIZE: &str = "Gateway upgrade post-stage2 finalization";
 
-#[cfg(feature = "gateway")]
-pub(super) const MSG_GATEWAY_REGISTER_L2_TOKENS: &str = "Gateway register legacy tokens on L2";
+#[cfg(feature = "v27_evm_interpreter")]
+pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
+    "EVM Interpreter (v27) upgrade checker and calldata generator";
+
+#[cfg(feature = "v28_precompiles")]
+pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
+    "Precompiles (v28) upgrade checker and calldata generator";
+
+#[cfg(feature = "v29_interopA_ff")]
+pub(super) const MSG_V29_INTEROP_A_FF_UPGRADE: &str =
+    "Interop A + FF (v29) upgrade checker and calldata generator";
+
+#[cfg(feature = "v29_interopA_ff")]
+pub(super) const MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE: &str =
+    "Interop A + FF (v29) chain upgrade checker and calldata generator";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -93,11 +101,15 @@ pub(super) const MSG_INTEGRATION_TESTS_ABOUT: &str = "Run integration tests";
 pub(super) const MSG_REVERT_TEST_ABOUT: &str = "Run revert tests";
 pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
+pub(super) const MSG_GATEWAY_TEST_ABOUT: &str = "Run gateway tests";
 pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
 pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_NO_DEPS_HELP: &str = "Do not install or build dependencies";
+pub(super) const MSG_EVM_TESTS_HELP: &str =
+    "Expect EVM contracts to be enabled for the chain; fail EVM tests if they are not";
+pub(super) const MSG_TEST_SUITES_HELP: &str = "Test suite(s) to run, e.g. 'contracts' or 'erc20'";
 pub(super) const MSG_TEST_PATTERN_HELP: &str =
     "Run just the tests matching a pattern. Same as the -t flag on jest.";
 pub(super) const MSG_TEST_TIMEOUT_HELP: &str = "Timeout for tests in milliseconds";
@@ -144,20 +156,16 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test
 pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 
-pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
-    let base = "Running integration tests";
-    if external_node {
-        format!("{} for external node", base)
-    } else {
-        format!("{} for main server", base)
-    }
-}
-
 pub(super) const MSG_REVERT_TEST_RUN_SUCCESS: &str = "Revert and restart test ran successfully";
 
 // Recovery tests related messages
 pub(super) const MSG_RECOVERY_TEST_RUN_INFO: &str = "Running recovery test";
 pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran successfully";
+
+// Migration test related messages
+pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_INFO: &str = "Running gateway migration test";
+pub(super) const MSG_GATEWAY_UPGRADE_TEST_RUN_SUCCESS: &str =
+    "Gateway migration test ran successfully";
 
 // Upgrade tests related messages
 pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";

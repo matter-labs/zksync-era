@@ -78,7 +78,7 @@ impl PubSubNotifier {
                 break;
             }
         }
-        Ok(None) // we can only break from the loop if we've received a stop signal
+        Ok(None) // we can only break from the loop if we've received a stop request
     }
 
     fn emit_event(&self, event: PubSubEvent) {
@@ -94,19 +94,21 @@ impl PubSubNotifier {
             .get_starting_l2_block_number(&mut stop_receiver)
             .await?
         else {
-            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+            tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
             return Ok(());
         };
 
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
+                tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
                 break;
             }
             timer.tick().await;
 
-            let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Blocks].start();
+            let db_latency = PUB_SUB_METRICS[&SubscriptionType::Blocks]
+                .db_poll_latency
+                .start();
             let new_blocks = self.new_blocks(last_block_number).await?;
             db_latency.observe();
 
@@ -129,7 +131,9 @@ impl PubSubNotifier {
     fn send_pub_sub_results(&self, results: Vec<PubSubResult>, sub_type: SubscriptionType) {
         // Errors only on 0 receivers, but we want to go on if we have 0 subscribers so ignore the error.
         self.sender.send(results).ok();
-        PUB_SUB_METRICS.broadcast_channel_len[&sub_type].set(self.sender.len());
+        PUB_SUB_METRICS[&sub_type]
+            .broadcast_channel_len
+            .set(self.sender.len());
     }
 
     async fn new_blocks(
@@ -150,12 +154,14 @@ impl PubSubNotifier {
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, pubsub_tx_notifier is shutting down");
+                tracing::info!("Stop request received, pubsub_tx_notifier is shutting down");
                 break;
             }
             timer.tick().await;
 
-            let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Txs].start();
+            let db_latency = PUB_SUB_METRICS[&SubscriptionType::Txs]
+                .db_poll_latency
+                .start();
             let new_txs = self.new_txs(last_time).await?;
             db_latency.observe();
 
@@ -190,19 +196,21 @@ impl PubSubNotifier {
             .get_starting_l2_block_number(&mut stop_receiver)
             .await?
         else {
-            tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
+            tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
             return Ok(());
         };
 
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
+                tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
                 break;
             }
             timer.tick().await;
 
-            let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Logs].start();
+            let db_latency = PUB_SUB_METRICS[&SubscriptionType::Logs]
+                .db_poll_latency
+                .start();
             let new_logs = self.new_logs(last_block_number).await?;
             db_latency.observe();
 
@@ -272,8 +280,9 @@ impl EthSubscribe {
         mut receiver: broadcast::Receiver<Vec<PubSubResult>>,
         filter: Option<PubSubFilter>,
     ) {
-        let _guard = PUB_SUB_METRICS.active_subscribers[&subscription_type].inc_guard(1);
-        let lifetime_latency = PUB_SUB_METRICS.subscriber_lifetime[&subscription_type].start();
+        let metrics = &PUB_SUB_METRICS[&subscription_type];
+        let _guard = metrics.active_subscribers.inc_guard(1);
+        let lifetime_latency = metrics.subscriber_lifetime.start();
         let closed = sink.closed().fuse();
         tokio::pin!(closed);
 
@@ -288,8 +297,8 @@ impl EthSubscribe {
                             break;
                         }
                         Err(broadcast::error::RecvError::Lagged(message_count)) => {
-                            PUB_SUB_METRICS
-                                .skipped_broadcast_messages[&subscription_type]
+                            metrics
+                                .skipped_broadcast_messages
                                 .observe(message_count);
                             break;
                         }
@@ -303,7 +312,7 @@ impl EthSubscribe {
                     )
                     .await;
                     if handle_result.is_err() {
-                        PUB_SUB_METRICS.subscriber_send_timeouts[&subscription_type].inc();
+                        metrics.subscriber_send_timeouts.inc();
                         break;
                     }
                 }
@@ -321,7 +330,8 @@ impl EthSubscribe {
         new_items: Vec<PubSubResult>,
         filter: Option<&PubSubFilter>,
     ) -> Result<(), SendTimeoutError> {
-        let notify_latency = PUB_SUB_METRICS.notify_subscribers_latency[&subscription_type].start();
+        let metrics = &PUB_SUB_METRICS[&subscription_type];
+        let notify_latency = metrics.notify_subscribers_latency.start();
         for item in new_items {
             if let PubSubResult::Log(log) = &item {
                 if let Some(filter) = &filter {
@@ -338,7 +348,7 @@ impl EthSubscribe {
             )
             .await?;
 
-            PUB_SUB_METRICS.notify[&subscription_type].inc();
+            metrics.notify.inc();
         }
 
         notify_latency.observe();

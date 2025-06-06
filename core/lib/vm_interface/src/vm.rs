@@ -13,7 +13,7 @@
 
 use std::rc::Rc;
 
-use zksync_types::{message_root::MessageRoot, Transaction, H256};
+use zksync_types::{Transaction, H256};
 
 use crate::{
     pubdata::PubdataBuilder, storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch,
@@ -42,9 +42,6 @@ pub trait VmInterface {
 
     /// Start a new L2 block.
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv);
-
-    /// Insert a message root into the VM.
-    fn insert_message_root(&mut self, msg_root: MessageRoot);
 
     /// Executes the provided transaction with optional bytecode compression using custom tracers.
     fn inspect_transaction_with_bytecode_compression(

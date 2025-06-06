@@ -4,7 +4,6 @@ use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     h256_to_u256,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    message_root::MessageRoot,
     u256_to_h256,
     vm::VmVersion,
     Transaction, H256,
@@ -44,12 +43,13 @@ pub(crate) enum MultiVmSubversion {
     /// VM for post-gateway versions.
     Gateway,
     EvmEmulator,
+    EcPrecompiles,
+    Interop,
 }
 
 impl MultiVmSubversion {
-    #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::EvmEmulator
+        Self::Interop
     }
 }
 
@@ -64,7 +64,9 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             VmVersion::VmGateway => Ok(Self::Gateway),
-            VmVersion::VmEvmEmulator | VmVersion::VmInterop => Ok(Self::EvmEmulator),
+            VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
+            VmVersion::VmEcPrecompiles => Ok(Self::EcPrecompiles),
+            VmVersion::VmInterop | VmVersion::VmMediumInterop => Ok(Self::Interop),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -76,7 +78,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_0>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_5_2>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
@@ -150,7 +152,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_2>;
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_with_compression(tx, true);
@@ -173,10 +175,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env);
-    }
-
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        self.bootloader_state.insert_message_root(msg_root);
     }
 
     /// Inspect transaction with optional bytecode compression.

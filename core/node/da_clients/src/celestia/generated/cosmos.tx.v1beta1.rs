@@ -195,9 +195,8 @@ pub mod mode_info {
     pub struct Multi {
         /// bitarray specifies which keys within the multisig are signing
         #[prost(message, optional, tag = "1")]
-        pub bitarray: ::core::option::Option<
-            super::super::super::crypto::multisig::CompactBitArray,
-        >,
+        pub bitarray:
+            ::core::option::Option<super::super::super::crypto::multisig::CompactBitArray>,
         /// mode_infos is the corresponding modes of the signers of the multisig
         /// which could include nested multisig public keys
         #[prost(message, repeated, tag = "2")]
@@ -235,6 +234,8 @@ impl ::prost::Name for ModeInfo {
         "/cosmos.tx.v1beta1.ModeInfo".into()
     }
 }
+/// Fee paid for a transaction.
+///
 /// Fee includes the amount of coins paid in fees and the maximum
 /// gas to be used by the transaction. The ratio yields an effective "gasprice",
 /// which must be above some miminum to be accepted into the mempool.
@@ -316,9 +317,7 @@ impl ::prost::Name for BroadcastTxRequest {
 pub struct BroadcastTxResponse {
     /// tx_response is the queried TxResponses.
     #[prost(message, optional, tag = "1")]
-    pub tx_response: ::core::option::Option<
-        super::super::base::abci::TxResponse,
-    >,
+    pub tx_response: ::core::option::Option<super::super::base::abci::TxResponse>,
 }
 impl ::prost::Name for BroadcastTxResponse {
     const NAME: &'static str = "BroadcastTxResponse";
@@ -356,9 +355,7 @@ pub struct GetTxResponse {
     pub tx: ::core::option::Option<Tx>,
     /// tx_response is the queried TxResponses.
     #[prost(message, optional, tag = "2")]
-    pub tx_response: ::core::option::Option<
-        super::super::base::abci::TxResponse,
-    >,
+    pub tx_response: ::core::option::Option<super::super::base::abci::TxResponse>,
 }
 impl ::prost::Name for GetTxResponse {
     const NAME: &'static str = "GetTxResponse";
@@ -417,10 +414,10 @@ pub mod service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     /// Service defines a gRPC service for interacting with transactions.
     #[derive(Debug, Clone)]
     pub struct ServiceClient<T> {
@@ -465,9 +462,8 @@ pub mod service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             ServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -507,18 +503,11 @@ pub mod service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::GetTxRequest>,
         ) -> std::result::Result<tonic::Response<super::GetTxResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/cosmos.tx.v1beta1.Service/GetTx",
-            );
+            let path = http::uri::PathAndQuery::from_static("/cosmos.tx.v1beta1.Service/GetTx");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("cosmos.tx.v1beta1.Service", "GetTx"));
@@ -528,22 +517,14 @@ pub mod service_client {
         pub async fn broadcast_tx(
             &mut self,
             request: impl tonic::IntoRequest<super::BroadcastTxRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::BroadcastTxResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::BroadcastTxResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/cosmos.tx.v1beta1.Service/BroadcastTx",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/cosmos.tx.v1beta1.Service/BroadcastTx");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("cosmos.tx.v1beta1.Service", "BroadcastTx"));

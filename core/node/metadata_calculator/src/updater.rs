@@ -9,16 +9,13 @@ use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{helpers::wait_for_l1_batch, Connection, ConnectionPool, Core, CoreDal};
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
+use zksync_shared_metrics::tree::{update_tree_metrics, TreeUpdateStage, METRICS};
 use zksync_types::{
-    block::{L1BatchHeader, L1BatchTreeData},
-    L1BatchNumber,
+    block::{L1BatchStatistics, L1BatchTreeData},
+    L1BatchNumber, OrStopped,
 };
 
-use super::{
-    helpers::{AsyncTree, Delayer, L1BatchWithLogs},
-    metrics::{TreeUpdateStage, METRICS},
-    MetadataCalculator,
-};
+use super::helpers::{AsyncTree, Delayer, L1BatchWithLogs};
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
@@ -46,10 +43,10 @@ impl TreeUpdater {
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
-    ) -> anyhow::Result<(L1BatchHeader, TreeMetadata, Option<String>)> {
+    ) -> anyhow::Result<(L1BatchStatistics, TreeMetadata, Option<String>)> {
         let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
-        let l1_batch_header = l1_batch.header.clone();
-        let l1_batch_number = l1_batch_header.number;
+        let l1_batch_stats = l1_batch.stats;
+        let l1_batch_number = l1_batch_stats.number;
         let mut metadata = self.tree.process_l1_batch(l1_batch).await?;
         compute_latency.observe();
 
@@ -72,7 +69,7 @@ impl TreeUpdater {
             None
         };
 
-        Ok((l1_batch_header, metadata, object_key))
+        Ok((l1_batch_stats, metadata, object_key))
     }
 
     /// Processes a range of L1 batches with a single flushing of the tree updates to RocksDB at the end.
@@ -106,7 +103,7 @@ impl TreeUpdater {
         drop(storage);
 
         let mut total_logs = 0;
-        let mut updated_headers = vec![];
+        let mut updated_batch_stats = vec![];
         for l1_batch_number in l1_batch_numbers {
             let mut storage = pool.connection_tagged("metadata_calculator").await?;
             let l1_batch_number = L1BatchNumber(l1_batch_number);
@@ -132,7 +129,7 @@ impl TreeUpdater {
                     Ok(None) // Don't need to load the next L1 batch after the last one we're processing.
                 }
             };
-            let ((header, metadata, object_key), next_l1_batch_data) =
+            let ((batch_stats, metadata, object_key), next_l1_batch_data) =
                 future::try_join(process_l1_batch_task, load_next_l1_batch_task).await?;
 
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
@@ -166,14 +163,14 @@ impl TreeUpdater {
             save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
 
-            updated_headers.push(header);
+            updated_batch_stats.push(batch_stats);
             l1_batch_data = next_l1_batch_data;
         }
 
         let save_rocksdb_latency = METRICS.start_stage(TreeUpdateStage::SaveRocksdb);
         self.tree.save().await?;
         save_rocksdb_latency.observe();
-        MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
+        update_tree_metrics(&updated_batch_stats, total_logs, start);
 
         Ok(last_l1_batch_number + 1)
     }
@@ -186,7 +183,7 @@ impl TreeUpdater {
     ) -> anyhow::Result<()> {
         let pruning_info = storage.pruning_dal().get_pruning_info().await?;
         anyhow::ensure!(
-            pruning_info.last_soft_pruned.map_or(true, |info| info.l1_batch < l1_batch_number),
+            pruning_info.last_soft_pruned.is_none_or(|info| info.l1_batch < l1_batch_number),
             "L1 batch #{l1_batch_number}, next to be processed by the tree, is pruned; the tree cannot continue operating"
         );
         Ok(())
@@ -257,7 +254,7 @@ impl TreeUpdater {
 
         loop {
             if *stop_receiver.borrow_and_update() {
-                tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                tracing::info!("Stop request received, metadata_calculator is shutting down");
                 break;
             }
 
@@ -280,7 +277,7 @@ impl TreeUpdater {
             // and the stop receiver still allows to be more responsive during shutdown.
             tokio::select! {
                 _ = stop_receiver.changed() => {
-                    tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                    tracing::info!("Stop request received, metadata_calculator is shutting down");
                     break;
                 }
                 () = delay => { /* The delay has passed */ }
@@ -412,12 +409,9 @@ impl AsyncTree {
         delayer: &Delayer,
         pool: &ConnectionPool<Core>,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        let Some(earliest_l1_batch) =
-            wait_for_l1_batch(pool, delayer.delay_interval(), stop_receiver).await?
-        else {
-            return Ok(()); // Stop signal received
-        };
+    ) -> Result<(), OrStopped> {
+        let earliest_l1_batch =
+            wait_for_l1_batch(pool, delayer.delay_interval(), stop_receiver).await?;
         let mut storage = pool.connection_tagged("metadata_calculator").await?;
 
         self.ensure_genesis(&mut storage, earliest_l1_batch).await?;

@@ -1,7 +1,5 @@
 # Gateway protocol versioning and upgradability
 
-[back to readme](../README.md)
-
 One of the hardest part about gateway (GW) is how do we synchronize interaction between L1 and L2 parts that can potentially have different versions of contracts. This synchronization should be compatible with any future CTM that may be present on the gateway.
 
 Here we describe various scenarios of standard/emergency upgrades and how will those play out in the gateway setup.

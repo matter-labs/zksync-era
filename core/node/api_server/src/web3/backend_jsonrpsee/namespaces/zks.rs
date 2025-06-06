@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetailedResult, TransactionDetails,
+        L2ToL1LogProof, LogProofTarget, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    web3, Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -44,8 +44,8 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_bridgehub_contract_impl())
     }
 
-    async fn get_main_contract(&self) -> RpcResult<Address> {
-        Ok(self.get_main_contract_impl())
+    async fn get_main_l1_contract(&self) -> RpcResult<Address> {
+        Ok(self.get_main_l1_contract_impl())
     }
 
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
@@ -53,7 +53,9 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
-        Ok(self.get_bridge_contracts_impl().await)
+        self.get_bridge_contracts_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_timestamp_asserter(&self) -> RpcResult<Option<Address>> {
@@ -79,46 +81,13 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        block: L2BlockNumber,
-        sender: Address,
-        msg: H256,
-        l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_msg_proof_impl(block, sender, msg, l2_log_position)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        log_proof_target: Option<LogProofTarget>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None, None)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn get_l2_to_l1_log_proof_precommit(
-        &self,
-        tx_hash: H256,
-        index: Option<usize>,
-        l2_message_index: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, None, l2_message_index)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    } //
-
-    async fn get_l2_to_l1_log_proof_until_chain_id(
-        &self,
-        tx_hash: H256,
-        index: Option<usize>,
-        chain_id: Option<U64>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index, chain_id, None)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, log_proof_target, None)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -192,6 +161,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    #[allow(deprecated)]
     async fn get_protocol_version(
         &self,
         version_id: Option<u16>,
@@ -217,12 +187,8 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        tx_bytes: web3::Bytes,
-    ) -> RpcResult<TransactionDetailedResult> {
-        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
-            .await
+    async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
+        self.get_l2_multicall3_impl()
             .map_err(|err| self.current_method().map_err(err))
     }
 }

@@ -6,9 +6,10 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use http::StatusCode;
 use tokio::sync::watch;
-use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
-use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
+use zksync_types::{
+    api, settlement::SettlementLayer, Address, Bloom, L1BatchNumber, H160, H256, U64,
+};
 use zksync_web3_decl::{
     client::{WsClient, L2},
     jsonrpsee::{
@@ -164,15 +165,21 @@ trait WsTest: Send + Sync {
 
 async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let network_config = NetworkConfig::for_tests();
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let genesis_config = GenesisConfig::for_tests();
-    let api_config =
-        InternalApiConfig::new(&web3_config, &contracts_config, &genesis_config, false);
+    let api_config = InternalApiConfig::new(
+        &web3_config,
+        &contracts_config.settlement_layer_specific_contracts(),
+        &contracts_config.l1_specific_contracts(),
+        &contracts_config.l2_contracts(),
+        &genesis_config,
+        false,
+        SettlementLayer::for_tests(),
+    );
     let mut storage = pool.connection().await.unwrap();
     test.storage_initialization()
-        .prepare_storage(&network_config, &mut storage)
+        .prepare_storage(&mut storage)
         .await
         .expect("Failed preparing storage for test");
     drop(storage);

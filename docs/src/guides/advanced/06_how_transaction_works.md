@@ -3,8 +3,8 @@
 In this article, we will explore the lifecycle of a transaction, which is an operation that is stored permanently in the
 blockchain and results in a change of its overall state.
 
-To better understand the content discussed here, it is recommended that you first read the [life of a
-call][life_of_call].
+To better understand the content discussed here, it is recommended that you first read the
+[life of a call](./05_how_call_works.md).
 
 ## L1 vs L2 transactions
 
@@ -88,4 +88,3 @@ The transaction can have three different results in state keeper:
 [process_l1_batch]:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/keeper.rs#L257
   'process l1 batch'
-[life_of_call]: how_call_works.md 'life of call'

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
-use zksync_types::{get_known_code_key, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{get_known_code_key, StorageKey, StorageValue, H256};
 
 pub use self::{
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
@@ -37,12 +37,6 @@ pub trait ReadStorage: fmt::Debug {
 
     /// Retrieves the enumeration index for a given `key`.
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64>;
-
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256>;
 }
 
 /// Functionality to write to the VM storage in a batch.
@@ -81,13 +75,5 @@ impl<S: ReadStorage> ReadStorage for StoragePtr<S> {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.borrow_mut().get_enumeration_index(key)
-    }
-
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        self.borrow_mut().get_message_root(chain_id, block_number)
     }
 }

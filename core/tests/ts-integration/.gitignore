@@ -1,0 +1,2 @@
+# We don't want to ignore `cache` dirs globally since it can be used as a name of Rust modules etc.
+cache/

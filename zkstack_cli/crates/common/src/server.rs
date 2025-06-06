@@ -53,19 +53,19 @@ impl Server {
         general_path: P,
         secrets_path: P,
         contracts_path: P,
-        gateway_contracts_config_path: Option<P>,
-        mut additional_args: Vec<String>,
+        additional_args: Vec<String>,
     ) -> anyhow::Result<()>
     where
         P: AsRef<OsStr>,
     {
         let _dir_guard = shell.push_dir(&self.code_path);
 
+        let mut inserted_args = vec![];
         if let Some(components) = self.components() {
-            additional_args.push(format!("--components={}", components))
+            inserted_args.push(format!("--components={}", components))
         }
         if let ServerMode::Genesis = server_mode {
-            additional_args.push("--genesis".to_string());
+            inserted_args.push("--genesis".to_string());
         }
 
         let uring = self.uring.then_some("--features=rocksdb/io-uring");
@@ -94,27 +94,24 @@ impl Server {
 
         let (command, args) = server_command.split_at_mut(1);
 
-        let mut cmd = shell
-            .cmd(command[0])
-            .args(args)
-            .arg("--genesis-path")
-            .arg(genesis_path)
-            .arg("--config-path")
-            .arg(general_path)
-            .arg("--wallets-path")
-            .arg(wallets_path)
-            .arg("--secrets-path")
-            .arg(secrets_path)
-            .arg("--contracts-config-path")
-            .arg(contracts_path);
-
-        if let Some(gateway_config_param) = gateway_contracts_config_path {
-            cmd = cmd
-                .arg("--gateway-contracts-config-path")
-                .arg(gateway_config_param)
-        };
-
-        let mut cmd = Cmd::new(cmd.args(additional_args).env_remove("RUSTUP_TOOLCHAIN"));
+        let mut cmd = Cmd::new(
+            shell
+                .cmd(command[0])
+                .args(args)
+                .arg("--genesis-path")
+                .arg(genesis_path)
+                .arg("--config-path")
+                .arg(general_path)
+                .arg("--wallets-path")
+                .arg(wallets_path)
+                .arg("--secrets-path")
+                .arg(secrets_path)
+                .arg("--contracts-config-path")
+                .arg(contracts_path)
+                .args(inserted_args)
+                .args(additional_args) // Need to insert the additional args at the end, since they may include positional ones
+                .env_remove("RUSTUP_TOOLCHAIN"),
+        );
 
         // If we are running server in normal mode
         // we need to get the output to the console

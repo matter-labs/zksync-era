@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -7,10 +7,12 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{
     AsyncCatchupTask, OwnedStorage, ReadStorageFactory, RocksdbCell, RocksdbStorageOptions,
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, OrStopped, StopContext};
 
 /// A [`ReadStorageFactory`] implementation that can produce short-lived [`ReadStorage`] handles
-/// backed by either Postgres or RocksDB (if it's caught up). Always initialized as a `Postgres`
+/// backed by either Postgres or RocksDB (if it's caught up).
+///
+/// Always initialized as a `Postgres`
 /// variant and is then mutated into `Rocksdb` once RocksDB cache is caught up. After which it
 /// can never revert back to `Postgres` as we assume RocksDB cannot fall behind under normal state
 /// keeper operation.
@@ -23,7 +25,7 @@ pub struct AsyncRocksdbCache {
 impl AsyncRocksdbCache {
     pub fn new(
         pool: ConnectionPool<Core>,
-        state_keeper_db_path: String,
+        state_keeper_db_path: PathBuf,
         state_keeper_db_options: RocksdbStorageOptions,
     ) -> (Self, AsyncCatchupTask) {
         let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), state_keeper_db_path);
@@ -41,9 +43,9 @@ impl ReadStorageFactory for AsyncRocksdbCache {
         &self,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>> {
+    ) -> Result<OwnedStorage, OrStopped> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
-        let rocksdb = if initial_state.l1_batch_number >= Some(l1_batch_number) {
+        let rocksdb = if initial_state.next_l1_batch_number >= Some(l1_batch_number) {
             tracing::info!(
                 "RocksDB cache (initial state: {initial_state:?}) doesn't need to catch up to L1 batch #{l1_batch_number}, \
                  waiting for it to become available"
@@ -63,17 +65,13 @@ impl ReadStorageFactory for AsyncRocksdbCache {
             .await
             .context("Failed getting a Postgres connection")?;
         if let Some(rocksdb) = rocksdb {
-            let storage =
-                OwnedStorage::rocksdb(&mut connection, rocksdb, stop_receiver, l1_batch_number)
-                    .await
-                    .context("Failed accessing RocksDB storage")?;
-            Ok(storage)
+            OwnedStorage::rocksdb(&mut connection, rocksdb, stop_receiver, l1_batch_number)
+                .await
+                .stop_context("Failed accessing RocksDB storage")
         } else {
-            Ok(Some(
-                OwnedStorage::postgres(connection, l1_batch_number)
-                    .await?
-                    .into(),
-            ))
+            Ok(OwnedStorage::postgres(connection, l1_batch_number)
+                .await?
+                .into())
         }
     }
 }

@@ -9,7 +9,7 @@ pub trait HistoryMode:
     + GlueInto<Self::VmBoojumIntegration>
     + GlueInto<Self::Vm1_4_1>
     + GlueInto<Self::Vm1_4_2>
-    + GlueInto<Self::Vm1_5_0>
+    + GlueInto<Self::Vm1_5_2>
 {
     type VmM6Mode: crate::vm_m6::HistoryMode;
     type Vm1_3_2Mode: crate::vm_1_3_2::HistoryMode;
@@ -18,7 +18,7 @@ pub trait HistoryMode:
     type VmBoojumIntegration: crate::vm_boojum_integration::HistoryMode;
     type Vm1_4_1: crate::vm_1_4_1::HistoryMode;
     type Vm1_4_2: crate::vm_1_4_2::HistoryMode;
-    type Vm1_5_0: crate::vm_latest::HistoryMode;
+    type Vm1_5_2: crate::vm_latest::HistoryMode;
 }
 
 impl GlueFrom<crate::vm_latest::HistoryEnabled> for crate::vm_m6::HistoryEnabled {
@@ -115,7 +115,7 @@ impl HistoryMode for crate::vm_latest::HistoryEnabled {
     type VmBoojumIntegration = crate::vm_boojum_integration::HistoryEnabled;
     type Vm1_4_1 = crate::vm_1_4_1::HistoryEnabled;
     type Vm1_4_2 = crate::vm_1_4_2::HistoryEnabled;
-    type Vm1_5_0 = crate::vm_latest::HistoryEnabled;
+    type Vm1_5_2 = crate::vm_latest::HistoryEnabled;
 }
 
 impl HistoryMode for crate::vm_latest::HistoryDisabled {
@@ -126,5 +126,5 @@ impl HistoryMode for crate::vm_latest::HistoryDisabled {
     type VmBoojumIntegration = crate::vm_boojum_integration::HistoryDisabled;
     type Vm1_4_1 = crate::vm_1_4_1::HistoryDisabled;
     type Vm1_4_2 = crate::vm_1_4_2::HistoryDisabled;
-    type Vm1_5_0 = crate::vm_latest::HistoryDisabled;
+    type Vm1_5_2 = crate::vm_latest::HistoryDisabled;
 }

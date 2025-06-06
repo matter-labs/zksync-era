@@ -6,8 +6,11 @@
 pub use zksync_multivm::interface::executor as interface;
 
 pub mod batch;
+#[cfg(feature = "node_framework")]
+pub mod node;
 pub mod oneshot;
 mod shared;
 pub mod storage;
 #[cfg(test)]
 mod testonly;
+pub mod whitelist;

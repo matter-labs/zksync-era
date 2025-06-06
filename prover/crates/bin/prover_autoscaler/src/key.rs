@@ -1,6 +1,6 @@
 use std::{fmt::Debug, hash::Hash, str::FromStr};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use strum::Display;
 use strum_macros::EnumString;
 use vise::EncodeLabelValue;
@@ -20,6 +20,7 @@ use crate::cluster_types::DeploymentName;
     PartialOrd,
     EnumString,
     EncodeLabelValue,
+    Serialize,
     Deserialize,
 )]
 pub enum Gpu {
@@ -27,6 +28,8 @@ pub enum Gpu {
     #[default]
     #[strum(ascii_case_insensitive)]
     L4,
+    #[strum(ascii_case_insensitive)]
+    H100,
     #[strum(ascii_case_insensitive)]
     T4,
     #[strum(ascii_case_insensitive)]
@@ -56,7 +59,9 @@ pub trait Key: Eq + Ord + Hash + Copy + Debug + Default {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default, Deserialize)]
+#[derive(
+    PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default, Serialize, Deserialize,
+)]
 pub struct GpuKey(pub Gpu);
 
 impl Key for GpuKey {

@@ -1,10 +1,7 @@
 use std::time::Duration;
 
 use tokio::sync::watch;
-use zksync_eth_client::{
-    clients::{DynClient, L1},
-    CallFunctionArgs, ClientError, ContractCallError, EthInterface,
-};
+use zksync_eth_client::{CallFunctionArgs, ClientError, ContractCallError, EthInterface};
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 /// Managed task that asynchronously validates that the commitment mode (rollup or validium) from the node config
@@ -13,7 +10,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 pub struct L1BatchCommitmentModeValidationTask {
     diamond_proxy_address: Address,
     expected_mode: L1BatchCommitmentMode,
-    eth_client: Box<DynClient<L1>>,
+    eth_client: Box<dyn EthInterface>,
     retry_interval: Duration,
     exit_on_success: bool,
 }
@@ -25,19 +22,19 @@ impl L1BatchCommitmentModeValidationTask {
     pub fn new(
         diamond_proxy_address: Address,
         expected_mode: L1BatchCommitmentMode,
-        eth_client: Box<DynClient<L1>>,
+        eth_client: Box<dyn EthInterface>,
     ) -> Self {
         Self {
             diamond_proxy_address,
             expected_mode,
-            eth_client: eth_client.for_component("commitment_mode_validation"),
+            eth_client,
             retry_interval: Self::DEFAULT_RETRY_INTERVAL,
             exit_on_success: false,
         }
     }
 
     /// Makes the task exit after the commitment mode was successfully verified. By default, the task
-    /// will only exit on error or after getting a stop signal.
+    /// will only exit on error or after getting a stop request.
     pub fn exit_on_success(mut self) -> Self {
         self.exit_on_success = true;
         self
@@ -48,7 +45,8 @@ impl L1BatchCommitmentModeValidationTask {
         let diamond_proxy_address = self.diamond_proxy_address;
         loop {
             let result =
-                Self::get_pubdata_pricing_mode(diamond_proxy_address, &self.eth_client).await;
+                Self::get_pubdata_pricing_mode(diamond_proxy_address, self.eth_client.as_ref())
+                    .await;
             match result {
                 Ok(mode) => {
                     anyhow::ensure!(
@@ -73,7 +71,7 @@ impl L1BatchCommitmentModeValidationTask {
                     return Ok(());
                 }
 
-                Err(ContractCallError::EthereumGateway(err)) if err.is_retriable() => {
+                Err(ContractCallError::EthereumGateway(err)) if err.is_retryable() => {
                     tracing::warn!(
                         "Transient error validating commitment mode, will retry after {:?}: {err}",
                         self.retry_interval
@@ -103,7 +101,7 @@ impl L1BatchCommitmentModeValidationTask {
     }
 
     /// Runs this task. The task will exit on error (and on success if `exit_on_success` is set),
-    /// or when a stop signal is received.
+    /// or when a stop request is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let exit_on_success = self.exit_on_success;
         let validation = self.validate_commitment_mode();
@@ -127,7 +125,7 @@ mod tests {
     use zksync_eth_client::clients::MockSettlementLayer;
     use zksync_types::{ethabi, U256};
     use zksync_web3_decl::{
-        client::MockClient,
+        client::{MockClient, L1},
         jsonrpsee::{core::BoxError, types::ErrorObject},
     };
 

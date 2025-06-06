@@ -14,7 +14,6 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub enum IndexKind {
     This,
-    Prev,
     Next,
 }
 
@@ -22,7 +21,6 @@ impl fmt::Display for IndexKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::This => "self",
-            Self::Prev => "previous",
             Self::Next => "next",
         })
     }
@@ -235,7 +233,7 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     ) -> Result<H256, ConsistencyError> {
         let index = key.index_on_level;
 
-        if index == 0 && (leaf.key != H256::zero() || leaf.prev_index != 0) {
+        if index == 0 && leaf.key != H256::zero() {
             return Err(ConsistencyError::UnexpectedMinGuard);
         }
         if index == 1 && (leaf.key != H256::repeat_byte(0xff) || leaf.next_index != 1) {
@@ -259,32 +257,6 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
                 in_lookup: lookup_index,
                 in_tree: index,
             });
-        }
-
-        if index != 0 {
-            let prev_key = prev_key(leaf.key).ok_or(ConsistencyError::MinKey(index))?;
-            let lookup = self.db.indices(key.version, &[prev_key])?;
-            assert_eq!(lookup.len(), 1);
-
-            let lookup_prev_index = match lookup.into_iter().next().unwrap() {
-                KeyLookup::Existing(idx) => idx,
-                KeyLookup::Missing {
-                    prev_key_and_index: (prev_key, idx),
-                    ..
-                } => {
-                    assert!(prev_key < leaf.key);
-                    idx
-                }
-            };
-
-            if lookup_prev_index != leaf.prev_index {
-                return Err(ConsistencyError::IndexMismatch {
-                    kind: IndexKind::Prev,
-                    key: leaf.key,
-                    in_lookup: lookup_prev_index,
-                    in_tree: leaf.prev_index,
-                });
-            }
         }
 
         if index != 1 {
@@ -317,20 +289,6 @@ impl<DB: Database, P: TreeParams> MerkleTree<DB, P> {
     }
 }
 
-fn prev_key(key: H256) -> Option<H256> {
-    let mut bytes = key.0;
-    for pos in (0..32).rev() {
-        if bytes[pos] != 0 {
-            bytes[pos] -= 1;
-            for byte in &mut bytes[pos + 1..] {
-                *byte = 0xff;
-            }
-            return Some(H256(bytes));
-        }
-    }
-    None
-}
-
 fn next_key(key: H256) -> Option<H256> {
     let mut bytes = key.0;
     for pos in (0..32).rev() {
@@ -349,7 +307,6 @@ fn next_key(key: H256) -> Option<H256> {
 #[derive(Debug)]
 struct LeafConsistencyData {
     expected_leaf_count: u64,
-    prev_indices_set: AtomicBitSet,
     next_indices_set: AtomicBitSet,
 }
 
@@ -357,20 +314,11 @@ impl LeafConsistencyData {
     fn new(expected_leaf_count: u64) -> Self {
         Self {
             expected_leaf_count,
-            prev_indices_set: AtomicBitSet::new(expected_leaf_count as usize),
             next_indices_set: AtomicBitSet::new(expected_leaf_count as usize),
         }
     }
 
     fn insert_leaf(&self, leaf: &Leaf, leaf_index: u64) -> Result<(), ConsistencyError> {
-        if leaf_index != 0 {
-            self.insert_into_set(
-                &self.prev_indices_set,
-                IndexKind::Prev,
-                leaf_index,
-                leaf.prev_index,
-            )?;
-        }
         if leaf_index != 1 {
             self.insert_into_set(
                 &self.next_indices_set,
@@ -399,12 +347,6 @@ impl LeafConsistencyData {
         }
 
         match index_kind {
-            IndexKind::Prev if index == 1 => {
-                return Err(ConsistencyError::IncorrectGuardRef {
-                    leaf_index,
-                    index_kind,
-                });
-            }
             IndexKind::Next if index == 0 => {
                 return Err(ConsistencyError::IncorrectGuardRef {
                     leaf_index,
@@ -435,7 +377,7 @@ impl AtomicBitSet {
     const BITS_PER_ATOMIC: usize = 64;
 
     fn new(len: usize) -> Self {
-        let atomic_count = (len + Self::BITS_PER_ATOMIC - 1) / Self::BITS_PER_ATOMIC;
+        let atomic_count = len.div_ceil(Self::BITS_PER_ATOMIC);
         let mut bits = Vec::with_capacity(atomic_count);
         bits.resize_with(atomic_count, AtomicU64::default);
         Self { bits }
@@ -454,30 +396,23 @@ impl AtomicBitSet {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{u256_to_h256, U256};
-
     use super::*;
 
     #[test]
     fn prev_and_next_key_work_as_expected() {
         let key = H256::zero();
-        assert_eq!(prev_key(key), None);
         assert_eq!(next_key(key), Some(H256::from_low_u64_be(1)));
 
         let key = H256::from_low_u64_be(10);
-        assert_eq!(prev_key(key), Some(H256::from_low_u64_be(9)));
         assert_eq!(next_key(key), Some(H256::from_low_u64_be(11)));
 
         let key = H256::from_low_u64_be((1 << 32) - 1);
-        assert_eq!(prev_key(key), Some(H256::from_low_u64_be((1 << 32) - 2)));
         assert_eq!(next_key(key), Some(H256::from_low_u64_be(1 << 32)));
 
         let key = H256::from_low_u64_be(1 << 32);
-        assert_eq!(prev_key(key), Some(H256::from_low_u64_be((1 << 32) - 1)));
         assert_eq!(next_key(key), Some(H256::from_low_u64_be((1 << 32) + 1)));
 
         let key = H256::repeat_byte(0xff);
-        assert_eq!(prev_key(key), Some(u256_to_h256(U256::MAX - 1)));
         assert_eq!(next_key(key), None);
     }
 }

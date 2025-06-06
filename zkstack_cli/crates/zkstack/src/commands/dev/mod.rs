@@ -1,10 +1,10 @@
 use clap::Subcommand;
-use commands::status::args::StatusArgs;
+use commands::{status::args::StatusArgs, track_priority_txs::TrackPriorityOpsArgs};
 use messages::MSG_STATUS_ABOUT;
-#[cfg(feature = "gateway")]
-use messages::{
-    MSG_GATEWAY_FINALIZE, MSG_GATEWAY_REGISTER_L2_TOKENS, MSG_GATEWAY_UPGRADE_CALLDATA,
-};
+#[cfg(feature = "v27_evm_interpreter")]
+use messages::MSG_V27_EVM_INTERPRETER_UPGRADE;
+#[cfg(feature = "v28_precompiles")]
+use messages::MSG_V28_PRECOMPILES_UPGRADE;
 use xshell::Shell;
 
 use self::commands::{
@@ -17,6 +17,10 @@ use crate::commands::dev::messages::{
     MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
     MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+};
+#[cfg(feature = "v29_interopA_ff")]
+use crate::commands::dev::messages::{
+    MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE, MSG_V29_INTEROP_A_FF_UPGRADE,
 };
 
 pub(crate) mod commands;
@@ -51,17 +55,26 @@ pub enum DevCommands {
     Status(StatusArgs),
     #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
     GenerateGenesis,
-    #[cfg(feature = "gateway")]
-    #[command(about = MSG_GATEWAY_UPGRADE_CALLDATA)]
-    GatewayUpgradeCalldata(commands::gateway::GatewayUpgradeCalldataArgs),
-    #[cfg(feature = "gateway")]
-    #[command(about = MSG_GATEWAY_FINALIZE)]
-    GatewayUpgradeFinalization(
-        commands::gateway_finalize_preparation::GatewayFinalizePreparationArgs,
-    ),
-    #[cfg(feature = "gateway")]
-    #[command(about = MSG_GATEWAY_REGISTER_L2_TOKENS)]
-    GatewayL2TokenRegistration(commands::gateway_register_l2_tokens::GatewayRegisterL2TokensArgs),
+    #[command(about = MSG_GENERATE_GENESIS_ABOUT)]
+    TrackPriorityOps(TrackPriorityOpsArgs),
+    #[cfg(feature = "v27_evm_interpreter")]
+    #[command(about = MSG_V27_EVM_INTERPRETER_UPGRADE)]
+    V27EvmInterpreterUpgradeCalldata(commands::v27_evm_eq::V27EvmInterpreterCalldataArgs),
+    #[cfg(feature = "v28_precompiles")]
+    #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
+    GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_UPGRADE)]
+    GenerateV29EcosystemCalldata(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_UPGRADE)]
+    RunV29EcosystemUpgrade(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE)]
+    GenerateV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE)]
+    RunV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -80,15 +93,30 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
         DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
-        #[cfg(feature = "gateway")]
-        DevCommands::GatewayUpgradeCalldata(args) => commands::gateway::run(shell, args).await?,
-        #[cfg(feature = "gateway")]
-        DevCommands::GatewayUpgradeFinalization(args) => {
-            commands::gateway_finalize_preparation::run(shell, args).await?
+        DevCommands::TrackPriorityOps(args) => commands::track_priority_txs::run(args).await?,
+        #[cfg(feature = "v27_evm_interpreter")]
+        DevCommands::V27EvmInterpreterUpgradeCalldata(args) => {
+            commands::v27_evm_eq::run(shell, args).await?
         }
-        #[cfg(feature = "gateway")]
-        DevCommands::GatewayL2TokenRegistration(args) => {
-            commands::gateway_register_l2_tokens::run(args).await?
+        #[cfg(feature = "v28_precompiles")]
+        DevCommands::GenerateV28UpgradeCalldata(args) => {
+            commands::v28_precompiles::run(shell, args).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::GenerateV29EcosystemCalldata(args) => {
+            commands::v29_ecosystem_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::RunV29EcosystemUpgrade(args) => {
+            commands::v29_ecosystem_upgrade::run(shell, args, true).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::GenerateV29ChainUpgrade(args) => {
+            commands::v29_chain_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::RunV29ChainUpgrade(args) => {
+            commands::v29_chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())

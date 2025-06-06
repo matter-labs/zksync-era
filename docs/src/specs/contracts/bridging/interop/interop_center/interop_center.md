@@ -1,7 +1,5 @@
 # Bridging overview
 
-[back to readme](../../../README.md)
-
 ## Introduction
 
 InteropCenter is used to start transactions between chains. There are three different messaging scenarios, [L1->L2 priority](../../../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md) transactions, [L2->L1](../../../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md) and [interop](./overview.md) (note interop is both L2->L2 and L1->L2). All of these have different underlying message delivery systems and different security assumptions. However they can all be triggered on the InteropCenter using a similar interface for ease of use, these are the `requestInteropSingleCall`, `requestInteropSingleDirectCall`, `requestL2TransactionDirect` and `requestL2TransactionTwoBridges` functions. We also have additional features for interop txs which can be used with the `requestInterop` function, and we also allow lower level functions. 

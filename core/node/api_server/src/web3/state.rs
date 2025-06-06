@@ -10,18 +10,28 @@ use std::{
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 use vise::GaugeGuard;
 use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, ContractsConfig},
+    configs::{
+        api::Web3JsonRpcConfig,
+        contracts::{
+            chain::L2Contracts,
+            ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
+            SettlementLayerSpecificContracts,
+        },
+    },
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_node_sync::SyncState;
+use zksync_shared_resources::{
+    api::{BridgeAddressesHandle, SyncState},
+    tree::TreeApiClient,
+};
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, block::BatchOrBlockNumber, commitment::L1BatchCommitmentMode, l2::L2Tx,
+    settlement::SettlementLayer, transaction_request::CallRequest, Address, L1BatchNumber,
+    L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -33,11 +43,13 @@ use super::{
     backend_jsonrpsee::MethodTracer,
     mempool_cache::MempoolCache,
     metrics::{FilterType, FILTER_METRICS},
+    receipts::AccountTypesCache,
     TypedFilter,
 };
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
+    web3::metrics::FilterMetrics,
 };
 
 #[derive(Debug)]
@@ -61,6 +73,15 @@ impl From<L2BlockNumber> for PruneQuery {
 impl From<L1BatchNumber> for PruneQuery {
     fn from(number: L1BatchNumber) -> Self {
         Self::L1Batch(number)
+    }
+}
+
+impl From<BatchOrBlockNumber> for PruneQuery {
+    fn from(value: BatchOrBlockNumber) -> Self {
+        match value {
+            BatchOrBlockNumber::BatchNumber(l1_batch_number) => PruneQuery::from(l1_batch_number),
+            BatchOrBlockNumber::BlockNumber(l2_block_number) => PruneQuery::from(l2_block_number),
+        }
     }
 }
 
@@ -93,7 +114,53 @@ impl BlockStartInfo {
     }
 }
 
+/// Builder for Configuration values for the API.
+/// We need different step by step initialization for Api config builder,
+/// because of different ways for getting configs for en and main node
+#[derive(Debug, Clone)]
+pub struct InternalApiConfigBase {
+    /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
+    pub l1_chain_id: L1ChainId,
+    pub l2_chain_id: L2ChainId,
+    pub dummy_verifier: bool,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    pub max_tx_size: usize,
+    pub estimate_gas_scale_factor: f64,
+    pub estimate_gas_acceptable_overestimation: u32,
+    pub estimate_gas_optimize_search: bool,
+    pub req_entities_limit: usize,
+    pub fee_history_limit: u64,
+    pub filters_disabled: bool,
+    pub l1_to_l2_txs_paused: bool,
+}
+
+impl InternalApiConfigBase {
+    pub fn new(genesis: &GenesisConfig, web3_config: &Web3JsonRpcConfig) -> Self {
+        Self {
+            l1_chain_id: genesis.l1_chain_id,
+            l2_chain_id: genesis.l2_chain_id,
+            dummy_verifier: genesis.dummy_verifier,
+            l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
+            max_tx_size: web3_config.max_tx_size.0 as usize,
+            estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: web3_config
+                .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
+            req_entities_limit: web3_config.req_entities_limit as usize,
+            fee_history_limit: web3_config.fee_history_limit,
+            filters_disabled: web3_config.filters_disabled,
+            l1_to_l2_txs_paused: false,
+        }
+    }
+
+    pub fn with_l1_to_l2_txs_paused(mut self, l1_to_l2_txs_paused: bool) -> Self {
+        self.l1_to_l2_txs_paused = l1_to_l2_txs_paused;
+        self
+    }
+}
+
 /// Configuration values for the API.
+///
 /// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc.)
 /// may require different configuration layouts.
 /// The intention is to only keep the actually used information here.
@@ -107,12 +174,10 @@ pub struct InternalApiConfig {
     pub estimate_gas_acceptable_overestimation: u32,
     pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
+    pub l1_ecosystem_contracts: EcosystemCommonContracts,
+    pub server_notifier_addr: Option<Address>,
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
-    pub l1_bridgehub_proxy_addr: Option<Address>,
-    pub message_root_proxy_addr: Option<Address>,
-    pub l1_state_transition_proxy_addr: Option<Address>,
-    pub l1_transparent_proxy_admin_addr: Option<Address>,
     pub l1_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
@@ -122,76 +187,75 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub timestamp_asserter_address: Option<Address>,
+    pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
+    pub settlement_layer: Option<SettlementLayer>,
 }
 
 impl InternalApiConfig {
-    pub fn new(
-        web3_config: &Web3JsonRpcConfig,
-        contracts_config: &ContractsConfig,
-        genesis_config: &GenesisConfig,
-        l1_to_l2_txs_paused: bool,
+    pub fn from_base_and_contracts(
+        base: InternalApiConfigBase,
+        l1_contracts_config: &SettlementLayerSpecificContracts,
+        l1_ecosystem_contracts: &L1SpecificContracts,
+        l2_contracts: &L2Contracts,
+        settlement_layer: Option<SettlementLayer>,
     ) -> Self {
         Self {
-            l1_chain_id: genesis_config.l1_chain_id,
-            l2_chain_id: genesis_config.l2_chain_id,
-            max_tx_size: web3_config.max_tx_size,
-            estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
-            estimate_gas_acceptable_overestimation: web3_config
-                .estimate_gas_acceptable_overestimation,
-            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
+            l1_chain_id: base.l1_chain_id,
+            l2_chain_id: base.l2_chain_id,
+            max_tx_size: base.max_tx_size,
+            estimate_gas_scale_factor: base.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: base.estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: base.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
-                l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
-                l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
-                l1_weth_bridge: Some(
-                    contracts_config
-                        .l1_weth_bridge_proxy_addr
-                        .unwrap_or_default(),
-                ),
-                l2_weth_bridge: Some(
-                    contracts_config
-                        .l1_weth_bridge_proxy_addr
-                        .unwrap_or_default(),
-                ),
-                l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
+                l1_erc20_default_bridge: l1_ecosystem_contracts.erc_20_bridge,
+                l2_erc20_default_bridge: Some(l2_contracts.erc20_default_bridge),
+                l1_shared_default_bridge: l1_ecosystem_contracts.shared_bridge,
+                l2_shared_default_bridge: Some(l2_contracts.shared_bridge_addr),
+                // WETH bridge is not available, but SDK doesn't work correctly with none
+                l1_weth_bridge: Some(Address::zero()),
+                l2_weth_bridge: Some(Address::zero()),
+                l2_legacy_shared_bridge: l2_contracts.legacy_shared_bridge_addr,
             },
-            l1_bridgehub_proxy_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.bridgehub_proxy_addr),
-            message_root_proxy_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.message_root_proxy_addr),
-            l1_state_transition_proxy_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.state_transition_proxy_addr),
-            l1_transparent_proxy_admin_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .map(|a| a.transparent_proxy_admin_addr),
-            l1_bytecodes_supplier_addr: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_bytecodes_supplier_addr),
-            l1_wrapped_base_token_store: contracts_config
-                .ecosystem_contracts
-                .as_ref()
-                .and_then(|a| a.l1_wrapped_base_token_store),
-            l1_diamond_proxy_addr: contracts_config.diamond_proxy_addr,
-            l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
-            req_entities_limit: web3_config.req_entities_limit(),
-            fee_history_limit: web3_config.fee_history_limit(),
-            base_token_address: contracts_config.base_token_addr,
-            filters_disabled: web3_config.filters_disabled,
-            dummy_verifier: genesis_config.dummy_verifier,
-            l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
-            timestamp_asserter_address: contracts_config.l2_timestamp_asserter_addr,
-            l1_to_l2_txs_paused,
+            l1_ecosystem_contracts: l1_contracts_config.ecosystem_contracts.clone(),
+            server_notifier_addr: l1_ecosystem_contracts.server_notifier_addr,
+            l1_bytecodes_supplier_addr: l1_ecosystem_contracts.bytecodes_supplier_addr,
+            l1_wrapped_base_token_store: l1_ecosystem_contracts.wrapped_base_token_store,
+            l1_diamond_proxy_addr: l1_contracts_config
+                .chain_contracts_config
+                .diamond_proxy_addr,
+            l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
+            req_entities_limit: base.req_entities_limit,
+            fee_history_limit: base.fee_history_limit,
+            base_token_address: Some(l1_ecosystem_contracts.base_token_address),
+            filters_disabled: base.filters_disabled,
+            dummy_verifier: base.dummy_verifier,
+            l1_batch_commit_data_generator_mode: base.l1_batch_commit_data_generator_mode,
+            timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
+            l2_multicall3: l2_contracts.multicall3,
+            l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
+            settlement_layer,
         }
+    }
+
+    pub fn new(
+        web3_config: &Web3JsonRpcConfig,
+        l1_contracts_config: &SettlementLayerSpecificContracts,
+        l1_ecosystem_contracts: &L1SpecificContracts,
+        l2_contracts: &L2Contracts,
+        genesis_config: &GenesisConfig,
+        l1_to_l2_txs_paused: bool,
+        settlement_layer: SettlementLayer,
+    ) -> Self {
+        let base = InternalApiConfigBase::new(genesis_config, web3_config)
+            .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
+        Self::from_base_and_contracts(
+            base,
+            l1_contracts_config,
+            l1_ecosystem_contracts,
+            l2_contracts,
+            Some(settlement_layer),
+        )
     }
 }
 
@@ -233,32 +297,6 @@ impl SealedL2BlockNumber {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct BridgeAddressesHandle(Arc<RwLock<api::BridgeAddresses>>);
-
-impl BridgeAddressesHandle {
-    pub fn new(bridge_addresses: api::BridgeAddresses) -> Self {
-        Self(Arc::new(RwLock::new(bridge_addresses)))
-    }
-
-    pub async fn update(&self, bridge_addresses: api::BridgeAddresses) {
-        *self.0.write().await = bridge_addresses;
-    }
-
-    pub async fn update_l1_shared_bridge(&self, l1_shared_bridge: Address) {
-        self.0.write().await.l1_shared_default_bridge = Some(l1_shared_bridge);
-    }
-
-    pub async fn update_l2_bridges(&self, l2_shared_bridge: Address) {
-        self.0.write().await.l2_shared_default_bridge = Some(l2_shared_bridge);
-        self.0.write().await.l2_erc20_default_bridge = Some(l2_shared_bridge);
-    }
-
-    pub async fn read(&self) -> api::BridgeAddresses {
-        self.0.read().await.clone()
-    }
-}
-
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
 pub(crate) struct RpcState {
@@ -273,6 +311,7 @@ pub(crate) struct RpcState {
     /// from a snapshot.
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
+    pub(super) account_types_cache: AccountTypesCache,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
@@ -467,6 +506,7 @@ pub(crate) struct Filters(LruCache<U256, InstalledFilter>);
 #[derive(Debug)]
 struct InstalledFilter {
     pub filter: TypedFilter,
+    metrics: &'static FilterMetrics,
     _guard: GaugeGuard,
     created_at: Instant,
     last_request: Instant,
@@ -475,9 +515,11 @@ struct InstalledFilter {
 
 impl InstalledFilter {
     pub fn new(filter: TypedFilter) -> Self {
-        let guard = FILTER_METRICS.filter_count[&FilterType::from(&filter)].inc_guard(1);
+        let metrics = &FILTER_METRICS[&FilterType::from(&filter)];
+        let guard = metrics.filter_count.inc_guard(1);
         Self {
             filter,
+            metrics,
             _guard: guard,
             created_at: Instant::now(),
             last_request: Instant::now(),
@@ -492,17 +534,18 @@ impl InstalledFilter {
         self.last_request = now;
         self.request_count += 1;
 
-        let filter_type = FilterType::from(&self.filter);
-        FILTER_METRICS.request_frequency[&filter_type].observe(now - previous_request_timestamp);
+        self.metrics
+            .request_frequency
+            .observe(now - previous_request_timestamp);
     }
 }
 
 impl Drop for InstalledFilter {
     fn drop(&mut self) {
-        let filter_type = FilterType::from(&self.filter);
-
-        FILTER_METRICS.request_count[&filter_type].observe(self.request_count);
-        FILTER_METRICS.filter_lifetime[&filter_type].observe(self.created_at.elapsed());
+        self.metrics.request_count.observe(self.request_count);
+        self.metrics
+            .filter_lifetime
+            .observe(self.created_at.elapsed());
     }
 }
 

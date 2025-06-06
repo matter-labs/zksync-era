@@ -9,17 +9,15 @@ Dense, doubly linked Merkle tree implementation with parameterized depth and amo
 - Hash function is parametric as well; the default one is Blake2s with 256-bit output. The tree is always considered to
   have fixed depth (i.e., no reduced hashing for lightly populated trees).
 - The order of leaves is the insertion order; leaves are never removed from the tree.
-- Leaves emulate a linked list. I.e., each leaf holds beside a 32-byte key and 32-byte value, 0-based indices in the
-  tree to leaves with lexicographically previous and next keys.
+- Leaves emulate a linked list. I.e., each leaf holds beside a 32-byte key and 32-byte value, 0-based index in the tree
+  to a leaf with the lexicographically next key.
 - There are 2 pre-inserted guard leaves with min / max keys (i.e., `[0_u8; 32]` and `[u8::MAX; 32]`). As such, all
-  “real” leaves always have previous / next pointers well-defined.
+  “real” leaves always have the next pointer well-defined.
 
 Hashing specification:
 
 ```text
-hash(leaf) = blake2s(
-  leaf.key ++ leaf.value ++ leaf.prev.to_le_bytes() ++ leaf.next.to_le_bytes()
-);
+hash(leaf) = blake2s(leaf.key ++ leaf.value ++ leaf.next.to_le_bytes());
 hash(node) = blake2s(hash(node.left) ++ hash(node.right));
 ```
 
@@ -39,7 +37,7 @@ like an immutable data structure, with tree nodes reused where possible (i.e., i
 As expected, the Merkle tree consists of leaves and internal nodes; the tree root is a special case of internal node
 with additional data (for now, it's just the number of leaves).
 
-- A **leaf** consists of a key, value and prev / next indices as expected.
+- A **leaf** consists of a key, value and next index as expected.
 - **Internal nodes** consist of refs to children; each ref is a version + hash. To reduce the amount of I/O ops (at the
   cost of read / write volume overhead), an internal node contains >2 child refs; that's what the radix mentioned above
   means (e.g., in a radix-8 tree each internal node _usually_ contains 8 child refs, with the only possible exception

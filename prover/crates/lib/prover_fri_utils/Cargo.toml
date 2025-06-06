@@ -13,16 +13,5 @@ categories.workspace = true
 
 [dependencies]
 vise.workspace = true
-zksync_object_store.workspace = true
-zksync_config.workspace = true
 zksync_types.workspace = true
 zksync_prover_fri_types.workspace = true
-zksync_prover_dal.workspace = true
-
-tracing.workspace = true
-serde = { workspace = true, features = ["derive"] }
-reqwest = { workspace = true, features = ["blocking"] }
-reqwest-middleware.workspace = true
-reqwest-retry.workspace = true
-regex.workspace = true
-anyhow.workspace = true

@@ -56,9 +56,9 @@ impl MempoolFetcher {
             mempool,
             pool,
             batch_fee_input_provider,
-            sync_interval: config.sync_interval(),
+            sync_interval: config.sync_interval,
             sync_batch_size: config.sync_batch_size,
-            stuck_tx_timeout: config.remove_stuck_txs.then(|| config.stuck_tx_timeout()),
+            stuck_tx_timeout: config.remove_stuck_txs.then_some(config.stuck_tx_timeout),
             skip_unsafe_deposit_checks: config.skip_unsafe_deposit_checks,
             l1_to_l2_txs_paused: config.l1_to_l2_txs_paused,
             #[cfg(test)]
@@ -81,7 +81,7 @@ impl MempoolFetcher {
 
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, mempool is shutting down");
+                tracing::info!("Stop request received, mempool is shutting down");
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
@@ -249,12 +249,12 @@ mod tests {
     use super::*;
 
     const TEST_MEMPOOL_CONFIG: MempoolConfig = MempoolConfig {
-        sync_interval_ms: 10,
+        sync_interval: Duration::from_millis(10),
         sync_batch_size: 100,
         capacity: 100,
-        stuck_tx_timeout: 0,
+        stuck_tx_timeout: Duration::ZERO,
         remove_stuck_txs: false,
-        delay_interval: 10,
+        delay_interval: Duration::from_millis(10),
         skip_unsafe_deposit_checks: false,
         l1_to_l2_txs_paused: false,
     };
@@ -398,7 +398,7 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval() * 5).await;
+        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval * 5).await;
         assert_eq!(mempool.stats().l2_transaction_count, 0);
 
         stop_sender.send_replace(true);

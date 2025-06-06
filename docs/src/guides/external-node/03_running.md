@@ -1,9 +1,9 @@
 # Running the Node
 
-> [!NOTE]
->
-> If you want to just run ZKSync node with recommended default setting, please see the [quick start](00_quick_start.md)
-> page.
+```admonish note
+If you want to just run ZKSync node with recommended default setting, please see the [quick start](00_quick_start.md)
+page.
+```
 
 This section assumes that you have prepared a configuration file as described on the
 [previous page](02_configuration.md).
@@ -50,8 +50,6 @@ You can also refer to
 [Node configuration management blueprint](https://github.com/matter-labs/zksync-era/blob/main/docs/src/guides/external-node/00_quick_start.md#advanced-setup)
 for advanced DB instance configurations.
 
-[host_docker_internal](https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host)
-
 ## Running
 
 Assuming you have the Node Docker image, an env file with the prepared configuration, and you have restored your DB with
@@ -72,6 +70,20 @@ in RocksDB (mainly the Merkle tree) is absent. Before the node can make any prog
 RocksDB and verify consistency. The exact time required for that depends on the hardware configuration, but it is
 reasonable to expect the state rebuild on the mainnet to take more than 20 hours.
 
+## Genesis synchronization
+
+While it's technically possible to synchronize an External Node from genesis, this process is not recommended for any
+users. The synchronization algorithm used for External Nodes is designed for keeping the live node up-to-date but
+doesn't implement optimizations to re-execute large amounts of historical blocks. As a result, genesis synchronization
+on ZKsync Era can take multiple months for a single node, and it is not being continuously tested for each release. The
+node is guaranteed to never be in an incorrect state, but issues unrelated to correctness may occur (such as
+synchronization getting stuck).
+
+The recommended ways to run the External Node are:
+
+- [Snapshot synchronization](./07_snapshots_recovery.md) for full nodes (if you don't need historical data).
+- [Restoration from a DB dump](./00_quick_start.md#advanced-setup) for archival nodes.
+
 ## Redeploying the Node with a new PG dump
 
 If you've been running the Node for some time and are going to redeploy it using a new PG dump, you should
@@ -84,3 +96,6 @@ If you've been running the Node for some time and are going to redeploy it using
 
 Monitoring the node behavior and analyzing the state it's in is covered in the
 [observability section](04_observability.md).
+
+[host_docker_internal]:
+  https://docs.docker.com/desktop/networking/#i-want-to-connect-from-a-container-to-a-service-on-the-host

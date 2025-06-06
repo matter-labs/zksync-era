@@ -1,19 +1,15 @@
 # MessageRoot
-[back to readme](../../README.md)
 
 ## Introduction
 
-The message root is the contract on L1 that collects messages from different chains and aggregates them into a single merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
+The message root is the contract on L1 that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the MessageRoot, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
 
 The MessageRoot contract is deployed both on L1 and ZK chains, but on ZK chains it is only used on GW. On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../../gateway/nested_l3_l1_messaging.md).
 
 ![MessageRoot](../img/message_root.png)
 
-> Note:
-
-The lines between `MessageRoot` and `chainRoot` and between each `chainRoot` and `ChainBatchRoot` show different  binary merkle trees. The `MessageRoot` will be the root of a FullMerkleTree of `chainRoot`, while `chainRoot` is the merkle root of a DynamicIncrementalMerkleTree of `ChainBatchRoot`.
-
->
+> [!NOTE]
+> The lines between `MessageRoot` and `chainRoot` and between each `chainRoot` and `ChainBatchRoot` show different  binary merkle trees. The `MessageRoot` will be the root of a `FullMerkleTree` of `chainRoot`, while `chainRoot` is the merkle root of a `DynamicIncrementalMerkleTree` of `ChainBatchRoot`.
 
 For each chain that settles on L1, the root will have the following format:
 
@@ -24,18 +20,19 @@ where `LocalLogsRoot` is the root of the tree of messages that come from the cha
 The structure has the following recursive format:
 
 - `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)`
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, batch_number, ChainBatchRoot).`
+- `BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, chainBatchRoot, batchNumber)`, where:
+    - `BATCH_LEAF_PADDING`: a constant padding, needed to ensure that the preimage of the BatchRootLeaf is larger than 64 bytes and so it can not be an internal node.
 - `ChainRoot` = the root of the binary dynamic incremental merkle tree `BatchRootLeaf[]`.
-- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chain_id, ChainRoot)`
-    - `chain_id` — the chain id of the chain the batches of which are aggregated.
+- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainRoot, chainId)`, where:
     - `CHAIN_ID_LEAF_PADDING` — it is a constant padding, needed to ensure that the preimage of the ChainIdLeaf is larger than 64 bytes and so it can not be an internal node.
+    - `chain_id` — the chain id of the chain the batches of which are aggregated.
 - `MessageRoot` — the root of the binary full merkle tree over `ChainIdLeaf[]`.
 
 Note that the `MessageRoot` appears twice in the structure. So the structure is recursive, chains can aggregate other chains, this is used for the [`Gateway`](../../gateway/nested_l3_l1_messaging.md)
 
 ## Appending new batch root leaves
 
-At the end of each batch, the L1Messenger system contract would query the MessageRoot contract for the total aggregated root, i.e. the root of all `ChainIdLeaf`s. Calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)` and propagate it to L1. Only the chain's final `ChainBatchRoot` is stored on L1.
+At the end of each batch, the L1Messenger system contract would query the MessageRoot contract for the total aggregated root (i.e., the root of all `ChainIdLeaf`s), calculate the settled chain batch root `ChainBatchRoot = keccak256(LocalLogsRoot, MessageRoot)` and propagate it to L1. Only the chain's final `ChainBatchRoot`s get stored on L1.
 
 At the execution stage of every batch, the ZK Chain would call the `MessageRoot.addChainBatchRoot` function, while providing the `ChainBatchRoot` for the chain. Then, the `BatchRootLeaf` will be calculated and appended to the incremental merkle tree with which the `ChainRoot` & `ChainIdLeaf` is calculated, which will be updated in the merkle tree of `ChainIdLeaf`s.
 
@@ -52,34 +49,34 @@ We want to avoid breaking changes to SDKs, so we will modify the `zks_getL2ToL1L
 
 First `bytes32` corresponds to the metadata of the proof. The zero-th byte should tell the version of the metadata and must be equal to the `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
 
-Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `ChainBatchRoot`). The second byte contains the `batchLeafProofLen` . It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainRoot` .
+Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `ChainBatchRoot`). The second byte contains the `batchLeafProofLen`. It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainRoot`. The third byte, `isFinalNode`, is a boolean value representing if the proof is for the top level in the aggregation.
 
 Then, the following happens:
 
 - We consume the `logLeafProofLen` items to produce the `ChainBatchRoot`. The last word is typically the aggregated root for the chain.
 
-If we were verifying `ChainBatchRoot` inclusion we would end here. To continue to `MessageRoot` inclusion we calculate:
+If we were verifying `ChainBatchRoot` inclusion we would end here: `isFinalNode` would be set to true, and `batchLeafProofLen` to zero. To continue to `MessageRoot` inclusion we would set `isFinalNode` to be false, define `batchLeafProofLen` accordingly, and:
 
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, ChainBatchRoot, batch_number).`
-- Consume one element from the `_proofs` array to get the mask for the merkle path of the batch leaf in the chain id tree.
+- Compute `BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, chainBatchRoot, batchNumber)`.
+- Consume one element from the `_proofs` array to get the mask for the Merkle path of the batch leaf in the chain ID tree.
 - Consume `batchLeafProofLen` elements to construct the `ChainRoot`
-- After that, we calculate the `chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId)`
+- Compute the `chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainRoot, chainId)`
 
 Now, we have the _supposed_ `chainIdRoot` for the chain inside its settlement layer. The only thing left to prove is that this root belonged to some batch of the settlement layer.
 
 Then, the following happens:
 
-- One element from `_proof` array is consumed and expected to maintain the batchNumber of the settlement layer when this chainid root was present as well as mask for the reconstruction of the merkle tree.
-- The other element from the `_proof` contains the address of the settlement layer, where the address will be checked.
+- One element from `_proof` array is consumed and expected to maintain the block number of the settlement layer when this chain ID `ChainBatchRoot` was present concatenated with the mask for the reconstruction of the Merkle tree.
+- The second element read from `_proof` contains the settlement layer Chain ID.
 
-The `proveL2LeafInclusion` function will be internally used by the existing `_proveL2LogInclusion` function to prove that a certain node  existed in the tree. 
+The `proveL2LeafInclusion` function will be internally used by the existing `_proveL2LogInclusion` function to prove that a certain node existed in the tree. 
 Now, we can call the function to verify that the batch belonged to the settlement layer's MessageRoot:
 
 ```solidity
     proveL2LeafInclusion(
         settlementLayerChainId,
-        settlementLayerBatchNumber,
-        settlementLayerBatchRootMask,
+        settlementLayerBlockNumber,
+        settlementLayerBlockRootMask,
         chainIdLeaf,
         // Basically pass the rest of the `_proof` array
         extractSliceUntilEnd(_proof, ptr)

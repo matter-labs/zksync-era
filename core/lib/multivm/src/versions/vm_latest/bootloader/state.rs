@@ -1,7 +1,7 @@
-use std::cmp::Ordering;
+use std::cmp::{min, Ordering};
 
 use once_cell::sync::OnceCell;
-use zksync_types::{message_root::MessageRoot, vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
+use zksync_types::{vm::VmVersion, L2ChainId, ProtocolVersionId, U256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{
@@ -17,7 +17,7 @@ use crate::{
         bootloader::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
-            utils::{apply_l2_block, apply_message_root, apply_tx_to_memory},
+            utils::{apply_l2_block, apply_tx_to_memory},
         },
         constants::get_tx_description_offset,
         types::TransactionData,
@@ -57,8 +57,6 @@ pub struct BootloaderState {
     protocol_version: ProtocolVersionId,
     /// Protocol subversion
     subversion: MultiVmSubversion,
-    /// Message roots
-    msg_roots: Vec<MessageRoot>,
 }
 
 impl BootloaderState {
@@ -69,12 +67,10 @@ impl BootloaderState {
         protocol_version: ProtocolVersionId,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
-        // let msg_root: MessageRoot = MessageRoot::new(1, 2, H256::from([1; 32]));
         Self {
             tx_to_execute: 0,
             compressed_bytecodes_encoding: 0,
             l2_blocks: vec![l2_block],
-            msg_roots: vec![],
             initial_memory,
             execution_mode,
             free_tx_offset: 0,
@@ -108,10 +104,6 @@ impl BootloaderState {
         self.push_l2_block(l2_block);
     }
 
-    pub(crate) fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        self.msg_roots.push(msg_root);
-    }
-
     /// This method bypass sanity checks and should be used carefully.
     pub(crate) fn push_l2_block(&mut self, l2_block: L2BlockEnv) {
         self.l2_blocks
@@ -120,6 +112,18 @@ impl BootloaderState {
 
     pub(crate) fn get_vm_subversion(&self) -> MultiVmSubversion {
         self.subversion
+    }
+
+    pub(crate) fn get_preexisting_interop_roots_number(&self) -> usize {
+        self.l2_blocks
+            .iter()
+            .take(self.l2_blocks.len() - 1)
+            .map(|block| block.interop_roots.len())
+            .sum()
+    }
+
+    pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
+        min(self.l2_blocks.len(), 1) - 1
     }
 
     pub(crate) fn push_tx(
@@ -153,10 +157,11 @@ impl BootloaderState {
             self.execution_mode,
             self.last_l2_block().txs.is_empty(),
             self.subversion,
+            // true,
+            self.last_l2_block().txs.is_empty(),
+            self.get_preexisting_interop_roots_number(),
+            self.get_preexisting_blocks_number(),
         );
-        for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
-            apply_message_root(&mut memory, msg_root_offset, msg_root, self.subversion)
-        }
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
         self.last_mut_l2_block().push_tx(bootloader_tx);
@@ -207,23 +212,26 @@ impl BootloaderState {
                     self.execution_mode,
                     num == 0,
                     self.subversion,
+                    num == 0,
+                    self.get_preexisting_interop_roots_number(),
+                    self.get_preexisting_blocks_number(),
                 );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
                 tx_index += 1;
             }
             if l2_block.txs.is_empty() {
-                apply_l2_block(&mut initial_memory, l2_block, tx_index, self.subversion)
+                println!("maybe fictive l2 block {:?}", l2_block.number);
+                apply_l2_block(
+                    &mut initial_memory,
+                    l2_block,
+                    tx_index,
+                    self.subversion,
+                    true,
+                    self.get_preexisting_interop_roots_number(),
+                    self.get_preexisting_blocks_number(),
+                )
             }
-        }
-
-        for (msg_root_offset, msg_root) in self.msg_roots.iter().enumerate() {
-            apply_message_root(
-                &mut initial_memory,
-                msg_root_offset,
-                msg_root,
-                self.subversion,
-            );
         }
 
         let pubdata_information = self
@@ -292,8 +300,17 @@ impl BootloaderState {
                 number: block.number + 1,
                 prev_block_hash: block.get_hash(),
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             });
+        } else {
+            // println!("block number {:?}", block.number);
+            let block = self.last_mut_l2_block();
+            println!("roots before reset {:?}", block.interop_roots);
+            block.interop_roots = vec![];
+            // println!("reset interop roots");
+            // println!("roots after reset {:?}", self.last_l2_block().interop_roots);
         }
+
         self.last_l2_block()
     }
 

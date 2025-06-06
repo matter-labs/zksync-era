@@ -1,9 +1,10 @@
 import * as fs from 'fs';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import * as path from 'path';
+import { loadConfig } from 'utils/src/file-configs';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -232,6 +233,16 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     }
 }
 
+export async function getDeploymentNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getDeploymentNonce(address);
+}
+
+export async function getAccountNonce(provider: zksync.Provider, address: string): Promise<bigint> {
+    const nonceHolder = new zksync.Contract(zksync.utils.NONCE_HOLDER_ADDRESS, zksync.utils.NONCE_HOLDER_ABI, provider);
+    return await nonceHolder.getMinNonce(address);
+}
+
 /**
  * Returns an increased gas price to decrease chances of L1 transactions being stuck
  *
@@ -279,4 +290,34 @@ export function bigIntMax(...args: bigint[]) {
 
 export function isLocalHost(network: string): boolean {
     return network.toLowerCase() == 'localhost';
+}
+
+export function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
+    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
+    // using binary search.
+    const overhead = getOverheadForTransaction(
+        // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
+        // will be greater than `overheadForLength` for a typical transacction
+        0n
+    );
+    return maxGasBodyLimit + overhead;
+}
+
+export function getOverheadForTransaction(encodingLength: bigint): bigint {
+    const TX_SLOT_OVERHEAD_GAS = 10_000n;
+    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
+
+    return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
+}
+
+// Gets the L2-B provider URL based on the L2-A provider URL: validium (L2-B) for era (L2-A), or era (L2-B) for validium (L2-A)
+export function getL2bUrl(chainName: string) {
+    const pathToHome = path.join(__dirname, '../../../..');
+    const config = loadConfig({
+        pathToHome,
+        chain: chainName,
+        config: 'general.yaml'
+    });
+    const url = config.api.web3_json_rpc.http_url;
+    return url;
 }

@@ -69,7 +69,9 @@ vector generation and GPU proving. Vector Generation is single-threaded time-con
 jobs by changing `-l` and `-h` parameters. The exact amount depends strictly on your CPU/GPU specs, but a ballpark
 estimate (useful for local development) is 15 light & 1 heavy.
 
-> NOTE: The light threads typically uses approximately 2GB of RAM, with heavy ~10GB of RAM.
+```admonish note
+The light threads typically uses approximately 2GB of RAM, with heavy ~10GB of RAM.
+```
 
 ### Prover job monitor
 
@@ -96,8 +98,10 @@ zkstack dev prover info
 
 ### Proof compressor
 
-⚠️ Both prover and proof compressor require 24GB of VRAM, and currently it's not possible to make them use different
+```admonish warning
+Both prover and proof compressor require 24GB of VRAM, and currently it's not possible to make them use different
 GPU. So unless you have a GPU with 48GB of VRAM, you won't be able to run both at the same time.
+```
 
 You should wait until the proof is generated, and once you see in the server logs that it tries to find available
 compressor, you can shut the prover down, and run the proof compressor:

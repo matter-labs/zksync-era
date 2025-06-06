@@ -176,7 +176,6 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
         'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ALLOW_LIST_ADDR',
         'CONTRACTS_L1_MULTICALL3_ADDR',
-        'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
 
         /// temporary:
         'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'

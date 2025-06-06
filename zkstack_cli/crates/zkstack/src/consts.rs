@@ -1,6 +1,8 @@
 pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
 
 pub const MINIMUM_BALANCE_FOR_WALLET: u128 = 5000000000000000000;
+/// The default block range within which we search for events within one query.
+pub const DEFAULT_EVENTS_BLOCK_RANGE: u64 = 50_000;
 pub const SERVER_MIGRATIONS: &str = "core/lib/dal/migrations";
 pub const PROVER_MIGRATIONS: &str = "prover/crates/lib/prover_dal/migrations";
 pub const PROVER_STORE_MAX_RETRIES: u16 = 10;
@@ -12,7 +14,7 @@ pub const L2_BASE_TOKEN_ADDRESS: &str = "0x0000000000000000000000000000000000008
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
-pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app:v2.62.0";
+pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app:v2.73.1";
 /// Path to the JS runtime config for the dapp-portal docker container to be mounted to
 pub const PORTAL_DOCKER_CONFIG_PATH: &str = "/usr/src/app/dist/config.js";
 pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";
@@ -32,3 +34,5 @@ pub const PROVER_JOB_MONITOR_BINARY_NAME: &str = "zksync_prover_job_monitor";
 pub const PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG: &str =
     "etc/env/file_based/overrides/only_real_proofs.yaml";
 pub const PATH_TO_VALIDIUM_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/validium.yaml";
+
+pub const PATH_TO_GATEWAY_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/gateway.yaml";

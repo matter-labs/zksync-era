@@ -28,7 +28,7 @@ jobs:
       image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Generate output with git tag
         id: set
         run: |
@@ -65,8 +65,6 @@ jobs:
     uses: ./.github/workflows/build-tee-prover-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -91,20 +89,6 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      action: "push"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  build-push-witness-generator-image-avx512:
-    name: Build and push image
-    needs: [setup]
-    uses: ./.github/workflows/build-witness-generator-template.yml
-    if: contains(github.ref_name, 'prover')
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
       action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}

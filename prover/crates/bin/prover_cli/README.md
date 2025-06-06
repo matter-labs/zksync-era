@@ -12,7 +12,7 @@ cargo install prover_cli
 Or
 
 ```
-cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
+cargo +nightly-2024-09-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
 ```
 
 ## Usage

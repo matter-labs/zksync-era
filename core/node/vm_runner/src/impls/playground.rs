@@ -48,7 +48,7 @@ impl From<VmPlaygroundHealth> for Health {
 #[non_exhaustive]
 pub enum VmPlaygroundStorageOptions {
     /// Use RocksDB cache.
-    Rocksdb(String),
+    Rocksdb(PathBuf),
     /// Use prefetched batch snapshots (with fallback to Postgres if protective reads are not available for a batch).
     Snapshots {
         /// Whether to shadow snapshot storage with Postgres. This degrades performance and is mostly useful
@@ -71,7 +71,7 @@ pub struct VmPlaygroundCursorOptions {
 #[derive(Debug)]
 enum VmPlaygroundStorage {
     Rocksdb {
-        path: String,
+        path: PathBuf,
         task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
     },
     Snapshots {
@@ -79,7 +79,9 @@ enum VmPlaygroundStorage {
     },
 }
 
-/// Virtual machine playground. Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
+/// Virtual machine playground.
+///
+/// Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
 /// (so that the playground doesn't repeatedly process same batches after a restart).
 ///
 /// If the RocksDB directory is not specified, the playground works in the ephemeral mode: it takes all inputs from Postgres, doesn't maintain cache
@@ -237,15 +239,21 @@ impl VmPlayground {
         };
 
         let builder = RocksdbStorage::builder(path.as_ref()).await?;
-        let current_l1_batch = builder.l1_batch_number().await;
-        if current_l1_batch <= Some(last_retained_batch) {
+        let Some(mut cache) = builder.get().await else {
+            tracing::info!("Resetting RocksDB cache is not required: the cache is not initialized");
+            return Ok(());
+        };
+
+        let current_l1_batch = cache.next_l1_batch_number().await;
+        if current_l1_batch <= last_retained_batch {
             tracing::info!("Resetting RocksDB cache is not required: its current batch #{current_l1_batch:?} is lower than the target");
             return Ok(());
         }
 
         tracing::info!("Resetting RocksDB cache from batch #{current_l1_batch:?}");
         let mut conn = self.pool.connection_tagged("vm_playground").await?;
-        builder.roll_back(&mut conn, last_retained_batch).await
+        // `assert_ready()` always succeeds due to the `current_l1_batch` check above
+        cache.roll_back(&mut conn, last_retained_batch).await
     }
 
     /// Continuously loads new available batches and writes the corresponding data
@@ -258,7 +266,7 @@ impl VmPlayground {
         if let VmPlaygroundStorage::Rocksdb { path, .. } = &self.storage {
             fs::create_dir_all(path)
                 .await
-                .with_context(|| format!("cannot create dir `{path}`"))?;
+                .with_context(|| format!("cannot create dir `{path:?}`"))?;
         }
 
         if let Some(reset_to_batch) = self.reset_to_batch {
@@ -306,7 +314,7 @@ pub struct VmPlaygroundLoaderTask {
 }
 
 impl VmPlaygroundLoaderTask {
-    /// Runs a task until a stop signal is received.
+    /// Runs a task until a stop request is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let task = tokio::select! {
             biased;

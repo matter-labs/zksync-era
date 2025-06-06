@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::{FatPointer, Opcode, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER},
@@ -14,7 +14,7 @@ use crate::{
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
         ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
     },
-    tracers::dynamic::vm_1_5_0::DynTracer,
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{
         bootloader::BootloaderState,
         constants::{get_result_success_first_slot, BOOTLOADER_HEAP_PAGE},
@@ -159,15 +159,12 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
         if matches!(hook, Some(VmHook::PostResult)) {
             let vm_hook_params = get_vm_hook_params(memory, self.subversion);
             let success = vm_hook_params[0];
-            let returndata = self
-                .far_call_tracker
-                .get_latest_returndata()
-                .map(|ptr| read_pointer(memory, ptr))
-                .unwrap_or_default();
+            let return_ptr = FatPointer::from_u256(vm_hook_params[1]);
+            let returndata = read_pointer(memory, return_ptr);
             if success == U256::zero() {
                 self.result = Some(Result::Error {
                     // Tx has reverted, without bootloader error, we can simply parse the revert reason
-                    error_reason: (VmRevertReason::from(returndata.as_slice())),
+                    error_reason: VmRevertReason::from(returndata.as_slice()),
                 });
             } else {
                 self.result = Some(Result::Success {
@@ -187,7 +184,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
-        data: zk_evm_1_5_0::tracing::AfterExecutionData,
+        data: zk_evm_1_5_2::tracing::AfterExecutionData,
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {

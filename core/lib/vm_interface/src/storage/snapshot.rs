@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{web3, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{web3, StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
@@ -76,7 +76,7 @@ impl ReadStorage for StorageSnapshot {
         let entry = self.storage.get(&key.hashed_key()).unwrap_or_else(|| {
             panic!("attempted to check initialness for unknown storage slot: {key:?}")
         });
-        entry.map_or(true, |(_, idx)| idx == 0)
+        entry.is_none_or(|(_, idx)| idx == 0)
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
@@ -88,14 +88,6 @@ impl ReadStorage for StorageSnapshot {
             panic!("attempted to get enum index for unknown storage slot: {key:?}")
         });
         entry.and_then(|(_, idx)| (idx > 0).then_some(idx))
-    }
-
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
     }
 }
 
@@ -183,13 +175,13 @@ impl<S: ReadStorage> ReadStorage for StorageWithSnapshot<S> {
         )
     }
 
-    fn get_message_root(
-        &mut self,
-        _chain_id: SLChainId,
-        _block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
-    }
+    // fn get_interop_root(
+    //     &mut self,
+    //     _chain_id: SLChainId,
+    //     _block_number: L2BlockNumber,
+    // ) -> Option<H256> {
+    //     None // kl todo
+    // }
 }
 
 #[cfg(test)]

@@ -17,13 +17,13 @@ jobs:
       prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
       all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 2
 
       - name: Get all test, doc and src files that have changed
         id: changed-files-yaml
-        uses: tj-actions/changed-files@fea790cb660e33aef4bdf07304e28fedd77dfa13 # v39
+        uses: tj-actions/changed-files@48566bbcc22ceb7c5809ebdd27377309f2c3de8c # v39
         with:
           files_yaml: |
             # TODO: make it more granular, as already implemented in CI workflow
@@ -44,7 +44,7 @@ jobs:
       image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Generate image tag suffix
         id: generate-tag-suffix
@@ -78,8 +78,6 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
     secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
 
   build-push-contract-verifier:
@@ -102,20 +100,6 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      action: "push"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  build-push-witness-generator-image-avx512:
-    name: Build and push prover images with avx512 instructions
-    needs: [setup, changed_files]
-    uses: ./.github/workflows/build-witness-generator-template.yml
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl "
       action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}

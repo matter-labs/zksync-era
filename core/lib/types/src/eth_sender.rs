@@ -1,3 +1,5 @@
+use std::{fmt::Display, str::FromStr};
+
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::SLChainId;
 
@@ -67,6 +69,7 @@ impl std::fmt::Debug for EthTx {
             .field("created_at_timestamp", &self.created_at_timestamp)
             .field("predicted_gas_cost", &self.predicted_gas_cost)
             .field("chain_id", &self.chain_id)
+            .field("is_gateway", &self.is_gateway)
             .finish()
     }
 }
@@ -81,15 +84,38 @@ pub struct TxHistory {
     pub tx_hash: H256,
     pub signed_raw_tx: Vec<u8>,
     pub sent_at_block: Option<u32>,
+    pub max_gas_per_pubdata: Option<u64>,
+    pub eth_tx_finality_status: Option<EthTxFinalityStatus>,
+    pub sent_successfully: bool,
 }
 
-#[derive(Clone, Debug)]
-pub struct TxHistoryToSend {
-    pub id: u32,
-    pub eth_tx_id: u32,
-    pub base_fee_per_gas: u64,
-    pub priority_fee_per_gas: u64,
-    pub tx_hash: H256,
-    pub signed_raw_tx: Vec<u8>,
-    pub nonce: Nonce,
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum EthTxFinalityStatus {
+    Pending,
+    FastFinalized,
+    Finalized,
+}
+
+impl FromStr for EthTxFinalityStatus {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "fast_finalized" => Ok(Self::FastFinalized),
+            "finalized" => Ok(Self::Finalized),
+            "pending" => Ok(Self::Pending),
+            _ => Err("Incorrect finality status"),
+        }
+    }
+}
+
+impl Display for EthTxFinalityStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FastFinalized => write!(f, "fast_finalized"),
+            Self::Finalized => write!(f, "finalized"),
+            Self::Pending => write!(f, "pending"),
+        }
+    }
 }

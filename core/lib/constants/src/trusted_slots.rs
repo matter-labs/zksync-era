@@ -1,9 +1,9 @@
 use once_cell::sync::Lazy;
 use zksync_basic_types::{h256_to_u256, H256, U256};
 
-///
-/// Well known-slots (e.g. proxy addresses in popular EIPs).
-///
+//
+// Well known-slots (e.g. proxy addresses in popular EIPs).
+//
 
 const ERC1967_ROLLBACK_SLOT: H256 = H256([
     0x49, 0x10, 0xfd, 0xfa, 0x16, 0xfe, 0xd3, 0x26, 0x0e, 0xd0, 0xe7, 0x14, 0x7f, 0x7c, 0xc6, 0xda,

@@ -1,7 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, path::PathBuf, sync::Arc};
 
 use assert_matches::assert_matches;
 use tempfile::TempDir;
@@ -61,7 +61,6 @@ pub(super) struct TestConfig {
 impl TestConfig {
     pub(super) fn new(fast_vm_mode: FastVmMode) -> Self {
         let config = StateKeeperConfig::for_tests();
-
         Self {
             trace_calls: false,
             vm_gas_limit: None,
@@ -179,8 +178,7 @@ impl Tester {
         let storage = storage_factory
             .access_storage(&stop_receiver, l1_batch_env.number - 1)
             .await
-            .expect("failed creating VM storage")
-            .unwrap();
+            .expect("failed creating VM storage");
         if self.config.trace_calls {
             let mut executor = MainBatchExecutorFactory::<TraceCalls>::new(false);
             executor.set_fast_vm_mode(self.config.fast_vm_mode);
@@ -246,6 +244,7 @@ impl Tester {
             timestamp: current_timestamp,
             prev_block_hash: snapshot.l2_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         };
 
         self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env, pubdata_params)
@@ -368,8 +367,8 @@ impl Tester {
         self.pool.clone()
     }
 
-    pub(super) fn state_keeper_db_path(&self) -> String {
-        self.db_dir.path().to_str().unwrap().to_owned()
+    pub(super) fn state_keeper_db_path(&self) -> PathBuf {
+        self.db_dir.path().to_owned()
     }
 }
 
@@ -643,6 +642,7 @@ impl StorageSnapshot {
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             timestamp: 100,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
 
@@ -667,7 +667,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await.unwrap();
+            executor
+                .start_next_l2_block(l2_block_env.clone())
+                .await
+                .unwrap();
         }
 
         for _ in 0..transaction_count {
@@ -689,7 +692,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await.unwrap();
+            executor
+                .start_next_l2_block(l2_block_env.clone())
+                .await
+                .unwrap();
         }
 
         let (finished_batch, _) = executor.finish_batch().await.unwrap();

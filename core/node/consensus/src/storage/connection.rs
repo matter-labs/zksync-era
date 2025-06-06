@@ -1,15 +1,16 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_dal::{
-    consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, Payload},
+    consensus::BlockCertificate,
+    consensus_dal::{BlockMetadata, GlobalConfig, Payload},
     Core, CoreDal, DalError,
 };
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
-use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
+use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender};
+use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber};
+use zksync_types::{fee_model::BatchFeeInput, L2BlockNumber};
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use super::PayloadQueue;
@@ -42,36 +43,13 @@ impl ConnectionPool {
                 .connection(ctx)
                 .await
                 .wrap("connection()")?
-                .payload(ctx, number)
+                .block_payload(ctx, number)
                 .await
                 .with_wrap(|| format!("payload({number})"))?
             {
                 return Ok(payload);
             }
             ctx.sleep(POLL_INTERVAL).await?;
-        }
-    }
-
-    /// Waits for the `number` L1 batch hash.
-    #[tracing::instrument(skip_all)]
-    pub async fn wait_for_batch_info(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-        interval: time::Duration,
-    ) -> ctx::Result<StoredBatchInfo> {
-        loop {
-            if let Some(info) = self
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .batch_info(ctx, number)
-                .await
-                .with_wrap(|| format!("batch_info({number})"))?
-            {
-                return Ok(info);
-            }
-            ctx.sleep(interval).await?;
         }
     }
 }
@@ -95,109 +73,6 @@ impl<'a> Connection<'a> {
     /// Wrapper for `commit()`.
     pub async fn commit(self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         Ok(ctx.wait(self.0.commit()).await?.context("sqlx")?)
-    }
-
-    /// Wrapper for `consensus_dal().block_payload()`.
-    pub async fn payload(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Option<Payload>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_payload(number))
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    pub async fn batch_info(
-        &mut self,
-        ctx: &ctx::Ctx,
-        n: attester::BatchNumber,
-    ) -> ctx::Result<Option<StoredBatchInfo>> {
-        Ok(ctx.wait(self.0.consensus_dal().batch_info(n)).await??)
-    }
-
-    /// Wrapper for `consensus_dal().block_metadata()`.
-    pub async fn block_metadata(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Option<BlockMetadata>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_metadata(number))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().block_certificate()`.
-    pub async fn block_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Option<validator::CommitQC>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_certificate(number))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().insert_block_certificate()`.
-    #[tracing::instrument(skip_all, fields(l2_block = %cert.message.proposal.number))]
-    pub async fn insert_block_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-        cert: &validator::CommitQC,
-    ) -> Result<(), super::InsertCertificateError> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().insert_block_certificate(cert))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().insert_batch_certificate()`,
-    /// which additionally verifies that the batch hash matches the stored batch.
-    #[tracing::instrument(skip_all, fields(l1_batch = %cert.message.number))]
-    pub async fn insert_batch_certificate(
-        &mut self,
-        ctx: &ctx::Ctx,
-        cert: &attester::BatchQC,
-    ) -> ctx::Result<()> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().insert_batch_certificate(cert))
-            .await??)
-    }
-
-    /// Wrapper for `consensus_dal().upsert_attester_committee()`.
-    pub async fn upsert_attester_committee(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: BatchNumber,
-        committee: &attester::Committee,
-    ) -> ctx::Result<()> {
-        ctx.wait(
-            self.0
-                .consensus_dal()
-                .upsert_attester_committee(number, committee),
-        )
-        .await??;
-        Ok(())
-    }
-
-    /// Wrapper for `consensus_dal().replica_state()`.
-    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().replica_state())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    /// Wrapper for `consensus_dal().set_replica_state()`.
-    pub async fn set_replica_state(
-        &mut self,
-        ctx: &ctx::Ctx,
-        state: &storage::ReplicaState,
-    ) -> ctx::Result<()> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().set_replica_state(state))
-            .await?
-            .context("sqlx")?)
     }
 
     /// Wrapper for `FetcherCursor::new()`.
@@ -230,6 +105,26 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
+    /// Wrapper for `consensus_dal().replica_state()`.
+    pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().replica_state())
+            .await?
+            .map_err(DalError::generalize)?)
+    }
+
+    /// Wrapper for `consensus_dal().set_replica_state()`.
+    pub async fn set_replica_state(
+        &mut self,
+        ctx: &ctx::Ctx,
+        state: &storage::ReplicaState,
+    ) -> ctx::Result<()> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().set_replica_state(state))
+            .await?
+            .context("sqlx")?)
+    }
+
     /// Wrapper for `consensus_dal().next_block()`.
     #[tracing::instrument(skip_all)]
     async fn next_block(&mut self, ctx: &ctx::Ctx) -> ctx::Result<validator::BlockNumber> {
@@ -245,6 +140,77 @@ impl<'a> Connection<'a> {
         Ok(ctx
             .wait(self.0.consensus_dal().block_store_state())
             .await??)
+    }
+
+    /// Wrapper for `consensus_dal().block_certificate()`.
+    pub async fn block_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<BlockCertificate>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_certificate(number))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().last_block_certificate_number()`.
+    pub async fn last_block_certificate_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<validator::BlockNumber>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().last_block_certificate_number())
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().insert_block_certificate()`.
+    pub async fn insert_block_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        cert: &BlockCertificate,
+    ) -> Result<(), super::InsertCertificateError> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().insert_block_certificate(cert))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().block_payload()`.
+    pub async fn block_payload(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<Payload>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_payload(number))
+            .await?
+            .map_err(DalError::generalize)?)
+    }
+
+    /// Wrapper for `consensus_dal().block_metadata()`.
+    pub async fn block_metadata(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Option<BlockMetadata>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_metadata(number))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().insert_validator_committee()`.
+    pub async fn insert_validator_committee(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+        committee: &validator::Committee,
+    ) -> ctx::Result<()> {
+        ctx.wait(
+            self.0
+                .consensus_dal()
+                .insert_validator_committee(number, committee),
+        )
+        .await??;
+        Ok(())
     }
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
@@ -297,7 +263,7 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::Block>> {
-        let Some(payload) = self.payload(ctx, number).await.wrap("payload()")? else {
+        let Some(payload) = self.block_payload(ctx, number).await.wrap("payload()")? else {
             return Ok(None);
         };
 
@@ -306,71 +272,45 @@ impl<'a> Connection<'a> {
             .await
             .wrap("block_certificate()")?
         {
-            return Ok(Some(
-                validator::FinalBlock {
-                    payload: payload.encode(),
-                    justification,
+            // Create the appropriate block variant based on the certificate type
+            match justification {
+                BlockCertificate::V1(commit_qc) => {
+                    return Ok(Some(validator::Block::FinalV1(validator::v1::FinalBlock {
+                        payload: payload.encode(),
+                        justification: commit_qc,
+                    })));
                 }
-                .into(),
-            ));
+                BlockCertificate::V2(commit_qc) => {
+                    return Ok(Some(validator::Block::FinalV2(validator::v2::FinalBlock {
+                        payload: payload.encode(),
+                        justification: commit_qc,
+                    })));
+                }
+            }
         }
 
-        Ok(Some(
+        // If no certificate is available, return a PreGenesis block
+        Ok(Some(validator::Block::PreGenesis(
             validator::PreGenesisBlock {
                 number,
                 payload: payload.encode(),
                 // We won't use justification until it is possible to verify
                 // payload against the L1 batch commitment.
                 justification: validator::Justification(vec![]),
-            }
-            .into(),
-        ))
+            },
+        )))
     }
 
-    /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
-    pub async fn get_l2_block_range_of_l1_batch(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<(validator::BlockNumber, validator::BlockNumber)>> {
-        let number = L1BatchNumber(number.0.try_into().context("number")?);
-
-        let range = ctx
-            .wait(self.0.blocks_dal().get_l2_block_range_of_l1_batch(number))
-            .await?
-            .context("get_l2_block_range_of_l1_batch()")?;
-
-        Ok(range.map(|(min, max)| {
-            let min = validator::BlockNumber(min.0 as u64);
-            let max = validator::BlockNumber(max.0 as u64);
-            (min, max)
-        }))
-    }
-
-    /// Wrapper for `consensus_dal().attestation_status()`.
-    pub async fn attestation_status(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<AttestationStatus>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().attestation_status())
-            .await?
-            .context("attestation_status()")?)
-    }
-
-    /// Constructs `BlockArgs` for the last block of the batch.
+    /// Constructs `BlockArgs` for the given block number.
     pub async fn vm_block_info(
         &mut self,
         ctx: &ctx::Ctx,
-        batch: attester::BatchNumber,
+        number: validator::BlockNumber,
     ) -> ctx::Result<(ResolvedBlockInfo, BatchFeeInput)> {
-        let (_, block) = self
-            .get_l2_block_range_of_l1_batch(ctx, batch)
-            .await
-            .wrap("get_l2_block_range_of_l1_batch()")?
-            .context("batch not sealed")?;
-        // `unwrap()` is safe: the block range is returned as `L2BlockNumber`s
-        let block = L2BlockNumber(u32::try_from(block.0).unwrap());
+        let block = L2BlockNumber(
+            u32::try_from(number.0)
+                .context("overflow when converting validator::BlockNumber to L2BlockNumber")?,
+        );
         let block_info = ctx
             .wait(BlockInfo::for_existing_block(&mut self.0, block))
             .await?

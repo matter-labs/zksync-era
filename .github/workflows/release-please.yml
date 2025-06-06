@@ -19,10 +19,11 @@ jobs:
 
   # Prepare the release PR with changelog updates and create github releases
   release-please:
-    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@v1
+    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@3f8620bc332855fd588321f4486ecdbcddee9ec3 # v1
     secrets:
       slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}  # Slack webhook for notifications
       gh_token: ${{ secrets.RELEASE_TOKEN }}                # GitHub token for release-please
+      cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }}  # Crates.io token for publishing
     with:
       config: '.github/release-please/config.json'          # Path to the configuration file
       manifest: '.github/release-please/manifest.json'      # Path to the manifest file

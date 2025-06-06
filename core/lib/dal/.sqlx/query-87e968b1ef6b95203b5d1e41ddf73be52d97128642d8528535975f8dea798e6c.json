@@ -65,6 +65,31 @@
       },
       {
         "ordinal": 12,
+        "name": "max_gas_per_pubdata",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "predicted_gas_limit",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "sent_successfully",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "finality_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "confirmed_at_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -86,6 +111,11 @@
       true,
       true,
       true,
+      true,
+      true,
+      true,
+      false,
+      false,
       true,
       true
     ]

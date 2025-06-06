@@ -1,7 +1,5 @@
 # The upgrade process to the new version
 
-[back to readme](../../README.md)
-
 Gateway system introduces a lot of new contracts and so conducting so to provide the best experience for ZK chains the
 multistage upgrade will be provided. The upgrade will require some auxiliary contracts that will exist only for the
 purpose of this upgrade.
@@ -184,7 +182,7 @@ It is preferable that all the steps above are executed in a multicall for greate
 mandatory.
 
 This upgrade adds a lot of new chain parameters and so these
-[should be managed carefully](../../chain_management/admin_role.md).
+[should be managed carefully](../../contracts/chain_management/admin_role.md).
 
 ### Upgrade flow in contracts
 
@@ -201,9 +199,10 @@ there are also other rather complex actions such as upgrading the L2SharedBridge
 implementation that require rather complex logic.
 
 Due to the complexity of the actions above, it was decided to put all those into the
-[L2GatewayUpgrade](../../../system-contracts/contracts/L2GatewayUpgrade.sol) contract. It is supposed to be
-force-deployed with the constructor parameters containing the `ZKChainSpecificForceDeploymentsData` as well as
-`FixedForceDeploymentsData`. It will be forcedeployed to the ComplexUpgrader’s address to get the kernel space rights.
+[L2GatewayUpgrade](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/L2GatewayUpgrade.sol)
+contract. It is supposed to be force-deployed with the constructor parameters containing the
+`ZKChainSpecificForceDeploymentsData` as well as `FixedForceDeploymentsData`. It will be forcedeployed to the
+ComplexUpgrader’s address to get the kernel space rights.
 
 So most of the system contracts will be deployed the old way (via force deployment), but for more complex thing the
 `L2GatewayUpgrade` will be temporarily put onto `ComplexUpgrader` address and initialize additional contracts inside the
@@ -212,7 +211,8 @@ constructor. Then the correct will be put back there.
 So entire flow can be summarized by the following:
 
 1. On L1, when `AdminFacet.upgradeChainFromVersion` is called by the Chain Admin, the contract delegatecalls to the
-   [GatewayUpgrade](../../../l1-contracts/contracts/upgrades/GatewayUpgrade.sol) contract.
+   [GatewayUpgrade](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/upgrades/GatewayUpgrade.sol)
+   contract.
 2. The `GatewayUpgrade` gathers all the needed data to compose the `ZKChainSpecificForceDeploymentsData`, while the
    `FixedForceDeploymentsData` is part is hardcoded inside the upgrade transaction.
 3. The combined upgrade transaction consists of many forced deployments (basically tuples of

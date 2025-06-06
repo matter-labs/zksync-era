@@ -1,7 +1,7 @@
 //! Protobuf conversion functions.
 use anyhow::{anyhow, Context as _};
 use zksync_concurrency::net;
-use zksync_consensus_roles::{attester, node};
+use zksync_consensus_roles::{node, validator};
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
@@ -19,6 +19,29 @@ use zksync_types::{
 };
 
 use super::*;
+
+impl ProtoFmt for BlockCertificate {
+    type Proto = proto::BlockCertificate;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        use proto::block_certificate::T;
+        Ok(match r.t.as_ref().context("missing t")? {
+            T::V1(v1) => Self::V1(ProtoFmt::read(v1).context("v1")?),
+            T::V2(v2) => Self::V2(ProtoFmt::read(v2).context("v2")?),
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        use proto::block_certificate::T;
+
+        let t = match self {
+            Self::V1(qc) => T::V1(qc.build()),
+            Self::V2(qc) => T::V2(qc.build()),
+        };
+
+        Self::Proto { t: Some(t) }
+    }
+}
 
 impl ProtoFmt for BlockMetadata {
     type Proto = proto::BlockMetadata;
@@ -81,25 +104,6 @@ impl ProtoFmt for GlobalConfig {
                 .iter()
                 .map(|(k, v)| ProtoRepr::build(&(k.clone(), v.clone())))
                 .collect(),
-        }
-    }
-}
-impl ProtoFmt for AttestationStatus {
-    type Proto = proto::AttestationStatus;
-
-    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
-        Ok(Self {
-            genesis: read_required(&r.genesis).context("genesis")?,
-            next_batch_to_attest: attester::BatchNumber(
-                *required(&r.next_batch_to_attest).context("next_batch_to_attest")?,
-            ),
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            genesis: Some(self.genesis.build()),
-            next_batch_to_attest: Some(self.next_batch_to_attest.0),
         }
     }
 }
@@ -549,15 +553,15 @@ impl ProtoRepr for proto::Transaction {
     }
 }
 
-impl ProtoRepr for proto::AttesterCommittee {
-    type Type = attester::Committee;
+impl ProtoRepr for proto::ValidatorCommittee {
+    type Type = validator::Committee;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         let members: Vec<_> = self
             .members
             .iter()
             .enumerate()
-            .map(|(i, m)| attester::WeightedAttester::read(m).context(i))
+            .map(|(i, m)| validator::WeightedValidator::read(m).context(i))
             .collect::<Result<_, _>>()
             .context("members")?;
         Self::Type::new(members)

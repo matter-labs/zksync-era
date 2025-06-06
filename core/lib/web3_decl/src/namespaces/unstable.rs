@@ -3,13 +3,17 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        TransactionDetailedResult, TransactionExecutionInfo,
     },
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 
-use crate::client::{ForWeb3Network, L2};
+use crate::{
+    client::{ForWeb3Network, L2},
+    types::Bytes,
+};
 
 /// RPCs in this namespace are experimental, and their interface is unstable, and it WILL change.
 #[cfg_attr(
@@ -34,10 +38,18 @@ pub trait UnstableNamespace {
         tee_type: Option<TeeType>,
     ) -> RpcResult<Vec<TeeProof>>;
 
+    // Accepts batch_or_block_number as a JSON number (for L1 batch) or an object `{"block": <number>}` (for GW block).
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>>;
+
+    #[method(name = "getInnerChainLogProof")]
+    async fn get_inner_chain_log_proof(
+        &self,
+        block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 
@@ -55,4 +67,13 @@ pub trait UnstableNamespace {
 
     #[method(name = "l1ToL2TxsStatus")]
     async fn l1_to_l2_txs_status(&self) -> RpcResult<L1ToL2TxsStatus>;
+
+    #[method(name = "gatewayMigrationStatus")]
+    async fn gateway_migration_status(&self) -> RpcResult<GatewayMigrationStatus>;
+
+    #[method(name = "sendRawTransactionWithDetailedOutput")]
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<TransactionDetailedResult>;
 }

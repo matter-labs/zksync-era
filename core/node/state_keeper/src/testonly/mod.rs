@@ -15,7 +15,7 @@ use zksync_multivm::interface::{
 };
 use zksync_state::OwnedStorage;
 use zksync_types::{
-    commitment::PubdataParams, fee::Fee, message_root::MessageRoot, u256_to_h256,
+    commitment::PubdataParams, fee::Fee, u256_to_h256,
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, L1BatchNumber,
     L2BlockNumber, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE,
     U256,
@@ -65,10 +65,6 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
     }
 
     async fn start_next_l2_block(&mut self, _env: L2BlockEnv) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    async fn insert_message_root(&mut self, _msg_root: MessageRoot) -> anyhow::Result<()> {
         Ok(())
     }
 

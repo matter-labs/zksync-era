@@ -422,6 +422,7 @@ impl<'a> GasEstimator<'a> {
         .into()
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     async fn step(
         &self,
         tx_gas_limit: u64,
@@ -487,7 +488,8 @@ impl<'a> GasEstimator<'a> {
         let (result, tx_metrics) = self.step(suggested_gas_limit).await?;
         result.into_api_call_result()?;
         self.sender
-            .ensure_tx_executable(&self.transaction, tx_metrics, false)?;
+            .ensure_tx_executable(&self.transaction, tx_metrics, false)
+            .await?;
 
         // Now, we need to calculate the final overhead for the transaction.
         let overhead = derive_overhead(

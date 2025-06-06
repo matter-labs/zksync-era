@@ -1,8 +1,7 @@
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger};
-use zkstack_cli_config::{raw::RawConfig, EcosystemConfig, GENESIS_FILE};
-use zksync_types::H256;
+use zkstack_cli_config::{EcosystemConfig, GenesisConfig, GENESIS_FILE};
 
 use crate::{
     enable_evm_emulator::enable_evm_emulator,
@@ -19,16 +18,14 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let genesis_config_path =
         EcosystemConfig::default_configs_path(&chain_config.link_to_code).join(GENESIS_FILE);
-    let default_genesis_config = RawConfig::read(shell, genesis_config_path).await?;
+    let default_genesis_config = GenesisConfig::read(shell, genesis_config_path).await?;
 
-    let has_evm_emulation_support = default_genesis_config
-        .get_opt::<H256>("evm_emulator_hash")?
-        .is_some();
+    let has_evm_emulation_support = default_genesis_config.evm_emulator_hash()?.is_some();
     anyhow::ensure!(has_evm_emulation_support, MSG_EVM_EMULATOR_HASH_MISSING_ERR);
 
     let contracts = chain_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config().await?;
-    let l1_rpc_url = secrets.get("l1.l1_rpc_url")?;
+    let l1_rpc_url = secrets.l1_rpc_url()?;
 
     enable_evm_emulator(
         shell,

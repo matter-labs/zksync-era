@@ -1,25 +1,23 @@
 # State diff compression v1 spec
 
-[back to readme](../../README.md)
-
 The most basic strategy to publish state diffs is to publish those in either of the following two forms:
 
 - When a key is updated for the first time — `<key, value>`, where key is 32-byte derived key and the value is new 32-byte value of the slot.
-- When a key is updated for the second time and more — `<enumeration_index, value>`, where the `enumeration_index` is an 8-byte id of the slot and the value is the new 32-byte value of the slot.
+- When a key is updated for the second and subsequent updates — `<enumeration_index, value>`, where the `enumeration_index` is an 8-byte id of the slot and the value is the new 32-byte value of the slot.
 
 This compression strategy will utilize a similar idea for treating keys and values separately and it will be focused on the efficient compression of keys and values separately.
 
 ## Keys
 
-Keys will be packed in the same way as they were before. The only change is that we’ll avoid using the 8-byte enumeration index and will pack it to the minimal necessary number of bytes. This number will be part of the pubdata. Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something cheaper for keys that has been used already. The opportunity comes when remembering the ids for accounts to spare some bytes on nonce/balance key, but ultimately the complexity may not be worth it.
+Keys will be packed in the same way as they were before. The only change is that we’ll avoid using the 8-byte enumeration index and will pack it to the minimal necessary number of bytes. That byte-length is encoded in the pubdata. Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something cheaper for keys that have been used already. The opportunity comes when remembering the IDs for accounts to spare some bytes on nonce/balance key, but ultimately the complexity may not be worth it.
 
 There is some room for optimization of the keys that are being written for the first time, however, optimizing those is more complex and achieves only a one-time effect (when the key is published for the first time), so they may be in scope of the future upgrades.
 
 ## Values
 
-Values are much easier to compress since they usually contain only zeroes. Also, we can leverage the nature of how those values are changed. For instance, if nonce has been increased only by 1, we do not need to write the entire 32-byte new value, we can just tell that the slot has been _increased_ and then supply only the 1-byte value by which it was increased. This way instead of 32 bytes we need to publish only 2 bytes: first byte to denote which operation has been applied and the second by to denote the number by which the addition has been made.
+Values are much easier to compress since they usually contain only zeroes. Also, we can leverage the nature of how those values are changed. For instance, if nonce has been increased only by 1, we do not need to write the entire 32-byte new value, we can just tell that the slot has been _increased_ and then supply only the 1-byte value by which it was increased. This way instead of 32 bytes we need to publish only 2 bytes: first byte to denote which operation has been applied and the second byte to denote the number by which the addition has been made.
 
-We have the following 4 types of changes: `Add`, `Sub,` `Transform`, `NoCompression` where:
+We have the following 4 types of changes: `Add`, `Sub`, `Transform`, `NoCompression` where:
 
 - `NoCompression` denotes that the whole 32 byte will be provided.
 - `Add` denotes that the value has been increased. (modulo 2^256)
@@ -46,7 +44,7 @@ So the format of the pubdata is the following:
 
 **Part 3. Repeated writes.**
 
-Note, that there is no need to write the number of repeated writes, since we know that until the end of the pubdata, all the writes will be repeated ones.
+Note that there is no need to write the number of repeated writes, since we know that until the end of the pubdata, all the writes will be repeated ones.
 
 - For each `<key, value>` pair for each repeated write:
   - print key as derived key by using the number of bytes provided in the header.
@@ -69,7 +67,7 @@ The worst case scenario for such packing is when we have to pack a completely ra
 
 ## Why do we need to repeat the same packing method id
 
-You might have noticed that for each pair `<key, value>` to describe value we always first write the packing type and then write the packed value. However, the reader might ask, it is more efficient to just supply the packing id once and then list all the pairs `<key, value>` which use such packing.
+You might have noticed that for each pair `<key, value>` to describe value we always first write the packing type and then write the packed value. However, the reader might ask, if it is more efficient to just supply the packing id once and then list all the pairs `<key, value>` which use such packing.
 
 I.e. instead of listing
 
@@ -82,8 +80,8 @@ type = 1, (key = 0, value = 1), (key = 1, value = 3), (key = 2, value = 4), …
 There are two reasons for it:
 
 - A minor reason: sometimes it is less efficient in case the packing is used for very few slots (since for correct unpacking we need to provide the number of slots for each packing type).
-- A fundamental reason: currently enum indices are stored directly in the merkle tree & have very strict order of incrementing enforced by the circuits and (they are given in order by pairs `(address, key)`), which are generally not accessible from pubdata.
+- A fundamental reason: currently enum indices are stored directly in the Merkle tree & have very strict order of incrementing enforced by the circuits and (they are given in order by pairs `(address, key)`), which are generally not accessible from pubdata.
 
 All this means that we are not allowed to change the order of “first writes” above, so indexes for them are directly recoverable from their order, and so we can not permute them. If we were to reorder keys without supplying the new enumeration indices for them, the state would be unrecoverable. Always supplying the new enum index may add additional 5 bytes for each key, which might negate the compression benefits in a lot of cases. Even if the compression will still be beneficial, the added complexity may not be worth it.
 
-That being said, we _could_ rearange those for _repeated_ writes, but for now we stick to the same value compression format for simplicity.
+That being said, we _could_ rearrange those for _repeated_ writes, but for now we stick to the same value compression format for simplicity.

@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                eth_txs_history.*,\n                eth_txs.blob_sidecar\n            FROM\n                eth_txs_history\n            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n            WHERE\n                eth_tx_id = $1 AND sent_successfully = TRUE\n            ORDER BY\n                eth_txs_history.created_at DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "eth_tx_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "tx_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 5,
+        "name": "base_fee_per_gas",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "priority_fee_per_gas",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "confirmed_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 8,
+        "name": "signed_raw_tx",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 9,
+        "name": "sent_at_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "sent_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 11,
+        "name": "blob_base_fee_per_gas",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "max_gas_per_pubdata",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "predicted_gas_limit",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "sent_successfully",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "finality_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "confirmed_at_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "blob_sidecar",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2c0bed279d50ddc061edc39ed7e936a1b88652b0b88ca022272c5a0712e7ac1c"
+}

@@ -11,10 +11,11 @@ use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
 use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
 use zksync_config::{
-    configs::{FriProverConfig, ObservabilityConfig},
-    ObjectStoreConfig,
+    configs::{DatabaseSecrets, GeneralConfig},
+    full_config_schema,
+    sources::ConfigFilePaths,
+    ConfigRepositoryExt, ObjectStoreConfig,
 };
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -62,24 +63,36 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     let start_time = Instant::now();
     let opt = Cli::parse();
+    let schema = full_config_schema(false);
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
-    let (observability_config, prover_config, object_store_config) = load_configs(opt.config_path)?;
-    let _observability_guard = observability_config
-        .install()
-        .context("failed to install observability")?;
+    let _observability_guard = config_sources.observability()?.install()?;
+
+    let repo = config_sources.build_repository(&schema);
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: DatabaseSecrets = repo.parse()?;
+
+    let prover_config = general_config
+        .prover_config
+        .context("failed loading prover config")?;
+    let object_store_config = prover_config.prover_object_store.clone();
+    tracing::info!("Loaded configs.");
 
     let (connection_pool, object_store, prover_context, setup_data_cache, hints) = load_resources(
-        opt.secrets_path,
+        database_secrets,
         opt.max_allocation,
         object_store_config,
-        prover_config.setup_data_path.into(),
+        prover_config.setup_data_path,
     )
     .await
     .context("failed to load configs")?;
 
-    PROVER_BINARY_METRICS
-        .startup_time
-        .observe(start_time.elapsed());
+    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
 
     let cancellation_token = CancellationToken::new();
 
@@ -131,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
         result = tokio::signal::ctrl_c() => {
             match result {
                 Ok(_) => {
-                    tracing::info!("Stop signal received, shutting down...");
+                    tracing::info!("Stop request received, shutting down...");
                     cancellation_token.cancel();
                 },
                 Err(_err) => {
@@ -141,39 +154,14 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let shutdown_time = Instant::now();
-    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
-    PROVER_BINARY_METRICS
-        .shutdown_time
-        .observe(shutdown_time.elapsed());
-    PROVER_BINARY_METRICS.run_time.observe(start_time.elapsed());
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;
+    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
     Ok(())
 }
-/// Loads configs necessary for proving.
-/// - observability config - for observability setup
-/// - prover config - necessary for setup data
-/// - object store config - for retrieving artifacts for WVG & CP
-fn load_configs(
-    config_path: Option<PathBuf>,
-) -> anyhow::Result<(ObservabilityConfig, FriProverConfig, ObjectStoreConfig)> {
-    tracing::info!("loading configs...");
-    let general_config =
-        load_general_config(config_path).context("failed loading general config")?;
-    let observability_config = general_config
-        .observability
-        .context("failed loading observability config")?;
-    let prover_config = general_config
-        .prover_config
-        .context("failed loading prover config")?;
-    let object_store_config = prover_config
-        .prover_object_store
-        .clone()
-        .context("failed loading prover object store config")?;
-    tracing::info!("Loaded configs.");
-    Ok((observability_config, prover_config, object_store_config))
-}
+
 /// Loads resources necessary for proving.
 /// - connection pool - necessary to pick & store jobs from database
 /// - object store - necessary  for loading and storing artifacts to object store
@@ -181,7 +169,7 @@ fn load_configs(
 /// - setup data - necessary for circuit proving
 /// - finalization hints - necessary for generating witness vectors
 async fn load_resources(
-    secrets_path: Option<PathBuf>,
+    database_secrets: DatabaseSecrets,
     max_gpu_vram_allocation: Option<usize>,
     object_store_config: ObjectStoreConfig,
     setup_data_path: PathBuf,
@@ -192,8 +180,6 @@ async fn load_resources(
     SetupDataCache,
     FinalizationHintsCache,
 )> {
-    let database_secrets =
-        load_database_secrets(secrets_path).context("failed to load database secrets")?;
     let database_url = database_secrets
         .prover_url
         .context("no prover DB URl present")?;

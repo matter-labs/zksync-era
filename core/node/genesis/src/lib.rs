@@ -14,7 +14,6 @@ use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, Core
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     bytecode::BytecodeHash,
@@ -106,21 +105,9 @@ impl GenesisParams {
             default_aa: config
                 .default_aa_hash
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
-            evm_emulator: Some(
-                config
-                    .evm_emulator_hash
-                    .ok_or(GenesisError::MalformedConfig("evm_emulator_hash"))?,
-            ),
+            evm_emulator: config.evm_emulator_hash,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
-            println!(
-                "bootloader_hash: {:?}",
-                base_system_contracts.hashes().bootloader
-            );
-            println!(
-                "default_aa_hash: {:?}",
-                base_system_contracts.hashes().default_aa
-            );
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
                     from_config: base_system_contracts_hashes,
@@ -128,8 +115,6 @@ impl GenesisParams {
                 },
             )));
         }
-
-        // kl todo
         if config.protocol_version.is_none() {
             return Err(GenesisError::MalformedConfig("protocol_version"));
         }
@@ -442,9 +427,6 @@ pub async fn ensure_genesis_state(
     )
     .await?;
 
-    println!("genesis_root: {:?}", root_hash);
-    println!("genesis_batch_commitment: {:?}", commitment);
-
     let expected_root_hash = genesis_params
         .config
         .genesis_root_hash
@@ -468,8 +450,6 @@ pub async fn ensure_genesis_state(
     if expected_commitment != commitment {
         return Err(GenesisError::Commitment(expected_commitment, commitment));
     }
-
-    // kl todo
 
     if expected_rollup_last_leaf_index != rollup_last_leaf_index {
         return Err(GenesisError::LeafIndexes(
@@ -605,9 +585,10 @@ pub async fn save_set_chain_id_tx(
     storage: &mut Connection<'_, Core>,
     query_client: &dyn EthInterface,
     diamond_proxy_address: Address,
+    event_expiration_blocks: u64,
 ) -> anyhow::Result<()> {
     let to = query_client.block_number().await?.as_u64();
-    let from = to.saturating_sub(PRIORITY_EXPIRATION);
+    let from = to.saturating_sub(event_expiration_blocks);
 
     let filter = FilterBuilder::default()
         .address(vec![diamond_proxy_address])

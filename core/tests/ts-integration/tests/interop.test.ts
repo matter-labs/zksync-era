@@ -6,38 +6,30 @@ import { Token } from '../src/types';
 import {
     scaledGasPrice,
     deployContract,
-    waitForBlockToBeFinalizedOnL1,
-    waitForL2ToL1LogProof,
-    waitUntilBlockCommitted,
-    waitUntilBlockFinalized
+    waitUntilBlockFinalized,
+    getL2bUrl
 } from '../src/helpers';
 
 import {
     L2_ASSET_ROUTER_ADDRESS,
-    L2_BRIDGEHUB_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_INTEROP_HANDLER_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
     L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
     REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-    L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-    BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI,
     ETH_ADDRESS_IN_CONTRACTS,
-    L2_LOG_STRING,
-    ARTIFACTS_PATH,
-    INTEROP_CALL_ABI,
-    MESSAGE_INCLUSION_PROOF_ABI,
-    ArtifactBridgeHub,
     ArtifactInteropCenter,
     ArtifactInteropHandler,
-    ArtifactMessageRootStorage,
-    L2_MESSAGE_ROOT_STORAGE_ADDRESS,
     ArtifactNativeTokenVault,
     ArtifactMintableERC20,
-    ArtifactL1AssetRouter
+    ArtifactL2InteropRootStorage,
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 import { getInteropTriggerData, getInteropBundleData } from '../src/temp-sdk';
+import { ETH_ADDRESS, sleep } from 'zksync-ethers/build/utils';
+import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
+
 
 const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110'; // Must have L1 ETH
 const ethFundAmount = ethers.parseEther('1');
@@ -63,6 +55,7 @@ describe('Interop checks', () => {
     let interop1Provider: zksync.Provider;
     let interop1Wallet: zksync.Wallet;
     let interop1RichWallet: zksync.Wallet;
+    let interop2RichWallet: zksync.Wallet;
     let interop1InteropCenter: zksync.Contract;
     let interop2InteropHandler: zksync.Contract;
     let interop1NativeTokenVault: zksync.Contract;
@@ -90,10 +83,11 @@ describe('Interop checks', () => {
 
         // Setup Interop2 Provider and Wallet
         interop2Provider = new RetryProvider(
-            { url: 'http://localhost:3150', timeout: 1200 * 1000 },
+            { url: await getL2bUrl("second"), timeout: 1200 * 1000 },
             undefined,
             testMaster.reporter
         );
+        interop2RichWallet = new zksync.Wallet(mainAccount.privateKey, interop2Provider, l1Provider);
 
         // Initialize Contracts on Interop1
         interop1InteropCenter = new zksync.Contract(
@@ -132,7 +126,7 @@ describe('Interop checks', () => {
         await (
             await veryRichWallet._signerL1!().sendTransaction({
                 to: interop1RichWallet.address,
-                value: ethFundAmount
+                value: ethFundAmount * 10n
             })
         ).wait();
 
@@ -142,6 +136,19 @@ describe('Interop checks', () => {
                 token: ETH_ADDRESS_IN_CONTRACTS,
                 amount: ethFundAmount,
                 to: interop1Wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            })
+        ).wait();
+
+        // Deposit funds on Interop1
+        await (
+            await interop2RichWallet.deposit({
+                token: ETH_ADDRESS_IN_CONTRACTS,
+                amount: ethFundAmount,
+                to: interop2RichWallet.address,
                 approveERC20: true,
                 approveBaseERC20: true,
                 approveOverrides: { gasPrice },
@@ -158,6 +165,7 @@ describe('Interop checks', () => {
             tokenA.decimals
         ]);
         tokenA.l2Address = await tokenADeploy.getAddress();
+        console.log("tokenA.l2Address", tokenA.l2Address);
         // Register Token A
         await (await interop1NativeTokenVault.registerToken(tokenA.l2Address)).wait();
         tokenA.assetId = await interop1NativeTokenVault.assetId(tokenA.l2Address);
@@ -220,7 +228,7 @@ describe('Interop checks', () => {
         console.log("Interop tx completed");
 
         tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
-        console.log('Token A info:', tokenA);
+        // console.log('Token A info:', tokenA);
 
         // Assert that the token balance on chain2
         const interop1WalletSecondChainBalance = await getTokenBalance({
@@ -249,10 +257,8 @@ describe('Interop checks', () => {
         feeCallStarters: InteropCallStarter[],
         execCallStarters: InteropCallStarter[]
     ) {
-        const destinationChainId = (await interop2Provider.getNetwork()).chainId;
-
         const tx = await interop1InteropCenter.requestInterop(
-            destinationChainId,
+            (await interop2Provider.getNetwork()).chainId,
             L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS,
             feeCallStarters,
             execCallStarters,
@@ -293,6 +299,42 @@ describe('Interop checks', () => {
         ]);
     }
 
+    function getGWBlockNumber(params: FinalizeWithdrawalParams): number {
+        /// see hashProof in MessageHashing.sol for this logic.
+        let gwProofIndex =
+            1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+        console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
+        return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
+    }
+
+    async function waitForInteropRootNonZero(
+        provider: zksync.Provider,
+        alice: zksync.Wallet,
+        chainId: bigint,
+        l1BatchNumber: number
+    ) {
+        const l2InteropRootStorage = new zksync.Contract(
+            L2_INTEROP_ROOT_STORAGE_ADDRESS,
+            ArtifactL2InteropRootStorage.abi,
+            provider
+        );
+        let currentRoot = ethers.ZeroHash;
+        let count = 0;
+        while ((currentRoot === ethers.ZeroHash) && (count < 20)) {
+            const tx = await alice.transfer({
+                to: alice.address,
+                amount: 1,
+                token: ETH_ADDRESS
+            });
+            await tx.wait();
+
+            currentRoot = await l2InteropRootStorage.interopRoots(parseInt(chainId.toString()), l1BatchNumber);
+            console.log('currentRoot', currentRoot, count);
+            count++;
+        }
+        console.log('Interop root is non-zero', currentRoot, l1BatchNumber);
+    }
+
     /**
      * Reads an interop transaction from the sender chain, constructs a new transaction,
      * and broadcasts it on the receiver chain.
@@ -306,6 +348,12 @@ describe('Interop checks', () => {
         const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, senderProvider);
         const txReceipt = await senderProvider.getTransactionReceipt(txHash);
         await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
+
+        /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
+        await sleep(25000);
+        const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 0, 'gw_message_root');
+        const GW_CHAIN_ID = 506n;
+        await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, GW_CHAIN_ID, getGWBlockNumber(params));
 
         // Get interop trigger and bundle data from the sender chain.
         const triggerDataBundle = await getInteropTriggerData(senderProvider, txHash, 2);
@@ -339,7 +387,7 @@ describe('Interop checks', () => {
                     [
                         feeBundle.rawData,
                         feeBundle.fullProof,
-                        triggerDataBundle.output.from,
+                        triggerDataBundle.output.sender,
                         triggerDataBundle.output.gasFields.refundRecipient,
                         triggerDataBundle.fullProof
                     ]

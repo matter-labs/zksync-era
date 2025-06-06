@@ -5,7 +5,7 @@ use std::{
     fmt,
 };
 
-use zksync_types::{AccountTreeId, L2BlockNumber, SLChainId, StorageKey, StorageValue, H256};
+use zksync_types::{AccountTreeId, StorageKey, StorageValue, H256};
 
 use super::ReadStorage;
 
@@ -45,6 +45,13 @@ impl<S: ReadStorage> StorageWithOverrides<S> {
         self.overrides.empty_accounts.insert(account);
     }
 
+    /// Replaces overrides in this storage.
+    #[must_use]
+    pub fn with_overrides(mut self, overrides: StorageOverrides) -> Self {
+        self.overrides = overrides;
+        self
+    }
+
     pub fn into_parts(self) -> (S, StorageOverrides) {
         (self.storage_handle, self.overrides)
     }
@@ -75,13 +82,5 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.storage_handle.get_enumeration_index(key)
-    }
-
-    fn get_message_root(
-        &mut self,
-        chain_id: SLChainId,
-        block_number: L2BlockNumber,
-    ) -> Option<H256> {
-        None // kl todo
     }
 }

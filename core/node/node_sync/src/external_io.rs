@@ -16,10 +16,9 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader,
-    message_root::MessageRoot,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
@@ -29,6 +28,7 @@ use super::{
 };
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
+///
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
 /// into the state keeper.
 ///
@@ -121,55 +121,49 @@ impl ExternalIO {
         }
         tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
 
-        let protocol_version = self
+        let protocol_version_info = self
             .main_node_client
             .fetch_protocol_version(protocol_version)
             .await
             .context("failed to fetch protocol version from the main node")?
             .context("protocol version is missing on the main node")?;
-        let minor = protocol_version
-            .minor_version()
-            .context("Missing minor protocol version")?;
-        let bootloader_code_hash = protocol_version
-            .bootloader_code_hash()
-            .context("Missing bootloader code hash")?;
-        let default_account_code_hash = protocol_version
-            .default_account_code_hash()
-            .context("Missing default account code hash")?;
-        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
-        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
             .save_protocol_version(
                 ProtocolSemanticVersion {
-                    minor: minor
+                    minor: protocol_version_info
+                        .minor_version
                         .try_into()
                         .context("cannot convert protocol version")?,
                     patch: VersionPatch(0),
                 },
-                protocol_version.timestamp,
+                protocol_version_info.timestamp,
                 Default::default(), // verification keys are unused for EN
                 BaseSystemContractsHashes {
-                    bootloader: bootloader_code_hash,
-                    default_aa: default_account_code_hash,
-                    evm_emulator: evm_emulator_code_hash,
+                    bootloader: protocol_version_info.bootloader_code_hash,
+                    default_aa: protocol_version_info.default_account_code_hash,
+                    evm_emulator: protocol_version_info.evm_emulator_code_hash,
                 },
-                l2_system_upgrade_tx_hash,
+                protocol_version_info.l2_system_upgrade_tx_hash,
             )
             .await?;
         Ok(())
     }
 }
 
+#[async_trait]
 impl IoSealCriteria for ExternalIO {
-    fn should_seal_l1_batch_unconditionally(&mut self, _manager: &UpdatesManager) -> bool {
+    async fn should_seal_l1_batch_unconditionally(
+        &mut self,
+        _manager: &UpdatesManager,
+    ) -> anyhow::Result<bool> {
         if !matches!(self.actions.peek_action(), Some(SyncAction::SealBatch)) {
-            return false;
+            return Ok(false);
         }
         self.actions.pop_action();
-        true
+        Ok(true)
     }
 
     fn should_seal_l2_block(&mut self, _manager: &UpdatesManager) -> bool {
@@ -466,11 +460,22 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn load_latest_message_root(&self) -> anyhow::Result<Option<Vec<MessageRoot>>> {
-        // let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        // let message_root = storage.message_roots_dal().get_latest_message_root().await?;
-        // Ok(message_root)
-        Ok(None)
+    async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
+        let interop_root = storage.interop_root_dal().get_new_interop_roots().await?;
+        Ok(interop_root)
+    }
+
+    async fn load_l2_block_interop_root(
+        &self,
+        l2block_number: L2BlockNumber,
+    ) -> anyhow::Result<Vec<InteropRoot>> {
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
+        let interop_root = storage
+            .interop_root_dal()
+            .get_interop_roots(l2block_number)
+            .await?;
+        Ok(interop_root)
     }
 
     async fn load_batch_state_hash(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
@@ -512,13 +517,13 @@ mod tests {
             .unwrap();
         let (actions_sender, action_queue) = ActionQueue::new();
         let mut client = MockMainNodeClient::default();
-        let next_protocol_version = api::ProtocolVersion {
-            minor_version: Some(ProtocolVersionId::next() as u16),
+        let next_protocol_version = api::ProtocolVersionInfo {
+            minor_version: ProtocolVersionId::next() as u16,
             timestamp: 1,
-            bootloader_code_hash: Some(H256::repeat_byte(1)),
-            default_account_code_hash: Some(H256::repeat_byte(1)),
+            bootloader_code_hash: H256::repeat_byte(1),
+            default_account_code_hash: H256::repeat_byte(1),
             evm_emulator_code_hash: Some(H256::repeat_byte(1)),
-            ..api::ProtocolVersion::default()
+            l2_system_upgrade_tx_hash: None,
         };
         client.insert_protocol_version(next_protocol_version.clone());
         let mut external_io = ExternalIO::new(
@@ -538,6 +543,7 @@ mod tests {
             first_l2_block: L2BlockParams {
                 timestamp: 1,
                 virtual_blocks: 1,
+                interop_roots: vec![],
             },
             pubdata_params: Default::default(),
         };
@@ -565,7 +571,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             fetched_protocol_version.version.minor as u16,
-            next_protocol_version.minor_version.unwrap()
+            next_protocol_version.minor_version
         );
 
         // Verify that the unsealed batch has protocol version

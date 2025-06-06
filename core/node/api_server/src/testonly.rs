@@ -1,6 +1,6 @@
 //! Test utils shared among multiple modules.
 
-use std::{collections::HashMap, iter};
+use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
@@ -23,12 +23,14 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
-use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract};
+use zksync_test_contracts::{
+    Account, LoadnextContractExecutionParams, TestContract, TestEvmContract,
+};
 use zksync_types::{
     address_to_u256,
-    api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
+    api::state_override::{BytecodeOverride, OverrideAccount, OverrideState, StateOverride},
     block::{pack_block_info, L2BlockHeader},
-    bytecode::BytecodeHash,
+    bytecode::{BytecodeHash, BytecodeMarker},
     commitment::PubdataParams,
     ethabi,
     ethabi::{ParamType, Token},
@@ -53,9 +55,11 @@ const MULTICALL3_CONTRACT_PATH: &str =
 /// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
 fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
     bytecode.extend(
-        iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
-            .take(nop_count)
-            .flatten(),
+        std::iter::repeat_n(
+            EncodingModeProduction::nop_encoding().to_be_bytes(),
+            nop_count,
+        )
+        .flatten(),
     );
 }
 
@@ -80,7 +84,7 @@ impl StateBuilder {
     pub(crate) const LOAD_TEST_ADDRESS: Address = Address::repeat_byte(1);
     pub(crate) const EXPENSIVE_CONTRACT_ADDRESS: Address = Address::repeat_byte(2);
     pub(crate) const PRECOMPILES_CONTRACT_ADDRESS: Address = Address::repeat_byte(3);
-    const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
+    pub(crate) const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
     const INFINITE_LOOP_CONTRACT_ADDRESS: Address = Address::repeat_byte(5);
     const MULTICALL3_ADDRESS: Address = Address::repeat_byte(6);
 
@@ -88,7 +92,7 @@ impl StateBuilder {
         self.inner.insert(
             address,
             OverrideAccount {
-                code: Some(Bytecode::new(bytecode).unwrap()),
+                code: Some(BytecodeOverride::Unspecified(bytecode.into())),
                 ..OverrideAccount::default()
             },
         );
@@ -97,20 +101,22 @@ impl StateBuilder {
 
     pub fn inflate_bytecode(mut self, address: Address, nop_count: usize) -> Self {
         let account_override = self.inner.get_mut(&address).expect("no contract");
-        let bytecode = account_override.code.take().expect("no code override");
-        let mut bytecode = bytecode.into_bytes();
-        inflate_bytecode(&mut bytecode, nop_count);
-        account_override.code = Some(Bytecode::new(bytecode).unwrap());
+        let code_override = account_override.code.as_mut().expect("no code override");
+        let BytecodeOverride::Unspecified(code) = code_override else {
+            panic!("unexpected bytecode override: {code_override:?}");
+        };
+        inflate_bytecode(&mut code.0, nop_count);
         self
     }
 
     pub fn with_load_test_contract(mut self) -> Self {
+        let code = TestContract::load_test().bytecode.to_vec();
         // Set the array length in the load test contract to 100, so that reads don't fail.
         let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
         self.inner.insert(
             Self::LOAD_TEST_ADDRESS,
             OverrideAccount {
-                code: Some(Bytecode::new(TestContract::load_test().bytecode.to_vec()).unwrap()),
+                code: Some(BytecodeOverride::Unspecified(code.into())),
                 state: Some(OverrideState::State(state)),
                 ..OverrideAccount::default()
             },
@@ -128,6 +134,27 @@ impl StateBuilder {
         self
     }
 
+    pub fn with_storage_slot(mut self, address: Address, slot: H256, value: H256) -> Self {
+        let account_entry = self.inner.entry(address).or_default();
+        let state = account_entry
+            .state
+            .get_or_insert_with(|| OverrideState::State(HashMap::new()));
+        let state = match state {
+            OverrideState::State(state) | OverrideState::StateDiff(state) => state,
+        };
+        state.insert(slot, value);
+        self
+    }
+
+    pub fn enable_evm_deployments(self) -> Self {
+        let allowed_contract_types_slot = H256::from_low_u64_be(1);
+        self.with_storage_slot(
+            CONTRACT_DEPLOYER_ADDRESS,
+            allowed_contract_types_slot,
+            H256::from_low_u64_be(1),
+        )
+    }
+
     pub fn with_expensive_contract(self) -> Self {
         self.with_contract(
             Self::EXPENSIVE_CONTRACT_ADDRESS,
@@ -142,12 +169,25 @@ impl StateBuilder {
         )
     }
 
-    pub fn with_counter_contract(self, initial_value: u64) -> Self {
-        let mut this = self.with_contract(
-            Self::COUNTER_CONTRACT_ADDRESS,
-            TestContract::counter().bytecode.to_vec(),
-        );
-        if initial_value != 0 {
+    pub fn with_counter_contract(self, initial_value: Option<u64>) -> Self {
+        self.with_generic_counter_contract(BytecodeMarker::EraVm, initial_value)
+    }
+
+    pub fn with_evm_counter_contract(self, initial_value: Option<u64>) -> Self {
+        self.with_generic_counter_contract(BytecodeMarker::Evm, initial_value)
+    }
+
+    pub(crate) fn with_generic_counter_contract(
+        self,
+        kind: BytecodeMarker,
+        initial_value: Option<u64>,
+    ) -> Self {
+        let bytecode = match kind {
+            BytecodeMarker::EraVm => TestContract::counter().bytecode,
+            BytecodeMarker::Evm => TestEvmContract::counter().deployed_bytecode,
+        };
+        let mut this = self.with_contract(Self::COUNTER_CONTRACT_ADDRESS, bytecode.to_vec());
+        if let Some(initial_value) = initial_value {
             let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(initial_value))]);
             this.inner
                 .get_mut(&Self::COUNTER_CONTRACT_ADDRESS)
@@ -219,7 +259,7 @@ impl From<CallRequest> for Call3Value {
 impl From<L2Tx> for Call3Value {
     fn from(tx: L2Tx) -> Self {
         Self {
-            target: tx.recipient_account().unwrap(),
+            target: tx.recipient_account().unwrap_or_default(),
             allow_failure: false,
             value: tx.execute.value,
             calldata: tx.execute.calldata,
@@ -306,6 +346,8 @@ pub(crate) trait TestAccount {
     fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest;
 
     fn create2_account(&mut self, bytecode: Vec<u8>) -> (L2Tx, Address);
+
+    fn create_evm_counter_deployment(&mut self, initial_value: U256) -> L2Tx;
 }
 
 impl TestAccount for Account {
@@ -524,6 +566,14 @@ impl TestAccount for Account {
             .unwrap();
         (deploy_tx, deployed_address)
     }
+
+    fn create_evm_counter_deployment(&mut self, initial_value: U256) -> L2Tx {
+        self.get_evm_deploy_tx(
+            TestEvmContract::counter().init_bytecode.to_vec(),
+            &TestEvmContract::counter().abi,
+            &[Token::Uint(initial_value)],
+        )
+    }
 }
 
 pub(crate) fn mock_execute_transaction(transaction: Transaction) -> TransactionExecutionResult {
@@ -683,6 +733,31 @@ mod tests {
     use zksync_test_contracts::TxType;
 
     use super::*;
+
+    #[test]
+    fn bytecode_kind_is_correctly_detected_for_test_contracts() {
+        let era_contracts = [
+            TestContract::counter(),
+            TestContract::load_test(),
+            TestContract::infinite_loop(),
+            TestContract::expensive(),
+            TestContract::precompiles_test(),
+        ];
+        for contract in era_contracts {
+            assert_eq!(
+                BytecodeMarker::detect(contract.bytecode),
+                BytecodeMarker::EraVm
+            );
+        }
+
+        let evm_contracts = [TestEvmContract::counter(), TestEvmContract::evm_tester()];
+        for contract in evm_contracts {
+            assert_eq!(
+                BytecodeMarker::detect(contract.deployed_bytecode),
+                BytecodeMarker::Evm
+            );
+        }
+    }
 
     #[tokio::test]
     async fn persisting_block_with_transactions_works() {

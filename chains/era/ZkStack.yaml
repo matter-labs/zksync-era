@@ -12,3 +12,4 @@ base_token:
   nominator: 1
   denominator: 1
 wallet_creation: Localhost
+evm_emulator: true

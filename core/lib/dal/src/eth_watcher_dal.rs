@@ -13,7 +13,8 @@ pub enum EventType {
     ProtocolUpgrades,
     PriorityTransactions,
     ChainBatchRoot,
-    MessageRoot,
+    ServerNotification,
+    InteropRoot,
 }
 
 impl EthWatcherDal<'_, '_> {

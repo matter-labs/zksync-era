@@ -20,15 +20,13 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
-use zksync_types::{
-    commitment::PubdataParams, message_root::MessageRoot, vm::FastVmMode, Transaction,
-};
+use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
-use crate::shared::{InteractionType, Sealed, STORAGE_METRICS};
+use crate::shared::{InteractionType, RuntimeContextStorageMetrics, Sealed};
 
 #[doc(hidden)]
 pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {
@@ -176,6 +174,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
@@ -219,10 +218,6 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 
     fn start_new_l2_block(&mut self, l2_block: L2BlockEnv) {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
-    }
-
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        dispatch_batch_vm!(self.insert_message_root(msg_root));
     }
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
@@ -363,7 +358,12 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     if self.observe_storage_metrics {
                         let storage_stats = storage_view.borrow().stats();
                         let stats_diff = storage_stats.saturating_sub(&prev_storage_stats);
-                        STORAGE_METRICS.observe(&format!("Tx {tx_hash:?}"), latency, &stats_diff);
+                        RuntimeContextStorageMetrics::observe(
+                            &format!("Tx {tx_hash:?}"),
+                            false,
+                            latency,
+                            &stats_diff,
+                        );
                         prev_storage_stats = storage_stats;
                     }
                     if resp.send(result).is_err() {
@@ -378,12 +378,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
                     vm.start_new_l2_block(l2_block_env);
-                    if resp.send(()).is_err() {
-                        break;
-                    }
-                }
-                Command::InsertMessageRoot(msg_root, resp) => {
-                    vm.insert_message_root(msg_root);
                     if resp.send(()).is_err() {
                         break;
                     }
@@ -410,7 +404,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
                 .observe(stats.time_spent_on_set_value);
         } else {
-            // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
+            // State keeper can exit because of a stop request, so it's OK to exit mid-batch.
             tracing::info!("State keeper exited with an unfinished L1 batch");
         }
         Ok(storage_view)

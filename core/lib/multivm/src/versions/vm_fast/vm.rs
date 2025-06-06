@@ -5,9 +5,9 @@ use zk_evm_1_5_0::{
 };
 use zksync_types::{
     bytecode::BytecodeHash, h256_to_u256, l1::is_l1_tx_type, l2_to_l1_log::UserL2ToL1Log,
-    message_root::MessageRoot, u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey,
-    StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, BOOTLOADER_ADDRESS, H160,
-    H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
+    u256_to_h256, writes::StateDiffRecord, AccountTreeId, StorageKey, StorageLog, StorageLogKind,
+    StorageLogWithPreviousValue, Transaction, BOOTLOADER_ADDRESS, H160, H256,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
@@ -156,11 +156,11 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
-                batch_env.first_l2_block,
+                batch_env.clone().first_l2_block,
                 system_env.version,
             ),
             system_env,
-            batch_env,
+            batch_env: batch_env.clone(),
             snapshot: None,
             vm_version,
             skip_signature_verification: false,
@@ -576,10 +576,26 @@ where
                 }
                 VmHook::FinalBatchInfo => {
                     // set fictive l2 block
+                    let preexisting_interop_roots_number =
+                        self.bootloader_state.get_preexisting_interop_roots_number();
+                    let preexisting_blocks_number =
+                        self.bootloader_state.get_preexisting_blocks_number();
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
-                    apply_l2_block(&mut memory, l2_block, txs_index, self.vm_version.into());
+                    println!(
+                        "applying l2 block in final batch info {:?}",
+                        l2_block.number
+                    );
+                    apply_l2_block(
+                        &mut memory,
+                        l2_block,
+                        txs_index,
+                        self.vm_version.into(),
+                        true,
+                        preexisting_interop_roots_number,
+                        preexisting_blocks_number,
+                    );
                     self.write_to_bootloader_heap(memory);
                 }
                 VmHook::PubdataRequested => {
@@ -827,10 +843,6 @@ where
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env)
-    }
-
-    fn insert_message_root(&mut self, msg_root: MessageRoot) {
-        self.bootloader_state.insert_message_root(msg_root);
     }
 
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {

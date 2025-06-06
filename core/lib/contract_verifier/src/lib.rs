@@ -20,7 +20,7 @@ use zksync_types::{
             self as api, CompilationArtifacts, VerificationIncomingRequest, VerificationInfo,
             VerificationProblem, VerificationRequest,
         },
-        contract_identifier::{ContractIdentifier, Match},
+        contract_identifier::{ContractIdentifier, DetectedMetadata, Match},
     },
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
@@ -258,10 +258,6 @@ impl ContractVerifier {
 
         let bytecode_marker = BytecodeMarker::new(deployed_contract.bytecode_hash)
             .context("unknown bytecode kind")?;
-        let artifacts = self.compile(request.req.clone(), bytecode_marker).await?;
-        let compiled_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, artifacts.deployed_bytecode());
-
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
             BytecodeMarker::Evm => trim_padded_evm_bytecode(
@@ -271,8 +267,28 @@ impl ContractVerifier {
             )
             .context("invalid stored EVM bytecode")?,
         };
+        let mut deployed_code = deployed_bytecode.to_vec();
         let deployed_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, deployed_bytecode);
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
+
+        let artifacts = self
+            .get_compilation_artifacts(&mut request, &deployed_identifier)
+            .await?;
+
+        let mut compiled_code = artifacts.deployed_bytecode().to_vec();
+
+        // If contract contains immutable references (e.g. places to be filled during constructor execution),
+        // rewrite them with zeroes, as we can't know the values just yet.
+        // We're checking the constructor arguments as well, so assuming tha constructor arguments
+        // are the same, the immutable values should also be the same.
+        artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
+
+        let compiled_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code);
+
+        // regenerate the deployed identifier after patching the immutable bytecode
+        let deployed_identifier =
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
 
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self
@@ -291,7 +307,7 @@ impl ContractVerifier {
         match compiled_identifier.matches(&deployed_identifier) {
             Match::Full => {}
             Match::Partial => {
-                tracing::trace!(
+                tracing::info!(
                     request_id = request.id,
                     deployed = hex::encode(deployed_bytecode),
                     compiled = hex::encode(artifacts.deployed_bytecode()),
@@ -300,7 +316,7 @@ impl ContractVerifier {
                 verification_problems.push(VerificationProblem::IncorrectMetadata);
             }
             Match::None => {
-                tracing::trace!(
+                tracing::info!(
                     request_id = request.id,
                     deployed = hex::encode(deployed_bytecode),
                     compiled = hex::encode(artifacts.deployed_bytecode()),
@@ -314,7 +330,7 @@ impl ContractVerifier {
             ConstructorArgs::Check(args) => {
                 let provided_constructor_args = &request.req.constructor_arguments.0;
                 if *provided_constructor_args != args {
-                    tracing::trace!(
+                    tracing::info!(
                         "Constructor args mismatch, deployed: 0x{}, provided in request: 0x{}",
                         hex::encode(&args),
                         hex::encode(provided_constructor_args)
@@ -341,6 +357,102 @@ impl ContractVerifier {
             verification_problems,
         };
         Ok((info, compiled_identifier))
+    }
+
+    /// Returns compilation artifacts for the given request.
+    /// Tries to use the compiler versions from the metadata if they are different from the ones in the request.
+    /// If the metadata is not present, or the versions are the same, uses the ones from the request.
+    async fn get_compilation_artifacts(
+        &self,
+        request: &mut VerificationRequest,
+        deployed_identifier: &ContractIdentifier,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        // If compiler versions from the metadata don't match with the request,
+        // we'll first try to use info from metadata.
+        let alternative_request = match &deployed_identifier.detected_metadata {
+            Some(DetectedMetadata::Cbor { metadata, .. })
+                if !request.req.compiler_versions_match(metadata) =>
+            {
+                let update_request = request.req.clone().with_updated_compiler_versions(metadata);
+                Some(update_request)
+            }
+            _ => None,
+        };
+
+        if let Some(alternative_request) = alternative_request {
+            // Compile with the metadata versions
+            let artifacts = self
+                .compile(
+                    alternative_request.clone(),
+                    deployed_identifier.bytecode_marker,
+                )
+                .await;
+
+            if let Ok(artifacts) = artifacts {
+                let compiled_identifier = ContractIdentifier::from_bytecode(
+                    deployed_identifier.bytecode_marker,
+                    artifacts.deployed_bytecode(),
+                );
+                // Check if the compiled bytecode matches the deployed bytecode
+                if matches!(
+                    compiled_identifier.matches(deployed_identifier),
+                    Match::Full | Match::Partial
+                ) {
+                    tracing::info!(
+                        request_id = request.id,
+                        request_compiler = request.req.compiler_versions.compiler_version(),
+                        metadata_compiler =
+                            alternative_request.compiler_versions.compiler_version(),
+                        request_zk_compiler = request.req.compiler_versions.zk_compiler_version(),
+                        metadata_zk_compiler =
+                            alternative_request.compiler_versions.zk_compiler_version(),
+                        "Updating request compiler versions in the DB."
+                    );
+
+                    // Since we know the version that should be used for the contract, we override one provided in
+                    // the request, so that if this request is interpreted by anyone else, they can get correct
+                    // compilation results
+                    self.update_request_compiler_versions(
+                        request.id,
+                        alternative_request.compiler_versions.compiler_version(),
+                        alternative_request.compiler_versions.zk_compiler_version(),
+                    )
+                    .await?;
+
+                    // Update the request for downstream use
+                    request.req = alternative_request;
+
+                    return Ok(artifacts);
+                }
+            }
+        }
+        // We either have no alternative request or it didn't succeed
+        self.compile(request.req.clone(), deployed_identifier.bytecode_marker)
+            .await
+    }
+
+    // Updates request compiler versions in the DB.
+    async fn update_request_compiler_versions(
+        &self,
+        request_id: usize,
+        compiler_version: &str,
+        zk_compiler_version: Option<&str>,
+    ) -> Result<(), ContractVerifierError> {
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await?;
+
+        storage
+            .contract_verification_dal()
+            .update_verification_request_compiler_versions(
+                request_id,
+                compiler_version,
+                zk_compiler_version,
+            )
+            .await?;
+
+        Ok(())
     }
 
     async fn compile_zksolc(

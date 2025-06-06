@@ -1,7 +1,5 @@
 # Glossary
 
-[back to readme](./README.md)
-
 - **Validator/Operator** - a privileged address that can commit/verify/execute L2 batches.
 - **L2 batch (or just batch)** - An aggregation of multiple L2 blocks. Note, that while the API operates on L2 blocks,
   the prove system operates on batches, which represent a single proved VM execution, which typically contains multiple
@@ -10,7 +8,6 @@
 - **Gas** - a unit that measures the amount of computational effort required to execute specific operations on the
   ZKsync Era network.
 - **MessageRoot**, **ChainRoot**, **ChainBatchRoot**, **LocalLogsRoot** , **L2ToL1LogsRoot**- different nodes in the recursive Merkle tree used to aggregate messages. Note, LocalLogsRoot and L2ToL1LogsRoot are the same. 
-- **InteropMessage, InteropCall, InteropBundle, InteropTrigger, InteropTransaction** different levels and types of interop methods.
 - **assetId** - unique 32 bytes used to identify different assets in the AssetRouter.
 - **Settlement Layer** - the layer where a chains settles its batches. Can be L1 or Gateway.
 
@@ -20,11 +17,11 @@ List of contracts and abbreviations:
 - Chain Manager Contracts
   - Bridgehub
 
-    Main ecosystem contract. Tracks all the chains and their types (i.e. CTMs), based on their chain ID and addresses. This is where new chains register. In previous versions had some features of the InteropCenter, so it has some legacy functions (only available on L1). 
+    Main ecosystem contract. Tracks all the chains and their types (i.e. CTMs), based on their chain ID and addresses. This is where new chains register. 
 
-  - ChainTypManager (CTM) Contract: 
+  - ChainTypeManager (CTM) Contract:
   
-    used to coordinate upgrades for a certain chain classes. Chains of different CTMs can still interoperate. We only support a single CTM currently. 
+    used to coordinate upgrades for a certain chain classes. We only support a single CTM currently. 
   
   - CTMDeploymentTracker: 
 
@@ -46,11 +43,7 @@ List of contracts and abbreviations:
       - Any upgrade contract, i.e. GatewayUpgrade
 
 - Messaging related contracts:
-  - InteropCenter
   - MessageRoot
-  - AssetTracker
-  - InteropHandler
-    -  L2MessageVerification  
   - L1Nullifier
 
 - Asset related contracts:

@@ -7,10 +7,7 @@ use zkstack_cli_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
 };
-use zkstack_cli_config::{
-    override_config, set_file_artifacts, set_rocks_db_config, set_server_database, ChainConfig,
-    EcosystemConfig, FileArtifacts,
-};
+use zkstack_cli_config::{override_config, ChainConfig, EcosystemConfig, FileArtifacts};
 use zkstack_cli_types::ProverMode;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
@@ -36,7 +33,7 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let mut secrets = chain_config.get_secrets_config().await?.patched();
     let args = args.fill_values_with_secrets(&chain_config).await?;
-    set_server_database(&mut secrets, &args.server_db)?;
+    secrets.set_server_database(&args.server_db)?;
     secrets.save().await?;
 
     initialize_server_database(
@@ -82,12 +79,13 @@ pub async fn update_configs(
     args: GenesisArgsFinal,
     shell: &Shell,
     config: &ChainConfig,
+    override_validium_config: bool,
 ) -> anyhow::Result<()> {
     shell.create_dir(&config.rocks_db_path)?;
 
     // Update secrets configs
     let mut secrets = config.get_secrets_config().await?.patched();
-    set_server_database(&mut secrets, &args.server_db)?;
+    secrets.set_server_database(&args.server_db)?;
     secrets.save().await?;
 
     // Update general config
@@ -95,8 +93,8 @@ pub async fn update_configs(
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let file_artifacts = FileArtifacts::new(config.artifacts.clone());
-    set_rocks_db_config(&mut general, rocks_db)?;
-    set_file_artifacts(&mut general, file_artifacts)?;
+    general.set_rocks_db_config(rocks_db)?;
+    general.set_file_artifacts(file_artifacts)?;
     general.save().await?;
 
     let link_to_code = config.link_to_code.clone();
@@ -107,7 +105,9 @@ pub async fn update_configs(
             config,
         )?;
     }
-    if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
+    if override_validium_config
+        && config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium
+    {
         override_config(
             shell,
             link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),

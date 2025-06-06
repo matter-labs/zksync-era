@@ -1,10 +1,10 @@
-# L1 smart contract of an individual chain
+<!--- WIP --->
 
-[back to readme](../README.md)
+# L1 smart contract of an individual chain
 
 ## Diamond (also mentioned as State Transition contract)
 
-Technically, this L1 smart contract acts as a connector between Ethereum (L1) and hyperchain (L2). It checks the
+Technically, this L1 smart contract acts as a connector between Ethereum (L1) and ZK Chain (L2). It checks the
 validity proof and data availability, handles L2 <-> L1 communication, finalizes L2 state transition, and more.
 
 There are also important contracts deployed on the L2 that can also execute logic called _system contracts_. Using L2
@@ -25,7 +25,7 @@ parameter that indicates if it is possible to freeze access to the facet. Privil
 unfreezes the diamond. Note that it is a very dangerous thing since the diamond proxy can freeze the upgrade system and then
 the diamond will be frozen forever.
 
-The diamond proxy pattern is very flexible and extendable. For now, it allows splitting implementation contracts by their logical meaning, removes the limit of bytecode size per contract and implements security features such as freezing. In the future, it can also be viewed as [EIP-6900](https://eips.ethereum.org/EIPS/eip-6900) for [zkStack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each hyperchain can implement a sub-set of allowed implementation contracts.
+The diamond proxy pattern is very flexible and extendable. For now, it allows splitting implementation contracts by their logical meaning, removes the limit of bytecode size per contract and implements security features such as freezing. In the future, it can also be viewed as [EIP-6900](https://eips.ethereum.org/EIPS/eip-6900) for [zkStack](https://blog.matter-labs.io/introducing-the-zk-stack-c24240c2532a), where each ZK Chain can implement a sub-set of allowed implementation contracts.
 
 ### GettersFacet
 
@@ -43,7 +43,7 @@ This facet responsible for the configuration setup and upgradability, handling t
 
 Control over the AdminFacet is divided between two main entities:
 
-- CTM (Chain Type Manager, formerly known as `StateTransitionManager`) - Separate smart contract that can perform critical changes to the system as protocol upgrades. For more detailed information on its function and design, refer to [this document](../chain_management/chain_type_manager.md). Although currently only one version of the CTM exists, the architecture allows for future versions to be introduced via subsequent upgrades. The owner of the CTM is the [decentralized governance](https://blog.zknation.io/introducing-zk-nation/), while for non-critical an Admin entity is used (see details below).
+- Chain Type Manager - Separate smart contract that can perform critical changes to the system as protocol upgrades. For more detailed information on its function and design, refer to [this document](../chain_management/chain_type_manager.md). Although currently only one version of the CTM exists, the architecture allows for future versions to be introduced via subsequent upgrades. The owner of the CTM is the [decentralized governance](https://blog.zknation.io/introducing-zk-nation/), while for non-critical an Admin entity is used (see details below).
 - Chain Admin - Multisig smart contract managed by each individual chain that can perform non-critical changes to the system such as granting validator permissions.
 
 ### MailboxFacet
@@ -91,14 +91,14 @@ The L1 -> L2 communication is also used for bridging **base tokens**. If base to
 transaction request on the L1 contract, if base token is an ERC20 then contract will spend users allowance. Before executing a transaction on L2, the specified address will be credited
 with the funds. To withdraw funds user should call `withdraw` function on the `L2BaseToken` system contracts. This will
 burn the funds on L2, allowing the user to reclaim them through the `finalizeWithdrawal` function on the
-`SharedBridge` (more in hyperchain section).
+`SharedBridge` (more in ZK Chain section).
 
-More about L1->L2 operations can be found [here](./priority_queue/processing_of_l1-l2_txs.md).
+More about L1->L2 operations can be found [here](./priority_queue/l1_l2_communication/l1_to_l2.md).
 
 L2 -> L1 communication, in contrast to L1 -> L2 communication, is based only on transferring the information, and not on
 the transaction execution on L1. The full description of the mechanism for sending information from L2 to L1 can be found [here](./data_availability/standard_pubdata_format.md).
 
-The Mailbox facet also facilitates L1<>L3 communications for those chains that settle on top of Gateway. The user interfaces for those are identical to the L1<>L2 communication described above. To learn more about L1<>L3 communication works, check out [this document](../gateway/messaging_via_gateway.md) and [this one](../gateway/nested_l3_l1_messaging.md).
+The Mailbox facet also facilitates L1<>L2 communications for those chains that settle on top of Gateway. The user interfaces for those are identical to the L1<>L2 communication described above. To learn more about L1<>L2 communication works, check out [this document](../settlement_contracts/data_availability/custom_da.md) and [this one][TODO].
 
 ### ExecutorFacet
 

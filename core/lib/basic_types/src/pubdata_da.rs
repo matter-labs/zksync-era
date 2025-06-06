@@ -25,12 +25,14 @@ pub enum PubdataSendingMode {
 #[derive(Debug, Clone)]
 pub struct DataAvailabilityBlob {
     pub l1_batch_number: L1BatchNumber,
-    pub blob_id: String,
+    pub dispatch_request_id: String,
+    pub blob_id: Option<String>,
     pub inclusion_data: Option<Vec<u8>>,
     pub sent_at: DateTime<Utc>,
 }
 
-/// Represents the data availability details of a certain batch.
+/// Represents the data availability details of a certain batch. Intended to be used in the API.
+/// This struct is only used once blob_id is confirmed.
 #[derive(Debug, Clone)]
 pub struct DataAvailabilityDetails {
     pub blob_id: String,

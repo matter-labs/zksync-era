@@ -2,15 +2,12 @@ use std::fmt;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use zksync_contracts::bridgehub_contract;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{CallFunctionArgs, EthInterface};
-use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+use zksync_eth_client::EthInterface;
 use zksync_types::{
-    block::L2BlockHeader, web3, Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256, U64,
+    block::L2BlockHeader, web3, Address, L1BatchNumber, SLChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
     namespaces::ZksNamespaceClient,
@@ -18,7 +15,7 @@ use zksync_web3_decl::{
 
 use super::{
     metrics::{ProcessingStage, TreeDataProviderSource, METRICS},
-    TreeDataFetcherError, TreeDataFetcherResult,
+    TreeDataFetcherResult,
 };
 
 #[cfg(test)]
@@ -97,13 +94,6 @@ struct PastL1BatchInfo {
     chain_id: SLChainId,
 }
 
-#[derive(Debug)]
-struct SLChainAccess {
-    client: Box<DynClient<L1>>,
-    chain_id: SLChainId,
-    diamond_proxy_addr: Address,
-}
-
 /// Provider of tree data loading it from L1 `BlockCommit` events emitted by the diamond proxy contract.
 /// Should be used together with an L2 provider because L1 data can be missing for latest batches,
 /// and the provider implementation uses assumptions that can break in some corner cases.
@@ -115,15 +105,15 @@ struct SLChainAccess {
 /// for the event using binary search, or uses an L1 block number of the `BlockCommit` event for the previously queried L1 batch
 /// (provided it's not too far behind the seal timestamp of the batch).
 #[derive(Debug)]
-pub(super) struct L1DataProvider {
-    l1_chain_data: SLChainAccess,
-    gateway_chain_data: Option<SLChainAccess>,
+pub(super) struct SLDataProvider {
+    client: Box<dyn EthInterface>,
+    chain_id: SLChainId,
+    diamond_proxy_addr: Address,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
-    pool: ConnectionPool<Core>,
 }
 
-impl L1DataProvider {
+impl SLDataProvider {
     /// Accuracy when guessing L1 block number by L1 batch timestamp.
     const L1_BLOCK_ACCURACY: U64 = U64([1_000]);
     /// Range of L1 blocks queried via `eth_getLogs`. Should be at least several times greater than
@@ -131,45 +121,20 @@ impl L1DataProvider {
     const L1_BLOCK_RANGE: U64 = U64([20_000]);
 
     pub async fn new(
-        l1_client: Box<DynClient<L1>>,
+        l1_client: Box<dyn EthInterface>,
         l1_diamond_proxy_addr: Address,
-        gateway_client: Option<Box<DynClient<L1>>>,
-        pool: ConnectionPool<Core>,
-        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let l1_chain_id = l1_client.fetch_chain_id().await?;
-        let l1_chain_data = SLChainAccess {
-            client: l1_client,
-            chain_id: l1_chain_id,
-            diamond_proxy_addr: l1_diamond_proxy_addr,
-        };
-        let gateway_chain_data = if let Some(client) = gateway_client {
-            let gateway_diamond_proxy = CallFunctionArgs::new(
-                "getZKChain",
-                zksync_types::ethabi::Token::Uint(l2_chain_id.as_u64().into()),
-            )
-            .for_contract(L2_BRIDGEHUB_ADDRESS, &bridgehub_contract())
-            .call(&client)
-            .await?;
-            let chain_id = client.fetch_chain_id().await?;
-            Some(SLChainAccess {
-                client,
-                chain_id,
-                diamond_proxy_addr: gateway_diamond_proxy,
-            })
-        } else {
-            None
-        };
         let block_commit_signature = zksync_contracts::hyperchain_contract()
             .event("BlockCommit")
             .context("missing `BlockCommit` event")?
             .signature();
         Ok(Self {
-            l1_chain_data,
-            gateway_chain_data,
+            client: l1_client,
+            chain_id: l1_chain_id,
+            diamond_proxy_addr: l1_diamond_proxy_addr,
             block_commit_signature,
             past_l1_batch: None,
-            pool,
         })
     }
 
@@ -227,53 +192,22 @@ impl L1DataProvider {
         })?;
         Ok((number, block.timestamp))
     }
-
-    fn chain_data_by_id(&self, searched_chain_id: SLChainId) -> Option<&SLChainAccess> {
-        if searched_chain_id == self.l1_chain_data.chain_id {
-            Some(&self.l1_chain_data)
-        } else if Some(searched_chain_id) == self.gateway_chain_data.as_ref().map(|d| d.chain_id) {
-            self.gateway_chain_data.as_ref()
-        } else {
-            None
-        }
-    }
 }
 
 #[async_trait]
-impl TreeDataProvider for L1DataProvider {
+impl TreeDataProvider for SLDataProvider {
     async fn batch_details(
         &mut self,
         number: L1BatchNumber,
         last_l2_block: &L2BlockHeader,
     ) -> TreeDataProviderResult {
-        let sl_chain_id = self
-            .pool
-            .connection_tagged("tree_data_fetcher")
-            .await
-            .map_err(|err| TreeDataFetcherError::Internal(err.into()))?
-            .eth_sender_dal()
-            .get_batch_commit_chain_id(number)
-            .await
-            .map_err(|err| TreeDataFetcherError::Internal(err.into()))?;
-        let chain_data = match sl_chain_id {
-            Some(chain_id) => {
-                let Some(chain_data) = self.chain_data_by_id(chain_id) else {
-                    return Err(TreeDataFetcherError::Internal(anyhow::anyhow!(
-                        "failed to find client for chain id {chain_id}"
-                    )));
-                };
-                chain_data
-            }
-            None => &self.l1_chain_data,
-        };
-
         let l1_batch_seal_timestamp = last_l2_block.timestamp;
         let from_block = self.past_l1_batch.and_then(|info| {
             assert!(
                 info.number < number,
                 "`batch_details()` must be called with monotonically increasing numbers"
             );
-            if info.chain_id != chain_data.chain_id {
+            if info.chain_id != self.chain_id {
                 return None;
             }
             let threshold_timestamp = info.l1_commit_block_timestamp + Self::L1_BLOCK_RANGE.as_u64() / 2;
@@ -293,9 +227,11 @@ impl TreeDataProvider for L1DataProvider {
         let from_block = match from_block {
             Some(number) => number,
             None => {
-                let (approximate_block, steps) =
-                    Self::guess_l1_commit_block_number(&chain_data.client, l1_batch_seal_timestamp)
-                        .await?;
+                let (approximate_block, steps) = Self::guess_l1_commit_block_number(
+                    self.client.as_ref(),
+                    l1_batch_seal_timestamp,
+                )
+                .await?;
                 tracing::debug!(
                     number = number.0,
                     "Guessed L1 block number for L1 batch #{number} commit in {steps} binary search steps: {approximate_block}"
@@ -310,7 +246,7 @@ impl TreeDataProvider for L1DataProvider {
 
         let number_topic = H256::from_low_u64_be(number.0.into());
         let filter = web3::FilterBuilder::default()
-            .address(vec![chain_data.diamond_proxy_addr])
+            .address(vec![self.diamond_proxy_addr])
             .from_block(web3::BlockNumber::Number(from_block))
             .to_block(web3::BlockNumber::Number(from_block + Self::L1_BLOCK_RANGE))
             .topics(
@@ -320,7 +256,7 @@ impl TreeDataProvider for L1DataProvider {
                 None,
             )
             .build();
-        let mut logs = chain_data.client.logs(&filter).await?;
+        let mut logs = self.client.logs(&filter).await?;
         logs.retain(|log| !log.is_removed() && log.block_number.is_some());
 
         match logs.as_slice() {
@@ -341,10 +277,7 @@ impl TreeDataProvider for L1DataProvider {
                      {diff} block(s) after the `from` block from the filter"
                 );
 
-                let l1_commit_block = chain_data
-                    .client
-                    .block(l1_commit_block_number.into())
-                    .await?;
+                let l1_commit_block = self.client.block(l1_commit_block_number.into()).await?;
                 let l1_commit_block = l1_commit_block.ok_or_else(|| {
                     let err = "Block disappeared from L1 RPC provider";
                     EnrichedClientError::new(ClientError::Custom(err.into()), "batch_details")
@@ -354,7 +287,7 @@ impl TreeDataProvider for L1DataProvider {
                     number,
                     l1_commit_block_number,
                     l1_commit_block_timestamp: l1_commit_block.timestamp,
-                    chain_id: chain_data.chain_id,
+                    chain_id: self.chain_id,
                 });
                 Ok(Ok(root_hash))
             }
@@ -369,10 +302,10 @@ impl TreeDataProvider for L1DataProvider {
     }
 }
 
-/// Data provider combining [`L1DataProvider`] with a fallback provider.
+/// Data provider combining [`SLDataProvider`] with a fallback provider.
 #[derive(Debug)]
 pub(super) struct CombinedDataProvider {
-    l1: Option<L1DataProvider>,
+    l1: Option<SLDataProvider>,
     // Generic to allow for tests.
     rpc: Box<dyn TreeDataProvider>,
 }
@@ -385,7 +318,7 @@ impl CombinedDataProvider {
         }
     }
 
-    pub fn set_l1(&mut self, l1: L1DataProvider) {
+    pub fn set_sl(&mut self, l1: SLDataProvider) {
         self.l1 = Some(l1);
     }
 }

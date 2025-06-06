@@ -6,16 +6,26 @@ use utils::{
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
+    api,
     api::{
-        ChainAggProof, DataAvailabilityDetails, L1ToL2TxsStatus, TeeProof, TransactionExecutionInfo,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        TransactionDetailedResult, TransactionExecutionInfo,
     },
+    block::BatchOrBlockNumber,
+    server_notification::GatewayMigrationState,
     tee_types::TeeType,
+    web3,
+    web3::Bytes,
     L1BatchNumber, L2ChainId,
 };
 use zksync_web3_decl::{error::Web3Error, types::H256};
 
-use crate::web3::{backend_jsonrpsee::MethodTracer, RpcState};
+use crate::{
+    execution_sandbox::BlockArgs,
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
+};
 
 mod utils;
 
@@ -75,22 +85,29 @@ impl UnstableNamespace {
 
     pub async fn get_chain_log_proof_impl(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_or_block_number: BatchOrBlockNumber,
         l2_chain_id: L2ChainId,
     ) -> Result<Option<ChainAggProof>, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
         self.state
             .start_info
-            .ensure_not_pruned(l1_batch_number, &mut connection)
+            .ensure_not_pruned(batch_or_block_number, &mut connection)
             .await?;
 
-        let Some((_, l2_block_number)) = connection
-            .blocks_dal()
-            .get_l2_block_range_of_l1_batch(l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
+        let l2_block_number = match batch_or_block_number {
+            BatchOrBlockNumber::BatchNumber(l1_batch_number) => {
+                match connection
+                    .blocks_dal()
+                    .get_l2_block_range_of_l1_batch(l1_batch_number)
+                    .await
+                    .map_err(DalError::generalize)?
+                    .map(|(_, end_block)| end_block)
+                {
+                    Some(block_num) => block_num,
+                    None => return Ok(None),
+                }
+            }
+            BatchOrBlockNumber::BlockNumber(l2_block_number) => l2_block_number,
         };
         let chain_count_integer = get_chain_count(&mut connection, l2_block_number).await?;
 
@@ -101,7 +118,7 @@ impl UnstableNamespace {
             );
         }
 
-        let Some((chain_id_leaf_proof_mask, _)) = chain_ids
+        let Some((mut chain_id_leaf_proof_mask, _)) = chain_ids
             .iter()
             .find_position(|id| **id == H256::from_low_u64_be(l2_chain_id.as_u64()))
         else {
@@ -122,19 +139,21 @@ impl UnstableNamespace {
             .merkle_root_and_path(chain_id_leaf_proof_mask)
             .1;
 
-        let Some(local_root) = connection
-            .blocks_dal()
-            .get_l1_batch_local_root(l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
-        };
+        if let BatchOrBlockNumber::BatchNumber(l1_batch_number) = batch_or_block_number {
+            let Some(local_root) = connection
+                .blocks_dal()
+                .get_l1_batch_local_root(l1_batch_number)
+                .await
+                .map_err(DalError::generalize)?
+            else {
+                return Ok(None);
+            };
 
-        // Chain tree is the right subtree of the aggregated tree.
-        // We append root of the left subtree to form full proof.
-        let chain_id_leaf_proof_mask = chain_id_leaf_proof_mask | (1 << chain_id_leaf_proof.len());
-        chain_id_leaf_proof.push(local_root);
+            // Chain tree is the right subtree of the aggregated tree.
+            // We append root of the left subtree to form full proof.
+            chain_id_leaf_proof_mask |= 1 << chain_id_leaf_proof.len();
+            chain_id_leaf_proof.push(local_root);
+        }
 
         Ok(Some(ChainAggProof {
             chain_id_leaf_proof,
@@ -193,5 +212,82 @@ impl UnstableNamespace {
             l1_to_l2_txs_paused: self.state.api_config.l1_to_l2_txs_paused,
             l1_to_l2_txs_in_mempool,
         })
+    }
+
+    pub async fn gateway_migration_status_impl(&self) -> Result<GatewayMigrationStatus, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+
+        let latest_notification = connection
+            .server_notifications_dal()
+            .get_latest_gateway_migration_notification()
+            .await
+            .map_err(DalError::generalize)?;
+
+        let state = GatewayMigrationState::from_sl_and_notification(
+            self.state.api_config.settlement_layer,
+            latest_notification,
+        );
+
+        Ok(GatewayMigrationStatus {
+            latest_notification,
+            state,
+            settlement_layer: self.state.api_config.settlement_layer,
+        })
+    }
+
+    #[tracing::instrument(skip(self, tx_bytes))]
+    pub async fn send_raw_transaction_with_detailed_output_impl(
+        &self,
+        tx_bytes: Bytes,
+    ) -> Result<TransactionDetailedResult, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let (mut tx, tx_hash) = self
+            .state
+            .parse_transaction_bytes(&tx_bytes.0, &block_args)?;
+        tx.set_input(tx_bytes.0, tx_hash);
+
+        let submit_output = self
+            .state
+            .tx_sender
+            .submit_tx(tx, block_args)
+            .await
+            .map_err(|err| {
+                tracing::debug!("Send raw transaction error: {err}");
+                API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
+                err
+            })?;
+        Ok(TransactionDetailedResult {
+            transaction_hash: tx_hash,
+            storage_logs: submit_output
+                .write_logs
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            events: submit_output
+                .events
+                .into_iter()
+                .map(|event| map_event(event, tx_hash))
+                .collect(),
+        })
+    }
+}
+
+fn map_event(vm_event: VmEvent, tx_hash: H256) -> api::Log {
+    api::Log {
+        address: vm_event.address,
+        topics: vm_event.indexed_topics,
+        data: web3::Bytes::from(vm_event.value),
+        block_hash: None,
+        block_number: None,
+        l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
+        transaction_hash: Some(tx_hash),
+        transaction_index: Some(web3::Index::from(vm_event.location.1)),
+        log_index: None,
+        transaction_log_index: None,
+        log_type: None,
+        removed: Some(false),
+        block_timestamp: None,
     }
 }

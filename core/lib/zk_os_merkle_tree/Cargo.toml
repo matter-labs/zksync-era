@@ -25,6 +25,10 @@ vise.workspace = true
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }
+insta = { workspace = true, features = ["yaml"] }
+proptest.workspace = true
 rand.workspace = true
+serde.workspace = true
+serde_with = { workspace = true, features = ["hex"] }
 tempfile.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }

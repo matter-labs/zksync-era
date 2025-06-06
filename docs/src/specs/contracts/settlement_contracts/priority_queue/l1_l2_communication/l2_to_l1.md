@@ -1,5 +1,4 @@
 # L2→L1 communication
-[back to readme](../../../README.md)
 
 The L2→L1 communication is more fundamental than the L1→L2 communication, as the second relies on the first. L2→L1
 communication happens by the L1 smart contract verifying messages alongside the proofs. The only “provable” part of the
@@ -29,7 +28,7 @@ Where:
 - `sender` is the value of `this` in the frame where the L2→L1 log was emitted.
 - `key` and `value` are just two 32-byte values that could be used to carry some data with the log.
 
-The hashes of these logs are [aggregated](../../../../../../../contracts/system-contracts/contracts/L1Messenger.sol#L133) in a dynamic incremental merkle tree into the `LocalLogsRoot`. The `LocalLogsRoot` is [hashed](../../../../../../../contracts/system-contracts/contracts/L1Messenger.sol#L333) together with the chain's `MessageRoot` into the `ChainBatchRoot`. This `ChainBatchRoot` is then included into the 
+The hashes of these logs are [aggregated](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/L1Messenger.sol#L133) in a dynamic incremental merkle tree into the `LocalLogsRoot`. The `LocalLogsRoot` is [hashed](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/system-contracts/contracts/L1Messenger.sol#L333) together with the chain's `MessageRoot` into the `ChainBatchRoot`. This `ChainBatchRoot` is then included into the 
 [batch commitment](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Executor.sol#L493).
 Because of that we know that if the proof verifies, then the L2→L1 logs provided by the operator were correct, so we can
 use that fact to produce more complex structures. Before Boojum such logs were also Merklized within the circuits and so

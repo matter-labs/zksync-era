@@ -2,6 +2,7 @@
 use std::{collections::HashMap, slice};
 
 use assert_matches::assert_matches;
+use chrono::NaiveDateTime;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
@@ -11,11 +12,17 @@ use zksync_eth_client::{clients::MockSettlementLayer, EthInterface, Options};
 use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
-    create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+    create_l1_batch, create_l1_batch_metadata, create_l2_block,
+    l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    protocol_version::ProtocolSemanticVersion, web3::Log, ProtocolVersion, ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType,
+    block::L2BlockHeader,
+    commitment::{L1BatchWithMetadata, PubdataType},
+    eth_sender::EthTxFinalityStatus,
+    protocol_version::ProtocolSemanticVersion,
+    web3::Log,
+    ProtocolVersion, ProtocolVersionId, H256, L2_BRIDGEHUB_ADDRESS,
 };
 
 use super::*;
@@ -29,13 +36,16 @@ pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
     }
 }
 
+fn batch_to_block_number(batch: &L1BatchWithMetadata) -> u32 {
+    batch.header.number.0 * 1000
+}
+
 const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
 const L1_DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
 const GATEWAY_DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(2);
 const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
 const ERA_CHAIN_ID: u64 = 270;
 const L1_CHAIN_ID: u64 = 9;
-const GATEWAY_CHAIN_ID: u64 = 505;
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Rollup,
     L1BatchCommitmentMode::Validium,
@@ -93,12 +103,11 @@ pub(crate) fn build_commit_tx_input_data(
 pub(crate) async fn create_mock_checker(
     client: MockSettlementLayer,
     pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
 ) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     let client = client.into_client();
     let chain_id = client.fetch_chain_id().await.unwrap();
-    let l1_chain_data = SLChainAccess {
+    let chain_data = SLChainAccess {
         client: Box::new(client),
         chain_id,
         diamond_proxy_addr: Some(L1_DIAMOND_PROXY_ADDR),
@@ -107,12 +116,10 @@ pub(crate) async fn create_mock_checker(
         contract: zksync_contracts::hyperchain_contract(),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
-        l1_chain_data,
-        gateway_chain_data: None,
+        chain_data,
+        settlement_layer: SettlementLayer::L1(chain_id),
         event_handler: Box::new(health_updater),
-        l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
-        commitment_mode,
         health_check,
     }
 }
@@ -151,10 +158,6 @@ fn create_mock_sl(chain_id: u64, with_get_zk_chain: bool) -> MockSettlementLayer
 
 fn create_mock_ethereum() -> MockSettlementLayer {
     create_mock_sl(L1_CHAIN_ID, false)
-}
-
-fn create_mock_gateway() -> MockSettlementLayer {
-    create_mock_sl(GATEWAY_CHAIN_ID, true)
 }
 
 impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
@@ -292,7 +295,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SaveAction<'a> {
-    InsertBatch(&'a L1BatchWithMetadata),
+    InsertBatch(&'a L1BatchWithMetadata, &'a L2BlockHeader),
     SaveMetadata(&'a L1BatchWithMetadata),
     InsertCommitTx(L1BatchNumber),
 }
@@ -305,10 +308,38 @@ impl SaveAction<'_> {
         chain_id_by_l1_batch: &HashMap<L1BatchNumber, SLChainId>,
     ) {
         match self {
-            Self::InsertBatch(l1_batch) => {
+            Self::InsertBatch(l1_batch, l2_block) => {
                 storage
                     .blocks_dal()
                     .insert_mock_l1_batch(&l1_batch.header)
+                    .await
+                    .unwrap();
+                storage
+                    .blocks_dal()
+                    .insert_l2_block(l2_block)
+                    .await
+                    .unwrap();
+
+                if L1BatchCommitmentMode::from(l2_block.pubdata_params.pubdata_type)
+                    == L1BatchCommitmentMode::Validium
+                {
+                    storage
+                        .data_availability_dal()
+                        .insert_l1_batch_da(
+                            l1_batch.header.number,
+                            "",
+                            NaiveDateTime::default(),
+                            PubdataType::NoDA,
+                            Some(&[]),
+                            Some(Address::random()),
+                        )
+                        .await
+                        .unwrap();
+                }
+
+                storage
+                    .blocks_dal()
+                    .mark_l2_blocks_as_executed_in_l1_batch(l1_batch.header.number)
                     .await
                     .unwrap();
             }
@@ -338,6 +369,7 @@ impl SaveAction<'_> {
                         commit_tx_hash,
                         chrono::Utc::now(),
                         chain_id,
+                        EthTxFinalityStatus::Finalized,
                     )
                     .await
                     .unwrap();
@@ -346,16 +378,17 @@ impl SaveAction<'_> {
     }
 }
 
-pub(crate) type SaveActionMapper = fn(&[L1BatchWithMetadata]) -> Vec<SaveAction<'_>>;
+pub(crate) type SaveActionMapper =
+    fn(&[(L1BatchWithMetadata, L2BlockHeader)]) -> Vec<SaveAction<'_>>;
 
 /// Various strategies to persist L1 batches in the DB. Strings are added for debugging failed test cases.
 const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
     ("sequential_metadata_first", |l1_batches| {
         l1_batches
             .iter()
-            .flat_map(|batch| {
+            .flat_map(|(batch, block)| {
                 [
-                    SaveAction::InsertBatch(batch),
+                    SaveAction::InsertBatch(batch, block),
                     SaveAction::SaveMetadata(batch),
                     SaveAction::InsertCommitTx(batch.header.number),
                 ]
@@ -365,9 +398,9 @@ const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
     ("sequential_commit_txs_first", |l1_batches| {
         l1_batches
             .iter()
-            .flat_map(|batch| {
+            .flat_map(|(batch, block)| {
                 [
-                    SaveAction::InsertBatch(batch),
+                    SaveAction::InsertBatch(batch, block),
                     SaveAction::InsertCommitTx(batch.header.number),
                     SaveAction::SaveMetadata(batch),
                 ]
@@ -377,23 +410,31 @@ const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
     ("all_metadata_first", |l1_batches| {
         let commit_tx_actions = l1_batches
             .iter()
-            .map(|batch| SaveAction::InsertCommitTx(batch.header.number));
+            .map(|(batch, _)| SaveAction::InsertCommitTx(batch.header.number));
         l1_batches
             .iter()
-            .map(SaveAction::InsertBatch)
-            .chain(l1_batches.iter().map(SaveAction::SaveMetadata))
+            .map(|(batch, block)| SaveAction::InsertBatch(batch, block))
+            .chain(
+                l1_batches
+                    .iter()
+                    .map(|(batch, _)| SaveAction::SaveMetadata(batch)),
+            )
             .chain(commit_tx_actions)
             .collect()
     }),
     ("all_commit_txs_first", |l1_batches| {
         let commit_tx_actions = l1_batches
             .iter()
-            .map(|batch| SaveAction::InsertCommitTx(batch.header.number));
+            .map(|(batch, _)| SaveAction::InsertCommitTx(batch.header.number));
         l1_batches
             .iter()
-            .map(SaveAction::InsertBatch)
+            .map(|(batch, block)| SaveAction::InsertBatch(batch, block))
             .chain(commit_tx_actions)
-            .chain(l1_batches.iter().map(SaveAction::SaveMetadata))
+            .chain(
+                l1_batches
+                    .iter()
+                    .map(|(batch, _)| SaveAction::SaveMetadata(batch)),
+            )
             .collect()
     }),
 ];
@@ -459,7 +500,7 @@ async fn normal_checker_function(
         let signed_tx = signed_tx.unwrap();
         client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
-            .execute_tx(signed_tx.hash, true, 1)
+            .execute_tx(signed_tx.hash, true, EthTxFinalityStatus::Finalized)
             .with_logs(l1_batches.iter().map(l1_batch_commit_log).collect());
 
         commit_tx_hash_by_l1_batch.extend(
@@ -472,14 +513,25 @@ async fn normal_checker_function(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode).await
+        ..create_mock_checker(client, pool.clone()).await
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
 
+    let batches_with_blocks = l1_batches
+        .iter()
+        .map(|batch| {
+            let mut l2_block = create_l2_block(batch_to_block_number(batch));
+            if commitment_mode == L1BatchCommitmentMode::Validium {
+                l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+            }
+            (batch.to_owned(), l2_block)
+        })
+        .collect::<Vec<_>>();
+
     // Add new batches to the storage.
-    for save_action in save_actions_mapper(&l1_batches) {
+    for save_action in save_actions_mapper(&batches_with_blocks) {
         save_action
             .apply(
                 &mut storage,
@@ -498,108 +550,7 @@ async fn normal_checker_function(
         }
     }
 
-    // Send the stop signal to the checker and wait for it to stop.
-    stop_sender.send_replace(true);
-    checker_task.await.unwrap().unwrap();
-}
-
-#[tokio::test]
-async fn checker_works_with_different_settlement_layers() {
-    // Use default action mapper.
-    let save_actions_mapper = SAVE_ACTION_MAPPERS[0].1;
-    let commitment_mode = L1BatchCommitmentMode::Rollup;
-
-    let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
-
-    let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
-    let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
-    let mut chain_id_by_l1_batch = HashMap::with_capacity(l1_batches.len());
-    let l1_client = create_mock_ethereum();
-    let gateway_client = create_mock_gateway();
-
-    let clients = [l1_client, gateway_client];
-    let diamond_proxies = [L1_DIAMOND_PROXY_ADDR, GATEWAY_DIAMOND_PROXY_ADDR];
-
-    for (i, l1_batches) in l1_batches.chunks(2).enumerate() {
-        let client = &clients[i & 1];
-        let input_data = build_commit_tx_input_data(l1_batches, commitment_mode);
-        let signed_tx = client.sign_prepared_tx(
-            input_data.clone(),
-            VALIDATOR_TIMELOCK_ADDR,
-            Options {
-                nonce: Some((i / 2).into()),
-                ..Options::default()
-            },
-        );
-        let signed_tx = signed_tx.unwrap();
-        client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
-        client.execute_tx(signed_tx.hash, true, 1).with_logs(
-            l1_batches
-                .iter()
-                .map(|batch| {
-                    let mut log = l1_batch_commit_log(batch);
-                    log.address = diamond_proxies[i & 1];
-                    log
-                })
-                .collect(),
-        );
-
-        commit_tx_hash_by_l1_batch.extend(
-            l1_batches
-                .iter()
-                .map(|batch| (batch.header.number, signed_tx.hash)),
-        );
-        let chain_id = client.as_ref().fetch_chain_id().await.unwrap();
-        chain_id_by_l1_batch.extend(
-            l1_batches
-                .iter()
-                .map(|batch| (batch.header.number, chain_id)),
-        )
-    }
-
-    let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
-    let mut checker = ConsistencyChecker::new(
-        Box::new(clients[0].clone().into_client()),
-        Some(Box::new(clients[1].clone().into_client())),
-        100,
-        pool.clone(),
-        commitment_mode,
-        L2ChainId::new(ERA_CHAIN_ID).unwrap(),
-    )
-    .await
-    .unwrap();
-    checker.sleep_interval = Duration::from_millis(10);
-    checker.event_handler = Box::new(l1_batch_updates_sender);
-    checker.l1_data_mismatch_behavior = L1DataMismatchBehavior::Bail;
-
-    let (stop_sender, stop_receiver) = watch::channel(false);
-    let checker_task = tokio::spawn(checker.run(stop_receiver));
-
-    // Add new batches to the storage.
-    for save_action in save_actions_mapper(&l1_batches) {
-        save_action
-            .apply(
-                &mut storage,
-                &commit_tx_hash_by_l1_batch,
-                &chain_id_by_l1_batch,
-            )
-            .await;
-        tokio::time::sleep(Duration::from_millis(7)).await;
-    }
-
-    // Wait until all batches are checked.
-    loop {
-        let checked_batch = l1_batch_updates_receiver.recv().await.unwrap();
-        if checked_batch == l1_batches.last().unwrap().header.number {
-            break;
-        }
-    }
-
-    // Send the stop signal to the checker and wait for it to stop.
+    // Send a stop request to the checker and wait for it to stop.
     stop_sender.send_replace(true);
     checker_task.await.unwrap().unwrap();
 }
@@ -651,7 +602,7 @@ async fn checker_processes_pre_boojum_batches(
         let signed_tx = signed_tx.unwrap();
         client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
-            .execute_tx(signed_tx.hash, true, 1)
+            .execute_tx(signed_tx.hash, true, EthTxFinalityStatus::Finalized)
             .with_logs(vec![l1_batch_commit_log(l1_batch)]);
 
         commit_tx_hash_by_l1_batch.insert(l1_batch.header.number, signed_tx.hash);
@@ -660,14 +611,25 @@ async fn checker_processes_pre_boojum_batches(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode).await
+        ..create_mock_checker(client, pool.clone()).await
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
 
+    let batches_with_blocks = l1_batches
+        .iter()
+        .map(|batch| {
+            let mut l2_block = create_l2_block(batch_to_block_number(batch));
+            if commitment_mode == L1BatchCommitmentMode::Validium {
+                l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+            }
+            (batch.to_owned(), l2_block)
+        })
+        .collect::<Vec<_>>();
+
     // Add new batches to the storage.
-    for save_action in save_actions_mapper(&l1_batches) {
+    for save_action in save_actions_mapper(&batches_with_blocks) {
         save_action
             .apply(
                 &mut storage,
@@ -686,7 +648,7 @@ async fn checker_processes_pre_boojum_batches(
         }
     }
 
-    // Send the stop signal to the checker and wait for it to stop.
+    // Send a stop request to the checker and wait for it to stop.
     stop_sender.send_replace(true);
     checker_task.await.unwrap().unwrap();
 }
@@ -706,6 +668,10 @@ async fn checker_functions_after_snapshot_recovery(
         .unwrap();
 
     let l1_batch = create_l1_batch_with_metadata(99);
+    let mut l2_block = create_l2_block(batch_to_block_number(&l1_batch));
+    if commitment_mode == L1BatchCommitmentMode::Validium {
+        l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+    }
 
     let commit_tx_input_data =
         build_commit_tx_input_data(slice::from_ref(&l1_batch), commitment_mode);
@@ -722,11 +688,11 @@ async fn checker_functions_after_snapshot_recovery(
     let commit_tx_hash = signed_tx.hash;
     client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
     client
-        .execute_tx(commit_tx_hash, true, 1)
+        .execute_tx(commit_tx_hash, true, EthTxFinalityStatus::Finalized)
         .with_logs(vec![l1_batch_commit_log(&l1_batch)]);
 
     let save_actions = [
-        SaveAction::InsertBatch(&l1_batch),
+        SaveAction::InsertBatch(&l1_batch, &l2_block),
         SaveAction::SaveMetadata(&l1_batch),
         SaveAction::InsertCommitTx(l1_batch.header.number),
     ];
@@ -747,7 +713,7 @@ async fn checker_functions_after_snapshot_recovery(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone(), commitment_mode).await
+        ..create_mock_checker(client, pool.clone()).await
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
@@ -888,7 +854,11 @@ impl IncorrectDataKind {
         };
         client.as_ref().send_raw_tx(signed_tx.raw_tx).await.unwrap();
         client
-            .execute_tx(signed_tx.hash, successful_status, 1)
+            .execute_tx(
+                signed_tx.hash,
+                successful_status,
+                EthTxFinalityStatus::Finalized,
+            )
             .with_logs(tx_logs);
         signed_tx.hash
     }
@@ -917,12 +887,17 @@ async fn checker_detects_incorrect_tx_data(
     }
 
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
+    let mut l2_block = create_l2_block(batch_to_block_number(&l1_batch));
+    if commitment_mode == L1BatchCommitmentMode::Validium {
+        l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+    }
+
     let client = create_mock_ethereum();
     let commit_tx_hash = kind.apply(&client, &l1_batch, commitment_mode).await;
     let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
 
     let save_actions = [
-        SaveAction::InsertBatch(&l1_batch),
+        SaveAction::InsertBatch(&l1_batch, &l2_block),
         SaveAction::SaveMetadata(&l1_batch),
         SaveAction::InsertCommitTx(l1_batch.header.number),
     ];
@@ -937,7 +912,7 @@ async fn checker_detects_incorrect_tx_data(
     }
     drop(storage);
 
-    let checker = create_mock_checker(client, pool, commitment_mode).await;
+    let checker = create_mock_checker(client, pool).await;
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
     tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))

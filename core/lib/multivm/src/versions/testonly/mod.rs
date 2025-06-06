@@ -74,7 +74,6 @@ mod tester;
 pub(super) mod tracing_execution_error;
 pub(super) mod transfer;
 pub(super) mod upgrade;
-pub(super) mod v26_upgrade_utils;
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -117,6 +116,13 @@ where
     let mut vm = VM::new(dump.l1_batch_env, dump.system_env, storage);
     vm.push_transaction(transaction);
     vm.inspect(tracer, InspectExecutionMode::OneTx)
+}
+
+pub(crate) fn execute_oneshot_dump<VM>(dump: VmDump) -> VmExecutionResultAndLogs
+where
+    VM: VmFactory<StorageView<StorageSnapshot>>,
+{
+    inspect_oneshot_dump::<VM>(dump, &mut <VM::TracerDispatcher>::default())
 }
 
 pub(crate) fn mock_validation_params(
@@ -188,6 +194,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
             timestamp,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
+            interop_roots: vec![],
         },
     }
 }

@@ -26,7 +26,9 @@
 //! after recovery matches one in the Postgres snapshot etc.
 
 use std::{
-    fmt, ops,
+    fmt,
+    num::NonZeroU32,
+    ops,
     sync::atomic::{AtomicU64, Ordering},
     time::Instant,
 };
@@ -39,7 +41,9 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_shared_metrics::{SnapshotRecoveryStage, APP_METRICS};
-use zksync_types::{snapshots::uniform_hashed_keys_chunk, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{
+    snapshots::uniform_hashed_keys_chunk, L1BatchNumber, L2BlockNumber, OrStopped, H256,
+};
 
 use super::{
     helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree, MerkleTreeHealth},
@@ -119,6 +123,14 @@ struct InitParameters {
 }
 
 impl InitParameters {
+    /// Minimum number of storage logs in the genesis state to initiate recovery.
+    const MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY: u32 = if cfg!(test) {
+        // Select the smaller threshold for tests, but make it large enough so that it's not triggered by unrelated tests.
+        1_000
+    } else {
+        100_000
+    };
+
     async fn new(
         pool: &ConnectionPool<Core>,
         config: &MetadataCalculatorRecoveryConfig,
@@ -156,7 +168,22 @@ impl InitParameters {
                 l1_batch = pruned.l1_batch;
                 expected_root_hash = pruned.l1_batch_root_hash;
             }
-            (None, None) => return Ok(None),
+            (None, None) => {
+                // Check whether we need recovery for the genesis state. This could be necessary if the genesis state
+                // for the chain is very large (order of millions of entries).
+                let is_genesis_recovery_needed =
+                    Self::is_genesis_recovery_needed(&mut storage).await?;
+                if is_genesis_recovery_needed {
+                    l2_block = L2BlockNumber(0);
+                    l1_batch = L1BatchNumber(0);
+                    expected_root_hash = storage
+                        .blocks_dal()
+                        .get_l1_batch_state_root(l1_batch)
+                        .await?;
+                } else {
+                    return Ok(None);
+                }
+            }
         };
 
         let log_count = storage
@@ -171,6 +198,31 @@ impl InitParameters {
             log_count,
             desired_chunk_size: config.desired_chunk_size,
         }))
+    }
+
+    #[tracing::instrument(skip_all, ret)]
+    async fn is_genesis_recovery_needed(
+        storage: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<bool> {
+        let earliest_l2_block = storage.blocks_dal().get_earliest_l2_block_number().await?;
+        tracing::debug!(?earliest_l2_block, "Got earliest L2 block from Postgres");
+        if earliest_l2_block != Some(L2BlockNumber(0)) {
+            tracing::info!(
+                ?earliest_l2_block,
+                "There is no genesis block in Postgres; genesis recovery is impossible"
+            );
+            return Ok(false);
+        }
+
+        // We get the full log count later, but for now do a faster query to understand the approximate amount.
+        storage
+            .storage_logs_dal()
+            .check_storage_log_count(
+                L2BlockNumber(0),
+                NonZeroU32::new(Self::MIN_STORAGE_LOGS_FOR_GENESIS_RECOVERY).unwrap(),
+            )
+            .await
+            .map_err(Into::into)
     }
 
     fn chunk_count(&self) -> u64 {
@@ -199,20 +251,24 @@ impl GenericAsyncTree {
         recovery_pool: ConnectionPool<Core>,
         health_updater: &HealthUpdater,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<AsyncTree>> {
+    ) -> Result<AsyncTree, OrStopped> {
         let started_at = Instant::now();
         let (tree, init_params) = match self {
-            Self::Ready(tree) => return Ok(Some(tree)),
+            Self::Ready(tree) => return Ok(tree),
             Self::Recovering(tree) => {
                 let params = InitParameters::new(main_pool, config).await?.context(
                     "Merkle tree is recovering, but Postgres doesn't contain snapshot recovery information",
                 )?;
+
                 let recovered_version = tree.recovered_version();
-                anyhow::ensure!(
-                    u64::from(params.l1_batch.0) == recovered_version,
-                    "Snapshot L1 batch in Postgres ({params:?}) differs from the recovered Merkle tree version \
-                     ({recovered_version})"
-                );
+                if u64::from(params.l1_batch.0) != recovered_version {
+                    let err = anyhow::anyhow!(
+                        "Snapshot L1 batch in Postgres ({params:?}) differs from the recovered Merkle tree version \
+                         ({recovered_version})"
+                    );
+                    return Err(err.into());
+                }
+
                 tracing::info!("Resuming tree recovery with status: {params:?}");
                 (tree, params)
             }
@@ -223,8 +279,9 @@ impl GenericAsyncTree {
                     let tree = AsyncTreeRecovery::new(db, l1_batch.0.into(), mode, config)?;
                     (tree, params)
                 } else {
-                    // Start the tree from scratch. The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
-                    return Ok(Some(AsyncTree::new(db, mode)?));
+                    // The genesis block will be filled in `TreeUpdater::loop_updating_tree()`.
+                    tracing::info!("Starting Merkle tree from scratch");
+                    return Ok(AsyncTree::new(db, mode)?);
                 }
             }
         };
@@ -240,12 +297,10 @@ impl GenericAsyncTree {
         let tree = tree
             .recover(init_params, recovery_options, &recovery_pool, stop_receiver)
             .await?;
-        if tree.is_some() {
-            // Only report latency if recovery wasn't canceled
-            let elapsed = started_at.elapsed();
-            APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::Tree].set(elapsed);
-            tracing::info!("Recovered Merkle tree from snapshot in {elapsed:?}");
-        }
+        // Only report latency if recovery wasn't canceled
+        let elapsed = started_at.elapsed();
+        APP_METRICS.snapshot_recovery_latency[&SnapshotRecoveryStage::Tree].set(elapsed);
+        tracing::info!("Recovered Merkle tree from snapshot in {elapsed:?}");
         Ok(tree)
     }
 }
@@ -257,7 +312,7 @@ impl AsyncTreeRecovery {
         mut options: RecoveryOptions<'_>,
         pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<AsyncTree>> {
+    ) -> Result<AsyncTree, OrStopped> {
         self.ensure_desired_chunk_size(init_params.desired_chunk_size)
             .await?;
 
@@ -305,18 +360,20 @@ impl AsyncTreeRecovery {
         let mut tree = tree.into_inner();
         if *stop_receiver.borrow() {
             // Waiting for persistence is mostly useful for tests. Normally, the tree database won't be used in the same process
-            // after a stop signal is received, so there's no risk of data races with the background persistence thread.
+            // after a stop request is received, so there's no risk of data races with the background persistence thread.
             tree.wait_for_persistence().await?;
-            return Ok(None);
+            return Err(OrStopped::Stopped);
         }
 
         let finalize_latency = RECOVERY_METRICS.latency[&RecoveryStage::Finalize].start();
         let actual_root_hash = tree.root_hash().await;
         if let Some(expected_root_hash) = init_params.expected_root_hash {
-            anyhow::ensure!(
-                actual_root_hash == expected_root_hash,
-                "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {expected_root_hash:?}"
-            );
+            if actual_root_hash != expected_root_hash {
+                let err = anyhow::anyhow!(
+                    "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {expected_root_hash:?}"
+                );
+                return Err(err.into());
+            }
         }
 
         // Check pruning info one last time before finalizing the tree.
@@ -330,7 +387,7 @@ impl AsyncTreeRecovery {
             "Tree recovery has finished, the recovery took {:?}! resuming normal tree operation",
             start_time.elapsed()
         );
-        Ok(Some(tree))
+        Ok(tree)
     }
 
     /// Filters out `key_chunks` for which recovery was successfully performed.

@@ -18,6 +18,10 @@ pub use zksync_types::{
     },
     Address, Transaction, H160, H256, H64, U256, U64,
 };
+use zksync_types::{
+    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
+    L2ChainId,
+};
 
 /// Token in the ZKsync network
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -121,7 +125,7 @@ impl From<zksync_types::web3::Filter> for Filter {
     fn from(value: zksync_types::web3::Filter) -> Self {
         let convert_block_number = |b: zksync_types::web3::BlockNumber| match b {
             zksync_types::web3::BlockNumber::Finalized => BlockNumber::Finalized,
-            zksync_types::web3::BlockNumber::Safe => BlockNumber::Finalized,
+            zksync_types::web3::BlockNumber::Safe => BlockNumber::L1Committed,
             zksync_types::web3::BlockNumber::Latest => BlockNumber::Latest,
             zksync_types::web3::BlockNumber::Earliest => BlockNumber::Earliest,
             zksync_types::web3::BlockNumber::Pending => BlockNumber::Pending,
@@ -299,9 +303,47 @@ pub enum PubSubResult {
     Syncing(bool),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EcosystemContractsDto {
+    pub bridgehub_proxy_addr: Address,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Address,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
+    pub l1_wrapped_base_token_store: Option<Address>,
+    pub server_notifier_addr: Option<Address>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct GenesisConfigDto {
+    pub protocol_version: ProtocolSemanticVersion,
+    pub genesis_root_hash: H256,
+    pub rollup_last_leaf_index: u64,
+    pub genesis_commitment: H256,
+    pub bootloader_hash: H256,
+    pub default_aa_hash: H256,
+    pub evm_emulator_hash: Option<H256>,
+    pub l1_chain_id: L1ChainId,
+    pub l2_chain_id: L2ChainId,
+    // Rename is required to not introduce breaking changes in the API for existing clients.
+    #[serde(
+        alias = "recursion_scheduler_level_vk_hash",
+        rename(serialize = "recursion_scheduler_level_vk_hash")
+    )]
+    pub snark_wrapper_vk_hash: H256,
+    pub fflonk_snark_wrapper_vk_hash: Option<H256>,
+    pub fee_account: Address,
+    pub dummy_verifier: bool,
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+}
+
 #[cfg(test)]
 mod tests {
-    use zksync_types::api::{BlockId, BlockIdVariant};
+    use zksync_types::{
+        api::{BlockId, BlockIdVariant},
+        ProtocolVersionId,
+    };
 
     use super::*;
 
@@ -392,5 +434,58 @@ mod tests {
 
         let restored_value: ValueOrArray<Address> = serde_json::from_value(json).unwrap();
         assert_eq!(restored_value, value);
+    }
+
+    // This test checks that serde overrides (`rename`, `alias`) work for `snark_wrapper_vk_hash` field.
+    #[test]
+    fn genesis_serde_snark_wrapper_vk_hash() {
+        let genesis = GenesisConfigDto {
+            genesis_root_hash: H256::repeat_byte(0x01),
+            rollup_last_leaf_index: 26,
+            snark_wrapper_vk_hash: H256::repeat_byte(0x02),
+            fflonk_snark_wrapper_vk_hash: None,
+            fee_account: Address::zero(),
+            genesis_commitment: H256::repeat_byte(0x17),
+            bootloader_hash: H256::zero(),
+            default_aa_hash: H256::zero(),
+            evm_emulator_hash: None,
+            l1_chain_id: L1ChainId(9),
+            protocol_version: ProtocolSemanticVersion {
+                minor: ProtocolVersionId::latest(),
+                patch: 0.into(),
+            },
+            l2_chain_id: L2ChainId::default(),
+            dummy_verifier: false,
+            l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
+        };
+        let genesis_str = serde_json::to_string(&genesis).unwrap();
+
+        // Check that we use backward-compatible name in serialization.
+        // If you want to remove this check, make sure that all the potential clients are updated.
+        assert!(
+            genesis_str.contains("recursion_scheduler_level_vk_hash"),
+            "Serialization should use backward-compatible name"
+        );
+
+        let genesis2: GenesisConfigDto = serde_json::from_str(&genesis_str).unwrap();
+        assert_eq!(genesis, genesis2);
+
+        let genesis_json = r#"{
+            "protocol_version": "0.26.0",
+            "genesis_root_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "genesis_commitment": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "rollup_last_leaf_index": 21,
+            "bootloader_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "default_aa_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "snark_wrapper_vk_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "l1_chain_id": 1,
+            "l2_chain_id": 1,
+            "fee_account": "0x1111111111111111111111111111111111111111",
+            "dummy_verifier": false,
+            "l1_batch_commit_data_generator_mode": "Rollup"
+        }"#;
+        serde_json::from_str::<GenesisConfigDto>(genesis_json).unwrap_or_else(|err| {
+            panic!("Failed to parse genesis config with a new name: {}", err)
+        });
     }
 }

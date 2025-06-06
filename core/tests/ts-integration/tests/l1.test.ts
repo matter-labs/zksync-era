@@ -6,16 +6,15 @@
  * and waiting for the block finalization).
  */
 import { TestMaster } from '../src';
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import {
-    bigIntMax,
     deployContract,
     getTestContract,
     scaledGasPrice,
     waitForL2ToL1LogProof,
-    waitForNewL1Batch
+    waitForNewL1Batch,
+    maxL2GasLimitForPriorityTxs
 } from '../src/helpers';
 import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT } from 'zksync-ethers/build/utils';
 
@@ -203,7 +202,7 @@ describe('Tests for L1 behavior', () => {
         await priorityOpHandle.waitL1Commit();
     });
 
-    test.skip('Should revert l1 tx with too many initial storage writes', async () => {
+    test('Should revert l1 tx with too many initial storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -238,7 +237,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    test.skip('Should revert l1 tx with too many repeated storage writes', async () => {
+    test('Should revert l1 tx with too many repeated storage writes', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -293,7 +292,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    test.skip('Should revert l1 tx with too many l2 to l1 messages', async () => {
+    test('Should revert l1 tx with too many l2 to l1 messages', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -328,7 +327,7 @@ describe('Tests for L1 behavior', () => {
         await expect(priorityOpHandle).toBeReverted();
     });
 
-    test.skip('Should revert l1 tx with too big l2 to l1 message', async () => {
+    test('Should revert l1 tx with too big l2 to l1 message', async () => {
         // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
         // stage environment. That's why we only test it on the local environment (which includes CI).
         if (!testMaster.isLocalHost()) {
@@ -372,21 +371,3 @@ describe('Tests for L1 behavior', () => {
         await testMaster.deinitialize();
     });
 });
-
-function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
-    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
-    // using binary search.
-    const overhead = getOverheadForTransaction(
-        // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
-        // will be greater than `overheadForLength` for a typical transacction
-        0n
-    );
-    return maxGasBodyLimit + overhead;
-}
-
-function getOverheadForTransaction(encodingLength: bigint): bigint {
-    const TX_SLOT_OVERHEAD_GAS = 10_000n;
-    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
-
-    return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
-}

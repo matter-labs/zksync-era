@@ -1,5 +1,6 @@
 //! This module contains varios v26-upgrade-related functions to be used by the state keeper's
 //! unit tests.
+//!
 //! The correctness of the functionality present here is hard to enforce inside state keeper
 //! directly, so it is done inside unit tests of the multivm.
 

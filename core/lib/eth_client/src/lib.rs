@@ -1,9 +1,11 @@
-use std::fmt;
+use std::{cmp::max, fmt};
 
 use async_trait::async_trait;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
-    ethabi, web3,
+    ethabi,
+    transaction_request::PaymasterParams,
+    web3,
     web3::{
         AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,
@@ -11,6 +13,7 @@ use zksync_types::{
     Address, SLChainId, H160, H256, U256, U64,
 };
 pub use zksync_web3_decl::{
+    self as web3_decl,
     error::{EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
 };
@@ -21,6 +24,9 @@ pub use crate::types::{
 };
 
 pub mod clients;
+pub mod contracts_loader;
+#[cfg(feature = "node_framework")]
+pub mod node;
 mod types;
 
 /// Contract Call/Query Options
@@ -50,6 +56,13 @@ pub struct Options {
     pub blob_versioned_hashes: Option<Vec<H256>>,
     /// Blob sidecar
     pub blob_tx_sidecar: Option<EthTxBlobSidecar>,
+    // EIP 712 params
+    // Max Gas per pubdata
+    pub max_gas_per_pubdata: Option<U256>,
+    // Factory deps
+    pub factory_deps: Option<Vec<Vec<u8>>>,
+    // Paymaster params
+    pub paymaster_params: Option<PaymasterParams>,
 }
 
 impl Options {
@@ -74,7 +87,16 @@ pub struct BaseFees {
     pub l2_pubdata_price: U256,
 }
 
+impl BaseFees {
+    pub fn gas_per_pubdata(&self) -> u64 {
+        self.l2_pubdata_price
+            .as_u64()
+            .div_ceil(max(1, self.base_fee_per_gas))
+    }
+}
+
 /// Common Web3 interface, as seen by the core applications.
+///
 /// Encapsulates the raw Web3 interaction, providing a high-level interface. Acts as an extension
 /// trait implemented for L1 / Ethereum [clients](zksync_web3_decl::client::Client).
 ///

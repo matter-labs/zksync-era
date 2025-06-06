@@ -1,5 +1,4 @@
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BigNumberish } from 'ethers';
 
@@ -25,6 +24,29 @@ export const L2_DEFAULT_ETH_PER_ACCOUNT = ethers.parseEther('0.5');
 // Stress tests on local host may require a lot of additiomal funds, but these are skipped during tests on normal environments
 export const L2_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.parseEther('50');
 export const ERC20_PER_ACCOUNT = ethers.parseEther('10000.0');
+
+interface VmPlaygroundHealth {
+    readonly status: string;
+    readonly details?: {
+        vm_mode?: string;
+        last_processed_batch?: number;
+    };
+}
+
+interface TxSenderHealth {
+    readonly status: string;
+    readonly details?: {
+        vm_mode?: string;
+        vm_divergences?: number;
+    };
+}
+
+interface NodeHealth {
+    readonly components: {
+        vm_playground?: VmPlaygroundHealth;
+        tx_sender?: TxSenderHealth;
+    };
+}
 
 /**
  * This class is responsible for preparing the test environment for all the other test suites.
@@ -171,7 +193,7 @@ export class TestContextOwner {
         const chainId = this.env.l2ChainId;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
-        const erc20Bridge = await bridgehub.assetRouter();
+        const erc20Bridge = await this.mainSyncWallet.getL1AssetRouter();
         const baseToken = await bridgehub.baseToken(chainId);
 
         const erc20Token = this.env.erc20Token.l1Address;
@@ -566,20 +588,6 @@ export class TestContextOwner {
      * Returns `undefined` if the VM playground isn't run or doesn't have the shadow mode.
      */
     private async lastPlaygroundBatch() {
-        interface VmPlaygroundHealth {
-            readonly status: string;
-            readonly details?: {
-                vm_mode?: string;
-                last_processed_batch?: number;
-            };
-        }
-
-        interface NodeHealth {
-            readonly components: {
-                vm_playground?: VmPlaygroundHealth;
-            };
-        }
-
         const healthcheckPort = this.env.healthcheckPort;
         const nodeHealth = (await (await fetch(`http://127.0.0.1:${healthcheckPort}/health`)).json()) as NodeHealth;
         const playgroundHealth = nodeHealth.components.vm_playground;
@@ -598,6 +606,24 @@ export class TestContextOwner {
         return playgroundHealth.details?.last_processed_batch ?? 0;
     }
 
+    private async checkVmDivergencesInApi() {
+        const healthcheckPort = this.env.healthcheckPort;
+        const nodeHealth = (await (await fetch(`http://127.0.0.1:${healthcheckPort}/health`)).json()) as NodeHealth;
+        const txSenderHealth = nodeHealth.components.tx_sender;
+        if (txSenderHealth === undefined) {
+            throw new Error('No tx_sender in node components');
+        }
+        const vmMode = txSenderHealth.details?.vm_mode;
+        if (vmMode !== 'shadow') {
+            this.reporter.warn(`API VM mode is '${vmMode}'; should be set to 'shadow' to check VM divergence`);
+            return;
+        }
+        const divergenceCount = txSenderHealth.details?.vm_divergences ?? 0;
+        if (divergenceCount > 0) {
+            throw new Error(`${divergenceCount} VM divergence(s) were detected!`);
+        }
+    }
+
     /**
      * Performs context deinitialization.
      */
@@ -605,6 +631,12 @@ export class TestContextOwner {
         // Reset the reporter context.
         this.reporter = new Reporter();
         try {
+            if (isLocalHost(this.env.network)) {
+                this.reporter.startAction('Checking for VM divergences in API');
+                await this.checkVmDivergencesInApi();
+                this.reporter.finishAction();
+            }
+
             if (this.env.nodeMode == NodeMode.Main && isLocalHost(this.env.network)) {
                 // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
                 // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
