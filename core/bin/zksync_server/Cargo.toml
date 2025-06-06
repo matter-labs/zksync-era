@@ -64,3 +64,4 @@ smart-config-commands.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
+zksync_node_alloc_tools.workspace = true

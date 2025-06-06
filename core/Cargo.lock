@@ -9886,6 +9886,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tikv-jemalloc-ctl"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "619bfed27d807b54f7f776b9430d4f8060e66ee138a28632ca898584d462c31c"
+dependencies = [
+ "libc",
+ "paste",
+ "tikv-jemalloc-sys",
+]
+
+[[package]]
 name = "tikv-jemalloc-sys"
 version = "0.5.4+5.3.0-patched"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12944,6 +12955,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_node_alloc_tools"
+version = "28.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tikv-jemalloc-ctl",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_health_check",
+ "zksync_node_framework",
+]
+
+[[package]]
 name = "zksync_node_api_server"
 version = "28.5.0-non-semver-compat"
 dependencies = [
@@ -13409,6 +13435,7 @@ dependencies = [
  "zksync_house_keeper",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
+ "zksync_node_alloc_tools",
  "zksync_node_api_server",
  "zksync_node_consensus",
  "zksync_node_fee_model",
