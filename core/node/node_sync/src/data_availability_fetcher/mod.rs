@@ -94,6 +94,31 @@ impl DataAvailabilityFetcher {
         }
     }
 
+    /// Determines the first L1 batch to scan for Data Availability information.
+    /// It relies on the consistency checker's cursor because the purpose of the DA fetcher is
+    /// to populate the necessary DA info for the consistency checker to verify L1 commitments.
+    /// So there is no point in scanning batches that were already checked by the consistency
+    /// checker, or batches that will be skipped by it.
+    async fn determine_first_batch_to_scan(&self) -> anyhow::Result<L1BatchNumber> {
+        let last_checked_by_consistency_checker = self
+            .pool
+            .connection()
+            .await?
+            .blocks_dal()
+            .get_consistency_checker_last_processed_l1_batch()
+            .await?;
+
+        let first_batch_to_check = last_checked_by_consistency_checker + 1;
+
+        tracing::debug!(
+            "Determined first batch to scan: {} (last checked batch: {})",
+            first_batch_to_check,
+            last_checked_by_consistency_checker
+        );
+
+        Ok(first_batch_to_check)
+    }
+
     /// Returns a health check for this fetcher.
     pub fn health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
@@ -117,7 +142,7 @@ impl DataAvailabilityFetcher {
             .data_availability_dal()
             .get_latest_batch_with_inclusion_data(self.last_scanned_batch)
             .await?
-            .unwrap_or(L1BatchNumber(0));
+            .unwrap_or(self.last_scanned_batch);
 
         let l1_batch_to_fetch = storage
             .blocks_dal()
@@ -249,6 +274,8 @@ impl DataAvailabilityFetcher {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
         let mut last_updated_l1_batch = None;
+
+        self.last_scanned_batch = self.determine_first_batch_to_scan().await?;
         self.drop_entries_without_inclusion_data().await?;
 
         while !*stop_receiver.borrow_and_update() {

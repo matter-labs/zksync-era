@@ -3,6 +3,7 @@ pub use self::{
     api::ApiConfig,
     base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
+    consistency_checker::ConsistencyCheckerConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::chain::ContractsConfig,
     da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
@@ -40,6 +41,7 @@ pub mod base_token_adjuster;
 pub mod chain;
 mod commitment_generator;
 pub mod consensus;
+pub mod consistency_checker;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod da_client;

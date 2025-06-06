@@ -22,7 +22,7 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         en_config::ENConfig,
-        DataAvailabilitySecrets, GeneralConfig, Secrets,
+        ConsistencyCheckerConfig, DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
     ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
@@ -1175,6 +1175,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
+    pub consistency_checker: ConsistencyCheckerConfig,
     pub remote: R,
 }
 
@@ -1224,6 +1225,9 @@ impl ExternalNodeConfig<()> {
                 da_client_config_from_env("EN_DA_").ok(),
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
+            consistency_checker: envy::prefixed("EN_CONSISTENCY_CHECKER_")
+                .from_env::<ConsistencyCheckerConfig>()
+                .context("could not load external node config (API component params)")?,
             remote: (),
         })
     }
@@ -1278,6 +1282,7 @@ impl ExternalNodeConfig<()> {
             tree_component,
             consensus_secrets,
             data_availability,
+            consistency_checker: general_config.consistency_checker_config,
             remote: (),
         })
     }
@@ -1314,6 +1319,7 @@ impl ExternalNodeConfig<()> {
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
             data_availability: self.data_availability,
+            consistency_checker: self.consistency_checker,
             remote,
         })
     }
@@ -1335,6 +1341,7 @@ impl ExternalNodeConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
+            consistency_checker: ConsistencyCheckerConfig::default(),
             data_availability: (None, None),
         }
     }
