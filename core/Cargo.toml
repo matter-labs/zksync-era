@@ -288,10 +288,10 @@ zk_os_basic_system = { package = "basic_system", git = "https://github.com/matte
 zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", rev = "3246224672077ce39d0555c55773a68fef6153a3", features = ["evm-compatibility"] }
 
 # only used for verifinfg proofs
-air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
-execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
-verifier_common = { package = "verifier_common", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
-full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/matter-labs/zksync-airbender.git", rev = "a9d35acb20ccfc5c2a52c8a82431451e233f0eca" }
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.0.5" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.0.5" }
+verifier_common = { package = "verifier_common", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.0.5" }
+full_statement_verifier = { package = "full_statement_verifier", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.0.5" }
 
 # New VM
 zksync_vm2 = "=0.4.0"
