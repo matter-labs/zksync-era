@@ -97,7 +97,7 @@ async fn ensure_protocol_alignment(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
         let url = PrometheusExporterConfig::gateway_endpoint(base_url);
         Some(PrometheusExporterConfig::push(
             url,
-            prometheus_config.push_interval(),
+            prometheus_config.push_interval,
         ))
     } else {
         let prometheus_listener_port = config

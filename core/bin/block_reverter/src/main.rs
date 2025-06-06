@@ -132,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
         .observability()?
         .install_with_logs(zksync_vlog::Logs::disable_default_logs)?;
 
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let repo = config_sources.build_repository(&schema);
     let wallets_config: Option<Wallets> = repo.parse_opt()?;
     let genesis_config = repo.parse::<GenesisConfigWrapper>()?.genesis;

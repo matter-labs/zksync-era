@@ -1,20 +1,11 @@
-//! Dependency injection for circuit breakers.
-
 use std::sync::Arc;
 
 use zksync_config::configs::chain::CircuitBreakerConfig;
 use zksync_node_framework::{
-    resource, task::TaskKind, FromContext, IntoContext, Resource, StopReceiver, Task, TaskId,
-    WiringError, WiringLayer,
+    task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 
 use crate::{CircuitBreakerChecker, CircuitBreakers};
-
-impl Resource<resource::Shared> for CircuitBreakers {
-    fn name() -> String {
-        "common/circuit_breakers".into()
-    }
-}
 
 /// Wiring layer for circuit breaker checker
 ///

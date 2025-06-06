@@ -1,18 +1,13 @@
 use std::path::PathBuf;
 
-use serde::Deserialize;
 use smart_config::{DescribeConfig, DeserializeConfig};
 
-// TODO: remove `#[derive(Deserialize)]` once env-based config in EN is reworked
-
 /// Configuration for the object store
-#[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ObjectStoreConfig {
     #[config(flatten)]
-    #[serde(flatten)]
     pub mode: ObjectStoreMode,
     #[config(default_t = 5)]
-    #[serde(default = "ObjectStoreConfig::default_max_retries")]
     pub max_retries: u16,
     /// Path to local directory that will be used to mirror store objects locally. If not specified, no mirroring will be used.
     /// The directory layout is identical to [`ObjectStoreMode::FileBacked`].
@@ -26,10 +21,6 @@ pub struct ObjectStoreConfig {
 }
 
 impl ObjectStoreConfig {
-    const fn default_max_retries() -> u16 {
-        5
-    }
-
     pub fn for_tests() -> Self {
         Self {
             mode: ObjectStoreMode::FileBacked {
@@ -41,9 +32,8 @@ impl ObjectStoreConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(tag = "mode")]
-#[serde(tag = "mode")]
 pub enum ObjectStoreMode {
     #[config(alias = "Gcs")]
     GCS { bucket_base_url: String },
