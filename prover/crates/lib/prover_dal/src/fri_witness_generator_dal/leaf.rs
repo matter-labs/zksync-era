@@ -11,6 +11,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt as _,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -27,7 +29,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         id: u32,
         chain_id: L2ChainId,
         time_taken: Duration,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE leaf_aggregation_witness_jobs_fri
@@ -43,9 +45,11 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             i64::from(id),
             chain_id.inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_leaf_aggregation_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_next_leaf_aggregation_job(
@@ -262,7 +266,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
         closed_form_inputs_url: String,
         number_of_basic_circuits: usize,
         batch_sealed_at: DateTime<Utc>,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -307,9 +311,11 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             protocol_version.patch.0 as i32,
             batch_sealed_at.naive_utc()
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_leaf_aggregation_jobs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {

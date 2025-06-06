@@ -93,7 +93,8 @@ impl ArtifactsManager for BasicCircuits {
                 protocol_version_id,
                 batch_sealed_at,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert prover jobs: {}", e))?;
 
         create_aggregation_jobs(
             &mut transaction,
@@ -104,12 +105,14 @@ impl ArtifactsManager for BasicCircuits {
             protocol_version_id,
         )
         .await
-        .unwrap();
+        .map_err(|e| anyhow::anyhow!("Failed to create aggregation jobs: {}", e))?;
 
         transaction
             .fri_basic_witness_generator_dal()
             .mark_witness_job_as_successful(job_id.into(), started_at.elapsed())
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to mark witness job as successful: {}", e))?;
+
         transaction
             .commit()
             .await

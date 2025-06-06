@@ -301,7 +301,8 @@ pub(crate) async fn create_aggregation_jobs(
                 *number_of_basic_circuits,
                 batch_sealed_at,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert leaf aggregation jobs: {}", e))?;
 
         connection
             .fri_node_witness_generator_dal()
@@ -314,7 +315,8 @@ pub(crate) async fn create_aggregation_jobs(
                 protocol_version,
                 batch_sealed_at,
             )
-            .await;
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert node aggregation jobs: {}", e))?;
     }
 
     connection
@@ -325,7 +327,8 @@ pub(crate) async fn create_aggregation_jobs(
             protocol_version,
             batch_sealed_at,
         )
-        .await;
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to insert recursion tip aggregation jobs: {}", e))?;
 
     connection
         .fri_scheduler_witness_generator_dal()
@@ -335,7 +338,8 @@ pub(crate) async fn create_aggregation_jobs(
             protocol_version,
             batch_sealed_at,
         )
-        .await;
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to insert scheduler aggregation jobs: {}", e))?;
 
     Ok(())
 }

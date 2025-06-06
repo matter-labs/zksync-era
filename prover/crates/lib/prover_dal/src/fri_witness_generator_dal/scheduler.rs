@@ -9,6 +9,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt as _,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -57,7 +59,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn mark_scheduler_jobs_as_queued(&mut self, batch_id: L1BatchId) {
+    pub async fn mark_scheduler_jobs_as_queued(&mut self, batch_id: L1BatchId) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -72,9 +74,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_scheduler_jobs_as_queued")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn requeue_stuck_scheduler_jobs(
@@ -177,7 +181,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         &mut self,
         batch_id: L1BatchId,
         time_taken: Duration,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
@@ -193,9 +197,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_scheduler_job_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_scheduler_witness_generator_jobs_for_batch(
@@ -287,7 +293,7 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
         scheduler_partial_input_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: DateTime<Utc>,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -316,9 +322,11 @@ impl FriSchedulerWitnessGeneratorDal<'_, '_> {
             protocol_version.patch.0 as i32,
             batch_sealed_at.naive_utc(),
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_scheduler_aggregation_jobs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn check_reached_max_attempts(&mut self, max_attempts: u32) -> usize {

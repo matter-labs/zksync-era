@@ -9,7 +9,7 @@ use zksync_basic_types::{
     },
     L1BatchId, L2ChainId,
 };
-use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
@@ -25,7 +25,7 @@ impl FriProofCompressorDal<'_, '_> {
         fri_proof_blob_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: DateTime<Utc>,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -51,9 +51,11 @@ impl FriProofCompressorDal<'_, '_> {
             protocol_version.patch.0 as i32,
             batch_sealed_at.naive_utc(),
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_proof_compression_job")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_next_proof_compression_job(
@@ -134,7 +136,7 @@ impl FriProofCompressorDal<'_, '_> {
         batch_id: L1BatchId,
         time_taken: Duration,
         l1_proof_blob_url: &str,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -153,12 +155,18 @@ impl FriProofCompressorDal<'_, '_> {
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_compression_job_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
-    pub async fn mark_proof_compression_job_failed(&mut self, error: &str, batch_id: L1BatchId) {
+    pub async fn mark_proof_compression_job_failed(
+        &mut self,
+        error: &str,
+        batch_id: L1BatchId,
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -179,9 +187,11 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::SentToServer.to_string(),
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_proof_compression_job_failed")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     // todo: this should be grouped by chain_id
@@ -228,7 +238,7 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn mark_proof_sent_to_server(&mut self, batch_id: L1BatchId) -> Result<(), DalError> {
+    pub async fn mark_proof_sent_to_server(&mut self, batch_id: L1BatchId) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE proof_compression_jobs_fri
@@ -403,10 +413,7 @@ impl FriProofCompressorDal<'_, '_> {
         })
     }
 
-    pub async fn delete_batch_data(
-        &mut self,
-        batch_id: L1BatchId,
-    ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+    pub async fn delete_batch_data(&mut self, batch_id: L1BatchId) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM proof_compression_jobs_fri
@@ -417,19 +424,25 @@ impl FriProofCompressorDal<'_, '_> {
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
+        .instrument("delete_batch_data")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     // todo: THIS LOOK VERY BAD
-    pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
+    pub async fn delete(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
             DELETE FROM proof_compression_jobs_fri
             "#
         )
-        .execute(self.storage.conn())
-        .await
+        .instrument("delete")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn requeue_stuck_jobs_for_batch(

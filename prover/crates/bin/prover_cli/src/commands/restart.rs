@@ -71,12 +71,14 @@ async fn restart_batch(
         .context("failed to restart batch: fri_witness_generator_dal()")?;
     conn.fri_basic_witness_generator_dal()
         .set_status_for_basic_witness_job(FriWitnessJobStatus::Queued, batch_id)
-        .await;
+        .await
+        .context("failed to restart batch: fri_basic_witness_generator_dal()")?;
     Ok(())
 }
 
 async fn restart_prover_job(id: u32, conn: &mut Connection<'_, Prover>) {
     conn.fri_prover_jobs_dal()
         .update_status(id, L2ChainId::zero(), "queued")
-        .await;
+        .await
+        .unwrap();
 }

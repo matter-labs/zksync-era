@@ -11,6 +11,8 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{
     connection::Connection,
+    error::DalResult,
+    instrument::InstrumentExt as _,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -29,7 +31,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         number_of_dependent_jobs: usize,
         depth: u16,
         url: String,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -50,9 +52,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             i32::from(depth),
             number_of_dependent_jobs as i32,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("update_node_aggregation_jobs_url")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_next_node_aggregation_job(
@@ -129,7 +133,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         id: u32,
         chain_id: L2ChainId,
         time_taken: Duration,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             UPDATE node_aggregation_witness_jobs_fri
@@ -145,9 +149,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             i64::from(id),
             chain_id.inner() as i64,
         )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("mark_node_aggregation_as_successful")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -160,7 +166,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
         aggregations_url: &str,
         protocol_version: ProtocolSemanticVersion,
         batch_sealed_at: DateTime<Utc>,
-    ) {
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -195,9 +201,11 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             protocol_version.patch.0 as i32,
             batch_sealed_at.naive_utc(),
         )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .instrument("insert_node_aggregation_jobs")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn move_depth_zero_node_aggregation_jobs(&mut self) -> Vec<(L1BatchId, u8, u16)> {

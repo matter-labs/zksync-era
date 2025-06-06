@@ -123,10 +123,11 @@ where
         self.connection_pool
             .connection()
             .await
-            .unwrap()
+            .expect("Failed to acquire DB connection for witness generator")
             .fri_witness_generator_dal()
             .mark_witness_job_failed(&error, job_id.id(), job_id.chain_id(), R::ROUND)
-            .await;
+            .await
+            .expect("Failed to mark witness job as failed");
     }
 
     async fn process_job(
