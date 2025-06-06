@@ -302,7 +302,7 @@ impl<K: Key> Scaler<K> {
         }
 
         // Remove unneeded pods.
-        if total as usize + total as usize * self.hysteresis / 100 > queue {
+        if total as usize - total as usize * self.hysteresis / 100 > queue {
             for cluster in sorted_clusters.iter().rev() {
                 let mut excess_queue = total - self.normalize_queue(cluster.key, queue) as i64;
                 if excess_queue <= 0 {
@@ -1508,6 +1508,21 @@ mod tests {
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
             50,
             scaler_config("prover"),
+            target_priority.clone(),
+        );
+
+        let scaler2 = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [(
+                "foo".into(),
+                [(GpuKey(Gpu::L4), 50), (GpuKey(Gpu::H100), 10)].into(),
+            )]
+            .into(),
+            [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            0,
+            scaler_config("prover"),
             target_priority,
         );
 
@@ -1563,7 +1578,7 @@ mod tests {
         };
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1000, &clusters),
+            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
             [
                 (
                     PoolKey {
@@ -1571,6 +1586,27 @@ mod tests {
                         key: GpuKey(Gpu::L4),
                     },
                     2,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    1,
+                ),
+            ]
+            .into(),
+            "Override priority: H100 in foo, then L4 in bar"
+        );
+        assert_eq!(
+            scaler2.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    1,
                 ),
                 (
                     PoolKey {
