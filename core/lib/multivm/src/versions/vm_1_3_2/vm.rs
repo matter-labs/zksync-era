@@ -189,6 +189,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             )
             .glue_into()
     }
+
+    fn gas_remaining(&mut self) -> u32 {
+        self.vm.gas_remaining()
+    }
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {

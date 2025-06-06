@@ -9,10 +9,11 @@ use zksync_node_framework::{
 };
 use zksync_state::{AsyncCatchupTask, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
+use zksync_types::try_stoppable;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
 use super::resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource};
-use crate::{seal_criteria::ConditionalSealer, AsyncRocksdbCache, ZkSyncStateKeeper};
+use crate::{seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperInner};
 
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
@@ -89,7 +90,7 @@ impl WiringLayer for StateKeeperLayer {
         let recovery_pool = input.replica_pool.get_custom(10).await?;
         rocksdb_catchup = rocksdb_catchup.with_recovery_pool(recovery_pool);
 
-        let state_keeper = ZkSyncStateKeeper::new(
+        let state_keeper_inner = StateKeeperInner::new(
             io,
             batch_executor_base,
             output_handler,
@@ -98,7 +99,7 @@ impl WiringLayer for StateKeeperLayer {
             input.shared_allow_list.map(DeploymentTxFilter::new),
         );
 
-        let state_keeper = StateKeeperTask { state_keeper };
+        let state_keeper = StateKeeperTask { state_keeper_inner };
 
         input
             .app_health
@@ -121,13 +122,13 @@ impl WiringLayer for StateKeeperLayer {
 
 #[derive(Debug)]
 pub struct StateKeeperTask {
-    state_keeper: ZkSyncStateKeeper,
+    state_keeper_inner: StateKeeperInner,
 }
 
 impl StateKeeperTask {
     /// Returns the health check for state keeper.
     pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.state_keeper.health_check()
+        self.state_keeper_inner.health_check()
     }
 }
 
@@ -138,7 +139,9 @@ impl Task for StateKeeperTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.state_keeper.run(stop_receiver.0).await
+        let state_keeper =
+            try_stoppable!(self.state_keeper_inner.initialize(&stop_receiver.0).await);
+        state_keeper.run(stop_receiver.0).await
     }
 }
 

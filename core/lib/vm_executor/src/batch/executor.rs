@@ -191,6 +191,29 @@ where
         let storage_view = self.handle.wait().await?;
         Ok((finished_batch, storage_view))
     }
+
+    #[tracing::instrument(skip_all)]
+    async fn gas_remaining(&mut self) -> anyhow::Result<u32> {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let send_failed = self
+            .commands
+            .send(Command::GasRemaining(response_sender))
+            .await
+            .is_err();
+        if send_failed {
+            return Err(self.handle.wait_for_error().await);
+        }
+
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::GasRemaining]
+            .start();
+        let res = match response_receiver.await {
+            Ok(res) => res,
+            Err(_) => return Err(self.handle.wait_for_error().await),
+        };
+        latency.observe();
+        Ok(res)
+    }
 }
 
 #[derive(Debug)]
@@ -202,4 +225,5 @@ pub(super) enum Command {
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
     FinishBatch(oneshot::Sender<FinishedL1Batch>),
+    GasRemaining(oneshot::Sender<u32>),
 }
