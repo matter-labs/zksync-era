@@ -83,7 +83,7 @@ describe('Interop checks', () => {
 
         // Setup Interop2 Provider and Wallet
         interop2Provider = new RetryProvider(
-            { url: await getL2bUrl("second"), timeout: 1200 * 1000 },
+            { url: await getL2bUrl("validium"), timeout: 1200 * 1000 },
             undefined,
             testMaster.reporter
         );
