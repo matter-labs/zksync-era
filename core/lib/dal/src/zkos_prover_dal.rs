@@ -83,7 +83,7 @@ impl ZkosProverDal<'_, '_> {
                 FROM zkos_proofs
                 WHERE prover_input IS NOT NULL
                 AND fri_proof IS NULL
-                AND fri_proof_attempts < $1
+                AND (fri_proof_attempts IS NULL or fri_proof_attempts < $1)
                   AND (
                       fri_proof_picked_at IS NULL
                       OR fri_proof_picked_at < NOW() - $2::INTERVAL

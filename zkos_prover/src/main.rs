@@ -192,14 +192,22 @@ pub async fn main() {
         let proof_b64 = base64::encode(&proof_bytes);
 
 
-        let _ = client
+        match client
             .submit_proof(block_number, proof_b64)
-            .await
-            .expect("Failed to submit a proof");
-        println!(
-            "{:?} submitted proof for block number {}",
-            SystemTime::now(),
-            block_number
-        );
+            .await {
+            Ok(_) => println!(
+                "{:?} successfully submitted proof for block number {}",
+                SystemTime::now(),
+                block_number
+            ),
+            Err(err) => {
+                eprintln!(
+                    "{:?} failed to submit proof for block number {}: {}",
+                    SystemTime::now(),
+                    block_number,
+                    err
+                );
+            }
+        }
     }
 }
