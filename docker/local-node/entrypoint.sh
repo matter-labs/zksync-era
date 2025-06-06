@@ -106,7 +106,7 @@ INIT_FILE="/var/lib/zksync/data/INIT_COMPLETED.remove_to_reset"
 if [ -f "$INIT_FILE" ]; then
   echo "Initialization was done in the past - simply starting server"
 else
-  echo "Initialing local environment"
+  echo "Initializing local environment"
 
   mkdir -p /var/lib/zksync/data
 
