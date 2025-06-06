@@ -631,7 +631,7 @@ impl ZkSyncStateKeeper {
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .stop_context("failed getting L2 block params")?;
-                next_l2_block_params.interop_roots = self.io.load_latest_interop_root().await?;
+                // next_l2_block_params.interop_roots = self.io.load_latest_interop_root().await?;
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
