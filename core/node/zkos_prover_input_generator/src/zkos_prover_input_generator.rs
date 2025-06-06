@@ -8,6 +8,10 @@ use std::{
 use anyhow::Context;
 use ruint::aliases::U256;
 use tokio::sync::watch;
+use zk_ee::{
+    system::metadata::{InteropRoot, InteropRoots},
+    utils::Bytes32,
+};
 use zk_os_basic_system::system_implementation::{
     flat_storage_model::TestingTree, system::BatchOutput,
 };
@@ -77,6 +81,15 @@ impl ZkosProverInputGenerator {
                 .get_l2_block_header(next_block_to_process)
                 .await?
             {
+                let interop_root = InteropRoot {
+                    root: [Bytes32::from_array([8u8; 32])],
+                    block_number: 1337,
+                    chain_id: 260,
+                };
+
+                let mut interop_roots = InteropRoots::default();
+                interop_roots.0[0] = interop_root;
+
                 tracing::info!("Processing block {:?}", block);
                 let started_at = std::time::Instant::now();
                 let context = BatchContext {
@@ -93,6 +106,7 @@ impl ZkosProverInputGenerator {
                     gas_limit: 100_000_000,
                     coinbase: Default::default(),
                     block_hashes: Default::default(),
+                    interop_roots,
                 };
 
                 let storage_commitment = StorageCommitment {
