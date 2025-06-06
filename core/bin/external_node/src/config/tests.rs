@@ -209,3 +209,57 @@ fn parsing_experimental_config_from_env() {
     assert_eq!(config.state_keeper_db_block_cache_capacity(), 64 << 20);
     assert_eq!(config.state_keeper_db_max_open_files, NonZeroU32::new(100));
 }
+
+#[test]
+fn parsing_contract_verifier_config() {
+    // Test with empty environment (should be None in ExternalNodeConfig)
+    let config: Option<ContractVerifierConfig> = cv_config_from_env("EN_CONTRACT_VERIFIER").ok();
+    assert!(config.is_none());
+
+    // Test with all contract verifier parameters set
+    let env_vars = [
+        ("EN_CONTRACT_VERIFIER_COMPILATION_TIMEOUT", "300"),
+        ("EN_CONTRACT_VERIFIER_PROMETHEUS_PORT", "3315"),
+        ("EN_CONTRACT_VERIFIER_PORT", "3400"),
+        (
+            "EN_CONTRACT_VERIFIER_ETHERSCAN_API_URL",
+            "https://api.etherscan.io",
+        ),
+    ];
+    // Set the previous env_vars as environment variables
+    for (key, value) in env_vars.iter() {
+        env::set_var(key, value);
+    }
+
+    let config: ContractVerifierConfig = cv_config_from_env("EN_CONTRACT_VERIFIER_").ok().unwrap();
+
+    assert_eq!(config.compilation_timeout, Duration::from_secs(300));
+    assert_eq!(config.prometheus_port, 3315);
+    assert_eq!(config.port, 3400);
+    assert_eq!(
+        config.etherscan_api_url,
+        Some("https://api.etherscan.io".to_string())
+    );
+
+    // Unset the environment variables for the next test
+    for (key, _) in env_vars.iter() {
+        env::remove_var(key);
+    }
+
+    // Test with optional etherscan_api_url not set
+    let env_vars = [
+        ("EN_CONTRACT_VERIFIER_COMPILATION_TIMEOUT", "300"),
+        ("EN_CONTRACT_VERIFIER_PROMETHEUS_PORT", "3315"),
+        ("EN_CONTRACT_VERIFIER_PORT", "3400"),
+    ];
+    for (key, value) in env_vars.iter() {
+        env::set_var(key, value);
+    }
+
+    let config: ContractVerifierConfig = cv_config_from_env("EN_CONTRACT_VERIFIER_").ok().unwrap();
+
+    assert_eq!(config.compilation_timeout, Duration::from_secs(300));
+    assert_eq!(config.prometheus_port, 3315);
+    assert_eq!(config.port, 3400);
+    assert_eq!(config.etherscan_api_url, None);
+}

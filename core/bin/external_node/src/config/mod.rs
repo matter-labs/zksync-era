@@ -10,6 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
+use env_config::cv_config_from_env;
 use serde::{de, Deserialize, Deserializer};
 use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
@@ -25,7 +26,7 @@ use zksync_config::{
         DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
+    ConfigRepositoryExt, ContractVerifierConfig, DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -1176,6 +1177,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
     pub remote: R,
+    pub contract_verifier: Option<ContractVerifierConfig>,
 }
 
 impl ExternalNodeConfig<()> {
@@ -1225,6 +1227,7 @@ impl ExternalNodeConfig<()> {
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
             remote: (),
+            contract_verifier: cv_config_from_env("EN_CONTRACT_VERIFIER_").ok(),
         })
     }
 
@@ -1266,6 +1269,7 @@ impl ExternalNodeConfig<()> {
             general_config.da_client_config,
             secrets_config.data_availability,
         );
+        let contract_verifier = Some(general_config.contract_verifier.clone());
 
         Ok(Self {
             required,
@@ -1279,6 +1283,7 @@ impl ExternalNodeConfig<()> {
             consensus_secrets,
             data_availability,
             remote: (),
+            contract_verifier,
         })
     }
 
@@ -1315,6 +1320,7 @@ impl ExternalNodeConfig<()> {
             consensus_secrets: self.consensus_secrets,
             data_availability: self.data_availability,
             remote,
+            contract_verifier: self.contract_verifier,
         })
     }
 }
@@ -1336,6 +1342,7 @@ impl ExternalNodeConfig {
             },
             tree_component: TreeComponentConfig { api_port: None },
             data_availability: (None, None),
+            contract_verifier: None,
         }
     }
 

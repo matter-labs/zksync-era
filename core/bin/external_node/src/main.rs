@@ -84,6 +84,7 @@ pub enum Component {
     TreeFetcher,
     Core,
     DataAvailabilityFetcher,
+    ContractVerificationApi,
 }
 
 impl Component {
@@ -92,6 +93,7 @@ impl Component {
             "api" => Ok(&[Component::HttpApi, Component::WsApi]),
             "http_api" => Ok(&[Component::HttpApi]),
             "ws_api" => Ok(&[Component::WsApi]),
+            "contract_verification_api" => Ok(&[Component::ContractVerificationApi]),
             "tree" => Ok(&[Component::Tree]),
             "tree_api" => Ok(&[Component::TreeApi]),
             "tree_fetcher" => Ok(&[Component::TreeFetcher]),
