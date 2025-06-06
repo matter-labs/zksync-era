@@ -24,11 +24,13 @@ export function usersRoutes(app: WebServer) {
             throw new HttpError('forbidden', 403);
         }
 
-        await app.context.db.delete(usersTable).where(eq(usersTable.address, address));
+        await app.context.db.transaction(async (tx) => {
+            await tx.delete(usersTable).where(eq(usersTable.address, address));
 
-        await app.context.db.insert(usersTable).values({
-            address,
-            token
+            await tx.insert(usersTable).values({
+                address,
+                token
+            });
         });
 
         return reply.send({ ok: true, token });
