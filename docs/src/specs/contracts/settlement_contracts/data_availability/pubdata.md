@@ -389,7 +389,7 @@ state diffs.
 
 The following algorithm is used for the state diff compression:
 
-[State diff compression v1 spec](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum/State%20diff%20compression%20v1%20spec.md)
+[State diff compression v1 spec](./state_diff_compression_v1_spec.md)
 
 ## General pubdata format
 

@@ -3,7 +3,7 @@
 The L2→L1 communication is more fundamental than the L1→L2 communication, as the second relies on the first. L2→L1
 communication happens by the L1 smart contract verifying messages alongside the proofs. The only “provable” part of the
 communication from L2 to L1 are native L2→L1 logs emitted by VM. These can be emitted by the `to_l1`
-[opcode](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/System%20contracts%20bootloader%20description.md).
+[opcode](../../../../../guides/advanced/12_alternative_vm_intro.md#only-for-kernel-space).
 Each log consists of the following fields:
 
 ```solidity
@@ -24,12 +24,12 @@ Where:
 - `isService` a boolean flag that is not used right now
 - `txNumberInBatch` the number of the transaction in the batch where the log has happened. This number is taken from the
   internal counter which is incremented each time the `increment_tx_counter` is
-  [called](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/System%20contracts%20bootloader%20description.md).
+  [called](../../../../../guides/advanced/12_alternative_vm_intro.md#only-for-kernel-space).
 - `sender` is the value of `this` in the frame where the L2→L1 log was emitted.
 - `key` and `value` are just two 32-byte values that could be used to carry some data with the log.
 
 The hashed array of these opcodes is then included into the
-[batch commitment](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Executor.sol#L493).
+[batch commitment](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L663).
 Because of that we know that if the proof verifies, then the L2→L1 logs provided by the operator were correct, so we can
 use that fact to produce more complex structures. Before Boojum such logs were also Merklized within the circuits and so
 the Merkle tree’s root hash was included into the batch commitment also.
@@ -40,7 +40,7 @@ Two `key` and `value` fields are enough for a lot of system-related use-cases, s
 previous batch hash, etc. They were and are used
 [used](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/contracts/SystemContext.sol#L438)
 to verify the correctness of the batch's timestamps and hashes. You can read more about block processing
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20&%20L2%20blocks%20on%20zkSync.md).
+[here](../../../zkevm/batches_and_blocks_on_zksync.md).
 
 ## Long L2→L1 messages & bytecodes
 
