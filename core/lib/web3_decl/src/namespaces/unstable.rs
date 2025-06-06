@@ -7,7 +7,7 @@ use zksync_types::{
         TransactionDetailedResult, TransactionExecutionInfo,
     },
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    L1BatchNumber, L2ChainId, H256, U256,
 };
 
 use crate::{
@@ -68,4 +68,7 @@ pub trait UnstableNamespace {
         &self,
         tx_bytes: Bytes,
     ) -> RpcResult<TransactionDetailedResult>;
+
+    #[method(name = "gasPerPubdata")]
+    async fn gas_per_pubdata(&self) -> RpcResult<U256>;
 }
