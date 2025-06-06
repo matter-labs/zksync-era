@@ -73,19 +73,32 @@ impl Command {
                     .await?;
 
                 // Check if the schedule was set correctly (check pending first, then current)
-                let pending_schedule = setup.get_pending_validator_schedule().await?;
-                let (schedule_got, is_pending) = if pending_schedule == schedule_want {
-                    (pending_schedule, true)
-                } else {
-                    let current_schedule = setup.get_validator_schedule().await?;
-                    anyhow::ensure!(
-                        current_schedule == schedule_want,
-                        messages::msg_setting_validator_schedule_failed(
-                            &current_schedule,
-                            &schedule_want
-                        )
-                    );
-                    (current_schedule, false)
+                let pending_schedule = setup.get_pending_validator_schedule().await;
+                let (schedule_got, is_pending) = match pending_schedule {
+                    Ok(pending) => {
+                        if pending == schedule_want {
+                            (pending, true)
+                        } else {
+                            anyhow::bail!(
+                                "Pending schedule does not match expected schedule. Got: {:?}, Expected: {:?}",
+                                pending,
+                                schedule_want
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        // If it errors, is because there is no pending schedule. Which means that
+                        // the activation delay must be zero.
+                        let current_schedule = setup.get_validator_schedule().await?;
+                        anyhow::ensure!(
+                            current_schedule == schedule_want,
+                            messages::msg_setting_validator_schedule_failed(
+                                &current_schedule,
+                                &schedule_want
+                            )
+                        );
+                        (current_schedule, false)
+                    }
                 };
 
                 print_schedule(&schedule_got, is_pending);
