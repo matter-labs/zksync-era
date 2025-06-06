@@ -3,11 +3,9 @@ use std::{str::FromStr, sync::Arc};
 use zksync_config::configs::ExternalPriceApiClientConfig;
 use zksync_external_price_api::{
     cmc_api::CmcPriceApiClient, coingecko_api::CoinGeckoPriceAPIClient,
-    forced_price_client::ForcedPriceClient, NoOpPriceAPIClient,
+    forced_price_client::ForcedPriceClient, NoOpPriceApiClient, PriceApiClient,
 };
-use zksync_node_framework::{IntoContext, WiringError, WiringLayer};
-
-use super::resources::PriceAPIClientResource;
+use zksync_node_framework::{WiringError, WiringLayer};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 enum ExternalPriceApiKind {
@@ -33,13 +31,13 @@ impl FromStr for ExternalPriceApiKind {
 }
 
 impl ExternalPriceApiKind {
-    fn instantiate(&self, config: ExternalPriceApiClientConfig) -> PriceAPIClientResource {
-        PriceAPIClientResource(match self {
-            Self::NoOp => Arc::new(NoOpPriceAPIClient),
+    fn instantiate(&self, config: ExternalPriceApiClientConfig) -> Arc<dyn PriceApiClient> {
+        match self {
+            Self::NoOp => Arc::new(NoOpPriceApiClient),
             Self::Forced => Arc::new(ForcedPriceClient::new(config)),
             Self::CoinGecko => Arc::new(CoinGeckoPriceAPIClient::new(config)),
             Self::CoinMarketCap => Arc::new(CmcPriceApiClient::new(config)),
-        })
+        }
     }
 }
 
@@ -60,23 +58,16 @@ impl TryFrom<ExternalPriceApiClientConfig> for ExternalPriceApiLayer {
     }
 }
 
-#[derive(Debug, IntoContext)]
-pub struct Output {
-    pub price_api_client: PriceAPIClientResource,
-}
-
 #[async_trait::async_trait]
 impl WiringLayer for ExternalPriceApiLayer {
     type Input = ();
-    type Output = Output;
+    type Output = Arc<dyn PriceApiClient>;
 
     fn layer_name(&self) -> &'static str {
         "external_price_api"
     }
 
-    async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        Ok(Output {
-            price_api_client: self.kind.instantiate(self.config),
-        })
+    async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
+        Ok(self.kind.instantiate(self.config))
     }
 }

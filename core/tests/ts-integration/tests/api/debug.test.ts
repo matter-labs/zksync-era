@@ -5,8 +5,7 @@
 import { TestMaster } from '../../src';
 import { Token } from '../../src/types';
 
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
 import { BOOTLOADER_FORMAL_ADDRESS } from 'zksync-ethers/build/utils';
 import fs from 'fs';

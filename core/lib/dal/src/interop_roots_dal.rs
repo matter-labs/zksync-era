@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
+use zksync_multivm::{utils::get_bootloader_max_msg_roots_in_batch, VmVersion};
 use zksync_types::{h256_to_u256, InteropRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256};
 
 use crate::Core;
@@ -52,14 +53,17 @@ impl InteropRootDal<'_, '_> {
     }
 
     pub async fn get_new_interop_roots(&mut self) -> DalResult<Vec<InteropRoot>> {
-        // kl todo only load MAX_MSG_ROOTS_IN_BATCH message roots
+        let max_msg_roots_in_batch =
+            get_bootloader_max_msg_roots_in_batch(VmVersion::latest()) as i64;
         let records = sqlx::query!(
             r#"
             SELECT *
             FROM interop_roots
             WHERE processed_block_number IS NULL
-            ORDER BY received_timestamp, dependency_block_number;
+            ORDER BY received_timestamp, dependency_block_number
+            LIMIT $1
             "#,
+            max_msg_roots_in_batch
         )
         .instrument("get_new_interop_roots")
         .fetch_all(self.storage)

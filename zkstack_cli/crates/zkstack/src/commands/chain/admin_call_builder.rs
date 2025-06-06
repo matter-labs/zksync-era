@@ -1,16 +1,16 @@
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
+#[cfg(any(feature = "v28_precompiles", feature = "v29_interopA_ff"))]
 use std::path::Path;
 
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
+#[cfg(any(feature = "v28_precompiles", feature = "v29_interopA_ff"))]
 use ethers::types::Bytes;
 use ethers::{
     abi::{decode, ParamType, Token},
     utils::hex,
 };
 use serde::Serialize;
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
+#[cfg(any(feature = "v28_precompiles", feature = "v29_interopA_ff"))]
 use xshell::Shell;
-#[cfg(any(feature = "v28_precompiles", feature = "v29"))]
+#[cfg(any(feature = "v28_precompiles", feature = "v29_interopA_ff"))]
 use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
@@ -98,7 +98,7 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(any(feature = "v28_precompiles", feature = "v29"))]
+    #[cfg(any(feature = "v28_precompiles", feature = "v29_interopA_ff"))]
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
@@ -147,7 +147,7 @@ impl AdminCallBuilder {
     #[cfg(any(
         feature = "v27_evm_interpreter",
         feature = "v28_precompiles",
-        feature = "v29"
+        feature = "v29_interopA_ff"
     ))]
     pub fn append_execute_upgrade(
         &mut self,
@@ -186,7 +186,7 @@ impl AdminCallBuilder {
     #[cfg(any(
         feature = "v27_evm_interpreter",
         feature = "v28_precompiles",
-        feature = "v29"
+        feature = "v29_interopA_ff"
     ))]
     pub fn display(&self) {
         // Serialize with pretty printing

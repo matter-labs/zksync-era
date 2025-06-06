@@ -22,12 +22,13 @@ pub(super) const MSG_V27_EVM_INTERPRETER_UPGRADE: &str =
 pub(super) const MSG_V28_PRECOMPILES_UPGRADE: &str =
     "Precompiles (v28) upgrade checker and calldata generator";
 
-#[cfg(feature = "v29")]
-pub(super) const MSG_V29_ECO_UPGRADE: &str =
-    "Ecosystem (v29) upgrade checker and calldata generator";
+#[cfg(feature = "v29_interopA_ff")]
+pub(super) const MSG_V29_INTEROP_A_FF_UPGRADE: &str =
+    "Interop A + FF (v29) upgrade checker and calldata generator";
 
-#[cfg(feature = "v29")]
-pub(super) const MSG_V29_CHAIN_UPGRADE: &str = "Chain (v29) upgrade checker and calldata generator";
+#[cfg(feature = "v29_interopA_ff")]
+pub(super) const MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE: &str =
+    "Interop A + FF (v29) chain upgrade checker and calldata generator";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
