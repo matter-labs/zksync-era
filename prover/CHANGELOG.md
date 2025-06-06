@@ -1,5 +1,21 @@
 # Changelog
 
+## [21.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.1.0...prover-v21.2.0) (2025-06-06)
+
+
+### Features
+
+* **config:** Support serde-style enums in config system ([#4055](https://github.com/matter-labs/zksync-era/issues/4055)) ([84eed67](https://github.com/matter-labs/zksync-era/commit/84eed672bc29d65d2d03e92ca543a4b795556de6))
+* **config:** Use native representation for duration params ([#4072](https://github.com/matter-labs/zksync-era/issues/4072)) ([1674906](https://github.com/matter-labs/zksync-era/commit/167490639795ae231b9e57e8453177a860f2c302))
+* **consensus:** Validator committee rotation ([#4014](https://github.com/matter-labs/zksync-era/issues/4014)) ([333efea](https://github.com/matter-labs/zksync-era/commit/333efea309e766c46a20e48868b7bbd0986910ec))
+
+
+### Bug Fixes
+
+* **prover:** Allow to run prover-autoscaler if several agents aren't available ([#4060](https://github.com/matter-labs/zksync-era/issues/4060)) ([9178bde](https://github.com/matter-labs/zksync-era/commit/9178bde6059ae3dd58c061dba08bda37772a6454))
+* **prover:** Calculate scale errors towards only affected pool ([#4134](https://github.com/matter-labs/zksync-era/issues/4134)) ([2326d43](https://github.com/matter-labs/zksync-era/commit/2326d439368a8e00ece2f5ada5bbd1819f5c21e5))
+* Remove increasing priority of jobs when it gets requeued ([#4106](https://github.com/matter-labs/zksync-era/issues/4106)) ([44fab29](https://github.com/matter-labs/zksync-era/commit/44fab291e6860effb24b12713a60f666d3654bc4))
+
 ## [21.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v21.0.0...prover-v21.1.0) (2025-05-22)
 
 
