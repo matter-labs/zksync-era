@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT pubkey, calldata\n            FROM tee_attestations\n            WHERE eth_tx_id IS NULL AND calldata IS NOT NULL AND pubkey IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pubkey",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "calldata",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "3d404ecd830ec29314d9c66b2e715d841b39c840136ee0be5bc158238d19134c"
+}

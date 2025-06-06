@@ -13843,6 +13843,7 @@ dependencies = [
  "x509-cert",
  "zksync_config",
  "zksync_contracts",
+ "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_l1_contract_interface",
  "zksync_multivm",

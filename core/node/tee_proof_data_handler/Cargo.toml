@@ -47,6 +47,7 @@ zksync_types.workspace = true
 zksync_vm_executor.workspace = true
 zksync_contracts.workspace = true
 zksync_l1_contract_interface.workspace = true
+zksync_crypto_primitives.workspace = true
 
 [dev-dependencies]
 hyper.workspace = true

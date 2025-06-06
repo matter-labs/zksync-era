@@ -51,7 +51,7 @@ pkgs.lib.tee.sgxGramineContainer
       sgx = {
         edmm_enable = false;
         enclave_size = "8G";
-        max_threads = 128;
+        max_threads = 256;
       };
     };
   } // {

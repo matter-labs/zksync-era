@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_attestations\n            SET eth_tx_id = $1\n            WHERE pubkey = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f11ba7eb7eb4c33a0243c66e9637572bb65534bf64449067f35330ffffb3e43a"
+}

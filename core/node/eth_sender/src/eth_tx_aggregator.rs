@@ -706,9 +706,76 @@ impl EthTxAggregator {
             );
         }
 
-        // FIXME: TEE
+        // FIXME: TEE - might want a TeeAggregator?
         self.aggregate_tee_dcap_transactions(storage).await?;
+        self.aggregate_tee_attestations(storage).await?;
+        self.aggregate_tee_proofs(storage).await?;
+        Ok(())
+    }
 
+    // FIXME: TEE
+    async fn aggregate_tee_proofs(
+        &self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<(), EthSenderError> {
+        let pending = storage
+            .tee_proof_generation_dal()
+            .get_tee_proofs_for_eth_sender()
+            .await
+            .map_err(|_e| {
+                // FIXME: TEE
+                EthSenderError::ExceedMaxBaseFee
+            })?;
+        for (sig, calldata) in pending.into_iter() {
+            // Start a database transaction
+            let mut transaction = storage.start_transaction().await.unwrap();
+
+            // Choose the appropriate client for TEE operations
+            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
+
+            // Get the next nonce for the TEE transactions
+            let nonce = self
+                .get_next_nonce(&mut transaction, sender_addr, true)
+                .await?;
+
+            // Save the TEE transaction to the database
+            let mut eth_tx = transaction
+                .eth_sender_dal()
+                .save_eth_tx(
+                    nonce,
+                    calldata,
+                    AggregatedActionType::Tee,
+                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
+                    // FIXME: TEE
+                    Some(L1GasCriterion::total_tee_gas_amount()),
+                    Some(sender_addr),
+                    None, // No sidecar for TEE operations
+                    false,
+                )
+                .await
+                .unwrap();
+
+            transaction
+                .eth_sender_dal()
+                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
+                .await
+                .unwrap();
+            eth_tx.chain_id = Some(self.sl_chain_id);
+
+            transaction
+                .tee_proof_generation_dal()
+                .set_eth_tx_id_for_proof(&sig, eth_tx.id)
+                .await
+                .map_err(|_e| {
+                    // FIXME: TEE
+                    EthSenderError::ExceedMaxBaseFee
+                })?;
+
+            // Commit the transaction
+            transaction.commit().await.unwrap();
+
+            tracing::info!("eth_tx with ID {} for block proof", eth_tx.id);
+        }
         Ok(())
     }
 
@@ -780,6 +847,79 @@ impl EthTxAggregator {
 
             tracing::info!("eth_tx with ID {} for op TEE", eth_tx.id);
         }
+
+        Ok(())
+    }
+
+    // FIXME: TEE
+    async fn aggregate_tee_attestations(
+        &self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<(), EthSenderError> {
+        let pending = storage
+            .tee_proof_generation_dal()
+            .get_pending_attestations_for_eth_tx()
+            .await
+            .map_err(|_e| {
+                // FIXME: TEE
+                EthSenderError::ExceedMaxBaseFee
+            })?;
+        // Generate TEE data
+        for (pubkey, calldata) in pending.into_iter() {
+            // Start a database transaction
+            let mut transaction = storage.start_transaction().await.unwrap();
+
+            // Choose the appropriate client for TEE operations
+            let sender_addr = self.eth_client_tee_dcap.as_ref().unwrap().sender_account();
+
+            // Get the next nonce for the TEE transactions
+            let nonce = self
+                .get_next_nonce(&mut transaction, sender_addr, true)
+                .await?;
+
+            // Save the TEE transaction to the database
+            let mut eth_tx = transaction
+                .eth_sender_dal()
+                .save_eth_tx(
+                    nonce,
+                    calldata,
+                    AggregatedActionType::Tee,
+                    self.eth_client_tee_dcap.as_ref().unwrap().contract_addr(),
+                    // FIXME: TEE
+                    Some(L1GasCriterion::total_tee_gas_amount()),
+                    Some(sender_addr),
+                    None, // No sidecar for TEE operations
+                    false,
+                )
+                .await
+                .unwrap();
+
+            transaction
+                .eth_sender_dal()
+                .set_chain_id(eth_tx.id, self.sl_chain_id.0)
+                .await
+                .unwrap();
+            eth_tx.chain_id = Some(self.sl_chain_id);
+
+            transaction
+                .tee_proof_generation_dal()
+                .set_eth_tx_id_for_attestation(&pubkey, eth_tx.id)
+                .await
+                .map_err(|_e| {
+                    // FIXME: TEE
+                    EthSenderError::ExceedMaxBaseFee
+                })?;
+
+            // Commit the transaction
+            transaction.commit().await.unwrap();
+
+            tracing::info!(
+                "eth_tx with ID {} for attestation for TEE pubkey {}",
+                eth_tx.id,
+                hex::encode(pubkey)
+            );
+        }
+
         Ok(())
     }
 

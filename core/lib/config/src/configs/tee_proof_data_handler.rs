@@ -35,7 +35,7 @@ mod tests {
             first_processed_batch: L1BatchNumber(123),
             proof_generation_timeout_in_secs: Duration::from_secs(90),
             batch_permanently_ignored_timeout_in_hours: 5 * TimeUnit::Days,
-            dcap_collateral_refresh_in_hours: 24 * TimeUnit::Hours,
+            dcap_collateral_refresh_in_hours: 2 * TimeUnit::Hours,
         }
     }
 
@@ -46,6 +46,7 @@ mod tests {
           first_processed_batch: 123
           proof_generation_timeout_in_secs: 90
           batch_permanently_ignored_timeout_in_hours: 120
+          dcap_collateral_refresh_in_hours: 2
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();
         let yaml = Yaml::new("test.yml", yaml).unwrap();

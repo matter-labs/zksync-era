@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT signature, calldata\n            FROM tee_proof_generation_details\n            WHERE\n                eth_tx_id IS NULL\n                AND calldata IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "signature",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "calldata",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "dbe8c18905fc7f34f1d85ac92099e91f8e0d3f5140fa5844c7599ee00449b7fe"
+}

@@ -3,7 +3,7 @@ use std::{future::IntoFuture, net::SocketAddr, sync::Arc};
 use anyhow::Context as _;
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use tee_request_processor::TeeRequestProcessor;
-use tokio::{join, sync::watch};
+use tokio::sync::watch;
 use zksync_config::configs::TeeProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
@@ -64,14 +64,23 @@ pub async fn run_server(
         stop_receiver,
     ));
 
-    let (server, updater) = join!(server, updater);
-    server
-        .context("Proof data handler server join failed")?
-        .context("Proof data handler server failed")?;
-    updater
-        .context("DCAP collateral updater join failed")?
-        .context("DCAP collateral updater failed")?;
-    tracing::info!("Proof data handler server and DCAP collateral updater shut down");
+    // FIXME: TEE - the updater should most likely be its own node/server
+    tokio::select! {
+        server_result = server => {
+            tracing::info!("Proof data handler server completed first");
+            server_result
+                .context("Proof data handler server join failed")?
+                .context("Proof data handler server failed")?;
+        }
+        updater_result = updater => {
+            tracing::info!("DCAP collateral updater completed first");
+            updater_result
+                .context("DCAP collateral updater join failed")?
+                .context("DCAP collateral updater failed")?;
+        }
+    };
+
+    tracing::info!("Proof data handler server or DCAP collateral updater shut down");
     Ok(())
 }
 

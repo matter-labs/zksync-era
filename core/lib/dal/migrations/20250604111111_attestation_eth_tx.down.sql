@@ -1,0 +1,10 @@
+ALTER TABLE tee_attestations
+    DROP COLUMN eth_tx_id;
+ALTER TABLE tee_attestations
+    DROP COLUMN calldata;
+ALTER TABLE tee_attestations
+    DROP COLUMN created_at;
+ALTER TABLE tee_proof_generation_details
+    DROP COLUMN eth_tx_id;
+ALTER TABLE tee_proof_generation_details
+    DROP COLUMN calldata;

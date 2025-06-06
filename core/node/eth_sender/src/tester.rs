@@ -329,8 +329,8 @@ impl EthSenderTester {
             self.gas_adjuster.clone(),
             None,
             None,
-            Some(self.l2_gateway.clone()),
             None,
+            Some(self.l2_gateway.clone()),
         );
         self.settlement_layer = SettlementLayer::Gateway(10.into());
         tracing::info!("Switched eth-sender tester to use Gateway!");

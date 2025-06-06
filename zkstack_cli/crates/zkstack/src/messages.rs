@@ -393,6 +393,7 @@ pub(super) fn msg_wallet_private_key_not_set(wallet_owner: WalletOwner) -> Strin
         match wallet_owner {
             WalletOwner::Governor => "Governor",
             WalletOwner::Deployer => "Deployer",
+            WalletOwner::TEE => "TEE",
         }
     )
 }

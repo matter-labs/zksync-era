@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{extract::Path, Json};
 use chrono::{Duration as ChronoDuration, Utc};
 use zksync_config::configs::TeeProofDataHandlerConfig;
+use zksync_crypto_primitives::Signature;
 use zksync_dal::{
     tee_proof_generation_dal::{LockedBatch, TeeProofGenerationJobStatus},
     ConnectionPool, Core, CoreDal,
@@ -19,13 +20,16 @@ use zksync_tee_prover_interface::{
     },
     inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    public_to_address, recover, tee_types::TeeType, L1BatchNumber, L2ChainId, H256,
+};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::{
     collateral::update_collateral_for_quote,
     errors::{TeeProcessorContext, TeeProcessorError},
     metrics::METRICS,
+    tee_contract::TeeFunctions,
 };
 
 #[derive(Clone)]
@@ -34,6 +38,7 @@ pub(crate) struct TeeRequestProcessor {
     pool: ConnectionPool<Core>,
     config: TeeProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
+    functions: TeeFunctions,
 }
 
 impl TeeRequestProcessor {
@@ -48,6 +53,7 @@ impl TeeRequestProcessor {
             pool,
             config,
             l2_chain_id,
+            functions: TeeFunctions::default(),
         }
     }
 
@@ -221,6 +227,46 @@ impl TeeRequestProcessor {
     ) -> Result<Json<SubmitTeeProofResponse>, TeeProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
+        let root_hash = connection
+            .blocks_dal()
+            .get_l1_batch_state_root(l1_batch_number)
+            .await?
+            .ok_or(TeeProcessorError::GeneralError(
+                "L1 Batch has no root hash".into(),
+            ))?;
+
+        // Do some sanity checks before saving the proof
+        if root_hash.as_bytes() != proof.0.proof {
+            return Err(TeeProcessorError::GeneralError(
+                "root hash does not match".into(),
+            ));
+        }
+
+        // Check for a valid signature
+        let root_hash = H256::from_slice(proof.0.proof.as_slice()).into();
+        let signature = Signature::from_electrum(&proof.0.signature);
+        let recovered_pubkey = recover(&signature, &root_hash).unwrap();
+
+        /*
+                let proof_address = public_to_address(&recovered_pubkey);
+
+                // FIXME: TEE - pubkey must be converted somehow
+                if recovered_pubkey.as_bytes() != proof.0.pubkey {
+                    tracing::warn!(
+                        "Invalid signature proof_address {} != pubkey {}",
+                        hex::encode(recovered_pubkey.as_bytes()),
+                        hex::encode(proof.0.pubkey)
+                    );
+
+                    return Err(TeeProcessorError::GeneralError("invalid signature".into()));
+                }
+        */
+
+        let calldata = self
+            .functions
+            .verify_digest(root_hash, proof.0.signature.clone())
+            .unwrap();
+
         let mut dal = connection.tee_proof_generation_dal();
         dal.save_proof_artifacts_metadata(
             l1_batch_number,
@@ -228,6 +274,7 @@ impl TeeRequestProcessor {
             &proof.0.pubkey,
             &proof.0.signature,
             &proof.0.proof,
+            &calldata,
         )
         .await?;
 
@@ -263,10 +310,15 @@ impl TeeRequestProcessor {
 
         let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
 
-        update_collateral_for_quote(&mut connection, &payload.attestation).await?;
+        update_collateral_for_quote(&mut connection, &payload.attestation, &self.functions).await?;
 
         let mut dal = connection.tee_proof_generation_dal();
-        dal.save_attestation(&payload.pubkey, &payload.attestation)
+        let calldata = self
+            .functions
+            .register_signer(payload.attestation.clone())
+            .unwrap();
+
+        dal.save_attestation(&payload.pubkey, &payload.attestation, &calldata)
             .await?;
 
         Ok(Json(RegisterTeeAttestationResponse::Success))

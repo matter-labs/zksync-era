@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_proof_generation_details\n            SET eth_tx_id = $1\n            WHERE signature = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a8d03e6ca88d492e652b847414e5a2ee8ef374275ee54f86ab599d2c8f680773"
+}

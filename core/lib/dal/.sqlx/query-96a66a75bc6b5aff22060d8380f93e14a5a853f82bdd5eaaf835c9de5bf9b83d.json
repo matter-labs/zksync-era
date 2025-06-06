@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            tee_attestations (pubkey, attestation, calldata, created_at)\n            VALUES\n            ($1, $2, $3, NOW())\n            ON CONFLICT (pubkey) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "96a66a75bc6b5aff22060d8380f93e14a5a853f82bdd5eaaf835c9de5bf9b83d"
+}

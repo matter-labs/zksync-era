@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_proof_generation_details\n            SET\n                status = $2,\n                pubkey = $3,\n                signature = $4,\n                proof = $5,\n                calldata = $6,\n                updated_at = NOW(),\n                eth_tx_id = NULL\n            WHERE\n                l1_batch_number = $7\n                AND tee_type = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3c7f048c4df0b4ba7e0cd5a97cb05e9900f974fdf585cefc8c4946b5878580a2"
+}

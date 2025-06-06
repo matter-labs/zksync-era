@@ -422,13 +422,14 @@ pub(crate) fn get_next_update(
 pub(crate) async fn update_collateral_for_quote(
     connection: &mut Connection<'_, Core>,
     quote_bytes: &[u8],
+    functions: &TeeFunctions,
 ) -> Result<(), TeeProcessorError> {
     let quote = teepot::quote::Quote::parse(quote_bytes).context("Failed to parse quote")?;
     let fmspc = quote.fmspc().context("Failed to get FMSPC")?;
     let tee_type = quote.tee_type();
     let mut dal = connection.tee_dcap_collateral_dal();
 
-    update_tcb_info(&mut dal, &fmspc, tee_type, &TeeFunctions::default()).await?;
+    update_tcb_info(&mut dal, &fmspc, tee_type, functions).await?;
 
     Ok(())
 }

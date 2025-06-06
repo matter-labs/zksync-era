@@ -200,6 +200,7 @@ impl TeeProofGenerationDal<'_, '_> {
         pubkey: &[u8],
         signature: &[u8],
         proof: &[u8],
+        calldata: &[u8],
     ) -> DalResult<()> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
@@ -210,9 +211,11 @@ impl TeeProofGenerationDal<'_, '_> {
                 pubkey = $3,
                 signature = $4,
                 proof = $5,
-                updated_at = NOW()
+                calldata = $6,
+                updated_at = NOW(),
+                eth_tx_id = NULL
             WHERE
-                l1_batch_number = $6
+                l1_batch_number = $7
                 AND tee_type = $1
             "#,
             tee_type.to_string(),
@@ -220,6 +223,7 @@ impl TeeProofGenerationDal<'_, '_> {
             pubkey,
             signature,
             proof,
+            calldata,
             batch_number
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
@@ -227,6 +231,7 @@ impl TeeProofGenerationDal<'_, '_> {
             .with_arg("pubkey", &pubkey)
             .with_arg("signature", &signature)
             .with_arg("proof", &proof)
+            .with_arg("calldata", &calldata)
             .with_arg("l1_batch_number", &batch_number);
         let result = instrumentation
             .clone()
@@ -244,26 +249,129 @@ impl TeeProofGenerationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_attestation(&mut self, pubkey: &[u8], attestation: &[u8]) -> DalResult<()> {
+    pub async fn get_tee_proofs_for_eth_sender(&mut self) -> DalResult<Vec<(Vec<u8>, Vec<u8>)>> {
+        let proofs = sqlx::query!(
+            r#"
+            SELECT signature, calldata
+            FROM tee_proof_generation_details
+            WHERE
+                eth_tx_id IS NULL
+                AND calldata IS NOT NULL
+            "#,
+        )
+        .instrument("get_tee_proofs_for_eth_sender")
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(proofs
+            .into_iter()
+            .filter_map(|row| match (row.signature, row.calldata) {
+                (Some(signature), Some(calldata)) => Some((signature, calldata)),
+                _ => None,
+            })
+            .collect())
+    }
+
+    pub async fn set_eth_tx_id_for_proof(
+        &mut self,
+        signature: &[u8],
+        eth_tx_id: u32,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE tee_proof_generation_details
+            SET eth_tx_id = $1
+            WHERE signature = $2
+            "#,
+            i32::try_from(eth_tx_id).unwrap(),
+            signature,
+        )
+        .instrument("set_eth_tx_id_for_proof")
+        .with_arg("signature", &signature)
+        .with_arg("eth_tx_id", &eth_tx_id)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn save_attestation(
+        &mut self,
+        pubkey: &[u8],
+        attestation: &[u8],
+        calldata: &[u8],
+    ) -> DalResult<()> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-            tee_attestations (pubkey, attestation)
+            tee_attestations (pubkey, attestation, calldata, created_at)
             VALUES
-            ($1, $2)
+            ($1, $2, $3, NOW())
             ON CONFLICT (pubkey) DO NOTHING
             "#,
             pubkey,
-            attestation
+            attestation,
+            calldata
         );
         let instrumentation = Instrumented::new("save_attestation")
             .with_arg("pubkey", &pubkey)
-            .with_arg("attestation", &attestation);
+            .with_arg("attestation", &attestation)
+            .with_arg("calldata", &calldata);
         instrumentation
             .clone()
             .with(query)
             .execute(self.storage)
             .await?;
+
+        Ok(())
+    }
+
+    /// Gets all attestation quote records that need to be sent to Ethereum
+    pub async fn get_pending_attestations_for_eth_tx(
+        &mut self,
+    ) -> DalResult<Vec<(Vec<u8>, Vec<u8>)>> {
+        let attestations = sqlx::query!(
+            r#"
+            SELECT pubkey, calldata
+            FROM tee_attestations
+            WHERE eth_tx_id IS NULL AND calldata IS NOT NULL AND pubkey IS NOT NULL
+            "#
+        )
+        .instrument("get_pending_attestations_for_eth_tx")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(attestations
+            .into_iter()
+            .filter_map(|row| match (row.pubkey, row.calldata) {
+                (pubkey, Some(calldata)) => Some((pubkey, calldata)),
+                _ => None,
+            })
+            .collect())
+    }
+
+    /// Set eth transaction id for pubkey register
+    pub async fn set_eth_tx_id_for_attestation(
+        &mut self,
+        pubkey: &[u8],
+        eth_tx_id: u32,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE tee_attestations
+            SET eth_tx_id = $1
+            WHERE pubkey = $2
+            "#,
+            i32::try_from(eth_tx_id).unwrap(),
+            pubkey,
+        )
+        .instrument("set_eth_tx_id_for_attestation")
+        .report_latency()
+        .with_arg("pubkey", &pubkey)
+        .with_arg("eth_tx_id", &eth_tx_id)
+        .execute(self.storage)
+        .await?;
 
         Ok(())
     }

@@ -53,7 +53,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     logger::info(MSG_USING_CARGO_NEXTEST);
     let cmd = cmd!(shell, "cargo nextest run --release");
 
-    let cmd = if let Some(options) = args.options {
+    let cmd = if let Some(options) = args.options.as_ref() {
         Cmd::new(cmd.args(options.split_whitespace())).with_force_run()
     } else {
         Cmd::new(cmd).with_force_run()
@@ -66,9 +66,13 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     // Run unit tests for ZK Stack CLI
     let _dir_guard = shell.push_dir(link_to_code.join("zkstack_cli"));
-    Cmd::new(cmd!(shell, "cargo nextest run --release"))
-        .with_force_run()
-        .run()?;
+    let cmd = cmd!(shell, "cargo nextest run --release");
+
+    let cmd = if let Some(options) = args.options {
+        Cmd::new(cmd.args(options.split_whitespace())).with_force_run()
+    } else {
+        Cmd::new(cmd).with_force_run()
+    };
 
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
     Ok(())
