@@ -345,7 +345,7 @@ pub fn get_bootloader_max_msg_roots_in_batch(version: VmVersion) -> usize {
         | VmVersion::VmGateway
         | VmVersion::VmEvmEmulator
         | VmVersion::VmEcPrecompiles => 0,
-        VmVersion::VmInterop => crate::vm_latest::constants::MAX_MSG_ROOTS_IN_BATCH,
+        VmVersion::VmMediumInterop | VmVersion::VmInterop => crate::vm_latest::constants::MAX_MSG_ROOTS_IN_BATCH,
     }
 }
 

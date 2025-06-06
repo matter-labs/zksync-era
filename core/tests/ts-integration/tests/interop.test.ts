@@ -1,4 +1,4 @@
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 
 import { TestMaster } from '../src';
@@ -226,6 +226,7 @@ describe('Interop checks', () => {
             address: aliasedInterop1WalletAddress
         });
         expect(interop1WalletSecondChainBalance).toBe(transferAmount);
+        console.log("test succeeded")
     });
 
     // Types for interop call starters and gas fields.
@@ -393,6 +394,7 @@ describe('Interop checks', () => {
         const broadcastTx = await receiverProvider.broadcastTransaction(hexTx);
         await broadcastTx.wait();
 
+        console.log(broadcastTx.realInteropHash)
         // Recursive broadcast
         // await readAndBroadcastInteropTx(broadcastTx.realInteropHash!, receiverProvider, senderProvider);
     }

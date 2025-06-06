@@ -1,4 +1,4 @@
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BytesLike } from 'ethers';
 import {
@@ -8,7 +8,7 @@ import {
     MESSAGE_INCLUSION_PROOF_ABI,
     L2_INTEROP_CENTER_ADDRESS
 } from './constants';
-import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
+import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 
 const L1_MESSENGER_ADDRESS = L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR;
 
