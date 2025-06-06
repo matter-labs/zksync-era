@@ -421,7 +421,7 @@ impl CompressorBlobStorage for Keystore {
             .fflonk_setup_data
             .compression_mode1_setup_data;
         if let Some(setup_data) = setup_data_cache.get() {
-            return Ok(setup_data);
+            Ok(setup_data)
         } else {
             let setup_data = self
                 .load_compression_setup_data::<CompressionMode1>()
@@ -430,11 +430,11 @@ impl CompressorBlobStorage for Keystore {
                 anyhow::anyhow!("Compression mode 1 setup data is already initialized in cache")
             })?;
             if let Some(setup_data) = setup_data_cache.get() {
-                return Ok(setup_data);
+                Ok(setup_data)
             } else {
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Compression mode 1 setup data not found in cache"
-                ));
+                ))
             }
         }
     }
@@ -447,7 +447,7 @@ impl CompressorBlobStorage for Keystore {
             .fflonk_setup_data
             .compression_mode2_setup_data;
         if let Some(setup_data) = setup_data_cache.get() {
-            return Ok(setup_data);
+            Ok(setup_data)
         } else {
             let setup_data = self
                 .load_compression_setup_data::<CompressionMode2>()
@@ -456,11 +456,11 @@ impl CompressorBlobStorage for Keystore {
                 anyhow::anyhow!("Compression mode 2 setup data is already initialized in cache")
             })?;
             if let Some(setup_data) = setup_data_cache.get() {
-                return Ok(setup_data);
+                Ok(setup_data)
             } else {
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Compression mode 2 setup data not found in cache"
-                ));
+                ))
             }
         }
     }
@@ -473,7 +473,7 @@ impl CompressorBlobStorage for Keystore {
             .fflonk_setup_data
             .compression_mode3_setup_data;
         if let Some(setup_data) = setup_data_cache.get() {
-            return Ok(setup_data);
+            Ok(setup_data)
         } else {
             let setup_data = self
                 .load_compression_setup_data::<CompressionMode3>()
@@ -482,11 +482,11 @@ impl CompressorBlobStorage for Keystore {
                 anyhow::anyhow!("Compression mode 3 setup data is already initialized in cache")
             })?;
             if let Some(setup_data) = setup_data_cache.get() {
-                return Ok(setup_data);
+                Ok(setup_data)
             } else {
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Compression mode 3 setup data not found in cache"
-                ));
+                ))
             }
         }
     }
@@ -499,7 +499,7 @@ impl CompressorBlobStorage for Keystore {
             .fflonk_setup_data
             .compression_mode4_setup_data;
         if let Some(setup_data) = setup_data_cache.get() {
-            return Ok(setup_data);
+            Ok(setup_data)
         } else {
             let setup_data = self
                 .load_compression_setup_data::<CompressionMode4>()
@@ -508,11 +508,11 @@ impl CompressorBlobStorage for Keystore {
                 anyhow::anyhow!("Compression mode 4 setup data is already initialized in cache")
             })?;
             if let Some(setup_data) = setup_data_cache.get() {
-                return Ok(setup_data);
+                Ok(setup_data)
             } else {
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Compression mode 4 setup data not found in cache"
-                ));
+                ))
             }
         }
     }
@@ -525,7 +525,7 @@ impl CompressorBlobStorage for Keystore {
             .fflonk_setup_data
             .compression_mode5_for_wrapper_setup_data;
         if let Some(setup_data) = setup_data_cache.get() {
-            return Ok(setup_data);
+            Ok(setup_data)
         } else {
             let setup_data = self
                 .load_compression_setup_data::<CompressionMode5ForWrapper>()
@@ -536,11 +536,11 @@ impl CompressorBlobStorage for Keystore {
                 )
             })?;
             if let Some(setup_data) = setup_data_cache.get() {
-                return Ok(setup_data);
+                Ok(setup_data)
             } else {
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Compression mode 5 for wrapper setup data not found in cache"
-                ));
+                ))
             }
         }
     }
@@ -553,7 +553,7 @@ impl CompressorBlobStorage for Keystore {
             .plonk_setup_data
             .compression_mode1_for_wrapper_setup_data;
         if let Some(setup_data) = setup_data_cache.get() {
-            return Ok(setup_data);
+            Ok(setup_data)
         } else {
             let setup_data = self
                 .load_compression_setup_data::<CompressionMode1ForWrapper>()
@@ -564,11 +564,11 @@ impl CompressorBlobStorage for Keystore {
                 )
             })?;
             if let Some(setup_data) = setup_data_cache.get() {
-                return Ok(setup_data);
+                Ok(setup_data)
             } else {
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Compression mode 1 for wrapper setup data not found in cache"
-                ));
+                ))
             }
         }
     }
@@ -588,7 +588,7 @@ impl CompressorBlobStorage for Keystore {
             .fflonk_setup_data
             .fflonk_snark_wrapper_setup_data;
         if let Some(setup_data) = setup_data_cache.get() {
-            return Ok(setup_data);
+            Ok(setup_data)
         } else {
             let setup_data = self
                 .load_snark_wrapper_setup_data::<FflonkSnarkWrapper>()
@@ -597,11 +597,11 @@ impl CompressorBlobStorage for Keystore {
                 anyhow::anyhow!("Fflonk Snark Wrapper setup data is already initialized in cache")
             })?;
             if let Some(setup_data) = setup_data_cache.get() {
-                return Ok(setup_data);
+                Ok(setup_data)
             } else {
-                return Err(anyhow::anyhow!(
+                Err(anyhow::anyhow!(
                     "Fflonk Snark Wrapper setup data not found in cache"
-                ));
+                ))
             }
         }
     }
