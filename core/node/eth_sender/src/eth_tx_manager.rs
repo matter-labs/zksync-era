@@ -563,13 +563,26 @@ impl EthTxManager {
             .failure_reason(tx_status.receipt.transaction_hash, self.operator_type(tx))
             .await;
 
-        tracing::error!(
-            "Eth tx failed {:?}, {:?}, failure reason {:?}",
-            tx,
-            tx_status.receipt,
-            failure_reason
-        );
-        panic!("We can't operate after tx fail");
+        // FIXME: TEE
+        if tx.tx_type == AggregatedActionType::Tee {
+            tracing::info!(
+                "TEE Eth tx failed {:?}, {:?}, failure reason {:?}",
+                tx,
+                tx_status.receipt,
+                failure_reason
+            );
+        } else {
+            tracing::error!(
+                "Eth tx failed {:?}, {:?}, failure reason {:?}",
+                tx,
+                tx_status.receipt,
+                failure_reason
+            );
+        }
+        // FIXME: TEE
+        if tx.tx_type != AggregatedActionType::Tee {
+            panic!("We can't operate after tx fail");
+        }
     }
 
     pub async fn confirm_tx(

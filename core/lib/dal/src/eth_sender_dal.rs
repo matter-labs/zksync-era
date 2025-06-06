@@ -807,6 +807,7 @@ impl EthSenderDal<'_, '_> {
     }
 
     pub async fn get_number_of_failed_transactions(&mut self) -> anyhow::Result<u64> {
+        // FIXME: TEE
         sqlx::query!(
             r#"
             SELECT
@@ -814,7 +815,7 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                has_failed = TRUE
+                has_failed = TRUE AND tx_type != 'TEE'
             "#
         )
         .fetch_one(self.storage.conn())
