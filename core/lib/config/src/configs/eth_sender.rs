@@ -190,6 +190,15 @@ pub struct PrecommitParams {
     pub deadline: Duration,
 }
 
+impl PrecommitParams {
+    pub fn fast_precommit() -> Self {
+        Self {
+            l2_blocks_to_aggregate: 100000,
+            deadline: Duration::from_millis(1),
+        }
+    }
+}
+
 impl SenderConfig {
     // Don't load private key, if it's not required.
     #[deprecated]

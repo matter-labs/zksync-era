@@ -987,6 +987,35 @@ impl BlocksDal<'_, '_> {
         Ok(txs)
     }
 
+    pub async fn any_precommit_txs_after_batch(
+        &mut self,
+        l1_batch: L1BatchNumber,
+    ) -> DalResult<bool> {
+        let mut tx = self.storage.start_transaction().await?;
+        let block_number = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM miniblocks
+            WHERE
+                (
+                    l1_batch_number > $1
+                    OR
+                    l1_batch_number IS NULL
+                )
+                AND
+                eth_precommit_tx_id IS NOT NULL
+            LIMIT 1
+            "#,
+            i64::from(l1_batch.0)
+        )
+        .instrument("precommit_txs_after_l1_batch")
+        .report_latency()
+        .fetch_optional(&mut tx)
+        .await?;
+        Ok(block_number.is_some())
+    }
+
     /// Marks provided L1 batch as sealed and populates it with all the runtime information.
     ///
     /// Errors if the batch does not exist.

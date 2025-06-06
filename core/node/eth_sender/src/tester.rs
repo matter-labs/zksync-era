@@ -273,10 +273,6 @@ impl EthSenderTester {
             commitment_mode,
             connection_pool.clone(),
             SettlementLayer::L1(chain_id),
-            Some(PrecommitParams {
-                l2_blocks_to_aggregate: 1,
-                deadline: Duration::from_secs(1),
-            }),
         )
         .await
         .unwrap();

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::eth_sender::{PrecommitParams, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, ContractCallError, EthInterface};
@@ -90,6 +90,7 @@ pub struct EthTxAggregator {
     priority_tree_start_index: Option<usize>,
     settlement_layer: Option<SettlementLayer>,
     initial_pending_nonces: HashMap<Address, u64>,
+    needs_to_check_precommit: bool,
 }
 
 struct TxData {
@@ -146,6 +147,7 @@ impl EthTxAggregator {
             priority_tree_start_index: None,
             settlement_layer,
             initial_pending_nonces,
+            needs_to_check_precommit: true,
         }
     }
 
@@ -670,6 +672,8 @@ impl EthTxAggregator {
             }
         }
 
+        let precommit_params = self.precommit_params(storage).await?;
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
@@ -679,6 +683,7 @@ impl EthTxAggregator {
                 l1_verifier_config,
                 op_restrictions,
                 priority_tree_start_index,
+                precommit_params.as_ref(),
             )
             .await?
         {
@@ -706,12 +711,48 @@ impl EthTxAggregator {
             );
         }
 
-        if self.config.precommit_params.is_some() {
+        if precommit_params.is_some() {
             // If we are using precommit operations,
             // we need to set the final precommit operation for l1 batches
             self.set_final_precommit_operation(storage).await?;
         }
         Ok(())
+    }
+
+    /// If we need to disable precommit operations, we can't do it straight away,
+    /// we have to fully precommit the last batch with precommit txs.
+    /// But we only need it for one batch, so after this one batch we have to return to execution without precommit operations.
+    async fn precommit_params(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<Option<PrecommitParams>, EthSenderError> {
+        if let Some(params) = self.config.precommit_params.clone() {
+            return Ok(Some(params));
+        }
+
+        if !self.needs_to_check_precommit {
+            return Ok(None);
+        }
+
+        let Some(last_committed) = storage
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_on_eth()
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let needs_to_precommit = storage
+            .blocks_dal()
+            .any_precommit_txs_after_batch(last_committed)
+            .await?;
+
+        if needs_to_precommit {
+            Ok(Some(PrecommitParams::fast_precommit()))
+        } else {
+            self.needs_to_check_precommit = false;
+            Ok(None)
+        }
     }
 
     /// The server is doing precommits based on the txs.
@@ -722,30 +763,26 @@ impl EthTxAggregator {
         &mut self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<(), EthSenderError> {
-        if self.config.precommit_params.is_some() {
-            let l2_blocks_by_batch = storage
-                .blocks_dal()
-                .get_last_l2_block_rolling_txs_hashes_by_batches()
-                .await?;
-            for (batch_number, l2_block) in l2_blocks_by_batch {
-                if l2_block.len() != 2 {
-                    // We expect exactly 2 miniblocks for each batch. If not we will wait for the next iteration
-                    continue;
-                }
-                // l2_blocks[0] is the newest, l2_blocks[1] is previous (because of DESC order)
-                if l2_block[0].rolling_txs_hash == l2_block[1].rolling_txs_hash {
-                    if let Some(eth_tx_id) = l2_block[1].precommit_eth_tx_id {
-                        storage
-                            .blocks_dal()
-                            .set_eth_tx_id_for_l1_batches(
-                                batch_number..=batch_number,
-                                eth_tx_id as u32,
-                                AggregatedActionType::L2Block(
-                                    L2BlockAggregatedActionType::Precommit,
-                                ),
-                            )
-                            .await?
-                    }
+        let l2_blocks_by_batch = storage
+            .blocks_dal()
+            .get_last_l2_block_rolling_txs_hashes_by_batches()
+            .await?;
+        for (batch_number, l2_block) in l2_blocks_by_batch {
+            if l2_block.len() != 2 {
+                // We expect exactly 2 miniblocks for each batch. If not we will wait for the next iteration
+                continue;
+            }
+            // l2_blocks[0] is the newest, l2_blocks[1] is previous (because of DESC order)
+            if l2_block[0].rolling_txs_hash == l2_block[1].rolling_txs_hash {
+                if let Some(eth_tx_id) = l2_block[1].precommit_eth_tx_id {
+                    storage
+                        .blocks_dal()
+                        .set_eth_tx_id_for_l1_batches(
+                            batch_number..=batch_number,
+                            eth_tx_id as u32,
+                            AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit),
+                        )
+                        .await?
                 }
             }
         }

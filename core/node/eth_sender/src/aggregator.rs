@@ -54,7 +54,6 @@ pub struct Aggregator {
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
     settlement_layer: SettlementLayer,
-    precommit_params: Option<PrecommitParams>,
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -139,7 +138,6 @@ impl Aggregator {
         commitment_mode: L1BatchCommitmentMode,
         pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
-        precommit_params: Option<PrecommitParams>,
     ) -> anyhow::Result<Self> {
         let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
 
@@ -225,10 +223,10 @@ impl Aggregator {
             priority_merkle_tree: None,
             pool,
             settlement_layer,
-            precommit_params,
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn get_next_ready_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -237,6 +235,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         restrictions: OperationSkippingRestrictions,
         priority_tree_start_index: Option<usize>,
+        precommit_params: Option<&PrecommitParams>,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -269,16 +268,14 @@ impl Aggregator {
                 last_sealed_l1_batch_number,
                 base_system_contracts_hashes,
                 protocol_version_id,
-                self.precommit_params.is_some(),
+                precommit_params.is_some(),
             )
             .await,
         ) {
             Ok(Some(op))
-        } else if let Some(params) = &self.precommit_params {
-            Ok(restrictions.filter_precommit_op(
-                self.get_precommit_operation(storage, params.clone())
-                    .await?,
-            ))
+        } else if let Some(params) = precommit_params {
+            Ok(restrictions
+                .filter_precommit_op(self.get_precommit_operation(storage, params).await?))
         } else {
             Ok(None)
         }
@@ -314,7 +311,7 @@ impl Aggregator {
     async fn get_precommit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        precommit_params: PrecommitParams,
+        precommit_params: &PrecommitParams,
     ) -> Result<Option<L2BlockAggregatedOperation>, EthSenderError> {
         // The first l1 batch needs to be commited is 1, so it's safe to start precommits from batch 1.
         let last_committed_l1_batch = storage
