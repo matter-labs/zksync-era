@@ -39,7 +39,7 @@ use crate::{
 pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
-struct L1BatchData {
+struct InitializedBatchState {
     updates_manager: UpdatesManager,
     batch_executor: Box<dyn BatchExecutor<OwnedStorage>>,
     protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
@@ -48,28 +48,40 @@ struct L1BatchData {
 #[derive(Debug)]
 enum BatchState {
     Uninit(IoCursor),
-    Init(Box<L1BatchData>),
+    Init(Box<InitializedBatchState>),
 }
 
 impl BatchState {
-    pub fn as_uninit(&self) -> Option<IoCursor> {
+    /// Initializes batch if it was not.
+    /// Returns mutable reference of the initialized state.
+    async fn ensure_initialized(
+        &mut self,
+        inner: &mut StateKeeperInner,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<&mut InitializedBatchState, OrStopped> {
+        let state = match self {
+            BatchState::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver).await?,
+            BatchState::Init(init) => return Ok(init.as_mut()),
+        };
+        *self = BatchState::Init(Box::new(state));
         match self {
-            BatchState::Uninit(cursor) => Some(*cursor),
-            BatchState::Init(_) => None,
+            BatchState::Init(init) => Ok(init.as_mut()),
+            BatchState::Uninit(_) => unreachable!(),
         }
     }
 
-    pub fn unwrap_init_ref_mut(&mut self) -> &mut L1BatchData {
-        match self {
+    /// Changes the state to `Uninit` with the cursor for the next batch.
+    /// Returns the old state.
+    fn finish(&mut self) -> Box<InitializedBatchState> {
+        let mut next_cursor = match self {
             BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
-            BatchState::Init(data) => data.as_mut(),
-        }
-    }
-
-    pub fn unwrap_init(self) -> Box<L1BatchData> {
-        match self {
-            BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
-            BatchState::Init(data) => data,
+            BatchState::Init(init) => init.updates_manager.io_cursor(),
+        };
+        next_cursor.l1_batch += 1;
+        let state = std::mem::replace(self, BatchState::Uninit(next_cursor));
+        match state {
+            BatchState::Uninit(_) => unreachable!(),
+            BatchState::Init(init) => init,
         }
     }
 }
@@ -199,7 +211,7 @@ impl StateKeeperInner {
 
         Ok(StateKeeper {
             inner: self,
-            batch_state: BatchState::Init(Box::new(L1BatchData {
+            batch_state: BatchState::Init(Box::new(InitializedBatchState {
                 updates_manager,
                 batch_executor,
                 protocol_upgrade_tx,
@@ -212,7 +224,7 @@ impl StateKeeperInner {
         &mut self,
         cursor: IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<L1BatchData, OrStopped> {
+    ) -> Result<InitializedBatchState, OrStopped> {
         let (system_env, l1_batch_env, pubdata_params) =
             self.wait_for_new_batch_env(&cursor, stop_receiver).await?;
         let first_batch_in_shared_bridge =
@@ -243,7 +255,7 @@ impl StateKeeperInner {
             None
         };
 
-        Ok(L1BatchData {
+        Ok(InitializedBatchState {
             updates_manager,
             batch_executor,
             protocol_upgrade_tx,
@@ -853,11 +865,14 @@ impl StateKeeper {
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<(), OrStopped> {
         // If there is no open batch then start one.
-        if let Some(cursor) = self.batch_state.as_uninit() {
-            let state = self.inner.start_batch(cursor, stop_receiver).await?;
-            self.batch_state = BatchState::Init(Box::new(state));
-        }
-        let state = self.batch_state.unwrap_init_ref_mut();
+        // if let Some(cursor) = self.batch_state.as_uninit() {
+        //     let state = self.inner.start_batch(cursor, stop_receiver).await?;
+        //     self.batch_state = BatchState::Init(Box::new(state));
+        // }
+        let state = self
+            .batch_state
+            .ensure_initialized(&mut self.inner, stop_receiver)
+            .await?;
         let updates_manager = &mut state.updates_manager;
         let batch_executor = state.batch_executor.as_mut();
 
@@ -1072,16 +1087,7 @@ impl StateKeeper {
     }
 
     async fn seal_batch(&mut self) -> Result<(), OrStopped> {
-        let mut next_cursor = self
-            .batch_state
-            .unwrap_init_ref_mut()
-            .updates_manager
-            .io_cursor();
-        let l1_batch_number = next_cursor.l1_batch;
-        next_cursor.l1_batch += 1;
-
-        let mut state =
-            std::mem::replace(&mut self.batch_state, BatchState::Uninit(next_cursor)).unwrap_init();
+        let mut state = self.batch_state.finish();
         assert!(!state.updates_manager.has_next_block_params());
 
         self.inner
@@ -1089,11 +1095,12 @@ impl StateKeeper {
 
         let (finished_batch, _) = state.batch_executor.finish_batch().await?;
         state.updates_manager.finish_batch(finished_batch);
+        let l1_batch_number = state.updates_manager.l1_batch.number;
         self.inner
             .output_handler
             .handle_l1_batch(Arc::new(state.updates_manager))
             .await
-            .with_context(|| format!("failed sealing L1 batch #{l1_batch_number}"))?;
+            .with_context(|| format!("failed sealing L1 batch #{}", l1_batch_number))?;
 
         if let Some(last_l1_batch_sealed_at) = self.last_l1_batch_sealed_at {
             L1_BATCH_METRICS
