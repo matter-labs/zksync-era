@@ -7,7 +7,8 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --server-db-name=zksync_server_localhost_era \
     --ignore-prerequisites --observability=false \
     --chain era \
-    --update-submodules false
+    --update-submodules false \
+    --validium-type no-da
     
 zkstack dev generate-genesis
 
@@ -17,7 +18,8 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --server-db-name=zksync_server_localhost_era \
     --ignore-prerequisites --observability=false \
     --chain era \
-    --update-submodules false
+    --update-submodules false \
+    --validium-type no-da
 
 zkstack chain create \
         --chain-name validium \
