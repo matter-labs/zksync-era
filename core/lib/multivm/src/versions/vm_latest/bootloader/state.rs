@@ -272,6 +272,7 @@ impl BootloaderState {
                 number: block.number + 1,
                 prev_block_hash: block.get_hash(),
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             });
         }
         self.last_l2_block()

@@ -3,13 +3,11 @@
 use ruint::aliases::{B160, U256};
 use zk_ee::utils::Bytes32;
 use zk_os_basic_system::system_implementation::system::BatchOutput;
-use zksync_types::commitment::ZkosCommitment;
-use zksync_types::H256;
+use zksync_types::{commitment::ZkosCommitment, H256};
 
 pub mod commit;
 pub mod methods;
 pub mod structures;
-
 
 // todo: will be refactored after zkos schema migration
 // we'll probably compute the commitement earlier in the process and save in the DB

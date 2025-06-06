@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            zkos_proofs (\n                l2_block_number,\n                prover_input,\n                input_gen_time_taken,\n                created_at,\n                updated_at\n            )\n            VALUES\n            ($1, $2, $3::INTERVAL, NOW(), NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea",
+        "Interval"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f030784d385b85000d6bfef0448cb5c4eae503ae84e8fe6d58525713332f8e88"
+}

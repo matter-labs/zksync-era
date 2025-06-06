@@ -19,7 +19,7 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    L1BatchNumber, ProtocolVersionId,
+    InteropRoot, L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -303,6 +303,17 @@ impl Aggregator {
             return Ok(None);
         };
 
+        let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
+        for batch in &l1_batches {
+            let interop_roots = storage
+                .interop_root_dal()
+                .get_interop_roots_batch(batch.header.number)
+                .await
+                .unwrap();
+
+            dependency_roots.push(interop_roots);
+        }
+
         let Some(priority_tree_start_index) = priority_tree_start_index else {
             // The index is not yet applicable to the current system, so we
             // return empty priority operations' proofs.
@@ -310,6 +321,7 @@ impl Aggregator {
             return Ok(Some(ExecuteBatches {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
+                dependency_roots,
             }));
         };
 
@@ -362,6 +374,7 @@ impl Aggregator {
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
+            dependency_roots,
         }))
     }
 

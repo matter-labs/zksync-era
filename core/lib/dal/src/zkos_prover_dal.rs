@@ -1,12 +1,14 @@
 use std::time::Duration;
-use zksync_db_connection::connection::Connection;
-use zksync_db_connection::error::DalResult;
-use zksync_types::L2BlockNumber;
-use crate::Core;
+
 use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
     instrument::{CopyStatement, InstrumentExt},
     utils::pg_interval_from_duration,
 };
+use zksync_types::L2BlockNumber;
+
+use crate::Core;
 
 #[derive(Debug)]
 pub struct ZkosProverDal<'a, 'c> {
@@ -15,9 +17,7 @@ pub struct ZkosProverDal<'a, 'c> {
 
 impl ZkosProverDal<'_, '_> {
     /// returns 0 if no inputs are found
-    pub async fn last_block_with_generated_input(
-        &mut self,
-    ) -> DalResult<L2BlockNumber> {
+    pub async fn last_block_with_generated_input(&mut self) -> DalResult<L2BlockNumber> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -26,10 +26,10 @@ impl ZkosProverDal<'_, '_> {
                 zkos_proofs
             "#
         )
-            .instrument("last_block_with_generated_input")
-            .report_latency()
-            .fetch_one(self.storage)
-            .await?;
+        .instrument("last_block_with_generated_input")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
         let number = row.number.unwrap_or(0) as u32;
         Ok(L2BlockNumber(number))
     }
@@ -48,24 +48,24 @@ impl ZkosProverDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                zkos_proofs (
-                    l2_block_number,
-                    prover_input,
-                    input_gen_time_taken,
-                    created_at,
-                    updated_at
-                )
+            zkos_proofs (
+                l2_block_number,
+                prover_input,
+                input_gen_time_taken,
+                created_at,
+                updated_at
+            )
             VALUES
-                ($1, $2, $3::INTERVAL, NOW(), NOW())
+            ($1, $2, $3::INTERVAL, NOW(), NOW())
             "#,
             i64::from(l2block_number.0),
             db_prover_input,
             pg_interval_from_duration(time_taken)
         )
-            .instrument("insert_prover_input")
-            .report_latency()
-            .execute(self.storage)
-            .await?;
+        .instrument("insert_prover_input")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
         Ok(())
     }
 
@@ -80,38 +80,38 @@ impl ZkosProverDal<'_, '_> {
             WITH next_fri AS (
                 SELECT l2_block_number
                 FROM zkos_proofs
-                WHERE prover_input IS NOT NULL
-                  AND (
-                      fri_proof_picked_at IS NULL
-                      OR fri_proof_picked_at < NOW() - $1::INTERVAL
-                  )
+                WHERE
+                    prover_input IS NOT NULL
+                    AND (
+                        fri_proof_picked_at IS NULL
+                        OR fri_proof_picked_at < NOW() - $1::INTERVAL
+                    )
                 ORDER BY l2_block_number ASC
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             )
+            
             UPDATE zkos_proofs
             SET
-                fri_proof_picked_at     = NOW(),
-                fri_proof_picked_by     = $2,
-                fri_proof_attempts      = COALESCE(fri_proof_attempts, 0) + 1,
-                updated_at              = NOW()
+                fri_proof_picked_at = NOW(),
+                fri_proof_picked_by = $2,
+                fri_proof_attempts = COALESCE(fri_proof_attempts, 0) + 1,
+                updated_at = NOW()
             FROM next_fri
             WHERE zkos_proofs.l2_block_number = next_fri.l2_block_number
             RETURNING
-                zkos_proofs.l2_block_number AS "l2_block_number!",
-                zkos_proofs.prover_input     AS "prover_input!"
+            zkos_proofs.l2_block_number AS "l2_block_number!",
+            zkos_proofs.prover_input AS "prover_input!"
             "#,
             pg_interval_from_duration(timeout),
             picked_by,
         )
-            .instrument("pick_next_fri_proof")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("pick_next_fri_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
-        Ok(maybe_row.map(|row| {
-            (L2BlockNumber(row.l2_block_number as u32), row.prover_input)
-        }))
+        Ok(maybe_row.map(|row| (L2BlockNumber(row.l2_block_number as u32), row.prover_input)))
     }
 
     /// Save a completed FRI proof
@@ -125,17 +125,17 @@ impl ZkosProverDal<'_, '_> {
             UPDATE zkos_proofs
             SET
                 fri_prove_time_taken = NOW() - fri_proof_picked_at,
-                fri_proof            = $2,
-                updated_at           = NOW()
+                fri_proof = $2,
+                updated_at = NOW()
             WHERE l2_block_number = $1
             "#,
             i64::from(block_number.0),
             proof,
         )
-            .instrument("save_fri_proof")
-            .report_latency()
-            .execute(self.storage)
-            .await?;
+        .instrument("save_fri_proof")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
 
         Ok(())
     }
@@ -151,38 +151,38 @@ impl ZkosProverDal<'_, '_> {
             WITH next_snark AS (
                 SELECT l2_block_number
                 FROM zkos_proofs
-                WHERE fri_proof IS NOT NULL
-                  AND (
-                      snark_proof_picked_at IS NULL
-                      OR snark_proof_picked_at < NOW() - $1::INTERVAL
-                  )
+                WHERE
+                    fri_proof IS NOT NULL
+                    AND (
+                        snark_proof_picked_at IS NULL
+                        OR snark_proof_picked_at < NOW() - $1::INTERVAL
+                    )
                 ORDER BY l2_block_number ASC
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             )
+            
             UPDATE zkos_proofs
             SET
-                snark_proof_picked_at    = NOW(),
-                snark_proof_picked_by    = $2,
-                snark_proof_attempts     = snark_proof_attempts + 1,
-                updated_at               = NOW()
+                snark_proof_picked_at = NOW(),
+                snark_proof_picked_by = $2,
+                snark_proof_attempts = snark_proof_attempts + 1,
+                updated_at = NOW()
             FROM next_snark
             WHERE zkos_proofs.l2_block_number = next_snark.l2_block_number
             RETURNING
-                zkos_proofs.l2_block_number AS "l2_block_number!",
-                zkos_proofs.fri_proof       AS "fri_proof!"
+            zkos_proofs.l2_block_number AS "l2_block_number!",
+            zkos_proofs.fri_proof AS "fri_proof!"
             "#,
             pg_interval_from_duration(timeout),
             picked_by,
         )
-            .instrument("pick_next_snark_proof")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("pick_next_snark_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
-        Ok(maybe_row.map(|row| {
-            (L2BlockNumber(row.l2_block_number as u32), row.fri_proof)
-        }))
+        Ok(maybe_row.map(|row| (L2BlockNumber(row.l2_block_number as u32), row.fri_proof)))
     }
 
     /// Save a completed SNARK proof
@@ -196,37 +196,35 @@ impl ZkosProverDal<'_, '_> {
             UPDATE zkos_proofs
             SET
                 snark_prove_time_taken = NOW() - snark_proof_picked_at,
-                snark_proof            = $2,
-                updated_at             = NOW()
+                snark_proof = $2,
+                updated_at = NOW()
             WHERE l2_block_number = $1
             "#,
             i64::from(block_number.0),
             proof,
         )
-            .instrument("save_snark_proof")
-            .report_latency()
-            .execute(self.storage)
-            .await?;
+        .instrument("save_snark_proof")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
 
         Ok(())
     }
-    pub async fn list_available_proofs(
-        &mut self,
-    ) -> DalResult<Vec<(L2BlockNumber, Vec<String>)>> {
+    pub async fn list_available_proofs(&mut self) -> DalResult<Vec<(L2BlockNumber, Vec<String>)>> {
         let rows = sqlx::query!(
             r#"
             SELECT
                 l2_block_number,
-                fri_proof IS NOT NULL   AS "has_fri!",
+                fri_proof IS NOT NULL AS "has_fri!",
                 snark_proof IS NOT NULL AS "has_snark!"
             FROM zkos_proofs
             ORDER BY l2_block_number
             "#
         )
-            .instrument("list_available_proofs")
-            .report_latency()
-            .fetch_all(self.storage)
-            .await?;
+        .instrument("list_available_proofs")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?;
 
         Ok(rows
             .into_iter()
@@ -256,10 +254,10 @@ impl ZkosProverDal<'_, '_> {
             "#,
             i64::from(block_number.0),
         )
-            .instrument("get_fri_proof")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("get_fri_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
         Ok(row.and_then(|r| r.fri_proof))
     }
@@ -277,12 +275,11 @@ impl ZkosProverDal<'_, '_> {
             "#,
             i64::from(block_number.0),
         )
-            .instrument("get_snark_proof")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("get_snark_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
         Ok(row.and_then(|r| r.snark_proof))
     }
-
 }

@@ -1,15 +1,19 @@
 use blake2::{Blake2s, Blake2s256, Digest};
-use zksync_basic_types::web3;
-use zksync_basic_types::web3::keccak256;
+use zksync_basic_types::{web3, web3::keccak256};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use crate::{Address, ethabi, H256, U256};
-use crate::commitment::L1BatchWithMetadata;
-use crate::ethabi::Token;
-use crate::priority_op_onchain_data::PriorityOpOnchainData;
 
+use crate::{
+    commitment::L1BatchWithMetadata, ethabi, ethabi::Token,
+    priority_op_onchain_data::PriorityOpOnchainData, Address, H256, U256,
+};
 
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
+pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
+]);
+
 #[derive(Debug)]
 // Only has a base set of values - others are computed - see `Impl`
 // Names are taken from IExecutor.sol - where possible
@@ -34,6 +38,7 @@ pub struct ZkosCommitment {
     pub l2_to_l1_logs_root_hash: H256,
     // not implemented - and currently ignored by smart contract
     // pub l2_da_validator: Address,
+    pub dependency_roots_rolling_hash: H256,
 
     // set by state keeper
     // todo: potentially large, double check
@@ -97,7 +102,6 @@ impl ZkosCommitment {
     }
 }
 
-
 impl From<&L1BatchWithMetadata> for ZkosCommitment {
     fn from(batch: &L1BatchWithMetadata) -> Self {
         ZkosCommitment {
@@ -108,10 +112,21 @@ impl From<&L1BatchWithMetadata> for ZkosCommitment {
             number_of_layer1_txs: batch.header.l1_tx_count,
             number_of_layer2_txs: batch.header.l2_tx_count,
             priority_ops_onchain_data: batch.header.priority_ops_onchain_data.clone(),
+            dependency_roots_rolling_hash: if batch.header.system_logs.is_empty() {
+                H256::zero()
+            } else {
+                batch
+                    .header
+                    .system_logs
+                    .iter()
+                    .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
+                    .unwrap()
+                    .0
+                    .value
+            },
             l2_to_l1_logs_root_hash: batch.metadata.l2_l1_merkle_root,
             pubdata: batch.header.pubdata_input.clone().unwrap(),
             chain_id: 271,
         }
     }
 }
-

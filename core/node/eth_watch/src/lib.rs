@@ -17,7 +17,9 @@ use zksync_types::{
 pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient};
 use self::{
     client::RETRY_LIMIT,
-    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
+    event_processors::{
+        EventProcessor, EventProcessorError, InteropRootProcessor, PriorityOpsEventProcessor,
+    },
     metrics::METRICS,
 };
 use crate::event_processors::{
@@ -79,10 +81,14 @@ impl EthWatch {
 
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 
+        let l1_interop_root_processor =
+            InteropRootProcessor::new(EventsSource::L1, chain_id, Some(sl_client.clone())).await;
+
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
             Box::new(gateway_migration_processor),
+            Box::new(l1_interop_root_processor),
         ];
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {
@@ -92,8 +98,12 @@ impl EthWatch {
                 chain_id,
                 sl_client.clone(),
             );
+            let sl_interop_root_processor =
+                InteropRootProcessor::new(EventsSource::SL, chain_id, Some(sl_client)).await;
             event_processors.push(Box::new(batch_root_processor));
+            event_processors.push(Box::new(sl_interop_root_processor));
         }
+
         Ok(Self {
             l1_client,
             sl_client: sl_eth_client,

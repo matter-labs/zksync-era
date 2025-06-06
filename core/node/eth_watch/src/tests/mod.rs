@@ -7,13 +7,14 @@ use zksync_types::{
     api::ChainAggProof,
     block::L1BatchHeader,
     commitment::L1BatchCommitmentArtifacts,
+    eth_sender::EthTxFinalityStatus,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2_to_l1_log::BatchAndChainMerklePath,
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
     settlement::SettlementLayer,
-    Address, Execute, L1BatchNumber, L1TxCommonData, L2ChainId, PriorityOpId, ProtocolUpgrade,
-    ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
+    Address, Execute, L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, PriorityOpId,
+    ProtocolUpgrade, ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
 use crate::{tests::client::MockEthClient, EthWatch, ZkSyncExtentionEthClient};
@@ -490,6 +491,11 @@ async fn test_batch_root_processor_from_genesis() {
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
 
+    let inner_chain_log_proofs = inner_chain_log_proofs();
+    sl_client
+        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .await;
+
     sl_client.set_last_finalized_block_number(5).await;
 
     let mut connection = connection_pool.connection().await.unwrap();
@@ -576,6 +582,11 @@ async fn test_batch_root_processor_restart() {
         .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
+
+    let inner_chain_log_proofs = inner_chain_log_proofs();
+    sl_client
+        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .await;
 
     sl_client.set_last_finalized_block_number(14).await;
 
@@ -767,6 +778,71 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
     ]
 }
 
+fn inner_chain_log_proofs() -> Vec<(L2BlockNumber, ChainAggProof)> {
+    vec![
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+        (
+            L2BlockNumber(0),
+            ChainAggProof {
+                chain_id_leaf_proof: vec![H256::from_slice(
+                    &hex::decode(
+                        "0924928c1377a6cf24c39c2d46f8eb9df23e811b26dc3527e548396fd4e173b1",
+                    )
+                    .unwrap(),
+                )],
+                chain_id_leaf_proof_mask: 1,
+            },
+        ),
+    ]
+}
+
 async fn setup_batch_roots(
     connection_pool: &ConnectionPool<Core>,
     number_of_processed_batches: usize,
@@ -831,6 +907,18 @@ async fn setup_batch_roots(
             .await
             .unwrap();
 
+        let tx_hash = H256::random();
+        connection
+            .eth_sender_dal()
+            .insert_tx_history(eth_tx_id, 0, 0, None, None, tx_hash, &[], 0, None)
+            .await
+            .unwrap();
+        connection
+            .eth_sender_dal()
+            .confirm_tx(tx_hash, U256::zero(), 0)
+            .await
+            .unwrap();
+
         if i < number_of_processed_batches {
             connection
                 .blocks_dal()
@@ -842,7 +930,18 @@ async fn setup_batch_roots(
                     },
                 )
                 .await
-                .unwrap()
+                .unwrap();
+            connection
+                .blocks_dal()
+                .set_gw_interop_batch_chain_merkle_path(
+                    batch_number,
+                    BatchAndChainMerklePath {
+                        batch_proof_len: 0,
+                        proof: Vec::new(),
+                    },
+                )
+                .await
+                .unwrap();
         }
     }
 }

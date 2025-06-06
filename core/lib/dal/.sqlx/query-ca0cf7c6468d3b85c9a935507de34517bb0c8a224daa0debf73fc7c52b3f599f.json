@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE zkos_proofs\n            SET\n                fri_prove_time_taken = NOW() - fri_proof_picked_at,\n                fri_proof = $2,\n                updated_at = NOW()\n            WHERE l2_block_number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ca0cf7c6468d3b85c9a935507de34517bb0c8a224daa0debf73fc7c52b3f599f"
+}

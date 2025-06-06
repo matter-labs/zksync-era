@@ -7,7 +7,7 @@ use zksync_types::{
         TransactionExecutionInfo,
     },
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 
 use crate::client::{ForWeb3Network, L2};
@@ -35,10 +35,18 @@ pub trait UnstableNamespace {
         tee_type: Option<TeeType>,
     ) -> RpcResult<Vec<TeeProof>>;
 
+    // Accepts batch_or_block_number as a JSON number (for L1 batch) or an object `{"block": <number>}` (for GW block).
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>>;
+
+    #[method(name = "getInnerChainLogProof")]
+    async fn get_inner_chain_log_proof(
+        &self,
+        block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 

@@ -436,6 +436,7 @@ impl EthSenderTester {
                 .into_iter()
                 .map(l1_batch_with_metadata)
                 .collect(),
+            dependency_roots: vec![vec![], vec![]],
         });
         self.next_l1_batch_number_to_execute += 1;
         self.save_operation(operation).await

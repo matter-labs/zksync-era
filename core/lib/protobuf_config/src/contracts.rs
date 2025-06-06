@@ -27,6 +27,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("state_transition_proxy_addr")?,
+            message_root_proxy_addr: ecosystem_contracts
+                .message_root_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("message_root_proxy_addr")?,
             transparent_proxy_admin_addr: ecosystem_contracts
                 .transparent_proxy_admin_addr
                 .as_ref()
@@ -150,7 +156,7 @@ impl ProtoRepr for proto::Contracts {
             state_transition_proxy_addr: this
                 .state_transition_proxy_addr
                 .map(|a| format!("{:?}", a)),
-
+            message_root_proxy_addr: this.message_root_proxy_addr.map(|a| format!("{:?}", a)),
             transparent_proxy_admin_addr: this
                 .transparent_proxy_admin_addr
                 .map(|a| format!("{:?}", a)),

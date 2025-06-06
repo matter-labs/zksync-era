@@ -19,7 +19,6 @@ pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
 pub const PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY: u8 = 2;
 
-
 // todo: this file is obsolete in zkos
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]

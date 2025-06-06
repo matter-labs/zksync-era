@@ -1,10 +1,16 @@
 use std::fmt::Debug;
-use zksync_types::{commitment::{L1BatchCommitmentMode, L1BatchWithMetadata}, ethabi::{ParamType, Token}, pubdata_da::PubdataSendingMode, web3::{contract::Error as ContractError, keccak256}, ProtocolVersionId, H256, U256, Address};
-use zksync_types::commitment::ZkosCommitment;
+
+use zksync_types::{
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, ZkosCommitment},
+    ethabi::{ParamType, Token},
+    pubdata_da::PubdataSendingMode,
+    web3::{contract::Error as ContractError, keccak256},
+    Address, ProtocolVersionId, H256, U256,
+};
+
 use crate::{Tokenizable, Tokenize};
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
-
 
 // from https://github.com/matter-labs/era-contracts/blob/6ae03f3/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L106C1-L121C6
 //
@@ -42,10 +48,9 @@ pub struct CommitBoojumOSBatchInfo {
 impl CommitBoojumOSBatchInfo {
     // todo: refactor `l1_batch_with_metadata` and corresponding table structure
     // currently it has fields for pre-boojum, boojum and zkos and most are not needed
-    pub fn new(
-        commitment: &ZkosCommitment,
-    ) -> CommitBoojumOSBatchInfo {
-        let (operator_da_input, operator_da_input_header_hash) = commitment.calculate_operator_da_input();
+    pub fn new(commitment: &ZkosCommitment) -> CommitBoojumOSBatchInfo {
+        let (operator_da_input, operator_da_input_header_hash) =
+            commitment.calculate_operator_da_input();
 
         return Self {
             batch_number: commitment.batch_number,

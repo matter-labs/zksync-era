@@ -13,6 +13,7 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     block::{build_bloom, L1BatchHeader, L2BlockHeader},
+    hasher::{keccak::KeccakHasher, Hasher},
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
     tx::IncludedTxLocation,
@@ -21,8 +22,6 @@ use zksync_types::{
     Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
     Transaction, H256,
 };
-use zksync_types::hasher::Hasher;
-use zksync_types::hasher::keccak::KeccakHasher;
 use zksync_vm_interface::{TransactionExecutionResult, VmEvent};
 
 use crate::{
@@ -123,7 +122,12 @@ impl BlockSealCommand {
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(self.inner.protocol_version),
             system_logs: vec![],
-            pubdata_input: Some(self.inner.block_pubdata.clone().expect("Block pubdata must be set for sealed zkos blocks")),
+            pubdata_input: Some(
+                self.inner
+                    .block_pubdata
+                    .clone()
+                    .expect("Block pubdata must be set for sealed zkos blocks"),
+            ),
             fee_address: self.inner.fee_account_address,
             batch_fee_input: self.inner.batch_fee_input,
         };
@@ -131,28 +135,18 @@ impl BlockSealCommand {
         let final_bootloader_memory = vec![];
 
         // todo: this is temporarily saved in state keeper - consider moving to a separate component
-        let encoded_l2_l1_logs = self
-            .inner
-            .user_l2_to_l1_logs
-            .iter()
-            .map(|log| {
-                log.encode()
-            });
+        let encoded_l2_l1_logs = self.inner.user_l2_to_l1_logs.iter().map(|log| log.encode());
 
         // todo - extract constant
-        let l2_l1_local_root = MiniMerkleTree::new(encoded_l2_l1_logs.clone().into_iter(), Some(1 << 14))
-            .merkle_root();
+        let l2_l1_local_root =
+            MiniMerkleTree::new(encoded_l2_l1_logs.clone().into_iter(), Some(1 << 14))
+                .merkle_root();
         // The result should be Keccak(l2_l1_local_root, aggreagation_root) - we don't compute aggregation root yet
-        let l2_l1_final_root =  KeccakHasher.compress(&l2_l1_local_root, &H256::zero());
-
-
+        let l2_l1_final_root = KeccakHasher.compress(&l2_l1_local_root, &H256::zero());
 
         transaction
             .blocks_dal()
-            .insert_l2_l1_message_root(
-                self.inner.l1_batch_number,
-                l2_l1_final_root,
-            )
+            .insert_l2_l1_message_root(self.inner.l1_batch_number, l2_l1_final_root)
             .await?;
 
         // todo: tree root hash is temporarily saved in state keeper - remove it and make tree save it instead
@@ -161,7 +155,10 @@ impl BlockSealCommand {
             .blocks_dal()
             .save_l1_batch_tree_data(
                 self.inner.l1_batch_number,
-                &self.inner.tree_data.expect("zkos state keeper should fill block hash"),
+                &self
+                    .inner
+                    .tree_data
+                    .expect("zkos state keeper should fill block hash"),
             )
             .await?;
 
