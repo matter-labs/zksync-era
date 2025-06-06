@@ -156,10 +156,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             state_diffs: None,
         }
     }
-
-    fn gas_remaining(&mut self) -> u32 {
-        self.state.local_state.callstack.current.ergs_remaining
-    }
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {

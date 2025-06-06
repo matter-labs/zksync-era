@@ -538,7 +538,7 @@ impl StateKeeperInner {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
                     call_tracer_result,
-                    ..
+                    gas_remaining,
                 } = result
                 else {
                     tracing::error!(
@@ -562,6 +562,7 @@ impl StateKeeperInner {
                     *tx_result,
                     *tx_execution_metrics,
                     call_tracer_result,
+                    gas_remaining,
                 );
 
                 tracing::debug!(
@@ -602,7 +603,7 @@ impl StateKeeperInner {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
                     call_tracer_result,
-                    ..
+                    gas_remaining,
                 } = exec_result
                 else {
                     anyhow::bail!("Tx inclusion seal resolution must be a result of a successful tx execution");
@@ -619,6 +620,7 @@ impl StateKeeperInner {
                     *tx_result,
                     *tx_execution_metrics,
                     call_tracer_result,
+                    gas_remaining,
                 );
                 Ok(())
             }
@@ -810,19 +812,25 @@ impl StateKeeperInner {
     async fn should_seal_batch_conditional_criteria(
         &mut self,
         updates_manager: &UpdatesManager,
-        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
     ) -> anyhow::Result<bool> {
+        if updates_manager.pending_executed_transactions_len() == 0 {
+            // No txs -> no seal.
+            return Ok(false);
+        }
+
+        // Should be present because at least 1 tx was executed.
+        let gas_remaining = updates_manager.last_gas_remaining.unwrap();
         let tx_data = SealData {
             execution_metrics: Default::default(),
             cumulative_size: 0,
             writes_metrics: Default::default(),
-            gas_remaining: batch_executor.gas_remaining().await?,
+            gas_remaining,
         };
         let block_data = SealData {
             execution_metrics: updates_manager.pending_execution_metrics(),
             cumulative_size: updates_manager.pending_txs_encoding_size(),
             writes_metrics: updates_manager.storage_writes_deduplicator.metrics(),
-            gas_remaining: batch_executor.gas_remaining().await?,
+            gas_remaining,
         };
         let seal_resolution = self.sealer.should_seal_l1_batch(
             updates_manager.l1_batch.number.0,
@@ -898,7 +906,7 @@ impl StateKeeper {
             // However, this is suboptimal, checking seal criteria is much faster than executing and reverting tx.
             if self
                 .inner
-                .should_seal_batch_conditional_criteria(updates_manager, batch_executor)
+                .should_seal_batch_conditional_criteria(updates_manager)
                 .await?
             {
                 // Push the current block if it has not been done yet and this will effectively create a fictive l2 block.
@@ -1007,7 +1015,7 @@ impl StateKeeper {
                         tx_result,
                         tx_metrics: tx_execution_metrics,
                         call_tracer_result,
-                        ..
+                        gas_remaining,
                     } = exec_result
                     else {
                         unreachable!(
@@ -1019,6 +1027,7 @@ impl StateKeeper {
                         *tx_result,
                         *tx_execution_metrics,
                         call_tracer_result,
+                        gas_remaining,
                     );
                     Outcome::None
                 }
@@ -1027,7 +1036,7 @@ impl StateKeeper {
                         tx_result,
                         tx_metrics: tx_execution_metrics,
                         call_tracer_result,
-                        ..
+                        gas_remaining,
                     } = exec_result
                     else {
                         unreachable!(
@@ -1039,6 +1048,7 @@ impl StateKeeper {
                         *tx_result,
                         *tx_execution_metrics,
                         call_tracer_result,
+                        gas_remaining,
                     );
                     Outcome::SealBlock
                 }

@@ -520,10 +520,6 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
-
-    async fn gas_remaining(&mut self) -> anyhow::Result<u32> {
-        Ok(u32::MAX)
-    }
 }
 
 #[derive(Debug)]
