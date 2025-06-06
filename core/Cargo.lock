@@ -10692,9 +10692,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vise"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "269640ec8679c379b8ffefbd4623f7a435f40c159b87bee4620fd9585ea573ba"
+checksum = "41db40082986e8571805fe7be3f9a465dfa78656aa32133124553f73173e0d46"
 dependencies = [
  "compile-fmt",
  "ctor",
@@ -10706,9 +10706,9 @@ dependencies = [
 
 [[package]]
 name = "vise-exporter"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92cdc5e940c68b341b5d021fdbce7a1aeefc039fedc8c9e51de9cceb506aef54"
+checksum = "123b171330b78f46a6f79370bd92f827da7e04636ad3a90d245dac334420222d"
 dependencies = [
  "http-body-util",
  "hyper 1.6.0",
@@ -10721,9 +10721,9 @@ dependencies = [
 
 [[package]]
 name = "vise-macros"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b03810422b55b87bb8cba95a3708664c049125789a8d79ee524da6ed07ed067d"
+checksum = "42d75b2029d281365bc3e8f2942b8cd31fed7349e8870356a7759366906f72ae"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -12046,6 +12046,7 @@ dependencies = [
  "smart-config",
  "smart-config-commands",
  "tracing",
+ "vise",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
@@ -13417,6 +13418,7 @@ dependencies = [
  "zksync_node_storage_init",
  "zksync_object_store",
  "zksync_proof_data_handler",
+ "zksync_shared_resources",
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",

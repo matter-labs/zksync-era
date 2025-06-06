@@ -1,30 +1,43 @@
 //! Extensions for the `ObservabilityConfig` to install the observability stack.
 
-use std::{any, any::Any, mem};
+use std::{any, any::Any, collections::HashMap, mem};
 
 use anyhow::Context;
+use serde::Serialize;
 use smart_config::{
     metadata::ConfigMetadata,
     value,
     visit::{ConfigVisitor, VisitConfig},
-    ConfigRepository, ConfigSchema, DescribeConfig, DeserializeConfig, ParseErrors,
+    ConfigSchema, DescribeConfig, DeserializeConfig, ParseErrors,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
+use self::metrics::METRICS;
 use crate::{
     configs::{ObservabilityConfig, PrometheusConfig},
     sources::ConfigSources,
 };
 
+mod metrics;
+
 impl ConfigSources {
     /// Returns the observability config. It should be used to install observability early in the executable lifecycle.
     pub fn observability(&self) -> anyhow::Result<ObservabilityConfig> {
         let schema = ConfigSchema::new(&ObservabilityConfig::DESCRIPTION, "observability");
-        let mut repo = ConfigRepository::new(&schema).with_all(self.0.clone());
+        let mut repo = smart_config::ConfigRepository::new(&schema).with_all(self.0.clone());
         repo.deserializer_options().coerce_variant_names = true;
         // - `unwrap()` is safe: `Self` is the only top-level config, so an error would require for it to have a recursive definition.
         // - While logging is not enabled at this point, we use `log_all_errors()` for more intelligent error summarization.
         repo.single().unwrap().parse().map_err(log_all_errors)
+    }
+
+    /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
+    /// with the existing file-based configs (e.g., coerce enum variant names).
+    pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
+        ConfigRepository {
+            inner: self.build_raw_repository(schema),
+            parsed_params: None,
+        }
     }
 }
 
@@ -142,39 +155,80 @@ fn log_all_errors(errors: ParseErrors) -> anyhow::Error {
     )
 }
 
-pub trait ConfigRepositoryExt {
-    /// Parses a configuration from this repo. The configuration must have a unique mounting point.
-    fn parse<C: DeserializeConfig>(&self) -> anyhow::Result<C>;
-
-    /// Parses an optional configuration from this repo. The configuration must have a unique mounting point.
-    fn parse_opt<C: DeserializeConfig>(&self) -> anyhow::Result<Option<C>>;
-
-    fn parse_at<C: DeserializeConfig>(&self, prefix: &str) -> anyhow::Result<C>;
+#[derive(Debug, Serialize)]
+struct ParsedParam {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    origin: Option<String>,
+    #[serde(skip_serializing_if = "ParsedParam::is_false")]
+    is_secret: bool,
+    #[serde(skip_serializing_if = "ParsedParam::is_true")]
+    is_default: bool,
 }
 
-impl ConfigRepositoryExt for ConfigRepository<'_> {
+impl ParsedParam {
+    fn is_false(&flag: &bool) -> bool {
+        !flag
+    }
+
+    fn is_true(&flag: &bool) -> bool {
+        flag
+    }
+}
+
+/// Opaque representation of captured config parameters.
+#[derive(Debug, Default, Serialize)]
+#[serde(transparent)]
+pub struct CapturedParams(HashMap<String, ParsedParam>);
+
+impl CapturedParams {
+    /// Returns the number of the contained params.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Checks whether this contains any params.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+#[derive(Debug)]
+pub struct ConfigRepository<'a> {
+    inner: smart_config::ConfigRepository<'a>,
+    parsed_params: Option<CapturedParams>,
+}
+
+impl ConfigRepository<'_> {
+    pub fn capture_parsed_params(&mut self) {
+        if self.parsed_params.is_none() {
+            self.parsed_params = Some(CapturedParams::default());
+        }
+    }
+
     /// Parses a configuration from this repo. The configuration must have a unique mounting point.
-    fn parse<C: DeserializeConfig>(&self) -> anyhow::Result<C> {
-        let config_parser = self.single::<C>()?;
+    pub fn parse<C: DeserializeConfig>(&mut self) -> anyhow::Result<C> {
+        let config_parser = self.inner.single::<C>()?;
         let prefix = config_parser.config().prefix();
         let config = config_parser.parse().map_err(log_all_errors)?;
-        ObservabilityVisitor::visit(self, prefix, &config);
+        ObservabilityVisitor::visit(&self.inner, self.parsed_params.as_mut(), prefix, &config);
         Ok(config)
     }
 
     /// Parses an optional configuration from this repo. The configuration must have a unique mounting point.
-    fn parse_opt<C: DeserializeConfig>(&self) -> anyhow::Result<Option<C>> {
-        let config_parser = self.single::<C>()?;
+    pub fn parse_opt<C: DeserializeConfig>(&mut self) -> anyhow::Result<Option<C>> {
+        let config_parser = self.inner.single::<C>()?;
         let prefix = config_parser.config().prefix();
         let maybe_config = config_parser.parse_opt().map_err(log_all_errors)?;
         if let Some(config) = &maybe_config {
-            ObservabilityVisitor::visit(self, prefix, config);
+            ObservabilityVisitor::visit(&self.inner, self.parsed_params.as_mut(), prefix, config);
         }
         Ok(maybe_config)
     }
 
-    fn parse_at<C: DeserializeConfig>(&self, prefix: &str) -> anyhow::Result<C> {
-        let config_parser = self.get(prefix).with_context(|| {
+    pub fn parse_at<C: DeserializeConfig>(&mut self, prefix: &str) -> anyhow::Result<C> {
+        let config_parser = self.inner.get(prefix).with_context(|| {
             format!(
                 "config `{}` is missing at `{prefix}`",
                 any::type_name::<C>()
@@ -182,26 +236,56 @@ impl ConfigRepositoryExt for ConfigRepository<'_> {
         })?;
         let prefix = config_parser.config().prefix();
         let config = config_parser.parse().map_err(log_all_errors)?;
-        ObservabilityVisitor::visit(self, prefix, &config);
+        ObservabilityVisitor::visit(&self.inner, self.parsed_params.as_mut(), prefix, &config);
         Ok(config)
+    }
+
+    /// Returns all captured parsed params, or an empty container if none were captured. Also, observes
+    /// the returned params as `INFO` metrics.
+    pub fn into_captured_params(self) -> CapturedParams {
+        let params = self.parsed_params.unwrap_or_default();
+        METRICS.observe(&params);
+        params
+    }
+}
+
+impl<'a> From<smart_config::ConfigRepository<'a>> for ConfigRepository<'a> {
+    fn from(inner: smart_config::ConfigRepository<'a>) -> Self {
+        Self {
+            inner,
+            parsed_params: None,
+        }
+    }
+}
+
+impl<'a> From<ConfigRepository<'a>> for smart_config::ConfigRepository<'a> {
+    fn from(repo: ConfigRepository<'a>) -> Self {
+        repo.inner
     }
 }
 
 #[derive(Debug)]
 struct ObservabilityVisitor<'a> {
     source: Option<&'a value::Map>,
+    parsed_params: Option<&'a mut CapturedParams>,
     metadata: &'static ConfigMetadata,
     config_prefix: String,
 }
 
 impl<'a> ObservabilityVisitor<'a> {
-    fn visit<C: DeserializeConfig>(repo: &'a ConfigRepository<'_>, prefix: &str, config: &C) {
+    fn visit<C: DeserializeConfig>(
+        repo: &'a smart_config::ConfigRepository<'_>,
+        parsed_params: Option<&'a mut CapturedParams>,
+        prefix: &str,
+        config: &C,
+    ) {
         let source = repo
             .merged()
             .pointer(prefix)
             .and_then(|val| val.inner.as_object());
         let mut this = Self {
             source,
+            parsed_params,
             metadata: &C::DESCRIPTION,
             config_prefix: prefix.to_owned(),
         };
@@ -256,17 +340,30 @@ impl ConfigVisitor for ObservabilityVisitor<'_> {
             (false, is_default, Some(json))
         };
 
+        let path = Self::join_path(&self.config_prefix, param.name);
         tracing::debug!(
             param = param.name,
             rust_name,
-            path = Self::join_path(&self.config_prefix, param.name),
+            path,
             config = self.metadata.ty.name_in_code(),
             origin = origin.map(tracing::field::display),
-            value = value.map(tracing::field::display),
+            value = value.as_ref().map(tracing::field::display),
             is_secret,
             is_default,
             "parsed config param"
         );
+
+        if let Some(params) = self.parsed_params.as_deref_mut() {
+            params.0.insert(
+                path,
+                ParsedParam {
+                    value,
+                    origin: origin.map(ToString::to_string),
+                    is_secret,
+                    is_default: is_default.unwrap_or(false),
+                },
+            );
+        }
     }
 
     fn visit_nested_config(&mut self, config_index: usize, config: &dyn VisitConfig) {

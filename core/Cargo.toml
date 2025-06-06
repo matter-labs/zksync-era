@@ -212,8 +212,8 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-vise = "0.3.0"
-vise-exporter = "0.3.0"
+vise = "0.3.1"
+vise-exporter = "0.3.1"
 smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "6bc86aa7833ce08276861951ba72b4426a37a893" }
 smart-config-commands = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "6bc86aa7833ce08276861951ba72b4426a37a893" }
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }

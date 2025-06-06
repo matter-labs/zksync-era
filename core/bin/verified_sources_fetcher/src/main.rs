@@ -11,8 +11,8 @@ async fn main() {
         .unwrap();
 
     let schema = full_config_schema(false);
-    let repo = config_sources.build_repository(&schema);
-    let config: DatabaseSecrets = repo.single().unwrap().parse().unwrap();
+    let mut repo = config_sources.build_repository(&schema);
+    let config: DatabaseSecrets = repo.parse().unwrap();
 
     let pool = ConnectionPool::<Core>::singleton(config.replica_url().unwrap())
         .build()
