@@ -11,7 +11,7 @@ use zksync_multivm::interface::{
     storage::{ReadStorage, StorageView},
     BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv,
 };
-use zksync_types::Transaction;
+use zksync_types::{commitment::PubdataParams, Transaction};
 
 use super::metrics::{ExecutorCommand, EXECUTOR_METRICS};
 
@@ -169,11 +169,12 @@ where
     #[tracing::instrument(skip_all)]
     async fn finish_batch(
         mut self: Box<Self>,
+        pubdata_params: PubdataParams,
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)> {
         let (response_sender, response_receiver) = oneshot::channel();
         let send_failed = self
             .commands
-            .send(Command::FinishBatch(response_sender))
+            .send(Command::FinishBatch(pubdata_params, response_sender))
             .await
             .is_err();
         if send_failed {
@@ -201,5 +202,5 @@ pub(super) enum Command {
     ),
     StartNextL2Block(L2BlockEnv, oneshot::Sender<()>),
     RollbackLastTx(oneshot::Sender<()>),
-    FinishBatch(oneshot::Sender<FinishedL1Batch>),
+    FinishBatch(PubdataParams, oneshot::Sender<FinishedL1Batch>),
 }

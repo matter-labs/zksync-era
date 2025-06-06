@@ -128,7 +128,7 @@ impl VmRunner {
         }
 
         let (batch, storage_view) = batch_executor
-            .finish_batch()
+            .finish_batch(Default::default())
             .await
             .context("VM runner failed to execute batch tip")?;
         let output = L1BatchOutput {

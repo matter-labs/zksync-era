@@ -690,7 +690,10 @@ impl StorageSnapshot {
             executor.start_next_l2_block(l2_block_env).await.unwrap();
         }
 
-        let (finished_batch, _) = executor.finish_batch().await.unwrap();
+        let (finished_batch, _) = executor
+            .finish_batch(PubdataParams::default())
+            .await
+            .unwrap();
         let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
         storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log.is_write()));
         let modified_entries = storage_writes_deduplicator.into_modified_key_values();

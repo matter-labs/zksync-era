@@ -44,7 +44,10 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
     async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()>;
 
     /// Finished the current L1 batch.
-    async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)>;
+    async fn finish_batch(
+        self: Box<Self>,
+        pubdata_params: PubdataParams,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)>;
 }
 
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).

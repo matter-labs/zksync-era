@@ -16,6 +16,7 @@ use zksync_state_keeper::{
 };
 use zksync_types::{
     block::UnsealedL1BatchHeader,
+    commitment::PubdataParams,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -471,6 +472,10 @@ impl StateKeeperIO for ExternalIO {
             .with_context(|| format!("error waiting for params for L1 batch #{l1_batch_number}"))?;
         wait_latency.observe();
         Ok(hash)
+    }
+
+    async fn get_pubdata_params(&mut self, _: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
+        Ok(Default::default())
     }
 }
 

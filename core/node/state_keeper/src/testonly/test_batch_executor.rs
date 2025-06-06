@@ -515,6 +515,7 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
 
     async fn finish_batch(
         self: Box<Self>,
+        _: PubdataParams,
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
@@ -831,6 +832,10 @@ impl StateKeeperIO for TestIO {
 
     async fn load_batch_state_hash(&self, _l1_batch_number: L1BatchNumber) -> anyhow::Result<H256> {
         Ok(H256::zero())
+    }
+
+    async fn get_pubdata_params(&mut self, _: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
+        Ok(Default::default())
     }
 }
 

@@ -321,7 +321,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        pubdata_builder: Rc<dyn PubdataBuilder>,
+        _: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
@@ -382,8 +382,9 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                         break;
                     }
                 }
-                Command::FinishBatch(resp) => {
-                    let vm_block_result = self.finish_batch(&mut vm, pubdata_builder)?;
+                Command::FinishBatch(pubdata_params, resp) => {
+                    let vm_block_result =
+                        self.finish_batch(&mut vm, pubdata_params_to_builder(pubdata_params))?;
                     if resp.send(vm_block_result).is_err() {
                         break;
                     }

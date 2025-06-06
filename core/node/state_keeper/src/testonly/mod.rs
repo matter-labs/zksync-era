@@ -70,6 +70,7 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
 
     async fn finish_batch(
         self: Box<Self>,
+        _: PubdataParams,
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
