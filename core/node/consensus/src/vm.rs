@@ -12,10 +12,19 @@ use zksync_vm_executor::oneshot::{
 };
 use zksync_vm_interface::{
     executor::OneshotExecutor, storage::StorageWithOverrides, ExecutionResult,
-    OneshotTracingParams, TxExecutionArgs,
+    OneshotTracingParams, TxExecutionArgs, VmRevertReason,
 };
 
 use crate::{abi, storage::ConnectionPool};
+
+/// Represents the result of a VM execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VMResult<T> {
+    /// VM execution completed successfully with decoded output.
+    Success { output: T },
+    /// VM execution was reverted.
+    Revert { revert_reason: String },
+}
 
 /// VM executes eth_calls on the db.
 #[derive(Debug)]
@@ -49,7 +58,7 @@ impl VM {
         block_number: validator::BlockNumber,
         address: abi::Address<F::Contract>,
         call: abi::Call<F>,
-    ) -> ctx::Result<F::Outputs> {
+    ) -> ctx::Result<VMResult<F::Outputs>> {
         let tx = L2Tx::new(
             Some(*address),
             call.calldata().context("call.calldata()")?,
@@ -100,10 +109,19 @@ impl VM {
             .await?
             .context("execute_tx_in_sandbox()")?;
         match output.tx_result.result {
+            // If the execution was successful, we can decode the output.
             ExecutionResult::Success { output } => {
-                Ok(call.decode_outputs(&output).context("decode_output()")?)
+                let output = call.decode_outputs(&output).context("decode_output()")?;
+                Ok(VMResult::Success { output })
             }
-            other => Err(anyhow::format_err!("unsuccessful execution: {other:?}").into()),
+            // If the execution was reverted by a general revert reason (i.e. the contract called revert()),
+            // we can extract the revert reason from the output.
+            // We ignore the data from the revert reason, but we can decode it if necessary.
+            ExecutionResult::Revert {
+                output: VmRevertReason::General { msg, .. },
+            } => Ok(VMResult::Revert { revert_reason: msg }),
+            // In all other cases, we just return the error.
+            other => Err(anyhow::format_err!("Unsuccessful execution: {other:?}").into()),
         }
     }
 }

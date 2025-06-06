@@ -1,8 +1,7 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
-        VmExecutionMetrics, VmExecutionResultAndLogs,
+        Call, FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionMetrics, VmExecutionResultAndLogs,
     },
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
@@ -35,7 +34,6 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
-    storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
@@ -68,7 +66,6 @@ impl UpdatesManager {
                 protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
-            storage_view_cache: None,
             pubdata_params,
             next_l2_block_params: None,
             previous_batch_protocol_version,
@@ -120,7 +117,7 @@ impl UpdatesManager {
         L2BlockSealCommand {
             l1_batch_number: self.l1_batch.number,
             l2_block: self.l2_block.clone(),
-            first_tx_index: self.l1_batch.executed_transactions.len(),
+            first_tx_index: self.l1_batch.executed_transaction_hashes.len(),
             fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
@@ -185,14 +182,6 @@ impl UpdatesManager {
         latency.observe();
     }
 
-    pub fn update_storage_view_cache(&mut self, storage_view_cache: StorageViewCache) {
-        self.storage_view_cache = Some(storage_view_cache);
-    }
-
-    pub fn storage_view_cache(&self) -> Option<StorageViewCache> {
-        self.storage_view_cache.clone()
-    }
-
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
     /// held L2 block is considered sealed and is used to extend the L1 batch data.
     pub fn push_l2_block(&mut self) {
@@ -225,7 +214,7 @@ impl UpdatesManager {
     }
 
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
-        self.l1_batch.executed_transactions.len() + self.l2_block.executed_transactions.len()
+        self.l1_batch.executed_transaction_hashes.len() + self.l2_block.executed_transactions.len()
     }
 
     pub(crate) fn pending_l1_transactions_len(&self) -> usize {
@@ -283,7 +272,10 @@ mod tests {
         // Check that only pending state is updated.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
         assert_eq!(updates_manager.l2_block.executed_transactions.len(), 1);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
+        assert_eq!(
+            updates_manager.l1_batch.executed_transaction_hashes.len(),
+            0
+        );
 
         // Seal an L2 block.
         updates_manager.set_next_l2_block_params(L2BlockParams {
@@ -296,6 +288,9 @@ mod tests {
         // and L2 block updates are empty.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
         assert_eq!(updates_manager.l2_block.executed_transactions.len(), 0);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 1);
+        assert_eq!(
+            updates_manager.l1_batch.executed_transaction_hashes.len(),
+            1
+        );
     }
 }
