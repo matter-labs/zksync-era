@@ -45,7 +45,7 @@ async fn pick_fri_job(
 
     tracing::trace!("Fetching next FRI block to prove");
     let response = match conn.zkos_prover_dal()
-        .pick_next_fri_proof(Duration::from_secs(60), "unknown")
+        .pick_next_fri_proof(Duration::from_secs(60), 5,  "unknown")
         .await
     {
         Ok(Some((block_number, data))) => {

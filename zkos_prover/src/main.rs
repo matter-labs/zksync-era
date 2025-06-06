@@ -154,9 +154,14 @@ pub async fn main() {
     println!("Starting Zksync OS FRI prover for {}", client.base_url);
 
     loop {
-        let (block_number, prover_input) = match client.pick_next_prover_job().await.unwrap() {
-            Some(next_block) => next_block,
-            None => {
+        let (block_number, prover_input) = match client.pick_next_prover_job().await {
+            Err(err) => {
+                eprintln!("Error fetching next prover job: {}", err);
+                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                continue;
+            },
+            Ok(Some(next_block)) => next_block,
+            Ok(None) => {
               tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
               continue;
             }
