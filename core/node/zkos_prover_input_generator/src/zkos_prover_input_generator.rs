@@ -36,10 +36,6 @@ impl ZkosProverInputGenerator {
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        // todo: should be a different layer
-        tracing::info!("Starting HTTP server in a separate thread");
-        tokio::spawn(run(self.pool.clone()));
-
         let mut connection =
             self.pool.connection_tagged("zkos_prover_input_generator").await?;
 
@@ -59,6 +55,10 @@ impl ZkosProverInputGenerator {
             tracing::info!("Dry run completed - exiting");
             return Ok(());
         }
+
+        // todo: should be a different layer
+        tracing::info!("Starting HTTP server in a separate thread");
+        tokio::spawn(run(self.pool.clone()));
 
         let last_processed_block = connection.zkos_prover_dal().last_block_with_generated_input().await?;
 
