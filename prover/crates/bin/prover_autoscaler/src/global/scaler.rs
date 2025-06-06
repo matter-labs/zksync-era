@@ -1563,7 +1563,7 @@ mod tests {
         };
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1000, &clusters),
             [
                 (
                     PoolKey {
