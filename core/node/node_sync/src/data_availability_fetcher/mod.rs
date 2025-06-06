@@ -94,6 +94,11 @@ impl DataAvailabilityFetcher {
         }
     }
 
+    /// Determines the first L1 batch to scan for Data Availability information.
+    /// It relies on the consistency checker's cursor because the purpose of the DA fetcher is
+    /// to populate the necessary DA info for the consistency checker to verify L1 commitments.
+    /// So there is no point in scanning batches that were already checked by the consistency
+    /// checker, or batches that will be skipped by it.
     async fn determine_first_batch_to_scan(&self) -> anyhow::Result<L1BatchNumber> {
         let last_checked_by_consistency_checker = self
             .pool
