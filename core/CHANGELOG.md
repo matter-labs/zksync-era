@@ -1,5 +1,17 @@
 # Changelog
 
+## [28.6.0](https://github.com/matter-labs/zksync-era/compare/core-v28.5.0...core-v28.6.0) (2025-06-06)
+
+
+### Features
+
+* **eth-sender:** use last value in gas adjuster for gateway txs ([#4149](https://github.com/matter-labs/zksync-era/issues/4149)) ([995920a](https://github.com/matter-labs/zksync-era/commit/995920a7d6dd92f7ab7538e0b06a7bcb9df2feb0))
+
+
+### Bug Fixes
+
+* **consensus:** Make leader in Consensus config optional ([#4145](https://github.com/matter-labs/zksync-era/issues/4145)) ([5761dbb](https://github.com/matter-labs/zksync-era/commit/5761dbbc4df85c675da6e341da2f26acef6ce8b6))
+
 ## [28.5.0](https://github.com/matter-labs/zksync-era/compare/core-v28.4.0...core-v28.5.0) (2025-06-06)
 
 
