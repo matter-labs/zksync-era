@@ -289,7 +289,7 @@ pub struct FeeParamsV1 {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeParamsV2 {
-    pub config: FeeModelConfigV2,
+    config: FeeModelConfigV2,
     l1_gas_price: u64,
     l1_pubdata_price: u64,
     conversion_ratio: BaseTokenConversionRatio,
