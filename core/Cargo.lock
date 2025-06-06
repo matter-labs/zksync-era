@@ -1532,6 +1532,17 @@ dependencies = [
 [[package]]
 name = "bigint_with_control"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "bigint_with_control"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -1541,24 +1552,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "bigint_with_control"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
-]
-
-[[package]]
 name = "bigint_with_control_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -1753,6 +1753,17 @@ dependencies = [
 [[package]]
 name = "blake2_with_compression"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "blake2_with_compression"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -1762,24 +1773,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake2_with_compression"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
-]
-
-[[package]]
 name = "blake2_with_compression_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -1807,7 +1807,7 @@ dependencies = [
 [[package]]
 name = "blake2s_u32"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
  "unroll",
 ]
@@ -1815,7 +1815,7 @@ dependencies = [
 [[package]]
 name = "blake2s_u32"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "unroll",
 ]
@@ -2320,21 +2320,21 @@ dependencies = [
 [[package]]
 name = "circuit_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
 name = "circuit_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
 ]
 
 [[package]]
@@ -2467,22 +2467,22 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 [[package]]
 name = "cli"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "clap 4.5.23",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "prover_examples 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "reqwest 0.12.15",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "serde",
  "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "sha3_ce",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -2909,16 +2909,16 @@ dependencies = [
 [[package]]
 name = "cs"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "derivative",
  "divrem",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "itertools 0.13.0",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "proc-macro2 1.0.95",
  "quote 1.0.37",
  "seq-macro",
@@ -2932,16 +2932,16 @@ dependencies = [
 [[package]]
 name = "cs"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "derivative",
  "divrem",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "itertools 0.13.0",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "proc-macro2 1.0.95",
  "quote 1.0.37",
  "seq-macro",
@@ -3780,6 +3780,18 @@ dependencies = [
 [[package]]
 name = "execution_utils"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "serde_json",
+ "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "execution_utils"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -3787,18 +3799,6 @@ dependencies = [
  "serde_json",
  "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
-]
-
-[[package]]
-name = "execution_utils"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
 ]
 
 [[package]]
@@ -3885,6 +3885,20 @@ dependencies = [
 [[package]]
 name = "fft"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "itertools 0.13.0",
+ "rayon",
+ "seq-macro",
+ "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "unroll",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "fft"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -3897,24 +3911,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "fft"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "itertools 0.13.0",
- "rayon",
- "seq-macro",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
-]
-
-[[package]]
 name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+
+[[package]]
+name = "field"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "rand 0.9.1",
+ "seq-macro",
+ "serde",
+]
 
 [[package]]
 name = "field"
@@ -3927,13 +3937,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "field"
+name = "final_reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "rand 0.9.1",
- "seq-macro",
+ "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -3949,25 +3961,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "final_reduced_risc_v_machine"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
-]
-
-[[package]]
 name = "final_reduced_risc_v_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -4329,14 +4329,14 @@ checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 [[package]]
 name = "full_statement_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
  "bigint_with_control_verifier",
  "blake2_with_compression_verifier",
  "final_reduced_risc_v_machine_verifier",
  "reduced_risc_v_machine_verifier",
  "risc_v_cycles_verifier",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -6529,12 +6529,12 @@ dependencies = [
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 
 [[package]]
 name = "nonzero_ext"
@@ -7475,10 +7475,10 @@ checksum = "350e9b48cbc6b0e028b0473b114454c6316e57336ee184ceab6e53f72c178b3e"
 [[package]]
 name = "poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "rand 0.9.1",
  "unroll",
 ]
@@ -7486,10 +7486,10 @@ dependencies = [
 [[package]]
 name = "poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "rand 0.9.1",
  "unroll",
 ]
@@ -7851,6 +7851,34 @@ dependencies = [
 [[package]]
 name = "prover"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "bit-set 0.8.0",
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "itertools 0.13.0",
+ "lib-rv32-asm",
+ "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "proc-macro2 1.0.95",
+ "quote 1.0.37",
+ "rayon",
+ "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "syn 2.0.101",
+ "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "unroll",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "prover"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "bit-set 0.8.0",
@@ -7877,31 +7905,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "prover"
+name = "prover_examples"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "bit-set 0.8.0",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "fft 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "bincode",
  "itertools 0.13.0",
- "lib-rv32-asm",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "proc-macro2 1.0.95",
- "quote 1.0.37",
- "rayon",
- "risc_v_simulator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "seq-macro",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "serde",
  "serde_json",
- "syn 2.0.101",
- "trace_holder 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "transpose",
 ]
 
 [[package]]
@@ -7917,22 +7933,6 @@ dependencies = [
  "serde_json",
  "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
- "transpose",
-]
-
-[[package]]
-name = "prover_examples"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "bincode",
- "itertools 0.13.0",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "trace_and_split 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
  "transpose",
 ]
 
@@ -8262,6 +8262,18 @@ dependencies = [
 [[package]]
 name = "reduced_risc_v_machine"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "reduced_risc_v_machine"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -8272,25 +8284,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "reduced_risc_v_machine"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
-]
-
-[[package]]
 name = "reduced_risc_v_machine_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -8578,6 +8578,18 @@ dependencies = [
 [[package]]
 name = "risc_v_cycles"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "serde_json",
+ "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "risc_v_cycles"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -8588,25 +8600,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "risc_v_cycles"
+name = "risc_v_cycles_verifier"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "circuit_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "verifier_generator 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "unroll",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
-name = "risc_v_cycles_verifier"
+name = "risc_v_simulator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "unroll",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "addr2line 0.22.0",
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "inferno",
+ "memmap2",
+ "object 0.35.0",
+ "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "rand 0.9.1",
+ "ringbuffer",
+ "ruint",
+ "serde",
 ]
 
 [[package]]
@@ -8622,25 +8641,6 @@ dependencies = [
  "memmap2",
  "object 0.35.0",
  "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
- "rand 0.9.1",
- "ringbuffer",
- "ruint",
- "serde",
-]
-
-[[package]]
-name = "risc_v_simulator"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "addr2line 0.22.0",
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "inferno",
- "memmap2",
- "object 0.35.0",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
  "rand 0.9.1",
  "ringbuffer",
  "ruint",
@@ -9670,6 +9670,25 @@ dependencies = [
 [[package]]
 name = "setups"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "bigint_with_control 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "blake2_with_compression 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "proc-macro2 1.0.95",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "quote 1.0.37",
+ "reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "serde_json",
+ "syn 2.0.101",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "setups"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "bigint_with_control 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -9685,25 +9704,6 @@ dependencies = [
  "serde_json",
  "syn 2.0.101",
  "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
-]
-
-[[package]]
-name = "setups"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "bigint_with_control 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "blake2_with_compression 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "final_reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "proc-macro2 1.0.95",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "quote 1.0.37",
- "reduced_risc_v_machine 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "risc_v_cycles 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "syn 2.0.101",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
 ]
 
 [[package]]
@@ -11283,6 +11283,18 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 [[package]]
 name = "trace_and_split"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "serde_json",
+ "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+]
+
+[[package]]
+name = "trace_and_split"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -11293,15 +11305,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "trace_and_split"
+name = "trace_holder"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "serde",
- "serde_json",
- "setups 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
@@ -11311,15 +11320,6 @@ source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d03
 dependencies = [
  "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
-]
-
-[[package]]
-name = "trace_holder"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
 ]
 
 [[package]]
@@ -11419,21 +11419,21 @@ dependencies = [
 [[package]]
 name = "transcript"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
 ]
 
 [[package]]
 name = "transcript"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
  "unroll",
- "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "worker 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
 ]
 
 [[package]]
@@ -11732,6 +11732,22 @@ dependencies = [
 [[package]]
 name = "verifier_common"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
+dependencies = [
+ "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "serde",
+ "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "unroll",
+]
+
+[[package]]
+name = "verifier_common"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
@@ -11746,19 +11762,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "verifier_common"
+name = "verifier_generator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
- "blake2s_u32 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "cs 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "field 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "non_determinism_source 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "poseidon2 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "proc-macro-error2",
+ "proc-macro2 1.0.95",
+ "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
+ "quote 1.0.37",
  "serde",
- "transcript 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
- "unroll",
+ "serde_json",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -11769,20 +11783,6 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2 1.0.95",
  "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0)",
- "quote 1.0.37",
- "serde",
- "serde_json",
- "syn 2.0.101",
-]
-
-[[package]]
-name = "verifier_generator"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
-dependencies = [
- "proc-macro-error2",
- "proc-macro2 1.0.95",
- "prover 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
  "quote 1.0.37",
  "serde",
  "serde_json",
@@ -12377,7 +12377,7 @@ dependencies = [
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
+source = "git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5#7d80b89795ca86155290265f100c329f689ed27b"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -12386,7 +12386,7 @@ dependencies = [
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca#a9d35acb20ccfc5c2a52c8a82431451e233f0eca"
+source = "git+https://github.com/matter-labs/zksync-airbender?tag=0.1.0#ea0a0d030dd4645cd6f2ab0691a2d05d89d43771"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -14929,7 +14929,7 @@ dependencies = [
  "basic_system",
  "bincode",
  "cli",
- "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "execution_utils 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "forward_system",
  "full_statement_verifier",
  "futures 0.3.31",
@@ -14942,7 +14942,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?rev=a9d35acb20ccfc5c2a52c8a82431451e233f0eca)",
+ "verifier_common 0.1.0 (git+https://github.com/matter-labs/zksync-airbender.git?tag=0.0.5)",
  "zk_ee",
  "zksync_config",
  "zksync_dal",
