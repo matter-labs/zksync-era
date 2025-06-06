@@ -64,6 +64,7 @@ pub struct Scaler<K> {
 }
 
 impl<K: Key> Scaler<K> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue_report_field: QueueReportFields,
         deployment: DeploymentName,
