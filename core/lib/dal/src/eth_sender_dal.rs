@@ -604,13 +604,11 @@ impl EthSenderDal<'_, '_> {
     /// This method inserts a fake transaction into the database that would make the corresponding L1 batch
     /// to be considered committed/proven/executed.
     ///
-    /// The designed use case is the External Node usage, where we don't really care about the actual transactions apart
-    /// from the hash and the fact that tx was sent.
-    ///
     /// ## Warning
     ///
     /// After this method is used anywhere in the codebase, it is considered a bug to try to directly query `eth_txs_history`
     /// or `eth_txs` tables.
+    #[cfg(test)]
     pub async fn insert_bogus_confirmed_eth_tx(
         &mut self,
         l1_batch: L1BatchNumber,
@@ -691,6 +689,128 @@ impl EthSenderDal<'_, '_> {
         .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
         .await
         .context("set_eth_tx_id()")?;
+
+        transaction.commit().await.context("commit()")
+    }
+
+    /// This method inserts a pending transaction into eth_txs_history table.
+    /// It should be used only in external node context as most properties are not set.
+    /// Inserted transaction does not need to be validated as its set as pending.
+    /// Validation needs to be done before marking with one of the executed statuses.
+    pub async fn insert_pending_received_eth_tx(
+        &mut self,
+        l1_batch: L1BatchNumber,
+        tx_type: AggregatedActionType,
+        tx_hash: H256,
+        sl_chain_id: Option<SLChainId>,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+        let tx_hash = format!("{:#x}", tx_hash);
+
+        let eth_tx_id = sqlx::query_scalar!(
+            "SELECT eth_txs.id FROM eth_txs_history JOIN eth_txs \
+            ON eth_txs.id = eth_txs_history.eth_tx_id \
+            WHERE eth_txs_history.tx_hash = $1",
+            tx_hash
+        )
+        .fetch_optional(transaction.conn())
+        .await?;
+
+        // Check if the transaction with the corresponding hash already exists.
+        let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
+            eth_tx_id
+        } else {
+            // No such transaction in the database yet, we have to insert it.
+
+            // Insert general tx descriptor.
+            let eth_tx_id = sqlx::query_scalar!(
+                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
+                RETURNING id",
+                tx_type.to_string(),
+                sl_chain_id.map(|chain_id| chain_id.0 as i64)
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+
+            // Insert a "sent transaction".
+            sqlx::query_scalar!(
+                "INSERT INTO eth_txs_history \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3) \
+                RETURNING id",
+                eth_tx_id,
+                tx_hash,
+                EthTxFinalityStatus::Pending.to_string()
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+            eth_tx_id
+        };
+
+        // Tie the ETH tx to the L1 batch.
+        super::BlocksDal {
+            storage: &mut transaction,
+        }
+        .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
+        .await
+        .context("set_eth_tx_id()")?;
+
+        transaction.commit().await.context("commit()")
+    }
+
+    pub async fn mark_received_eth_tx_as_verified(
+        &mut self,
+        eth_txs_history_id: u32,
+        confirmed_at: DateTime<Utc>,
+        finality_status: EthTxFinalityStatus,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET
+                finality_status = $2,
+                updated_at = NOW(),
+                confirmed_at = $3
+            WHERE
+                id = $1
+            "#,
+            eth_txs_history_id as i32,
+            finality_status.to_string(),
+            confirmed_at.naive_utc(),
+        )
+        .execute(transaction.conn())
+        .await?;
+
+        sqlx::query!(
+            r#"
+                UPDATE eth_txs
+                SET
+                    confirmed_eth_tx_history_id = $1
+                WHERE
+                    id = (
+                        SELECT
+                            eth_tx_id
+                        FROM
+                            eth_txs_history
+                        WHERE
+                            id = $1
+                    )
+                "#,
+            eth_txs_history_id as i32,
+        )
+        .execute(transaction.conn())
+        .await?;
 
         transaction.commit().await.context("commit()")
     }

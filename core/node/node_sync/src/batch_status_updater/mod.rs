@@ -514,16 +514,13 @@ impl BatchStatusUpdater {
                 change.number <= last_sealed_batch,
                 "Incorrect update state: unknown batch marked as committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
                     AggregatedActionType::Commit,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_committed_l1_batch = change.number;
@@ -541,16 +538,13 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_committed_l1_batch,
                 "Incorrect update state: proven batch must be committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
                     AggregatedActionType::PublishProofOnchain,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_proven_l1_batch = change.number;
@@ -568,16 +562,13 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_proven_l1_batch,
                 "Incorrect update state: executed batch must be proven"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
-                .insert_bogus_confirmed_eth_tx(
+                .insert_pending_received_eth_tx(
                     change.number,
                     AggregatedActionType::Execute,
                     change.l1_tx_hash,
-                    change.happened_at,
                     change.sl_chain_id,
-                    EthTxFinalityStatus::Finalized,
                 )
                 .await?;
             cursor.last_executed_l1_batch = change.number;
