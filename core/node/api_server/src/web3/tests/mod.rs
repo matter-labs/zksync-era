@@ -392,7 +392,6 @@ async fn save_eth_tx(
             batch_number,
             tx_type,
             tx_hash,
-            Utc::now(),
             None,
             EthTxFinalityStatus::Pending,
         )

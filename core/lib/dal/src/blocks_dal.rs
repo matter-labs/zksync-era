@@ -1454,6 +1454,81 @@ impl BlocksDal<'_, '_> {
         .map(|row| L1BatchNumber(row.number as u32)))
     }
 
+    /// Returns the number of the last L1 batch for which an Ethereum commit tx exists in DB (may be unconfirmed)
+    pub async fn get_number_of_last_l1_batch_with_commit_tx(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            INNER JOIN
+                eth_txs_history AS commit_tx
+                ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_number_of_last_l1_batch_with_commit_tx")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Returns the number of the last L1 batch for which an Ethereum prove tx exists in DB (may be unconfirmed)
+    pub async fn get_number_of_last_l1_batch_with_prove_tx(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            INNER JOIN
+                eth_txs_history AS prove_tx
+                ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_number_of_last_l1_batch_with_prove_tx")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
+    }
+
+    /// Returns the number of the last L1 batch for which an Ethereum execute tx exists in DB (may be unconfirmed)
+    pub async fn get_number_of_last_l1_batch_with_execute_tx(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            INNER JOIN
+                eth_txs_history AS execute_tx
+                ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_number_of_last_l1_batch_with_execute_tx")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
+    }
+
     /// This method returns batches that are confirmed on L1. That is, it doesn't wait for the proofs to be generated.
     ///
     /// # Params:

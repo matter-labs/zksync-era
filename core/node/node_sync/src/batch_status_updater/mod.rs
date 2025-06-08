@@ -115,17 +115,17 @@ impl UpdaterCursor {
 
         let last_executed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_executed_on_eth()
+            .get_number_of_last_l1_batch_with_execute_tx()
             .await?
             .unwrap_or(starting_l1_batch_number);
         let last_proven_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_proven_on_eth()
+            .get_number_of_last_l1_batch_with_prove_tx()
             .await?
             .unwrap_or(starting_l1_batch_number);
         let last_committed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
+            .get_number_of_last_l1_batch_with_commit_tx()
             .await?
             .unwrap_or(starting_l1_batch_number);
         Ok(Self {

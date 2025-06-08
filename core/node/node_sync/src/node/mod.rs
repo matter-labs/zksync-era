@@ -1,5 +1,6 @@
 pub use self::{
     batch_status_updater::BatchStatusUpdaterLayer,
+    batch_transaction_updater::BatchTransactionUpdaterLayer,
     data_availability_fetcher::DataAvailabilityFetcherLayer, external_io::ExternalIOLayer,
     resources::ActionQueueSenderResource, sync_state_updater::SyncStateUpdaterLayer,
     tree_data_fetcher::TreeDataFetcherLayer, validate_chain_ids::ValidateChainIdsLayer,
