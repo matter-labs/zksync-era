@@ -6,6 +6,7 @@ pub use self::{
 };
 
 mod batch_status_updater;
+mod batch_transaction_updater;
 mod data_availability_fetcher;
 mod external_io;
 mod resources;

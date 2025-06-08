@@ -2426,6 +2426,30 @@ impl BlocksDal<'_, '_> {
         .collect())
     }
 
+    pub async fn get_l1_batch_number_by_eth_tx_id(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                number
+            FROM
+                l1_batches
+            WHERE
+                eth_commit_tx_id = $1
+                OR eth_prove_tx_id = $1
+                OR eth_execute_tx_id = $1
+            "#,
+            eth_tx_id as i32,
+        )
+        .instrument("get_l1_batch_number_by_eth_tx_id")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| L1BatchNumber(row.number as u32)))
+    }
+
     pub async fn delete_initial_writes(
         &mut self,
         last_batch_to_keep: L1BatchNumber,

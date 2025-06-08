@@ -2,21 +2,13 @@
 
 use std::{future, sync::Arc};
 
-use assert_matches::assert_matches;
 use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
-use zksync_types::{
-    block::L1BatchTreeData,
-    commitment::L1BatchCommitmentArtifacts,
-    eth_sender::EthTxFinalityStatus,
-    web3::{Log, TransactionReceipt},
-    L2BlockNumber, ProtocolVersionId, U64,
-};
-use zksync_web3_decl::client::{MockClient, L1};
+use zksync_types::{eth_sender::EthTxFinalityStatus, L2BlockNumber};
 
 use super::*;
 use crate::metrics::L1BatchStage;
@@ -37,25 +29,6 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
         .insert_mock_l1_batch(&l1_batch)
         .await
         .unwrap();
-
-    storage
-        .blocks_dal()
-        .save_l1_batch_tree_data(
-            number,
-            &L1BatchTreeData {
-                hash: H256::zero(),
-                rollup_last_leaf_index: 0,
-            },
-        )
-        .await
-        .unwrap();
-
-    storage
-        .blocks_dal()
-        .save_l1_batch_commitment_artifacts(number, &L1BatchCommitmentArtifacts::default())
-        .await
-        .unwrap();
-
     storage
         .blocks_dal()
         .mark_l2_blocks_as_executed_in_l1_batch(number)
@@ -186,35 +159,20 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             l2_tx_count: 0,
             root_hash: Some(H256::zero()),
             status: api::BlockStatus::Sealed,
-            commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| {
-                let mut h = [0u8; 32];
-                h[0] = 1;
-                h[28..].copy_from_slice(&number.to_be_bytes());
-                H256::from(h)
-            }),
+            commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(1)),
             committed_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
-            commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(1)),
             commit_tx_finality: Some(EthTxFinalityStatus::Finalized),
-            prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| {
-                let mut h = [0u8; 32];
-                h[0] = 2;
-                h[28..].copy_from_slice(&number.to_be_bytes());
-                H256::from(h)
-            }),
-            proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
-            prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(1)),
+            commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
+            prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| H256::repeat_byte(2)),
             prove_tx_finality: Some(EthTxFinalityStatus::Finalized),
-            execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| {
-                let mut h = [0u8; 32];
-                h[0] = 3;
-                h[28..].copy_from_slice(&number.to_be_bytes());
-                H256::from(h)
-            }),
+            proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
+            prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(22)),
+            execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
+            execute_tx_finality: Some(EthTxFinalityStatus::Finalized),
             executed_at: (stage >= L1BatchStage::Executed)
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
-            execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(1)),
-            execute_tx_finality: Some(EthTxFinalityStatus::Finalized),
+            execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(33)),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             fair_pubdata_price: None,
@@ -223,40 +181,14 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
     }
 }
 
-/// Enum to specify which transaction type should return an invalid hash
-#[derive(Debug, Clone, Copy)]
-enum InvalidTransactionType {
-    Commit,
-    Prove,
-    Execute,
-}
-
 #[derive(Debug, Default)]
-struct MockMainNodeClient {
-    stages_map: Arc<Mutex<L1BatchStagesMap>>,
-    //makes mock client return invalid hashes for all batches for transaction of given type
-    invalid_transaction_type: Option<InvalidTransactionType>,
-}
+struct MockMainNodeClient(Arc<Mutex<L1BatchStagesMap>>);
 
 impl From<L1BatchStagesMap> for MockMainNodeClient {
     fn from(map: L1BatchStagesMap) -> Self {
-        Self {
-            stages_map: Arc::new(Mutex::new(map)),
-            invalid_transaction_type: None,
-        }
+        Self(Arc::new(Mutex::new(map)))
     }
 }
-
-impl MockMainNodeClient {
-    fn with_invalid_tx(self, invalid_tx_type: InvalidTransactionType) -> Self {
-        Self {
-            stages_map: self.stages_map,
-            invalid_transaction_type: Some(invalid_tx_type),
-        }
-    }
-}
-
-static INVALID_HASH: H256 = H256::repeat_byte(0xbe);
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
@@ -264,29 +196,11 @@ impl MainNodeClient for MockMainNodeClient {
         &self,
         number: L1BatchNumber,
     ) -> EnrichedClientResult<Option<api::L1BatchDetails>> {
-        let map = self.stages_map.lock().await;
+        let map = self.0.lock().await;
         let Some(stage) = map.get(L1BatchNumber(number.0)) else {
             return Ok(None);
         };
-
-        let mut details = mock_batch_details(number.0, stage);
-
-        // If this client is configured to return invalid transaction hashes, always return invalid hash on the specfic transaction
-        if let Some(invalid_tx_type) = self.invalid_transaction_type {
-            match invalid_tx_type {
-                InvalidTransactionType::Commit => {
-                    details.base.commit_tx_hash = Some(INVALID_HASH);
-                }
-                InvalidTransactionType::Prove => {
-                    details.base.prove_tx_hash = Some(INVALID_HASH);
-                }
-                InvalidTransactionType::Execute => {
-                    details.base.execute_tx_hash = Some(INVALID_HASH);
-                }
-            }
-        }
-
-        Ok(Some(details))
+        Ok(Some(mock_batch_details(number.0, stage)))
     }
 }
 
@@ -299,108 +213,14 @@ fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
     }
 }
 
-const MOCK_DIAMON_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
-
-fn new_mock_eth_interface() -> Box<dyn EthInterface> {
-    let contract = zksync_contracts::hyperchain_contract();
-    Box::new(
-        MockClient::builder(L1::default())
-            .method("eth_getTransactionReceipt", move |tx_hash: H256| {
-                // if "INVALID" transaction is requests we return a successfull transaction, but without any logs
-                if tx_hash == INVALID_HASH {
-                    return Ok(Some(TransactionReceipt {
-                        status: Some(U64::one()),
-                        logs: vec![],
-                        ..Default::default()
-                    }));
-                }
-                // Extract the batch number from the tx hash
-                // The batch number is stored in the last 4 bytes
-                let bytes = tx_hash.as_bytes();
-                let tx_type = bytes[0]; // 1 for commit, 2 for prove, 3 for execute
-
-                // Extract batch number from the last 4 bytes
-                let mut batch_number_bytes = [0u8; 4];
-                batch_number_bytes.copy_from_slice(&bytes[28..32]);
-                let batch_number = u32::from_be_bytes(batch_number_bytes);
-
-                let topics: Vec<H256> = match tx_type {
-                    1 => {
-                        //BlockCommit (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
-                        let event = contract.event("BlockCommit").unwrap();
-                        vec![
-                            event.signature(),
-                            H256::from_low_u64_be(batch_number.into()),
-                            H256::zero(),
-                            H256::zero(),
-                        ]
-                    }
-                    2 => {
-                        // BlocksVerification (index_topic_1 uint256 previousLastVerifiedBlock, index_topic_2 uint256 currentLastVerifiedBlock
-                        let event = contract.event("BlocksVerification").unwrap();
-                        vec![
-                            event.signature(),
-                            H256::from_low_u64_be((batch_number - 1).into()),
-                            H256::from_low_u64_be(batch_number.into()),
-                        ]
-                    }
-                    3 => {
-                        // BlockExecution (index_topic_1 uint256 blockNumber, index_topic_2 bytes32 blockHash, index_topic_3 bytes32 commitment)
-                        let event = contract.event("BlockExecution").unwrap();
-                        vec![
-                            event.signature(),
-                            H256::from_low_u64_be(batch_number.into()),
-                            H256::zero(),
-                            H256::zero(),
-                        ]
-                    }
-                    _ => return Ok(None),
-                };
-
-                // Create a receipt with status 1 (success)
-                let receipt = TransactionReceipt {
-                    status: Some(U64::one()),
-                    logs: vec![Log {
-                        address: MOCK_DIAMON_PROXY_ADDRESS,
-                        topics,
-                        data: vec![].into(),
-                        block_hash: None,
-                        block_number: None,
-                        transaction_hash: None,
-                        transaction_index: None,
-                        log_index: None,
-                        transaction_log_index: None,
-                        log_type: Some("Regular".to_string()),
-                        removed: None,
-                        block_timestamp: None,
-                    }],
-                    ..Default::default()
-                };
-
-                Ok(Some(receipt))
-            })
-            .build(),
-    )
-}
-
 fn mock_updater(
     client: MockMainNodeClient,
     pool: ConnectionPool<Core>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();
-
-    let mut updater = BatchStatusUpdater::from_parts(
-        Box::new(client),
-        new_mock_eth_interface(),
-        MOCK_DIAMON_PROXY_ADDRESS,
-        pool,
-        Duration::from_millis(10),
-        1u64.into(),
-    );
+    let mut updater =
+        BatchStatusUpdater::from_parts(Box::new(client), pool, Duration::from_millis(10));
     updater.changes_sender = changes_sender;
-    updater
-        .l1_transaction_verifier
-        .validate_logs_from_protocol_version = ProtocolVersionId::latest();
     (updater, changes_receiver)
 }
 
@@ -559,7 +379,7 @@ async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
     let client = MockMainNodeClient::from(observed_batch_stages.clone());
 
     // Gradually update information provided by the main node.
-    let client_map = Arc::clone(&client.stages_map);
+    let client_map = Arc::clone(&client.0);
     let final_stages = target_batch_stages.clone();
     let storage_task = tokio::spawn(async move {
         for max_stage in [
@@ -621,53 +441,4 @@ async fn test_resuming_updater(pool: ConnectionPool<Core>, initial_batch_stages:
     target_batch_stages.assert_storage(&mut storage).await;
     stop_sender.send_replace(true);
     updater_task.await.unwrap().expect("updater failed");
-}
-
-#[test_casing(3, [InvalidTransactionType::Commit, InvalidTransactionType::Prove, InvalidTransactionType::Execute])]
-#[tokio::test]
-async fn invalid_transaction_handling(invalid_tx_type: InvalidTransactionType) {
-    let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.connection().await.unwrap();
-
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
-
-    let batch_one = L1BatchNumber(1);
-    let batch_stages = L1BatchStagesMap::new(batch_one, vec![L1BatchStage::Executed]);
-
-    // Make the batch present in storage
-    seal_l1_batch(&mut storage, batch_one).await;
-
-    // Create a client that will return an invalid transaction hash
-    let client = MockMainNodeClient::with_invalid_tx(batch_stages.clone().into(), invalid_tx_type);
-
-    // Set up the updater and run it
-    let (updater, _) = mock_updater(client, pool.clone());
-
-    let mut storage = updater.pool.connection_tagged("sync_layer").await.unwrap();
-    let cursor = UpdaterCursor::new(&mut storage).await.unwrap();
-    drop(storage);
-    let mut status_changes = StatusChanges::default();
-    let get_status_changes_result = updater
-        .get_status_changes(&mut status_changes, cursor)
-        .await;
-
-    match get_status_changes_result {
-        Err(UpdaterError::Internal(internal_err)) => {
-            let transaction_err = internal_err
-                .downcast::<TransactionValidationError>()
-                .expect("Expeted transaction validation error");
-            assert_matches!(
-                transaction_err,
-                TransactionValidationError::BatchTransactionInvalid { reason: _ }
-            );
-        }
-        _ => {
-            panic!(
-                "Updater should have failed with invalid transaction. Result was instead {:?}",
-                get_status_changes_result
-            );
-        }
-    }
 }

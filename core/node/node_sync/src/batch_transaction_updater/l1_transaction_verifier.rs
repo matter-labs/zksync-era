@@ -1,20 +1,17 @@
 use anyhow::Context as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_eth_client::EthInterface;
 use zksync_types::{
     commitment::L1BatchMetadata, ethabi, web3::TransactionReceipt, Address, L1BatchNumber,
-    ProtocolVersionId, SLChainId, H256, U64,
+    ProtocolVersionId, H256, U64,
 };
 
 /// Verifies the L1 transaction against the database and the SL.
 #[derive(Debug)]
 pub struct L1TransactionVerifier {
-    sl_client: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
     /// ABI of the ZKsync contract
     contract: ethabi::Contract,
     pool: ConnectionPool<Core>,
-    pub sl_chain_id: SLChainId,
     pub validate_logs_from_protocol_version: ProtocolVersionId,
 }
 
@@ -34,19 +31,6 @@ pub enum TransactionValidationError {
     OtherValidationError(#[from] anyhow::Error),
 }
 
-impl TransactionValidationError {
-    pub fn is_retriable(&self) -> bool {
-        match self {
-            TransactionValidationError::BatchNotFound { .. } => true,
-            TransactionValidationError::TransactionFailed { .. } => false,
-            TransactionValidationError::DatabaseError(_) => false,
-            TransactionValidationError::SlClientError(_) => false,
-            TransactionValidationError::BatchTransactionInvalid { .. } => false,
-            TransactionValidationError::OtherValidationError(_) => false,
-        }
-    }
-}
-
 pub fn get_param(log_params: &[ethabi::LogParam], name: &str) -> Option<ethabi::Token> {
     log_params
         .iter()
@@ -55,18 +39,11 @@ pub fn get_param(log_params: &[ethabi::LogParam], name: &str) -> Option<ethabi::
 }
 
 impl L1TransactionVerifier {
-    pub fn new(
-        sl_client: Box<dyn EthInterface>,
-        diamond_proxy_addr: Address,
-        pool: ConnectionPool<Core>,
-        sl_chain_id: SLChainId,
-    ) -> Self {
+    pub fn new(diamond_proxy_addr: Address, pool: ConnectionPool<Core>) -> Self {
         Self {
-            sl_client,
             diamond_proxy_addr,
             contract: zksync_contracts::hyperchain_contract(),
             pool,
-            sl_chain_id,
             validate_logs_from_protocol_version: ProtocolVersionId::Version29,
         }
     }
@@ -92,20 +69,6 @@ impl L1TransactionVerifier {
                 Err(TransactionValidationError::BatchNotFound { batch_number })
             }
         }
-    }
-    async fn get_transaction_check_success(
-        &self,
-        tx_hash: H256,
-    ) -> Result<TransactionReceipt, TransactionValidationError> {
-        let receipt = self
-            .sl_client
-            .tx_receipt(tx_hash)
-            .await?
-            .context("Failed to fetch transaction receipt from SL")?;
-        if receipt.status != Some(U64::one()) {
-            return Err(TransactionValidationError::TransactionFailed { tx_hash });
-        }
-        Ok(receipt)
     }
 
     async fn should_perform_logs_validation(
@@ -139,7 +102,7 @@ impl L1TransactionVerifier {
 
     pub async fn validate_commit_tx(
         &self,
-        commit_tx_hash: H256,
+        receipt: TransactionReceipt,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if !(self.should_perform_logs_validation(batch_number).await?) {
@@ -148,7 +111,11 @@ impl L1TransactionVerifier {
 
         let db_batch = self.get_db_batch_metadata(batch_number).await?;
 
-        let receipt = self.get_transaction_check_success(commit_tx_hash).await?;
+        if receipt.status != Some(U64::one()) {
+            return Err(TransactionValidationError::TransactionFailed {
+                tx_hash: receipt.transaction_hash,
+            });
+        }
 
         let event = self
             .contract
@@ -178,8 +145,8 @@ impl L1TransactionVerifier {
 
                 if block_number_from_log != batch_number {
                     tracing::warn!(
-                        "Commit transaction {commit_tx_hash:?} has `BlockCommit` event log with batchNumber={block_number_from_log}, \
-                        but we are checking for batchNumber={batch_number}"
+                        "Commit transaction {0:?} has `BlockCommit` event log with batchNumber={block_number_from_log}, \
+                        but we are checking for batchNumber={batch_number}", receipt.transaction_hash
                     );
                     return None;
                 }
@@ -197,38 +164,50 @@ impl L1TransactionVerifier {
 
         if let Some((batch_hash, commitment)) = commited_batch_info {
             if db_batch.commitment != commitment {
-                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
+                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {} for batch {} has different commitment: expected {:?}, got {:?}",
+                    receipt.transaction_hash,
                     batch_number,
                     db_batch.commitment,
                     commitment) });
             }
             if db_batch.root_hash != batch_hash {
-                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
+                return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {} for batch {} has different root hash: expected {:?}, got {:?}",
+                    receipt.transaction_hash,
                     batch_number,
                     db_batch.root_hash,
                     batch_hash)});
             }
             // OK verified successfully the commit transaction.
             tracing::debug!(
-                "Commit transaction {commit_tx_hash} for batch {} verified successfully",
+                "Commit transaction {} for batch {} verified successfully",
+                receipt.transaction_hash,
                 batch_number
             );
             Ok(())
         } else {
-            Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {commit_tx_hash} for batch {} does not have `BlockCommit` event log", batch_number) })
+            Err(TransactionValidationError::BatchTransactionInvalid {
+                reason: format!(
+                    "Commit transaction {} for batch {} does not have `BlockCommit` event log",
+                    receipt.transaction_hash, batch_number
+                ),
+            })
         }
     }
 
     pub async fn validate_prove_tx(
         &self,
-        prove_tx_hash: H256,
+        receipt: TransactionReceipt,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if !(self.should_perform_logs_validation(batch_number).await?) {
             return Ok(());
         }
 
-        let receipt = self.get_transaction_check_success(prove_tx_hash).await?;
+        if receipt.status != Some(U64::one()) {
+            return Err(TransactionValidationError::TransactionFailed {
+                tx_hash: receipt.transaction_hash,
+            });
+        }
 
         let event = self
             .contract
@@ -270,7 +249,8 @@ impl L1TransactionVerifier {
             if from >= batch_number.0 {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
                     reason: format!(
-                        "Prove transaction {prove_tx_hash} for batch {} has invalid `from` value: expected < {}, got {}",
+                        "Prove transaction {} for batch {} has invalid `from` value: expected < {}, got {}",
+                        receipt.transaction_hash,
                         batch_number,
                         batch_number.0,
                         from
@@ -280,7 +260,8 @@ impl L1TransactionVerifier {
             if to < batch_number.0 {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
                     reason: format!(
-                        "Prove transaction {prove_tx_hash} for batch {} has invalid `to` value: expected >= {}, got {}",
+                        "Prove transaction {} for batch {} has invalid `to` value: expected >= {}, got {}",
+                        receipt.transaction_hash,
                         batch_number,
                         batch_number.0,
                         to
@@ -289,14 +270,16 @@ impl L1TransactionVerifier {
             }
             // OK verified successfully the prove transaction.
             tracing::debug!(
-                "Prove transaction {prove_tx_hash} for batch {} verified successfully",
+                "Prove transaction {} for batch {} verified successfully",
+                receipt.transaction_hash,
                 batch_number
             );
             Ok(())
         } else {
             Err(TransactionValidationError::BatchTransactionInvalid {
                 reason: format!(
-                    "Prove transaction {prove_tx_hash} for batch {} does not have `BlocksVerification` event log",
+                    "Prove transaction {} for batch {} does not have `BlocksVerification` event log",
+                    receipt.transaction_hash,
                     batch_number
                 )
             })
@@ -306,7 +289,7 @@ impl L1TransactionVerifier {
     /// Validates the execute transaction against the database.
     pub async fn validate_execute_tx(
         &self,
-        execute_tx_hash: H256,
+        receipt: TransactionReceipt,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if !(self.should_perform_logs_validation(batch_number).await?) {
@@ -315,7 +298,11 @@ impl L1TransactionVerifier {
 
         let db_batch = self.get_db_batch_metadata(batch_number).await?;
 
-        let receipt = self.get_transaction_check_success(execute_tx_hash).await?;
+        if receipt.status != Some(U64::one()) {
+            return Err(TransactionValidationError::TransactionFailed {
+                tx_hash: receipt.transaction_hash,
+            });
+        }
 
         let event = self
             .contract
@@ -348,8 +335,8 @@ impl L1TransactionVerifier {
 
                 if block_number_from_log != batch_number {
                     tracing::debug!(
-                        "Skipping event log batchNumber={block_number_from_log} for commit transaction {execute_tx_hash:?}. \
-                        We are checking for batchNumber={batch_number}"
+                        "Skipping event log batchNumber={block_number_from_log} for commit transaction {}. \
+                        We are checking for batchNumber={batch_number}", receipt.transaction_hash,
                     );
                     return None;
                 }
@@ -371,7 +358,8 @@ impl L1TransactionVerifier {
             if db_batch.commitment != commitment {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
                     reason: format!(
-                        "Execute transaction {execute_tx_hash} for batch {} has different commitment: expected {:?}, got {:?}",
+                        "Execute transaction {} for batch {} has different commitment: expected {:?}, got {:?}",
+                        receipt.transaction_hash,
                         batch_number,
                         db_batch.commitment,
                         commitment
@@ -381,8 +369,8 @@ impl L1TransactionVerifier {
             if db_batch.root_hash != batch_hash {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
                     reason: format!(
-                        "Execute transaction {execute_tx_hash} for batch {} has different root hash: expected {:?}, got {:?}",
-                        batch_number,
+                        "Execute transaction {} for batch {} has different root hash: expected {:?}, got {:?}",
+                        receipt.transaction_hash,batch_number,
                         db_batch.root_hash,
                         batch_hash
                     )
@@ -390,14 +378,15 @@ impl L1TransactionVerifier {
             }
             // OK verified successfully the execute transaction.
             tracing::debug!(
-                "Execute transaction {execute_tx_hash} for batch {} verified successfully",
+                "Execute transaction {} for batch {} verified successfully",
+                receipt.transaction_hash,
                 batch_number
             );
             Ok(())
         } else {
             Err(TransactionValidationError::BatchTransactionInvalid {
                 reason: format!(
-                    "Execute transaction {execute_tx_hash} for batch {} does not have the corresponding `BlockExecution` event log",
+                    "Execute transaction {} for batch {} does not have the corresponding `BlockExecution` event log",receipt.transaction_hash,
                     batch_number
                 )
             })

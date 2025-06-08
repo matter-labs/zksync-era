@@ -1,6 +1,6 @@
 //! Component responsible for updating L1 batch status.
 
-use std::{cmp::Ordering, fmt, time::Duration};
+use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -10,12 +10,10 @@ use serde::Serialize;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_metrics::EN_METRICS;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, api, eth_sender::EthTxFinalityStatus, Address,
-    L1BatchNumber, SLChainId, H256,
+    aggregated_operations::AggregatedActionType, api, L1BatchNumber, SLChainId, H256,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -23,10 +21,7 @@ use zksync_web3_decl::{
     namespaces::ZksNamespaceClient,
 };
 
-use self::l1_transaction_verifier::{L1TransactionVerifier, TransactionValidationError};
 use super::metrics::{FetchStage, FETCHER_METRICS};
-
-mod l1_transaction_verifier;
 
 #[cfg(test)]
 mod tests;
@@ -141,128 +136,51 @@ impl UpdaterCursor {
     }
 
     /// Extracts tx hash, timestamp and chain id of the operation.
-    async fn extract_and_verify_op_data(
-        l1_transaction_verifier: &L1TransactionVerifier,
+    fn extract_op_data(
         batch_info: &api::L1BatchDetails,
         stage: AggregatedActionType,
-    ) -> anyhow::Result<(Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>)> {
-        let map_validation_result =
-            |validtion_result: Result<(), TransactionValidationError>,
-             op_data: (Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>)| {
-                match validtion_result {
-                    Ok(()) => Ok(op_data),
-                    Err(err) if err.is_retriable() => Ok((None, None, None)),
-                    Err(err) => Err(err.into()),
-                }
-            };
-
+    ) -> (Option<H256>, Option<DateTime<Utc>>, Option<SLChainId>) {
         match stage {
-            AggregatedActionType::Commit => {
-                if let Some(commit_tx_hash) = batch_info.base.commit_tx_hash {
-                    if batch_info.base.commit_chain_id != Some(l1_transaction_verifier.sl_chain_id)
-                    {
-                        return Err(anyhow::anyhow!(
-                            "Commit transaction chain ID {:?} does not match SL chain ID {}",
-                            batch_info.base.commit_chain_id,
-                            l1_transaction_verifier.sl_chain_id
-                        ));
-                    }
-                    // Validate the commit transaction against the database.
-                    map_validation_result(
-                        l1_transaction_verifier
-                            .validate_commit_tx(commit_tx_hash, batch_info.number)
-                            .await,
-                        (
-                            Some(commit_tx_hash),
-                            batch_info.base.committed_at,
-                            batch_info.base.commit_chain_id,
-                        ),
-                    )
-                } else {
-                    Ok((None, None, None))
-                }
-            }
-            AggregatedActionType::PublishProofOnchain => {
-                if let Some(prove_tx_hash) = batch_info.base.prove_tx_hash {
-                    if batch_info.base.prove_chain_id != Some(l1_transaction_verifier.sl_chain_id) {
-                        return Err(anyhow::anyhow!(
-                            "Prove transaction chain ID {:?} does not match SL chain ID {}",
-                            batch_info.base.prove_chain_id,
-                            l1_transaction_verifier.sl_chain_id
-                        ));
-                    }
-                    // Validate the prove transaction events.
-                    map_validation_result(
-                        l1_transaction_verifier
-                            .validate_prove_tx(prove_tx_hash, batch_info.number)
-                            .await,
-                        (
-                            Some(prove_tx_hash),
-                            batch_info.base.proven_at,
-                            batch_info.base.prove_chain_id,
-                        ),
-                    )
-                } else {
-                    Ok((None, None, None))
-                }
-            }
-            AggregatedActionType::Execute => {
-                if let Some(execute_tx_hash) = batch_info.base.execute_tx_hash {
-                    if batch_info.base.execute_chain_id != Some(l1_transaction_verifier.sl_chain_id)
-                    {
-                        return Err(anyhow::anyhow!(
-                            "Execute transaction chain ID {:?} does not match SL chain ID {}",
-                            batch_info.base.execute_chain_id,
-                            l1_transaction_verifier.sl_chain_id
-                        ));
-                    }
-                    // Validate the execute transaction events.
-                    map_validation_result(
-                        l1_transaction_verifier
-                            .validate_execute_tx(execute_tx_hash, batch_info.number)
-                            .await,
-                        (
-                            Some(execute_tx_hash),
-                            batch_info.base.executed_at,
-                            batch_info.base.execute_chain_id,
-                        ),
-                    )
-                } else {
-                    Ok((None, None, None))
-                }
-            }
+            AggregatedActionType::Commit => (
+                batch_info.base.commit_tx_hash,
+                batch_info.base.committed_at,
+                batch_info.base.commit_chain_id,
+            ),
+            AggregatedActionType::PublishProofOnchain => (
+                batch_info.base.prove_tx_hash,
+                batch_info.base.proven_at,
+                batch_info.base.prove_chain_id,
+            ),
+            AggregatedActionType::Execute => (
+                batch_info.base.execute_tx_hash,
+                batch_info.base.executed_at,
+                batch_info.base.execute_chain_id,
+            ),
         }
     }
 
-    async fn update(
+    fn update(
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::L1BatchDetails,
-        l1_transaction_verifier: &L1TransactionVerifier,
     ) -> anyhow::Result<()> {
         for stage in [
             AggregatedActionType::Commit,
             AggregatedActionType::PublishProofOnchain,
             AggregatedActionType::Execute,
         ] {
-            if !self
-                .update_stage(status_changes, batch_info, l1_transaction_verifier, stage)
-                .await?
-            {
-                break;
-            }
+            self.update_stage(status_changes, batch_info, stage)?;
         }
         Ok(())
     }
 
-    /// Returns `true` current stage action was validated.
-    async fn update_stage(
+    fn update_stage(
         &mut self,
         status_changes: &mut StatusChanges,
         batch_info: &api::L1BatchDetails,
-        l1_transaction_verifier: &L1TransactionVerifier,
         stage: AggregatedActionType,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<()> {
+        let (l1_tx_hash, happened_at, sl_chain_id) = Self::extract_op_data(batch_info, stage);
         let (last_l1_batch, changes_to_update) = match stage {
             AggregatedActionType::Commit => (
                 &mut self.last_committed_l1_batch,
@@ -277,21 +195,13 @@ impl UpdaterCursor {
             ),
         };
 
-        match batch_info.number.cmp(&last_l1_batch.next()) {
-            Ordering::Less => return Ok(true), // this batch and was validated before
-            Ordering::Greater => return Ok(false), // this batch stage and any later stage cannot be validated right now
-            Ordering::Equal => {}                  // this batch can be validated
-        }
-
-        tracing::debug!("Updating batch {}", batch_info.number);
-
-        let (l1_tx_hash, happened_at, sl_chain_id) =
-            Self::extract_and_verify_op_data(l1_transaction_verifier, batch_info, stage).await?;
-
-        // Check if current stage transaction is valid & exist
+        // Check whether we have all data for the update.
         let Some(l1_tx_hash) = l1_tx_hash else {
-            return Ok(false); // If current stage tranasction cannot be validated or does not exist, do not check next staege
+            return Ok(());
         };
+        if batch_info.number != last_l1_batch.next() {
+            return Ok(());
+        }
 
         let action_str = l1_batch_stage_to_action_str(stage);
         let happened_at = happened_at.with_context(|| {
@@ -306,7 +216,7 @@ impl UpdaterCursor {
         tracing::info!("Batch {}: {action_str}", batch_info.number);
         FETCHER_METRICS.l1_batch[&stage.into()].set(batch_info.number.0.into());
         *last_l1_batch += 1;
-        Ok(true)
+        Ok(())
     }
 }
 
@@ -314,14 +224,13 @@ impl UpdaterCursor {
 /// locally applied batch was committed, proven or executed on L1.
 ///
 /// In essence, it keeps track of the last batch number per status, and periodically polls the main
-/// node on these batches in order to see whewith_sl_chain_idther the status has changed. If some changes were picked up,
+/// node on these batches in order to see whether the status has changed. If some changes were picked up,
 /// the module updates the database to mirror the state observable from the main node. This is required for other components
 /// (e.g., the API server and the consistency checker) to function properly. E.g., the API server returns commit / prove / execute
 /// L1 transaction information in `zks_getBlockDetails` and `zks_getL1BatchDetails` RPC methods.
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
-    main_node_client: Box<dyn MainNodeClient>,
-    l1_transaction_verifier: L1TransactionVerifier,
+    client: Box<dyn MainNodeClient>,
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     sleep_interval: Duration,
@@ -333,43 +242,24 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(
-        client: Box<DynClient<L2>>,
-        sl_client: Box<dyn EthInterface>,
-        diamond_proxy_addr: Address,
-        pool: ConnectionPool<Core>,
-        sl_chain_id: SLChainId,
-    ) -> Self {
+    pub fn new(client: Box<DynClient<L2>>, pool: ConnectionPool<Core>) -> Self {
         Self::from_parts(
             Box::new(client.for_component("batch_status_updater")),
-            sl_client,
-            diamond_proxy_addr,
             pool,
             Self::DEFAULT_SLEEP_INTERVAL,
-            sl_chain_id,
         )
     }
 
     fn from_parts(
-        main_client: Box<dyn MainNodeClient>,
-        sl_client: Box<dyn EthInterface>,
-        diamond_proxy_addr: Address,
+        client: Box<dyn MainNodeClient>,
         pool: ConnectionPool<Core>,
         sleep_interval: Duration,
-        sl_chain_id: SLChainId,
     ) -> Self {
         Self {
-            main_node_client: main_client,
-            l1_transaction_verifier: L1TransactionVerifier::new(
-                sl_client,
-                diamond_proxy_addr,
-                pool.clone(),
-                sl_chain_id,
-            ),
+            client,
             pool,
             health_updater: ReactiveHealthCheck::new("batch_status_updater").1,
             sleep_interval,
-
             #[cfg(test)]
             changes_sender: mpsc::unbounded_channel().0,
         }
@@ -446,33 +336,23 @@ impl BatchStatusUpdater {
         // update all three statuses (e.g. if the node is still syncing), but also skipping the gaps in the statuses
         // (e.g. if the last executed batch is 10, but the last proven is 20, we don't need to check the batches 11-19).
         while batch <= last_sealed_batch {
-            // batch details fetched from the main node are untrusted and should be checked with SL
-            let Some(untrusted_batch_info) = self.main_node_client.batch_details(batch).await?
-            else {
+            let Some(batch_info) = self.client.batch_details(batch).await? else {
                 // Batch is not ready yet
                 return Ok(());
             };
 
-            cursor
-                .update(
-                    status_changes,
-                    &untrusted_batch_info,
-                    &self.l1_transaction_verifier,
-                )
-                .await?;
+            cursor.update(status_changes, &batch_info)?;
 
             // Check whether we can skip a part of the range.
-            if untrusted_batch_info.base.commit_tx_hash.is_none() {
+            if batch_info.base.commit_tx_hash.is_none() {
                 // No committed batches after this one.
                 break;
-            } else if untrusted_batch_info.base.prove_tx_hash.is_none()
+            } else if batch_info.base.prove_tx_hash.is_none()
                 && batch < cursor.last_committed_l1_batch
             {
                 // The interval between this batch and the last committed one is not proven.
                 batch = cursor.last_committed_l1_batch.next();
-            } else if untrusted_batch_info.base.executed_at.is_none()
-                && batch < cursor.last_proven_l1_batch
-            {
+            } else if batch_info.base.executed_at.is_none() && batch < cursor.last_proven_l1_batch {
                 // The interval between this batch and the last proven one is not executed.
                 batch = cursor.last_proven_l1_batch.next();
             } else {
@@ -514,6 +394,7 @@ impl BatchStatusUpdater {
                 change.number <= last_sealed_batch,
                 "Incorrect update state: unknown batch marked as committed"
             );
+            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
                 .insert_pending_received_eth_tx(
@@ -538,6 +419,7 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_committed_l1_batch,
                 "Incorrect update state: proven batch must be committed"
             );
+            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
                 .insert_pending_received_eth_tx(
@@ -562,6 +444,7 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_proven_l1_batch,
                 "Incorrect update state: executed batch must be proven"
             );
+            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
                 .insert_pending_received_eth_tx(

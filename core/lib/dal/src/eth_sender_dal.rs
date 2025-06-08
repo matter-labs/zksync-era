@@ -1,7 +1,6 @@
 use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
-use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
     match_query_as,
@@ -766,7 +765,6 @@ impl EthSenderDal<'_, '_> {
     pub async fn mark_received_eth_tx_as_verified(
         &mut self,
         eth_txs_history_id: u32,
-        confirmed_at: DateTime<Utc>,
         finality_status: EthTxFinalityStatus,
     ) -> anyhow::Result<()> {
         let mut transaction = self
@@ -781,38 +779,91 @@ impl EthSenderDal<'_, '_> {
             SET
                 finality_status = $2,
                 updated_at = NOW(),
-                confirmed_at = $3
+                confirmed_at = NOW()
             WHERE
                 id = $1
             "#,
             eth_txs_history_id as i32,
             finality_status.to_string(),
-            confirmed_at.naive_utc(),
         )
         .execute(transaction.conn())
         .await?;
 
         sqlx::query!(
             r#"
-                UPDATE eth_txs
-                SET
-                    confirmed_eth_tx_history_id = $1
-                WHERE
-                    id = (
-                        SELECT
-                            eth_tx_id
-                        FROM
-                            eth_txs_history
-                        WHERE
-                            id = $1
-                    )
-                "#,
+            UPDATE eth_txs
+            SET
+                confirmed_eth_tx_history_id = $1
+            WHERE
+                id = (
+                    SELECT
+                        eth_tx_id
+                    FROM
+                        eth_txs_history
+                    WHERE
+                        id = $1
+                )
+            "#,
             eth_txs_history_id as i32,
         )
         .execute(transaction.conn())
         .await?;
 
         transaction.commit().await.context("commit()")
+    }
+
+    pub async fn get_oldest_tx_by_status_and_type(
+        &mut self,
+        status: EthTxFinalityStatus,
+        tx_type: AggregatedActionType,
+    ) -> sqlx::Result<Option<TxHistory>> {
+        let tx_history = sqlx::query_as!(
+            StorageTxHistory,
+            r#"
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_txs_history.finality_status = $1 AND eth_txs.tx_type = $2
+            ORDER BY
+                eth_txs_history.id ASC
+            LIMIT
+                1
+            "#,
+            status.to_string(),
+            tx_type.to_string(),
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+        Ok(tx_history.map(|tx| tx.into()))
+    }
+
+    pub async fn get_eth_tx_history_by_id(
+        &mut self,
+        eth_tx_history_id: u32,
+    ) -> sqlx::Result<TxHistory> {
+        let tx_history = sqlx::query_as!(
+            StorageTxHistory,
+            r#"
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_txs_history.id = $1
+            "#,
+            eth_tx_history_id as i32,
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+        Ok(tx_history.into())
     }
 
     pub async fn get_tx_history_to_check(
@@ -824,7 +875,8 @@ impl EthSenderDal<'_, '_> {
             r#"
             SELECT
                 eth_txs_history.*,
-                eth_txs.blob_sidecar
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
@@ -875,7 +927,8 @@ impl EthSenderDal<'_, '_> {
             r#"
             SELECT
                 eth_txs_history.*,
-                eth_txs.blob_sidecar
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id

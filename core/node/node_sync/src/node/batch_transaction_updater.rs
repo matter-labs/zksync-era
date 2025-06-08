@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_eth_client::EthInterface;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -10,17 +9,13 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_shared_resources::contracts::SettlementLayerContractsResource;
-use zksync_web3_decl::{
-    client::{DynClient, L2},
-    node::SettlementLayerClient,
-};
+use zksync_web3_decl::node::SettlementLayerClient;
 
-use crate::batch_status_updater::BatchStatusUpdater;
+use crate::batch_transaction_updater::BatchTransactionUpdater;
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     pool: PoolResource<MasterPool>,
-    main_node_client: Box<DynClient<L2>>,
     settlement_layer_client: SettlementLayerClient,
     sl_chain_contracts: SettlementLayerContractsResource,
     #[context(default)]
@@ -49,28 +44,18 @@ impl WiringLayer for BatchTransactionUpdaterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let Input {
             pool,
-            main_node_client,
             settlement_layer_client,
             sl_chain_contracts,
             app_health,
         } = input;
 
-        let sl_client: Box<dyn EthInterface> = settlement_layer_client.into();
-
-        let sl_chain_id = sl_client
-            .fetch_chain_id()
-            .await
-            .map_err(WiringError::internal)?;
-
         let updater = BatchTransactionUpdater::new(
-            main_node_client,
-            sl_client,
+            settlement_layer_client.into(),
             sl_chain_contracts
                 .0
                 .chain_contracts_config
                 .diamond_proxy_addr,
             pool.get().await?,
-            sl_chain_id,
         );
 
         // Insert healthcheck

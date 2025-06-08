@@ -43,6 +43,7 @@ pub struct L1BatchEthSenderStats {
 pub struct StorageTxHistory {
     pub id: i32,
     pub eth_tx_id: i32,
+    pub tx_type: AggregatedActionType,
     pub priority_fee_per_gas: i64,
     pub base_fee_per_gas: i64,
     pub tx_hash: String,
@@ -93,6 +94,7 @@ impl From<StorageTxHistory> for TxHistory {
         TxHistory {
             id: history.id as u32,
             eth_tx_id: history.eth_tx_id as u32,
+            tx_type: history.tx_type,
             base_fee_per_gas: history.base_fee_per_gas as u64,
             priority_fee_per_gas: history.priority_fee_per_gas as u64,
             blob_base_fee_per_gas: history.blob_base_fee_per_gas.map(|v| v as u64),
