@@ -29,6 +29,20 @@ export function forbiddenMethod(name: string): MethodHandler {
     };
 }
 
+export function unrestricted(name: string): MethodHandler {
+    return {
+        name,
+        async handle(
+            context: RequestContext,
+            method: string,
+            params: unknown[],
+            id: number | string
+        ): Promise<FastifyReplyType> {
+            return delegateCall({ url: context.targetRpcUrl, id, method, params });
+        }
+    };
+}
+
 export function areHexEqual(a: Hex, b: Hex): boolean {
     return a.toLowerCase() === b.toLowerCase();
 }
@@ -119,7 +133,7 @@ export function validatedEthereumCall(name: string) {
             }
             const call = callReqSchema.parse(params[0]);
             if (params.length > 2) {
-                return unauthorized(id, "state overrides are not supported");
+                return unauthorized(id, 'state overrides are not supported');
             }
 
             if (call.from !== undefined && !isAddressEqual(call.from, context.currentUser)) {

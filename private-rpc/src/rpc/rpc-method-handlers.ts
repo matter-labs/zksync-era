@@ -1,5 +1,4 @@
 import {
-    eth_call,
     eth_getBlockByHash,
     eth_getBlockByNumber,
     eth_getBlockReceipts,
@@ -8,6 +7,7 @@ import {
     eth_sendRawTransaction,
     forbiddenMethod,
     onlyCurrentUser,
+    unrestricted,
     validatedEthereumCall,
     whoAmI,
     zks_getRawBlockTransactions,
@@ -17,69 +17,76 @@ import { hexSchema } from '@/schemas/hex';
 import { z } from 'zod';
 
 export const allHandlers = [
-    // Filter out debug_* methods
-    forbiddenMethod('debug_traceBlockByHash'),
-    forbiddenMethod('debug_traceBlockByNumber'),
-    forbiddenMethod('debug_traceCall'),
-    forbiddenMethod('debug_traceTransaction'),
-
-    // Filter out en_* methods
-    forbiddenMethod('en_syncL2Block'),
-    forbiddenMethod('en_consensusGlobalConfig'),
-    forbiddenMethod('en_blockMetadata'),
-    forbiddenMethod('en_syncTokens'),
-    forbiddenMethod('en_genesisConfig'),
-    forbiddenMethod('en_whitelistedTokensForAA'),
-    forbiddenMethod('en_getEcosystemContracts'),
-    forbiddenMethod('en_getProtocolVersionInfo'),
-
-    // Filter out snapshots_* methods
-    forbiddenMethod('snapshots_getAllSnapshots'),
-    forbiddenMethod('snapshots_getSnapshot'),
-
-    // Filter out unstable_* methods
-    forbiddenMethod('unstable_getTransactionExecutionInfo'),
-    forbiddenMethod('unstable_getTeeProofs'),
-    forbiddenMethod('unstable_getChainLogProof'),
-    forbiddenMethod('unstable_unconfirmedTxsCount'),
-    forbiddenMethod('unstable_getDataAvailabilityDetails'),
-    forbiddenMethod('unstable_supportsUnsafeDepositFilter'),
-    forbiddenMethod('unstable_l1ToL2TxsStatus'),
-    forbiddenMethod('unstable_gatewayMigrationStatus'),
-
-    // Filter out web3_* methods
-    forbiddenMethod('web3_clientVersion'),
-
-    // Filter out methods that reveal deployed code
-    forbiddenMethod('eth_getCode'),
-    forbiddenMethod('zks_getBytecodeByHash'),
-
-    // Filter out methods that reveal blockchain state information
-    forbiddenMethod('eth_accounts'),
-    forbiddenMethod('eth_getStorageAt'),
-    forbiddenMethod('eth_getTransactionByBlockHashAndIndex'),
-    forbiddenMethod('eth_getTransactionByBlockNumberAndIndex'),
-    forbiddenMethod('eth_newFilter'),
-    forbiddenMethod('eth_newPendingTransactionFilter'),
-    forbiddenMethod('zks_getProof'),
-
-    // Restrict methods that require to be called only for the current user
-    onlyCurrentUser('eth_getBalance', [z.union([hexSchema, z.string()])]),
-    onlyCurrentUser('eth_getTransactionCount', [z.union([hexSchema, z.string()])]),
-    onlyCurrentUser('zks_getAllAccountBalances'),
-
-    // Methods with custom logic.
+    /* ─────────────────────────────
+       Eth namespace (exact order)
+       ───────────────────────────── */
+    unrestricted('eth_blockNumber'),
+    unrestricted('eth_chainId'),
     validatedEthereumCall('eth_call'),
     validatedEthereumCall('eth_estimateGas'),
+    unrestricted('eth_gasPrice'),
+    forbiddenMethod('eth_newFilter'),
+    unrestricted('eth_newBlockFilter'),
+    unrestricted('eth_uninstallFilter'),
+    forbiddenMethod('eth_newPendingTransactionFilter'),
+    eth_getLogs,
+    unrestricted('eth_getFilterLogs'),
+    unrestricted('eth_getFilterChanges'),
+    onlyCurrentUser('eth_getBalance', [z.union([hexSchema, z.string()])]),
+    eth_getBlockByNumber,
+    eth_getBlockByHash,
+    unrestricted('eth_getBlockTransactionCountByNumber'),
+    eth_getBlockReceipts,
+    unrestricted('eth_getBlockTransactionCountByHash'),
+    forbiddenMethod('eth_getCode'),
+    forbiddenMethod('eth_getStorageAt'),
+    onlyCurrentUser('eth_getTransactionCount', [z.union([hexSchema, z.string()])]),
+    unrestricted('eth_getTransactionByHash'),
+    forbiddenMethod('eth_getTransactionByBlockHashAndIndex'),
+    forbiddenMethod('eth_getTransactionByBlockNumberAndIndex'),
+    eth_getTransactionReceipt,
+    unrestricted('eth_protocolVersion'),
+    eth_sendRawTransaction,
+    unrestricted('eth_syncing'),
+    forbiddenMethod('eth_accounts'),
+    unrestricted('eth_coinbase'),
+    unrestricted('eth_getCompilers'),
+    unrestricted('eth_hashrate'),
+    unrestricted('eth_getUncleCountByBlockHash'),
+    unrestricted('eth_getUncleCountByBlockNumber'),
+    unrestricted('eth_mining'),
+    unrestricted('eth_feeHistory'),
+    unrestricted('eth_maxPriorityFeePerGas'),
+
+    /* ─────────────────────────────
+       Zks namespace (exact order)
+       ───────────────────────────── */
     validatedEthereumCall('zks_estimateFee'),
     validatedEthereumCall('zks_estimateGasL1ToL2'),
-    eth_getBlockByHash,
-    eth_getBlockByNumber,
-    eth_getBlockReceipts,
-    eth_getLogs,
-    eth_getTransactionReceipt,
-    eth_sendRawTransaction,
-    whoAmI,
+    unrestricted('zks_getBridgehubContract'),
+    unrestricted('zks_getMainContract'),
+    unrestricted('zks_getL2Multicall3'),
+    unrestricted('zks_getTestnetPaymaster'),
+    unrestricted('zks_getTimestampAsserter'),
+    unrestricted('zks_getBridgeContracts'),
+    unrestricted('zks_getBaseTokenL1Address'),
+    unrestricted('zks_L1ChainId'),
+    unrestricted('zks_getConfirmedTokens'),
+    onlyCurrentUser('zks_getAllAccountBalances'),
+    unrestricted('zks_getL2ToL1LogProof'),
+    unrestricted('zks_L1BatchNumber'),
+    unrestricted('zks_getL1BatchBlockRange'),
+    unrestricted('zks_getBlockDetails'),
+    unrestricted('zks_getTransactionDetails'),
     zks_getRawBlockTransactions,
-    zks_sendRawTransactionWithDetailedOutput
+    unrestricted('zks_getL1BatchDetails'),
+    forbiddenMethod('zks_getBytecodeByHash'),
+    unrestricted('zks_getL1GasPrice'),
+    unrestricted('zks_getFeeParams'),
+    unrestricted('zks_getProtocolVersion'),
+    forbiddenMethod('zks_getProof'),
+    unrestricted('zks_getBatchFeeInput'),
+    zks_sendRawTransactionWithDetailedOutput,
+
+    whoAmI
 ];
