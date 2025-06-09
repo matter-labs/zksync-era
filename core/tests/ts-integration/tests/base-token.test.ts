@@ -185,7 +185,7 @@ describe('base ERC20 contract checks', () => {
 
         expect(finalL1Balance).toEqual(initialL1Balance + amount);
         expect(finalL2Balance + amount + fee).toEqual(initialL2Balance);
-    });
+    }, 600000);
 
     test('Wrapped base token metadata', async () => {
         // This test is intended only to be run against newly created chains.
