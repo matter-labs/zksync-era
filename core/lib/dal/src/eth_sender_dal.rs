@@ -760,11 +760,10 @@ impl EthSenderDal<'_, '_> {
         transaction.commit().await.context("commit()")
     }
 
-    pub async fn get_oldest_tx_by_status_and_type(
+    pub async fn get_unfinalized_tranasctions(
         &mut self,
-        status: EthTxFinalityStatus,
-        tx_type: AggregatedActionType,
-    ) -> sqlx::Result<Option<TxHistory>> {
+        limit: u64,
+    ) -> sqlx::Result<Vec<TxHistory>> {
         let tx_history = sqlx::query_as!(
             StorageTxHistory,
             r#"
@@ -776,18 +775,54 @@ impl EthSenderDal<'_, '_> {
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
-                eth_txs_history.finality_status = $1 AND eth_txs.tx_type = $2
+                eth_txs_history.finality_status != 'finalized'
             ORDER BY
                 eth_txs_history.id ASC
             LIMIT
-                1
+                $1
             "#,
-            status.to_string(),
-            tx_type.to_string(),
+            limit as i64,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_all(self.storage.conn())
         .await?;
-        Ok(tx_history.map(|tx| tx.into()))
+        Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
+    }
+
+    /// Sets `sent_at_block` for the eth_txs_history row.
+    /// Used for ExternalNode when syning batch tranasction state from SL.
+    pub async fn set_sent_at_block(
+        &mut self,
+        tx_history_id: u32,
+        block_number: u32,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET sent_at_block = $2
+            WHERE id = $1
+            "#,
+            tx_history_id as i32,
+            block_number as i32,
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
+    /// Sets sent_at_block to null in eth_txs_history row.
+    /// Used for ExternalNode when a previously included transaction on SL is excluded due to fork
+    pub async fn unset_sent_at_block(&mut self, tx_history_id: u32) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET sent_at_block = NULL
+            WHERE id = $1
+            "#,
+            tx_history_id as i32,
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
     }
 
     pub async fn get_eth_tx_history_by_id(

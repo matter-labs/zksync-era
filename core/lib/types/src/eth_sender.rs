@@ -86,7 +86,7 @@ pub struct TxHistory {
     pub signed_raw_tx: Vec<u8>,
     pub sent_at_block: Option<u32>,
     pub max_gas_per_pubdata: Option<u64>,
-    pub eth_tx_finality_status: Option<EthTxFinalityStatus>,
+    pub eth_tx_finality_status: EthTxFinalityStatus,
     pub sent_successfully: bool,
 }
 
