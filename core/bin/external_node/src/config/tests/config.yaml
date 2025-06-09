@@ -43,6 +43,7 @@ api:
     port: 2952
     slow_time_limit_ms: 75
     hard_time_limit_ms: 2500
+    expose_config: true
   merkle_tree:
     port: 2955
   web3_json_rpc:
