@@ -1,4 +1,6 @@
 //! Partial JSON model for stats emitted by Jemalloc.
+//!
+//! **Important.** The JSON model depends on the Jemalloc version!
 
 use serde::{Deserialize, Serialize};
 
@@ -6,6 +8,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub(crate) enum JemallocStats {
     Jemalloc {
+        /// Runtime configuration options. Not always loaded since they are immutable.
+        opt: Option<serde_json::Value>,
         stats: GeneralStats,
         #[serde(rename = "stats.arenas")]
         arena_stats: ArenaStatsMap,

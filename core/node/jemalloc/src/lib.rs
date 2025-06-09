@@ -21,7 +21,8 @@ mod node;
 #[derive(Debug, Serialize)]
 struct JemallocHealthDetails {
     version: &'static str,
-    config: &'static str,
+    compile_time_config: &'static str,
+    runtime_config: serde_json::Value,
     stats: GeneralStats,
 }
 
@@ -29,7 +30,8 @@ struct JemallocHealthDetails {
 #[derive(Debug)]
 pub(crate) struct JemallocMonitor {
     version: &'static str,
-    config: &'static str,
+    compile_time_config: &'static str,
+    runtime_config: Option<serde_json::Value>,
     health: HealthUpdater,
     update_interval: Duration,
 }
@@ -42,13 +44,13 @@ impl JemallocMonitor {
             tikv_jemalloc_ctl::version::read().context("failed reading Jemalloc version")?;
         let version = version.strip_suffix('\0').unwrap_or(version);
         let config = tikv_jemalloc_ctl::config::malloc_conf::read()
-            .context("failed reading Jemalloc config")?;
+            .context("failed reading compile-time Jemalloc config")?;
         let config = config.strip_suffix('\0').unwrap_or(config);
-        // FIXME: also extract runtime config
 
         Ok(Self {
             version,
-            config,
+            compile_time_config: config,
+            runtime_config: None, // to be overwritten on the first `update()`
             health: ReactiveHealthCheck::new("jemalloc").1,
             update_interval: Self::DEFAULT_UPDATE_INTERVAL,
         })
@@ -58,10 +60,10 @@ impl JemallocMonitor {
         self.health.subscribe()
     }
 
-    fn update(&self) -> anyhow::Result<()> {
+    fn update(&mut self) -> anyhow::Result<()> {
         let mut options = stats_print::Options::default();
         options.json_format = true;
-        options.skip_constants = true;
+        options.skip_constants = self.runtime_config.is_some();
         options.skip_per_arena = true;
         options.skip_bin_size_classes = true;
         options.skip_large_size_classes = true;
@@ -70,24 +72,37 @@ impl JemallocMonitor {
         let mut buffer = vec![];
         stats_print::stats_print(&mut buffer, options)
             .context("failed collecting Jemalloc stats")?;
-        let JemallocStats::Jemalloc { stats, arena_stats } =
-            serde_json::from_slice(&buffer).context("failed deserializing Jemalloc stats")?;
+        let JemallocStats::Jemalloc {
+            opt,
+            stats,
+            arena_stats,
+        } = serde_json::from_slice(&buffer).context("failed deserializing Jemalloc stats")?;
         METRICS.observe_general_stats(&stats);
         METRICS.observe_arena_stats(&arena_stats);
 
+        let runtime_config = &*self.runtime_config.get_or_insert_with(|| {
+            let opt = opt.unwrap_or_else(|| serde_json::json!({}));
+            tracing::info!(%opt, "Read Jemalloc runtime config");
+            opt
+        });
+
         let health = Health::from(HealthStatus::Ready).with_details(JemallocHealthDetails {
             version: self.version,
-            config: self.config,
+            compile_time_config: self.compile_time_config,
+            runtime_config: runtime_config.clone(),
             stats,
         });
         self.health.update(health);
         Ok(())
     }
 
-    pub(crate) async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub(crate) async fn run(
+        mut self,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         tracing::info!(
             version = self.version,
-            config = self.config,
+            config = self.compile_time_config,
             "Initializing Jemalloc monitor"
         );
 
