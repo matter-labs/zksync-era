@@ -1,5 +1,5 @@
 [package]
-name = "zksync_node_alloc_tools" # FIXME: rename to zksync_node_jemalloc
+name = "zksync_node_jemalloc"
 description = "Jemalloc tooling used by ZKsync node"
 version.workspace = true
 edition.workspace = true

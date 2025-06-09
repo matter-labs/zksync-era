@@ -12964,21 +12964,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_node_alloc_tools"
-version = "28.4.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "tikv-jemalloc-ctl",
- "tokio",
- "tracing",
- "vise",
- "zksync_health_check",
- "zksync_node_framework",
-]
-
-[[package]]
 name = "zksync_node_api_server"
 version = "28.5.0-non-semver-compat"
 dependencies = [
@@ -13170,6 +13155,21 @@ dependencies = [
  "zksync_multivm",
  "zksync_system_constants",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_node_jemalloc"
+version = "28.4.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tikv-jemalloc-ctl",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_health_check",
+ "zksync_node_framework",
 ]
 
 [[package]]
@@ -13445,12 +13445,12 @@ dependencies = [
  "zksync_instrument",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
- "zksync_node_alloc_tools",
  "zksync_node_api_server",
  "zksync_node_consensus",
  "zksync_node_fee_model",
  "zksync_node_framework",
  "zksync_node_genesis",
+ "zksync_node_jemalloc",
  "zksync_node_storage_init",
  "zksync_object_store",
  "zksync_proof_data_handler",

@@ -14,7 +14,7 @@ members = [
   "bin/genesis_generator",
   "bin/zksync_tee_prover",
   # Node services
-  "node/alloc_tools",
+  "node/jemalloc",
   "node/proof_data_handler",
   "node/block_reverter",
   "node/commitment_generator",
@@ -321,7 +321,7 @@ zk_os_merkle_tree = { version = "28.5.0-non-semver-compat", path = "lib/zk_os_me
 zksync_node_framework = { version = "28.5.0-non-semver-compat", path = "lib/node_framework" }
 zksync_node_framework_derive = { version = "28.5.0-non-semver-compat", path = "lib/node_framework_derive" }
 zksync_shared_resources = { version = "28.5.0-non-semver-compat", path = "lib/shared_resources" }
-zksync_node_alloc_tools = { version = "28.5.0-non-semver-compat", path = "node/alloc_tools" }
+zksync_node_jemalloc = { version = "28.5.0-non-semver-compat", path = "node/jemalloc" }
 zksync_eth_watch = { version = "28.5.0-non-semver-compat", path = "node/eth_watch" }
 zksync_shared_metrics = { version = "28.5.0-non-semver-compat", path = "node/shared_metrics" }
 zksync_proof_data_handler = { version = "28.5.0-non-semver-compat", path = "node/proof_data_handler" }

@@ -177,7 +177,7 @@ impl MainNodeBuilder {
     #[cfg(not(target_env = "msvc"))]
     fn add_jemalloc_monitor_layer(mut self) -> anyhow::Result<Self> {
         self.node
-            .add_layer(zksync_node_alloc_tools::JemallocMonitorLayer);
+            .add_layer(zksync_node_jemalloc::JemallocMonitorLayer);
         Ok(self)
     }
 
