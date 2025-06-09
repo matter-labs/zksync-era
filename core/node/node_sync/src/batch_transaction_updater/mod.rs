@@ -196,6 +196,8 @@ impl BatchTransactionUpdater {
             .get_unfinalized_tranasctions(10_000)
             .await?;
 
+        tracing::debug!("Checking {} nonfinalized transactions", to_process.len());
+
         for mut db_eth_tx_history in to_process {
             // we save receipt here to avoid fetching multiple times
             let mut receipt: Option<TransactionReceipt> = None;
