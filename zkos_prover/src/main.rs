@@ -12,8 +12,24 @@ use execution_utils::ProgramProof;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
+use clap::Parser;
+
+/// Command-line arguments for the Zksync OS prover
+#[derive(Parser, Debug)]
+#[command(name = "Zksync OS Prover")]
+#[command(version = "1.0")]
+#[command(about = "Prover for Zksync OS", long_about = None)]
+struct Args {
+    /// Base URL for the proof-data server (e.g., "http://<IP>:<PORT>")
+    #[arg(short, long, default_value = "http://localhost:3124")]
+    base_url: String,
+    /// Enable logging and use the logging-enabled binary
+    #[arg(long)]
+    enabled_logging: bool,
+}
 
 
+// Note: copied from zkos_prover_input_generator.rs
 #[derive(Debug, Serialize, Deserialize)]
 struct NextProverJobPayload {
     block_number: u32,
@@ -25,7 +41,6 @@ struct ProofPayload {
     block_number: u32,
     proof: String,
 }
-
 /// HTTP client for the proof-data server
 #[derive(Clone)]
 pub struct ProofDataClient {
@@ -118,23 +133,35 @@ fn create_proof(
     program_proof_from_proof_list_and_metadata(&recursion_proof_list, &recursion_proof_metadata)
 }
 
+
 #[tokio::main]
 pub async fn main() {
-    let client = ProofDataClient::new("http://localhost:3124");
+    let args = Args::parse();
 
-    let binary = load_binary_from_path(&"../app.bin".to_string());
-    // use the following binary to debug divergencies.
-    // let binary = load_binary_from_path(&"../app_logging_enabled.bin".to_string());
+    let client = ProofDataClient::new(args.base_url);
+
+    let binary_path = if args.enabled_logging {
+        "../app_logging_enabled.bin".to_string()
+    } else {
+        "../app.bin".to_string()
+    };
+
+    let binary = load_binary_from_path(&binary_path.to_string());
     let mut gpu_state = GpuSharedState::default();
     #[cfg(feature = "gpu")]
     gpu_state.preheat_for_universal_verifier(&binary);
 
-    println!("Starting Zksync OS prover for {}", client.base_url);
+    println!("Starting Zksync OS FRI prover for {}", client.base_url);
 
     loop {
-        let (block_number, prover_input) = match client.pick_next_prover_job().await.unwrap() {
-            Some(next_block) => next_block,
-            None => {
+        let (block_number, prover_input) = match client.pick_next_prover_job().await {
+            Err(err) => {
+                eprintln!("Error fetching next prover job: {}", err);
+                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                continue;
+            },
+            Ok(Some(next_block)) => next_block,
+            Ok(None) => {
               tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
               continue;
             }
@@ -165,14 +192,22 @@ pub async fn main() {
         let proof_b64 = base64::encode(&proof_bytes);
 
 
-        let _ = client
+        match client
             .submit_proof(block_number, proof_b64)
-            .await
-            .expect("Failed to submit a proof");
-        println!(
-            "{:?} submitted proof for block number {}",
-            SystemTime::now(),
-            block_number
-        );
+            .await {
+            Ok(_) => println!(
+                "{:?} successfully submitted proof for block number {}",
+                SystemTime::now(),
+                block_number
+            ),
+            Err(err) => {
+                eprintln!(
+                    "{:?} failed to submit proof for block number {}: {}",
+                    SystemTime::now(),
+                    block_number,
+                    err
+                );
+            }
+        }
     }
 }

@@ -73,6 +73,7 @@ impl ZkosProverDal<'_, '_> {
     pub async fn pick_next_fri_proof(
         &mut self,
         timeout: Duration,
+        max_attempts : u32,
         picked_by: &str,
     ) -> DalResult<Option<(L2BlockNumber, Vec<u8>)>> {
         let maybe_row = sqlx::query!(
@@ -82,9 +83,10 @@ impl ZkosProverDal<'_, '_> {
                 FROM zkos_proofs
                 WHERE prover_input IS NOT NULL
                 AND fri_proof IS NULL
+                AND (fri_proof_attempts IS NULL or fri_proof_attempts < $1)
                   AND (
                       fri_proof_picked_at IS NULL
-                      OR fri_proof_picked_at < NOW() - $1::INTERVAL
+                      OR fri_proof_picked_at < NOW() - $2::INTERVAL
                   )
                 ORDER BY l2_block_number ASC
                 LIMIT 1
@@ -93,7 +95,7 @@ impl ZkosProverDal<'_, '_> {
             UPDATE zkos_proofs
             SET
                 fri_proof_picked_at     = NOW(),
-                fri_proof_picked_by     = $2,
+                fri_proof_picked_by     = $3,
                 fri_proof_attempts      = COALESCE(fri_proof_attempts, 0) + 1,
                 updated_at              = NOW()
             FROM next_fri
@@ -102,6 +104,7 @@ impl ZkosProverDal<'_, '_> {
                 zkos_proofs.l2_block_number AS "l2_block_number!",
                 zkos_proofs.prover_input     AS "prover_input!"
             "#,
+            max_attempts as i32,
             pg_interval_from_duration(timeout),
             picked_by,
         )
