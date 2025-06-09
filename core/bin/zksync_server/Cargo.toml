@@ -46,8 +46,6 @@ zksync_proof_data_handler.workspace = true
 zksync_tee_proof_data_handler.workspace = true
 zksync_state_keeper.workspace = true
 zksync_vm_runner.workspace = true
-# We don't use it directly, but want to enable Jemalloc profiling.
-zksync_instrument = { workspace = true, features = ["jemalloc"] }
 
 # Consensus dependenices
 zksync_consensus_crypto.workspace = true
@@ -67,3 +65,5 @@ smart-config-commands.workspace = true
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
 zksync_node_jemalloc.workspace = true
+# We don't use it directly, but want to enable Jemalloc profiling.
+zksync_instrument = { workspace = true, features = ["jemalloc"] }

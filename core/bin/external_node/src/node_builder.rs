@@ -129,6 +129,13 @@ impl<R> ExternalNodeBuilder<R> {
         Ok(self)
     }
 
+    #[cfg(not(target_env = "msvc"))]
+    fn add_jemalloc_monitor_layer(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(zksync_node_jemalloc::JemallocMonitorLayer);
+        Ok(self)
+    }
+
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ExternalNodeMetricsLayer {
             l1_chain_id: self.config.required.l1_chain_id,
@@ -625,6 +632,11 @@ impl ExternalNodeBuilder {
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
             .add_reorg_detector_layer()?;
+
+        #[cfg(not(target_env = "msvc"))]
+        {
+            self = self.add_jemalloc_monitor_layer()?;
+        }
 
         // Add layers that must run only on a single component.
         if components.contains(&Component::Core) {

@@ -12640,6 +12640,7 @@ dependencies = [
  "zksync_eth_sender",
  "zksync_gateway_migrator",
  "zksync_health_check",
+ "zksync_instrument",
  "zksync_l1_contract_interface",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
@@ -12649,6 +12650,7 @@ dependencies = [
  "zksync_node_fee_model",
  "zksync_node_framework",
  "zksync_node_genesis",
+ "zksync_node_jemalloc",
  "zksync_node_storage_init",
  "zksync_node_sync",
  "zksync_object_store",
@@ -12788,7 +12790,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_instrument"
-version = "28.4.0-non-semver-compat"
+version = "28.5.0-non-semver-compat"
 dependencies = [
  "tikv-jemalloc-ctl",
  "tracing",
@@ -13162,7 +13164,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_node_jemalloc"
-version = "28.4.0-non-semver-compat"
+version = "28.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "serde",
