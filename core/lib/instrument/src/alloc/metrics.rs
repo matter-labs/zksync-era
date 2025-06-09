@@ -19,7 +19,7 @@ pub(super) struct JemallocOpMetrics {
 
 impl JemallocOpMetrics {
     pub(super) fn observe_op_stats(&self, op: &'static str, allocated: u64, deallocated: u64) {
-        const LOG_THRESHOLD: u64 = 1_024; // FIXME: 128 << 20; // 128 MB
+        const LOG_THRESHOLD: u64 = 64 << 20; // 64 MB
 
         self.allocated[&op].observe(allocated);
         self.deallocated[&op].observe(deallocated);
