@@ -42,9 +42,9 @@ fn parse_prepared_env(env: smart_config::Environment) -> (LocalConfig, Observabi
         }
     }
 
-    let repo = tester.new_repository().with(env.strip_prefix("EN_"));
+    let mut repo: ConfigRepository = tester.new_repository().with(env.strip_prefix("EN_")).into();
     let observability: ObservabilityConfig = repo.parse().unwrap();
-    (LocalConfig::new(repo, false).unwrap(), observability)
+    (LocalConfig::new(&mut repo, false).unwrap(), observability)
 }
 
 fn assert_common_prepared_env(config: &LocalConfig, observability: &ObservabilityConfig) {
@@ -521,9 +521,9 @@ fn parsing_with_consensus_from_yaml() {
         ..ConfigFilePaths::default()
     };
     let config_sources = config_paths.into_config_sources(None).unwrap();
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
 
-    let config = LocalConfig::new(repo, true).unwrap();
+    let config = LocalConfig::new(&mut repo, true).unwrap();
     let config = config.consensus.unwrap();
     assert_eq!(config.port, Some(3_055));
     assert_eq!(config.max_payload_size, ByteSize(2_500_000));

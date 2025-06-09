@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use smart_config::{ConfigRepository, ConfigSchema, ConfigSource, Environment, Prefixed, Yaml};
+use smart_config::{ConfigSchema, Environment, Prefixed, Yaml};
 
 /// Wrapper around configuration sources.
 #[derive(Debug, Default)]
@@ -17,15 +17,12 @@ impl ConfigSources {
         Ok(self)
     }
 
-    /// Pushes a config source.
-    pub fn push(&mut self, source: impl ConfigSource) {
-        self.0.push(source);
-    }
-
-    /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
-    /// with the existing file-based configs (e.g., coerce enum variant names).
-    pub fn build_repository(self, schema: &ConfigSchema) -> ConfigRepository<'_> {
-        let mut repo = ConfigRepository::new(schema);
+    #[cfg(any(test, feature = "observability_ext"))]
+    pub(crate) fn build_raw_repository(
+        self,
+        schema: &ConfigSchema,
+    ) -> smart_config::ConfigRepository<'_> {
+        let mut repo = smart_config::ConfigRepository::new(schema);
         repo.deserializer_options().coerce_variant_names = true;
         repo.deserializer_options().coerce_serde_enums = true;
         repo.with_all(self.0)

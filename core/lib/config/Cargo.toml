@@ -17,6 +17,7 @@ zksync_concurrency.workspace = true
 
 # Observability exensions
 zksync_vlog = { workspace = true, optional = true }
+vise = { workspace = true, optional = true }
 
 # CLI extensions
 clap = { workspace = true, optional = true }
@@ -32,5 +33,5 @@ tracing.workspace = true
 
 [features]
 default = []
-observability_ext = ["dep:zksync_vlog"]
+observability_ext = ["dep:zksync_vlog", "dep:vise"]
 cli = ["observability_ext", "dep:clap", "dep:smart-config-commands"]

@@ -64,7 +64,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-test = "0.2.5"
 url = "2.5.2"
-vise = "0.3.0"
+vise = "0.3.1"
 smart-config = { version = "0.1.0", git = "https://github.com/matter-labs/smart-config.git", rev = "62b3954b1bc8451799abc1f00f3588e908c6fbb2" }
 
 circuit_definitions = "=0.152.3"
@@ -76,13 +76,13 @@ franklin-crypto = "=0.32.1"
 
 # GPU proving dependencies
 
-proof-compression-gpu = { package = "proof-compression", version = "=0.154.3" }
+proof-compression-gpu = { package = "proof-compression", version = "=0.154.4" }
 
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.3" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.3" }
+fflonk-gpu = { package = "fflonk-cuda", version = "=0.154.4" }
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.154.4" }
 
-shivini = "=0.154.3"
-boojum-cuda = "=0.154.3"
+shivini = "=0.154.4"
+boojum-cuda = "=0.154.4"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
@@ -111,6 +111,7 @@ zksync_vk_setup_data_generator_server_fri = { version = "=21.1.0", path = "crate
 zksync_prover_job_processor = { version = "=21.1.0", path = "crates/lib/prover_job_processor" }
 zksync_circuit_prover_service = { version = "=21.1.0", path = "crates/lib/circuit_prover_service" }
 zksync_prover_job_monitor = { version = "=21.1.0", path = "crates/bin/prover_job_monitor" }
+zksync_proof_fri_compressor_service = { version = "=21.1.0", path = "crates/lib/proof_fri_compressor_service" }
 
 # for `perf` profiling
 [profile.perf]

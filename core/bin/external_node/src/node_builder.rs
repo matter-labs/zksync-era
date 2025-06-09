@@ -1,6 +1,8 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
+use std::mem;
+
 use anyhow::{bail, Context as _};
 use zksync_block_reverter::{
     node::{BlockReverterLayer, UnconditionalRevertLayer},
@@ -138,7 +140,9 @@ impl<R> ExternalNodeBuilder<R> {
 
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let config = self.config.local.api.healthcheck.clone();
-        self.node.add_layer(HealthCheckLayer(config));
+        let config_params = mem::take(&mut self.config.config_params);
+        let layer = HealthCheckLayer::new(config).with_config_params(config_params);
+        self.node.add_layer(layer);
         Ok(self)
     }
 

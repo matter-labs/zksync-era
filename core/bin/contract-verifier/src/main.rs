@@ -7,7 +7,7 @@ use zksync_config::{
     configs::{ContractVerifierSecrets, DatabaseSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, ContractVerifierConfig,
+    ContractVerifierConfig,
 };
 use zksync_contract_verifier_lib::{
     etherscan::{metrics::EtherscanVerifierMetrics, EtherscanVerifier},
@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
     let _observability_guard = config_sources.observability()?.install()?;
 
     let schema = full_config_schema();
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
     let database_secrets: DatabaseSecrets = repo.parse()?;
     let contract_verifier_secrets: ContractVerifierSecrets = repo.parse()?;
     let verifier_config: ContractVerifierConfig = repo.parse()?;

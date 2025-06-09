@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use anyhow::Context;
-use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig};
+use smart_config::{ConfigSchema, DescribeConfig};
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -16,7 +16,8 @@ use zksync_config::{
         CommitmentGeneratorConfig, DataAvailabilitySecrets, L1Secrets, ObservabilityConfig,
         PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
-    ApiConfig, ConfigRepositoryExt, DAClientConfig, DBConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
+    PostgresConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -298,7 +299,8 @@ impl LocalConfig {
         Ok(schema)
     }
 
-    fn new(repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+    fn new(repo: &mut ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+        repo.capture_parsed_params();
         Ok(Self {
             api: repo.parse()?,
             db: repo.parse()?,
@@ -390,6 +392,7 @@ pub fn generate_consensus_secrets() {
 #[derive(Debug)]
 pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub local: LocalConfig,
+    pub config_params: CapturedParams,
     pub remote: R,
 }
 
@@ -397,9 +400,10 @@ impl ExternalNodeConfig<()> {
     /// Parses the local part of node configuration from the repo.
     ///
     /// **Important.** This method is blocking.
-    pub fn new(repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+    pub fn new(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
         Ok(Self {
-            local: LocalConfig::new(repo, has_consensus)?,
+            local: LocalConfig::new(&mut repo, has_consensus)?,
+            config_params: repo.into_captured_params(),
             remote: (),
         })
     }
@@ -429,6 +433,7 @@ impl ExternalNodeConfig<()> {
 
         Ok(ExternalNodeConfig {
             local: self.local,
+            config_params: self.config_params,
             remote,
         })
     }
@@ -439,6 +444,7 @@ impl ExternalNodeConfig {
     pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         Self {
             local: LocalConfig::mock(temp_dir, test_pool),
+            config_params: CapturedParams::default(),
             remote: RemoteENConfig::mock(),
         }
     }
