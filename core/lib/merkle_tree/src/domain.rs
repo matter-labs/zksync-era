@@ -224,10 +224,41 @@ impl ZkSyncTree {
         &mut self,
         storage_logs: &[TreeInstruction],
     ) -> anyhow::Result<TreeMetadata> {
-        match self.mode {
+        println!("process_l1_batch in MODE: {:?}", self.mode);
+        println!("storage_logs: {:?}", storage_logs);
+        println!(
+            "self.tree.latest_version(): {:?}",
+            self.next_l1_batch_number()
+        );
+        println!(
+            "self.tree.latest_root_hash(): {:?}",
+            self.tree.latest_root_hash()
+        );
+        println!(
+            "self.tree.latest_root().leaf_count(): {:?}",
+            self.tree.latest_root().leaf_count()
+        );
+
+        let result = match self.mode {
             TreeMode::Full => self.process_l1_batch_full(storage_logs),
             TreeMode::Lightweight => self.process_l1_batch_lightweight(storage_logs),
-        }
+        };
+
+        println!("POST process_l1_batch");
+        println!(
+            "self.tree.latest_version(): {:?}",
+            self.next_l1_batch_number()
+        );
+        println!(
+            "self.tree.latest_root_hash(): {:?}",
+            self.tree.latest_root_hash()
+        );
+        println!(
+            "self.tree.latest_root().leaf_count(): {:?}",
+            self.tree.latest_root().leaf_count()
+        );
+
+        result
     }
 
     fn process_l1_batch_full(
