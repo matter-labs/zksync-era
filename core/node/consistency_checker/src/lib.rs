@@ -179,9 +179,9 @@ impl LocalL1BatchCommitData {
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
             .await?;
 
-        if commit_tx_hash.is_none() {
+        let Some(commit_tx_hash) = commit_tx_hash else {
             return Ok(None);
-        }
+        };
 
         let Some(l1_batch) = storage
             .blocks_dal()
@@ -198,7 +198,7 @@ impl LocalL1BatchCommitData {
 
         let this = Self {
             l1_batch,
-            commit_tx_hash: commit_tx_hash.expect("Commit tx hash not found in the database"),
+            commit_tx_hash,
             commitment_mode: pubdata_params.pubdata_type.into(),
             commit_chain_id,
         };
