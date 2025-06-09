@@ -163,7 +163,9 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
             _tracer: PhantomData::<Tr>,
         };
 
+        let span = tracing::Span::current();
         let handle = tokio::task::spawn_blocking(move || {
+            let _span_guard = span.entered();
             executor.run(
                 storage,
                 l1_batch_params,
@@ -324,7 +326,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         system_env: SystemEnv,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
-        tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
+        tracing::info!(
+            fast_vm_mode = ?self.fast_vm_mode,
+            optional_bytecode_compression = self.optional_bytecode_compression,
+            skip_signature_verification = self.skip_signature_verification,
+            "Starting executing L1 batch #{}",
+            &l1_batch_params.number,
+        );
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
         let mut vm = BatchVm::<S, Tr>::new(
@@ -411,6 +419,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         Ok(storage_view)
     }
 
+    #[tracing::instrument(level = "trace", skip_all, fields(tx.hash = ?transaction.hash()))]
     fn execute_tx(
         &self,
         transaction: Transaction,
@@ -431,15 +440,25 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             self.execute_tx_in_vm(&transaction, vm)?
         };
 
-        Ok((result, latency.observe()))
+        let latency = latency.observe();
+        tracing::trace!(
+            ?latency,
+            result.tx_result = ?result.tx_result.result,
+            result.compression_result = ?result.compression_result,
+            "Executed transaction"
+        );
+        Ok((result, latency))
     }
 
+    #[tracing::instrument(level = "trace", skip_all)]
     fn rollback_last_tx(&self, vm: &mut BatchVm<S, Tr>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
-        latency.observe();
+        let latency = latency.observe();
+        tracing::trace!(?latency, "Rolled back transaction");
     }
 
+    #[tracing::instrument(level = "trace", skip_all)]
     fn finish_batch(
         &self,
         vm: &mut BatchVm<S, Tr>,
@@ -457,6 +476,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             result.block_tip_execution_result.result
         );
         BATCH_TIP_METRICS.observe(&result.block_tip_execution_result);
+        tracing::trace!("Executed batch tip");
         Ok(result)
     }
 
