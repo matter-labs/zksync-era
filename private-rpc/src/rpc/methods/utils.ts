@@ -118,6 +118,9 @@ export function validatedEthereumCall(name: string) {
                 authorizer.reloadFromEnv();
             }
             const call = callReqSchema.parse(params[0]);
+            if (params.length > 2) {
+                return unauthorized(id, "state overrides are not supported");
+            }
 
             if (call.from !== undefined && !isAddressEqual(call.from, context.currentUser)) {
                 return unauthorized(id);
