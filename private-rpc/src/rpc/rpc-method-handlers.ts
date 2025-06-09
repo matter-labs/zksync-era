@@ -72,7 +72,7 @@ export const allHandlers = [
     unrestricted('zks_getBaseTokenL1Address'),
     unrestricted('zks_L1ChainId'),
     unrestricted('zks_getConfirmedTokens'),
-    onlyCurrentUser('zks_getAllAccountBalances'),
+    forbiddenMethod('zks_getAllAccountBalances'),
     unrestricted('zks_getL2ToL1LogProof'),
     unrestricted('zks_L1BatchNumber'),
     unrestricted('zks_getL1BatchBlockRange'),
