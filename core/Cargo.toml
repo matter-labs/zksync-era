@@ -267,14 +267,14 @@ fflonk = "=0.32.1"
 #bellman = { package = "zksync_bellman", git = "https://github.com/matter-labs/zksync-crypto", branch = "main" }
 bellman = { package = "zksync_bellman", version = "=0.32.1" }
 
-# zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["no_print"] }
-# zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
-# zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
-# zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["evm-compatibility"] }
-zk_os_forward_system = { package = "forward_system", path = "../../zksync-os/forward_system", features = ["no_print"] }
-zk_ee = { package = "zk_ee", path = "../../zksync-os/zk_ee" }
-zk_os_basic_system = { package = "basic_system", path = "../../zksync-os/basic_system" }
-zk_os_evm_interpreter = { package = "evm_interpreter", path = "../../zksync-os/evm_interpreter", features = ["evm-compatibility"] }
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "zk/interop", features = ["no_print"] }
+zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "zk/interop" }
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "zk/interop" }
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "zk/interop", features = ["evm-compatibility"] }
+# zk_os_forward_system = { package = "forward_system", path = "../../zksync-os/forward_system", features = ["no_print"] }
+# zk_ee = { package = "zk_ee", path = "../../zksync-os/zk_ee" }
+# zk_os_basic_system = { package = "basic_system", path = "../../zksync-os/basic_system" }
+# zk_os_evm_interpreter = { package = "evm_interpreter", path = "../../zksync-os/evm_interpreter", features = ["evm-compatibility"] }
 
 
 # New VM
