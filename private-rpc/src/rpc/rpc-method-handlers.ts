@@ -60,11 +60,11 @@ export const allHandlers = [
     forbiddenMethod('eth_newFilter'),
     forbiddenMethod('eth_newPendingTransactionFilter'),
     forbiddenMethod('zks_getProof'),
+    forbiddenMethod('zks_getAllAccountBalances'),
 
     // Restrict methods that require to be called only for the current user
     onlyCurrentUser('eth_getBalance', [z.union([hexSchema, z.string()])]),
     onlyCurrentUser('eth_getTransactionCount', [z.union([hexSchema, z.string()])]),
-    onlyCurrentUser('zks_getAllAccountBalances'),
 
     // Methods with custom logic.
     eth_call,
