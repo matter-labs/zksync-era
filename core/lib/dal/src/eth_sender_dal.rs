@@ -760,56 +760,6 @@ impl EthSenderDal<'_, '_> {
         transaction.commit().await.context("commit()")
     }
 
-    pub async fn mark_received_eth_tx_as_verified(
-        &mut self,
-        eth_txs_history_id: u32,
-        finality_status: EthTxFinalityStatus,
-    ) -> anyhow::Result<()> {
-        let mut transaction = self
-            .storage
-            .start_transaction()
-            .await
-            .context("start_transaction")?;
-
-        sqlx::query!(
-            r#"
-            UPDATE eth_txs_history
-            SET
-                finality_status = $2,
-                updated_at = NOW(),
-                confirmed_at = NOW()
-            WHERE
-                id = $1
-            "#,
-            eth_txs_history_id as i32,
-            finality_status.to_string(),
-        )
-        .execute(transaction.conn())
-        .await?;
-
-        sqlx::query!(
-            r#"
-            UPDATE eth_txs
-            SET
-                confirmed_eth_tx_history_id = $1
-            WHERE
-                id = (
-                    SELECT
-                        eth_tx_id
-                    FROM
-                        eth_txs_history
-                    WHERE
-                        id = $1
-                )
-            "#,
-            eth_txs_history_id as i32,
-        )
-        .execute(transaction.conn())
-        .await?;
-
-        transaction.commit().await.context("commit()")
-    }
-
     pub async fn get_oldest_tx_by_status_and_type(
         &mut self,
         status: EthTxFinalityStatus,

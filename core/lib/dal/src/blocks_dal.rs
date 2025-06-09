@@ -1464,9 +1464,8 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-            INNER JOIN
-                eth_txs_history AS commit_tx
-                ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
+            WHERE
+                eth_commit_tx_id IS NOT NULL
             ORDER BY
                 number DESC
             LIMIT
@@ -1489,9 +1488,8 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-            INNER JOIN
-                eth_txs_history AS prove_tx
-                ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
+            WHERE
+                eth_prove_tx_id IS NOT NULL
             ORDER BY
                 number DESC
             LIMIT
@@ -1514,9 +1512,8 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-            INNER JOIN
-                eth_txs_history AS execute_tx
-                ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
+            WHERE
+                eth_execute_tx_id IS NOT NULL
             ORDER BY
                 number DESC
             LIMIT

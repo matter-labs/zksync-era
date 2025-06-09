@@ -174,24 +174,28 @@ impl BatchTransactionUpdater {
         let () = match db_eth_history_tx.tx_type {
             AggregatedActionType::Commit => {
                 self.l1_transaction_verifier
-                    .validate_commit_tx(receipt, batch_number)
+                    .validate_commit_tx(&receipt, batch_number)
                     .await?
             }
             AggregatedActionType::PublishProofOnchain => {
                 self.l1_transaction_verifier
-                    .validate_prove_tx(receipt, batch_number)
+                    .validate_prove_tx(&receipt, batch_number)
                     .await?
             }
             AggregatedActionType::Execute => {
                 self.l1_transaction_verifier
-                    .validate_execute_tx(receipt, batch_number)
+                    .validate_execute_tx(&receipt, batch_number)
                     .await?
             }
         };
 
         connection
             .eth_sender_dal()
-            .mark_received_eth_tx_as_verified(db_eth_history_id, updated_status)
+            .confirm_tx(
+                receipt.transaction_hash,
+                updated_status,
+                receipt.gas_used.unwrap_or_default(), // we don't care about gas used for synced transaction
+            )
             .await?;
         Ok(())
     }

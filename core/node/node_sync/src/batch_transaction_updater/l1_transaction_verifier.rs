@@ -83,13 +83,7 @@ impl L1TransactionVerifier {
             .get_batch_protocol_version_id(batch_number)
             .await?
         {
-            Some(version) => {
-                if version < self.validate_logs_from_protocol_version {
-                    Ok(false)
-                } else {
-                    Ok(true)
-                }
-            }
+            Some(version) => Ok(version >= self.validate_logs_from_protocol_version),
             None => {
                 tracing::debug!(
                     "Batch {} is not found in the database. Cannot verify transaction right now",
@@ -102,7 +96,7 @@ impl L1TransactionVerifier {
 
     pub async fn validate_commit_tx(
         &self,
-        receipt: TransactionReceipt,
+        receipt: &TransactionReceipt,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if !(self.should_perform_logs_validation(batch_number).await?) {
@@ -123,7 +117,7 @@ impl L1TransactionVerifier {
             .context("`BlockCommit` event not found for ZKsync L1 contract")?;
 
         let commited_batch_info: Option<(H256, H256)> =
-            receipt.logs.into_iter().filter_map(|log| {
+            receipt.logs.iter().find_map(|log| {
                 if log.address != self.diamond_proxy_addr {
                     tracing::debug!(
                         "Log address {} does not match diamond proxy adb_batchddress {}, skipping",
@@ -133,7 +127,7 @@ impl L1TransactionVerifier {
                     return None;
                 }
                 let parsed_log = event
-                                        .parse_log_whole(log.into())
+                                        .parse_log_whole(log.clone().into())
 
                     .ok()?; // Skip logs that are of different event type
 
@@ -160,7 +154,7 @@ impl L1TransactionVerifier {
                         .expect("Missing expected `commitment` parameter in `BlockCommit` event log");
 
                 Some((batch_hash, commitment))
-            }).next();
+            });
 
         if let Some((batch_hash, commitment)) = commited_batch_info {
             if db_batch.commitment != commitment {
@@ -196,7 +190,7 @@ impl L1TransactionVerifier {
 
     pub async fn validate_prove_tx(
         &self,
-        receipt: TransactionReceipt,
+        receipt: &TransactionReceipt,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if !(self.should_perform_logs_validation(batch_number).await?) {
@@ -215,7 +209,7 @@ impl L1TransactionVerifier {
             .context("`BlocksVerification` event not found for ZKsync L1 contract")?;
 
         let proved_from_to: Option<(u32, u32)> =
-            receipt.logs.into_iter().filter_map(|log| {
+            receipt.logs.iter().find_map(|log| {
                 if log.address != self.diamond_proxy_addr {
                     tracing::debug!(
                         "Log address {} does not match diamond proxy address {}, skipping",
@@ -225,7 +219,7 @@ impl L1TransactionVerifier {
                     return None;
                 }
                 let parsed_log = event
-                    .parse_log_whole(log.into())
+                    .parse_log_whole(log.clone().into())
                     .ok()?; // Skip logs that are of different event type
 
                 let block_number_from = get_param(&parsed_log.params, "previousLastVerifiedBatch")
@@ -244,7 +238,8 @@ impl L1TransactionVerifier {
                     block_number_from,
                     block_number_to,
                 ))
-            }).next();
+            });
+
         if let Some((from, to)) = proved_from_to {
             if from >= batch_number.0 {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
@@ -289,7 +284,7 @@ impl L1TransactionVerifier {
     /// Validates the execute transaction against the database.
     pub async fn validate_execute_tx(
         &self,
-        receipt: TransactionReceipt,
+        receipt: &TransactionReceipt,
         batch_number: L1BatchNumber,
     ) -> Result<(), TransactionValidationError> {
         if !(self.should_perform_logs_validation(batch_number).await?) {
@@ -310,7 +305,7 @@ impl L1TransactionVerifier {
             .context("`BlockExecution` event not found for ZKsync L1 contract")?;
 
         let commited_batch_info: Option<(H256, H256)> =
-            receipt.logs.into_iter().filter_map(|log| {
+            receipt.logs.iter().find_map(|log| {
                 if log.address != self.diamond_proxy_addr {
                     tracing::debug!(
                         "Log address {} does not match diamond proxy address {}, skipping",
@@ -320,7 +315,7 @@ impl L1TransactionVerifier {
                     return None;
                 }
                 let parsed_log = event
-                                        .parse_log_whole(log.into())
+                                        .parse_log_whole(log.clone().into())
 
                     .ok()?; // Skip logs that are of different event type
 
@@ -352,7 +347,7 @@ impl L1TransactionVerifier {
                         .expect("Missing expected `commitment` parameter in `BlockExecution` event log");
 
                 Some((batch_hash, commitment))
-            }).next();
+            });
 
         if let Some((batch_hash, commitment)) = commited_batch_info {
             if db_batch.commitment != commitment {
