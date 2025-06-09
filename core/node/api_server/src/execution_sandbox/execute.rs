@@ -328,6 +328,7 @@ impl SandboxExecutor {
             gas_limit: 100_000_000, // TODO: what value should be used?
             coinbase: Default::default(),
             block_hashes: Default::default(),
+            interop_roots: Default::default(),
         };
 
         let abi = tx_abi_encode(execution_args.transaction);
