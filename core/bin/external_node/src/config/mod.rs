@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Context;
 use serde::{de, Deserialize, Deserializer};
-use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
+use smart_config::{ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
@@ -25,7 +25,7 @@ use zksync_config::{
         DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
+    CapturedParams, ConfigRepository, DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -1175,6 +1175,8 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
+    // **NB.** Only filled for file-based configuration right now.
+    pub config_params: Option<CapturedParams>,
     pub remote: R,
 }
 
@@ -1199,8 +1201,10 @@ impl ExternalNodeConfig<()> {
         consensus_schema
             .insert(&ConsensusSecrets::DESCRIPTION, "secrets.consensus")
             .context("cannot create consensus config schema")?;
-        let mut repo = ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
+        let mut repo =
+            smart_config::ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
         repo.deserializer_options().coerce_variant_names = true;
+        let mut repo = ConfigRepository::from(repo);
         let consensus = repo.parse_opt()?;
         let consensus_secrets = repo.parse()?;
 
@@ -1224,11 +1228,13 @@ impl ExternalNodeConfig<()> {
                 da_client_config_from_env("EN_DA_").ok(),
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
+            config_params: None, // Since we don't capture most of params, exposing them would be misleading
             remote: (),
         })
     }
 
-    pub fn from_files(repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+    pub fn from_files(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+        repo.capture_parsed_params();
         let general_config: GeneralConfig = repo.parse()?;
         let external_node_config: ENConfig = repo.parse()?;
         let secrets_config: Secrets = repo.parse()?;
@@ -1278,6 +1284,7 @@ impl ExternalNodeConfig<()> {
             tree_component,
             consensus_secrets,
             data_availability,
+            config_params: Some(repo.into_captured_params()),
             remote: (),
         })
     }
@@ -1314,6 +1321,7 @@ impl ExternalNodeConfig<()> {
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
             data_availability: self.data_availability,
+            config_params: self.config_params,
             remote,
         })
     }
@@ -1335,6 +1343,7 @@ impl ExternalNodeConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
+            config_params: None,
             data_availability: (None, None),
         }
     }

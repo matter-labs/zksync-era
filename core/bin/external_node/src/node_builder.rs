@@ -1,7 +1,7 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
-use std::time::Duration;
+use std::{mem, time::Duration};
 
 use anyhow::{bail, Context as _};
 use zksync_block_reverter::{
@@ -158,8 +158,13 @@ impl<R> ExternalNodeBuilder<R> {
             port: self.config.required.healthcheck_port,
             slow_time_limit: self.config.optional.healthcheck_slow_time_limit(),
             hard_time_limit: self.config.optional.healthcheck_hard_time_limit(),
+            expose_config: false, // FIXME: allow configuring
         };
-        self.node.add_layer(HealthCheckLayer(healthcheck_config));
+        let mut layer = HealthCheckLayer::new(healthcheck_config);
+        if let Some(config_params) = mem::take(&mut self.config.config_params) {
+            layer = layer.with_config_params(config_params);
+        }
+        self.node.add_layer(layer);
         Ok(self)
     }
 
