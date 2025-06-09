@@ -270,6 +270,12 @@ impl BatchTransactionUpdater {
                         continue;
                     }
                     Some(receipt) => {
+                        tracing::debug!(
+                            "Updating finality status for transaction {} with status {} and type {}",
+                            current_entry.tx_hash,
+                            finality_status,
+                            transaction_type
+                        );
                         let db_eth_history_id = current_entry.db_eth_history_id;
                         let result = self
                             .apply_status_update(db_eth_history_id, receipt, &sl_block_numbers)
