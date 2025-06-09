@@ -39,7 +39,6 @@ impl FileArtifacts {
 #[derive(Debug)]
 pub struct EthSenderLimits {
     pub max_aggregated_tx_gas: u64,
-    pub max_eth_tx_data_size: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -243,10 +242,6 @@ impl GeneralConfigPatch {
         self.0.insert(
             "eth.sender.max_aggregated_tx_gas",
             limits.max_aggregated_tx_gas,
-        )?;
-        self.0.insert(
-            "eth.sender.max_eth_tx_data_size",
-            limits.max_eth_tx_data_size,
         )
     }
 

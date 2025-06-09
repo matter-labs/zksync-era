@@ -37,7 +37,7 @@ mod tests {
             prover_object_store: ObjectStoreConfig {
                 mode: ObjectStoreMode::GCSWithCredentialFile {
                     bucket_base_url: "/base/url".to_owned(),
-                    gcs_credential_file_path: "/path/to/credentials1.json".to_owned(),
+                    gcs_credential_file_path: "/path/to/credentials1.json".into(),
                 },
                 max_retries: 5,
                 local_mirror_path: Some("/var/cache".into()),
