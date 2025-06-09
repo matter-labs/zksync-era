@@ -112,10 +112,8 @@ pub struct StateKeeper {
     batch_state: BatchState,
 }
 
-/// Helper struct that is used for state keeper initialization.
-/// Also encapsulates some private state keeper methods.
 #[derive(Debug)]
-pub struct StateKeeperInner {
+pub struct StateKeeperBuilder {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
@@ -125,7 +123,33 @@ pub struct StateKeeperInner {
     deployment_tx_filter: Option<DeploymentTxFilter>,
 }
 
-impl StateKeeperInner {
+/// Helper struct that encapsulates some private state keeper methods.
+#[derive(Debug)]
+pub(super) struct StateKeeperInner {
+    io: Box<dyn StateKeeperIO>,
+    output_handler: OutputHandler,
+    batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
+    sealer: Arc<dyn ConditionalSealer>,
+    storage_factory: Arc<dyn ReadStorageFactory>,
+    health_updater: HealthUpdater,
+    deployment_tx_filter: Option<DeploymentTxFilter>,
+}
+
+impl From<StateKeeperBuilder> for StateKeeperInner {
+    fn from(b: StateKeeperBuilder) -> Self {
+        Self {
+            io: b.io,
+            output_handler: b.output_handler,
+            batch_executor_factory: b.batch_executor_factory,
+            sealer: b.sealer,
+            storage_factory: b.storage_factory,
+            health_updater: b.health_updater,
+            deployment_tx_filter: b.deployment_tx_filter,
+        }
+    }
+}
+
+impl StateKeeperBuilder {
     pub fn new(
         sequencer: Box<dyn StateKeeperIO>,
         batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
@@ -145,13 +169,15 @@ impl StateKeeperInner {
         }
     }
 
-    pub async fn initialize(
-        mut self,
+    pub async fn build(
+        self,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<StateKeeper, OrStopped> {
-        let (cursor, pending_batch_params) = self.io.initialize().await?;
-        self.output_handler.initialize(&cursor).await?;
-        self.health_updater
+        let mut inner = StateKeeperInner::from(self);
+        let (cursor, pending_batch_params) = inner.io.initialize().await?;
+        inner.output_handler.initialize(&cursor).await?;
+        inner
+            .health_updater
             .update(StateKeeperHealthDetails::from(&cursor).into());
         tracing::info!(
             "Initializing state keeper. Next l1 batch to seal: {}, next L2 block to seal: {}",
@@ -181,14 +207,14 @@ impl StateKeeperInner {
             None => {
                 tracing::info!("There is no open pending batch");
                 return Ok(StateKeeper {
-                    inner: self,
+                    inner,
                     batch_state: BatchState::Uninit(cursor),
                 });
             }
         };
 
         let protocol_version = system_env.version;
-        let previous_batch_protocol_version = self
+        let previous_batch_protocol_version = inner
             .io
             .load_batch_version_id(l1_batch_env.number - 1)
             .await?;
@@ -198,11 +224,11 @@ impl StateKeeperInner {
             pubdata_params,
             previous_batch_protocol_version,
         );
-        let protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
+        let protocol_upgrade_tx: Option<ProtocolUpgradeTx> = inner
             .load_protocol_upgrade_tx(&pending_l2_blocks, protocol_version, l1_batch_env.number)
             .await?;
 
-        let mut batch_executor = self
+        let mut batch_executor = inner
             .create_batch_executor(
                 l1_batch_env.clone(),
                 system_env.clone(),
@@ -210,7 +236,7 @@ impl StateKeeperInner {
                 stop_receiver,
             )
             .await?;
-        Self::restore_state(
+        StateKeeperInner::restore_state(
             &mut *batch_executor,
             &mut updates_manager,
             pending_l2_blocks,
@@ -218,7 +244,7 @@ impl StateKeeperInner {
         .await?;
 
         Ok(StateKeeper {
-            inner: self,
+            inner,
             batch_state: BatchState::Init(Box::new(InitializedBatchState {
                 updates_manager,
                 batch_executor,
@@ -227,6 +253,13 @@ impl StateKeeperInner {
         })
     }
 
+    /// Returns the health check for state keeper.
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
+    }
+}
+
+impl StateKeeperInner {
     async fn start_batch(
         &mut self,
         cursor: IoCursor,
@@ -788,11 +821,6 @@ impl StateKeeperInner {
         };
         latency.observe();
         Ok((resolution, exec_result))
-    }
-
-    /// Returns the health check for state keeper.
-    pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.health_updater.subscribe()
     }
 
     fn report_seal_criteria_capacity(&self, manager: &UpdatesManager) {
