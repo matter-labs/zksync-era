@@ -13003,6 +13003,7 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_instrument",
  "zksync_mini_merkle_tree",
  "zksync_multivm",
  "zksync_node_fee_model",

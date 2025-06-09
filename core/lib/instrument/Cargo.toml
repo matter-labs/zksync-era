@@ -1,6 +1,6 @@
 [package]
 name = "zksync_instrument"
-description = "Shared general-purpose instrumentation used by ZKsync node"
+description = "General-purpose instrumentation for ZKsync"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
