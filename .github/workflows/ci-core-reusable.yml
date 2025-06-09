@@ -225,7 +225,7 @@ jobs:
       # ----------------------------------------------
       matrix:
         use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
-        tests_type: [ "integration", "integration-en" , "migrations"]
+        tests_type: [ "integration", "integration-en"]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
@@ -502,12 +502,12 @@ jobs:
           ci_run zkstack chain gateway migrate-to-gateway --chain consensus --gateway-chain-name gateway
 
       - name: Migrate back era
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.tests_type == 'migrations'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --from-gateway --chain era --no-deps
 
       - name: Migrate to gateway again
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY' && matrix.tests_type == 'migrations'
+        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway --chain era --no-deps
           ci_run pkill -9 zksync_server
@@ -541,7 +541,7 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain consensus
 
       - name: DA migration tests
-        if: matrix.tests_type == 'migrations'
+        if: matrix.tests_type == 'integration-en'
         run: |
           echo "Increasing L1 batch seal timeout and restarting server"
           sudo yq -i '.state_keeper.block_commit_deadline_ms = "10000"' ./chains/da_migration/configs/general.yaml
@@ -628,6 +628,7 @@ jobs:
           echo "Server restart wait completed"
 
       - name: Run integration tests
+        if: matrix.tests_type == 'integration'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test integration --verbose --no-deps --ignore-prerequisites" \
             ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} \
@@ -703,12 +704,12 @@ jobs:
           done
 
       - name: Run recovery tests (from snapshot)
-        if: matrix.tests_type == 'integration-en'
+        if: matrix.tests_type == 'integration'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}
 
       - name: Run recovery tests (from genesis)
-        if: matrix.tests_type == 'integration-en'
+        if: matrix.tests_type == 'integration'
         run: |
           ci_run ./bin/run_on_all_chains.sh "zkstack dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.GENESIS_RECOVERY_LOGS_DIR }}
 
