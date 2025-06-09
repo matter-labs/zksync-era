@@ -228,8 +228,8 @@ describe('L1 ERC20 contract checks', () => {
             alice.provider
         );
 
-        // Imports proof until GW's message root, needed for proof based interop.
-        params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, undefined, 'gw_message_root');
+        // Proof-based interop on Gateway, meaning the Merkle proof hashes to Gateway's MessageRoot
+        params = await alice.getFinalizeWithdrawalParams(withdrawalHash, undefined, 'proof_based_gw');
 
         // Needed else the L2's view of GW's MessageRoot won't be updated
         await waitForInteropRootNonZero(alice.provider, alice, getGWBlockNumber(params), tokenDetails.l2Address);

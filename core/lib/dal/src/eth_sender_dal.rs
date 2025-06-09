@@ -811,10 +811,9 @@ impl EthSenderDal<'_, '_> {
             "#,
             eth_tx_id as i32
         )
-        .fetch_all(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await?;
-        println!("history_item: {:?}", history_item);
-        Ok(Some(history_item[0].clone()))
+        Ok(history_item)
     }
 
     pub async fn get_last_sent_successfully_eth_tx(
@@ -825,6 +824,37 @@ impl EthSenderDal<'_, '_> {
             .get_last_sent_successfully_eth_storage_tx(eth_tx_id)
             .await?;
         Ok(history_item.map(|tx| tx.into()))
+    }
+
+    pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        op_type: L1BatchAggregatedActionType,
+    ) -> sqlx::Result<Option<u32>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                eth_commit_tx_id,
+                eth_prove_tx_id,
+                eth_execute_tx_id
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+
+        Ok(row.and_then(|row| {
+            let tx_id_opt: Option<i32> = match op_type {
+                L1BatchAggregatedActionType::Commit => row.eth_commit_tx_id,
+                L1BatchAggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
+                L1BatchAggregatedActionType::Execute => row.eth_execute_tx_id,
+            };
+            tx_id_opt.map(|id| id as u32)
+        }))
     }
 
     /// Returns the next nonce for the operator account
@@ -974,37 +1004,6 @@ impl EthSenderDal<'_, '_> {
         .unwrap()
     }
 
-    pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-        op_type: L1BatchAggregatedActionType,
-    ) -> Option<u32> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                eth_commit_tx_id,
-                eth_prove_tx_id,
-                eth_execute_tx_id
-            FROM
-                l1_batches
-            WHERE
-                number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .unwrap();
-        let eth_tx_id = match op_type {
-            L1BatchAggregatedActionType::Commit => row.eth_commit_tx_id,
-            L1BatchAggregatedActionType::PublishProofOnchain => row.eth_prove_tx_id,
-            L1BatchAggregatedActionType::Execute => row.eth_execute_tx_id,
-        }
-        .unwrap() as u32;
-        Some(eth_tx_id)
-    }
-
     pub async fn get_last_sent_successfully_eth_tx_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -1012,8 +1011,8 @@ impl EthSenderDal<'_, '_> {
     ) -> Option<TxHistory> {
         let eth_tx_id = self
             .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
-            .await?;
-        self.get_last_sent_successfully_eth_tx(eth_tx_id)
+            .await;
+        self.get_last_sent_successfully_eth_tx(eth_tx_id.unwrap()?)
             .await
             .unwrap()
     }
