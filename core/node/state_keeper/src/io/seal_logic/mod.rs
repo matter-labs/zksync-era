@@ -276,8 +276,11 @@ impl UpdatesManager {
     }
 
     pub fn clear_interop_roots(&mut self) {
-        println!("clearing for l2 block {:?}", self.l2_block.number);
-        println!("clearing interop roots {:?}", self.l2_block.interop_roots);
+        tracing::debug!(
+            "Clearing interop roots for l2 block {:?}: {:?}",
+            self.l2_block.number,
+            self.l2_block.interop_roots
+        );
         self.l2_block.interop_roots.clear();
     }
 }
