@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+serde_json.workspace = true
 zksync_types.workspace = true
 zksync_prover_interface.workspace = true
 

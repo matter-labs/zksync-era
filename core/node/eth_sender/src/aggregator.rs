@@ -210,17 +210,7 @@ impl Aggregator {
             return Ok(None); // No L1 batches in Postgres; no operations are ready yet
         };
 
-        if let Some(op) = restrictions.filter_execute_op(
-            self.get_execute_operations(
-                storage,
-                self.config.max_aggregated_blocks_to_execute as usize,
-                last_sealed_l1_batch_number,
-                priority_tree_start_index,
-            )
-            .await?,
-        ) {
-            Ok(Some(op))
-        } else if let Some(op) = restrictions.filter_prove_op(
+        if let Some(op) = restrictions.filter_prove_op(
             self.get_proof_operation(storage, last_sealed_l1_batch_number, l1_verifier_config)
                 .await,
         ) {
@@ -560,13 +550,13 @@ impl Aggregator {
             .get_patch_versions_for_vk(minor_version, l1_verifier_config.snark_wrapper_vk_hash)
             .await
             .unwrap();
-        if allowed_patch_versions.is_empty() {
-            tracing::warn!(
-                "No patch version corresponds to the verification key on L1: {:?}",
-                l1_verifier_config.snark_wrapper_vk_hash
-            );
-            return None;
-        };
+        // if allowed_patch_versions.is_empty() {
+        //     tracing::warn!(
+        //         "No patch version corresponds to the verification key on L1: {:?}",
+        //         l1_verifier_config.snark_wrapper_vk_hash
+        //     );
+        //     return None;
+        // };
 
         let allowed_versions: Vec<_> = allowed_patch_versions
             .into_iter()

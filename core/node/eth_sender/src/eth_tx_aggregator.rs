@@ -773,7 +773,7 @@ impl EthTxAggregator {
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
+                args.extend(op.conditional_into_tokens(true));
                 let encoding_fn = if is_op_pre_gateway {
                     &self.functions.post_shared_bridge_prove
                 } else {
