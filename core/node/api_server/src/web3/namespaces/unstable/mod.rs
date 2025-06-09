@@ -83,6 +83,7 @@ impl UnstableNamespace {
         Ok(proofs)
     }
 
+    // This method is used for both get_chain_log_proof and get_inner_chain_log_proof
     pub async fn get_chain_log_proof_impl(
         &self,
         batch_or_block_number: BatchOrBlockNumber,
