@@ -97,7 +97,7 @@ const callReqSchema = z
         data: hexSchema.optional(),
         input: hexSchema.optional(),
         nonce: hexSchema.optional(),
-        transaction_type: hexSchema.optional(),
+        type: hexSchema.optional(),
         access_list: z.array(z.tuple([addressSchema, z.array(hexSchema)])).optional(),
         customData: z
             .object({
