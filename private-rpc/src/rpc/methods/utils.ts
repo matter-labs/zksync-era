@@ -132,7 +132,9 @@ export function validatedEthereumCall(name: string) {
                 authorizer.reloadFromEnv();
             }
             const call = callReqSchema.parse(params[0]);
-            if (params.length > 2) {
+
+            const hasBlockArg = method === 'eth_call' || method === 'eth_estimateGas';
+            if (params.length > (hasBlockArg ? 2 : 1)) {
                 return unauthorized(id, 'state overrides are not supported');
             }
 
