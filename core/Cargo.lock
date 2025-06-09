@@ -12518,6 +12518,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_eth_proof_manager"
+version = "28.3.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_eth_watch",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_eth_sender"
 version = "28.3.0-non-semver-compat"
 dependencies = [
