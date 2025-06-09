@@ -35,17 +35,22 @@ pub(crate) struct JemallocMonitor {
 }
 
 impl JemallocMonitor {
+    const DEFAULT_UPDATE_INTERVAL: Duration = Duration::from_secs(60);
+
     pub(crate) fn new() -> anyhow::Result<Self> {
         let version =
             tikv_jemalloc_ctl::version::read().context("failed reading Jemalloc version")?;
+        let version = version.strip_suffix('\0').unwrap_or(version);
         let config = tikv_jemalloc_ctl::config::malloc_conf::read()
             .context("failed reading Jemalloc config")?;
+        let config = config.strip_suffix('\0').unwrap_or(config);
+        // FIXME: also extract runtime config
 
         Ok(Self {
             version,
             config,
             health: ReactiveHealthCheck::new("jemalloc").1,
-            update_interval: Duration::from_secs(60),
+            update_interval: Self::DEFAULT_UPDATE_INTERVAL,
         })
     }
 

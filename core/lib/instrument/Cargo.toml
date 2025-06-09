@@ -1,0 +1,21 @@
+[package]
+name = "zksync_instrument"
+description = "Shared general-purpose instrumentation used by ZKsync node"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+tracing.workspace = true
+tikv-jemalloc-ctl = { workspace = true, optional = true }
+vise.workspace = true
+
+[features]
+# Enables Jemalloc allocation instrumentation. Without it, allocation stats won't be reported, and the relevant types
+# exported by the library willbe mocks.
+jemalloc = ["dep:tikv-jemalloc-ctl"]

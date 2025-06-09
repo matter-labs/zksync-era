@@ -12786,6 +12786,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_instrument"
+version = "28.4.0-non-semver-compat"
+dependencies = [
+ "tikv-jemalloc-ctl",
+ "tracing",
+ "vise",
+]
+
+[[package]]
 name = "zksync_kzg"
 version = "0.152.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13433,6 +13442,7 @@ dependencies = [
  "zksync_external_proof_integration_api",
  "zksync_gateway_migrator",
  "zksync_house_keeper",
+ "zksync_instrument",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_node_alloc_tools",
@@ -13836,6 +13846,7 @@ dependencies = [
  "vise",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_instrument",
  "zksync_multivm",
  "zksync_node_framework",
  "zksync_types",

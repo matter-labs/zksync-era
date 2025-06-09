@@ -3,6 +3,7 @@ use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
+use zksync_instrument::alloc::AllocationGuard;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -415,6 +416,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         transaction: Transaction,
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
+        let _guard = AllocationGuard::new("batch_vm#execute_tx");
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
         vm.pop_snapshot_no_rollback();
@@ -443,15 +445,17 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         vm: &mut BatchVm<S, Tr>,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<FinishedL1Batch> {
+        let guard = AllocationGuard::new("batch_vm#finish_batch");
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch(pubdata_builder);
+        drop(guard);
+
         anyhow::ensure!(
             !result.block_tip_execution_result.result.is_failed(),
             "VM must not fail when finalizing block: {:#?}",
             result.block_tip_execution_result.result
         );
-
         BATCH_TIP_METRICS.observe(&result.block_tip_execution_result);
         Ok(result)
     }
