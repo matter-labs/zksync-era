@@ -22,8 +22,8 @@ export const allHandlers = [
        ───────────────────────────── */
     unrestricted('eth_blockNumber'),
     unrestricted('eth_chainId'),
-    validatedEthereumCall('eth_call'),
-    validatedEthereumCall('eth_estimateGas'),
+    validatedEthereumCall('eth_call', 2),
+    validatedEthereumCall('eth_estimateGas', 2),
     unrestricted('eth_gasPrice'),
     forbiddenMethod('eth_newFilter'),
     unrestricted('eth_newBlockFilter'),
@@ -61,8 +61,8 @@ export const allHandlers = [
     /* ─────────────────────────────
        Zks namespace (exact order)
        ───────────────────────────── */
-    validatedEthereumCall('zks_estimateFee'),
-    validatedEthereumCall('zks_estimateGasL1ToL2'),
+    validatedEthereumCall('zks_estimateFee', 1),
+    validatedEthereumCall('zks_estimateGasL1ToL2', 1),
     unrestricted('zks_getBridgehubContract'),
     unrestricted('zks_getMainContract'),
     unrestricted('zks_getL2Multicall3'),

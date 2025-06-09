@@ -119,7 +119,7 @@ const callResponseSchema = z.object({
     result: hexSchema.optional()
 });
 
-export function validatedEthereumCall(name: string) {
+export function validatedEthereumCall(name: string, stateOverrideArgPosition: number) {
     return {
         name: name,
         async handle(
@@ -133,8 +133,7 @@ export function validatedEthereumCall(name: string) {
             }
             const call = callReqSchema.parse(params[0]);
 
-            const hasBlockArg = method === 'eth_call' || method === 'eth_estimateGas';
-            if (params.length > (hasBlockArg ? 2 : 1)) {
+            if (params.length > stateOverrideArgPosition) {
                 return unauthorized(id, 'state overrides are not supported');
             }
 
