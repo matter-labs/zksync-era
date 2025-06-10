@@ -26,5 +26,6 @@ dirs: [
   "contracts/",
   "era-observability",
   "docs/js",
-  "prover/docs/js"
+  "prover/docs/js",
+  "private-rpc"
 ]
