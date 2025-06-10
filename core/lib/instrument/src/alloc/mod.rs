@@ -1,6 +1,6 @@
 //! Allocation instrumentation.
 
-use std::fmt;
+use std::{fmt, thread};
 
 use self::guard_impl::AllocationGuardImpl;
 
@@ -12,6 +12,12 @@ mod guard_impl;
 #[cfg(feature = "jemalloc")]
 mod metrics;
 
+#[derive(Debug, Clone, Copy)]
+enum AllocationGuardKind {
+    Operation,
+    Task,
+}
+
 /// Monitors (de)allocation while in scope.
 ///
 /// This type is `!Send` and thus should only be used to monitor single-threaded / blocking routines.
@@ -19,6 +25,7 @@ mod metrics;
 #[must_use = "Observes (de)allocation stats on drop"]
 pub struct AllocationGuard {
     inner: AllocationGuardImpl,
+    kind: AllocationGuardKind,
 }
 
 impl fmt::Debug for AllocationGuard {
@@ -29,9 +36,29 @@ impl fmt::Debug for AllocationGuard {
 
 impl AllocationGuard {
     /// Creates an allocation guard for the specified operation. The operation name should be globally unique.
-    pub fn new(operation: &'static str) -> Self {
+    pub fn for_operation(operation: &'static str) -> Self {
         Self {
             inner: AllocationGuardImpl::new(operation),
+            kind: AllocationGuardKind::Operation,
+        }
+    }
+
+    /// Creates an allocation guard for the specified long-running task.
+    pub fn for_task(task: &'static str) -> Self {
+        Self {
+            inner: AllocationGuardImpl::new(task),
+            kind: AllocationGuardKind::Task,
+        }
+    }
+}
+
+impl Drop for AllocationGuard {
+    fn drop(&mut self) {
+        if !thread::panicking() {
+            match self.kind {
+                AllocationGuardKind::Operation => self.inner.observe_operation(),
+                AllocationGuardKind::Task => self.inner.observe_task(),
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-use vise::{Buckets, Histogram, LabeledFamily, Metrics, Unit};
+use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics, Unit};
 
 const OP_SIZE_BUCKETS: Buckets = Buckets::exponential(256.0..=256.0 * 1_024.0 * 1_204.0, 4.0);
 
@@ -37,4 +37,28 @@ impl JemallocOpMetrics {
 }
 
 #[vise::register]
-pub(crate) static METRICS: vise::Global<JemallocOpMetrics> = vise::Global::new();
+pub(crate) static OP_METRICS: vise::Global<JemallocOpMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "jemalloc_task")]
+pub(super) struct JemallocTaskMetrics {
+    #[metrics(labels = ["task"], unit = Unit::Bytes)]
+    allocated: LabeledFamily<&'static str, Counter>,
+    #[metrics(labels = ["task"], unit = Unit::Bytes)]
+    deallocated: LabeledFamily<&'static str, Counter>,
+}
+
+impl JemallocTaskMetrics {
+    pub(super) fn observe_task_increments(
+        &self,
+        task: &'static str,
+        allocated: u64,
+        deallocated: u64,
+    ) {
+        self.allocated[&task].inc_by(allocated);
+        self.deallocated[&task].inc_by(deallocated);
+    }
+}
+
+#[vise::register]
+pub(crate) static TASK_METRICS: vise::Global<JemallocTaskMetrics> = vise::Global::new();
