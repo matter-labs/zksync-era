@@ -26,7 +26,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{BlockNumber, BlockStatus, TransactionStatus},
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
@@ -383,7 +383,7 @@ async fn seal_l1_batch(
 async fn save_eth_tx(
     storage: &mut Connection<'_, Core>,
     batch_number: L1BatchNumber,
-    tx_type: AggregatedActionType,
+    tx_type: L1BatchAggregatedActionType,
 ) -> H256 {
     let tx_hash = H256::random();
     storage
@@ -1397,8 +1397,12 @@ impl HttpTest for HttpServerBatchStatusTest {
         let tx_results = vec![mock_execute_transaction(tx1.clone().into())];
         store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
         seal_l1_batch(&mut storage, l1_batch_number).await?;
-        let commit_eth_tx_hash =
-            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Commit).await;
+        let commit_eth_tx_hash = save_eth_tx(
+            &mut storage,
+            l1_batch_number,
+            L1BatchAggregatedActionType::Commit,
+        )
+        .await;
 
         // Block is not committed yet.
         let block = client
@@ -1446,9 +1450,10 @@ impl HttpTest for HttpServerBatchStatusTest {
         let prove_eth_tx_hash = save_eth_tx(
             &mut storage,
             l1_batch_number,
-            AggregatedActionType::PublishProofOnchain,
+            L1BatchAggregatedActionType::PublishProofOnchain,
         )
         .await;
+
         storage
             .eth_sender_dal()
             .confirm_tx(
@@ -1458,8 +1463,12 @@ impl HttpTest for HttpServerBatchStatusTest {
                 0,
             )
             .await?;
-        let execute_eth_tx_hash =
-            save_eth_tx(&mut storage, l1_batch_number, AggregatedActionType::Execute).await;
+        let execute_eth_tx_hash = save_eth_tx(
+            &mut storage,
+            l1_batch_number,
+            L1BatchAggregatedActionType::Execute,
+        )
+        .await;
         let block = client
             .get_block_details(l2_block_number.0.into())
             .await?
@@ -1571,8 +1580,12 @@ async fn promote_l1_batch_to_the_state(
             if let Some(tx_hash) = details.base.commit_tx_hash {
                 return Ok(tx_hash);
             }
-            let commit_eth_tx_hash =
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Commit).await;
+            let commit_eth_tx_hash = save_eth_tx(
+                storage,
+                l1_batch_number,
+                L1BatchAggregatedActionType::Commit,
+            )
+            .await;
             storage
                 .eth_sender_dal()
                 .confirm_tx(
@@ -1591,7 +1604,7 @@ async fn promote_l1_batch_to_the_state(
             let tx_hash = save_eth_tx(
                 storage,
                 l1_batch_number,
-                AggregatedActionType::PublishProofOnchain,
+                L1BatchAggregatedActionType::PublishProofOnchain,
             )
             .await;
             storage
@@ -1604,8 +1617,12 @@ async fn promote_l1_batch_to_the_state(
             if let Some(tx_hash) = details.base.execute_tx_hash {
                 return Ok(tx_hash);
             }
-            let tx_hash =
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await;
+            let tx_hash = save_eth_tx(
+                storage,
+                l1_batch_number,
+                L1BatchAggregatedActionType::Execute,
+            )
+            .await;
             storage
                 .eth_sender_dal()
                 .confirm_tx(tx_hash, EthTxFinalityStatus::FastFinalized, U256::zero(), 0)
@@ -1616,7 +1633,12 @@ async fn promote_l1_batch_to_the_state(
             let tx_hash = if let Some(tx_hash) = tx_hash {
                 tx_hash
             } else {
-                save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await
+                save_eth_tx(
+                    storage,
+                    l1_batch_number,
+                    L1BatchAggregatedActionType::Execute,
+                )
+                .await
             };
             storage
                 .eth_sender_dal()

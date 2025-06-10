@@ -145,6 +145,16 @@
       },
       {
         "ordinal": 28,
+        "name": "rolling_txs_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 29,
+        "name": "eth_precommit_tx_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 30,
         "name": "interop_roots_assigned",
         "type_info": "Bool"
       }
@@ -183,6 +193,8 @@
       true,
       false,
       false,
+      true,
+      true,
       false
     ]
   },

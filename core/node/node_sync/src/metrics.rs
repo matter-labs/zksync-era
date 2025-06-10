@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
-use zksync_types::aggregated_operations::AggregatedActionType;
+use zksync_types::aggregated_operations::L1BatchAggregatedActionType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -22,12 +22,12 @@ pub(super) enum L1BatchStage {
     Executed,
 }
 
-impl From<AggregatedActionType> for L1BatchStage {
-    fn from(ty: AggregatedActionType) -> Self {
+impl From<L1BatchAggregatedActionType> for L1BatchStage {
+    fn from(ty: L1BatchAggregatedActionType) -> Self {
         match ty {
-            AggregatedActionType::Commit => Self::Committed,
-            AggregatedActionType::PublishProofOnchain => Self::Proven,
-            AggregatedActionType::Execute => Self::Executed,
+            L1BatchAggregatedActionType::Commit => Self::Committed,
+            L1BatchAggregatedActionType::PublishProofOnchain => Self::Proven,
+            L1BatchAggregatedActionType::Execute => Self::Executed,
         }
     }
 }

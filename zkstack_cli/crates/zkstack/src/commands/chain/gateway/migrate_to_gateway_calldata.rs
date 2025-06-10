@@ -196,7 +196,11 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     // 4. If validators are not yet present, please include.
     for validator in [params.validator_1, params.validator_2] {
         if !gw_validator_timelock
-            .validators(params.l2_chain_id.into(), validator)
+            .has_role_for_chain_id(
+                params.l2_chain_id.into(),
+                gw_validator_timelock.committer_role().call().await?,
+                validator,
+            )
             .await?
         {
             let enable_validator_calls = enable_validator_via_gateway(

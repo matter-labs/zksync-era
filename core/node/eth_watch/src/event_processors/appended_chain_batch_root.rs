@@ -5,7 +5,7 @@ use itertools::Itertools;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     api::{ChainAggProof, Log},
     ethabi, h256_to_u256,
     l2_to_l1_log::{
@@ -246,7 +246,7 @@ impl BatchRootProcessor {
             .eth_sender_dal()
             .get_last_sent_successfully_eth_tx_id_by_batch_and_op(
                 l1_batch_number,
-                AggregatedActionType::Execute,
+                L1BatchAggregatedActionType::Execute,
             )
             .await
             .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?

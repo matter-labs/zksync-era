@@ -11,7 +11,7 @@ use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_shared_metrics::tree::{update_tree_metrics, TreeUpdateStage, METRICS};
 use zksync_types::{
-    block::{L1BatchStatistics, L1BatchTreeData},
+    block::{CommonBlockStatistics, L1BatchTreeData},
     L1BatchNumber, OrStopped,
 };
 
@@ -44,7 +44,7 @@ impl TreeUpdater {
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
-    ) -> anyhow::Result<(L1BatchStatistics, TreeMetadata, Option<String>)> {
+    ) -> anyhow::Result<(CommonBlockStatistics, TreeMetadata, Option<String>)> {
         let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
         let l1_batch_stats = l1_batch.stats;
         let l1_batch_number = l1_batch_stats.number;
@@ -57,7 +57,7 @@ impl TreeUpdater {
                 witness_input.context("no witness input provided by tree; this is a bug")?;
             let save_witnesses_latency = METRICS.start_stage(TreeUpdateStage::SaveGcs);
             let object_key = object_store
-                .put(l1_batch_number, &witness_input)
+                .put(l1_batch_number.into(), &witness_input)
                 .await
                 .context("cannot save witness input to object store")?;
             save_witnesses_latency.observe();

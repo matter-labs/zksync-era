@@ -399,6 +399,7 @@ impl L2BlockSealCommand {
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
             logs_bloom,
             pubdata_params: self.pubdata_params,
+            rolling_txs_hash: Some(self.rolling_txs_hash),
         };
 
         let mut connection = strategy.connection().await?;

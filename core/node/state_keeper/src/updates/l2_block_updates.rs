@@ -11,6 +11,8 @@ use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    transaction_status_commitment::TransactionStatusCommitment,
+    web3::{keccak256, keccak256_concat},
     InteropRoot, L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 
@@ -182,6 +184,25 @@ impl L2BlockUpdates {
             max_virtual_blocks_to_create: self.virtual_blocks,
             interop_roots: self.interop_roots.clone(),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct RollingTxHashUpdates {
+    pub rolling_hash: H256,
+}
+
+impl RollingTxHashUpdates {
+    pub fn append_rolling_hash(&mut self, tx_hash: H256, is_success: bool) {
+        let status = TransactionStatusCommitment {
+            tx_hash,
+            is_success,
+        };
+
+        self.rolling_hash = keccak256_concat(
+            self.rolling_hash,
+            H256(keccak256(&status.get_packed_bytes())),
+        );
     }
 }
 

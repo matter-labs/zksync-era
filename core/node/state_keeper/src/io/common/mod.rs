@@ -95,6 +95,7 @@ pub async fn load_pending_batch(
         .first()
         .context("no pending L2 blocks; was environment loaded for a correct L1 batch number?")?;
     let expected_pending_l2_block_number = L2BlockNumber(l1_batch_env.first_l2_block.number);
+
     anyhow::ensure!(
         first_pending_l2_block.number == expected_pending_l2_block_number,
         "Invalid `L1BatchEnv` supplied: its L1 batch #{} is not pending; \

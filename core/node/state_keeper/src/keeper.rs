@@ -624,6 +624,7 @@ impl ZkSyncStateKeeper {
                     updates_manager.l2_block.number,
                     updates_manager.l1_batch.number
                 );
+
                 self.seal_l2_block(updates_manager).await?;
 
                 // Get a tentative new l2 block parameters

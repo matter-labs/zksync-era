@@ -12,8 +12,8 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, eth_sender::EthTxFinalityStatus, L2BlockNumber,
-    ProtocolVersion, H256,
+    aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTxFinalityStatus,
+    L2BlockNumber, ProtocolVersion, H256,
 };
 
 use super::*;
@@ -389,7 +389,7 @@ async fn mark_l1_batch_as_executed(storage: &mut Connection<'_, Core>, number: u
         .eth_sender_dal()
         .insert_bogus_confirmed_eth_tx(
             L1BatchNumber(number),
-            AggregatedActionType::Execute,
+            L1BatchAggregatedActionType::Execute,
             H256::from_low_u64_be(number.into()),
             chrono::Utc::now(),
             None,
