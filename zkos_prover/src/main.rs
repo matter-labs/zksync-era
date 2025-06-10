@@ -1,4 +1,3 @@
-use std::thread::sleep;
 use air_compiler_cli::{
     prover_utils::{
         create_proofs_internal, create_recursion_proofs, load_binary_from_path,
@@ -8,11 +7,12 @@ use air_compiler_cli::{
 };
 use anyhow::{anyhow, Result};
 use base64;
+use clap::Parser;
 use execution_utils::ProgramProof;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
+use std::thread::sleep;
 use std::time::SystemTime;
-use clap::Parser;
 
 /// Command-line arguments for the Zksync OS prover
 #[derive(Parser, Debug)]
@@ -27,7 +27,6 @@ struct Args {
     #[arg(long)]
     enabled_logging: bool,
 }
-
 
 // Note: copied from zkos_prover_input_generator.rs
 #[derive(Debug, Serialize, Deserialize)]
@@ -133,7 +132,6 @@ fn create_proof(
     program_proof_from_proof_list_and_metadata(&recursion_proof_list, &recursion_proof_metadata)
 }
 
-
 #[tokio::main]
 pub async fn main() {
     let args = Args::parse();
@@ -149,7 +147,10 @@ pub async fn main() {
     let binary = load_binary_from_path(&binary_path.to_string());
     let mut gpu_state = GpuSharedState::default();
     #[cfg(feature = "gpu")]
-    gpu_state.preheat_for_universal_verifier(&binary);
+    {
+        gpu_state.preheat_for_universal_verifier(&binary);
+        gpu_state.enable_multigpu();
+    }
 
     println!("Starting Zksync OS FRI prover for {}", client.base_url);
 
@@ -159,11 +160,11 @@ pub async fn main() {
                 eprintln!("Error fetching next prover job: {}", err);
                 tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                 continue;
-            },
+            }
             Ok(Some(next_block)) => next_block,
             Ok(None) => {
-              tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-              continue;
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                continue;
             }
         };
 
@@ -185,16 +186,13 @@ pub async fn main() {
             SystemTime::now(),
             block_number
         );
-        let proof_bytes: Vec<u8> = bincode::serialize(&proof)
-            .expect("failed to bincode-serialize proof");
+        let proof_bytes: Vec<u8> =
+            bincode::serialize(&proof).expect("failed to bincode-serialize proof");
 
         // 2) base64-encode that binary blob
         let proof_b64 = base64::encode(&proof_bytes);
 
-
-        match client
-            .submit_proof(block_number, proof_b64)
-            .await {
+        match client.submit_proof(block_number, proof_b64).await {
             Ok(_) => println!(
                 "{:?} successfully submitted proof for block number {}",
                 SystemTime::now(),
