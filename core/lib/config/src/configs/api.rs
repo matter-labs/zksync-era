@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Delimited, OrString, Serde, WellKnown},
+    de::{Delimited, Entries, NamedEntries, OrString, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -46,6 +46,12 @@ impl<S: Into<String>> FromIterator<(S, Option<NonZeroUsize>)> for MaxResponseSiz
                 .map(|(method_name, size)| (method_name.into(), size))
                 .collect(),
         )
+    }
+}
+
+impl ToEntries<String, Option<NonZeroUsize>> for MaxResponseSizeOverrides {
+    fn to_entries(&self) -> impl Iterator<Item = (&String, &Option<NonZeroUsize>)> {
+        self.0.iter()
     }
 }
 
@@ -115,8 +121,8 @@ impl MaxResponseSizeOverrides {
 }
 
 impl WellKnown for MaxResponseSizeOverrides {
-    type Deserializer = OrString<Serde![object]>;
-    const DE: Self::Deserializer = OrString(Serde![object]);
+    type Deserializer = OrString<NamedEntries<String, Option<NonZeroUsize>>>;
+    const DE: Self::Deserializer = OrString(Entries::WELL_KNOWN.named("method", "size_mb"));
 }
 
 /// Response size limits for JSON-RPC servers.
@@ -212,7 +218,8 @@ pub struct Web3JsonRpcConfig {
     pub max_response_body_size: ByteSize,
     /// Method-specific overrides in MiBs for the maximum response body size.
     #[config(default = MaxResponseSizeOverrides::empty)]
-    pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
+    #[config(alias = "max_response_body_size_overrides_mb")]
+    pub max_response_body_size_overrides: MaxResponseSizeOverrides,
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
     /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
@@ -267,7 +274,7 @@ impl Web3JsonRpcConfig {
         let scale = NonZeroUsize::new(super::BYTES_IN_MEGABYTE).unwrap();
         MaxResponseSize {
             global: self.max_response_body_size.0 as usize,
-            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+            overrides: self.max_response_body_size_overrides.scale(scale),
         }
     }
 }
@@ -317,7 +324,10 @@ pub struct MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test, test_complete},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -366,7 +376,7 @@ mod tests {
                 fee_history_limit: 100,
                 max_batch_request_size: 200,
                 max_response_body_size: ByteSize::new(15, SizeUnit::MiB),
-                max_response_body_size_overrides_mb: [
+                max_response_body_size_overrides: [
                     ("eth_call", NonZeroUsize::new(1)),
                     ("eth_getTransactionReceipt", None),
                     ("zks_getProof", NonZeroUsize::new(32)),
@@ -569,5 +579,26 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test_complete::<ApiConfig>(yaml).unwrap();
         assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_max_response_overrides() {
+        let yaml = r#"
+          max_response_body_size_overrides:
+           - method: eth_getTransactionReceipt
+           - method: zks_getProof
+             size_mb: 64
+          max_response_body_size_mb: 100
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = test::<Web3JsonRpcConfig>(yaml).unwrap();
+        assert_eq!(
+            config.max_response_body_size_overrides,
+            MaxResponseSizeOverrides::from_iter([
+                ("eth_getTransactionReceipt", None),
+                ("zks_getProof", NonZeroUsize::new(64)),
+            ])
+        );
     }
 }
