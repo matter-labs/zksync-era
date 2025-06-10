@@ -549,7 +549,7 @@ impl OptionalENConfig {
             max_batch_request_size: web3_json_rpc.max_batch_request_size,
             max_response_body_size_mb: web3_json_rpc.max_response_body_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides_mb,
+            max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides,
             pubsub_polling_interval_ms: web3_json_rpc.pubsub_polling_interval.as_millis() as u64,
             max_nonce_ahead: web3_json_rpc.max_nonce_ahead,
             vm_concurrency_limit: web3_json_rpc.vm_concurrency_limit,

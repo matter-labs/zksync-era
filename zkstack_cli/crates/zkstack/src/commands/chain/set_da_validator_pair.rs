@@ -17,7 +17,8 @@ use crate::{
     commands::chain::utils::get_default_foundry_path,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_DA_VALIDATOR_PAIR_UPDATED_TO,
-        MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW, MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER,
+        MSG_GATEWAY_URL_MUST_BE_PRESET, MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW,
+        MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER, MSG_USE_GATEWAY_HELP,
     },
 };
 
@@ -34,6 +35,8 @@ pub struct SetDAValidatorPairArgs {
 
     /// Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
     pub max_l1_gas_price: Option<u64>,
+    #[clap(long, help = MSG_USE_GATEWAY_HELP)]
+    pub gateway: bool,
 }
 
 pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -42,7 +45,6 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
-    let gateway_url = chain_config.get_secrets_config().await?.gateway_rpc_url();
     let chain_id = chain_config.chain_id.as_u64();
 
     let l2_da_validator_address = contracts_config
@@ -57,7 +59,12 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
 
     let spinner = Spinner::new(MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER);
 
-    if let Ok(gateway_url) = gateway_url {
+    if args.gateway {
+        let gateway_url = chain_config
+            .get_secrets_config()
+            .await?
+            .gateway_rpc_url()
+            .expect(MSG_GATEWAY_URL_MUST_BE_PRESET);
         let gw_bridgehub =
             BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, get_ethers_provider(&gateway_url)?);
         let chain_diamond_proxy_on_gateway = gw_bridgehub.get_zk_chain(chain_id.into()).await?;
