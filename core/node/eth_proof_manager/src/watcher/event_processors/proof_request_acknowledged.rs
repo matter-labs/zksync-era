@@ -11,7 +11,7 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::ObjectStore;
 use zksync_types::{ethabi, H256, U256};
 
-use crate::{types::ProvingNetwork, watcher::event_processors::Event};
+use crate::{types::ProvingNetwork, watcher::event_processors::EventHandler};
 
 pub struct ProofRequestAcknowledgedEvent {
     pub chain_id: U256,
@@ -20,8 +20,10 @@ pub struct ProofRequestAcknowledgedEvent {
     pub assigned_to: ProvingNetwork,
 }
 
+pub struct ProofRequestAcknowledgedEventHandler;
+
 #[async_trait]
-impl Event for ProofRequestAcknowledgedEvent {
+impl EventHandler for ProofRequestAcknowledgedEventHandler {
     fn signature() -> H256 {
         ethabi::long_signature(
             "ProofRequestAcknowledged",
@@ -36,7 +38,7 @@ impl Event for ProofRequestAcknowledgedEvent {
     }
 
     async fn handle_event(
-        self,
+        &self,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
     ) -> anyhow::Result<()> {
@@ -44,7 +46,7 @@ impl Event for ProofRequestAcknowledgedEvent {
             .connection()
             .await?
             .eth_proof_manager_dal()
-            .mark_proof_request_as_acknowledged(self.block_number, self.accepted)
+            .mark_proof_request_as_acknowledged(self.block_number, self.assigned_to)
             .await?;
 
         Ok(())

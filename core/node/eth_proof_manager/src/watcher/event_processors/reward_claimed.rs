@@ -1,6 +1,6 @@
 use zksync_types::{ethabi, H256, U256};
 
-use crate::{types::ProvingNetwork, watcher::event_processors::Event};
+use crate::{types::ProvingNetwork, watcher::event_processors::EventHandler};
 
 // event RewardClaimed(ProvingNetwork indexed by, uint256 amount);
 struct RewardClaimedEvent {
@@ -8,7 +8,7 @@ struct RewardClaimedEvent {
     pub amount: U256,
 }
 
-impl Event for RewardClaimedEvent {
+impl EventHandler for RewardClaimedEvent {
     fn signature() -> H256 {
         ethabi::long_signature(
             "RewardClaimed",

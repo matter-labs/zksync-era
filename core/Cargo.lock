@@ -12522,6 +12522,7 @@ name = "zksync_eth_proof_manager"
 version = "28.3.0-non-semver-compat"
 dependencies = [
  "anyhow",
+ "jsonrpsee",
  "thiserror 2.0.12",
  "tokio",
  "tracing",

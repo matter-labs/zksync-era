@@ -12,7 +12,7 @@ use zksync_object_store::ObjectStore;
 use zksync_types::H256;
 
 #[async_trait]
-pub trait Event {
+pub trait EventHandler {
     fn signature() -> H256;
     async fn handle_event(
         self,

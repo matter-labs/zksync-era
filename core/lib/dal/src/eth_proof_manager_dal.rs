@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use tracing::Instrument;
-use zksync_db_connection::{connection::Connection, error::DalResult};
+use zksync_db_connection::{connection::Connection, error::{DalError, DalResult}};
 use zksync_types::L1BatchNumber;
 
 use crate::Core;
@@ -20,7 +20,7 @@ pub enum ProofStatus {
     ValidationResultSentToL1,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ValidationStatus {
     Failed,
     Successful,
@@ -52,9 +52,11 @@ impl FromStr for ProofStatus {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "ready_to_send" => ProofStatus::ReadyToSend,
-            "sent" => ProofStatus::Sent,
-            "validated" => ProofStatus::Validated,
+            "ready_to_be_proven" => ProofStatus::ReadyToBeProven,
+            "request_sent_to_l1" => ProofStatus::RequestSentToL1,
+            "acknowledged" => ProofStatus::Acknowledged,
+            "received_proof" => ProofStatus::ReceivedProof,
+            "validation_result_sent_to_l1" => ProofStatus::ValidationResultSentToL1,
             _ => anyhow::bail!("Invalid proof status: {}", s),
         })
     }
@@ -63,10 +65,11 @@ impl FromStr for ProofStatus {
 impl From<ProofStatus> for &str {
     fn from(status: ProofStatus) -> Self {
         match status {
-            ProofStatus::ReadyToSend => "ready_to_send",
-            ProofStatus::Sent => "sent",
-            ProofStatus::Validated => "validated",
-            ProofStatus::Failed => "failed",
+            ProofStatus::ReadyToBeProven => "ready_to_be_proven",
+            ProofStatus::RequestSentToL1 => "request_sent_to_l1",
+            ProofStatus::Acknowledged => "acknowledged",
+            ProofStatus::ReceivedProof => "received_proof",
+            ProofStatus::ValidationResultSentToL1 => "validation_result_sent_to_l1",
         }
     }
 }
@@ -78,7 +81,10 @@ impl EthProofManagerDal<'_, '_> {
         proof_gen_data_blob_url: String,
     ) -> DalResult<()> {
         sqlx::query!(
-            "INSERT INTO eth_proof_manager (l1_batch_number, proof_gen_data_blob_url, status) VALUES ($1, $2, $3)",
+            r#"
+            l1_batch_number, proof_gen_data_blob_url, status
+            ) VALUES ($1, $2, $3)
+            "#,
             l1_batch_number,
             proof_gen_data_blob_url,
             ProofStatus::ReadyToSend.into()
@@ -93,7 +99,9 @@ impl EthProofManagerDal<'_, '_> {
         &mut self,
     ) -> DalResult<Option<(L1BatchNumber, String)>> {
         let row = sqlx::query!(
-            "SELECT l1_batch_number FROM eth_proof_manager WHERE status = $1",
+            r#"
+            
+            "#,
             ProofStatus::ReadyToSend.into()
         )
         .instrument("get_ready_to_be_proven_batches")
@@ -110,21 +118,26 @@ impl EthProofManagerDal<'_, '_> {
 
     pub async fn get_validated_not_sent_batch(
         &mut self,
-    ) -> DalResult<Option<(L1BatchNumber, ValidationStatus)>> {
+    ) -> anyhow::Result<Option<(L1BatchNumber, ValidationStatus)>> {
         let row = sqlx::query!(
-            "SELECT l1_batch_number FROM eth_proof_manager WHERE status = $1 AND validation_status IS NOT NULL",
+            r#"
+            FROM eth_proof_manager
+            WHERE status = $1 AND validation_status IS NOT NULL
+            "#,
             ProofStatus::ReceivedProof.into()
         )
         .instrument("get_validated_not_sent_batch")
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.map(|row| {
-            (
-                L1BatchNumber(row.l1_batch_number),
-                ValidationStatus::from_str(&row.validation_status)?,
-            )
-        }))
+        if let Some(row) = row {
+            let validation_status = ValidationStatus::from_str(&row.validation_status).map_err(|e| anyhow::anyhow!("Invalid validation status: {}", e))?;
+            if validation_status == ValidationStatus::Successful {
+                return Ok(Some((L1BatchNumber(row.l1_batch_number), validation_status)));
+            }
+        }
+
+        Ok(None)
     }
 
     pub async fn save_validation_result(
@@ -139,7 +152,9 @@ impl EthProofManagerDal<'_, '_> {
         };
 
         sqlx::query!(
-            "UPDATE eth_proof_manager SET validation_status = $1 WHERE l1_batch_number = $2",
+            r#"
+            
+            "#,
             validation_status.into(),
             l1_batch_number.0
         )
@@ -155,7 +170,9 @@ impl EthProofManagerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> DalResult<()> {
         sqlx::query!(
-            "UPDATE eth_proof_manager SET status = $1 WHERE l1_batch_number = $2",
+            r#"
+            
+            "#,
             ProofStatus::RequestSentToL1.into(),
             l1_batch_number.0
         )
@@ -169,7 +186,9 @@ impl EthProofManagerDal<'_, '_> {
         proving_network: ProvingNetwork,
     ) -> DalResult<()> {
         sqlx::query!(
-            "UPDATE eth_proof_manager SET status = $1, assigned_to = $2 WHERE l1_batch_number = $3",
+            r#"
+            WHERE l1_batch_number = $3
+            "#,
             ProofStatus::Acknowledged.into(),
             proving_network.into(),
             l1_batch_number.0
@@ -177,4 +196,5 @@ impl EthProofManagerDal<'_, '_> {
         .instrument("mark_proof_request_as_acknowledged")
         .execute(self.storage)
     }
+    
 }

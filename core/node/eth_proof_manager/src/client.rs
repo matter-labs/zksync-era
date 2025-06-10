@@ -1,17 +1,14 @@
 use zksync_eth_client::{
-    clients::DynClient, web3_decl::client::Network, CallFunctionArgs, ContractCallError,
-    EthInterface,
+    clients::DynClient, web3_decl::client::Network, CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
 };
 use zksync_eth_watch::GetLogsClient;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_types::{
-    api::Log,
-    ethabi::{Address, Contract},
-    web3::{contract::Tokenize, BlockNumber, FilterBuilder},
-    L2ChainId, H256,
+    api::Log, ethabi::{Address, Contract}, protocol_version::ProtocolSemanticVersion, web3::{contract::Tokenize, BlockNumber, FilterBuilder}, L2ChainId, H256, U256
 };
 
 use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
+use zksync_types::web3::BlockId;
 
 pub struct EthProofManagerClient<Net: Network> {
     client: Box<DynClient<Net>>,
@@ -46,13 +43,29 @@ where
     pub async fn submit_proof_request(
         &self,
         chain_id: L2ChainId,
-        batch_number: u64,
-        witness_input_data: WitnessInputData,
+        batch_number: L1BatchNumber,
+        protocol_version: ProtocolSemanticVersion,
+        proof_inputs_url: String,
     ) -> Result<(), ClientError> {
-        let params = ();
-
         // params: id: ProofRequestIdentifier,
         // params: witness_input_data: ProofRequestParams,
+
+        let id = ProofRequestIdentifier{
+            chain_id: chain_id.as_u64().into(),
+            block_number: batch_number.into(),
+        };
+
+        let proof_request_params = ProofRequestParams {
+            protocol_major: U256::zero(),
+            protocol_minor: U256::from(protocol_version.minor() as u16),
+            protocol_patch: U256::from(protocol_version.patch().0),
+            proof_inputs_url,
+            // todo: should be get from config
+            timeout_after: U256(0),
+            max_reward: U256(0),
+        };
+
+        let params = (id, proof_request_params);
 
         CallFunctionArgs::new("submitProofRequest", params.into_tokens())
             .for_contract(self.proof_manager_address, &self.proof_manager_abi)
@@ -64,13 +77,18 @@ where
     pub async fn submit_proof_validation_result(
         &self,
         chain_id: L2ChainId,
-        batch_number: u64,
-        validation_status: ValidationStatus,
+        batch_number: L1BatchNumber,
+        is_proof_valid: bool,
     ) -> Result<(), ClientError> {
-        let params = ();
-
         // id: ProofRequestIdentifier,
         // is_proof_valid: bool,
+
+        let id = ProofRequestIdentifier{
+            chain_id: chain_id.as_u64().into(),
+            block_number: batch_number.into(),
+        };
+
+        let params = (id, is_proof_valid);
 
         CallFunctionArgs::new("submitProofValidationResult", params)
             .for_contract(self.proof_manager_address, &self.proof_manager_abi)
@@ -79,7 +97,26 @@ where
             .map_err(Into::into)
     }
 
-    async fn get_events_with_retry(
+    pub async fn get_finalized_block(&self) -> Result<u64, ClientError> {
+        let block = self
+            .client
+            .block(BlockId::Number(BlockNumber::Finalized))
+            .await?
+            .ok_or_else(|| {
+                let err = jsonrpsee::core::ClientError::Custom("Finalized block must be present on L1".into());
+                let err = EnrichedClientError::new(err, "block");
+                ClientError::ProviderError(err)
+            })?;
+        let block_number = block.number.ok_or_else(|| {
+            let err = jsonrpsee::core::ClientError::Custom("Finalized block must contain number".into());
+            let err = EnrichedClientError::new(err, "block").with_arg("block", &block);
+            ClientError::ProviderError(err)
+        })?;
+
+        Ok(block_number.as_u64())
+    }
+
+    pub async fn get_events_with_retry(
         &self,
         from: BlockNumber,
         to: BlockNumber,

@@ -10,7 +10,6 @@ pub mod inputs;
 pub mod legacy;
 /// Outputs of proof generation provided by the prover subsystem.
 pub mod outputs;
-pub mod proving_network;
 
 // Marker trait for the serialization format of stored data.
 pub trait FormatMarker: private::Sealed {}
