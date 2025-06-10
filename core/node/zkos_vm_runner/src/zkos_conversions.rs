@@ -8,11 +8,7 @@ use zk_os_forward_system::run::{
     Log,
 };
 use zksync_types::{
-    address_to_h256,
-    ethabi::{encode, Address, Token},
-    h256_to_u256,
-    l2::TransactionType,
-    ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256,
+    address_to_h256, boojum_os::AccountProperties, ethabi::{encode, Address, Token}, h256_to_u256, l2::TransactionType, ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256
 };
 use zksync_types::bytecode::BytecodeHash;
 use zksync_vm_interface::VmEvent;
@@ -176,8 +172,35 @@ impl From<Transaction> for TransactionData {
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
                 }
             }
-            ExecuteTransactionCommon::ProtocolUpgrade(_) => {
-                unreachable!()
+            ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
+                // TODO: cleanup - double check gas fields, and sender, use constant for tx type
+                TransactionData {
+                    tx_type: 254,
+                    from: common_data.sender,
+                    to: execute_tx.execute.contract_address,
+                    gas_limit: common_data.gas_limit,
+                    pubdata_price_limit: common_data.gas_per_pubdata_limit,
+                    max_fee_per_gas: common_data.max_fee_per_gas,
+                    max_priority_fee_per_gas: U256::zero(),
+                    paymaster: Address::zero(),
+                    nonce: U256::from(common_data.upgrade_id as u16),
+                    value: execute_tx.execute.value,
+                    reserved: [
+                        common_data.to_mint,
+                        U256::from_big_endian(common_data.refund_recipient.as_bytes()),
+                        U256::zero(),
+                        U256::zero(),
+                    ],
+                    data: execute_tx.execute.calldata,
+                    signature: vec![],
+                    factory_deps: execute_tx.execute.factory_deps
+                        .iter()
+                        .map(|b| BytecodeHash::for_bytecode(b).value())
+                        .collect(),
+                    paymaster_input: vec![],
+                    reserved_dynamic: vec![],
+                    raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
+                }
             }
         }
     }
@@ -203,5 +226,18 @@ pub fn zkos_log_to_vm_event(log: Log, location: (L1BatchNumber, u32)) -> VmEvent
         address: b160_to_address(log.address),
         indexed_topics: log.topics.into_iter().map(bytes32_to_h256).collect(),
         value: log.data,
+    }
+}
+
+pub fn convert_boojum_account_properties(p: zk_os_basic_system::system_implementation::flat_storage_model::AccountProperties) -> AccountProperties {
+    AccountProperties {
+        versioning_data: p.versioning_data.into_u64(),
+        nonce: p.nonce,
+        observable_bytecode_hash: bytes32_to_h256(p.observable_bytecode_hash),
+        bytecode_hash: bytes32_to_h256(p.bytecode_hash),
+        nominal_token_balance: U256::from_big_endian(&p.balance.to_be_bytes::<32>()),
+        bytecode_len: p.bytecode_len,
+        artifacts_len: p.artifacts_len,
+        observable_bytecode_len: p.observable_bytecode_len,
     }
 }

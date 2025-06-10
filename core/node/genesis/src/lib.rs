@@ -2,9 +2,13 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
+use std::hash::Hash;
 use std::{collections::HashMap, fmt::Formatter};
 use std::str::FromStr;
 use anyhow::Context as _;
+use zk_ee::execution_environment_type::ExecutionEnvironmentType;
+use zk_ee::utils::Bytes32;
+use zk_os_basic_system::system_implementation::flat_storage_model::{VersioningData, ACCOUNT_PROPERTIES_STORAGE_ADDRESS, DEFAULT_CODE_VERSION_BYTE};
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
@@ -16,16 +20,17 @@ use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_multivm::zk_evm_latest::blake2::{Blake2s256, Digest};
 use zksync_system_constants::PRIORITY_EXPIRATION;
+use zksync_types::system_contracts::get_zk_os_system_smart_contracts;
+use zksync_types::{address_to_h256, StorageLogKind};
+use zksync_types::web3::keccak256;
 use zksync_types::{block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader}, bytecode::BytecodeHash, commitment::{CommitmentInput, L1BatchCommitment}, fee_model::BatchFeeInput, protocol_upgrade::decode_genesis_upgrade_event, protocol_version::{L1VerifierConfig, ProtocolSemanticVersion}, system_contracts::get_system_smart_contracts, u256_to_h256, web3::{BlockNumber, FilterBuilder}, zk_evm_types::LogQuery, AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256, ethabi};
 use zksync_types::block::L1BatchTreeData;
 use zksync_types::ethabi::Token;
 use zksync_zk_os_merkle_tree::TreeEntry;
+use zksync_zkos_vm_runner::zkos_conversions::{b160_to_address, bytes32_to_h256, convert_boojum_account_properties};
 
 use crate::utils::{
-    add_eth_token, get_deduped_log_queries, get_storage_logs,
-    insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
-    insert_factory_deps, insert_storage_logs, process_genesis_batch_in_tree,
-    save_genesis_l1_batch_metadata,
+    add_eth_token, get_deduped_log_queries, get_storage_logs, insert_account_data_preimages, insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads, insert_factory_deps, insert_storage_logs, process_genesis_batch_in_tree, save_genesis_l1_batch_metadata
 };
 
 #[cfg(test)]
@@ -120,7 +125,7 @@ impl GenesisParams {
 
     pub fn load_genesis_params(config: GenesisConfig) -> Result<GenesisParams, GenesisError> {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
-        let system_contracts = get_system_smart_contracts();
+        let system_contracts = get_zk_os_system_smart_contracts();
         Self::from_genesis_config(config, base_system_contracts, system_contracts)
     }
 
@@ -221,6 +226,55 @@ pub fn make_genesis_batch_params(
     )
 }
 
+/// Returns storage logs and factory deps for zk os contracts.
+fn get_zk_os_genesis_logs(contracts: &[DeployedContract]) -> (Vec<StorageLog>, HashMap<H256, Vec<u8>>, HashMap<Address, zksync_types::boojum_os::AccountProperties>) {
+    println!("{:#?}", contracts);
+
+    let mut logs = vec![];
+    let mut factory_deps =HashMap::new();
+    let mut account_data_preimages = HashMap::new();
+    for contract in contracts {
+        let bytecode_hash = {
+            let digest = Blake2s256::digest(&contract.bytecode);
+            let mut digest_array = [0u8; 32];
+            digest_array.copy_from_slice(&digest.as_slice());
+            Bytes32::from_array(digest_array)
+        };
+        let observable_bytecode_hash = {
+            let digest = keccak256(&contract.bytecode);
+            Bytes32::from_array(digest)
+        };
+
+        let mut versioning_data = VersioningData::empty_non_deployed();
+        versioning_data.set_as_deployed();
+        versioning_data.set_code_version(DEFAULT_CODE_VERSION_BYTE);
+        versioning_data.set_ee_version(ExecutionEnvironmentType::EVM as u8);
+            
+        // TODO: why do we have a copy of the same struct in types?
+        let properties = zk_os_basic_system::system_implementation::flat_storage_model::AccountProperties {
+            versioning_data: versioning_data,
+            // When contracts are deployed, they have a nonce of 1
+            nonce: 1,
+            observable_bytecode_hash: observable_bytecode_hash,
+            bytecode_hash: bytecode_hash,
+            bytecode_len: contract.bytecode.len() as u32,
+            artifacts_len: 0,
+            observable_bytecode_len: contract.bytecode.len() as u32,
+            balance: Default::default(),
+        };
+        let properties_hash = H256(properties.compute_hash().as_u8_array());
+        let storage_log = StorageLog {
+            kind: StorageLogKind::InitialWrite,
+            key: StorageKey::new(AccountTreeId::new(b160_to_address(ACCOUNT_PROPERTIES_STORAGE_ADDRESS)), address_to_h256(contract.account_id.address())),
+            value: properties_hash,
+        };
+        factory_deps.insert(bytes32_to_h256(bytecode_hash), contract.bytecode.clone());
+        account_data_preimages.insert(*contract.account_id.address(), convert_boojum_account_properties(properties));
+        logs.push(storage_log);
+    }
+    (logs, factory_deps, account_data_preimages)
+}
+
 pub async fn insert_genesis_batch_with_custom_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
@@ -231,25 +285,25 @@ pub async fn insert_genesis_batch_with_custom_state(
         snark_wrapper_vk_hash: genesis_params.config.snark_wrapper_vk_hash,
         fflonk_snark_wrapper_vk_hash: genesis_params.config.fflonk_snark_wrapper_vk_hash,
     };
+    println!("hi!2");
 
     // if a custom genesis state was provided, read storage logs and factory dependencies from there
-    let (storage_logs, factory_deps): (Vec<StorageLog>, HashMap<H256, Vec<u8>>) =
+    let (storage_logs, factory_deps, account_data_preimages): (Vec<StorageLog>, HashMap<H256, Vec<u8>>, HashMap<Address, zksync_types::boojum_os::AccountProperties>) =
         match custom_genesis_state {
             Some(r) => (
-                r.storage_logs
-                    .into_iter()
-                    .map(|x| StorageLog::from(&x))
-                    .collect(),
-                r.factory_deps
-                    .into_iter()
-                    .map(|f| (H256(f.bytecode_hash), f.bytecode))
-                    .collect(),
+                panic!("unsupported")
+                // r.storage_logs
+                //     .into_iter()
+                //     .map(|x| StorageLog::from(&x))
+                //     .collect(),
+                // r.factory_deps
+                //     .into_iter()
+                //     .map(|f| (H256(f.bytecode_hash), f.bytecode))
+                //     .collect(),
             ),
-            None => (
-                Default::default(), // No storage logs for zk os
-                Default::default(), // No factory deps for zk os
-            ),
+            None => get_zk_os_genesis_logs(&genesis_params.system_contracts()),
         };
+    println!("hi!");
 
     // This action disregards how leaf indeces used to be ordered before, and it reorders them by
     // sorting by <address, key>, which is required for calculating genesis parameters.
@@ -260,8 +314,11 @@ pub async fn insert_genesis_batch_with_custom_state(
         &storage_logs,
         factory_deps,
         verifier_config,
+        account_data_preimages
     )
     .await?;
+    println!("hi!3");
+
     tracing::info!("chain_schema_genesis is complete. Deduped log queries: {:?}", deduped_log_queries);
 
     let base_system_contract_hashes = BaseSystemContractsHashes {
@@ -498,6 +555,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
     storage_logs: &[StorageLog],
     factory_deps: HashMap<H256, Vec<u8>>,
     l1_verifier_config: L1VerifierConfig,
+    account_data_preimages: HashMap<Address, zksync_types::boojum_os::AccountProperties>,
 ) -> Result<Vec<LogQuery>, GenesisError> {
     let version = ProtocolVersion {
         version: protocol_version,
@@ -506,6 +564,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         base_system_contracts_hashes: base_system_contracts.hashes(),
         tx: None,
     };
+    println!("hi!4");
 
     let genesis_l1_batch_header = L1BatchHeader::new(
         L1BatchNumber(0),
@@ -513,6 +572,8 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         base_system_contracts.hashes(),
         protocol_version.minor,
     );
+    println!("hi!5");
+
     let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
     let genesis_l2_block_header = L2BlockHeader {
@@ -532,8 +593,10 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         logs_bloom: Bloom::zero(),
         pubdata_params: Default::default(),
     };
+    println!("hi!6");
 
     let mut transaction = storage.start_transaction().await?;
+    println!("hi!7");
 
     transaction
         .protocol_versions_dal()
@@ -555,22 +618,34 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .blocks_dal()
         .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await?;
+    println!("hi!8");
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
+    println!("hi!9");
 
     let mut genesis_transaction = transaction.start_transaction().await?;
 
     insert_storage_logs(&mut genesis_transaction, storage_logs).await?;
+    println!("hi!10");
+
     let dedup_log_queries = get_deduped_log_queries(storage_logs);
+    println!("hi!15");
+
     insert_deduplicated_writes_and_protective_reads(
         &mut genesis_transaction,
         dedup_log_queries.as_slice(),
     )
     .await?;
-    insert_factory_deps(&mut genesis_transaction, factory_deps).await?;
-    genesis_transaction.commit().await?;
-    add_eth_token(&mut transaction).await?;
+    println!("hi!11");
 
+    insert_factory_deps(&mut genesis_transaction, factory_deps).await?;
+
+    insert_account_data_preimages(&mut genesis_transaction, account_data_preimages).await?;
+    println!("hi!12");
+    genesis_transaction.commit().await?;
+    println!("hi!13");
+    add_eth_token(&mut transaction).await?;
+    println!("hi!14");
     transaction.commit().await?;
     Ok(dedup_log_queries)
 }
@@ -583,17 +658,8 @@ pub async fn create_genesis_l1_batch(
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
 ) -> Result<(), GenesisError> {
-    let storage_logs = get_storage_logs(system_contracts);
 
-    let factory_deps = system_contracts
-        .iter()
-        .map(|c| {
-            (
-                BytecodeHash::for_bytecode(&c.bytecode).value(),
-                c.bytecode.clone(),
-            )
-        })
-        .collect();
+    let (storage_logs, factory_deps, account_data_preimages) = get_zk_os_genesis_logs(system_contracts);
 
     create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         storage,
@@ -602,6 +668,7 @@ pub async fn create_genesis_l1_batch(
         &storage_logs,
         factory_deps,
         l1_verifier_config,
+        account_data_preimages,
     )
     .await?;
     Ok(())

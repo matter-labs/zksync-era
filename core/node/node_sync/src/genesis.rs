@@ -3,7 +3,7 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemCon
 use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal};
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_types::{
-    block::DeployedContract, system_contracts::get_system_smart_contracts, AccountTreeId, L2ChainId,
+    block::DeployedContract, system_contracts::{get_system_smart_contracts, get_zk_os_system_smart_contracts}, AccountTreeId, L2ChainId,
 };
 
 use super::client::MainNodeClient;
@@ -49,7 +49,7 @@ async fn create_genesis_params(
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
     // them and try to fetch the contract bytecode for each of them.
-    let system_contract_addresses: Vec<_> = get_system_smart_contracts()
+    let system_contract_addresses: Vec<_> = get_zk_os_system_smart_contracts()
         .into_iter()
         .map(|contract| *contract.account_id.address())
         .collect();

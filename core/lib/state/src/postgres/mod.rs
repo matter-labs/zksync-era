@@ -572,6 +572,8 @@ impl ZkOsPreimageSource for PostgresStorageForZkOs {
         let mut borrow = self.inner.borrow_mut();
         let handle = borrow.rt_handle.clone();
 
+        println!("{} - {:#?}", hash, hash);
+
         if let Some(value) = handle
             .block_on(
                 borrow

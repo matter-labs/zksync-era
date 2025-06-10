@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use zksync_basic_types::{AccountTreeId, Address, U256};
-use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
+use zksync_contracts::{read_l1_evm_contract, read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
     EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS,
@@ -247,23 +247,37 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 37] = [
 
 /// Gets default set of system contracts, based on Cargo workspace location.
 pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
-    SYSTEM_CONTRACT_LIST
-        .iter()
-        .map(|(path, name, address, contract_lang)| DeployedContract {
-            account_id: AccountTreeId::new(*address),
-            bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
-        })
-        .collect()
+    panic!("era system contracts not Unsupported")
+    // SYSTEM_CONTRACT_LIST
+    //     .iter()
+    //     .map(|(path, name, address, contract_lang)| DeployedContract {
+    //         account_id: AccountTreeId::new(*address),
+    //         bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
+    //     })
+    //     .collect()
+}
+
+pub fn get_zk_os_system_smart_contracts() -> Vec<DeployedContract> {
+    let mut system_contracts = vec![];
+
+    system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(L2_GENESIS_UPGRADE_ADDRESS),
+        bytecode: read_l1_evm_contract("L2ZKOSGenesisUpgrade")
+    });
+
+    system_contracts
 }
 
 /// Loads system contracts from a given directory.
 pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContract> {
-    let repo = SystemContractsRepo { root: path };
-    SYSTEM_CONTRACT_LIST
-        .iter()
-        .map(|(path, name, address, contract_lang)| DeployedContract {
-            account_id: AccountTreeId::new(*address),
-            bytecode: repo.read_sys_contract_bytecode(path, name, None, contract_lang.clone()),
-        })
-        .collect::<Vec<_>>()
+    panic!("era system contracts not Unsupported")
+
+    // let repo = SystemContractsRepo { root: path };
+    // SYSTEM_CONTRACT_LIST
+    //     .iter()
+    //     .map(|(path, name, address, contract_lang)| DeployedContract {
+    //         account_id: AccountTreeId::new(*address),
+    //         bytecode: repo.read_sys_contract_bytecode(path, name, None, contract_lang.clone()),
+    //     })
+    //     .collect::<Vec<_>>()
 }

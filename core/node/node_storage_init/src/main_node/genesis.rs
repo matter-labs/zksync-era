@@ -49,6 +49,18 @@ impl InitializeStorage for MainNodeGenesis {
             custom_genesis_state_reader,
         )
         .await?;
+            
+        println!("\n\n\n Including genesis upgrade tx\n\n\n");
+
+        zksync_node_genesis::save_set_chain_id_tx(
+            &mut storage,
+            &self.l1_client,
+            self.contracts.chain_contracts_config.diamond_proxy_addr,
+        )
+        .await
+        .context("Failed to save SetChainId upgrade transaction")?;
+
+        println!("\n\n\nGenesis state initialized\n\n\n");
 
         Ok(())
     }

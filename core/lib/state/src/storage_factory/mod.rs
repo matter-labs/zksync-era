@@ -407,6 +407,8 @@ impl ReadStorageTree for ArcOwnedStorage {
 
 impl PreimageSource for ArcOwnedStorage {
     fn get_preimage(&mut self, hash: Bytes32) -> Option<Vec<u8>> {
+        println!("{:#?}", hash);
+
         match self.0.as_ref() {
             CommonStorage::Rocksdb(rocksdb) => {
                 rocksdb.load_factory_dep_inner(bytes32_to_h256(hash))

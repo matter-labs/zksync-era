@@ -11,7 +11,7 @@ use zksync_types::block::L1BatchTreeData;
 use zksync_types::priority_op_onchain_data::PriorityOpOnchainData;
 use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmEvent, VmRevertReason};
 use zksync_zkos_vm_runner::zkos_conversions::{
-    b160_to_address, bytes32_to_h256, zkos_log_to_vm_event,
+    b160_to_address, bytes32_to_h256, convert_boojum_account_properties, zkos_log_to_vm_event
 };
 
 use crate::io::IoCursor;
@@ -204,17 +204,4 @@ pub struct BlockSealCommand {
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
-}
-
-fn convert_boojum_account_properties(p: BoojumAccountProperties) -> AccountProperties {
-    AccountProperties {
-        versioning_data: p.versioning_data.into_u64(),
-        nonce: p.nonce,
-        observable_bytecode_hash: bytes32_to_h256(p.observable_bytecode_hash),
-        bytecode_hash: bytes32_to_h256(p.bytecode_hash),
-        nominal_token_balance: U256::from_big_endian(&p.balance.to_be_bytes::<32>()),
-        bytecode_len: p.bytecode_len,
-        artifacts_len: p.artifacts_len,
-        observable_bytecode_len: p.observable_bytecode_len,
-    }
 }

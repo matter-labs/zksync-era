@@ -9,14 +9,7 @@ use zksync_multivm::{
 };
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
-    block::{DeployedContract, L1BatchTreeData},
-    bytecode::BytecodeHash,
-    commitment::L1BatchCommitment,
-    get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
-    tokens::{TokenInfo, TokenMetadata},
-    u256_to_h256,
-    zk_evm_types::{LogQuery, Timestamp},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
+    block::{DeployedContract, L1BatchTreeData}, boojum_os::AccountProperties, bytecode::BytecodeHash, commitment::L1BatchCommitment, get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256, tokens::{TokenInfo, TokenMetadata}, u256_to_h256, zk_evm_types::{LogQuery, Timestamp}, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256
 };
 use zksync_zk_os_merkle_tree::{BatchOutput, MerkleTree, PatchSet, TreeEntry};
 
@@ -100,6 +93,8 @@ pub fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQuery> {
         })
         .collect();
 
+    println!("{:?}", log_queries);
+
     let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(log_queries)
         .1
         .into_iter()
@@ -117,6 +112,8 @@ pub fn get_deduped_log_queries(storage_logs: &[StorageLog]) -> Vec<LogQuery> {
             is_service: log_query.is_service,
         })
         .collect();
+
+    println!("{:?}", deduped_log_queries);
 
     deduped_log_queries
 }
@@ -188,10 +185,12 @@ pub(super) async fn insert_deduplicated_writes_and_protective_reads(
     transaction: &mut Connection<'_, Core>,
     deduped_log_queries: &[LogQuery],
 ) -> Result<(), GenesisError> {
+    println!("hi!16");
     let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
         .iter()
         .partition(|log_query| log_query.rw_flag);
 
+    println!("hi!17");
     transaction
         .storage_logs_dedup_dal()
         .insert_protective_reads(
@@ -202,12 +201,13 @@ pub(super) async fn insert_deduplicated_writes_and_protective_reads(
                 .collect::<Vec<_>>(),
         )
         .await?;
-
+    println!("hi18");
     // Guard leaves must be inserted. Note, that they will only be present in `initial_writes` but not in `storage_logs` table.
     let mut written_storage_keys = vec![H256::zero(), H256::repeat_byte(0xff)];
     written_storage_keys.extend(deduplicated_writes.iter().map(|log| {
         StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)).hashed_key()
     }));
+    println!("hi!19");
     transaction
         .storage_logs_dedup_dal()
         .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
@@ -224,6 +224,15 @@ pub(super) async fn insert_factory_deps(
         .factory_deps_dal()
         .insert_factory_deps(L2BlockNumber(0), &factory_deps)
         .await?;
+    Ok(())
+}
+
+pub(super) async fn insert_account_data_preimages(
+    transaction: &mut Connection<'_, Core>,
+    account_data_preimages: HashMap<Address, AccountProperties>,
+) -> Result<(), GenesisError> {
+    let properties = account_data_preimages.into_iter().collect::<Vec<_>>();
+    transaction.account_properies_dal().insert_account_properties(L2BlockNumber(0), properties.as_slice()).await?;
     Ok(())
 }
 

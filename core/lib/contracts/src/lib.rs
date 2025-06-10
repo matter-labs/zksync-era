@@ -253,6 +253,12 @@ pub fn read_l1_zk_contract(name: &str) -> Vec<u8> {
     ))
 }
 
+pub fn read_l1_evm_contract(name: &str) -> Vec<u8> {
+  read_deployed_bytecode_from_path(&Path::new(&format!(
+      "contracts/l1-contracts/out/{name}.sol/{name}.json"
+  ))).expect("Failed to open file")
+}
+
 pub fn load_l1_zk_contract(name: &str) -> Contract {
     load_contract(format!(
         "contracts/l1-contracts/zkout/{name}.sol/{name}.json"

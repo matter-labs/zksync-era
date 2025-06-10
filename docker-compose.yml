@@ -46,7 +46,6 @@ services:
       - SCCACHE_ERROR_LOG=/tmp/sccache_log.txt
       - SCCACHE_GCS_RW_MODE=READ_WRITE
       - CI=1
-      - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
     env_file:
       - ./.env
     extra_hosts:
