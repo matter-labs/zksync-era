@@ -14,6 +14,7 @@ members = [
   "bin/genesis_generator",
   "bin/zksync_tee_prover",
   # Node services
+  "node/jemalloc",
   "node/proof_data_handler",
   "node/block_reverter",
   "node/commitment_generator",
@@ -71,6 +72,7 @@ members = [
   "lib/utils",
   "lib/vlog",
   "lib/multivm",
+  "lib/instrument",
   "lib/vm_interface",
   "lib/vm_executor",
   "lib/web3_decl",
@@ -193,6 +195,7 @@ test-log = "0.2.15"
 thiserror = "2.0.12"
 thread_local = "1.1"
 tikv-jemallocator = "0.5"
+tikv-jemalloc-ctl = "0.5"
 tiny-keccak = "2"
 tokio = "1"
 tower = "0.4.13"
@@ -291,6 +294,7 @@ zksync_eth_client = { version = "28.5.0-non-semver-compat", path = "lib/eth_clie
 zksync_da_client = { version = "28.5.0-non-semver-compat", path = "lib/da_client" }
 zksync_eth_signer = { version = "28.5.0-non-semver-compat", path = "lib/eth_signer" }
 zksync_health_check = { version = "28.5.0-non-semver-compat", path = "lib/health_check" }
+zksync_instrument = { version = "28.5.0-non-semver-compat", path = "lib/instrument" }
 zksync_l1_contract_interface = { version = "28.5.0-non-semver-compat", path = "lib/l1_contract_interface" }
 zksync_mempool = { version = "28.5.0-non-semver-compat", path = "lib/mempool" }
 zksync_merkle_tree = { version = "28.5.0-non-semver-compat", path = "lib/merkle_tree" }
@@ -317,6 +321,7 @@ zk_os_merkle_tree = { version = "28.5.0-non-semver-compat", path = "lib/zk_os_me
 zksync_node_framework = { version = "28.5.0-non-semver-compat", path = "lib/node_framework" }
 zksync_node_framework_derive = { version = "28.5.0-non-semver-compat", path = "lib/node_framework_derive" }
 zksync_shared_resources = { version = "28.5.0-non-semver-compat", path = "lib/shared_resources" }
+zksync_node_jemalloc = { version = "28.5.0-non-semver-compat", path = "node/jemalloc" }
 zksync_eth_watch = { version = "28.5.0-non-semver-compat", path = "node/eth_watch" }
 zksync_shared_metrics = { version = "28.5.0-non-semver-compat", path = "node/shared_metrics" }
 zksync_proof_data_handler = { version = "28.5.0-non-semver-compat", path = "node/proof_data_handler" }
