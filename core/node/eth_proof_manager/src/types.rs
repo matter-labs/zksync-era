@@ -1,5 +1,5 @@
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
-use zksync_types::{H256, U256};
+use zksync_types::{ethabi::Token, web3::contract::Tokenize, H256, U256};
 
 pub enum ProvingNetwork {
     None = 0,
@@ -41,6 +41,25 @@ pub struct ProofRequestParams {
 pub struct ProofRequestIdentifier {
     pub chain_id: U256,
     pub block_number: U256,
+}
+
+impl Tokenize for &ProofRequestIdentifier<'_> {
+    fn into_tokens(self) -> Vec<Token> {
+        vec![Token::Uint(self.chain_id), Token::Uint(self.block_number)]
+    }
+}
+
+impl Tokenize for &ProofRequestParams<'_> {
+    fn into_tokens(self) -> Vec<Token> {
+        vec![
+            Token::Uint(self.protocol_major),
+            Token::Uint(self.protocol_minor),
+            Token::Uint(self.protocol_patch),
+            Token::String(self.proof_inputs_url),
+            Token::Uint(self.timeout_after),
+            Token::Uint(self.max_reward),
+        ]
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

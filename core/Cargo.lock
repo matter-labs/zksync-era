@@ -12546,6 +12546,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_eth_watch",
+ "zksync_node_fee_model",
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_prover_interface",

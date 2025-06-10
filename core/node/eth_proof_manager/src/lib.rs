@@ -14,6 +14,7 @@ use crate::{
 };
 
 mod client;
+mod metrics;
 pub mod readiness_checker;
 pub mod sender;
 mod types;
