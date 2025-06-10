@@ -4,6 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use zksync_config::ObjectStoreConfig;
 use zksync_da_client::{
@@ -57,6 +58,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
     async fn ensure_finality(
         &self,
         dispatch_request_id: String,
+        _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
         Ok(Some(FinalityResponse {
             blob_id: dispatch_request_id,

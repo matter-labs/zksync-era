@@ -18,6 +18,10 @@ mod node_builder;
 #[cfg(test)]
 mod tests;
 
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     /// Generates consensus secret keys to use in the secrets file.
@@ -165,7 +169,7 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             Command::Config(config_args) => {
-                return config_args.run(repo);
+                return config_args.run(repo.into());
             }
             Command::Revert { l1_batch } => {
                 // We need to delay revert to after the config is fully read.

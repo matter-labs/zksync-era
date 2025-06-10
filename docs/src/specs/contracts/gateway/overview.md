@@ -13,7 +13,7 @@ In this release, Gateway is basically a fork of Era, that will be deployed withi
 
 - [Chain migration](chain_migration.md)
 - [L1->L2 messaging via gateway](messaging_via_gateway.md)
-- [L2->L1 messaging via gateway](nested_l3_l1_messaging.md)
+- [L2->L1 messaging via gateway](l2_gw_l1_messaging.md)
 - [Gateway protocol versioning](gateway_protocol_upgrades.md)
 - [DA handling on Gateway](gateway_da.md)
 

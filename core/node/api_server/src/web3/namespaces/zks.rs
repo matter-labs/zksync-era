@@ -129,8 +129,7 @@ impl ZksNamespace {
             self.state.api_config.estimate_gas_acceptable_overestimation;
         let search_kind = BinarySearchKind::new(self.state.api_config.estimate_gas_optimize_search);
 
-        Ok(self
-            .state
+        self.state
             .tx_sender
             .get_txs_fee_in_wei(
                 tx,
@@ -140,7 +139,8 @@ impl ZksNamespace {
                 state_override,
                 search_kind,
             )
-            .await?)
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))
     }
 
     pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {

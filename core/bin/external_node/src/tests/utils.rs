@@ -200,6 +200,11 @@ pub(super) fn mock_eth_client(
                 .short_signature();
             let message_root_sig = contract.function("messageRoot").unwrap().short_signature();
 
+            let whitelisted_settlement_layer_sig = contract
+                .function("whitelistedSettlementLayers")
+                .unwrap()
+                .short_signature();
+
             match call_signature {
                 sig if sig == get_zk_chains => {
                     return ethabi::Token::Address(diamond_proxy_addr);
@@ -209,6 +214,9 @@ pub(super) fn mock_eth_client(
                 }
                 sig if sig == message_root_sig => {
                     return ethabi::Token::Address(message_root_proxy_addr);
+                }
+                sig if sig == whitelisted_settlement_layer_sig => {
+                    return ethabi::Token::Bool(false);
                 }
                 _ => {}
             }
