@@ -31,7 +31,7 @@ zk_os_basic_system.workspace = true
 air-compiler-cli.workspace = true
 execution_utils.workspace = true
 verifier_common.workspace = true
-full_statement_verifier.workspace = true
+full_statement_verifier = { workspace = true, optional = true } 
 
 anyhow.workspace = true
 ruint.workspace = true
@@ -49,3 +49,7 @@ base64 = "0.21.7"
 
 axum.workspace = true
 bincode = "1.3.3"
+
+[features]
+
+include_verifiers = ["full_statement_verifier"]
