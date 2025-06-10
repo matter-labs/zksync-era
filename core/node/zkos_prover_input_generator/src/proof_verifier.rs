@@ -11,7 +11,7 @@ use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
 use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
 use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
 
-#[not(cfg(feature = "include_verifiers"))]
+#[cfg(not(feature = "include_verifiers"))]
 pub fn verify_fri_proof(
     previous_batch: L1BatchWithMetadata,
     current_batch: L1BatchWithMetadata,
