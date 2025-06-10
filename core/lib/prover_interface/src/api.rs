@@ -69,9 +69,13 @@ impl StoredObject for ProofGenerationData {
     type Key<'a> = L1BatchId;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("proof_generation_data_{}_{}.cbor", key.batch_number().0, key.chain_id().as_u64())
+        format!(
+            "proof_generation_data_{}_{}.cbor",
+            key.batch_number().0,
+            key.chain_id().as_u64()
+        )
     }
-    
+
     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
         let mut buf = Vec::new();
         ciborium::into_writer(self, &mut buf).map_err(|e| {
@@ -79,7 +83,7 @@ impl StoredObject for ProofGenerationData {
         })?;
         Ok(buf)
     }
-    
+
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
         ciborium::from_reader(&bytes[..]).map_err(|e| {
             BoxedError::from(format!("Failed to deserialize ProofGenerationData: {e}"))

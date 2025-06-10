@@ -135,7 +135,8 @@ where
             .from_block(from)
             .to_block(to)
             .topics(topics1.clone(), topics2.clone(), None, None)
-            .address(vec![self.proof_manager_address]).build();
+            .address(vec![self.proof_manager_address])
+            .build();
 
         let mut result: Result<Vec<Log>, ClientError> =
             self.client.get_logs(filter).await.map_err(Into::into);

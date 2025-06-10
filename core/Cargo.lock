@@ -12534,7 +12534,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_proof_manager"
-version = "28.3.0-non-semver-compat"
+version = "28.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "jsonrpsee",

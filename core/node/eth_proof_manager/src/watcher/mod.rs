@@ -21,7 +21,12 @@ pub struct EthProofWatcher {
 }
 
 impl EthProofWatcher {
-    pub fn new(client: EthProofManagerClient<L1>, connection_pool: ConnectionPool<Core>, blob_store: Arc<dyn ObjectStore>, poll_interval: Duration) -> Self {
+    pub fn new(
+        client: EthProofManagerClient<L1>,
+        connection_pool: ConnectionPool<Core>,
+        blob_store: Arc<dyn ObjectStore>,
+        poll_interval: Duration,
+    ) -> Self {
         Self {
             client,
             connection_pool,
@@ -59,7 +64,9 @@ impl EthProofWatcher {
                     .await?;
 
                 for event in events {
-                    event_processor.handle_event(event, self.connection_pool.clone(), self.blob_store.clone()).await?;
+                    event_processor
+                        .handle_event(event, self.connection_pool.clone(), self.blob_store.clone())
+                        .await?;
                 }
             }
 
