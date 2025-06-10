@@ -8998,8 +8998,8 @@ dependencies = [
 
 [[package]]
 name = "smart-config"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+version = "0.1.0-pre"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=992f72e6540a116bf91bdc03151bf0067834dff0#992f72e6540a116bf91bdc03151bf0067834dff0"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -9014,8 +9014,8 @@ dependencies = [
 
 [[package]]
 name = "smart-config-commands"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+version = "0.1.0-pre"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=992f72e6540a116bf91bdc03151bf0067834dff0#992f72e6540a116bf91bdc03151bf0067834dff0"
 dependencies = [
  "anstream",
  "anstyle",
@@ -9026,8 +9026,8 @@ dependencies = [
 
 [[package]]
 name = "smart-config-derive"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+version = "0.1.0-pre"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=992f72e6540a116bf91bdc03151bf0067834dff0#992f72e6540a116bf91bdc03151bf0067834dff0"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
