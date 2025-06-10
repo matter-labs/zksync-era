@@ -3,7 +3,7 @@ use smart_config::{
     de::{FromSecretString, Optional, Serde, WellKnown},
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{secrets::PrivateKey, url::SensitiveUrl, Address};
+use zksync_basic_types::{secrets::PrivateKey, url::SensitiveUrl};
 
 /// Describes the different ways a polynomial may be represented
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default, Serialize)]
@@ -47,13 +47,17 @@ pub struct EigenConfig {
     /// Authenticated dispersal
     #[config(default_t = true)]
     pub authenticated: bool,
-    /// Address of the EigenDA cert verifier
-    pub cert_verifier_addr: Address,
+    /// Address of the EigenDA cert verifier router
+    pub cert_verifier_router_addr: String,
     /// Blob version
     pub blob_version: u16,
     /// Polynomial form to disperse the blobs
     #[serde(default)]
     pub polynomial_form: PolynomialForm,
+    /// Address of the operator state retriever
+    pub operator_state_retriever_addr: String,
+    /// Address of the registry coordinator
+    pub registry_coordinator_addr: String,
 }
 
 /// Configuration for the EigenDA secrets.

@@ -18,7 +18,6 @@ use zksync_config::{
 use zksync_types::{
     secrets::{APIKey, PrivateKey, SeedPhrase},
     url::SensitiveUrl,
-    Address,
 };
 
 fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
@@ -64,10 +63,18 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 Err(_) => None,
             },
             authenticated: env::var(format!("{}AUTHENTICATED", prefix))?.parse()?,
-            cert_verifier_addr: Address::from_str(&env::var(format!(
-                "{}EIGENDA_CERT_VERIFIER_ADDRESS",
+            cert_verifier_router_addr: env::var(format!(
+                "{}EIGENDA_CERT_VERIFIER_ROUTER_ADDR",
                 prefix
-            ))?)?,
+            ))?,
+            operator_state_retriever_addr: env::var(format!(
+                "{}EIGENDA_OPERATOR_STATE_RETRIEVER_ADDR",
+                prefix
+            ))?,
+            registry_coordinator_addr: env::var(format!(
+                "{}EIGENDA_REGISTRY_COORDINATOR_ADDR",
+                prefix
+            ))?,
             blob_version: env::var(format!("{}BLOB_VERSION", prefix))?
                 .parse()
                 .context("EigenDA blob version not found")?,
