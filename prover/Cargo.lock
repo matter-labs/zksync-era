@@ -2112,15 +2112,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "envy"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f47e0157f2cb54f5ae1bd371b30a2ae4311e1c028f575cd4e81de7353215965"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6475,7 +6466,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -6491,7 +6482,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -8918,7 +8909,6 @@ name = "zksync_config"
 version = "28.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "rand 0.8.5",
  "secrecy",
  "serde",
  "serde_json",
@@ -8928,7 +8918,6 @@ dependencies = [
  "vise",
  "zksync_basic_types",
  "zksync_concurrency",
- "zksync_consensus_utils",
  "zksync_crypto_primitives",
  "zksync_vlog",
 ]
@@ -9012,7 +9001,6 @@ dependencies = [
 name = "zksync_contracts"
 version = "28.5.0-non-semver-compat"
 dependencies = [
- "envy",
  "hex",
  "once_cell",
  "serde",

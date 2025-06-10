@@ -8999,7 +8999,7 @@ dependencies = [
 [[package]]
 name = "smart-config"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "anyhow",
  "compile-fmt",
@@ -9015,7 +9015,7 @@ dependencies = [
 [[package]]
 name = "smart-config-commands"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "anstream",
  "anstyle",
@@ -9027,7 +9027,7 @@ dependencies = [
 [[package]]
 name = "smart-config-derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/smart-config.git?rev=6bc86aa7833ce08276861951ba72b4426a37a893#6bc86aa7833ce08276861951ba72b4426a37a893"
+source = "git+https://github.com/matter-labs/smart-config.git?rev=62b3954b1bc8451799abc1f00f3588e908c6fbb2#62b3954b1bc8451799abc1f00f3588e908c6fbb2"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -12038,7 +12038,6 @@ version = "28.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
- "rand 0.8.5",
  "secrecy 0.10.3",
  "serde",
  "serde_json",
@@ -12049,7 +12048,6 @@ dependencies = [
  "vise",
  "zksync_basic_types",
  "zksync_concurrency",
- "zksync_consensus_utils",
  "zksync_crypto_primitives",
  "zksync_vlog",
 ]
@@ -12317,7 +12315,6 @@ name = "zksync_contracts"
 version = "28.5.0-non-semver-compat"
 dependencies = [
  "bincode",
- "envy",
  "hex",
  "once_cell",
  "serde",
@@ -12601,10 +12598,8 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "clap 4.5.37",
- "envy",
  "futures 0.3.31",
  "serde",
- "serde_json",
  "serde_yaml",
  "smart-config",
  "smart-config-commands",
@@ -12617,7 +12612,6 @@ dependencies = [
  "vise",
  "zksync_block_reverter",
  "zksync_commitment_generator",
- "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
@@ -12626,10 +12620,8 @@ dependencies = [
  "zksync_da_clients",
  "zksync_dal",
  "zksync_eth_client",
- "zksync_eth_sender",
  "zksync_gateway_migrator",
  "zksync_health_check",
- "zksync_l1_contract_interface",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_node_api_server",
@@ -12645,7 +12637,6 @@ dependencies = [
  "zksync_snapshots_applier",
  "zksync_state",
  "zksync_state_keeper",
- "zksync_storage",
  "zksync_types",
  "zksync_vlog",
  "zksync_web3_decl",

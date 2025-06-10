@@ -63,7 +63,7 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     let start_time = Instant::now();
     let opt = Cli::parse();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,

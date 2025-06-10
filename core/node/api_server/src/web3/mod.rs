@@ -3,13 +3,12 @@ use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, tim
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
 use futures::future;
-use serde::Deserialize;
 use tokio::{
     sync::{mpsc, oneshot, watch, Mutex},
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
+use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides, Namespace};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_resources::{
@@ -93,32 +92,6 @@ enum ApiTransport {
     Http(SocketAddr),
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, strum::EnumString)]
-#[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "lowercase")]
-pub enum Namespace {
-    Eth,
-    Net,
-    Web3,
-    Debug,
-    Zks,
-    En,
-    Pubsub,
-    Snapshots,
-    Unstable,
-}
-
-impl Namespace {
-    pub const DEFAULT: &'static [Self] = &[
-        Self::Eth,
-        Self::Net,
-        Self::Web3,
-        Self::Zks,
-        Self::En,
-        Self::Pubsub,
-    ];
-}
-
 /// Handles to the initialized API server.
 #[derive(Debug)]
 pub struct ApiServerHandles {
@@ -157,7 +130,7 @@ pub struct ApiServer {
     tx_sender: TxSender,
     polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
-    namespaces: Vec<Namespace>,
+    namespaces: HashSet<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
     bridge_addresses_handle: BridgeAddressesHandle,
@@ -177,7 +150,7 @@ pub struct ApiBuilder {
     sealed_l2_block_handle: Option<SealedL2BlockNumber>,
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
-    namespaces: Option<Vec<Namespace>>,
+    namespaces: Option<HashSet<Namespace>>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
@@ -271,7 +244,7 @@ impl ApiBuilder {
         self
     }
 
-    pub fn enable_api_namespaces(mut self, namespaces: Vec<Namespace>) -> Self {
+    pub fn enable_api_namespaces(mut self, namespaces: HashSet<Namespace>) -> Self {
         self.namespaces = Some(namespaces);
         self
     }
@@ -349,10 +322,8 @@ impl ApiBuilder {
             polling_interval: self.polling_interval,
             pruning_info_refresh_interval: self.pruning_info_refresh_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
-                tracing::warn!(
-                    "debug_ and snapshots_ API namespace will be disabled by default in ApiBuilder"
-                );
-                Namespace::DEFAULT.to_vec()
+                tracing::warn!("debug_ and snapshots_ API namespace will be disabled by default");
+                Namespace::DEFAULT.into()
             }),
             method_tracer: self.method_tracer,
             optional: self.optional,

@@ -53,7 +53,11 @@ impl ConfigFilePaths {
     }
 
     /// **Important.** This method is blocking.
-    pub fn into_config_sources(self, env_prefix: &str) -> anyhow::Result<ConfigSources> {
+    pub fn into_config_sources<'a>(
+        self,
+        env_prefix: impl Into<Option<&'a str>>,
+    ) -> anyhow::Result<ConfigSources> {
+        let env_prefix = env_prefix.into();
         let mut sources = smart_config::ConfigSources::default();
 
         if let Some(path) = &self.general {
@@ -74,13 +78,20 @@ impl ConfigFilePaths {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "wallets"));
         }
         if let Some(path) = &self.external_node {
-            sources.push(Prefixed::new(Self::read_yaml(path)?, "external_node"));
+            sources.push(Prefixed::new(Self::read_yaml(path)?, "networks"));
         }
         if let Some(path) = &self.consensus {
             sources.push(Prefixed::new(Self::read_yaml(path)?, "consensus"));
         }
 
-        sources.push(Environment::prefixed(env_prefix));
+        if let Some(env_prefix) = env_prefix {
+            let mut environment = Environment::prefixed(env_prefix);
+            if let Err(err) = environment.coerce_json() {
+                // We don't consider coercion errors fatal, but they obviously signify something wrong with the setup.
+                tracing::error!("{err}");
+            }
+            sources.push(environment);
+        }
         Ok(ConfigSources(sources))
     }
 }

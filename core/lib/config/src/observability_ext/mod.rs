@@ -8,7 +8,7 @@ use smart_config::{
     metadata::ConfigMetadata,
     value,
     visit::{ConfigVisitor, VisitConfig},
-    ConfigSchema, DescribeConfig, DeserializeConfig, ParseErrors,
+    ConfigSchema, ConfigSource, DescribeConfig, DeserializeConfig, ParseErrors,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -29,6 +29,11 @@ impl ConfigSources {
         // - `unwrap()` is safe: `Self` is the only top-level config, so an error would require for it to have a recursive definition.
         // - While logging is not enabled at this point, we use `log_all_errors()` for more intelligent error summarization.
         repo.single().unwrap().parse().map_err(log_all_errors)
+    }
+
+    /// Pushes a config source.
+    pub fn push(&mut self, source: impl ConfigSource) {
+        self.0.push(source);
     }
 
     /// Builds the repository with the specified config schema. Deserialization options are tuned to be backward-compatible
@@ -78,11 +83,11 @@ impl TryFrom<ObservabilityConfig> for Option<zksync_vlog::Sentry> {
     type Error = anyhow::Error;
 
     fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
-        let Some(sentry_config) = config.sentry else {
+        let Some(url) = &config.sentry.url else {
             return Ok(None);
         };
-        let sentry = zksync_vlog::Sentry::new(&sentry_config.url)?;
-        Ok(Some(sentry.with_environment(sentry_config.environment)))
+        let sentry = zksync_vlog::Sentry::new(url)?;
+        Ok(Some(sentry.with_environment(config.sentry.environment)))
     }
 }
 
@@ -110,7 +115,7 @@ impl PrometheusConfig {
             let gateway_endpoint = PrometheusExporterConfig::gateway_endpoint(base_url);
             Some(PrometheusExporterConfig::push(
                 gateway_endpoint,
-                self.push_interval(),
+                self.push_interval,
             ))
         } else {
             self.to_pull_config()

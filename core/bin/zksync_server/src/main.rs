@@ -84,7 +84,7 @@ impl FromStr for ComponentsToRun {
 
 fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
 
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
@@ -107,7 +107,7 @@ fn main() -> anyhow::Result<()> {
     if let Some(command) = opt.cmd {
         match command {
             CliCommand::Config(config_args) => {
-                config_args.run(repo.into())?;
+                config_args.run(repo.into(), "ZKSYNC_")?;
             }
         }
         return Ok(());

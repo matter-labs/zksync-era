@@ -41,7 +41,7 @@ pub(crate) struct CliOpts {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = CliOpts::parse();
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
