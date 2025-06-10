@@ -12532,6 +12532,7 @@ dependencies = [
  "zksync_eth_client",
  "zksync_eth_watch",
  "zksync_object_store",
+ "zksync_proof_data_handler",
  "zksync_prover_interface",
  "zksync_types",
 ]

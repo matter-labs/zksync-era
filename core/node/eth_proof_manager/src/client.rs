@@ -129,17 +129,14 @@ where
         to: BlockNumber,
         topics1: Option<Vec<H256>>,
         topics2: Option<Vec<H256>>,
-        addresses: Option<Vec<Address>>,
         retries_left: usize,
     ) -> Result<Vec<Log>, ClientError> {
-        let mut builder = FilterBuilder::default()
+        let filter = FilterBuilder::default()
             .from_block(from)
             .to_block(to)
-            .topics(topics1.clone(), topics2.clone(), None, None);
-        if let Some(addresses) = addresses.clone() {
-            builder = builder.address(addresses);
-        }
-        let filter = builder.build();
+            .topics(topics1.clone(), topics2.clone(), None, None)
+            .address(vec![self.proof_manager_address]).build();
+
         let mut result: Result<Vec<Log>, ClientError> =
             self.client.get_logs(filter).await.map_err(Into::into);
 
@@ -204,7 +201,6 @@ where
                         BlockNumber::Number(mid),
                         topics1.clone(),
                         topics2.clone(),
-                        addresses.clone(),
                         RETRY_LIMIT,
                     )
                     .await?;
@@ -214,7 +210,6 @@ where
                         to,
                         topics1,
                         topics2,
-                        addresses,
                         RETRY_LIMIT,
                     )
                     .await?;
@@ -224,7 +219,7 @@ where
             } else if should_retry(err_code, err_message) && retries_left > 0 {
                 tracing::warn!("Retrying. Retries left: {retries_left}");
                 result = self
-                    .get_events_with_retry(from, to, topics1, topics2, addresses, retries_left - 1)
+                    .get_events_with_retry(from, to, topics1, topics2, retries_left - 1)
                     .await;
             }
         }

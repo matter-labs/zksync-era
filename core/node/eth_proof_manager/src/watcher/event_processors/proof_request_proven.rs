@@ -22,6 +22,8 @@ pub struct ProofRequestProvenEventHandler;
 
 #[async_trait]
 impl EventHandler for ProofRequestProvenEventHandler {
+    type Event = ProofRequestProvenEvent;
+
     fn signature() -> H256 {
         ethabi::long_signature(
             "ProofRequestProven",
@@ -36,14 +38,14 @@ impl EventHandler for ProofRequestProvenEventHandler {
     }
 
     async fn handle_event(
-        &self,
+        event: ProofRequestProvenEvent,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
     ) -> anyhow::Result<()> {
-        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(self.proof)?;
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(event.proof)?;
 
         // todo: verify proof
-        let key = L1BatchProofForL1Key::Core((self.block_number, proof.protocol_version()));
+        let key = L1BatchProofForL1Key::Core((event.block_number, proof.protocol_version()));
         let blob_url = blob_store.put(key, &proof).await?;
 
         let transaction = connection_pool
@@ -54,11 +56,11 @@ impl EventHandler for ProofRequestProvenEventHandler {
 
         transaction
             .eth_proof_manager_dal()
-            .save_validation_result(self.block_number, true)
+            .save_validation_result(event.block_number, true)
             .await?;
         transaction
             .proof_generation_dal()
-            .save_proof_artifacts_metadata(self.block_number, &blob_url)
+            .save_proof_artifacts_metadata(event.block_number, &blob_url)
             .await?;
 
         transaction.commit().await?;

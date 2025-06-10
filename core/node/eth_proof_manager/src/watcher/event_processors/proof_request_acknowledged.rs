@@ -24,6 +24,7 @@ pub struct ProofRequestAcknowledgedEventHandler;
 
 #[async_trait]
 impl EventHandler for ProofRequestAcknowledgedEventHandler {
+    type Event = ProofRequestAcknowledgedEvent;
     fn signature() -> H256 {
         ethabi::long_signature(
             "ProofRequestAcknowledged",
@@ -38,7 +39,7 @@ impl EventHandler for ProofRequestAcknowledgedEventHandler {
     }
 
     async fn handle_event(
-        &self,
+        event: ProofRequestAcknowledgedEvent,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
     ) -> anyhow::Result<()> {

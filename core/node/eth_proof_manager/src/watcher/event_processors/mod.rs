@@ -13,9 +13,11 @@ use zksync_types::H256;
 
 #[async_trait]
 pub trait EventHandler {
+    type Event;
+
     fn signature() -> H256;
     async fn handle_event(
-        self,
+        event: Self::Event,
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
     ) -> anyhow::Result<()>;

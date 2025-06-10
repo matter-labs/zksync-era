@@ -24,3 +24,4 @@ tracing.workspace = true
 zksync_object_store.workspace = true
 zksync_prover_interface.workspace = true
 jsonrpsee.workspace = true
+zksync_proof_data_handler.workspace = true

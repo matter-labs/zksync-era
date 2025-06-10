@@ -2,6 +2,7 @@
 //! This module defines the types used in the API.
 
 use serde::{Deserialize, Serialize};
+use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     L1BatchId, L1BatchNumber, L2ChainId,
@@ -61,3 +62,27 @@ pub struct PollGeneratedProofsResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyProofRequest(pub Box<JsonL1BatchProofForL1>);
+
+impl StoredObject for ProofGenerationData {
+    const BUCKET: Bucket = Bucket::PublicProofGenerationData;
+
+    type Key<'a> = L1BatchId;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("proof_generation_data_{}_{}.cbor", key.batch_number().0, key.chain_id().as_u64())
+    }
+    
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        let mut buf = Vec::new();
+        ciborium::into_writer(self, &mut buf).map_err(|e| {
+            BoxedError::from(format!("Failed to serialize ProofGenerationData: {e}"))
+        })?;
+        Ok(buf)
+    }
+    
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        ciborium::from_reader(&bytes[..]).map_err(|e| {
+            BoxedError::from(format!("Failed to deserialize ProofGenerationData: {e}"))
+        })
+    }
+}
