@@ -264,6 +264,10 @@ pub fn get_zk_os_system_smart_contracts() -> Vec<DeployedContract> {
         account_id: AccountTreeId::new(L2_GENESIS_UPGRADE_ADDRESS),
         bytecode: read_l1_evm_contract("L2ZKOSGenesisUpgrade")
     });
+    system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(L2_WRAPPED_BASE_TOKEN_IMPL),
+        bytecode: read_l1_evm_contract("L2WrappedBaseToken")
+    });
 
     system_contracts
 }

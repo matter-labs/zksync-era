@@ -5,8 +5,8 @@ use bellman::bn256::Bn256;
 use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit;
 use ruint::aliases::{B160, U256};
 use zk_ee::utils::Bytes32;
-use zk_os_basic_system::system_implementation::system::BatchOutput;
-use zksync_types::commitment::ZkosCommitment;
+use zk_os_basic_system::system_implementation::system::{BatchOutput, BatchPublicInput};
+use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
 use zksync_types::H256;
 use bellman::plonk::better_better_cs::proof::{Proof as PlonkProof, Proof};
 
@@ -17,6 +17,21 @@ pub mod structures;
 
 // todo: will be refactored after zkos schema migration
 // we'll probably compute the commitement earlier in the process and save in the DB
+
+pub fn batch_public_input(
+    prev_batch: &L1BatchWithMetadata,
+    current_batch: &L1BatchWithMetadata,
+) -> BatchPublicInput {
+    let prev_commitment = ZkosCommitment::from(prev_batch);
+    let current_commitment = ZkosCommitment::from(current_batch);
+
+    BatchPublicInput {
+        state_before: h256_to_bytes32(prev_commitment.state_commitment()),
+        state_after: h256_to_bytes32(current_commitment.state_commitment()),
+        batch_output: zkos_commitment_to_vm_batch_output(&current_commitment).hash().into(),
+    }
+}
+
 pub fn zkos_commitment_to_vm_batch_output(commitment: &ZkosCommitment) -> BatchOutput {
     let (_, operator_da_input_header_hash) = commitment.calculate_operator_da_input();
 
@@ -31,6 +46,12 @@ pub fn zkos_commitment_to_vm_batch_output(commitment: &ZkosCommitment) -> BatchO
         l2_logs_tree_root: h256_to_bytes32(commitment.l2_to_l1_logs_root_hash),
         upgrade_tx_hash: Bytes32::zero(),
     }
+}
+
+pub fn batch_output_hash_as_register_values(public_input: &BatchPublicInput) -> [u32; 8] {
+    public_input.hash().chunks_exact(4).map(|chunk| {
+        u32::from_le_bytes(chunk.try_into().expect("Slice with incorrect length"))
+    }).collect::<Vec<u32>>().try_into().expect("Hash should be exactly 32 bytes long")
 }
 
 pub fn deserialize_snark_plank_proof(bytes: Vec<u8>) -> anyhow::Result<PlonkProof<Bn256, ZkSyncSnarkWrapperCircuit>> {

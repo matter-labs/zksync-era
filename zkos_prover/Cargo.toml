@@ -11,8 +11,9 @@ categories = ["cryptography"]
 
 
 [dependencies]
-air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", branch = "main" }
-execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", branch = "main" }
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.0.5" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.0.5" }
+
 anyhow = "1.0.98"
 base64 = "0.22.1"
 reqwest = "0.12.15"
@@ -20,6 +21,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "*"
 tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
 bincode = "1"
+clap = "4.5.39"
 
 [features]
 gpu = ["air-compiler-cli/gpu"]

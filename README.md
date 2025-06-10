@@ -3,42 +3,66 @@
 To run the node, please run:
 
 To run dependencies (postgres, geth):
+
 ```
 zkstack containers
 ```
 
 Reinstall zkstack (not always needed)
+
 ```
 zkstackup --local
 ```
 
 Do a regenesis:
+
 ```
-zkstack ecosystem init --deploy-paymaster --deploy-erc20 \               
+zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
           --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_era \
           --ignore-prerequisites --verbose \
-          --observability=false 
-```     
+          --observability=false
+```
 
 Now run the server. Note that it also runs prover input generator and prover input server by default
+
 ```
 zkstack server --ignore-prerequisites --chain era --zkos
 ```
 
-To run prover locally run 
+Server is accepting ethereum RPCs on port 3050, and prover jobs on port 3124.
+
+Run integartion tests (most are skipped but the ones running in this suite in should be working)
+
+```
+zkstack dev test integration -v -t zkos --chain era
+```
+
+### Running prover
+
+To run prover locally run
+
 ```
 cd zkos_prover
-cargo run
+cargo run --release
 ```
 
+or with GPU (worth setting separate target dir to not recompile when enabling/disabling):
 
+```
+CARGO_TARGET_DIR=target/gpu cargo run --release --features gpu
+```
 
-**Edit - are they still funded?..**
-On server start, the wallets listed
-[here](https://github.com/matter-labs/zksync-era/blob/zkos-dev/core/node/zkos_state_keeper/src/keeper.rs#L188) are
-funded. This list can be modified - added wallets are funded on server restart (no regenesis is needed)
+You can check which jobs prover can pick up - by querying server on http://localhost:3124/prover-jobs/available
+
+### Local testing
+
+Usually a wallet from governor (check key in ./chains/era/configs/wallets.yaml has some funds on L2).
+
+```
+cast send -r http://localhost:3050 0x789E38eFB7fA82D8fD65D3d7f3C7e77DCB8FB2a2 --value 100 --private-key $GOVERNOR
+```
 
 # ZKsync Era: A ZK Rollup For Scaling Ethereum
 
