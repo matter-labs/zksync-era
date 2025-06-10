@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::SLChainId;
+use zksync_basic_types::{L1BlockNumber, SLChainId};
 
 use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
@@ -118,5 +118,37 @@ impl Display for EthTxFinalityStatus {
             Self::Finalized => write!(f, "finalized"),
             Self::Pending => write!(f, "pending"),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct L1BlockNumbers {
+    pub fast_finality: L1BlockNumber,
+    pub finalized: L1BlockNumber,
+    pub latest: L1BlockNumber,
+}
+
+impl L1BlockNumbers {
+    pub fn get_finality_status_for_block(&self, block_number: u32) -> EthTxFinalityStatus {
+        if block_number <= self.finalized.0 {
+            EthTxFinalityStatus::Finalized
+        } else if block_number <= self.fast_finality.0 {
+            EthTxFinalityStatus::FastFinalized
+        } else {
+            EthTxFinalityStatus::Pending
+        }
+    }
+
+    /// returns new finality status if finality status changed
+    pub fn get_finality_update(
+        &self,
+        current_status: EthTxFinalityStatus,
+        included_at_block: u32,
+    ) -> Option<EthTxFinalityStatus> {
+        let finality_status = self.get_finality_status_for_block(included_at_block);
+        if finality_status == current_status {
+            return None;
+        }
+        Some(finality_status)
     }
 }

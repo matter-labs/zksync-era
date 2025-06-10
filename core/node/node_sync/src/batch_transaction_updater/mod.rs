@@ -8,11 +8,10 @@ use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTxFinalityStatus, TxHistory},
-    web3::{BlockId, BlockNumber, TransactionReceipt},
-    Address, U64,
+    eth_sender::{EthTxFinalityStatus, L1BlockNumbers, TxHistory},
+    web3::TransactionReceipt,
+    Address,
 };
-use zksync_web3_decl::error::EnrichedClientError;
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
 
@@ -20,36 +19,6 @@ mod l1_transaction_verifier;
 
 #[cfg(test)]
 mod tests;
-
-struct SLBlockNumbers {
-    fast_finality: U64,
-    finalized: U64,
-}
-
-impl SLBlockNumbers {
-    fn get_finality_status_for_block(&self, block_number: U64) -> EthTxFinalityStatus {
-        if block_number <= self.finalized {
-            EthTxFinalityStatus::Finalized
-        } else if block_number <= self.fast_finality {
-            EthTxFinalityStatus::FastFinalized
-        } else {
-            EthTxFinalityStatus::Pending
-        }
-    }
-
-    /// returns new finality status if finality status changed
-    fn get_finality_update(
-        &self,
-        current_status: EthTxFinalityStatus,
-        included_at_block: U64,
-    ) -> Option<EthTxFinalityStatus> {
-        let finality_status = self.get_finality_status_for_block(included_at_block);
-        if finality_status == current_status {
-            return None;
-        }
-        Some(finality_status)
-    }
-}
 
 /// TODO DOC
 #[derive(Debug)]
@@ -96,41 +65,14 @@ impl BatchTransactionUpdater {
         self.health_updater.subscribe()
     }
 
-    async fn get_block_numbers(&self) -> Result<SLBlockNumbers, EnrichedClientError> {
-        let finalized = self
-            .sl_client
-            .block(BlockId::Number(BlockNumber::Finalized))
-            .await?
-            .expect("Finalized block must be present on L1")
-            .number
-            .expect("Finalized block must contain number")
-            .as_u32()
-            .into();
-
-        let fast_finality = self
-            .sl_client
-            .block(BlockId::Number(BlockNumber::Safe))
-            .await?
-            .expect("Safe block must be present on L1")
-            .number
-            .expect("Safe block must contain number")
-            .as_u32()
-            .into();
-
-        Ok(SLBlockNumbers {
-            finalized,
-            fast_finality,
-        })
-    }
-
     async fn apply_status_update(
         &mut self,
         db_eth_history_id: u32,
         receipt: TransactionReceipt,
-        sl_block_numbers: &SLBlockNumbers,
+        l1_block_numbers: &L1BlockNumbers,
     ) -> anyhow::Result<()> {
         let updated_status =
-            sl_block_numbers.get_finality_status_for_block(receipt.block_number.unwrap());
+            l1_block_numbers.get_finality_status_for_block(receipt.block_number.unwrap().as_u32());
 
         if updated_status == EthTxFinalityStatus::Pending {
             anyhow::bail!(
@@ -185,7 +127,7 @@ impl BatchTransactionUpdater {
         Ok(())
     }
 
-    async fn update_statuses(&mut self, sl_block_numbers: SLBlockNumbers) -> anyhow::Result<i32> {
+    async fn update_statuses(&mut self, l1_block_numbers: L1BlockNumbers) -> anyhow::Result<i32> {
         let mut updated_count = 0;
         let mut connection = self
             .pool
@@ -227,10 +169,9 @@ impl BatchTransactionUpdater {
 
             // transaction as included, check if we can potentially update
             // its finality status. This value is untrusted as seen_at_block may have been cached
-            let Some(finality_update) = sl_block_numbers.get_finality_update(
-                db_eth_tx_history.eth_tx_finality_status,
-                sent_at_block.into(),
-            ) else {
+            let Some(finality_update) = l1_block_numbers
+                .get_finality_update(db_eth_tx_history.eth_tx_finality_status, sent_at_block)
+            else {
                 continue;
             };
 
@@ -260,7 +201,7 @@ impl BatchTransactionUpdater {
 
             let db_eth_history_id = db_eth_tx_history.id;
             let result = self
-                .apply_status_update(db_eth_history_id, receipt, &sl_block_numbers)
+                .apply_status_update(db_eth_history_id, receipt, &l1_block_numbers)
                 .await;
 
             if result.is_ok() {
@@ -282,8 +223,8 @@ impl BatchTransactionUpdater {
             .update(Health::from(HealthStatus::Ready));
 
         while !*stop_receiver.borrow_and_update() {
-            let sl_block_numbers = self.get_block_numbers().await?;
-            let updates = self.update_statuses(sl_block_numbers).await?;
+            let l1_block_numbers = self.sl_client.get_block_numbers(None).await?;
+            let updates = self.update_statuses(l1_block_numbers).await?;
 
             if updates == 0 {
                 tracing::debug!("No updates made, waiting for the next iteration");
