@@ -9886,6 +9886,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tikv-jemalloc-ctl"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "619bfed27d807b54f7f776b9430d4f8060e66ee138a28632ca898584d462c31c"
+dependencies = [
+ "libc",
+ "paste",
+ "tikv-jemalloc-sys",
+]
+
+[[package]]
 name = "tikv-jemalloc-sys"
 version = "0.5.4+5.3.0-patched"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12003,6 +12014,7 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_health_check",
+ "zksync_instrument",
  "zksync_l1_contract_interface",
  "zksync_multivm",
  "zksync_node_framework",
@@ -12629,6 +12641,7 @@ dependencies = [
  "zksync_eth_sender",
  "zksync_gateway_migrator",
  "zksync_health_check",
+ "zksync_instrument",
  "zksync_l1_contract_interface",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
@@ -12638,6 +12651,7 @@ dependencies = [
  "zksync_node_fee_model",
  "zksync_node_framework",
  "zksync_node_genesis",
+ "zksync_node_jemalloc",
  "zksync_node_storage_init",
  "zksync_node_sync",
  "zksync_object_store",
@@ -12776,6 +12790,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_instrument"
+version = "28.5.0-non-semver-compat"
+dependencies = [
+ "tikv-jemalloc-ctl",
+ "tracing",
+ "vise",
+]
+
+[[package]]
 name = "zksync_kzg"
 version = "0.152.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12888,6 +12911,7 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_instrument",
  "zksync_merkle_tree",
  "zksync_node_framework",
  "zksync_node_genesis",
@@ -12982,6 +13006,7 @@ dependencies = [
  "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_instrument",
  "zksync_mini_merkle_tree",
  "zksync_multivm",
  "zksync_node_fee_model",
@@ -13136,6 +13161,21 @@ dependencies = [
  "zksync_multivm",
  "zksync_system_constants",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_node_jemalloc"
+version = "28.5.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tikv-jemalloc-ctl",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_health_check",
+ "zksync_node_framework",
 ]
 
 [[package]]
@@ -13408,6 +13448,7 @@ dependencies = [
  "zksync_external_proof_integration_api",
  "zksync_gateway_migrator",
  "zksync_house_keeper",
+ "zksync_instrument",
  "zksync_logs_bloom_backfill",
  "zksync_metadata_calculator",
  "zksync_node_api_server",
@@ -13415,6 +13456,7 @@ dependencies = [
  "zksync_node_fee_model",
  "zksync_node_framework",
  "zksync_node_genesis",
+ "zksync_node_jemalloc",
  "zksync_node_storage_init",
  "zksync_object_store",
  "zksync_proof_data_handler",
@@ -13811,6 +13853,7 @@ dependencies = [
  "vise",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_instrument",
  "zksync_multivm",
  "zksync_node_framework",
  "zksync_types",

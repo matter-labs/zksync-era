@@ -147,6 +147,13 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    #[cfg(not(target_env = "msvc"))]
+    fn add_jemalloc_monitor_layer(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(zksync_node_jemalloc::JemallocMonitorLayer);
+        Ok(self)
+    }
+
     fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(PostgresMetricsLayer);
         Ok(self)
@@ -727,6 +734,11 @@ impl MainNodeBuilder {
             .add_settlement_mode_data()?
             .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
+
+        #[cfg(not(target_env = "msvc"))]
+        {
+            self = self.add_jemalloc_monitor_layer()?;
+        }
 
         // Add preconditions for all the components.
         self = self

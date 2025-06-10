@@ -65,3 +65,6 @@ smart-config-commands.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
+zksync_node_jemalloc.workspace = true
+# We don't use it directly, but want to enable Jemalloc profiling.
+zksync_instrument = { workspace = true, features = ["jemalloc"] }
