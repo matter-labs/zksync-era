@@ -1,4 +1,4 @@
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 
 import { TestMaster } from '../src';
@@ -352,7 +352,7 @@ describe('Interop checks', () => {
 
         /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
         await sleep(25000);
-        const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 0, 'gw_message_root');
+        const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
         const GW_CHAIN_ID = 506n;
         await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, GW_CHAIN_ID, getGWBlockNumber(params));
 

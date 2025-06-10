@@ -1,4 +1,4 @@
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BytesLike } from 'ethers';
 import {
@@ -7,7 +7,7 @@ import {
     MESSAGE_INCLUSION_PROOF_ABI,
     L2_INTEROP_CENTER_ADDRESS
 } from './constants';
-import { FinalizeWithdrawalParams } from 'zksync-ethers-interop-support/build/types';
+import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 
 const L1_MESSENGER_ADDRESS = L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR;
 
@@ -106,7 +106,7 @@ async function tryGetMessageData(provider: zksync.Provider, withdrawalHash: Byte
             message: messageRead,
             l2MessageIndex: l2MessageIndexRead,
             proof: proofRead
-        } = await sender_chain_utilityWallet.getFinalizeWithdrawalParams(withdrawalHash, index, 0, 'gw_message_root');
+        } = await sender_chain_utilityWallet.getFinalizeWithdrawalParams(withdrawalHash, index, 'proof_based_gw');
         // const logProof = await sender_chain_utilityWallet.provider.getLogProof(
         //     withdrawalHash,
         //     index,
