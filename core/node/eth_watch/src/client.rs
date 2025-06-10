@@ -17,8 +17,8 @@ use zksync_types::{
     ethabi::{decode, Contract, ParamType},
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-    U64,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -102,6 +102,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     bytecode_supplier_addr: Option<Address>,
     wrapped_base_token_store: Option<Address>,
     l1_shared_bridge_addr: Option<Address>,
+    l1_message_root_address: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     server_notifier_address: Option<Address>,
@@ -162,21 +163,21 @@ where
             confirmations_for_eth_event,
             wrapped_base_token_store,
             l1_shared_bridge_addr,
+            l1_message_root_address: None, // kl todo add l1 message root address
             l2_chain_id,
         }
     }
 
     fn get_default_address_list(&self) -> Vec<Address> {
-        [
+        let addresses = [
             Some(self.diamond_proxy_addr),
             self.state_transition_manager_address,
             self.chain_admin_address,
             self.server_notifier_address,
             Some(L2_MESSAGE_ROOT_ADDRESS),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+            self.l1_message_root_address,
+        ];
+        addresses.into_iter().flatten().collect()
     }
 
     #[async_recursion::async_recursion]
@@ -574,7 +575,13 @@ pub trait ZkSyncExtentionEthClient: EthClient {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>>;
+
+    async fn get_inner_chain_log_proof(
+        &self,
+        block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>>;
 
@@ -593,13 +600,25 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
 
     async fn get_chain_log_proof(
         &self,
-        _l1_batch_number: L1BatchNumber,
+        _batch_number: L1BatchNumber,
         _chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         //TODO(EVM-959): Implement it using l1 contracts
         Err(EnrichedClientError::custom(
             "Method is not supported",
             "get_chain_log_proof",
+        ))
+    }
+
+    async fn get_inner_chain_log_proof(
+        &self,
+        _block_number: L2BlockNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        //TODO(EVM-959): Implement it using l1 contracts
+        Err(EnrichedClientError::custom(
+            "Method is not supported",
+            "get_chain_log_proof_inner",
         ))
     }
 
@@ -623,13 +642,24 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         self.client
-            .get_chain_log_proof(l1_batch_number, chain_id)
+            .get_chain_log_proof(batch_number, chain_id)
             .await
             .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))
+    }
+
+    async fn get_inner_chain_log_proof(
+        &self,
+        block_number: L2BlockNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        self.client
+            .get_inner_chain_log_proof(block_number, chain_id)
+            .await
+            .map_err(|err| EnrichedClientError::new(err, "unstable_getInnerChainLogProof"))
     }
 
     async fn get_chain_root_l2(

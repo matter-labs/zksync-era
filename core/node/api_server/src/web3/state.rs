@@ -29,9 +29,9 @@ use zksync_shared_resources::{
     tree::TreeApiClient,
 };
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::SettlementLayer,
-    transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
-    H256, U256, U64,
+    api, block::BatchOrBlockNumber, commitment::L1BatchCommitmentMode, l2::L2Tx,
+    settlement::SettlementLayer, transaction_request::CallRequest, Address, L1BatchNumber,
+    L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -73,6 +73,15 @@ impl From<L2BlockNumber> for PruneQuery {
 impl From<L1BatchNumber> for PruneQuery {
     fn from(number: L1BatchNumber) -> Self {
         Self::L1Batch(number)
+    }
+}
+
+impl From<BatchOrBlockNumber> for PruneQuery {
+    fn from(value: BatchOrBlockNumber) -> Self {
+        match value {
+            BatchOrBlockNumber::BatchNumber(l1_batch_number) => PruneQuery::from(l1_batch_number),
+            BatchOrBlockNumber::BlockNumber(l2_block_number) => PruneQuery::from(l2_block_number),
+        }
     }
 }
 

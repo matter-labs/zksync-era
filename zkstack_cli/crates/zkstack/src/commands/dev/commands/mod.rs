@@ -13,9 +13,21 @@ pub(crate) mod sql_fmt;
 pub mod status;
 pub mod test;
 pub mod track_priority_txs;
-#[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+#[cfg(any(
+    feature = "v27_evm_interpreter",
+    feature = "v28_precompiles",
+    feature = "v29_interopA_ff"
+))]
 pub mod upgrade_utils;
 #[cfg(feature = "v27_evm_interpreter")]
 pub mod v27_evm_eq;
 #[cfg(feature = "v28_precompiles")]
 pub mod v28_precompiles;
+#[cfg(feature = "v29_interopA_ff")]
+pub mod v29_chain_args;
+#[cfg(feature = "v29_interopA_ff")]
+pub mod v29_chain_upgrade;
+#[cfg(feature = "v29_interopA_ff")]
+pub mod v29_ecosystem_args;
+#[cfg(feature = "v29_interopA_ff")]
+pub mod v29_ecosystem_upgrade;

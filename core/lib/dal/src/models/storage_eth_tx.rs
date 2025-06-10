@@ -62,6 +62,7 @@ pub struct StorageTxHistory {
     pub max_gas_per_pubdata: Option<i64>,
     pub predicted_gas_limit: Option<i64>,
     pub sent_successfully: bool,
+    pub confirmed_at_block: Option<i32>,
     pub finality_status: Option<String>,
 }
 

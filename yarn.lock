@@ -12020,6 +12020,6 @@ zksync-ethers@^6.9.0:
   resolved "https://registry.yarnpkg.com/zksync-ethers/-/zksync-ethers-6.9.0.tgz#efaff1d59e2cff837eeda84c4ba59fdca4972a91"
   integrity sha512-2CppwvLHtz689L7E9EhevbFtsqVukKC/lVicwdeUS2yqV46ET4iBR11rYdEfGW2oEo1h6yJuuwIBDFm2SybkIA==
 
-"zksync-ethers@https://github.com/zksync-sdk/zksync-ethers#sb-use-new-encoding-in-sdk":
-  version "6.12.1"
-  resolved "https://github.com/zksync-sdk/zksync-ethers#bc6e3ab201f743fcbb53e0216f3de421bb3a617f"
+"zksync-ethers@git+https://github.com/zksync-sdk/zksync-ethers#kl/interop-ethers-support-real":
+  version "6.17.0"
+  resolved "git+https://github.com/zksync-sdk/zksync-ethers#c703c0666908527411f1554a21f235d785edf990"

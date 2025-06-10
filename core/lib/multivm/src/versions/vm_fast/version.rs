@@ -10,7 +10,7 @@ impl From<FastVmVersion> for MultiVmSubversion {
     fn from(value: FastVmVersion) -> Self {
         match value {
             FastVmVersion::IncreasedBootloaderMemory => Self::IncreasedBootloaderMemory,
-            FastVmVersion::Gateway => Self::Gateway,
+            FastVmVersion::Gateway => Self::latest(),
         }
     }
 }
@@ -22,9 +22,10 @@ impl TryFrom<VmVersion> for FastVmVersion {
         match value {
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
             // FIXME: implement differentiated memory model in fast VM
-            VmVersion::VmGateway | VmVersion::VmEvmEmulator | VmVersion::VmEcPrecompiles => {
-                Ok(Self::Gateway)
-            }
+            VmVersion::VmGateway
+            | VmVersion::VmEvmEmulator
+            | VmVersion::VmEcPrecompiles
+            | VmVersion::VmInterop => Ok(Self::Gateway),
             _ => Err(()),
         }
     }

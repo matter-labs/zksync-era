@@ -34,7 +34,7 @@ pub(crate) fn test_circuits<VM: TestedVm>() {
     // Check `circuit_statistic`.
     const EXPECTED: [f32; 13] = [
         1.258627,
-        0.13982475,
+        0.15830745,
         1.6666666,
         0.003154238,
         1.2084359,

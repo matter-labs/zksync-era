@@ -18,6 +18,10 @@ use crate::commands::dev::messages::{
     MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
+#[cfg(feature = "v29_interopA_ff")]
+use crate::commands::dev::messages::{
+    MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE, MSG_V29_INTEROP_A_FF_UPGRADE,
+};
 
 pub(crate) mod commands;
 mod consts;
@@ -59,6 +63,18 @@ pub enum DevCommands {
     #[cfg(feature = "v28_precompiles")]
     #[command(about = MSG_V28_PRECOMPILES_UPGRADE)]
     GenerateV28UpgradeCalldata(commands::v28_precompiles::V28PrecompilesCalldataArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_UPGRADE)]
+    GenerateV29EcosystemCalldata(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_UPGRADE)]
+    RunV29EcosystemUpgrade(commands::v29_ecosystem_args::EcosystemUpgradeArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE)]
+    GenerateV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
+    #[cfg(feature = "v29_interopA_ff")]
+    #[command(about = MSG_V29_INTEROP_A_FF_CHAIN_UPGRADE)]
+    RunV29ChainUpgrade(commands::v29_chain_args::V29ChainUpgradeArgs),
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -85,6 +101,22 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
         #[cfg(feature = "v28_precompiles")]
         DevCommands::GenerateV28UpgradeCalldata(args) => {
             commands::v28_precompiles::run(shell, args).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::GenerateV29EcosystemCalldata(args) => {
+            commands::v29_ecosystem_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::RunV29EcosystemUpgrade(args) => {
+            commands::v29_ecosystem_upgrade::run(shell, args, true).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::GenerateV29ChainUpgrade(args) => {
+            commands::v29_chain_upgrade::run(shell, args, false).await?
+        }
+        #[cfg(feature = "v29_interopA_ff")]
+        DevCommands::RunV29ChainUpgrade(args) => {
+            commands::v29_chain_upgrade::run(shell, args, true).await?
         }
     }
     Ok(())
