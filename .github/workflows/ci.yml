@@ -53,6 +53,7 @@ jobs:
               - './core/Cargo.toml'
               - './core/Cargo.lock'
               - 'zkstack_cli/**'
+              - 'private-rpc/**'
               - '!**/*.md'
               - '!**/*.MD'
               - 'docker-compose.yml'
