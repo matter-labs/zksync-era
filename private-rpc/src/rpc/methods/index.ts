@@ -1,4 +1,3 @@
-export * from './eth_call';
 export * from './eth_getBlockByNumber';
 export * from './eth_getBlockReceipts';
 export * from './eth_getLogs';
