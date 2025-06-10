@@ -128,6 +128,13 @@ impl Transaction {
         matches!(self.common_data, ExecuteTransactionCommon::L1(_))
     }
 
+    pub fn is_protocol_upgrade(&self) -> bool {
+        matches!(
+            self.common_data,
+            ExecuteTransactionCommon::ProtocolUpgrade(_)
+        )
+    }
+
     pub fn tx_format(&self) -> TransactionType {
         match &self.common_data {
             ExecuteTransactionCommon::L1(tx) => tx.tx_format(),

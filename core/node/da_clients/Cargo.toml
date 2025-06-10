@@ -16,13 +16,14 @@ tracing.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 flate2.workspace = true
+secrecy.workspace = true
 tokio.workspace = true
+chrono.workspace = true
 
 zksync_config.workspace = true
 zksync_types.workspace = true
 zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_da_client = { workspace = true, features = ["node_framework"] }
-zksync_env_config.workspace = true
 zksync_basic_types.workspace = true
 zksync_node_framework.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }

@@ -30,7 +30,7 @@ type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEna
 type ShadowedFastVm<S = InMemoryStorage, Tr = ()> =
     crate::vm_instance::ShadowedFastVm<S, Tr, FastValidationTracer>;
 
-fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
+fn hash_block(block_env: &L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(
         L2BlockNumber(block_env.number),
         block_env.timestamp,
@@ -112,9 +112,9 @@ impl Harness {
 
     fn new_block(&mut self, vm: &mut impl VmInterface, tx_hashes: &[H256]) {
         self.current_block = L2BlockEnv {
-            number: self.current_block.clone().number + 1,
-            timestamp: self.current_block.clone().timestamp + 1,
-            prev_block_hash: hash_block(self.current_block.clone(), tx_hashes),
+            number: self.current_block.number + 1,
+            timestamp: self.current_block.timestamp + 1,
+            prev_block_hash: hash_block(&self.current_block, tx_hashes),
             max_virtual_blocks_to_create: self.current_block.max_virtual_blocks_to_create,
             interop_roots: vec![],
         };

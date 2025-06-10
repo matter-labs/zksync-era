@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use zksync_config::configs::vm_runner::BasicWitnessInputProducerConfig;
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_node_framework::{
@@ -6,7 +8,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::node::ObjectStoreResource;
+use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
@@ -34,19 +36,18 @@ impl BasicWitnessInputProducerLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub object_store: ObjectStoreResource,
+    master_pool: PoolResource<MasterPool>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub output_handler_factory_task:
-        ConcurrentOutputHandlerFactoryTask<BasicWitnessInputProducerIo>,
+    output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<BasicWitnessInputProducerIo>,
     #[context(task)]
-    pub loader_task: StorageSyncTask<BasicWitnessInputProducerIo>,
+    loader_task: StorageSyncTask<BasicWitnessInputProducerIo>,
     #[context(task)]
-    pub basic_witness_input_producer: BasicWitnessInputProducer,
+    basic_witness_input_producer: BasicWitnessInputProducer,
 }
 
 #[async_trait::async_trait]
@@ -71,19 +72,21 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
         // - `window_size` connections for `BasicWitnessInputProducer`
         //   as there can be multiple output handlers holding multi-second connections to process
         //   BWIP data.
-        let connection_pool = master_pool.get_custom(self.config.window_size + 2).await?;
+        let connection_pool = master_pool
+            .get_custom(self.config.window_size.get() + 2)
+            .await?;
 
         // We don't get the executor from the context because it would contain state keeper-specific settings.
         let batch_executor = MainBatchExecutorFactory::<()>::new(false);
 
         let (basic_witness_input_producer, tasks) = BasicWitnessInputProducer::new(
             connection_pool,
-            object_store.0,
+            object_store,
             Box::new(batch_executor),
             self.config.db_path,
             self.zksync_network_id,
             self.config.first_processed_batch,
-            self.config.window_size,
+            self.config.window_size.get(),
         )
         .await?;
 

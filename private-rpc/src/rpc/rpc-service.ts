@@ -2,8 +2,7 @@ import { z } from 'zod';
 import { Address } from 'viem';
 import { Authorizer } from '@/permissions/authorizer';
 import { FastifyReplyType } from 'fastify/types/type-provider';
-import { delegateCall } from './delegate-call';
-import { errorResponse, invalidRequest } from './json-rpc';
+import { errorResponse, invalidRequest, unauthorized } from './json-rpc';
 
 const rpcReqSchema = z.object({
     id: z.union([z.number(), z.string()]),
@@ -65,8 +64,23 @@ export class RpcCallHandler {
     }
 
     async handle(rawBody: unknown): Promise<FastifyReplyType> {
-        const parsed = rpcReqSchema.safeParse(rawBody);
+        // Batch request: array of requests
+        if (Array.isArray(rawBody)) {
+            if (rawBody.length === 0) {
+                return invalidRequest(null);
+            }
+            const results = await Promise.all(rawBody.map(async (item) => this.handleSingleRequest(item)));
+            return results;
+        }
+
+        // Single request
+        return this.handleSingleRequest(rawBody);
+    }
+
+    private async handleSingleRequest(request: unknown): Promise<FastifyReplyType> {
+        const parsed = rpcReqSchema.safeParse(request);
         if (parsed.error) {
+            console.warn('Invalid request!', parsed.error);
             return invalidRequest(null);
         }
 
@@ -74,6 +88,7 @@ export class RpcCallHandler {
             const { method, params, id } = parsed.data;
             return await this.tryCall(method, params, id);
         } catch (e) {
+            console.warn('Error in handler', e);
             return errorResponse({
                 id: parsed.data.id,
                 error: {
@@ -93,7 +108,7 @@ export class RpcCallHandler {
     private defaultHandler(): MethodHandler {
         return {
             name: 'default-handler',
-            handle: (context, method, params, id) => delegateCall({ url: context.targetRpcUrl, id, method, params })
+            handle: (_context, _method, _params, id) => unauthorized(id)
         };
     }
 }

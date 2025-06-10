@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use zksync_da_client::{
     types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData},
     DataAvailabilityClient,
@@ -14,7 +15,11 @@ impl DataAvailabilityClient for NoDAClient {
         Ok(DispatchResponse::default())
     }
 
-    async fn ensure_finality(&self, _: String) -> Result<Option<FinalityResponse>, DAError> {
+    async fn ensure_finality(
+        &self,
+        _: String,
+        _: DateTime<Utc>,
+    ) -> Result<Option<FinalityResponse>, DAError> {
         Ok(Some(FinalityResponse::default()))
     }
 

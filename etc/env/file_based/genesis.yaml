@@ -7,8 +7,8 @@ bootloader_hash: 0x0100099f5ca0a8b6327c30672e3e94fc56203860f4159d615463ab99cf0ee
 l1_chain_id: 9
 l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
+l1_batch_commit_data_generator_mode: Rollup
 prover:
-  dummy_verifier: true
   snark_wrapper_vk_hash: 0xd90459c5b727b9ceeb2b6192d2953dbf05970edf090333b3ad3bcac1a1442b78
   fflonk_snark_wrapper_vk_hash: 0x17e8d7931f1314431359233e65c22657a32c335205e3c24ce292c5819becfaa7
 genesis_protocol_semantic_version: 0.30.0

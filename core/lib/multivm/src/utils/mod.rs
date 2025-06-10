@@ -328,6 +328,27 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
     }
 }
 
+pub fn get_bootloader_max_msg_roots_in_batch(version: VmVersion) -> usize {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement
+        | VmVersion::VmBoojumIntegration
+        | VmVersion::Vm1_4_1
+        | VmVersion::Vm1_4_2
+        | VmVersion::Vm1_5_0SmallBootloaderMemory
+        | VmVersion::Vm1_5_0IncreasedBootloaderMemory
+        | VmVersion::VmGateway
+        | VmVersion::VmEvmEmulator
+        | VmVersion::VmEcPrecompiles => 0,
+        VmVersion::VmInterop => crate::vm_latest::constants::MAX_MSG_ROOTS_IN_BATCH,
+    }
+}
+
 pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
     match version {
         VmVersion::M5WithRefunds

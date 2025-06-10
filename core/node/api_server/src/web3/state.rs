@@ -24,8 +24,10 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_metadata_calculator::api_server::TreeApiClient;
-use zksync_shared_resources::api::{BridgeAddressesHandle, SyncState};
+use zksync_shared_resources::{
+    api::{BridgeAddressesHandle, SyncState},
+    tree::TreeApiClient,
+};
 use zksync_types::{
     api, block::BatchOrBlockNumber, commitment::L1BatchCommitmentMode, l2::L2Tx,
     settlement::SettlementLayer, transaction_request::CallRequest, Address, L1BatchNumber,
@@ -41,12 +43,12 @@ use super::{
     backend_jsonrpsee::MethodTracer,
     mempool_cache::MempoolCache,
     metrics::{FilterType, FILTER_METRICS},
+    receipts::AccountTypesCache,
     TypedFilter,
 };
 use crate::{
     execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
     tx_sender::{tx_sink::TxSink, TxSender},
-    utils::AccountTypesCache,
     web3::metrics::FilterMetrics,
 };
 
@@ -139,13 +141,13 @@ impl InternalApiConfigBase {
             l2_chain_id: genesis.l2_chain_id,
             dummy_verifier: genesis.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
-            max_tx_size: web3_config.max_tx_size,
+            max_tx_size: web3_config.max_tx_size.0 as usize,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
-            req_entities_limit: web3_config.req_entities_limit(),
-            fee_history_limit: web3_config.fee_history_limit(),
+            req_entities_limit: web3_config.req_entities_limit as usize,
+            fee_history_limit: web3_config.fee_history_limit,
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
         }

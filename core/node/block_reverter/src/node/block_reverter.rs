@@ -1,5 +1,7 @@
+use std::path::PathBuf;
+
 use zksync_dal::node::{MasterPool, PoolResource};
-use zksync_node_framework::{FromContext, IntoContext, WiringError, WiringLayer};
+use zksync_node_framework::{FromContext, WiringError, WiringLayer};
 
 use super::resources::BlockReverterResource;
 use crate::{BlockReverter, NodeRole};
@@ -11,8 +13,8 @@ pub struct BlockReverterLayer {
     node_role: NodeRole,
     allow_rolling_back_executed_batches: bool,
     should_roll_back_postgres: bool,
-    state_keeper_cache_path: Option<String>,
-    merkle_tree_path: Option<String>,
+    state_keeper_cache_path: Option<PathBuf>,
+    merkle_tree_path: Option<PathBuf>,
 }
 
 impl BlockReverterLayer {
@@ -36,12 +38,12 @@ impl BlockReverterLayer {
         self
     }
 
-    pub fn enable_rolling_back_merkle_tree(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_merkle_tree(&mut self, path: PathBuf) -> &mut Self {
         self.merkle_tree_path = Some(path);
         self
     }
 
-    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: String) -> &mut Self {
+    pub fn enable_rolling_back_state_keeper_cache(&mut self, path: PathBuf) -> &mut Self {
         self.state_keeper_cache_path = Some(path);
         self
     }
@@ -49,18 +51,13 @@ impl BlockReverterLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-}
-
-#[derive(Debug, IntoContext)]
-pub struct Output {
-    pub block_reverter: BlockReverterResource,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[async_trait::async_trait]
 impl WiringLayer for BlockReverterLayer {
     type Input = Input;
-    type Output = Output;
+    type Output = BlockReverterResource;
 
     fn layer_name(&self) -> &'static str {
         "block_reverter_layer"
@@ -82,8 +79,6 @@ impl WiringLayer for BlockReverterLayer {
             block_reverter.add_rocksdb_storage_path_to_rollback(path);
         }
 
-        Ok(Output {
-            block_reverter: block_reverter.into(),
-        })
+        Ok(block_reverter.into())
     }
 }

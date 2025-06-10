@@ -12,14 +12,12 @@ categories.workspace = true
 publish = false
 
 [dependencies]
-zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_config = { workspace = true, features = ["observability_ext", "cli"] }
 zksync_circuit_breaker = { workspace = true, features = ["node_framework"] }
 zksync_dal = { workspace = true, features = ["node_framework"] }
-zksync_env_config.workspace = true
 zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_object_store = { workspace = true, features = ["node_framework"] }
-zksync_protobuf_config.workspace = true
 zksync_storage.workspace = true
 zksync_state.workspace = true
 zksync_types.workspace = true
@@ -29,7 +27,6 @@ zksync_vlog = { workspace = true, features = ["node_framework"] }
 zksync_base_token_adjuster.workspace = true
 zksync_commitment_generator.workspace = true
 zksync_contract_verification_server.workspace = true
-zksync_core_leftovers.workspace = true
 zksync_da_clients.workspace = true
 zksync_da_dispatcher.workspace = true
 zksync_eth_sender.workspace = true
@@ -46,8 +43,9 @@ zksync_node_fee_model.workspace = true
 zksync_node_framework.workspace = true
 zksync_node_storage_init.workspace = true
 zksync_proof_data_handler.workspace = true
-zksync_tee_proof_data_handler.workspace = true
 zksync_state_keeper.workspace = true
+zksync_shared_resources.workspace = true
+zksync_tee_proof_data_handler.workspace = true
 zksync_vm_runner.workspace = true
 
 # Consensus dependenices
@@ -62,6 +60,11 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 futures.workspace = true
+smart-config.workspace = true
+smart-config-commands.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
+zksync_node_jemalloc.workspace = true
+# We don't use it directly, but want to enable Jemalloc profiling.
+zksync_instrument = { workspace = true, features = ["jemalloc"] }

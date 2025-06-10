@@ -156,3 +156,18 @@ async fn get_protocol_version(
         .call(eth_client)
         .await
 }
+
+pub async fn is_settlement_layer(
+    eth_client: &dyn EthInterface,
+    bridgehub_address: Address,
+    l2_chain_id: L2ChainId,
+) -> Result<bool, ContractCallError> {
+    let is_settlement_layer: bool = CallFunctionArgs::new(
+        "whitelistedSettlementLayers",
+        Token::Uint(l2_chain_id.as_u64().into()),
+    )
+    .for_contract(bridgehub_address, &bridgehub_contract())
+    .call(eth_client)
+    .await?;
+    Ok(is_settlement_layer)
+}

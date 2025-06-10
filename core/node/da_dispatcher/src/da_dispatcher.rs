@@ -59,7 +59,7 @@ impl DataAvailabilityDispatcher {
                 }
 
                 if tokio::time::timeout(
-                    self_arc_dispatch.config.polling_interval(),
+                    self_arc_dispatch.config.polling_interval,
                     stop_receiver_dispatch.changed(),
                 )
                 .await
@@ -81,7 +81,7 @@ impl DataAvailabilityDispatcher {
                 }
 
                 if tokio::time::timeout(
-                    self_arc_finality.config.polling_interval(),
+                    self_arc_finality.config.polling_interval,
                     stop_receiver_finality.changed(),
                 )
                 .await
@@ -103,7 +103,7 @@ impl DataAvailabilityDispatcher {
                 }
 
                 if tokio::time::timeout(
-                    self.config.polling_interval(),
+                    self.config.polling_interval,
                     stop_receiver_poll_for_inclusion.changed(),
                 )
                 .await
@@ -130,14 +130,14 @@ impl DataAvailabilityDispatcher {
         let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
         let batches = conn
             .data_availability_dal()
-            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch() as usize)
+            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch as usize)
             .await?;
         drop(conn);
 
         for batch in &batches {
             let dispatch_latency = METRICS.blob_dispatch_latency.start();
             let dispatch_response = retry(
-                self.config.max_retries(),
+                self.config.max_retries,
                 batch.l1_batch_number,
                 "DA dispatch",
                 || {
@@ -225,7 +225,7 @@ impl DataAvailabilityDispatcher {
         // TODO: add metrics for finality latency
         let finality_response = self
             .client
-            .ensure_finality(blob.dispatch_request_id.clone())
+            .ensure_finality(blob.dispatch_request_id.clone(), blob.sent_at)
             .await;
 
         match finality_response {
@@ -263,7 +263,7 @@ impl DataAvailabilityDispatcher {
 
     /// Polls the data availability layer for inclusion data, and saves it in the database.
     async fn poll_for_inclusion(&self) -> anyhow::Result<()> {
-        if self.config.inclusion_verification_transition_enabled() {
+        if self.config.inclusion_verification_transition_enabled {
             if let Some(l2_da_validator) = self.transitional_l2_da_validator_address {
                 // Setting dummy inclusion data to the batches with the old L2 DA validator is necessary
                 // for the transition process. We want to avoid the situation when the batch was sealed
@@ -291,7 +291,7 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
-        let inclusion_data = if self.config.use_dummy_inclusion_data() {
+        let inclusion_data = if self.config.use_dummy_inclusion_data {
             Some(InclusionData { data: vec![] })
         } else {
             let Some(blob_id) = blob_info.blob_id else {
@@ -343,7 +343,7 @@ impl DataAvailabilityDispatcher {
     }
 
     async fn check_for_misconfiguration(&mut self) -> anyhow::Result<()> {
-        if self.config.inclusion_verification_transition_enabled() {
+        if self.config.inclusion_verification_transition_enabled {
             self.transitional_l2_da_validator_address = Some(
                 self.l2_contracts
                     .da_validator_addr

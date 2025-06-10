@@ -8,6 +8,7 @@ use zksync_types::{
     api,
     block::{CommonL1BatchHeader, L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata, PubdataParams, PubdataType},
+    eth_sender::EthTxFinalityStatus,
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
@@ -375,12 +376,15 @@ pub(crate) struct StorageBlockDetails {
     pub l2_tx_count: i32,
     pub root_hash: Option<Vec<u8>>,
     pub commit_tx_hash: Option<String>,
+    pub commit_tx_finality_status: Option<String>,
     pub committed_at: Option<NaiveDateTime>,
     pub commit_chain_id: Option<i64>,
     pub prove_tx_hash: Option<String>,
+    pub prove_tx_finality_status: Option<String>,
     pub proven_at: Option<NaiveDateTime>,
     pub prove_chain_id: Option<i64>,
     pub execute_tx_hash: Option<String>,
+    pub execute_tx_finality_status: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
     // L1 gas price assumed in the corresponding batch
@@ -398,11 +402,15 @@ pub(crate) struct StorageBlockDetails {
 
 impl From<StorageBlockDetails> for api::BlockDetails {
     fn from(details: StorageBlockDetails) -> Self {
-        let status = if details.number == 0 || details.execute_tx_hash.is_some() {
-            api::BlockStatus::Verified
-        } else {
-            api::BlockStatus::Sealed
-        };
+        let execute_tx_finality = details
+            .execute_tx_finality_status
+            .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok());
+        let status =
+            if details.number == 0 || execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
+                api::BlockStatus::Verified
+            } else {
+                api::BlockStatus::Sealed
+            };
 
         let base = api::BlockDetailsBase {
             timestamp: details.timestamp as u64,
@@ -417,11 +425,17 @@ impl From<StorageBlockDetails> for api::BlockDetails {
             committed_at: details
                 .committed_at
                 .map(|committed_at| DateTime::from_naive_utc_and_offset(committed_at, Utc)),
+            commit_tx_finality: details
+                .commit_tx_finality_status
+                .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok()),
             commit_chain_id: details.commit_chain_id.map(|id| SLChainId(id as u64)),
             prove_tx_hash: details
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
+            prove_tx_finality: details
+                .prove_tx_finality_status
+                .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok()),
             proven_at: details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
@@ -430,6 +444,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
                 .execute_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
+            execute_tx_finality,
             executed_at: details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
@@ -463,12 +478,15 @@ pub(crate) struct StorageL1BatchDetails {
     pub l2_tx_count: i32,
     pub root_hash: Option<Vec<u8>>,
     pub commit_tx_hash: Option<String>,
+    pub commit_tx_finality_status: Option<String>,
     pub committed_at: Option<NaiveDateTime>,
     pub commit_chain_id: Option<i64>,
     pub prove_tx_hash: Option<String>,
+    pub prove_tx_finality_status: Option<String>,
     pub proven_at: Option<NaiveDateTime>,
     pub prove_chain_id: Option<i64>,
     pub execute_tx_hash: Option<String>,
+    pub execute_tx_finality_status: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
     pub execute_chain_id: Option<i64>,
     pub l1_gas_price: i64,
@@ -481,11 +499,15 @@ pub(crate) struct StorageL1BatchDetails {
 
 impl From<StorageL1BatchDetails> for api::L1BatchDetails {
     fn from(details: StorageL1BatchDetails) -> Self {
-        let status = if details.number == 0 || details.execute_tx_hash.is_some() {
-            api::BlockStatus::Verified
-        } else {
-            api::BlockStatus::Sealed
-        };
+        let execute_tx_finality = details
+            .execute_tx_finality_status
+            .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok());
+        let status =
+            if details.number == 0 || execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
+                api::BlockStatus::Verified
+            } else {
+                api::BlockStatus::Sealed
+            };
 
         let base = api::BlockDetailsBase {
             timestamp: details.timestamp as u64,
@@ -501,10 +523,16 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .committed_at
                 .map(|committed_at| DateTime::<Utc>::from_naive_utc_and_offset(committed_at, Utc)),
             commit_chain_id: details.commit_chain_id.map(|id| SLChainId(id as u64)),
+            commit_tx_finality: details
+                .commit_tx_finality_status
+                .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok()),
             prove_tx_hash: details
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
+            prove_tx_finality: details
+                .prove_tx_finality_status
+                .and_then(|a| EthTxFinalityStatus::from_str(a.as_str()).ok()),
             proven_at: details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
@@ -513,6 +541,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .execute_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
+            execute_tx_finality,
             executed_at: details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),

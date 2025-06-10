@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{block::L2BlockExecutionData, InteropRoot, H256};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct L2BlockEnv {
     pub number: u32,
     pub timestamp: u64,
@@ -17,18 +17,6 @@ impl L2BlockEnv {
             prev_block_hash: execution_data.prev_block_hash,
             max_virtual_blocks_to_create: execution_data.virtual_blocks,
             interop_roots: execution_data.interop_roots.clone(),
-        }
-    }
-}
-
-impl Clone for L2BlockEnv {
-    fn clone(&self) -> Self {
-        Self {
-            number: self.number,
-            timestamp: self.timestamp,
-            prev_block_hash: self.prev_block_hash,
-            max_virtual_blocks_to_create: self.max_virtual_blocks_to_create,
-            interop_roots: self.interop_roots.clone(),
         }
     }
 }

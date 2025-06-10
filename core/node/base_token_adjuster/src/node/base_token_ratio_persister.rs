@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use zksync_config::configs::{base_token_adjuster::BaseTokenAdjusterConfig, wallets::Wallets};
 use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{
     clients::PKSigningClient,
     node::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
-    web3_decl::node::EthInterfaceResource,
+    web3_decl::client::{DynClient, L1},
 };
-use zksync_node_fee_model::node::TxParamsResource;
+use zksync_external_price_api::{NoOpPriceApiClient, PriceApiClient};
+use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -15,7 +18,6 @@ use zksync_node_framework::{
 };
 use zksync_types::L1ChainId;
 
-use super::resources::PriceAPIClientResource;
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 
 /// Wiring layer for `BaseTokenRatioPersister`
@@ -31,19 +33,18 @@ pub struct BaseTokenRatioPersisterLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    #[context(default)]
-    pub price_api_client: PriceAPIClientResource,
-    pub eth_client: EthInterfaceResource,
-    pub tx_params: TxParamsResource,
-    pub l1_contracts: L1ChainContractsResource,
-    pub l1_ecosystem_contracts: L1EcosystemContractsResource,
+    master_pool: PoolResource<MasterPool>,
+    price_api_client: Option<Arc<dyn PriceApiClient>>,
+    eth_client: Box<DynClient<L1>>,
+    tx_params: Arc<dyn TxParamsProvider>,
+    l1_contracts: L1ChainContractsResource,
+    l1_ecosystem_contracts: L1EcosystemContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub persister: BaseTokenRatioPersister,
+    persister: BaseTokenRatioPersister,
 }
 
 impl BaseTokenRatioPersisterLayer {
@@ -72,16 +73,17 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool.get().await?;
 
-        let price_api_client = input.price_api_client;
+        let price_api_client = input
+            .price_api_client
+            .unwrap_or_else(|| Arc::new(NoOpPriceApiClient));
         let base_token_addr = input.l1_ecosystem_contracts.0.base_token_address;
 
         let l1_behaviour = self
             .wallets_config
             .token_multiplier_setter
             .map(|token_multiplier_setter| {
-                let tms_private_key = token_multiplier_setter.wallet.private_key();
-                let tms_address = token_multiplier_setter.wallet.address();
-                let EthInterfaceResource(query_client) = input.eth_client;
+                let tms_private_key = token_multiplier_setter.private_key();
+                let tms_address = token_multiplier_setter.address();
                 let l1_diamond_proxy_addr = input
                     .l1_contracts
                     .0
@@ -93,12 +95,12 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
                     l1_diamond_proxy_addr,
                     self.config.default_priority_fee_per_gas,
                     self.l1_chain_id.into(),
-                    query_client.clone().for_component("base_token_adjuster"),
+                    input.eth_client.for_component("base_token_adjuster"),
                 );
                 BaseTokenL1Behaviour::UpdateOnL1 {
                     params: UpdateOnL1Params {
                         eth_client: Box::new(signing_client),
-                        gas_adjuster: input.tx_params.0,
+                        gas_adjuster: input.tx_params,
                         token_multiplier_setter_account_address: tms_address,
                         chain_admin_contract: chain_admin_contract(),
                         getters_facet_contract: getters_facet_contract(),
@@ -115,7 +117,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             master_pool,
             self.config,
             base_token_addr,
-            price_api_client.0,
+            price_api_client,
             l1_behaviour,
         );
 

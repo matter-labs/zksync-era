@@ -7,16 +7,22 @@ use zksync_node_framework::{
 use super::resources::{MasterPool, PoolResource, ReplicaPool};
 use crate::{ConnectionPool, Core};
 
-/// Builder for the [`PoolsLayer`].
+/// Wiring layer for connection pools.
+/// During wiring, also prepares the global configuration for the connection pools.
+///
+/// ## Adds resources
+///
+/// - `PoolResource::<MasterPool>` (if master pool is enabled)
+/// - `PoolResource::<ReplicaPool>` (if replica pool is enabled)
 #[derive(Debug)]
-pub struct PoolsLayerBuilder {
+pub struct PoolsLayer {
     config: PostgresConfig,
+    secrets: DatabaseSecrets,
     with_master: bool,
     with_replica: bool,
-    secrets: DatabaseSecrets,
 }
 
-impl PoolsLayerBuilder {
+impl PoolsLayer {
     /// Creates a new builder with the provided configuration and secrets.
     /// By default, no pulls are enabled.
     pub fn empty(config: PostgresConfig, database_secrets: DatabaseSecrets) -> Self {
@@ -39,37 +45,12 @@ impl PoolsLayerBuilder {
         self.with_replica = with_replica;
         self
     }
-
-    /// Builds the [`PoolsLayer`] with the provided configuration.
-    pub fn build(self) -> PoolsLayer {
-        PoolsLayer {
-            config: self.config,
-            secrets: self.secrets,
-            with_master: self.with_master,
-            with_replica: self.with_replica,
-        }
-    }
-}
-
-/// Wiring layer for connection pools.
-/// During wiring, also prepares the global configuration for the connection pools.
-///
-/// ## Adds resources
-///
-/// - `PoolResource::<MasterPool>` (if master pool is enabled)
-/// - `PoolResource::<ReplicaPool>` (if replica pool is enabled)
-#[derive(Debug)]
-pub struct PoolsLayer {
-    config: PostgresConfig,
-    secrets: DatabaseSecrets,
-    with_master: bool,
-    with_replica: bool,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub master_pool: Option<PoolResource<MasterPool>>,
-    pub replica_pool: Option<PoolResource<ReplicaPool>>,
+    master_pool: Option<PoolResource<MasterPool>>,
+    replica_pool: Option<PoolResource<ReplicaPool>>,
 }
 
 #[async_trait::async_trait]
@@ -89,23 +70,19 @@ impl WiringLayer for PoolsLayer {
         }
 
         if self.with_master || self.with_replica {
-            if let Some(threshold) = self.config.slow_query_threshold() {
-                ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
-            }
-            if let Some(threshold) = self.config.long_connection_threshold() {
-                ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
-            }
+            ConnectionPool::<Core>::global_config()
+                .set_slow_query_threshold(self.config.slow_query_threshold)?;
+            ConnectionPool::<Core>::global_config()
+                .set_long_connection_threshold(self.config.long_connection_threshold)?;
         }
 
         let master_pool = if self.with_master {
             let pool_size = self.config.max_connections()?;
-            let pool_size_master = self.config.max_connections_master().unwrap_or(pool_size);
+            let pool_size_master = self.config.max_connections_master.unwrap_or(pool_size);
 
             Some(PoolResource::<MasterPool>::new(
                 self.secrets.master_url()?,
                 pool_size_master,
-                None,
-                None,
             ))
         } else {
             None
@@ -114,12 +91,17 @@ impl WiringLayer for PoolsLayer {
         let replica_pool = if self.with_replica {
             // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
             // on Postgres.
-            Some(PoolResource::<ReplicaPool>::new(
+            let pool = PoolResource::<ReplicaPool>::new(
                 self.secrets.replica_url()?,
                 self.config.max_connections()?,
-                self.config.statement_timeout(),
-                self.config.acquire_timeout(),
-            ))
+            );
+            let pool = pool
+                .with_statement_timeout(Some(self.config.statement_timeout))
+                .with_acquire_timeout(
+                    Some(self.config.acquire_timeout),
+                    self.config.acquire_retries,
+                );
+            Some(pool)
         } else {
             None
         };

@@ -11,8 +11,8 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_object_store::{node::ObjectStoreResource, ObjectStore};
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_object_store::ObjectStore;
+use zksync_types::L2ChainId;
 
 use crate::ProofDataHandlerClient;
 
@@ -20,33 +20,30 @@ use crate::ProofDataHandlerClient;
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
     api_mode: ApiMode,
 }
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
-    pub object_store: ObjectStoreResource,
+    master_pool: PoolResource<MasterPool>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub task: ProofDataHandlerTask,
+    task: ProofDataHandlerTask,
 }
 
 impl ProofDataHandlerLayer {
     pub fn new(
         proof_data_handler_config: ProofDataHandlerConfig,
-        commitment_mode: L1BatchCommitmentMode,
         l2_chain_id: L2ChainId,
         api_mode: ApiMode,
     ) -> Self {
         Self {
             proof_data_handler_config,
-            commitment_mode,
             l2_chain_id,
             api_mode,
         }
@@ -64,13 +61,12 @@ impl WiringLayer for ProofDataHandlerLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
-        let blob_store = input.object_store.0;
+        let blob_store = input.object_store;
 
         let task = ProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
             blob_store,
             main_pool,
-            commitment_mode: self.commitment_mode,
             l2_chain_id: self.l2_chain_id,
             api_mode: self.api_mode,
         };
@@ -85,7 +81,6 @@ pub struct ProofDataHandlerTask {
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
     api_mode: ApiMode,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 }
 
@@ -100,7 +95,6 @@ impl Task for ProofDataHandlerTask {
             self.proof_data_handler_config.clone(),
             self.blob_store.clone(),
             self.main_pool.clone(),
-            self.commitment_mode,
             self.l2_chain_id,
             self.api_mode.clone(),
             stop_receiver.clone().0,
@@ -113,7 +107,6 @@ impl Task for ProofDataHandlerTask {
                 self.blob_store,
                 self.main_pool,
                 self.proof_data_handler_config,
-                self.commitment_mode,
                 self.l2_chain_id,
             );
 

@@ -17,6 +17,8 @@ use zksync_eth_client::{
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
+pub mod gateway_urls;
+
 pub mod node;
 
 #[derive(Debug, thiserror::Error)]
@@ -38,6 +40,7 @@ pub struct GatewayMigrator {
     settlement_layer: Option<SettlementLayer>,
     l2_chain_id: L2ChainId,
     getters_facet_abi: Contract,
+    eth_node_poll_interval: Duration,
 }
 
 impl GatewayMigrator {
@@ -47,6 +50,7 @@ impl GatewayMigrator {
         l2_chain_id: L2ChainId,
         settlement_layer: Option<SettlementLayer>,
         l1_settlement_layer_specific_contracts: SettlementLayerSpecificContracts,
+        eth_node_poll_interval: Duration,
     ) -> Self {
         let abi = getters_facet_contract();
         Self {
@@ -56,6 +60,7 @@ impl GatewayMigrator {
             settlement_layer,
             l2_chain_id,
             getters_facet_abi: abi,
+            eth_node_poll_interval,
         }
     }
 
@@ -101,7 +106,7 @@ impl GatewayMigrator {
                 }
             }
 
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(self.eth_node_poll_interval).await;
         }
     }
 }
@@ -127,9 +132,12 @@ pub async fn current_settlement_layer(
             sl_l1_contracts
                 .ecosystem_contracts
                 .bridgehub_proxy_addr
-                .unwrap(),
+                .expect("Bridgehub address should always be presented"),
         ),
-        SettlementLayer::Gateway(_) => (gateway_client.unwrap(), L2_BRIDGEHUB_ADDRESS),
+        SettlementLayer::Gateway(_) => (
+            gateway_client.expect("No gateway url was provided"),
+            L2_BRIDGEHUB_ADDRESS,
+        ),
     };
 
     // Load chain contracts from sl
@@ -163,7 +171,7 @@ pub async fn current_settlement_layer(
         match settlement_mode_from_l1 {
             SettlementLayer::L1(_) => {
                 let chain_id = gateway_client
-                    .unwrap()
+                    .expect("No gateway url was provided")
                     .fetch_chain_id()
                     .await
                     .map_err(ContractCallError::from)?;

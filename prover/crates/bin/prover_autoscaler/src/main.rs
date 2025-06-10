@@ -1,15 +1,12 @@
-use std::time::Duration;
-
 use anyhow::Context;
+use smart_config::{ConfigSchema, DescribeConfig};
 use structopt::StructOpt;
-use tokio::{
-    sync::{oneshot, watch},
-    task::JoinHandle,
-};
+use tokio::sync::{oneshot, watch};
+use zksync_config::sources::ConfigSources;
 use zksync_prover_autoscaler::{
     agent,
     cluster_types::ClusterName,
-    config::{config_from_yaml, ProverAutoscalerConfig},
+    config::ProverAutoscalerConfig,
     global::{manager::Manager, queuer::Queuer, watcher},
     http_client::HttpClient,
     k8s::{Scaler, Watcher},
@@ -56,12 +53,13 @@ struct Opt {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
-    let general_config =
-        config_from_yaml::<ProverAutoscalerConfig>(&opt.config_path).context("general config")?;
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
+
+    let config_sources = ConfigSources::default().with_yaml(&opt.config_path)?;
+    let _observability_guard = config_sources.observability()?.install()?;
+
+    let full_config_schema = ConfigSchema::new(&ProverAutoscalerConfig::DESCRIPTION, "");
+    let mut config_repo = config_sources.build_repository(&full_config_schema);
+    let general_config: ProverAutoscalerConfig = config_repo.parse()?;
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -111,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
             let interval = scaler_config.scaler_run_interval;
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
+
             let watcher = watcher::Watcher::new(
                 http_client.clone(),
                 scaler_config.agents.clone(),
@@ -118,7 +117,11 @@ async fn main() -> anyhow::Result<()> {
             );
             let queuer = Queuer::new(http_client, scaler_config.prover_job_monitor_url.clone());
             let manager = Manager::new(watcher.clone(), queuer, scaler_config);
-            tasks.extend(get_tasks(watcher, manager, interval, stop_receiver)?);
+
+            let mut task_runner = TaskRunner::default();
+            task_runner.extend("AgentPoller", interval, watcher.create_poller_tasks());
+            task_runner.add("Manager", interval, manager);
+            tasks.extend(task_runner.spawn(stop_receiver));
         }
     }
 
@@ -136,18 +139,4 @@ async fn main() -> anyhow::Result<()> {
         .await;
 
     Ok(())
-}
-
-fn get_tasks(
-    watcher: watcher::Watcher,
-    manager: Manager,
-    interval: Duration,
-    stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    let mut task_runner = TaskRunner::default();
-
-    task_runner.add("Watcher", interval, watcher);
-    task_runner.add("Scaler", interval, manager);
-
-    Ok(task_runner.spawn(stop_receiver))
 }

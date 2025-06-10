@@ -22,17 +22,17 @@ pub struct ProtectiveReadsWriterLayer {
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
+    master_pool: PoolResource<MasterPool>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub protective_reads_writer: ProtectiveReadsWriter,
+    protective_reads_writer: ProtectiveReadsWriter,
     #[context(task)]
-    pub loader_task: StorageSyncTask<ProtectiveReadsIo>,
+    loader_task: StorageSyncTask<ProtectiveReadsIo>,
     #[context(task)]
-    pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
+    output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<ProtectiveReadsIo>,
 }
 
 impl ProtectiveReadsWriterLayer {
@@ -60,6 +60,7 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let master_pool = input.master_pool;
 
+        let window_size = self.protective_reads_writer_config.window_size.get();
         let (protective_reads_writer, tasks) = ProtectiveReadsWriter::new(
             // One for `StorageSyncTask` which can hold a long-term connection in case it needs to
             // catch up cache.
@@ -70,13 +71,11 @@ impl WiringLayer for ProtectiveReadsWriterLayer {
             // `window_size` connections for `ProtectiveReadsOutputHandlerFactory`
             // as there can be multiple output handlers holding multi-second connections to write
             // large amount of protective reads.
-            master_pool
-                .get_custom(self.protective_reads_writer_config.window_size + 2)
-                .await?,
+            master_pool.get_custom(window_size + 2).await?,
             self.protective_reads_writer_config.db_path,
             self.zksync_network_id,
             self.protective_reads_writer_config.first_processed_batch,
-            self.protective_reads_writer_config.window_size,
+            window_size,
         )
         .await?;
 

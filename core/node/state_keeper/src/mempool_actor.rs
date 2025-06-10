@@ -14,7 +14,6 @@ use zksync_types::H256;
 use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::v26_utils::find_unsafe_deposit;
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -40,7 +39,6 @@ pub struct MempoolFetcher {
     sync_interval: Duration,
     sync_batch_size: usize,
     stuck_tx_timeout: Option<Duration>,
-    skip_unsafe_deposit_checks: bool,
     l1_to_l2_txs_paused: bool,
     #[cfg(test)]
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
@@ -56,10 +54,9 @@ impl MempoolFetcher {
             mempool,
             pool,
             batch_fee_input_provider,
-            sync_interval: config.sync_interval(),
+            sync_interval: config.sync_interval,
             sync_batch_size: config.sync_batch_size,
-            stuck_tx_timeout: config.remove_stuck_txs.then(|| config.stuck_tx_timeout()),
-            skip_unsafe_deposit_checks: config.skip_unsafe_deposit_checks,
+            stuck_tx_timeout: config.remove_stuck_txs.then_some(config.stuck_tx_timeout),
             l1_to_l2_txs_paused: config.l1_to_l2_txs_paused,
             #[cfg(test)]
             transaction_hashes_sender: mpsc::unbounded_channel().0,
@@ -137,47 +134,6 @@ impl MempoolFetcher {
                 .await
                 .context("failed syncing mempool")?;
 
-            let unsafe_deposit = if !self.skip_unsafe_deposit_checks {
-                find_unsafe_deposit(
-                    transactions_with_constraints.iter().map(|(tx, _)| tx),
-                    &mut storage_transaction,
-                )
-                .await?
-            } else {
-                // We do not check for the unsafe deposits, so we just treat all deposits as "safe"
-                None
-            };
-
-            let transactions_with_constraints = if let Some(hash) = unsafe_deposit {
-                tracing::warn!("Transaction with hash {:#?} is an unsafe deposit. All L1->L2 transactions are returned to mempool.", hash);
-
-                let hashes: Vec<_> = transactions_with_constraints
-                    .iter()
-                    .map(|x| x.0.hash())
-                    .collect();
-
-                storage_transaction
-                    .transactions_dal()
-                    .reset_mempool_status(&hashes)
-                    .await
-                    .context("failed to return txs to mempool")?;
-
-                storage_transaction
-                    .transactions_dal()
-                    .sync_mempool(
-                        &mempool_info.stashed_accounts,
-                        &mempool_info.purged_accounts,
-                        gas_per_pubdata,
-                        fee_per_gas,
-                        false,
-                        self.sync_batch_size,
-                    )
-                    .await
-                    .context("failed syncing mempool")?
-            } else {
-                transactions_with_constraints
-            };
-
             let transactions: Vec<_> = transactions_with_constraints
                 .iter()
                 .map(|(t, _c)| t)
@@ -249,13 +205,12 @@ mod tests {
     use super::*;
 
     const TEST_MEMPOOL_CONFIG: MempoolConfig = MempoolConfig {
-        sync_interval_ms: 10,
+        sync_interval: Duration::from_millis(10),
         sync_batch_size: 100,
         capacity: 100,
-        stuck_tx_timeout: 0,
+        stuck_tx_timeout: Duration::ZERO,
         remove_stuck_txs: false,
-        delay_interval: 10,
-        skip_unsafe_deposit_checks: false,
+        delay_interval: Duration::from_millis(10),
         l1_to_l2_txs_paused: false,
     };
 
@@ -398,7 +353,7 @@ mod tests {
             .unwrap();
         drop(storage);
 
-        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval() * 5).await;
+        tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval * 5).await;
         assert_eq!(mempool.stats().l2_transaction_count, 0);
 
         stop_sender.send_replace(true);

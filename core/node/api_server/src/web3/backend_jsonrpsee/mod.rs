@@ -10,7 +10,8 @@ use zksync_web3_decl::{
 pub(crate) use self::{
     metadata::{MethodMetadata, MethodTracer},
     middleware::{
-        CorrelationMiddleware, LimitMiddleware, MetadataLayer, ShutdownMiddleware, TrafficTracker,
+        CorrelationMiddleware, LimitMiddleware, MetadataLayer, ServerTimeoutMiddleware,
+        ShutdownMiddleware, TrafficTracker,
     },
 };
 use crate::tx_sender::SubmitTxError;
@@ -56,15 +57,15 @@ impl MethodTracer {
 
         ErrorObjectOwned::owned(code, message, data)
     }
-}
 
-impl From<SubmitTxError> for Web3Error {
-    fn from(err: SubmitTxError) -> Self {
+    pub(crate) fn map_submit_err(&self, err: SubmitTxError) -> Web3Error {
+        self.observe_submit_error(&err);
+
         match err {
-            SubmitTxError::Internal(err) => Self::InternalError(err),
-            SubmitTxError::ProxyError(err) => Self::ProxyError(err),
-            SubmitTxError::ServerShuttingDown => Self::ServerShuttingDown,
-            _ => Self::SubmitTransactionError(err.to_string(), err.data()),
+            SubmitTxError::Internal(err) => Web3Error::InternalError(err),
+            SubmitTxError::ProxyError(err) => Web3Error::ProxyError(err),
+            SubmitTxError::ServerShuttingDown => Web3Error::ServerShuttingDown,
+            _ => Web3Error::SubmitTransactionError(err.to_string(), err.data()),
         }
     }
 }

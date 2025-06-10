@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use serde::Serialize;
-use zksync_config::configs::api::HealthCheckConfig;
-use zksync_health_check::{node::AppHealthCheckResource, AppHealthCheck};
+use zksync_config::{configs::api::HealthCheckConfig, CapturedParams};
+use zksync_health_check::{AppHealthCheck, CheckHealth, Health, HealthStatus};
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId, TaskKind},
@@ -26,18 +26,36 @@ pub struct BinMetadata {
 /// into [`AppHealthCheck`] aggregating heath using [`AppHealthCheckResource`].
 /// The added task spawns a health check server that only exposes the state provided by other tasks.
 #[derive(Debug)]
-pub struct HealthCheckLayer(pub HealthCheckConfig);
+pub struct HealthCheckLayer {
+    config: HealthCheckConfig,
+    config_params: Option<CapturedParams>,
+}
+
+impl HealthCheckLayer {
+    pub fn new(config: HealthCheckConfig) -> Self {
+        Self {
+            config,
+            config_params: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_config_params(mut self, params: CapturedParams) -> Self {
+        self.config_params = Some(params);
+        self
+    }
+}
 
 #[derive(Debug, FromContext)]
 pub struct Input {
     #[context(default)]
-    pub app_health_check: AppHealthCheckResource,
+    app_health_check: Arc<AppHealthCheck>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    pub health_check_task: HealthCheckTask,
+    health_check_task: HealthCheckTask,
 }
 
 #[async_trait::async_trait]
@@ -50,11 +68,22 @@ impl WiringLayer for HealthCheckLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let AppHealthCheckResource(app_health_check) = input.app_health_check;
-        app_health_check.override_limits(self.0.slow_time_limit(), self.0.hard_time_limit());
+        let app_health_check = input.app_health_check;
+        app_health_check.override_limits(self.config.slow_time_limit, self.config.hard_time_limit);
+
+        if let (true, Some(params)) = (self.config.expose_config, self.config_params) {
+            tracing::info!(
+                params.len = params.len(),
+                "Exposing config params as part of healthcheck server"
+            );
+            let config_health = ConfigHealth(params);
+            app_health_check
+                .insert_custom_component(Arc::new(config_health))
+                .map_err(WiringError::internal)?;
+        }
 
         let health_check_task = HealthCheckTask {
-            config: self.0,
+            config: self.config,
             app_health_check,
         };
 
@@ -89,5 +118,19 @@ impl Task for HealthCheckTask {
         handle.stop().await;
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct ConfigHealth(CapturedParams);
+
+#[async_trait::async_trait]
+impl CheckHealth for ConfigHealth {
+    fn name(&self) -> &'static str {
+        "config"
+    }
+
+    async fn check_health(&self) -> Health {
+        Health::from(HealthStatus::Ready).with_details(&self.0)
     }
 }

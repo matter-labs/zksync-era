@@ -53,6 +53,7 @@ jobs:
               - './core/Cargo.toml'
               - './core/Cargo.lock'
               - 'zkstack_cli/**'
+              - 'private-rpc/**'
               - '!**/*.md'
               - '!**/*.MD'
               - 'docker-compose.yml'
@@ -100,13 +101,6 @@ jobs:
     if: needs.changed_files.outputs.docs == 'true'
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
-
-  # What needs to be ran for both core and prover
-  ci-for-common:
-    needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
-    name: CI for Common Components (prover or core)
-    uses: ./.github/workflows/ci-common-reusable.yml
 
   build-core-images:
     name: Build core images
@@ -164,7 +158,6 @@ jobs:
     needs:
       [
         ci-for-core-lint,
-        ci-for-common,
         ci-for-core,
         ci-for-prover,
         ci-for-docs,

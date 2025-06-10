@@ -14,12 +14,14 @@ categories.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_instrument.workspace = true
 zksync_merkle_tree.workspace = true
 zksync_node_framework.workspace = true
 zksync_types.workspace = true
 zksync_config.workspace = true
 zksync_storage.workspace = true
 zksync_shared_metrics.workspace = true
+zksync_shared_resources.workspace = true
 zksync_object_store = { workspace = true, features = ["node_framework"] }
 vise.workspace = true
 

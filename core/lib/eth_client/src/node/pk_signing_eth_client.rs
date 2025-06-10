@@ -6,41 +6,48 @@ use zksync_node_framework::{
 use zksync_shared_resources::contracts::{
     L1ChainContractsResource, SettlementLayerContractsResource,
 };
-use zksync_web3_decl::node::{EthInterfaceResource, SettlementLayerClient};
-
-use super::resources::{
-    BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource, BoundEthInterfaceResource,
+use zksync_web3_decl::{
+    client::{DynClient, L1},
+    node::SettlementLayerClient,
 };
-use crate::{clients::PKSigningClient, EthInterface};
+
+use super::resources::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource};
+use crate::{clients::PKSigningClient, BoundEthInterface, EthInterface};
 
 /// Wiring layer for [`PKSigningClient`].
 #[derive(Debug)]
 pub struct PKSigningEthClientLayer {
     gas_adjuster_config: GasAdjusterConfig,
-    wallets: wallets::EthSender,
+    operator: wallets::Wallet,
+    blob_operator: Option<wallets::Wallet>,
 }
 
 #[derive(Debug, FromContext)]
 pub struct Input {
-    pub eth_client: EthInterfaceResource,
-    pub gateway_client: SettlementLayerClient,
-    pub contracts: SettlementLayerContractsResource,
-    pub l1_contracts: L1ChainContractsResource,
+    eth_client: Box<DynClient<L1>>,
+    gateway_client: SettlementLayerClient,
+    contracts: SettlementLayerContractsResource,
+    l1_contracts: L1ChainContractsResource,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    pub signing_client: BoundEthInterfaceResource,
+    signing_client: Box<dyn BoundEthInterface>,
     /// Only provided if the blob operator key is provided to the layer.
-    pub signing_client_for_blobs: Option<BoundEthInterfaceForBlobsResource>,
-    pub signing_client_for_gateway: Option<BoundEthInterfaceForL2Resource>,
+    signing_client_for_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    signing_client_for_gateway: Option<BoundEthInterfaceForL2Resource>,
 }
 
 impl PKSigningEthClientLayer {
-    pub fn new(gas_adjuster_config: GasAdjusterConfig, wallets: wallets::EthSender) -> Self {
+    pub fn new(
+        gas_adjuster_config: GasAdjusterConfig,
+        operator: wallets::Wallet,
+        blob_operator: Option<wallets::Wallet>,
+    ) -> Self {
         Self {
             gas_adjuster_config,
-            wallets,
+            operator,
+            blob_operator,
         }
     }
 }
@@ -55,9 +62,9 @@ impl WiringLayer for PKSigningEthClientLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let private_key = self.wallets.operator.private_key();
+        let private_key = self.operator.private_key();
         let gas_adjuster_config = &self.gas_adjuster_config;
-        let EthInterfaceResource(query_client) = input.eth_client;
+        let query_client = input.eth_client;
 
         let l1_diamond_proxy_addr = input
             .l1_contracts
@@ -76,9 +83,9 @@ impl WiringLayer for PKSigningEthClientLayer {
             l1_chain_id,
             query_client.clone(),
         );
-        let signing_client = BoundEthInterfaceResource(Box::new(signing_client));
+        let signing_client = Box::new(signing_client);
 
-        let signing_client_for_blobs = self.wallets.blob_operator.map(|blob_operator| {
+        let signing_client_for_blobs = self.blob_operator.map(|blob_operator| {
             let private_key = blob_operator.private_key();
             let signing_client_for_blobs = PKSigningClient::new_raw(
                 private_key.clone(),
@@ -91,8 +98,8 @@ impl WiringLayer for PKSigningEthClientLayer {
         });
 
         let signing_client_for_gateway = match input.gateway_client {
-            SettlementLayerClient::L2(gateway_client) => {
-                let private_key = self.wallets.operator.private_key();
+            SettlementLayerClient::Gateway(gateway_client) => {
+                let private_key = self.operator.private_key();
                 let l2_chain_id = gateway_client
                     .fetch_chain_id()
                     .await

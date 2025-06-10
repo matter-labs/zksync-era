@@ -1,5 +1,6 @@
 [package]
 name = "zksync_proof_fri_compressor"
+description = "ZKsync proof fri compressor binary implementation"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,28 +9,24 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
+publish = false
 
 [dependencies]
-vise.workspace = true
-zksync_types.workspace = true
 zksync_prover_dal.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
-zksync_env_config.workspace = true
 zksync_object_store.workspace = true
-zksync_prover_interface.workspace = true
 zksync_task_management.workspace = true
-zksync_core_leftovers.workspace = true
 zksync_prover_fri_types.workspace = true
-zksync_queued_job_processor.workspace = true
 zksync_prover_keystore = { workspace = true, features = ["gpu"] }
 zksync_vlog.workspace = true
+zksync_proof_fri_compressor_service.workspace = true
 
 proof-compression-gpu.workspace = true
 
+vise.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
-ctrlc = { workspace = true, features = ["termination"] }
+tokio-util.workspace = true
 clap = { workspace = true, features = ["derive"] }
-async-trait.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }

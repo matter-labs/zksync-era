@@ -3,9 +3,13 @@ use std::{collections::HashSet, str::FromStr};
 use anyhow::Context as _;
 use clap::Parser;
 use node_builder::ExternalNodeBuilder;
+use zksync_config::{cli::ConfigArgs, full_config_schema, sources::ConfigFilePaths};
+use zksync_types::L1BatchNumber;
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::config::{generate_consensus_secrets, ExternalNodeConfig};
+use crate::config::{
+    generate_consensus_secrets, observability::ObservabilityENConfig, ExternalNodeConfig,
+};
 
 mod config;
 mod metadata;
@@ -14,11 +18,22 @@ mod node_builder;
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Clone, clap::Subcommand)]
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[derive(Debug, clap::Subcommand)]
 enum Command {
     /// Generates consensus secret keys to use in the secrets file.
     /// Prints the keys to the stdout, you need to copy the relevant keys into your secrets file.
     GenerateSecrets,
+    /// Configuration-related tools.
+    Config(ConfigArgs),
+    /// Reverts the node state to the end of the specified L1 batch and then exits.
+    Revert {
+        /// The last L1 batch to be retained after the revert.
+        l1_batch: L1BatchNumber,
+    },
 }
 
 /// External node for ZKsync Era.
@@ -122,42 +137,67 @@ fn main() -> anyhow::Result<()> {
 
     // Initial setup.
     let opt = Cli::parse();
-
-    if let Some(cmd) = &opt.command {
-        match cmd {
-            Command::GenerateSecrets => generate_consensus_secrets(),
+    let schema = full_config_schema(true);
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path.clone(),
+        secrets: opt.secrets_path.clone(),
+        external_node: opt.external_node_config_path.clone(),
+        consensus: opt.consensus_path.clone(),
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("EN_")?;
+    let (observability, prometheus_config) = {
+        // Observability initialization should be performed within tokio context.
+        let _rt_guard = runtime.enter();
+        if opt.config_path.is_some() {
+            (config_sources.observability()?.install()?, None)
+        } else {
+            let observability = ObservabilityENConfig::from_env()?;
+            (
+                observability.build_observability()?,
+                observability.prometheus(),
+            )
         }
-        return Ok(());
+    };
+    let repo = config_sources.build_repository(&schema);
+
+    let mut revert_to_l1_batch = None;
+    if let Some(cmd) = opt.command {
+        match cmd {
+            Command::GenerateSecrets => {
+                generate_consensus_secrets();
+                return Ok(());
+            }
+            Command::Config(config_args) => {
+                return config_args.run(repo.into());
+            }
+            Command::Revert { l1_batch } => {
+                // We need to delay revert to after the config is fully read.
+                revert_to_l1_batch = Some(l1_batch);
+            }
+        }
     }
 
-    let mut config = if let Some(config_path) = opt.config_path.clone() {
-        let secrets_path = opt.secrets_path.clone().unwrap();
-        let external_node_config_path = opt.external_node_config_path.clone().unwrap();
+    let mut config = if opt.config_path.is_some() {
         if opt.enable_consensus {
             anyhow::ensure!(
                 opt.consensus_path.is_some(),
                 "if --config-path and --enable-consensus are specified, then --consensus-path should be used to specify the location of the consensus config"
             );
         }
-        ExternalNodeConfig::from_files(
-            config_path,
-            external_node_config_path,
-            secrets_path,
-            opt.consensus_path.clone(),
-        )?
+        ExternalNodeConfig::from_files(repo, opt.consensus_path.is_some())?
     } else {
-        ExternalNodeConfig::new().context("Failed to load node configuration")?
+        ExternalNodeConfig::new(prometheus_config).context("Failed to load node configuration")?
     };
-
     if !opt.enable_consensus {
         config.consensus = None;
     }
-    let guard = {
-        // Observability stack implicitly spawns several tokio tasks, so we need to call this method
-        // from within tokio context.
-        let _rt_guard = runtime.enter();
-        config.observability.build_observability()?
-    };
+
+    if let Some(l1_batch) = revert_to_l1_batch {
+        let node = ExternalNodeBuilder::on_runtime(runtime, config).build_for_revert(l1_batch)?;
+        node.run(observability)?;
+        return Ok(());
+    }
 
     // Build L1 and L2 clients.
     let main_node_url = &config.required.main_node_url;
@@ -172,9 +212,8 @@ fn main() -> anyhow::Result<()> {
     let config = runtime
         .block_on(config.fetch_remote(main_node_client.as_ref()))
         .context("failed fetching remote part of node config from main node")?;
-
     let node = ExternalNodeBuilder::on_runtime(runtime, config)
         .build(opt.components.0.into_iter().collect())?;
-    node.run(guard)?;
-    anyhow::Ok(())
+    node.run(observability)?;
+    Ok(())
 }

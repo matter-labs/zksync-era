@@ -135,7 +135,7 @@ impl Query {
 async fn sealed_by_number_of_txs() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -154,7 +154,7 @@ async fn sealed_by_number_of_txs() {
 async fn batch_sealed_before_l2_block_does() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -179,7 +179,7 @@ async fn batch_sealed_before_l2_block_does() {
 async fn rejected_tx() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -209,7 +209,7 @@ async fn rejected_tx() {
 async fn bootloader_tip_out_of_gas_flow() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -247,7 +247,7 @@ async fn bootloader_tip_out_of_gas_flow() {
 async fn pending_batch_is_applied() {
     let config = StateKeeperConfig {
         transaction_slots: 3,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -286,7 +286,7 @@ async fn pending_batch_is_applied() {
         })
         .batch_sealed_with("Batch sealed with all 3 txs", |updates| {
             assert_eq!(
-                updates.l1_batch.executed_transactions.len(),
+                updates.l1_batch.executed_transaction_hashes.len(),
                 3,
                 "There should be 3 transactions in the batch"
             );
@@ -298,7 +298,7 @@ async fn pending_batch_is_applied() {
 /// Load protocol upgrade transactions
 #[tokio::test]
 async fn load_upgrade_tx() {
-    let sealer = SequencerSealer::default();
+    let sealer = SequencerSealer::for_tests();
     let scenario = TestScenario::new();
     let batch_executor = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, _stop_receiver) = watch::channel(false);
@@ -351,7 +351,7 @@ async fn unconditional_sealing() {
 
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -381,7 +381,7 @@ async fn unconditional_sealing() {
 async fn l2_block_timestamp_after_pending_batch() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -426,7 +426,7 @@ async fn time_is_monotonic() {
 
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -477,7 +477,7 @@ async fn time_is_monotonic() {
 async fn protocol_upgrade() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -515,7 +515,7 @@ async fn protocol_upgrade() {
 async fn l2_block_timestamp_updated_after_first_tx() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..StateKeeperConfig::default()
+        ..StateKeeperConfig::for_tests()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
     let new_timestamp = 555;

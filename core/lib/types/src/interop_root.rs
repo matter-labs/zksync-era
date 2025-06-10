@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ethabi::Token, u256_to_h256, U256};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct InteropRoot {
     pub chain_id: u32,
     pub block_number: u32,
@@ -30,17 +30,6 @@ impl InteropRoot {
                     .map(|hash| Token::FixedBytes(u256_to_h256(*hash).as_bytes().to_vec()))
                     .collect(),
             ),
-        ]) //
-    }
-}
-
-impl Clone for InteropRoot {
-    fn clone(&self) -> Self {
-        Self {
-            chain_id: self.chain_id,
-            block_number: self.block_number,
-            sides: self.sides.clone(),
-            received_timestamp: self.received_timestamp,
-        }
+        ])
     }
 }

@@ -1,11 +1,11 @@
 use zksync_types::{
     api::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionExecutionInfo,
+        TransactionDetailedResult, TransactionExecutionInfo,
     },
     block::BatchOrBlockNumber,
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    web3, L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -37,10 +37,20 @@ impl UnstableNamespaceServer for UnstableNamespace {
 
     async fn get_chain_log_proof(
         &self,
-        batch_or_block_number: BatchOrBlockNumber,
+        batch_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>> {
-        self.get_chain_log_proof_impl(batch_or_block_number, chain_id)
+        self.get_chain_log_proof_impl(BatchOrBlockNumber::BatchNumber(batch_number), chain_id)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_inner_chain_log_proof(
+        &self,
+        block_number: L2BlockNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>> {
+        self.get_chain_log_proof_impl(BatchOrBlockNumber::BlockNumber(block_number), chain_id)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -72,6 +82,15 @@ impl UnstableNamespaceServer for UnstableNamespace {
 
     async fn gateway_migration_status(&self) -> RpcResult<GatewayMigrationStatus> {
         self.gateway_migration_status_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: web3::Bytes,
+    ) -> RpcResult<TransactionDetailedResult> {
+        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
