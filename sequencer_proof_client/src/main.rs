@@ -31,7 +31,7 @@ impl Cli {
         Ok(cli)
     }
 
-    /// Returns the sequencer URL, which is required for all commands. To be called only after `Cli::init()`.
+    /// Return sequencer client from CLI params. To be called only after `Cli::init()`.
     fn sequencer_client(&self) -> SequencerProofClient {
         SequencerProofClient::new(self.url.clone().expect("called sequencer_client() before init()"))
     }
