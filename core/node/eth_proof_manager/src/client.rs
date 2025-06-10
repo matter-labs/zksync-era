@@ -1,14 +1,18 @@
 use zksync_eth_client::{
-    clients::DynClient, web3_decl::client::Network, CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
+    clients::DynClient, web3_decl::client::Network, CallFunctionArgs, ContractCallError,
+    EnrichedClientError, EthInterface,
 };
 use zksync_eth_watch::GetLogsClient;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_types::{
-    api::Log, ethabi::{Address, Contract}, protocol_version::ProtocolSemanticVersion, web3::{contract::Tokenize, BlockNumber, FilterBuilder}, L2ChainId, H256, U256
+    api::Log,
+    ethabi::{Address, Contract},
+    protocol_version::ProtocolSemanticVersion,
+    web3::{contract::Tokenize, BlockId, BlockNumber, FilterBuilder},
+    L2ChainId, H256, U256,
 };
 
 use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
-use zksync_types::web3::BlockId;
 
 pub struct EthProofManagerClient<Net: Network> {
     client: Box<DynClient<Net>>,
@@ -50,7 +54,7 @@ where
         // params: id: ProofRequestIdentifier,
         // params: witness_input_data: ProofRequestParams,
 
-        let id = ProofRequestIdentifier{
+        let id = ProofRequestIdentifier {
             chain_id: chain_id.as_u64().into(),
             block_number: batch_number.into(),
         };
@@ -83,7 +87,7 @@ where
         // id: ProofRequestIdentifier,
         // is_proof_valid: bool,
 
-        let id = ProofRequestIdentifier{
+        let id = ProofRequestIdentifier {
             chain_id: chain_id.as_u64().into(),
             block_number: batch_number.into(),
         };
@@ -103,12 +107,15 @@ where
             .block(BlockId::Number(BlockNumber::Finalized))
             .await?
             .ok_or_else(|| {
-                let err = jsonrpsee::core::ClientError::Custom("Finalized block must be present on L1".into());
+                let err = jsonrpsee::core::ClientError::Custom(
+                    "Finalized block must be present on L1".into(),
+                );
                 let err = EnrichedClientError::new(err, "block");
                 ClientError::ProviderError(err)
             })?;
         let block_number = block.number.ok_or_else(|| {
-            let err = jsonrpsee::core::ClientError::Custom("Finalized block must contain number".into());
+            let err =
+                jsonrpsee::core::ClientError::Custom("Finalized block must contain number".into());
             let err = EnrichedClientError::new(err, "block").with_arg("block", &block);
             ClientError::ProviderError(err)
         })?;

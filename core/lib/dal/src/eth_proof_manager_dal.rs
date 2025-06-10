@@ -1,7 +1,10 @@
 use std::str::FromStr;
 
 use tracing::Instrument;
-use zksync_db_connection::{connection::Connection, error::{DalError, DalResult}};
+use zksync_db_connection::{
+    connection::Connection,
+    error::{DalError, DalResult},
+};
 use zksync_types::L1BatchNumber;
 
 use crate::Core;
@@ -131,9 +134,13 @@ impl EthProofManagerDal<'_, '_> {
         .await?;
 
         if let Some(row) = row {
-            let validation_status = ValidationStatus::from_str(&row.validation_status).map_err(|e| anyhow::anyhow!("Invalid validation status: {}", e))?;
+            let validation_status = ValidationStatus::from_str(&row.validation_status)
+                .map_err(|e| anyhow::anyhow!("Invalid validation status: {}", e))?;
             if validation_status == ValidationStatus::Successful {
-                return Ok(Some((L1BatchNumber(row.l1_batch_number), validation_status)));
+                return Ok(Some((
+                    L1BatchNumber(row.l1_batch_number),
+                    validation_status,
+                )));
             }
         }
 
@@ -196,5 +203,4 @@ impl EthProofManagerDal<'_, '_> {
         .instrument("mark_proof_request_as_acknowledged")
         .execute(self.storage)
     }
-    
 }

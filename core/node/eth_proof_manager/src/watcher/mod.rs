@@ -3,8 +3,12 @@ use std::time::Duration;
 use tokio::sync::watch;
 use zksync_eth_client::clients::L1;
 
-use crate::client::EthProofManagerClient;
-use crate::watcher::event_processors::{EventHandler, ProofRequestAcknowledgedEvent, ProofRequestProvenEvent};
+use crate::{
+    client::EthProofManagerClient,
+    watcher::event_processors::{
+        EventHandler, ProofRequestAcknowledgedEvent, ProofRequestProvenEvent,
+    },
+};
 
 mod event_processors;
 
@@ -39,16 +43,18 @@ impl EthProofWatcher {
             let from_block = to_block.saturating_sub(100);
 
             for event_processor in &mut self.event_processors {
-                let events = self.client.get_events_with_retry(
-                    from_block,
-                    to_block,
-                    Some(vec![event_processor.signature()]),
-                    None,
-                    None,
-                    None,
-                ).await?;
+                let events = self
+                    .client
+                    .get_events_with_retry(
+                        from_block,
+                        to_block,
+                        Some(vec![event_processor.signature()]),
+                        None,
+                        None,
+                        None,
+                    )
+                    .await?;
             }
-
 
             tokio::time::timeout(Duration::from_secs(10), stop_receiver.changed())
                 .await

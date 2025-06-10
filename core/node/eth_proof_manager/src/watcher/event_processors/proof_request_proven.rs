@@ -46,10 +46,20 @@ impl EventHandler for ProofRequestProvenEventHandler {
         let key = L1BatchProofForL1Key::Core((self.block_number, proof.protocol_version()));
         let blob_url = blob_store.put(key, &proof).await?;
 
-        let transaction = connection_pool.connection().await?.start_transaction().await?;
+        let transaction = connection_pool
+            .connection()
+            .await?
+            .start_transaction()
+            .await?;
 
-        transaction.eth_proof_manager_dal().save_validation_result(self.block_number, true).await?;
-        transaction.proof_generation_dal().save_proof_artifacts_metadata(self.block_number, &blob_url).await?;
+        transaction
+            .eth_proof_manager_dal()
+            .save_validation_result(self.block_number, true)
+            .await?;
+        transaction
+            .proof_generation_dal()
+            .save_proof_artifacts_metadata(self.block_number, &blob_url)
+            .await?;
 
         transaction.commit().await?;
 
