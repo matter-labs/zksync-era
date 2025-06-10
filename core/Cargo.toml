@@ -241,19 +241,19 @@ rust-eigenda-client = "0.1.3"
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
 
-circuit_encodings = "=0.152.2"
-circuit_sequencer_api = "=0.152.2"
-circuit_definitions = "=0.152.2"
+circuit_encodings = { git = "https://github.com/matter-labs/zksync-protocol", branch = "popzxc-7702" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", branch = "popzxc-7702" }
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", branch = "popzxc-7702" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.1" }
 
-kzg = { package = "zksync_kzg", version = "=0.152.2" }
+kzg = { package = "zksync_kzg", git = "https://github.com/matter-labs/zksync-protocol", branch = "popzxc-7702" }
 
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.5" }
-zk_evm_1_5_2 = { package = "zk_evm", version = "=0.152.2" }
+zk_evm_1_5_2 = { package = "zk_evm", git = "https://github.com/matter-labs/zksync-protocol", branch = "popzxc-7702" }
 
 fflonk = "=0.32.1"
 

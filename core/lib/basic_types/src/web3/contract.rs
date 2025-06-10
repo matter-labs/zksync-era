@@ -200,8 +200,10 @@ impl Tokenizable for AuthorizationListItem {
                     return Err(Error::Other(format!("y_parity is too large: {y_parity}")));
                 }
 
-                let r = H256::from_token(tokens[4].clone())?;
-                let s = H256::from_token(tokens[5].clone())?;
+                // `bytes32` and `uint256` are interchangeable in Solidity,
+                // so we're avoiding conversion here.
+                let r = U256::from_token(tokens[4].clone())?;
+                let s = U256::from_token(tokens[5].clone())?;
 
                 Ok(AuthorizationListItem {
                     chain_id,
@@ -224,8 +226,10 @@ impl Tokenizable for AuthorizationListItem {
             ethabi::Token::Address(self.address),
             ethabi::Token::Uint(self.nonce),
             ethabi::Token::Uint(self.y_parity),
-            ethabi::Token::FixedBytes(self.r.to_fixed_bytes().into()),
-            ethabi::Token::FixedBytes(self.s.to_fixed_bytes().into()),
+            // `bytes32` and `uint256` are interchangeable in Solidity,
+            // so we're avoiding conversion here.
+            ethabi::Token::Uint(self.r),
+            ethabi::Token::Uint(self.s),
         ])
     }
 }

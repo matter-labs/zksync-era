@@ -662,8 +662,10 @@ pub struct AuthorizationListItem {
     pub address: Address,
     pub nonce: U256,
     pub y_parity: U256,
-    pub r: H256,
-    pub s: H256,
+    // Note: `r` and `s` are encoded as QUANTITY in the RPC, so they're represented as numbers,
+    // even though in Solidity they are normally represented as `bytes32`.
+    pub r: U256,
+    pub s: U256,
 }
 
 // `AccessList`, `AccessListItem`, `TransactionReceipt`, `SignedTransaction`: from `web3::types::transaction`
