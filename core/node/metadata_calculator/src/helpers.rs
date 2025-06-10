@@ -18,6 +18,7 @@ use tokio::sync::watch;
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck};
+use zksync_instrument::alloc::AllocationGuard;
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
@@ -292,7 +293,10 @@ impl AsyncTree {
         let batch_number = batch.stats.number;
 
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
+        let span = tracing::Span::current();
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
+            let _entered_span = span.entered();
+            let _guard = AllocationGuard::new("tree#process_batch");
             let metadata = tree.process_l1_batch(&batch.storage_logs)?;
             anyhow::Ok((tree, metadata))
         })
@@ -308,8 +312,11 @@ impl AsyncTree {
     /// Returned errors are unrecoverable; the tree must not be used after an error is returned.
     pub async fn save(&mut self) -> anyhow::Result<()> {
         let mut tree = self.inner.take().context(Self::INCONSISTENT_MSG)?;
+        let span = tracing::Span::current();
         self.inner = Some(
             tokio::task::spawn_blocking(|| {
+                let _entered_span = span.entered();
+                let _guard = AllocationGuard::new("tree#save");
                 tree.save()?;
                 anyhow::Ok(tree)
             })

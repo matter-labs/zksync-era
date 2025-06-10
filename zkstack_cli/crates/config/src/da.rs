@@ -6,7 +6,6 @@ use serde::Serialize;
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
-    pub finality_state: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]

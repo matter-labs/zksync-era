@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                coalesce(input, '\\x'::bytea) AS \"input!\"\n            FROM\n                transactions\n            INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number\n            WHERE\n                miniblocks.number = $1\n            ORDER BY\n                index_in_block\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "input!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e08885122eae28067b31e7a8f6fc9c63d07feb53e32b2bcdbb85bfc29ca4a759"
+}

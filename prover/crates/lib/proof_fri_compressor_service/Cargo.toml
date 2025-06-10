@@ -1,0 +1,31 @@
+[package]
+name = "zksync_proof_fri_compressor_service"
+description = "ZKsync proof fri compressor service implementation"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_prover_job_processor.workspace = true
+zksync_prover_fri_types.workspace = true
+zksync_prover_dal.workspace = true
+zksync_types.workspace = true
+zksync_object_store.workspace = true
+
+proof-compression-gpu.workspace = true
+zksync_prover_interface.workspace = true
+
+async-trait.workspace = true
+anyhow.workspace = true
+tokio = { workspace = true, features = ["macros", "time"] }
+tokio-util.workspace = true
+tracing.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+shivini = { workspace = true, features = ["circuit_definitions"] }
+vise.workspace = true

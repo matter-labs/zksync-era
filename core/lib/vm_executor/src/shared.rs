@@ -46,6 +46,7 @@ impl RuntimeContextStorageMetrics {
         storage_metrics: &StorageViewStats,
     ) {
         const STORAGE_INVOCATIONS_DEBUG_THRESHOLD: usize = 1_000;
+        const TOTAL_VM_LATENCY_THRESHOLD: Duration = Duration::from_secs(5);
 
         let metrics = &STORAGE_METRICS[&GlobalStorageLabels { interrupted }];
         let total_storage_invocations = storage_metrics.get_value_storage_invocations
@@ -84,7 +85,10 @@ impl RuntimeContextStorageMetrics {
             .ratio
             .observe(total_time_spent_in_storage.as_secs_f64() / total_vm_latency.as_secs_f64());
 
-        if total_storage_invocations > STORAGE_INVOCATIONS_DEBUG_THRESHOLD || interrupted {
+        if total_storage_invocations > STORAGE_INVOCATIONS_DEBUG_THRESHOLD
+            || total_vm_latency > TOTAL_VM_LATENCY_THRESHOLD
+            || interrupted
+        {
             tracing::info!(
                 interrupted,
                 "{op} resulted in {total_storage_invocations} storage_invocations, {} new_storage_invocations, \

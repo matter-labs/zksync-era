@@ -4,13 +4,12 @@ use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics, Unit,
 };
+use zksync_instrument::filter::{report_filter, ReportFilter};
 use zksync_types::{
     api::state_override::{BytecodeOverride, OverrideState, StateOverride},
     bytecode::BytecodeMarker,
     H256,
 };
-
-use crate::utils::ReportFilter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]

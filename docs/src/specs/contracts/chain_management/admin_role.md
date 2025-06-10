@@ -38,7 +38,7 @@ Chain also exposes the `AdminFacet.makePermanentRollup` function. It will turn a
 
 This functionality is obviously dangerous in a sense that it is permanent and revokes the right of the chain to change its DA layer. On the other hand, it ensures perpetual safety for users. This is the option that ZKsync Era is using.
 
-This setting is preserved even when migrating to [gateway][TODO]. If this setting was set while chain is on top of Gateway, and it migrates back to L1, it will keep this status, i.e. it is fully irrevocable.
+This setting is preserved even when migrating to [gateway](../gateway/overview.md). If this setting was set while chain is on top of Gateway, and it migrates back to L1, it will keep this status, i.e. it is fully irrevocable.
 
 ### `changeFeeParams` method
 

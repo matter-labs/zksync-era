@@ -231,7 +231,7 @@ impl Tester {
         &self,
         pool: &ConnectionPool<Core>,
         number: u32,
-        tx_results: &[TransactionExecutionResult],
+        tx_hashes: &[H256],
     ) {
         let batch_header = create_l1_batch(number);
         let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
@@ -247,7 +247,7 @@ impl Tester {
             .unwrap();
         storage
             .transactions_dal()
-            .mark_txs_as_executed_in_l1_batch(batch_header.number, tx_results)
+            .mark_txs_as_executed_in_l1_batch(batch_header.number, tx_hashes)
             .await
             .unwrap();
         storage

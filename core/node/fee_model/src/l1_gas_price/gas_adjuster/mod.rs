@@ -323,6 +323,13 @@ impl TxParamsProvider for GasAdjuster {
         self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
     }
 
+    fn gateway_get_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
+        // for gateway using median doesn't make sense since price doesn't change frequently (once per batch).
+        // to prevent tx from being stuck for a long time we are using last value instead.
+        let last = self.base_fee_statistics.last_added_value();
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, last)
+    }
+
     fn get_next_block_minimal_base_fee(&self) -> u64 {
         let last_block_base_fee = self.base_fee_statistics.last_added_value();
 
@@ -380,15 +387,13 @@ impl TxParamsProvider for GasAdjuster {
     }
 
     fn get_gateway_l2_pubdata_price(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
-        let median = self.l2_pubdata_price_statistics.median().as_u64();
-        METRICS.median_l2_pubdata_price.set(median);
-        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
+        let last = self.l2_pubdata_price_statistics.last_added_value().as_u64();
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, last)
     }
 
     fn get_gateway_price_per_pubdata(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
-        let median = self.gas_per_pubdata_price_statistic.median();
-        METRICS.median_gas_per_pubdata_price.set(median);
-        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, median)
+        let last = self.gas_per_pubdata_price_statistic.last_added_value();
+        self.calculate_price_with_formula(time_in_mempool_in_l1_blocks, last)
     }
 
     fn get_parameter_b(&self) -> f64 {

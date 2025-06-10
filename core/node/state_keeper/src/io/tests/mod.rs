@@ -70,7 +70,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     // Inserting a pending L2 block that isn't included in a sealed batch means there is a pending batch.
@@ -115,7 +115,7 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     // Create a copy of the tx filter that the mempool will use.
@@ -164,7 +164,7 @@ async fn test_timestamps_are_distinct(
         tester.set_timestamp(prev_l2_block_timestamp - 1);
     }
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool).await;
@@ -728,7 +728,7 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .insert_l2_block(&connection_pool, 1, 5, fee_input)
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
     // Pre-insert L2 block without its unsealed L1 batch counterpart
     tester.set_timestamp(2);
@@ -766,7 +766,7 @@ async fn test_mempool_with_timestamp_assertion() {
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     // Create a copy of the tx filter that the mempool will use.

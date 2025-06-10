@@ -283,7 +283,7 @@ impl ProverRunArgs {
                 .ask()
         });
 
-        let tag = self.tag.unwrap_or("latest2.0".to_string());
+        let tag = self.tag.unwrap_or("latest".to_string());
 
         Ok(ProverRunArgs {
             component: Some(component),

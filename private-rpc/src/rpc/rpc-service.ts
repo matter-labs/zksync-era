@@ -2,8 +2,7 @@ import { z } from 'zod';
 import { Address } from 'viem';
 import { Authorizer } from '@/permissions/authorizer';
 import { FastifyReplyType } from 'fastify/types/type-provider';
-import { delegateCall } from './delegate-call';
-import { errorResponse, invalidRequest } from './json-rpc';
+import { errorResponse, invalidRequest, unauthorized } from './json-rpc';
 
 const rpcReqSchema = z.object({
     id: z.union([z.number(), z.string()]),
@@ -109,7 +108,7 @@ export class RpcCallHandler {
     private defaultHandler(): MethodHandler {
         return {
             name: 'default-handler',
-            handle: (context, method, params, id) => delegateCall({ url: context.targetRpcUrl, id, method, params })
+            handle: (_context, _method, _params, id) => unauthorized(id)
         };
     }
 }

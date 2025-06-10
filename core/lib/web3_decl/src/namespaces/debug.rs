@@ -4,6 +4,7 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig},
     transaction_request::CallRequest,
+    web3::Bytes,
 };
 
 use crate::{
@@ -48,4 +49,10 @@ pub trait DebugNamespace {
         tx_hash: H256,
         options: Option<TracerConfig>,
     ) -> RpcResult<Option<CallTracerResult>>;
+
+    #[method(name = "getRawTransaction")]
+    async fn get_raw_transaction(&self, tx_hash: H256) -> RpcResult<Option<Bytes>>;
+
+    #[method(name = "getRawTransactions")]
+    async fn get_raw_transactions(&self, block: BlockId) -> RpcResult<Vec<Bytes>>;
 }

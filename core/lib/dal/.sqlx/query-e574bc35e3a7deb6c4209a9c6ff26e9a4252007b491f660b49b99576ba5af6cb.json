@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                coalesce(input, '\\x'::bytea) AS \"input!\"\n            FROM\n                transactions\n            WHERE\n                transactions.hash = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "input!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e574bc35e3a7deb6c4209a9c6ff26e9a4252007b491f660b49b99576ba5af6cb"
+}

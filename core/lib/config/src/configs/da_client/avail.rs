@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use smart_config::{
-    de::{FromSecretString, Optional, Serde, WellKnown},
+    de::{FromSecretString, Optional},
     metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
@@ -26,39 +26,15 @@ pub struct AvailConfig {
     pub config: AvailClientConfig,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
-pub enum AvailFinalityState {
-    #[default]
-    #[serde(rename = "inBlock")]
-    InBlock,
-    #[serde(rename = "finalized")]
-    Finalized,
-}
-
-impl AvailFinalityState {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::InBlock => "inBlock",
-            Self::Finalized => "finalized",
-        }
-    }
-}
-
-impl WellKnown for AvailFinalityState {
-    type Deserializer = Serde![str];
-    const DE: Self::Deserializer = Serde![str];
-}
-
 #[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
-    #[config(default)]
-    #[serde(default)]
-    pub finality_state: AvailFinalityState,
     #[config(default_t = 3 * TimeUnit::Minutes)]
     #[serde(default = "AvailDefaultConfig::default_dispatch_timeout")]
     pub dispatch_timeout: Duration,
+    #[config(default_t = 5)]
+    pub max_blocks_to_look_back: usize,
 }
 
 impl AvailDefaultConfig {

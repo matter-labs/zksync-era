@@ -1,6 +1,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 
 use crate::types::{ClientType, DAError, DispatchResponse, FinalityResponse, InclusionData};
 
@@ -22,6 +23,7 @@ pub trait DataAvailabilityClient: Sync + Send + fmt::Debug {
     async fn ensure_finality(
         &self,
         dispatch_request_id: String,
+        dispatched_at: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError>;
 
     /// Fetches the inclusion data for a given blob_id.

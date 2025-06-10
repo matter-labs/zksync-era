@@ -63,6 +63,7 @@ impl GasAdjusterFeesOracle {
         time_in_mempool_in_l1_blocks: u32,
     ) -> Result<EthFees, EthSenderError> {
         const MIN_PRICE_BUMP_MULTIPLIER: f64 = 2.00;
+        const MIN_PRICE_BUMP_MULTIPLIER_U64: u64 = 2;
 
         // we cap it to not allow nearly infinite values when a tx is stuck for a long time
         let capped_time_in_mempool_in_l1_blocks = min(
@@ -70,42 +71,55 @@ impl GasAdjusterFeesOracle {
             self.time_in_mempool_in_l1_blocks_cap,
         );
 
-        let base_fee_per_gas = self
+        let mut base_fee_per_gas = self
             .gas_adjuster
             .get_blob_tx_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
         if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
             return Err(EthSenderError::ExceedMaxBaseFee);
         }
-        let blob_base_fee_per_gas = self
+        let mut blob_base_fee_per_gas = self
             .gas_adjuster
             .get_blob_tx_blob_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(blob_base_fee_per_gas, "blob");
 
         let mut priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
         if let Some(previous_sent_tx) = previous_sent_tx {
-            self.verify_base_fee_not_too_low_on_resend(
+            let blob_result = self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,
                 previous_sent_tx.blob_base_fee_per_gas.unwrap_or(0),
                 blob_base_fee_per_gas,
                 self.gas_adjuster.get_next_block_minimal_blob_base_fee(),
                 MIN_PRICE_BUMP_MULTIPLIER,
                 "blob_base_fee_per_gas",
-            )?;
+            );
 
-            self.verify_base_fee_not_too_low_on_resend(
+            let base_result = self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,
                 previous_sent_tx.base_fee_per_gas,
                 base_fee_per_gas,
                 self.gas_adjuster.get_next_block_minimal_base_fee(),
                 MIN_PRICE_BUMP_MULTIPLIER,
                 "base_fee_per_gas",
-            )?;
+            );
+
+            match (blob_result, base_result) {
+                (Ok(_), Ok(_)) => {}
+                (Err(err), Err(_)) => return Err(err),
+                // If we're ready to increase one of the fees then we force-increase another one.
+                (Ok(_), Err(_)) => {
+                    base_fee_per_gas =
+                        previous_sent_tx.base_fee_per_gas * MIN_PRICE_BUMP_MULTIPLIER_U64;
+                }
+                (Err(_), Ok(_)) => {
+                    blob_base_fee_per_gas = previous_sent_tx.blob_base_fee_per_gas.unwrap()
+                        * MIN_PRICE_BUMP_MULTIPLIER_U64;
+                }
+            }
 
             priority_fee_per_gas = max(
                 priority_fee_per_gas,
-                (previous_sent_tx.priority_fee_per_gas as f64 * MIN_PRICE_BUMP_MULTIPLIER).ceil()
-                    as u64,
+                previous_sent_tx.priority_fee_per_gas * MIN_PRICE_BUMP_MULTIPLIER_U64,
             );
         }
         Ok(EthFees {
@@ -186,7 +200,7 @@ impl GasAdjusterFeesOracle {
         );
         let base_fee_per_gas = self
             .gas_adjuster
-            .get_base_fee(capped_time_in_mempool_in_l1_blocks);
+            .gateway_get_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
         if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
             return Err(EthSenderError::ExceedMaxBaseFee);

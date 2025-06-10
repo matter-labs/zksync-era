@@ -26,10 +26,10 @@ fn pre_smart_config_files_can_be_parsed() {
     };
     let config_sources = paths.into_config_sources("###").unwrap();
     let schema = full_config_schema(false);
-    let repo = config_sources.build_repository(&schema);
-    let general = repo.single::<GeneralConfig>().unwrap().parse().unwrap();
+    let repo = config_sources.build_raw_repository(&schema);
+    let general: GeneralConfig = repo.single().unwrap().parse().unwrap();
     assert_general_config(general);
-    let secrets = repo.single::<Secrets>().unwrap().parse().unwrap();
+    let secrets: Secrets = repo.single().unwrap().parse().unwrap();
     assert_secrets(secrets);
     repo.single::<ContractsConfig>().unwrap().parse().unwrap();
     repo.single::<GenesisConfigWrapper>()

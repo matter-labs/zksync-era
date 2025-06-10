@@ -3,6 +3,7 @@ use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
+use zksync_instrument::alloc::AllocationGuard;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -162,7 +163,9 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
             _tracer: PhantomData::<Tr>,
         };
 
+        let span = tracing::Span::current();
         let handle = tokio::task::spawn_blocking(move || {
+            let _span_guard = span.entered();
             executor.run(
                 storage,
                 l1_batch_params,
@@ -323,7 +326,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         system_env: SystemEnv,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
-        tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
+        tracing::info!(
+            fast_vm_mode = ?self.fast_vm_mode,
+            optional_bytecode_compression = self.optional_bytecode_compression,
+            skip_signature_verification = self.skip_signature_verification,
+            "Starting executing L1 batch #{}",
+            &l1_batch_params.number,
+        );
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
         let mut vm = BatchVm::<S, Tr>::new(
@@ -410,11 +419,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         Ok(storage_view)
     }
 
+    #[tracing::instrument(level = "trace", skip_all, fields(tx.hash = ?transaction.hash()))]
     fn execute_tx(
         &self,
         transaction: Transaction,
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
+        let _guard = AllocationGuard::new("batch_vm#execute_tx");
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
         vm.pop_snapshot_no_rollback();
@@ -429,30 +440,43 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             self.execute_tx_in_vm(&transaction, vm)?
         };
 
-        Ok((result, latency.observe()))
+        let latency = latency.observe();
+        tracing::trace!(
+            ?latency,
+            result.tx_result = ?result.tx_result.result,
+            result.compression_result = ?result.compression_result,
+            "Executed transaction"
+        );
+        Ok((result, latency))
     }
 
+    #[tracing::instrument(level = "trace", skip_all)]
     fn rollback_last_tx(&self, vm: &mut BatchVm<S, Tr>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
-        latency.observe();
+        let latency = latency.observe();
+        tracing::trace!(?latency, "Rolled back transaction");
     }
 
+    #[tracing::instrument(level = "trace", skip_all)]
     fn finish_batch(
         &self,
         vm: &mut BatchVm<S, Tr>,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<FinishedL1Batch> {
+        let guard = AllocationGuard::new("batch_vm#finish_batch");
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch(pubdata_builder);
+        drop(guard);
+
         anyhow::ensure!(
             !result.block_tip_execution_result.result.is_failed(),
             "VM must not fail when finalizing block: {:#?}",
             result.block_tip_execution_result.result
         );
-
         BATCH_TIP_METRICS.observe(&result.block_tip_execution_result);
+        tracing::trace!("Executed batch tip");
         Ok(result)
     }
 

@@ -454,8 +454,9 @@ impl StorageTransactionDetails {
 
         if self.error.is_some() {
             TransactionStatus::Failed
-        } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
-            TransactionStatus::FastFinalized
+
+        // } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
+        // TransactionStatus::FastFinalized
         } else if execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
             TransactionStatus::Verified
         } else if self.miniblock_number.is_some() {

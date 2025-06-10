@@ -52,3 +52,12 @@ impl Resource<resource::Boxed> for DynClient<L2> {
         "external_node/main_node_client".into()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct GatewayClientResource(pub Box<DynClient<L2>>);
+
+impl Resource for GatewayClientResource {
+    fn name() -> String {
+        "common/gateway_client".into()
+    }
+}

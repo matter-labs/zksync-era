@@ -1,6 +1,5 @@
 use rand::Rng as _;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::ReplicaState;
 
 use super::*;
 use crate::{ConnectionPool, Core, CoreDal};
@@ -29,11 +28,11 @@ async fn replica_state_read_write() {
             conn.consensus_dal().global_config().await.unwrap().unwrap()
         );
         assert_eq!(
-            ReplicaState::default(),
+            validator::ReplicaState::default(),
             conn.consensus_dal().replica_state().await.unwrap()
         );
         for _ in 0..5 {
-            let want: ReplicaState = rng.gen();
+            let want: validator::ReplicaState = rng.gen();
             conn.consensus_dal().set_replica_state(&want).await.unwrap();
             assert_eq!(
                 cfg,

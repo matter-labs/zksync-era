@@ -282,6 +282,9 @@ pub struct HealthCheckConfig {
     /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
     /// If not specified, the default value in the health check crate will be used.
     pub hard_time_limit: Option<Duration>,
+    /// Expose config parameters as the `config` component. Mostly useful for debugging purposes, automations or end-to-end testing.
+    #[config(default)]
+    pub expose_config: bool,
 }
 
 impl HealthCheckConfig {
@@ -386,6 +389,7 @@ mod tests {
                 port: 8081,
                 slow_time_limit: Some(Duration::from_millis(250)),
                 hard_time_limit: Some(Duration::from_millis(2_000)),
+                expose_config: true,
             },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
@@ -435,6 +439,7 @@ mod tests {
             API_HEALTHCHECK_PORT=8081
             API_HEALTHCHECK_SLOW_TIME_LIMIT_MS=250
             API_HEALTHCHECK_HARD_TIME_LIMIT_MS=2000
+            API_HEALTHCHECK_EXPOSE_CONFIG=true
             API_MERKLE_TREE_PORT=8082
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -495,6 +500,7 @@ mod tests {
             port: 8081
             slow_time_limit_ms: 250
             hard_time_limit_ms: 2000
+            expose_config: true
           merkle_tree:
             port: 8082
         "#;
@@ -555,6 +561,7 @@ mod tests {
             port: 8081
             slow_time_limit: 250ms
             hard_time_limit: 2s
+            expose_config: true
           merkle_tree:
             port: 8082
         "#;

@@ -94,7 +94,9 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
             .iter()
             .map(|k| (config::ValidatorPublicKey(k.public().encode()), 1))
             .collect(),
-        leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
+        leader: Some(config::ValidatorPublicKey(
+            setup.validator_keys[0].public().encode(),
+        )),
         registry_address: None,
         seed_peers: net_cfgs[..seed_peers]
             .iter()

@@ -13,6 +13,7 @@ categories.workspace = true
 [dependencies]
 zksync_contracts.workspace = true
 zksync_dal.workspace = true
+zksync_instrument.workspace = true
 zksync_types.workspace = true
 zksync_multivm.workspace = true
 zksync_node_framework = { workspace = true, optional = true }

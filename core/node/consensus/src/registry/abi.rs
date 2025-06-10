@@ -65,6 +65,7 @@ impl abi::Function for Initialize {
 #[derive(Debug, Default)]
 pub(crate) struct Add {
     pub(crate) node_owner: ethabi::Address,
+    pub(crate) validator_is_leader: bool,
     pub(crate) validator_weight: u32,
     pub(crate) validator_pub_key: BLS12_381PublicKey,
     pub(crate) validator_pop: BLS12_381Signature,
@@ -76,6 +77,7 @@ impl abi::Function for Add {
     fn encode(&self) -> Vec<Token> {
         vec![
             Token::Address(self.node_owner),
+            Token::Bool(self.validator_is_leader),
             Token::Uint(self.validator_weight.into()),
             self.validator_pub_key.to_token(),
             self.validator_pop.to_token(),
@@ -115,14 +117,16 @@ impl abi::Function for GetValidatorCommittee {
     fn encode(&self) -> Vec<Token> {
         vec![]
     }
-    type Outputs = Vec<Validator>;
+    type Outputs = (Vec<Validator>, LeaderSelection);
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
-        let [validators] = tokens.try_into().ok().context("bad size")?;
-        let mut res = vec![];
+        let [validators, leader_selection] = tokens.try_into().ok().context("bad size")?;
+        let mut val = vec![];
         for token in validators.into_array().context("not array")? {
-            res.push(Validator::from_token(token).context("validators")?);
+            val.push(Validator::from_token(token).context("validators")?);
         }
-        Ok(res)
+        let leader_selection =
+            LeaderSelection::from_token(leader_selection).context("leader_selection")?;
+        Ok((val, leader_selection))
     }
 }
 
@@ -136,14 +140,16 @@ impl abi::Function for GetNextValidatorCommittee {
     fn encode(&self) -> Vec<Token> {
         vec![]
     }
-    type Outputs = Vec<Validator>;
+    type Outputs = (Vec<Validator>, LeaderSelection);
     fn decode_outputs(tokens: Vec<Token>) -> anyhow::Result<Self::Outputs> {
-        let [validators] = tokens.try_into().ok().context("bad size")?;
-        let mut res = vec![];
+        let [validators, leader_selection] = tokens.try_into().ok().context("bad size")?;
+        let mut val = vec![];
         for token in validators.into_array().context("not array")? {
-            res.push(Validator::from_token(token).context("validators")?);
+            val.push(Validator::from_token(token).context("validators")?);
         }
-        Ok(res)
+        let leader_selection =
+            LeaderSelection::from_token(leader_selection).context("leader_selection")?;
+        Ok((val, leader_selection))
     }
 }
 
@@ -205,6 +211,7 @@ impl abi::Function for Owner {
 /// Raw representation of a validator committee member.
 #[derive(Debug)]
 pub(crate) struct Validator {
+    pub(crate) leader: bool,
     pub(crate) weight: u32,
     pub(crate) pub_key: BLS12_381PublicKey,
     pub(crate) proof_of_possession: BLS12_381Signature,
@@ -212,12 +219,30 @@ pub(crate) struct Validator {
 
 impl Validator {
     fn from_token(token: Token) -> anyhow::Result<Self> {
-        let [weight, pub_key, proof_of_possession] = abi::into_tuple(token)?;
+        let [leader, weight, pub_key, proof_of_possession] = abi::into_tuple(token)?;
         Ok(Self {
+            leader: abi::into_bool(leader).context("leader")?,
             weight: abi::into_uint(weight).context("weight")?,
             pub_key: BLS12_381PublicKey::from_token(pub_key).context("pub_key")?,
             proof_of_possession: BLS12_381Signature::from_token(proof_of_possession)
                 .context("proof_of_possession")?,
+        })
+    }
+}
+
+/// Raw representation of a leader selection parameters.
+#[derive(Debug, Default)]
+pub(crate) struct LeaderSelection {
+    pub(crate) frequency: u64,
+    pub(crate) weighted: bool,
+}
+
+impl LeaderSelection {
+    fn from_token(token: Token) -> anyhow::Result<Self> {
+        let [frequency, weighted] = abi::into_tuple(token)?;
+        Ok(Self {
+            frequency: abi::into_uint(frequency).context("frequency")?,
+            weighted: abi::into_bool(weighted).context("weighted")?,
         })
     }
 }

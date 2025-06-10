@@ -65,6 +65,7 @@ impl VmRunner {
         }
     }
 
+    #[tracing::instrument(skip(self), err, fields(runner = self.io.name()))]
     async fn process_batch(self, number: L1BatchNumber) -> anyhow::Result<()> {
         let stage_started_at = Instant::now();
         let (batch_data, storage) = loop {
