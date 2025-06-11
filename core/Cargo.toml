@@ -42,6 +42,7 @@ members = [
   "node/da_clients",
   "node/gateway_migrator",
   "node/zk_os_tree_manager",
+  "node/eth_proof_manager",
   # Libraries
   "lib/db_connection",
   "lib/basic_types",

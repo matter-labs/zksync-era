@@ -46,6 +46,7 @@ pub mod da_client;
 pub mod da_dispatcher;
 pub mod database;
 pub mod en_config;
+pub mod eth_proof_manager;
 pub mod eth_sender;
 pub mod eth_watch;
 mod experimental;
