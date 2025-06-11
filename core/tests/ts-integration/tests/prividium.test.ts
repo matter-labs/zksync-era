@@ -11,7 +11,6 @@ import path from 'path';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 import { Token } from '../src/types';
 import * as ethers from 'ethers';
-import { scaledGasPrice } from '../src/helpers';
 import { logsTestPath } from 'utils/build/logs';
 import { readFileSync } from 'node:fs';
 import YAML from 'yaml';
