@@ -60,14 +60,14 @@ pub struct L2BlockParams {
 }
 
 impl L2BlockParams {
-    pub fn new_with_default_virtual_blocks(timestamp_ms: u64) -> Self {
+    pub fn new(timestamp_ms: u64) -> Self {
         Self {
             timestamp_ms,
             virtual_blocks: 1,
         }
     }
 
-    pub fn new(timestamp_ms: u64, virtual_blocks: u32) -> Self {
+    pub fn with_custom_virtual_block_count(timestamp_ms: u64, virtual_blocks: u32) -> Self {
         Self {
             timestamp_ms,
             virtual_blocks,

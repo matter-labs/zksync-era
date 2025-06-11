@@ -285,8 +285,7 @@ mod tests {
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
         // Seal an L2 block.
-        updates_manager
-            .set_next_l2_block_params(L2BlockParams::new_with_default_virtual_blocks(2000));
+        updates_manager.set_next_l2_block_params(L2BlockParams::new(2000));
         updates_manager.push_l2_block();
 
         // Check that L1 batch updates are the same with the pending state

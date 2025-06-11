@@ -507,7 +507,7 @@ mod tests {
             vec![],
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
-        updates.set_next_l2_block_params(L2BlockParams::new_with_default_virtual_blocks(1000));
+        updates.set_next_l2_block_params(L2BlockParams::new(1000));
         updates.push_l2_block();
 
         let mut batch_result = FinishedL1Batch::mock();
@@ -616,8 +616,7 @@ mod tests {
         persistence.submit_l2_block(seal_command).await;
 
         // The second command should lead to blocking
-        updates_manager
-            .set_next_l2_block_params(L2BlockParams::new_with_default_virtual_blocks(2000));
+        updates_manager.set_next_l2_block_params(L2BlockParams::new(2000));
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
         {
@@ -643,8 +642,7 @@ mod tests {
         // Check that `wait_for_all_commands()` state is reset after use.
         persistence.wait_for_all_commands().await;
 
-        updates_manager
-            .set_next_l2_block_params(L2BlockParams::new_with_default_virtual_blocks(3000));
+        updates_manager.set_next_l2_block_params(L2BlockParams::new(3000));
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
         persistence.submit_l2_block(seal_command).await;
@@ -666,8 +664,7 @@ mod tests {
         for i in 1..=5 {
             let seal_command =
                 updates_manager.seal_l2_block_command(Some(Address::default()), false);
-            updates_manager
-                .set_next_l2_block_params(L2BlockParams::new_with_default_virtual_blocks(i * 1000));
+            updates_manager.set_next_l2_block_params(L2BlockParams::new(i * 1000));
             updates_manager.push_l2_block();
             persistence.submit_l2_block(seal_command).await;
         }

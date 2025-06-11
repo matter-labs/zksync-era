@@ -499,7 +499,10 @@ impl ZkSyncStateKeeper {
                 Self::set_l2_block_params(
                     updates_manager,
                     // For re-executing purposes it's ok to not use exact precise millis.
-                    L2BlockParams::new(l2_block.timestamp * 1000, l2_block.virtual_blocks),
+                    L2BlockParams::with_custom_virtual_block_count(
+                        l2_block.timestamp * 1000,
+                        l2_block.virtual_blocks,
+                    ),
                 );
                 Self::start_next_l2_block(updates_manager, batch_executor).await?;
             }

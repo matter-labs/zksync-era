@@ -523,7 +523,7 @@ mod tests {
             validation_computational_gas_limit: u32::MAX,
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            first_l2_block: L2BlockParams::new_with_default_virtual_blocks(1000),
+            first_l2_block: L2BlockParams::new(1000),
             pubdata_params: Default::default(),
         };
         actions_sender

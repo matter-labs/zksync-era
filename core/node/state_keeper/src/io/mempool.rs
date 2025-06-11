@@ -194,9 +194,7 @@ impl StateKeeperIO for MempoolIO {
                 fee_input: unsealed_storage_batch.fee_input,
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
-                first_l2_block: L2BlockParams::new_with_default_virtual_blocks(
-                    unsealed_storage_batch.timestamp * 1000,
-                ),
+                first_l2_block: L2BlockParams::new(unsealed_storage_batch.timestamp * 1000),
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
         }
@@ -296,7 +294,7 @@ impl StateKeeperIO for MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
-                first_l2_block: L2BlockParams::new_with_default_virtual_blocks(timestamp_ms),
+                first_l2_block: L2BlockParams::new(timestamp_ms),
                 pubdata_params: self.pubdata_params(protocol_version)?,
             }));
         }
@@ -332,9 +330,7 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
-        Ok(Some(L2BlockParams::new_with_default_virtual_blocks(
-            timestamp_ms,
-        )))
+        Ok(Some(L2BlockParams::new(timestamp_ms)))
     }
 
     fn update_next_l2_block_timestamp(&mut self, block_timestamp_ms: &mut u64) {
