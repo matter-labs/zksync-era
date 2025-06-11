@@ -22,7 +22,7 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         en_config::ENConfig,
-        DataAvailabilitySecrets, GeneralConfig, Secrets,
+        ConsistencyCheckerConfig, DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
     CapturedParams, ConfigRepository, DAClientConfig, ObjectStoreConfig,
@@ -1180,6 +1180,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
+    pub consistency_checker: ConsistencyCheckerConfig,
     // **NB.** Only filled for file-based configuration right now.
     pub config_params: Option<CapturedParams>,
     pub remote: R,
@@ -1233,6 +1234,9 @@ impl ExternalNodeConfig<()> {
                 da_client_config_from_env("EN_DA_").ok(),
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
+            consistency_checker: envy::prefixed("EN_CONSISTENCY_CHECKER_")
+                .from_env::<ConsistencyCheckerConfig>()
+                .context("could not load external node config (API component params)")?,
             config_params: None, // Since we don't capture most of params, exposing them would be misleading
             remote: (),
         })
@@ -1289,6 +1293,7 @@ impl ExternalNodeConfig<()> {
             tree_component,
             consensus_secrets,
             data_availability,
+            consistency_checker: general_config.consistency_checker_config,
             config_params: Some(repo.into_captured_params()),
             remote: (),
         })
@@ -1326,6 +1331,7 @@ impl ExternalNodeConfig<()> {
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
             data_availability: self.data_availability,
+            consistency_checker: self.consistency_checker,
             config_params: self.config_params,
             remote,
         })
@@ -1348,6 +1354,7 @@ impl ExternalNodeConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
+            consistency_checker: ConsistencyCheckerConfig::default(),
             config_params: None,
             data_availability: (None, None),
         }
