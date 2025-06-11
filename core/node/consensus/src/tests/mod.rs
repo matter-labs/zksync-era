@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use rand::Rng as _;
 use test_casing::{test_casing, Product};
@@ -5,11 +7,11 @@ use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus as config;
 use zksync_consensus_crypto::TextFmt as _;
+use zksync_consensus_engine::{EngineInterface as _, EngineManager};
 use zksync_consensus_roles::{
     node, validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_consensus_storage::{BlockStore, PersistentBlockStore};
 use zksync_dal::consensus_dal;
 use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
@@ -82,6 +84,7 @@ async fn test_verify_pregenesis_block(version: ProtocolVersionId) {
             pool.clone(),
             None,
             Some(sk.connect(ctx).await.unwrap()),
+            Arc::new(None),
         )
         .await
         .unwrap();
@@ -165,13 +168,19 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         scope::run!(ctx, |ctx, s| async {
-            let (store, runner) = Store::new(ctx, pool.clone(), None, None).await.unwrap();
+            let (store, runner) = Store::new(ctx, pool.clone(), None, None, Arc::new(None))
+                .await
+                .unwrap();
             s.spawn_bg(runner.run(ctx));
-            let (block_store, runner) =
-                BlockStore::new(ctx, Box::new(store.clone())).await.unwrap();
+            let (engine_manager, runner) = EngineManager::new(ctx, Box::new(store.clone()))
+                .await
+                .unwrap();
             s.spawn_bg(runner.run(ctx));
-            block_store.queue_block(ctx, block.clone()).await.unwrap();
-            block_store
+            engine_manager
+                .queue_block(ctx, block.clone())
+                .await
+                .unwrap();
+            engine_manager
                 .wait_until_persisted(ctx, block.number())
                 .await
                 .unwrap();

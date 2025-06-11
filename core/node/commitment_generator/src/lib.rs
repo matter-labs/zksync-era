@@ -5,6 +5,7 @@ use itertools::Itertools;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_instrument::alloc::AllocationGuard;
 use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
@@ -104,8 +105,11 @@ impl CommitmentGenerator {
         drop(connection);
 
         let computer = self.computer.clone();
+        let span = tracing::Span::current();
         let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
+                let _entered_span = span.entered();
+                let _guard = AllocationGuard::new("commitment_generator#events");
                 let latency = METRICS.events_queue_commitment_latency.start();
                 let events_queue_commitment =
                     computer.events_queue_commitment(&events_queue, protocol_version)?;
@@ -115,8 +119,11 @@ impl CommitmentGenerator {
             });
 
         let computer = self.computer.clone();
+        let span = tracing::Span::current();
         let bootloader_memory_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
+                let _entered_span = span.entered();
+                let _guard = AllocationGuard::new("commitment_generator#bootloader_memory");
                 let latency = METRICS.bootloader_content_commitment_latency.start();
                 let bootloader_initial_content_commitment = computer
                     .bootloader_initial_content_commitment(

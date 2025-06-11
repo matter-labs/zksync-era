@@ -6,6 +6,7 @@ use vise::{
     Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram,
     Info, LabeledFamily, Metrics, MetricsFamily, Unit,
 };
+use zksync_instrument::filter::{report_filter, ReportFilter};
 use zksync_types::api;
 use zksync_web3_decl::error::Web3Error;
 
@@ -13,7 +14,7 @@ use super::{
     backend_jsonrpsee::MethodMetadata, ApiTransport, InternalApiConfig, OptionalApiParams,
     TypedFilter,
 };
-use crate::utils::ReportFilter;
+use crate::tx_sender::SubmitTxError;
 
 /// Observed version of RPC parameters. Have a bounded upper-limit size (256 bytes), so that we don't over-allocate.
 #[derive(Debug)]
@@ -216,6 +217,12 @@ struct Web3ErrorLabels {
     kind: Web3ErrorKind,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct SubmitErrorLabels {
+    method: &'static str,
+    reason: &'static str,
+}
+
 #[derive(Debug, EncodeLabelSet)]
 struct Web3ConfigLabels {
     #[metrics(unit = Unit::Seconds)]
@@ -264,8 +271,7 @@ pub(crate) struct ApiMetrics {
     /// Number of protocol errors grouped by error code and method name. Method name is not set for "method not found" errors.
     web3_rpc_errors: Family<ProtocolErrorLabels, Counter>,
     /// Number of transaction submission errors for a specific submission error reason.
-    #[metrics(labels = ["reason"])]
-    pub submit_tx_error: LabeledFamily<&'static str, Counter>,
+    submit_tx_error: Family<SubmitErrorLabels, Counter>,
 
     #[metrics(buckets = Buckets::exponential(1.0..=128.0, 2.0))]
     pub web3_in_flight_requests: Family<ApiTransportLabel, Histogram<usize>>,
@@ -413,6 +419,21 @@ impl ApiMetrics {
                 labels.kind
             );
         }
+    }
+
+    pub(super) fn observe_submit_error(&self, method: &'static str, err: &SubmitTxError) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(5));
+
+        // All internal errors are reported anyway, so no need to log them here.
+        if !matches!(err, SubmitTxError::Internal(_)) && FILTER.should_report() {
+            tracing::info!("Observed submission error for method `{method}`: {err}");
+        }
+
+        let labels = SubmitErrorLabels {
+            method,
+            reason: err.prom_error_code(),
+        };
+        self.submit_tx_error[&labels].inc();
     }
 }
 
