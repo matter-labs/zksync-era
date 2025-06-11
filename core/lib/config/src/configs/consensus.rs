@@ -60,7 +60,7 @@ impl WellKnown for ProtocolVersion {
 
 /// Consensus genesis specification.
 /// It is a digest of the `validator::Genesis`,
-/// which allows to initialize genesis (if not present)
+/// which allows to initialize genesis (if not present) or
 /// decide whether a hard fork is necessary (if present).
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GenesisSpec {
