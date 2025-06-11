@@ -13543,6 +13543,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_base_token_adjuster",
+ "zksync_concurrency",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",

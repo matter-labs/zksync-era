@@ -62,6 +62,10 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_timestamp_asserter_impl())
     }
 
+    async fn get_l2_da_validator(&self) -> RpcResult<Option<Address>> {
+        Ok(self.get_l2_da_validator_impl())
+    }
+
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(self.l1_chain_id_impl())
     }

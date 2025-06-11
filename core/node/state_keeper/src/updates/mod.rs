@@ -253,6 +253,11 @@ impl UpdatesManager {
         self.next_l2_block_params = Some(l2_block_params);
     }
 
+    pub fn reset_next_l2_block_params(&mut self) {
+        assert!(self.next_l2_block_params.is_some());
+        self.next_l2_block_params = None;
+    }
+
     pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
         self.next_l2_block_params
     }

@@ -60,7 +60,7 @@ impl GenesisSpec {
                 Ok(validator::ValidatorInfo {
                     key: Text::new(&key.0).decode().context("key").context(i)?,
                     weight: *weight,
-                    leader: key == &x.leader,
+                    leader: true,
                 })
             })
             .collect::<anyhow::Result<_>>()
@@ -135,6 +135,9 @@ pub(super) fn executor(
     let debug_page = cfg
         .debug_page_addr
         .map(|addr| network::debug_page::Config { addr });
+    let validator_key = validator_key(secrets).context("validator_key")?;
+    tracing::info!("private validator key {:?}", validator_key.as_ref().unwrap().encode());
+    tracing::info!("public validator key {:?}", validator_key.as_ref().unwrap().public());
 
     Ok(executor::Config {
         build_version,
@@ -145,7 +148,7 @@ pub(super) fn executor(
         node_key: node_key(secrets)
             .context("node_key")?
             .context("missing node_key")?,
-        validator_key: validator_key(secrets).context("validator_key")?,
+        validator_key,
         gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip_static_inbound

@@ -170,6 +170,10 @@ impl ZksNamespace {
         self.state.api_config.timestamp_asserter_address
     }
 
+    pub fn get_l2_da_validator_impl(&self) -> Option<Address> {
+        self.state.api_config.l2_da_validator_address
+    }
+
     pub fn l1_chain_id_impl(&self) -> U64 {
         U64::from(*self.state.api_config.l1_chain_id)
     }

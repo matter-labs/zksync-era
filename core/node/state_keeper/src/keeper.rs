@@ -26,9 +26,10 @@ use zksync_types::{
     protocol_version::ProtocolVersionId,
     try_stoppable,
     utils::display_timestamp,
-    L1BatchNumber, OrStopped, StopContext, Transaction,
+    L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
+use zksync_concurrency::ctx;
 
 use crate::{
     executor::TxExecutionResult,
@@ -102,7 +103,7 @@ pub struct StateKeeper {
     inner: StateKeeperInner,
     batch_state: BatchState,
     last_l1_batch_sealed_at: Option<Instant>,
-    pending_l2_block_header: Option<L2BlockHeader>,
+    pending_l2_block_header: Option<(L2BlockHeader, Payload)>,
 }
 
 /// Helper struct that is used for state keeper initialization.
@@ -229,9 +230,10 @@ impl StateKeeperInner {
         &mut self,
         cursor: IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<L1BatchData, OrStopped> {
         let (system_env, l1_batch_env, pubdata_params) =
-            self.wait_for_new_batch_env(&cursor, stop_receiver).await?;
+            self.wait_for_new_batch_env(&cursor, stop_receiver, ctx).await?;
         let first_batch_in_shared_bridge =
             l1_batch_env.number == L1BatchNumber(1) && !system_env.version.is_pre_shared_bridge();
         let previous_batch_protocol_version = self
@@ -357,8 +359,15 @@ impl StateKeeperInner {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<L1BatchParams, OrStopped> {
         while !is_canceled(stop_receiver) {
+            if let Some(ctx) = ctx {
+                if !ctx.is_active() {
+                    return Err(OrStopped::Stopped);
+                }
+            }
+
             if let Some(params) = self
                 .io
                 .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
@@ -380,11 +389,12 @@ impl StateKeeperInner {
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<(SystemEnv, L1BatchEnv, PubdataParams), OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
-            .wait_for_new_batch_params(cursor, stop_receiver)
+            .wait_for_new_batch_params(cursor, stop_receiver, ctx)
             .await?;
         let contracts = self
             .io
@@ -876,27 +886,27 @@ impl StateKeeper {
         while !is_canceled(&stop_receiver) {
             match mode {
                 RunMode::Propose => {
-                    self.propose(&mut stop_receiver).await?;
+                    self.propose(&mut stop_receiver, None).await?;
                 }
                 RunMode::Verify => self.verify(&mut stop_receiver).await?,
-                RunMode::Default => self.run_block(&mut stop_receiver).await?,
+                RunMode::Default => self.run_block(&mut stop_receiver, None).await?,
                 RunMode::WithoutRollback => {
-                    self.run_block(&mut stop_receiver).await?;
+                    self.run_block(&mut stop_receiver, None).await?;
                     continue;
                 }
             }
             // Test rollback.
-            let pending_l2_block_header = self.pending_l2_block_header.as_ref().unwrap();
+            let pending_l2_block_header = &self.pending_l2_block_header.as_ref().unwrap().0;
             // First block is kinda special, some initial txs must be in there.
             // If we do rollback then it's possible that some of them won't be included due to batch being closed by timeout.
             if pending_l2_block_header.number.0 != 1 {
                 self.rollback().await?;
                 match mode {
                     RunMode::Propose => {
-                        self.propose(&mut stop_receiver).await?;
+                        self.propose(&mut stop_receiver, None).await?;
                     }
                     RunMode::Verify => self.verify(&mut stop_receiver).await?,
-                    RunMode::Default => self.run_block(&mut stop_receiver).await?,
+                    RunMode::Default => self.run_block(&mut stop_receiver, None).await?,
                     RunMode::WithoutRollback => unreachable!(),
                 }
             }
@@ -908,10 +918,13 @@ impl StateKeeper {
     async fn process_block(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<(), OrStopped> {
         // If there is no open batch then start one.
+        let mut prev_cursor = None;
         if let Some(cursor) = self.batch_state.as_uninit() {
-            let state = self.inner.start_batch(cursor, stop_receiver).await?;
+            prev_cursor = Some(cursor.clone());
+            let state = self.inner.start_batch(cursor, stop_receiver, ctx).await?;
             self.batch_state = BatchState::Init(Box::new(state));
         }
         let state = self.batch_state.unwrap_init_ref_mut();
@@ -957,6 +970,21 @@ impl StateKeeper {
         }
 
         while !is_canceled(stop_receiver) {
+            if let Some(ctx) = ctx {
+                if (updates_manager.has_next_block_params() || updates_manager.l2_block.executed_transactions.is_empty()) && !ctx.is_active() {
+                    dbg!(updates_manager.has_next_block_params());
+                    dbg!(updates_manager.l2_block.executed_transactions.is_empty());
+                    dbg!(!ctx.is_active());
+                    if updates_manager.has_next_block_params() {
+                        updates_manager.reset_next_l2_block_params();
+                    }
+                    if let Some(prev_cursor) = prev_cursor {
+                        self.batch_state = BatchState::Uninit(prev_cursor);
+                    }
+                    return Err(OrStopped::Stopped);
+                }
+            }
+
             let full_latency = KEEPER_METRICS.process_block_loop_iteration.start();
             if self
                 .inner
@@ -1159,8 +1187,8 @@ impl StateKeeper {
         Ok(())
     }
 
-    async fn commit_pending_block(&mut self) -> anyhow::Result<()> {
-        if let Some(pending_l2_block_header) = self.pending_l2_block_header.take() {
+    pub async fn commit_pending_block(&mut self) -> anyhow::Result<()> {
+        if let Some((pending_l2_block_header, _)) = self.pending_l2_block_header.take() {
             if pending_l2_block_header.l1_tx_count + pending_l2_block_header.l2_tx_count == 0 {
                 // fictive block -> seal batch.
                 self.seal_batch().await?;
@@ -1188,13 +1216,14 @@ impl StateKeeper {
     async fn run_block(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<(), OrStopped> {
         self.commit_pending_block().await?;
-        self.process_block(stop_receiver).await?;
+        self.process_block(stop_receiver, ctx).await?;
 
         let batch_state = self.batch_state.unwrap_init_ref();
         let l2_block_header = batch_state.updates_manager.build_block_header();
-        self.pending_l2_block_header = Some(l2_block_header);
+        self.pending_l2_block_header = Some((l2_block_header, batch_state.updates_manager.build_payload()));
 
         Ok(())
     }
@@ -1202,9 +1231,10 @@ impl StateKeeper {
     pub async fn propose(
         &mut self,
         stop_receiver: &mut watch::Receiver<bool>,
+        ctx: Option<&ctx::Ctx>,
     ) -> Result<Payload, OrStopped> {
         self.inner.io.set_is_active_leader(true);
-        self.run_block(stop_receiver).await?;
+        self.run_block(stop_receiver, ctx).await?;
 
         let batch_state = self.batch_state.unwrap_init_ref();
         let payload = batch_state.updates_manager.build_payload();
@@ -1217,13 +1247,34 @@ impl StateKeeper {
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<(), OrStopped> {
         self.inner.io.set_is_active_leader(false);
-        self.run_block(stop_receiver).await?;
+        self.run_block(stop_receiver, None).await?;
 
         Ok(())
     }
 
+    pub fn pending_block_number(&self) -> Option<u32> {
+        self.pending_l2_block_header.as_ref().map(|h| h.0.number.0)
+    }
+
+    pub fn pending_payload(&self) -> Option<Payload> {
+        self.pending_l2_block_header.as_ref().map(|h| h.1.clone())
+    }
+
+    pub fn cursor_for_action_queue(&self) -> IoCursor {
+        match &self.batch_state {
+            BatchState::Uninit(cursor) => {
+                let mut cursor = cursor.clone();
+                cursor.l1_batch -= 1;
+                cursor
+            },
+            BatchState::Init(d) => {
+                d.updates_manager.io_cursor()
+            }
+        }
+    }
+
     pub async fn rollback(&mut self) -> anyhow::Result<()> {
-        let header = self.pending_l2_block_header.take().unwrap();
+        let header = self.pending_l2_block_header.take().unwrap().0;
         tracing::info!("Rolling back block #{}", header.number);
 
         // Rollback postgres if block is non-fictive.
@@ -1236,19 +1287,6 @@ impl StateKeeper {
         }
         let batch_data = self.batch_state.unwrap_init_ref_mut();
 
-        // Rollback upgrade tx
-        if let Some(tx) = batch_data
-            .updates_manager
-            .l2_block
-            .executed_transactions
-            .first()
-            .cloned()
-        {
-            if tx.transaction.tx_format() == TransactionType::ProtocolUpgradeTransaction {
-                batch_data.protocol_upgrade_tx = Some(tx.transaction.try_into().unwrap());
-            }
-        }
-
         // Rollback mempool
         let txs = batch_data
             .updates_manager
@@ -1259,18 +1297,36 @@ impl StateKeeper {
             .collect();
         self.inner.io.rollback_block(txs).await?;
 
-        // Rollback batch executor
-        let batch_executor = &mut batch_data.batch_executor;
-        batch_executor.rollback_l2_block().await?;
-
-        // Rollback updates manager
-        let updates_manager = &mut batch_data.updates_manager;
-        // State of `updates_manager` before the first L2 block is special so we have different cases.
-        if updates_manager.l1_batch.executed_transactions.is_empty() {
-            // Rolling back the first L2 block in the batch.
-            updates_manager.l2_block.recreate();
-            updates_manager.storage_writes_deduplicator = StorageWritesDeduplicator::new();
+        let first_block = batch_data.updates_manager.l1_batch.executed_transactions.is_empty();
+        if first_block {
+            let cursor = IoCursor {
+                next_l2_block: batch_data.updates_manager.l2_block.number,
+                prev_l2_block_hash: batch_data.updates_manager.l2_block.prev_block_hash,
+                prev_l2_block_timestamp: batch_data.updates_manager.l2_block.prev_block_timestamp.unwrap(),
+                l1_batch: batch_data.updates_manager.l1_batch.number,
+            };
+            self.batch_state = BatchState::Uninit(cursor);
         } else {
+            // Rollback upgrade tx
+            if let Some(tx) = batch_data
+                .updates_manager
+                .l2_block
+                .executed_transactions
+                .first()
+                .cloned()
+            {
+                if tx.transaction.tx_format() == TransactionType::ProtocolUpgradeTransaction {
+                    batch_data.protocol_upgrade_tx = Some(tx.transaction.try_into().unwrap());
+                }
+            }
+
+            // Rollback batch executor
+            let batch_executor = &mut batch_data.batch_executor;
+            batch_executor.rollback_l2_block().await?;
+
+            // Rollback updates manager
+            let updates_manager = &mut batch_data.updates_manager;
+
             // Mark block as rolled back, data will be dropped when starting next block.
             updates_manager.l2_block.rolled_back = true;
             // Rollback `storage_writes_deduplicator` if block is not-fictive.

@@ -235,11 +235,16 @@ impl StateKeeperIO for ExternalIO {
                 {
                     return Ok(None);
                 }
-                self.pool
+                let mut conn = self.pool
                     .connection_tagged("sync_layer")
-                    .await?
+                    .await?;
+                conn
                     .blocks_dal()
-                    .ensure_unsealed_l1_batch_exists(UnsealedL1BatchHeader {
+                    .delete_unsealed_l1_batch(cursor.l1_batch - 1)
+                    .await?;
+                conn
+                    .blocks_dal()
+                    .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
                         timestamp: params.first_l2_block.timestamp,
                         protocol_version: Some(params.protocol_version),

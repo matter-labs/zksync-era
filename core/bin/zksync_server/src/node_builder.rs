@@ -264,6 +264,7 @@ impl MainNodeBuilder {
 
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(sk_config.l2_block_seal_queue_capacity)
+            .with_pre_insert_txs(true)
             .with_protective_reads_persistence_enabled(
                 sk_config.protective_reads_persistence_enabled,
             );
@@ -273,7 +274,7 @@ impl MainNodeBuilder {
             self.configs.mempool_config.clone(),
             try_load_config!(self.wallets.fee_account),
             self.get_pubdata_type()?,
-            false,
+            true,
         );
         let db_config = self.configs.db_config.clone();
         let experimental_vm_config = self.configs.experimental_vm_config.clone();

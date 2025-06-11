@@ -125,6 +125,7 @@ impl EN {
                 Some(payload_queue),
                 Some(self.client.clone()),
                 registry.clone(),
+                None,
             )
             .await
             .wrap("Store::new()")?;

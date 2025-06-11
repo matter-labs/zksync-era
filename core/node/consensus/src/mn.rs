@@ -5,7 +5,9 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_engine::EngineManager;
 use zksync_consensus_executor::{self as executor};
-
+use zksync_node_sync::ActionQueueSender;
+use zksync_shared_resources::api::SyncState;
+use zksync_state_keeper::StateKeeper;
 use crate::{
     config,
     registry::{Registry, RegistryAddress},
@@ -20,6 +22,8 @@ pub async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: ConnectionPool,
+    sk: Option<StateKeeper>,
+    actions_and_sync_state: Option<(ActionQueueSender, SyncState)>,
 ) -> anyhow::Result<()> {
     let res: ctx::Result<()> = scope::run!(&ctx, |ctx, s| async {
         if let Some(spec) = &cfg.genesis_spec {
@@ -49,8 +53,21 @@ pub async fn run_main_node(
             None => None,
         });
 
+
+        let payload_queue = if let Some((actions, sync_state)) = actions_and_sync_state {
+            let payload_queue = pool.connection(ctx)
+                .await
+                .wrap("connection()")?
+                .new_payload_queue(ctx, actions, sync_state)
+                .await
+                .wrap("new_payload_queue()")?;
+            Some(payload_queue)
+        } else {
+            None
+        };
+
         // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
-        let (store, runner) = Store::new(ctx, pool.clone(), None, None, registry.clone())
+        let (store, runner) = Store::new(ctx, pool.clone(), payload_queue, None, registry.clone(), sk)
             .await
             .wrap("Store::new()")?;
         s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });

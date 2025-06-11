@@ -138,7 +138,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     }
 }
 
-impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
+impl<S: ReadStorage + Send + 'static, Tr: BatchTracer + Sync> BatchExecutorFactory<S>
     for MainBatchExecutorFactory<Tr>
 {
     fn init_batch(

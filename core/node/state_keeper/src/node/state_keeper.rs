@@ -12,7 +12,9 @@ use zksync_storage::RocksDB;
 use zksync_types::try_stoppable;
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
-use super::resources::{BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource};
+use super::resources::{
+    BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource, StateKeeperResource,
+};
 use crate::{
     keeper::RunMode, seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperInner,
 };
@@ -40,8 +42,9 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    #[context(task)]
-    state_keeper: StateKeeperTask,
+    // #[context(task)]
+    // state_keeper: StateKeeperTask,
+    state_keeper: StateKeeperResource,
     #[context(task)]
     rocksdb_catchup: AsyncCatchupTaskWrapper,
     rocksdb_termination_hook: ShutdownHook,
@@ -107,15 +110,15 @@ impl WiringLayer for StateKeeperLayer {
             input.shared_allow_list.map(DeploymentTxFilter::new),
         );
 
-        let state_keeper = StateKeeperTask {
-            state_keeper_inner,
-            run_mode: self.run_mode,
-        };
+        // let state_keeper = StateKeeperTask {
+        //     state_keeper_inner,
+        //     run_mode: self.run_mode,
+        // };
 
-        input
-            .app_health
-            .insert_component(state_keeper.health_check())
-            .map_err(WiringError::internal)?;
+        // input
+        //     .app_health
+        //     .insert_component(state_keeper.health_check())
+        //     .map_err(WiringError::internal)?;
 
         let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.
@@ -124,7 +127,7 @@ impl WiringLayer for StateKeeperLayer {
                 .context("failed terminating RocksDB instances")
         });
         Ok(Output {
-            state_keeper,
+            state_keeper: state_keeper_inner.into(),
             rocksdb_catchup: AsyncCatchupTaskWrapper(rocksdb_catchup),
             rocksdb_termination_hook,
         })

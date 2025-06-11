@@ -11,7 +11,7 @@ use crate::{io::IoCursor, updates::UpdatesManager};
 
 /// Handler for state keeper outputs (L2 blocks and L1 batches).
 #[async_trait]
-pub trait StateKeeperOutputHandler: 'static + Send + fmt::Debug {
+pub trait StateKeeperOutputHandler: 'static + Send + Sync + fmt::Debug {
     /// Initializes this handler. This method will be called on state keeper initialization before any other calls.
     /// The default implementation does nothing.
     async fn initialize(&mut self, _cursor: &IoCursor) -> anyhow::Result<()> {

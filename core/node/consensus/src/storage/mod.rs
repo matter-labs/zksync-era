@@ -52,7 +52,7 @@ impl PayloadQueue {
     /// to the actions queue.
     /// Does nothing and returns `Ok(())` if the block has been already processed.
     /// Returns an error if a block with an earlier block number was expected.
-    pub(crate) async fn send(&mut self, block: FetchedBlock) -> anyhow::Result<()> {
+    pub(crate) async fn send(&mut self, block: FetchedBlock) -> anyhow::Result<bool> {
         let want = self.inner.next_l2_block;
         // Some blocks are missing.
         if block.number > want {
@@ -60,9 +60,14 @@ impl PayloadQueue {
         }
         // Block already processed.
         if block.number < want {
-            return Ok(());
+            return Ok(false);
         }
         self.actions.push_actions(self.inner.advance(block)).await?;
-        Ok(())
+        Ok(true)
+    }
+
+    pub(crate) async fn send2(&mut self, block: FetchedBlock, cursor: IoCursor) -> anyhow::Result<bool> {
+        self.inner = cursor;
+        self.send(block).await
     }
 }

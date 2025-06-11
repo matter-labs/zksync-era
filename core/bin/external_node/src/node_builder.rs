@@ -39,7 +39,8 @@ use zksync_node_api_server::{
     },
     web3::{state::InternalApiConfigBase, Namespace},
 };
-use zksync_node_consensus::node::ExternalNodeConsensusLayer;
+use zksync_node_api_server::node::MasterPoolSinkLayer;
+use zksync_node_consensus::node::{ExternalNodeConsensusLayer, MainNodeConsensusLayer};
 use zksync_node_db_pruner::node::PruningLayer;
 use zksync_node_fee_model::node::MainNodeFeeParamsFetcherLayer;
 use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
@@ -241,12 +242,12 @@ impl<R> ExternalNodeBuilder<R> {
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         let config = self.config.consensus.clone();
         let secrets = self.config.consensus_secrets.clone();
-        let layer = ExternalNodeConsensusLayer {
-            build_version: crate::metadata::SERVER_VERSION
-                .parse()
-                .context("CRATE_VERSION.parse()")?,
-            config,
-            secrets: Some(secrets),
+        let layer = MainNodeConsensusLayer {
+            // build_version: crate::metadata::SERVER_VERSION
+            //     .parse()
+            //     .context("CRATE_VERSION.parse()")?,
+            config: config.unwrap(),
+            secrets: secrets,
         };
         self.node.add_layer(layer);
         Ok(self)
@@ -595,7 +596,8 @@ impl ExternalNodeBuilder {
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
-        self.node.add_layer(ProxySinkLayer);
+        // self.node.add_layer(ProxySinkLayer);
+        self.node.add_layer(MasterPoolSinkLayer);
         self.node.add_layer(tx_sender_layer);
         Ok(self)
     }
