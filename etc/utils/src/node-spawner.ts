@@ -298,6 +298,14 @@ export class NodeSpawner {
         const newGeneralConfig = YAML.stringify(config);
         fsSync.writeFileSync(this.generalConfigPath, newGeneralConfig, 'utf8');
     }
+
+    public setEnvVar(key: string, value: string) {
+        if (this.env) {
+            this.env[key] = value;
+        } else {
+            process.env[key] = value;
+        }
+    }
 }
 
 async function waitForNodeToStart(proc: ChildProcessWithoutNullStreams, l2Url: string) {

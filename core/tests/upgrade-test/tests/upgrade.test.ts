@@ -253,6 +253,25 @@ describe('Upgrade test', function () {
         }
     });
 
+    step('Set UPGRADE_TEST_INITIAL_VERSION', async () => {
+        let settlementLayerDiamondProxy: ethers.Contract;
+        if (gatewayInfo) {
+            settlementLayerDiamondProxy = new ethers.Contract(
+                gatewayInfo.l2DiamondProxyAddress,
+                ZK_CHAIN_INTERFACE,
+                gatewayInfo.gatewayProvider
+            );
+        } else {
+            const zksyncAddress = await alice._providerL2().getMainContractAddress();
+            settlementLayerDiamondProxy = new ethers.Contract(zksyncAddress, ZK_CHAIN_INTERFACE, alice._providerL1());
+        }
+        const oldProtocolVersionPacked = Number(await settlementLayerDiamondProxy.getProtocolVersion());
+        const oldProtocolVersion = BigInt(unpackNumberSemVer(oldProtocolVersionPacked)[1]);
+        mainNodeSpawner.setEnvVar('UPGRADE_TEST_INITIAL_VERSION', oldProtocolVersion.toString());
+
+        await mainNodeSpawner.killAndSpawnMainNode();
+    });
+
     step('Publish bytecodes', async () => {
         const bootloaderCode = readCode(
             // Different versions of foundry have different versions of the artifacts' paths

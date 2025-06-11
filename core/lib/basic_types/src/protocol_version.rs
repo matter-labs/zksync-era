@@ -204,6 +204,13 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_fast_blocks(&self) -> bool {
+        // Kludge for upgrade test. TODO: remove when v29 contracts are used.
+        if let Ok(v) = std::env::var("UPGRADE_TEST_INITIAL_VERSION") {
+            if v.parse::<usize>().is_ok_and(|v| v <= 28) {
+                return true;
+            }
+        }
+
         self < &Self::Version29
     }
 }
