@@ -934,8 +934,9 @@ impl L2Tx {
         tx.common_data.transaction_type = match value.transaction_type.map(|t| t.as_u64() as u8) {
             Some(EIP_712_TX_TYPE) => TransactionType::EIP712Transaction,
             Some(EIP_1559_TX_TYPE) => TransactionType::EIP1559Transaction,
-            Some(EIP_7702_TX_TYPE) => TransactionType::EIP7702Transaction,
             Some(EIP_2930_TX_TYPE) => TransactionType::EIP2930Transaction,
+            Some(EIP_7702_TX_TYPE) => TransactionType::EIP7702Transaction,
+            None if value.authorization_list.is_some() => TransactionType::EIP7702Transaction,
             _ => TransactionType::LegacyTransaction,
         };
         if tx.common_data.transaction_type == TransactionType::EIP7702Transaction {
