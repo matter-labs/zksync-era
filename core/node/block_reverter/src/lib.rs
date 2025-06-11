@@ -408,6 +408,14 @@ impl BlockReverter {
             .delete_l2_blocks(last_l2_block_to_keep)
             .await?;
 
+        if self.node_role == NodeRole::External {
+            tracing::info!("Rolling back consistency checker index");
+            transaction
+                .blocks_dal()
+                .set_consistency_checker_last_processed_l1_batch(last_l1_batch_to_keep)
+                .await?;
+        }
+
         if self.node_role == NodeRole::Main {
             tracing::info!("Performing consensus hard fork");
             transaction.consensus_dal().fork().await?;

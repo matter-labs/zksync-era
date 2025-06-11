@@ -23,7 +23,7 @@ In the long term vision chains deployment will be permissionless, however CTM wi
 
 ## Configurability in the current release
 
-For now, only one CTM will be supported — the one that deploys instances of ZKsync Era, possibly using other DA layers. To read more about different DA layers, check out [this document][TODO].
+For now, only one CTM will be supported — the one that deploys instances of ZKsync Era, possibly using other DA layers. To read more about different DA layers, check out [this document](./chain_genesis.md).
 
 The exact process of deploying & registering a chain can be [read here](./chain_genesis.md). Overall, each chain in the current release will have the following parameters:
 

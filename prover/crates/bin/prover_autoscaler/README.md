@@ -170,6 +170,7 @@ agent_config:
   - `max_replicas` is a map of cluster name to maximum number of replicas. Note: it can be a number of map of GPU types
     to a number.
   - `speed` is a divider for corresponding queue. Note: it can be a number of map of GPU types to a number.
+  - `hysteresis` is a percentage of queue over provisioning for smoother scaling. Meaningful range: 0 to 100.
   - `priority` is an optional field to override global cluster priorities for this target. For GPU targets it's a sorted
     list of `[cluster, gpu]` pairs, for simple targets it's just list of clusters.
 

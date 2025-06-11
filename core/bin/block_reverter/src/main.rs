@@ -20,7 +20,7 @@ use zksync_config::{
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, ContractsConfig, DBConfig, EthConfig, PostgresConfig,
+    ContractsConfig, DBConfig, EthConfig, PostgresConfig,
 };
 use zksync_contracts::getters_facet_contract;
 use zksync_dal::{ConnectionPool, Core};
@@ -133,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
         .install_with_logs(zksync_vlog::Logs::disable_default_logs)?;
 
     let schema = full_config_schema(false);
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
     let wallets_config: Option<Wallets> = repo.parse_opt()?;
     let genesis_config = repo.parse::<GenesisConfigWrapper>()?.genesis;
     let eth_sender: EthConfig = repo.parse()?;

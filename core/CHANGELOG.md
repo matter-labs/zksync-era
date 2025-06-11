@@ -1,5 +1,41 @@
 # Changelog
 
+## [28.5.0](https://github.com/matter-labs/zksync-era/compare/core-v28.4.0...core-v28.5.0) (2025-06-06)
+
+
+### Features
+
+* **api:** implement `debug_getRawTransaction(s)` ([#4109](https://github.com/matter-labs/zksync-era/issues/4109)) ([2b9b76d](https://github.com/matter-labs/zksync-era/commit/2b9b76d3567acaec33421dd761fffde8d69f1ec7))
+* **avail-client:** async blob dispatch ([#4010](https://github.com/matter-labs/zksync-era/issues/4010)) ([7a18647](https://github.com/matter-labs/zksync-era/commit/7a186478700eeeaea51920d94cfb7c4e2b453ba5))
+* **consensus:** Validator committee rotation ([#4014](https://github.com/matter-labs/zksync-era/issues/4014)) ([333efea](https://github.com/matter-labs/zksync-era/commit/333efea309e766c46a20e48868b7bbd0986910ec))
+* **en:** Introduce a fallback for gateway url ([#4114](https://github.com/matter-labs/zksync-era/issues/4114)) ([6bc2757](https://github.com/matter-labs/zksync-era/commit/6bc2757fe584e44e4c66aa1dc9a11df9ebbc0627))
+
+
+### Bug Fixes
+
+* **eth sender:** fix blob sender fee calculation ([#4143](https://github.com/matter-labs/zksync-era/issues/4143)) ([563a15f](https://github.com/matter-labs/zksync-era/commit/563a15fc7572752f4b8360c10c93d71aed3bb06f))
+* **gateway:** Do not create l2 client if server is settlment layer ([#4131](https://github.com/matter-labs/zksync-era/issues/4131)) ([20bd93b](https://github.com/matter-labs/zksync-era/commit/20bd93b1fe8173d3c2db152a5668775a5ef7853e))
+* **proof_data_handler:** get L1BatchCommitmentMode from database instead of config ([#4107](https://github.com/matter-labs/zksync-era/issues/4107)) ([af5654d](https://github.com/matter-labs/zksync-era/commit/af5654db7ce985b6d0a06a561c39e2ac97b76fcc))
+
+
+### Performance Improvements
+
+* **en:** Use jemalloc for external node ([#4146](https://github.com/matter-labs/zksync-era/issues/4146)) ([3cf0b9c](https://github.com/matter-labs/zksync-era/commit/3cf0b9ca61d221b1913e9dbadc69d318d7441497))
+* **state-keeper:** Reduce retained data in updates manager ([#4140](https://github.com/matter-labs/zksync-era/issues/4140)) ([2547d93](https://github.com/matter-labs/zksync-era/commit/2547d9308d72bb091e97f47e6dd40780357f404b))
+
+## [28.4.0](https://github.com/matter-labs/zksync-era/compare/core-v28.3.0...core-v28.4.0) (2025-06-02)
+
+
+### Features
+
+* **contract-verifier:** add Etherscan-like endpoints used for contract verification ([#4096](https://github.com/matter-labs/zksync-era/issues/4096)) ([3a28262](https://github.com/matter-labs/zksync-era/commit/3a28262de32dd802891da857524d9c60837abea4))
+
+
+### Bug Fixes
+
+* **api:** rollback finality-related api changes of 28.3.0 ([#4105](https://github.com/matter-labs/zksync-era/issues/4105)) ([1c797c1](https://github.com/matter-labs/zksync-era/commit/1c797c1a392c930e9c48fcf39aea032b546632bd))
+* deprecate submission obj in favor of data obj ([#4083](https://github.com/matter-labs/zksync-era/issues/4083)) ([9ce873d](https://github.com/matter-labs/zksync-era/commit/9ce873d28e46858e3940aefac24746ac9d8fcd64))
+
 ## [28.3.0](https://github.com/matter-labs/zksync-era/compare/core-v28.2.1...core-v28.3.0) (2025-05-29)
 
 

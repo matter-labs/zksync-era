@@ -912,8 +912,9 @@ impl Default for TracerConfig {
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,
-    FastFinalized,
     Verified,
+    // note: not enabling this status for backwards compatibility
+    // FastFinalized,
 }
 
 /// Result tracers need to have a nested result field for compatibility. So we have two different
