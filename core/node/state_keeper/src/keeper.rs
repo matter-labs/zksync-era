@@ -401,7 +401,6 @@ impl ZkSyncStateKeeper {
                 .wait_for_new_l2_block_params(
                     &cursor,
                     POLL_WAIT_DURATION,
-                    updates.protocol_version(),
                 )
                 .await
                 .context("error waiting for new L2 block params")?

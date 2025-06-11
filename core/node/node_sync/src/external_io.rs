@@ -331,7 +331,6 @@ impl StateKeeperIO for ExternalIO {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-        _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         // Wait for the next L2 block to appear in the queue.
         let Some(action) = self.actions.recv_action(max_wait).await else {

@@ -734,7 +734,6 @@ impl StateKeeperIO for TestIO {
         &mut self,
         cursor: &IoCursor,
         _max_wait: Duration,
-        _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
         let params = L2BlockParams::new(self.timestamp * 1000);
