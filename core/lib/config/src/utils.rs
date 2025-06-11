@@ -18,7 +18,7 @@ where
     const EXPECTING: BasicTypes = <T::Deserializer>::EXPECTING.or(De::EXPECTING);
 
     fn describe(&self, description: &mut TypeDescription) {
-        self.0.describe(description);
+        T::DE.describe(description);
         description.set_fallback(&self.0);
     }
 

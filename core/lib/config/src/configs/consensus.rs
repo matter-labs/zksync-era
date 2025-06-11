@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de,
-    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown},
+    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown, WellKnownOption},
     metadata::{BasicTypes, ParamMetadata, SizeUnit, TypeDescription},
     value::SecretString,
     ByteSize, DescribeConfig, DeserializeConfig, ErrorWithOrigin,
@@ -27,6 +27,8 @@ impl WellKnown for ValidatorPublicKey {
     const DE: Self::Deserializer =
         Qualified::new(Serde![str], "has `validator:public:bls12_381:` prefix");
 }
+
+impl WellKnownOption for ValidatorPublicKey {}
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
