@@ -171,7 +171,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
 
     // Now we count how much ergs were spent at the end of the batch
     // It is assumed that the top level frame is the bootloader
-    let gas_before = TestedVm::gas_remaining(&mut vm.vm);
+    let gas_before = vm.vm.gas_remaining();
     let result = vm
         .vm
         .finish_batch_with_state_diffs(test_data.state_diffs.clone(), default_pubdata_builder());
@@ -179,7 +179,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
         !result.result.is_failed(),
         "Batch wasn't successful for input: {test_data:?}"
     );
-    let gas_after = TestedVm::gas_remaining(&mut vm.vm);
+    let gas_after = vm.vm.gas_remaining();
     assert_eq!((gas_before - gas_after) as u64, result.statistics.gas_used);
 
     TestStatistics {

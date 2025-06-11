@@ -16,7 +16,7 @@ use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
-    OutputHandler, RunMode, StateKeeperInner, StateKeeperPersistence, TreeWritesPersistence,
+    OutputHandler, RunMode, StateKeeperBuilder, StateKeeperPersistence, TreeWritesPersistence,
 };
 use zksync_types::{
     api,
@@ -132,7 +132,7 @@ impl StateKeeperHandles {
             batch_executor.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
-        let state_keeper_inner = StateKeeperInner::new(
+        let builder = StateKeeperBuilder::new(
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
@@ -140,7 +140,7 @@ impl StateKeeperHandles {
             Arc::new(MockReadStorageFactory),
             None,
         );
-        let state_keeper = state_keeper_inner.initialize(&stop_receiver).await.unwrap();
+        let state_keeper = builder.build(&stop_receiver).await.unwrap();
 
         Self {
             stop_sender,

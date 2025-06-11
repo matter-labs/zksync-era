@@ -6,7 +6,7 @@ use zksync_state::OwnedStorage;
 use zksync_vm_executor::interface::BatchExecutorFactory;
 
 use crate::{
-    seal_criteria::ConditionalSealer, OutputHandler, StateKeeper, StateKeeperIO, StateKeeperInner,
+    seal_criteria::ConditionalSealer, OutputHandler, StateKeeper, StateKeeperBuilder, StateKeeperIO,
 };
 
 /// A resource that provides [`StateKeeperIO`] implementation to the service.
@@ -70,10 +70,10 @@ impl Resource<resource::Shared> for dyn ConditionalSealer {
 }
 
 #[derive(Debug, Clone)]
-pub struct StateKeeperResource(pub Unique<StateKeeperInner>);
+pub struct StateKeeperResource(pub Unique<StateKeeperBuilder>);
 
-impl From<StateKeeperInner> for StateKeeperResource {
-    fn from(sk: StateKeeperInner) -> Self {
+impl From<StateKeeperBuilder> for StateKeeperResource {
+    fn from(sk: StateKeeperBuilder) -> Self {
         Self(Unique::new(sk))
     }
 }

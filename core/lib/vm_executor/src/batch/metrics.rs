@@ -15,7 +15,6 @@ pub(super) enum ExecutorCommand {
     StartNextL2Block,
     RollbackLastTx,
     FinishBatch,
-    GasRemaining,
     RollbackL2Block,
 }
 

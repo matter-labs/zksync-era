@@ -295,10 +295,6 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             call_traces,
         }
     }
-
-    fn gas_remaining(&mut self) -> u32 {
-        dispatch_batch_vm!(self.gas_remaining())
-    }
 }
 
 /// Implementation of the "primary" (non-test) batch executor.
@@ -402,12 +398,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                     batch_finished = true;
                     break;
-                }
-                Command::GasRemaining(resp) => {
-                    let gas_remaining = vm.gas_remaining();
-                    if resp.send(gas_remaining).is_err() {
-                        break;
-                    }
                 }
                 Command::RollbackL2Block(resp) => {
                     for _ in 0..snapshots_in_last_block {

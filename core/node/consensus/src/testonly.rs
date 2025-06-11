@@ -33,7 +33,7 @@ use zksync_state_keeper::{
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
     testonly::{fee, fund, test_batch_executor::MockReadStorageFactory, MockBatchExecutor},
-    AsyncRocksdbCache, OutputHandler, StateKeeperInner, StateKeeperPersistence,
+    AsyncRocksdbCache, OutputHandler, StateKeeperBuilder, StateKeeperPersistence,
     TreeWritesPersistence,
 };
 use zksync_test_contracts::Account;
@@ -539,7 +539,7 @@ impl StateKeeperRunner {
                 Default::default(),
             );
             let executor_factory = MainBatchExecutorFactory::<()>::new(false);
-            let state_keeper = StateKeeperInner::new(
+            let state_keeper = StateKeeperBuilder::new(
                 Box::new(io),
                 Box::new(executor_factory),
                 OutputHandler::new(Box::new(persistence.with_tx_insertion()))
@@ -548,7 +548,7 @@ impl StateKeeperRunner {
                 Arc::new(async_cache),
                 None,
             )
-            .initialize(&stop_recv)
+            .build(&stop_recv)
             .await
             .unwrap();
 
@@ -632,7 +632,7 @@ impl StateKeeperRunner {
                 L2ChainId::default(),
             )?;
 
-            let state_keeper = StateKeeperInner::new(
+            let state_keeper = StateKeeperBuilder::new(
                 Box::new(io),
                 Box::new(MockBatchExecutor),
                 OutputHandler::new(Box::new(persistence.with_tx_insertion()))
@@ -642,7 +642,7 @@ impl StateKeeperRunner {
                 Arc::new(MockReadStorageFactory),
                 None,
             )
-            .initialize(&stop_recv)
+            .build(&stop_recv)
             .await
             .unwrap();
 

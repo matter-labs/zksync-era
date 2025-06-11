@@ -551,6 +551,7 @@ mod tests {
             tx_result,
             VmExecutionMetrics::default(),
             vec![],
+            1_000_000,
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
         output_handler

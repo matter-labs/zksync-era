@@ -75,10 +75,6 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
 
-    async fn gas_remaining(&mut self) -> anyhow::Result<u32> {
-        Ok(u32::MAX)
-    }
-
     async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
         Ok(())
     }

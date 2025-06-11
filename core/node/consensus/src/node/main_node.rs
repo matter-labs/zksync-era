@@ -12,7 +12,7 @@ use zksync_node_framework::{
 };
 use zksync_node_sync::{node::ActionQueueSenderResource, ActionQueueSender};
 use zksync_shared_resources::api::SyncState;
-use zksync_state_keeper::{node::StateKeeperResource, StateKeeperInner};
+use zksync_state_keeper::{node::StateKeeperResource, StateKeeperBuilder};
 
 /// Wiring layer for main node consensus component.
 #[derive(Debug)]
@@ -72,7 +72,7 @@ pub struct MainNodeConsensusTask {
     config: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: ConnectionPool<Core>,
-    sk: StateKeeperInner,
+    sk: StateKeeperBuilder,
     sync_state: SyncState,
     action_queue_sender: ActionQueueSender,
 }
@@ -84,7 +84,7 @@ impl Task for MainNodeConsensusTask {
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let sk = self.sk.initialize(&stop_receiver.0).await.unwrap();
+        let sk = self.sk.build(&stop_receiver.0).await.unwrap();
         let config = self.config;
         let secrets = self.secrets;
         let pool = self.pool;

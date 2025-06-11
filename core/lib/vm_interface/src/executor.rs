@@ -46,9 +46,6 @@ pub trait BatchExecutor<S>: 'static + Send + Sync + fmt::Debug {
     /// Finished the current L1 batch.
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)>;
 
-    /// Return gas remaining in VM instance.
-    async fn gas_remaining(&mut self) -> anyhow::Result<u32>;
-
     /// Rolls back the last executed l2 block.
     async fn rollback_l2_block(&mut self) -> anyhow::Result<()>;
 }

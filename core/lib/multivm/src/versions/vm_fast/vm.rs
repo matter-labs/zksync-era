@@ -855,10 +855,6 @@ where
             ),
         }
     }
-
-    fn gas_remaining(&mut self) -> u32 {
-        self.inner.current_frame().gas()
-    }
 }
 
 #[derive(Debug)]

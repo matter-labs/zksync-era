@@ -37,7 +37,7 @@ use crate::{
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     updates::UpdatesManager,
-    OutputHandler, RunMode, StateKeeperInner, StateKeeperOutputHandler,
+    OutputHandler, RunMode, StateKeeperBuilder, StateKeeperOutputHandler,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -215,7 +215,7 @@ impl TestScenario {
         let batch_executor = TestBatchExecutorBuilder::new(&self);
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
-        let state_keeper_inner = StateKeeperInner::new(
+        let builder = StateKeeperBuilder::new(
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
@@ -223,7 +223,7 @@ impl TestScenario {
             Arc::new(MockReadStorageFactory),
             None,
         );
-        let state_keeper = state_keeper_inner.initialize(&stop_receiver).await.unwrap();
+        let state_keeper = builder.build(&stop_receiver).await.unwrap();
         let sk_thread = tokio::spawn(state_keeper.run(RunMode::WithoutRollback, stop_receiver));
 
         // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
@@ -519,10 +519,6 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
     ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
-    }
-
-    async fn gas_remaining(&mut self) -> anyhow::Result<u32> {
-        Ok(u32::MAX)
     }
 
     async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
