@@ -381,6 +381,7 @@ impl Aggregator {
             .unwrap()?;
 
         let ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
+            unreachable!();
             blocks_dal
                 .pre_boojum_get_ready_for_commit_l1_batches(
                     limit,
@@ -398,6 +399,7 @@ impl Aggregator {
                     base_system_contracts_hashes.default_aa,
                     protocol_version_id,
                     self.commitment_mode != L1BatchCommitmentMode::Rollup,
+        self.config.proof_sending_mode == ProofSendingMode::OnlyRealProofs,
                 )
                 .await
                 .unwrap()
