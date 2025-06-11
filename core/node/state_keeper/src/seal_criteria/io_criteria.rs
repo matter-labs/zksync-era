@@ -39,10 +39,6 @@ impl TimeoutSealer {
             l2_block_commit_deadline_ms: config.l2_block_commit_deadline.as_millis() as u64,
         }
     }
-
-    pub fn l2_block_commit_deadline_ms(&self) -> u64 {
-        self.l2_block_commit_deadline_ms
-    }
 }
 
 #[async_trait]

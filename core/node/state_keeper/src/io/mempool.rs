@@ -217,13 +217,9 @@ impl StateKeeperIO for MempoolIO {
             // For versions >  v28 timestamps should be non-decreasing for each L2 block.
             // Also, we want to keep the timestamp of the batch to be the same as the timestamp of its first L2 block.
             // - We sleep past `prev_l2_block_timestamp` for <= v28.
-            // - We sleep past `prev_l2_block_timestamp` for > v28 if `block_commit_deadline_ms >= 1000`,
-            //      so that timestamps for blocks are different.
             // - Otherwise, we sleep past `max(prev_l1_batch_timestamp, prev_l2_block_timestamp - 1)`
             //      to ensure different timestamp for batches and non-decreasing timestamps for blocks.
-            let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks()
-                || self.timeout_sealer.l2_block_commit_deadline_ms() >= 1000
-            {
+            let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks() {
                 cursor.prev_l2_block_timestamp
             } else {
                 cursor
@@ -310,13 +306,9 @@ impl StateKeeperIO for MempoolIO {
         // For versions <= v28 timestamps should be increasing for each L2 block.
         // For versions >  v28 timestamps should be non-decreasing for each L2 block.
         // - We sleep past `prev_l2_block_timestamp` for <= v28.
-        // - We sleep past `prev_l2_block_timestamp` for > v28 if `block_commit_deadline_ms >= 1000`,
-        //      so that timestamps for blocks are different.
         // - Otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
         //      if clock returns consistent time then it shouldn't actually sleep.
-        let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks()
-            || self.timeout_sealer.l2_block_commit_deadline_ms() >= 1000
-        {
+        let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks() {
             cursor.prev_l2_block_timestamp
         } else {
             cursor.prev_l2_block_timestamp.saturating_sub(1)
