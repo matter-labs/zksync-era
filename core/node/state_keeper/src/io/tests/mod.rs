@@ -661,10 +661,7 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
 
     mempool.set_last_batch_protocol_version(ProtocolVersionId::Version28);
     let l2_block_params = mempool
-        .wait_for_new_l2_block_params(
-            &io_cursor,
-            Duration::from_secs(10),
-        )
+        .wait_for_new_l2_block_params(&io_cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no new L2 block params");

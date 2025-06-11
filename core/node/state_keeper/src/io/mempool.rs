@@ -177,7 +177,9 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
-        let params = self.wait_for_new_batch_params_inner(cursor, max_wait).await?;
+        let params = self
+            .wait_for_new_batch_params_inner(cursor, max_wait)
+            .await?;
         if let Some(v) = params.as_ref().map(|p| p.protocol_version) {
             self.last_batch_protocol_version = Some(v);
         }
@@ -189,7 +191,9 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
-        let protocol_version = self.last_batch_protocol_version.context("`last_batch_protocol_version` is missing")?;
+        let protocol_version = self
+            .last_batch_protocol_version
+            .context("`last_batch_protocol_version` is missing")?;
         // For versions <= v28 timestamps should be increasing for each L2 block.
         // For versions >  v28 timestamps should be non-decreasing for each L2 block.
         // - We sleep past `prev_l2_block_timestamp` for <= v28.
@@ -448,7 +452,7 @@ impl MempoolIO {
             chain_id,
             l2_da_validator_address,
             pubdata_type,
-            last_batch_protocol_version: None
+            last_batch_protocol_version: None,
         })
     }
 
@@ -561,8 +565,8 @@ impl MempoolIO {
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
             )
-                .await
-                .context("failed creating L2 transaction filter")?;
+            .await
+            .context("failed creating L2 transaction filter")?;
 
             // We do not populate mempool with upgrade tx so it should be checked separately.
             if !batch_with_upgrade_tx && !self.mempool.has_next(&self.filter) {
