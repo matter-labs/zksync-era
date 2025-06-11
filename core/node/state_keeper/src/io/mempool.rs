@@ -513,6 +513,11 @@ impl MempoolIO {
                 .protocol_version_id_by_timestamp(curr_timestamp)
                 .await
                 .context("Failed loading protocol version")?;
+            let previous_protocol_version = storage
+                .blocks_dal()
+                .pending_protocol_version()
+                .await
+                .context("Failed loading previous protocol version")?;
 
             // We cannot create two L1 batches with the same timestamp regardless of the protocol version.
             // For versions <= v28 timestamps should be increasing for each L2 block.
@@ -521,7 +526,8 @@ impl MempoolIO {
             // - We sleep past `prev_l2_block_timestamp` for <= v28.
             // - Otherwise, we sleep past `max(prev_l1_batch_timestamp, prev_l2_block_timestamp - 1)`
             //      to ensure different timestamp for batches and non-decreasing timestamps for blocks.
-            let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks() {
+            // Note, that when the first v29 batch is starting it should still follow v28 rules since upgrade tx wasn't executed yet.
+            let timestamp_to_sleep_past = if previous_protocol_version.is_pre_fast_blocks() {
                 cursor.prev_l2_block_timestamp
             } else {
                 cursor
@@ -542,11 +548,6 @@ impl MempoolIO {
                 cursor.l1_batch,
                 self.filter.fee_input
             );
-            let previous_protocol_version = storage
-                .blocks_dal()
-                .pending_protocol_version()
-                .await
-                .context("Failed loading previous protocol version")?;
             let batch_with_upgrade_tx = if previous_protocol_version != protocol_version {
                 storage
                     .protocol_versions_dal()
