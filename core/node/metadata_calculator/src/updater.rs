@@ -40,7 +40,7 @@ impl TreeUpdater {
         }
     }
 
-    #[tracing::instrument(skip_all, fields(l1_batch.number = l1_batch.stats.number.0))]
+    #[tracing::instrument(skip_all, fields(l1_batch.number = l1_batch.stats.number))]
     async fn process_l1_batch(
         &mut self,
         l1_batch: L1BatchWithLogs,
