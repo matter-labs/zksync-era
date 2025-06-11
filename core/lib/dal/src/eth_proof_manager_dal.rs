@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
-use tracing::Instrument;
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult},
+    instrument::InstrumentExt,
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, H256};
 
 use crate::Core;
 
@@ -88,10 +88,11 @@ impl EthProofManagerDal<'_, '_> {
             l1_batch_number, proof_gen_data_blob_url, status
             ) VALUES ($1, $2, $3)
             "#,
-            l1_batch_number,
-            proof_gen_data_blob_url,
-            ProofStatus::ReadyToSend.into()
+            l1_batch_number.0 as i64,
+            &proof_gen_data_blob_url,
+            ProofStatus::ReadyToBeProven.into()
         )
+        .instrument("insert_proof_request")
         .execute(self.storage)
         .await?;
 
@@ -103,7 +104,9 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<Option<(L1BatchNumber, String)>> {
         let row = sqlx::query!(
             r#"
-            
+            SELECT l1_batch_number, proof_gen_data_blob_url
+            FROM eth_proof_manager
+            WHERE status = $1
             "#,
             ProofStatus::ReadyToSend.into()
         )
@@ -113,7 +116,7 @@ impl EthProofManagerDal<'_, '_> {
 
         Ok(row.map(|row| {
             (
-                L1BatchNumber(row.l1_batch_number),
+                L1BatchNumber(row.l1_batch_number as u32),
                 row.proof_gen_data_blob_url,
             )
         }))
@@ -160,10 +163,12 @@ impl EthProofManagerDal<'_, '_> {
 
         sqlx::query!(
             r#"
-            
+            UPDATE eth_proof_manager
+            SET validation_status = $1
+            WHERE l1_batch_number = $2
             "#,
             validation_status.into(),
-            l1_batch_number.0
+            l1_batch_number.0 as i64
         )
         .instrument("save_validation_result")
         .execute(self.storage)
@@ -175,16 +180,23 @@ impl EthProofManagerDal<'_, '_> {
     pub async fn mark_proof_request_as_sent_to_l1(
         &mut self,
         l1_batch_number: L1BatchNumber,
+        transaction_hash: H256,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            
+            UPDATE eth_proof_manager
+            SET status = $1, transaction_hash = $2
+            WHERE l1_batch_number = $3
             "#,
             ProofStatus::RequestSentToL1.into(),
-            l1_batch_number.0
+            transaction_hash.as_bytes(),
+            l1_batch_number.0 as i64
         )
         .instrument("mark_proof_request_as_sent_to_l1")
         .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn mark_proof_request_as_acknowledged(
@@ -194,13 +206,39 @@ impl EthProofManagerDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
+            UPDATE eth_proof_manager
+            SET status = $1, assigned_to = $2
             WHERE l1_batch_number = $3
             "#,
             ProofStatus::Acknowledged.into(),
             proving_network.into(),
-            l1_batch_number.0
+            l1_batch_number.0 as i64
         )
         .instrument("mark_proof_request_as_acknowledged")
         .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn mark_proof_request_validation_result_as_sent_to_l1(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+        transaction_hash: H256,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_proof_manager
+            SET status = $1, transaction_hash = $2
+            WHERE l1_batch_number = $3
+            "#,
+            ProofStatus::ValidationResultSentToL1.into(),
+            transaction_hash.as_bytes(),
+            l1_batch_number.0 as i64
+        )
+        .instrument("mark_proof_request_validation_result_as_sent_to_l1")
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 }

@@ -20,14 +20,12 @@ impl EthProofSender {
     pub fn new(
         chain_id: L2ChainId,
         client: EthProofManagerClient<L1>,
-        gas_adjuster: Arc<dyn TxParamsProvider>,
         connection_pool: ConnectionPool<Core>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
         Self {
             chain_id,
             client,
-            gas_adjuster,
             connection_pool,
             object_store,
         }

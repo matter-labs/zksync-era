@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_eth_client::{
-    clients::DynClient, web3_decl::client::Network, CallFunctionArgs, ContractCallError,
-    EnrichedClientError, EthInterface,
+    clients::DynClient, web3_decl::client::Network, BoundEthInterface, CallFunctionArgs,
+    ContractCallError, EnrichedClientError, EthInterface,
 };
 use zksync_eth_watch::GetLogsClient;
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
@@ -18,6 +18,7 @@ use zksync_types::{
 
 use crate::types::{ClientError, ProofRequestIdentifier, ProofRequestParams};
 
+#[derive(Clone, Debug)]
 pub struct EthProofManagerClient<Net: Network> {
     client: Box<DynClient<Net>>,
     gas_adjuster: Arc<dyn TxParamsProvider>,
@@ -36,19 +37,21 @@ const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 
 impl<Net: Network> EthProofManagerClient<Net>
 where
-    Box<DynClient<Net>>: EthInterface + GetLogsClient,
+    Box<DynClient<Net>>: EthInterface + BoundEthInterface + GetLogsClient,
 {
     pub fn new(
         client: Box<DynClient<Net>>,
         gas_adjuster: Arc<dyn TxParamsProvider>,
         proof_manager_address: Address,
         proof_manager_abi: Contract,
+        client_config: EthProofManagerConfig,
     ) -> Self {
         Self {
             client,
             gas_adjuster,
             proof_manager_abi,
             proof_manager_address,
+            client_config,
         }
     }
 
@@ -184,7 +187,7 @@ where
             protocol_minor: U256::from(protocol_version.minor() as u16),
             protocol_patch: U256::from(protocol_version.patch().0),
             proof_inputs_url,
-            // todo: should be get from config
+            // todo: should be retrieved from config
             timeout_after: U256(0),
             max_reward: U256(0),
         };
@@ -192,11 +195,17 @@ where
         let params = fn_submit_proof_request
             .encode_input(&(id.into_tokens(), proof_request_params.into_tokens()))?;
 
-        CallFunctionArgs::new("submitProofRequest", params.into_tokens())
-            .for_contract(self.proof_manager_address, &self.proof_manager_abi)
-            .call(&self.client)
-            .await
-            .map_err(Into::into)
+        self.send_transaction_retriable("submitProofRequest", params.into_tokens())
+            .await?;
+
+        self.connection_pool
+            .connection()
+            .await?
+            .eth_proof_manager_dal()
+            .mark_proof_request_as_sent_to_l1(batch_number, transaction_hash)
+            .await?;
+
+        Ok(())
     }
 
     pub async fn submit_proof_validation_result(
@@ -204,7 +213,7 @@ where
         chain_id: L2ChainId,
         batch_number: L1BatchNumber,
         is_proof_valid: bool,
-    ) -> Result<(), ClientError> {
+    ) -> Result<H256, ClientError> {
         let fn_submit_proof_validation_result = self.proof_manager_abi.function("submitProofValidationResult").context("`submitProofValidationResult` function must be present in the ProofManager contract")?;
 
         let id = ProofRequestIdentifier {
@@ -215,11 +224,17 @@ where
         let params =
             fn_submit_proof_validation_result.encode_input(&(id.into_tokens(), is_proof_valid))?;
 
-        CallFunctionArgs::new("submitProofValidationResult", params.into_tokens())
-            .for_contract(self.proof_manager_address, &self.proof_manager_abi)
-            .call(&self.client)
-            .await
-            .map_err(Into::into)
+        self.send_transaction_retriable("submitProofValidationResult", params.into_tokens())
+            .await?;
+
+        self.connection_pool
+            .connection()
+            .await?
+            .eth_proof_manager_dal()
+            .mark_proof_request_validation_result_as_sent_to_l1(batch_number, transaction_hash)
+            .await?;
+
+        Ok(())
     }
 
     pub async fn get_finalized_block(&self) -> Result<u64, ClientError> {
@@ -248,57 +263,47 @@ where
         &mut self,
         function_name: &str,
         params: Vec<Token>,
-    ) -> anyhow::Result<()> {
-        let max_attempts = l1_params.config.l1_tx_sending_max_attempts;
-        let sleep_duration = l1_params.config.l1_tx_sending_sleep;
+    ) -> anyhow::Result<H256> {
+        let max_attempts = self.client_config.l1_tx_sending_max_attempts;
+        let sleep_duration = self.client_config.l1_tx_sending_sleep;
         let mut prev_base_fee_per_gas: Option<u64> = None;
         let mut prev_priority_fee_per_gas: Option<u64> = None;
         let mut last_error = None;
         for attempt in 0..max_attempts {
             let (base_fee_per_gas, priority_fee_per_gas) =
-                self.get_eth_fees(l1_params, prev_base_fee_per_gas, prev_priority_fee_per_gas);
+                self.get_eth_fees(prev_base_fee_per_gas, prev_priority_fee_per_gas);
 
             let start_time = Instant::now();
             let result = self
-                .do_update_l1(l1_params, new_ratio, base_fee_per_gas, priority_fee_per_gas)
+                .do_send_transaction(
+                    function_name,
+                    params,
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
+                )
                 .await;
 
             match result {
-                Ok(x) => {
+                Ok((gas_used, hash)) => {
                     tracing::info!(
-                        "Updated base token multiplier on L1: numerator {}, denominator {}, base_fee_per_gas {}, priority_fee_per_gas {}, deviation {}",
-                        new_ratio.numerator.get(),
-                        new_ratio.denominator.get(),
+                        "Sent transaction on ProofManager contract: function_name {}, tx_hash {}, base_fee_per_gas {}, priority_fee_per_gas {}",
+                        function_name,
+                        hex::encode(hash),
                         base_fee_per_gas,
-                        priority_fee_per_gas,
-                        deviation
-                    );
-                    METRICS
-                        .l1_gas_used
-                        .set(x.unwrap_or(U256::zero()).low_u128() as u64);
-                    METRICS.l1_update_latency[&OperationResultLabels {
-                        result: OperationResult::Success,
-                    }]
-                        .observe(start_time.elapsed());
-                    self.update_last_persisted_l1_ratio(
-                        BigDecimal::from(new_ratio.numerator.get())
-                            .div(BigDecimal::from(new_ratio.denominator.get())),
+                        priority_fee_per_gas
                     );
 
-                    return Ok(());
+                    return Ok(hash);
                 }
                 Err(err) => {
                     tracing::info!(
-                        "Failed to update base token multiplier on L1, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
-                        attempt,
+                        "Failed to send transaction on ProofManager contract: function_name {}, params {}, base_fee_per_gas {}, priority_fee_per_gas {}",
+                        function_name,
+                        // todo: add proper logging params(l1 batch number)
+                        params,
                         base_fee_per_gas,
-                        priority_fee_per_gas,
-                        err
+                        priority_fee_per_gas
                     );
-                    METRICS.l1_update_latency[&OperationResultLabels {
-                        result: OperationResult::Failure,
-                    }]
-                        .observe(start_time.elapsed());
 
                     tokio::time::sleep(sleep_duration).await;
                     prev_base_fee_per_gas = Some(base_fee_per_gas);
@@ -320,7 +325,7 @@ where
         calldata: Vec<Token>,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
-    ) -> anyhow::Result<Option<U256>> {
+    ) -> anyhow::Result<(Option<U256>, H256)> {
         let nonce = self
             .client
             .as_ref()
@@ -345,47 +350,69 @@ where
             .client
             .sign_prepared_tx_for_addr(calldata, self.proof_manager_address, options)
             .await
-            .context("cannot sign a `setTokenMultiplier` transaction")?;
+            .context(format!("cannot sign a {} transaction", function_name))?;
 
         let hash = self
             .client
             .as_ref()
             .send_raw_tx(signed_tx.raw_tx)
             .await
-            .context("failed sending `setTokenMultiplier` transaction")?;
+            .context(format!("failed sending {} transaction", function_name))?;
 
         let max_attempts = self.client_config.l1_receipt_checking_max_attempts;
         let sleep_duration = self.client_config.l1_receipt_checking_sleep;
-        for _i in 0..max_attempts {
+        for attempt in 0..max_attempts {
             let maybe_receipt = self
                 .client
                 .as_ref()
                 .tx_receipt(hash)
                 .await
-                .context("failed getting receipt for `setTokenMultiplier` transaction")?;
+                .context(format!(
+                    "failed getting receipt for {} transaction",
+                    function_name
+                ))?;
             if let Some(receipt) = maybe_receipt {
                 if receipt.status == Some(1.into()) {
+                    tracing::info!(
+                        "Successfully got receipt for {} transaction by hash {:?}",
+                        function_name,
+                        hex::encode(hash)
+                    );
                     return Ok(receipt.gas_used);
                 }
-                let reason =
-                    self.client.as_ref().failure_reason(hash).await.context(
-                        "failed getting failure reason of `setTokenMultiplier` transaction",
-                    )?;
-                return Err(anyhow::Error::msg(format!(
-                    "`setTokenMultiplier` transaction {:?} failed with status {:?}, reason: {:?}",
+                let reason = self
+                    .client
+                    .as_ref()
+                    .failure_reason(hash)
+                    .await
+                    .context(format!(
+                        "failed getting failure reason of {} transaction",
+                        function_name
+                    ))?;
+
+                return Err(anyhow::anyhow!(
+                    "{} transaction {:?} failed with status {:?}, reason: {:?}",
+                    function_name,
                     hex::encode(hash),
                     receipt.status,
                     reason
-                )));
+                ));
             } else {
+                tracing::info!(
+                    "Failed to get receipt for {} transaction, attempt {}/{}",
+                    function_name,
+                    attempt + 1,
+                    max_attempts
+                );
                 tokio::time::sleep(sleep_duration).await;
             }
         }
 
-        Err(anyhow::Error::msg(format!(
-            "Unable to retrieve `setTokenMultiplier` transaction status in {} attempts",
+        Err(anyhow::anyhow!(
+            "Unable to retrieve {} transaction status in {} attempts",
+            function_name,
             max_attempts
-        )))
+        ))
     }
 
     fn get_eth_fees(

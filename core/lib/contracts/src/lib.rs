@@ -82,6 +82,12 @@ const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "DualVerifier.sol/DualVerifier.json",
 );
 
+// todo: paths are working strange here, should be fixed
+const _ETH_PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = (
+    "proof-manager-contracts",
+    "artifacts/contracts/ProofManagerV1.sol/ProofManagerV1.json",
+);
+
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
@@ -157,6 +163,10 @@ pub fn read_contract_abi(path: impl AsRef<Path> + std::fmt::Debug) -> Option<Str
             .expect("Failed to parse abi")
             .to_string(),
     )
+}
+
+pub fn eth_proof_manager_contract() -> Contract {
+    load_contract_for_both_compilers(_ETH_PROOF_MANAGER_CONTRACT_FILE)
 }
 
 pub fn bridgehub_contract() -> Contract {

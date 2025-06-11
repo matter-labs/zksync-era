@@ -15,6 +15,7 @@ use crate::{
 
 mod client;
 mod metrics;
+pub mod node;
 pub mod readiness_checker;
 pub mod sender;
 mod types;
@@ -31,7 +32,6 @@ impl EthProofManager {
         connection_pool: ConnectionPool<Core>,
         blob_store: Arc<dyn ObjectStore>,
         client: Box<DynClient<L1>>,
-        processor: Processor<Readonly>,
         proof_manager_address: Address,
         proof_manager_abi: Contract,
         proof_data_handler_config: ProofDataHandlerConfig,

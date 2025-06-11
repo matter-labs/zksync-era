@@ -8,6 +8,7 @@ pub use self::{
     da_client::{avail::AvailConfig, celestia::CelestiaConfig, eigen::EigenConfig, DAClientConfig},
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
+    eth_proof_manager::EthProofManagerConfig,
     eth_sender::{EthConfig, GasAdjusterConfig},
     eth_watch::EthWatchConfig,
     experimental::{ExperimentalDBConfig, ExperimentalVmConfig, ExperimentalVmPlaygroundConfig},

@@ -40,3 +40,12 @@ impl Resource for L1ChainContractsResource {
         "common/l1_contracts".into()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct EthProofManagerContractsResource(pub EthProofManagerContracts);
+
+impl Resource for EthProofManagerContractsResource {
+    fn name() -> String {
+        "common/eth_proof_manager_contracts".into()
+    }
+}

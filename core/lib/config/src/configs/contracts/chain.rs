@@ -33,6 +33,19 @@ impl EcosystemContracts {
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct EthProofManagerContracts {
+    pub proof_manager_addr: Address,
+}
+
+impl EthProofManagerContracts {
+    fn for_tests() -> Self {
+        Self {
+            proof_manager_addr: Address::repeat_byte(0x19),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct L1ContractsConfig {
     pub default_upgrade_addr: Address,
     pub diamond_proxy_addr: Address,
@@ -154,6 +167,8 @@ pub struct ContractsConfig {
     pub bridges: BridgesConfig,
     #[config(nest)]
     pub ecosystem_contracts: EcosystemContracts,
+    #[config(nest)]
+    pub eth_proof_manager_contracts: EthProofManagerContracts,
 }
 
 impl ContractsConfig {
@@ -163,6 +178,7 @@ impl ContractsConfig {
             l2: L2ContractsConfig::for_tests(),
             bridges: BridgesConfig::for_tests(),
             ecosystem_contracts: EcosystemContracts::for_tests(),
+            eth_proof_manager_contracts: EthProofManagerContracts::for_tests(),
         }
     }
 
@@ -296,6 +312,9 @@ mod tests {
                 )),
                 server_notifier_addr: Some(addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a")),
             },
+            eth_proof_manager_contracts: EthProofManagerContracts {
+                proof_manager_addr: addr("0x1900678c093afec2558642bc4cae038254b9e664"),
+            },
         }
     }
 
@@ -332,6 +351,8 @@ mod tests {
             CONTRACTS_BRIDGES_ERC20_L2_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_WETH_L1_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_WETH_L2_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+
+            CONTRACTS_ETH_PROOF_MANAGER_PROOF_MANAGER_ADDR="0x1900678c093afec2558642bc4cae038254b9e664"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
 
@@ -383,6 +404,8 @@ mod tests {
               timestamp_asserter_addr: '0x0000000000000000000000000000000000000002'
               da_validator_addr: 0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff
               multicall3: '0x0000000000000000000000000000000000010002'
+            eth_proof_manager_contracts:
+              proof_manager_addr: 0x1900678c093afec2558642bc4cae038254b9e664
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

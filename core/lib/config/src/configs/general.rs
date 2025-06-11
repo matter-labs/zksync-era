@@ -10,6 +10,7 @@ use crate::{
         consensus::ConsensusConfig,
         da_dispatcher::DADispatcherConfig,
         en_config::ENConfig,
+        eth_proof_manager::EthProofManagerConfig,
         house_keeper::HouseKeeperConfig,
         prover_job_monitor::ProverJobMonitorConfig,
         pruning::PruningConfig,
@@ -98,6 +99,8 @@ pub struct GeneralConfig {
     pub timestamp_asserter_config: TimestampAsserterConfig,
     #[config(nest, rename = "gateway_migrator")]
     pub gateway_migrator_config: GatewayMigratorConfig,
+    #[config(nest, rename = "eth_proof_manager")]
+    pub eth_proof_manager: EthProofManagerConfig,
 }
 
 pub fn full_config_schema(for_en: bool) -> ConfigSchema {
