@@ -161,7 +161,7 @@ describe('Tests for the private rpc', () => {
 
         const absurdly_high_value = ethers.parseEther('1000000.0');
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
-        await expect(aliceErc20.transfer(bob.address, absurdly_high_value, { gasLimit, gasPrice })).toBeReverted([
+        await expect(aliceErc20.transfer(bob.address, absurdly_high_value, { gasLimit })).toBeReverted([
             noBalanceChange,
             feeTaken
         ]);
