@@ -32,6 +32,7 @@ pub enum BootloaderErrorCode {
     L1MessengerPublishingFailed,
     L1MessengerLogSendingFailed,
     FailedToCallSystemContext,
+    FailedToProcessEip7702Delegations,
     Unknown,
 }
 
@@ -68,6 +69,7 @@ impl From<u8> for BootloaderErrorCode {
             27 => BootloaderErrorCode::L1MessengerPublishingFailed,
             28 => BootloaderErrorCode::L1MessengerLogSendingFailed,
             29 => BootloaderErrorCode::FailedToCallSystemContext,
+            30 => BootloaderErrorCode::FailedToProcessEip7702Delegations,
             _ => BootloaderErrorCode::Unknown,
         }
     }

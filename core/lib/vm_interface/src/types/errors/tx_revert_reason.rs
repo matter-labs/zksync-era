@@ -130,6 +130,9 @@ impl TxRevertReason {
             BootloaderErrorCode::FailedToPublishTimestampDataToL1 => {
                 Self::Halt(Halt::UnexpectedVMBehavior(format!("Failed to publish timestamp data to L1: {}", revert_reason)))
             }
+            BootloaderErrorCode::FailedToProcessEip7702Delegations => {
+                Self::Halt(Halt::ValidationFailed(VmRevertReason::General { msg: String::from("Failed to process EIP-7702 authorization list"), data: vec![] }))
+            }
         }
     }
 }
