@@ -136,8 +136,14 @@ pub(super) fn executor(
         .debug_page_addr
         .map(|addr| network::debug_page::Config { addr });
     let validator_key = validator_key(secrets).context("validator_key")?;
-    tracing::info!("private validator key {:?}", validator_key.as_ref().unwrap().encode());
-    tracing::info!("public validator key {:?}", validator_key.as_ref().unwrap().public());
+    tracing::info!(
+        "private validator key {:?}",
+        validator_key.as_ref().unwrap().encode()
+    );
+    tracing::info!(
+        "public validator key {:?}",
+        validator_key.as_ref().unwrap().public()
+    );
 
     Ok(executor::Config {
         build_version,

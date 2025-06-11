@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context as _;
 use tokio::sync::watch;
 use tracing::{info_span, Instrument};
+use zksync_concurrency::ctx;
 use zksync_dal::consensus::Payload;
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
@@ -29,7 +30,6 @@ use zksync_types::{
     L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
-use zksync_concurrency::ctx;
 
 use crate::{
     executor::TxExecutionResult,
@@ -232,8 +232,9 @@ impl StateKeeperInner {
         stop_receiver: &mut watch::Receiver<bool>,
         ctx: Option<&ctx::Ctx>,
     ) -> Result<L1BatchData, OrStopped> {
-        let (system_env, l1_batch_env, pubdata_params) =
-            self.wait_for_new_batch_env(&cursor, stop_receiver, ctx).await?;
+        let (system_env, l1_batch_env, pubdata_params) = self
+            .wait_for_new_batch_env(&cursor, stop_receiver, ctx)
+            .await?;
         let first_batch_in_shared_bridge =
             l1_batch_env.number == L1BatchNumber(1) && !system_env.version.is_pre_shared_bridge();
         let previous_batch_protocol_version = self
@@ -971,7 +972,10 @@ impl StateKeeper {
 
         while !is_canceled(stop_receiver) {
             if let Some(ctx) = ctx {
-                if (updates_manager.has_next_block_params() || updates_manager.l2_block.executed_transactions.is_empty()) && !ctx.is_active() {
+                if (updates_manager.has_next_block_params()
+                    || updates_manager.l2_block.executed_transactions.is_empty())
+                    && !ctx.is_active()
+                {
                     dbg!(updates_manager.has_next_block_params());
                     dbg!(updates_manager.l2_block.executed_transactions.is_empty());
                     dbg!(!ctx.is_active());
@@ -1223,7 +1227,8 @@ impl StateKeeper {
 
         let batch_state = self.batch_state.unwrap_init_ref();
         let l2_block_header = batch_state.updates_manager.build_block_header();
-        self.pending_l2_block_header = Some((l2_block_header, batch_state.updates_manager.build_payload()));
+        self.pending_l2_block_header =
+            Some((l2_block_header, batch_state.updates_manager.build_payload()));
 
         Ok(())
     }
@@ -1266,10 +1271,8 @@ impl StateKeeper {
                 let mut cursor = cursor.clone();
                 cursor.l1_batch -= 1;
                 cursor
-            },
-            BatchState::Init(d) => {
-                d.updates_manager.io_cursor()
             }
+            BatchState::Init(d) => d.updates_manager.io_cursor(),
         }
     }
 
@@ -1297,12 +1300,20 @@ impl StateKeeper {
             .collect();
         self.inner.io.rollback_block(txs).await?;
 
-        let first_block = batch_data.updates_manager.l1_batch.executed_transactions.is_empty();
+        let first_block = batch_data
+            .updates_manager
+            .l1_batch
+            .executed_transactions
+            .is_empty();
         if first_block {
             let cursor = IoCursor {
                 next_l2_block: batch_data.updates_manager.l2_block.number,
                 prev_l2_block_hash: batch_data.updates_manager.l2_block.prev_block_hash,
-                prev_l2_block_timestamp: batch_data.updates_manager.l2_block.prev_block_timestamp.unwrap(),
+                prev_l2_block_timestamp: batch_data
+                    .updates_manager
+                    .l2_block
+                    .prev_block_timestamp
+                    .unwrap(),
                 l1_batch: batch_data.updates_manager.l1_batch.number,
             };
             self.batch_state = BatchState::Uninit(cursor);

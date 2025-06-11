@@ -66,7 +66,11 @@ impl PayloadQueue {
         Ok(true)
     }
 
-    pub(crate) async fn send2(&mut self, block: FetchedBlock, cursor: IoCursor) -> anyhow::Result<bool> {
+    pub(crate) async fn send2(
+        &mut self,
+        block: FetchedBlock,
+        cursor: IoCursor,
+    ) -> anyhow::Result<bool> {
         self.inner = cursor;
         self.send(block).await
     }

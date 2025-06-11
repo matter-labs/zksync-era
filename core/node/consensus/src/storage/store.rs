@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tracing::Instrument;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_concurrency::ctx::Canceled;
+use zksync_concurrency::{ctx, ctx::Canceled, error::Wrap as _, scope, sync, time};
 use zksync_consensus_engine::{self as engine, BlockStoreState, EngineInterface};
 use zksync_consensus_roles::validator;
 use zksync_dal::{
@@ -238,7 +237,10 @@ impl EngineInterface for Store {
         if let Some(payloads) = &mut *payloads {
             let cursor = sk.cursor_for_action_queue();
             let queued = payloads
-                .send2(to_fetched_block(block.number(), p).context("to_fetched_block")?, cursor)
+                .send2(
+                    to_fetched_block(block.number(), p).context("to_fetched_block")?,
+                    cursor,
+                )
                 .await
                 .context("payloads.send()")?;
             if queued {
@@ -308,7 +310,6 @@ impl EngineInterface for Store {
     ) -> ctx::Result<()> {
         let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
         if let Some(payloads) = &mut *payloads {
-
             let mut lock = sync::lock(ctx, &self.sk).await?.into_async();
             let sk = lock.as_mut().unwrap();
 
@@ -323,7 +324,10 @@ impl EngineInterface for Store {
 
             let cursor = sk.cursor_for_action_queue();
             let block = to_fetched_block(block_number, payload).context("to_fetched_block")?;
-            let queued = payloads.send2(block, cursor).await.context("payload_queue.send()")?;
+            let queued = payloads
+                .send2(block, cursor)
+                .await
+                .context("payload_queue.send()")?;
             dbg!(&cursor);
             dbg!(&payload);
             dbg!(&queued);
@@ -373,7 +377,7 @@ impl EngineInterface for Store {
             Err(OrStopped::Stopped) => {
                 dbg!(format!("propose_payload {block_number} is canceled"));
                 return Err(Canceled.into());
-            },
+            }
             Err(OrStopped::Internal(err)) => return Err(err.into()),
         };
 

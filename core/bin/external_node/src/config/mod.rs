@@ -173,7 +173,7 @@ impl RemoteENConfig {
             None,
             "Failed to fetch l2 da validator".to_string(),
         )
-            .await?;
+        .await?;
 
         let l2_multicall3 = handle_rpc_response_with_fallback(
             client.get_l2_multicall3(),

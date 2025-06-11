@@ -34,12 +34,11 @@ use zksync_metadata_calculator::{
 };
 use zksync_node_api_server::{
     node::{
-        HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
-        TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
+        HealthCheckLayer, MasterPoolSinkLayer, MempoolCacheLayer, PostgresStorageCachesConfig,
+        ProxySinkLayer, TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
     web3::{state::InternalApiConfigBase, Namespace},
 };
-use zksync_node_api_server::node::MasterPoolSinkLayer;
 use zksync_node_consensus::node::{ExternalNodeConsensusLayer, MainNodeConsensusLayer};
 use zksync_node_db_pruner::node::PruningLayer;
 use zksync_node_fee_model::node::MainNodeFeeParamsFetcherLayer;
