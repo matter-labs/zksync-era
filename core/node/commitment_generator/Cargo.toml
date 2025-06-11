@@ -15,6 +15,7 @@ vise.workspace = true
 zksync_types.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_instrument.workspace = true
 zksync_l1_contract_interface.workspace = true
 zksync_eth_client.workspace = true
 zksync_contracts.workspace = true

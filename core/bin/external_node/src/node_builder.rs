@@ -1,7 +1,7 @@
 //! This module provides a "builder" for the external node,
 //! as well as an interface to run the node with the specified components.
 
-use std::time::Duration;
+use std::{mem, time::Duration};
 
 use anyhow::{bail, Context as _};
 use zksync_block_reverter::{
@@ -129,6 +129,13 @@ impl<R> ExternalNodeBuilder<R> {
         Ok(self)
     }
 
+    #[cfg(not(target_env = "msvc"))]
+    fn add_jemalloc_monitor_layer(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(zksync_node_jemalloc::JemallocMonitorLayer);
+        Ok(self)
+    }
+
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ExternalNodeMetricsLayer {
             l1_chain_id: self.config.required.l1_chain_id,
@@ -158,8 +165,13 @@ impl<R> ExternalNodeBuilder<R> {
             port: self.config.required.healthcheck_port,
             slow_time_limit: self.config.optional.healthcheck_slow_time_limit(),
             hard_time_limit: self.config.optional.healthcheck_hard_time_limit(),
+            expose_config: false, // FIXME: allow configuring
         };
-        self.node.add_layer(HealthCheckLayer(healthcheck_config));
+        let mut layer = HealthCheckLayer::new(healthcheck_config);
+        if let Some(config_params) = mem::take(&mut self.config.config_params) {
+            layer = layer.with_config_params(config_params);
+        }
+        self.node.add_layer(layer);
         Ok(self)
     }
 
@@ -625,6 +637,11 @@ impl ExternalNodeBuilder {
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
             .add_reorg_detector_layer()?;
+
+        #[cfg(not(target_env = "msvc"))]
+        {
+            self = self.add_jemalloc_monitor_layer()?;
+        }
 
         // Add layers that must run only on a single component.
         if components.contains(&Component::Core) {
