@@ -392,7 +392,8 @@ impl Aggregator {
                 .await
                 .unwrap()
         } else {
-            blocks_dal
+            // this sql can temporary return out of order blocks - see workaround below
+            let res = blocks_dal
                 .get_ready_for_commit_l1_batches(
                     limit,
                     base_system_contracts_hashes.bootloader,
@@ -402,7 +403,13 @@ impl Aggregator {
         self.config.proof_sending_mode == ProofSendingMode::OnlyRealProofs,
                 )
                 .await
-                .unwrap()
+                .unwrap();
+
+            if !res.is_empty() && res.first().unwrap().header.number == last_committed_l1_batch.header.number + 1 {
+                res
+            } else {
+                vec![]
+            }
         };
 
         // Check that the L1 batches that are selected are sequential
