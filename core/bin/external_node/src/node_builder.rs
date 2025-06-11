@@ -275,8 +275,8 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
-        let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
-        let layer = ConsistencyCheckerLayer::new(max_batches_to_recheck);
+        let layer =
+            ConsistencyCheckerLayer::new(self.config.consistency_checker.max_batches_to_recheck);
         self.node.add_layer(layer);
         Ok(self)
     }
