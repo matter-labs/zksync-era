@@ -149,7 +149,16 @@ async fn test_pending_validator_committee() {
             .collect();
         let schedule = validator::Schedule::new(validator_infos, leader_selection).unwrap();
 
-        // *Change the activation delay so it's not immediate.*
+        // Read the *pending* validator schedule using the vm before doing anything.
+        // It should return `None`.
+        let block_num = node.last_block();
+        assert!(registry
+            .get_pending_validator_schedule(ctx, block_num)
+            .await
+            .unwrap()
+            .is_none());
+
+        // *Change the activation delay so it's not immediate*
         txs.push(testonly::make_tx(
             account,
             registry_addr,
