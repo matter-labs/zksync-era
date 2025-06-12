@@ -294,7 +294,6 @@ describe('L1 ERC20 contract checks', () => {
         /// see hashProof in MessageHashing.sol for this logic.
         let gwProofIndex =
             1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
-        console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
         return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
     }
 
@@ -325,10 +324,8 @@ describe('L1 ERC20 contract checks', () => {
 
             currentRoot = await l2InteropRootStorage.interopRoots(gatewayChainId, l1BatchNumber);
             await new Promise((resolve) => setTimeout(resolve, provider.pollingInterval));
-            console.log('currentRoot', currentRoot, count);
             count++;
         }
-        console.log('Interop root is non-zero', currentRoot);
     }
 
     // Gets the L2-B provider URL, which is Validium (L2-B) for Era (L2-A), and Era (L2-B) for all other chains
