@@ -204,7 +204,8 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_fast_blocks(&self) -> bool {
-        self < &Self::Version29
+        // TODO: change this to `self < ProtocolVersionId::Version29` when v29 contracts are merged.
+        true
     }
 }
 
