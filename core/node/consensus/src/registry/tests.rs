@@ -132,6 +132,31 @@ async fn test_pending_validator_committee() {
             registry.initialize(account_addr),
         ));
 
+        // *Change the activation delay so it's not immediate*
+        txs.push(testonly::make_tx(
+            account,
+            registry_addr,
+            registry.set_committee_activation_delay(DELAY),
+        ));
+
+        // Push the block and wait for it to be executed.
+        node.push_block(&txs).await;
+        let block_num = node.last_block();
+        pool.wait_for_payload(ctx, block_num)
+            .await
+            .wrap("wait_for_payload()")?;
+
+        // Read the *pending* validator schedule using the vm before doing anything.
+        // It should return `None`.
+        assert!(registry
+            .get_pending_validator_schedule(ctx, block_num)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Start a new batch of transactions.
+        txs.clear();
+
         // Generate validators.
         let validators: Vec<_> = (0..5).map(|_| testonly::gen_validator(rng)).collect();
         // This is the default leader selection for the Registry contract.
@@ -148,22 +173,6 @@ async fn test_pending_validator_committee() {
             })
             .collect();
         let schedule = validator::Schedule::new(validator_infos, leader_selection).unwrap();
-
-        // Read the *pending* validator schedule using the vm before doing anything.
-        // It should return `None`.
-        let block_num = node.last_block();
-        assert!(registry
-            .get_pending_validator_schedule(ctx, block_num)
-            .await
-            .unwrap()
-            .is_none());
-
-        // *Change the activation delay so it's not immediate*
-        txs.push(testonly::make_tx(
-            account,
-            registry_addr,
-            registry.set_committee_activation_delay(DELAY),
-        ));
 
         // Add validators to the registry.
         for v in validators.iter() {
