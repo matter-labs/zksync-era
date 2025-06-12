@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use smart_config::{DescribeConfig, DeserializeConfig};
+#[cfg(feature = "observability_ext")]
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
