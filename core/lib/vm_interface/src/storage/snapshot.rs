@@ -174,14 +174,6 @@ impl<S: ReadStorage> ReadStorage for StorageWithSnapshot<S> {
             |storage| storage.get_enumeration_index(key),
         )
     }
-
-    // fn get_interop_root(
-    //     &mut self,
-    //     _chain_id: SLChainId,
-    //     _block_number: L2BlockNumber,
-    // ) -> Option<H256> {
-    //     None // kl todo
-    // }
 }
 
 #[cfg(test)]
