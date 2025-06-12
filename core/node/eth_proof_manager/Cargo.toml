@@ -27,3 +27,4 @@ jsonrpsee.workspace = true
 zksync_proof_data_handler.workspace = true
 zksync_node_fee_model.workspace = true
 hex.workspace = true
+vise.workspace = true

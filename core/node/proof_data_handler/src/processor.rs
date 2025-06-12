@@ -190,7 +190,7 @@ impl<PM: ProcessorMode> Processor<PM> {
 
 impl Processor<Locking> {
     #[tracing::instrument(skip_all)]
-    pub(crate) async fn get_proof_generation_data(
+    pub async fn get_proof_generation_data(
         &self,
     ) -> Result<Option<ProofGenerationData>, ProcessorError> {
         let l1_batch_number = match self
@@ -224,7 +224,7 @@ impl Processor<Locking> {
             .connection()
             .await?
             .proof_generation_dal()
-            .lock_batch_for_proving(proof_generation_timeout)
+            .lock_batch_for_proving(proof_generation_timeout, self.config.prover_handling_mode)
             .await
             .map_err(Into::into)
     }

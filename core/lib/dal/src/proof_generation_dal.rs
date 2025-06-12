@@ -2,6 +2,7 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
+use zksync_config::configs::proof_data_handler::ProverHandlingMode;
 use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
@@ -40,13 +41,25 @@ impl ProofGenerationDal<'_, '_> {
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
+        prover_handling_mode: ProverHandlingMode,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
+
+        let new_status = match prover_handling_mode {
+            ProverHandlingMode::ProverCluster => "picked_by_prover",
+            ProverHandlingMode::ProvingNetwork => "picked_by_proving_network",
+        };
+
+        let status = match prover_handling_mode {
+            ProverHandlingMode::ProverCluster => "unpicked",
+            ProverHandlingMode::ProvingNetwork => "fallback_unpicked",
+        };
+
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE proof_generation_details
             SET
-                status = 'picked_by_prover',
+                status = $1,
                 updated_at = NOW(),
                 prover_taken_at = NOW()
             WHERE
@@ -63,11 +76,11 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.hash IS NOT NULL
                             AND l1_batches.aux_data_hash IS NOT NULL
                             AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status = 'unpicked'
+                            AND status = $2
                         )
                         OR (
                             status = 'picked_by_prover'
-                            AND prover_taken_at < NOW() - $1::INTERVAL
+                            AND prover_taken_at < NOW() - $3::INTERVAL
                         )
                     ORDER BY
                         l1_batch_number ASC
@@ -77,6 +90,8 @@ impl ProofGenerationDal<'_, '_> {
             RETURNING
             proof_generation_details.l1_batch_number
             "#,
+            &new_status,
+            &status,
             &processing_timeout,
         )
         .instrument("lock_batch_for_proving")
@@ -86,6 +101,58 @@ impl ProofGenerationDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(result)
+    }
+
+    pub async fn fallback_stuck_batches_to_prover_cluster(
+        &mut self,
+        proving_timeout: Duration,
+        sending_timeout: Duration,
+        acknowledgement_timeout: Duration,
+    ) -> DalResult<usize> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                status = 'fallback_unpicked'
+            WHERE
+                (
+                    status = 'picked_by_proving_network'
+                    AND prover_taken_at < NOW() - $1::INTERVAL
+                )
+                OR l1_batch_number IN (
+                    UPDATE eth_proof_manager
+                    SET status = 'skipped'
+                    WHERE
+                        (
+                            status = 'ready_to_be_proven'
+                            AND created_at < NOW() - $2::INTERVAL
+                        )
+                        OR (
+                            status = 'request_sent_to_l1'
+                            AND request_sent_at < NOW() - $3::INTERVAL
+                        )
+                        OR (
+                            status = 'acknowledged'
+                            AND acknowledged_at < NOW() - $1::INTERVAL
+                        )
+                    RETURNING
+                    l1_batch_number
+                )
+            RETURNING
+            l1_batch_number
+            "#,
+            pg_interval_from_duration(proving_timeout),
+            pg_interval_from_duration(sending_timeout),
+            pg_interval_from_duration(acknowledgement_timeout),
+        )
+        .instrument("fallback_to_prover_cluster")
+        .with_arg("proving_timeout", &proving_timeout)
+        .with_arg("sending_timeout", &sending_timeout)
+        .with_arg("acknowledgement_timeout", &acknowledgement_timeout)
+        .execute(self.storage)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 
     pub async fn get_latest_proven_batch(&mut self) -> DalResult<L1BatchNumber> {
@@ -442,7 +509,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX, ProverHandlingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -460,7 +527,7 @@ mod tests {
             .unwrap();
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX, ProverHandlingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -468,7 +535,7 @@ mod tests {
         // Check that with small enough processing timeout, the L1 batch can be picked again
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO)
+            .lock_batch_for_proving(Duration::ZERO, ProverHandlingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, Some(L1BatchNumber(1)));
@@ -480,7 +547,7 @@ mod tests {
 
         let picked_l1_batch = conn
             .proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX)
+            .lock_batch_for_proving(Duration::MAX, ProverHandlingMode::ProverCluster)
             .await
             .unwrap();
         assert_eq!(picked_l1_batch, None);

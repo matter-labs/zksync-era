@@ -53,12 +53,6 @@ impl EthProofSender {
                 self.client
                     .submit_proof_request(self.chain_id, batch_number, witness_input_data)
                     .await?;
-                self.connection_pool
-                    .connection()
-                    .await?
-                    .eth_proof_manager_dal()
-                    .mark_proof_request_as_sent_to_l1(batch_number)
-                    .await?;
             }
 
             // check validated not sent batches

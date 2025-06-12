@@ -185,7 +185,7 @@ impl EthProofManagerDal<'_, '_> {
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager
-            SET status = $1, transaction_hash = $2
+            SET status = $1, transaction_hash = $2, request_sent_at = NOW()
             WHERE l1_batch_number = $3
             "#,
             ProofStatus::RequestSentToL1.into(),
@@ -207,7 +207,7 @@ impl EthProofManagerDal<'_, '_> {
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager
-            SET status = $1, assigned_to = $2
+            SET status = $1, assigned_to = $2, acknowledged_at = NOW()
             WHERE l1_batch_number = $3
             "#,
             ProofStatus::Acknowledged.into(),
@@ -228,7 +228,7 @@ impl EthProofManagerDal<'_, '_> {
         sqlx::query!(
             r#"
             UPDATE eth_proof_manager
-            SET status = $1, transaction_hash = $2
+            SET status = $1, transaction_hash = $2, validation_result_sent_at = NOW()
             WHERE l1_batch_number = $3
             "#,
             ProofStatus::ValidationResultSentToL1.into(),

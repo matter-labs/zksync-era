@@ -54,6 +54,7 @@ pub struct Output {
 impl EthProofManagerLayer {
     pub fn new(
         config: EthProofManagerConfig,
+        proof_data_handler_config: ProofDataHandlerConfig,
         blob_store: Arc<dyn ObjectStore>,
         wallets_config: Wallets,
         l1_chain_id: L1ChainId,
@@ -65,6 +66,7 @@ impl EthProofManagerLayer {
             wallets_config,
             l1_chain_id,
             l2_chain_id,
+            proof_data_handler_config,
         }
     }
 }
@@ -93,7 +95,7 @@ impl WiringLayer for EthProofManagerLayer {
                     eth_proof_manager_contract(),
                     eth_proof_manager_owner_address,
                     eth_proof_manager_owner_private_key,
-                    eth_proof_manager_contracts.proof_manager_address,
+                    input.proof_manager_contracts.proof_manager_addr,
                     self.config.default_priority_fee_per_gas.into(),
                     self.l1_chain_id.into(),
                 )
