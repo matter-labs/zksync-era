@@ -20,7 +20,6 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::{compressor::load_all_resources, keystore::Keystore};
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     initial_setup_keys::download_initial_setup_keys_if_not_present,

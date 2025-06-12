@@ -21,7 +21,6 @@ use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
     metrics::SERVER_METRICS,
     rounds::{
@@ -122,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
 
     let prometheus_exporter_config = general_config
         .prometheus_config
-        .build_exporter_config(config.prometheus_port)
+        .build_exporter_config(config.prometheus_listener_port)
         .context("Failed to build Prometheus exporter configuration")?;
     tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
@@ -160,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let mut tasks = vec![tokio::spawn(
-        prometheus_exporter_config.run(metrics_stop_receiver),
+        prometheus_exporter_config.run(stop_receiver.clone()),
     )];
 
     for round in rounds {

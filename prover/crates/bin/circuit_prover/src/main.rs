@@ -21,7 +21,6 @@ use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// On most commodity hardware, WVG can take ~30 seconds to complete.
 /// GPU processing is ~1 second.
@@ -100,7 +99,9 @@ async fn main() -> anyhow::Result<()> {
 
     let cancellation_token = CancellationToken::new();
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
-    let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(metrics_stop_receiver),
+    )];
 
     let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
 
