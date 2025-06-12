@@ -1,9 +1,7 @@
-# TODO(zk os): genesis data taken from server
-# note: this is not the root, but blake(root, index) - it's used in place of root in zksync os
-genesis_root: "0x6e6e7044cb237fa30937e7e2ee56db7bb3b5d3bd0f46ba7c3a46a6ac4cf2f330"
+genesis_root: 0x6e6e7044cb237fa30937e7e2ee56db7bb3b5d3bd0f46ba7c3a46a6ac4cf2f330
 genesis_rollup_leaf_index: 0
 genesis_batch_commitment: 0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183
-genesis_protocol_version: 28
+genesis_protocol_version: 29
 default_aa_hash: 0x010005f76ff9047aa9a0caabf27b4d40c44bafa64cbcda4bb85104a46fc6210c
 bootloader_hash: 0x01000959474df9c4979223ebf9523a2eb5352cb9622a6fe0cd1c377c0e13e1be
 l1_chain_id: 9
@@ -13,6 +11,6 @@ prover:
   dummy_verifier: true
   snark_wrapper_vk_hash: 0xd90459c5b727b9ceeb2b6192d2953dbf05970edf090333b3ad3bcac1a1442b78
   fflonk_snark_wrapper_vk_hash: 0x17e8d7931f1314431359233e65c22657a32c335205e3c24ce292c5819becfaa7
-genesis_protocol_semantic_version: 0.28.0
+genesis_protocol_semantic_version: 0.29.0
 evm_emulator_hash: 0x01000d8bae37b82f311186426184866498b357f41d7a02ced11f3e3fbfbacd63
-l1_batch_commit_data_generator_mode: Rollup
+l1_batch_commit_data_generator_mode: Validium

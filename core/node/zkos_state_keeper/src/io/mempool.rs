@@ -209,9 +209,10 @@ impl StateKeeperIO for MempoolIO {
         rejected: &Transaction,
         reason: UnexecutableReason,
     ) -> anyhow::Result<()> {
+        let hash = rejected.hash();
         anyhow::ensure!(
             !rejected.is_l1(),
-            "L1 transactions should not be rejected: {reason}"
+            "L1 transactions should not be rejected: {hash}"
         );
 
         // Mark tx as rejected in the storage.
