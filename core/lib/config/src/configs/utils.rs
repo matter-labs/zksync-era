@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use smart_config::{DescribeConfig, DeserializeConfig};
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
@@ -15,6 +16,23 @@ pub struct PrometheusConfig {
 
 impl PrometheusConfig {
     pub fn push_interval(&self) -> Duration {
-        Duration::from_millis(self.push_interval_ms.unwrap_or(100))
+        Duration::from_millis(self.push_interval_ms.unwrap_or(30000))
+    }
+
+    /// Builds a Prometheus exporter configuration trying to use the provided `prometheus_port` or fallback to `self`.
+    pub const fn build_exporter_config(
+        &self,
+        prometheus_port: Option<u16>,
+    ) -> Option<PrometheusExporterConfig> {
+        if let Some(port) = prometheus_port {
+            Some(PrometheusExporterConfig::pull(port))
+        } else if let Some(base_url) = &self.pushgateway_url {
+            let url = PrometheusExporterConfig::gateway_endpoint(base_url);
+            Some(PrometheusExporterConfig::push(url, self.push_interval()))
+        } else if let Some(port) = &self.listener_port {
+            Some(PrometheusExporterConfig::pull(port))
+        } else {
+            return None;
+        }
     }
 }

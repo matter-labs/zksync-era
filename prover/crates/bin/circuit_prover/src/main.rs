@@ -92,17 +92,19 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to load configs")?;
 
-    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(prover_config.prometheus_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
     let cancellation_token = CancellationToken::new();
-
-    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
-
     let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
 
     let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
 
+    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
     tracing::info!(
         "Starting {} light WVGs and {} heavy WVGs.",
         opt.light_wvg_count,
