@@ -387,6 +387,7 @@ mod tests {
     use super::*;
     use crate::{
         io::L2BlockParams,
+        keeper::BatchEnv,
         tests::{create_execution_result, create_transaction, create_updates_manager, Query},
         OutputHandler,
     };
@@ -476,19 +477,22 @@ mod tests {
         output_handler: &mut OutputHandler,
         pool: &ConnectionPool<Core>,
     ) -> H256 {
-        let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let vm_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let timestamp_ms = vm_batch_env.first_l2_block.timestamp * 1000;
         let mut updates = UpdatesManager::new(
-            &l1_batch_env,
-            &default_system_env(),
+            &BatchEnv {
+                vm_batch_env: vm_batch_env.clone(),
+                system_env: default_system_env(),
+                pubdata_params: Default::default(),
+                timestamp_ms,
+            },
             Default::default(),
-            Default::default(),
-            l1_batch_env.first_l2_block.timestamp * 1000,
         );
         pool.connection()
             .await
             .unwrap()
             .blocks_dal()
-            .insert_l1_batch(l1_batch_env.into_unsealed_header(None))
+            .insert_l1_batch(vm_batch_env.into_unsealed_header(None))
             .await
             .unwrap();
 

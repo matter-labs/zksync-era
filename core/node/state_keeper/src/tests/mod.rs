@@ -25,7 +25,7 @@ use zksync_types::{
 
 use crate::{
     io::PendingBatchData,
-    keeper::POLL_WAIT_DURATION,
+    keeper::{BatchEnv, POLL_WAIT_DURATION},
     seal_criteria::{criteria::SlotsCriterion, SequencerSealer, UnexecutableReason},
     testonly::{
         successful_exec,
@@ -65,13 +65,16 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
 }
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
-    let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
+    let vm_batch_env = default_l1_batch_env(1, 1, Address::default());
+    let timestamp_ms = vm_batch_env.first_l2_block.timestamp * 1000;
     UpdatesManager::new(
-        &l1_batch_env,
-        &default_system_env(),
+        &BatchEnv {
+            vm_batch_env,
+            system_env: default_system_env(),
+            pubdata_params: Default::default(),
+            timestamp_ms,
+        },
         Default::default(),
-        Default::default(),
-        l1_batch_env.first_l2_block.timestamp * 1000,
     )
 }
 

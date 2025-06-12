@@ -1,8 +1,8 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
-        VmExecutionMetrics, VmExecutionResultAndLogs,
+        storage::StorageViewCache, Call, FinishedL1Batch, VmExecutionMetrics,
+        VmExecutionResultAndLogs,
     },
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
@@ -16,6 +16,7 @@ use super::{
     io::{IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
+use crate::keeper::BatchEnv;
 
 pub mod l1_batch_updates;
 pub mod l2_block_updates;
@@ -45,32 +46,32 @@ pub struct UpdatesManager {
 }
 
 impl UpdatesManager {
-    pub fn new(
-        l1_batch_env: &L1BatchEnv,
-        system_env: &SystemEnv,
-        pubdata_params: PubdataParams,
+    pub(crate) fn new(
+        batch_env: &BatchEnv,
         previous_batch_protocol_version: ProtocolVersionId,
-        timestamp_ms: u64,
     ) -> Self {
-        let protocol_version = system_env.version;
+        let protocol_version = batch_env.system_env.version;
         Self {
-            batch_timestamp: l1_batch_env.timestamp,
-            fee_account_address: l1_batch_env.fee_account,
-            batch_fee_input: l1_batch_env.fee_input,
-            base_fee_per_gas: get_batch_base_fee(l1_batch_env, protocol_version.into()),
+            batch_timestamp: batch_env.vm_batch_env.timestamp,
+            fee_account_address: batch_env.vm_batch_env.fee_account,
+            batch_fee_input: batch_env.vm_batch_env.fee_input,
+            base_fee_per_gas: get_batch_base_fee(&batch_env.vm_batch_env, protocol_version.into()),
             protocol_version,
-            base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
-            l1_batch: L1BatchUpdates::new(l1_batch_env.number),
+            base_system_contract_hashes: batch_env.system_env.base_system_smart_contracts.hashes(),
+            l1_batch: L1BatchUpdates::new(batch_env.vm_batch_env.number),
             l2_block: L2BlockUpdates::new(
-                timestamp_ms,
-                L2BlockNumber(l1_batch_env.first_l2_block.number),
-                l1_batch_env.first_l2_block.prev_block_hash,
-                l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
+                batch_env.timestamp_ms,
+                L2BlockNumber(batch_env.vm_batch_env.first_l2_block.number),
+                batch_env.vm_batch_env.first_l2_block.prev_block_hash,
+                batch_env
+                    .vm_batch_env
+                    .first_l2_block
+                    .max_virtual_blocks_to_create,
                 protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
-            pubdata_params,
+            pubdata_params: batch_env.pubdata_params,
             next_l2_block_params: None,
             previous_batch_protocol_version,
         }
@@ -87,7 +88,7 @@ impl UpdatesManager {
     pub(crate) fn next_l2_block_timestamp_ms_mut(&mut self) -> Option<&mut u64> {
         self.next_l2_block_params
             .as_mut()
-            .map(|params| params.timestamp_ms_ref_mut())
+            .map(|params| params.timestamp_ms_mut())
     }
 
     pub(crate) fn get_next_l2_block_or_batch_timestamp(&mut self) -> u64 {

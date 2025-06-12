@@ -72,7 +72,7 @@ impl IoSealCriteria for TimeoutSealer {
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
         !manager.l2_block.executed_transactions.is_empty()
-            && (millis_since_epoch() - manager.l2_block.timestamp_ms())
+            && millis_since_epoch().saturating_sub(manager.l2_block.timestamp_ms())
                 > self.l2_block_commit_deadline_ms
     }
 }
@@ -176,7 +176,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::tests::{create_execution_result, create_transaction, create_updates_manager};
+    use crate::{
+        keeper::BatchEnv,
+        tests::{create_execution_result, create_transaction, create_updates_manager},
+    };
 
     fn apply_tx_to_manager(tx: Transaction, manager: &mut UpdatesManager) {
         manager.extend_from_executed_transaction(
@@ -316,12 +319,15 @@ mod tests {
             default_validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::from(270),
         };
+        let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
         let mut manager = UpdatesManager::new(
-            &l1_batch_env,
-            &system_env,
-            Default::default(),
+            &BatchEnv {
+                vm_batch_env: l1_batch_env,
+                system_env,
+                pubdata_params: Default::default(),
+                timestamp_ms,
+            },
             ProtocolVersionId::latest(),
-            l1_batch_env.first_l2_block.timestamp * 1000,
         );
         // No txs, should not be sealed.
         let should_seal = sealer

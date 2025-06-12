@@ -85,7 +85,7 @@ impl L2BlockParams {
     }
 
     /// Mutable reference for the timestamp of the L2 block in milliseconds.
-    pub fn timestamp_ms_ref_mut(&mut self) -> &mut u64 {
+    pub fn timestamp_ms_mut(&mut self) -> &mut u64 {
         &mut self.timestamp_ms
     }
 

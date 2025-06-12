@@ -27,6 +27,7 @@ use zksync_types::{
 use self::tester::Tester;
 use crate::{
     io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
+    keeper::BatchEnv,
     mempool_actor::l2_tx_filter,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{create_execution_result, create_transaction, seconds_since_epoch, Query},
@@ -552,18 +553,22 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         .await
         .unwrap()
         .expect("no batch params generated");
-    let (system_env, l1_batch_env, pubdata_params) = l1_batch_params.into_env(
+    let (system_env, vm_batch_env, pubdata_params) = l1_batch_params.into_env(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
     );
+    let timestamp_ms = vm_batch_env.first_l2_block.timestamp * 1000;
+    let version = system_env.version;
     let mut updates = UpdatesManager::new(
-        &l1_batch_env,
-        &system_env,
-        pubdata_params,
-        system_env.version,
-        l1_batch_env.first_l2_block.timestamp * 1000,
+        &BatchEnv {
+            vm_batch_env,
+            system_env,
+            pubdata_params,
+            timestamp_ms,
+        },
+        version,
     );
 
     let tx_hash = tx.hash();

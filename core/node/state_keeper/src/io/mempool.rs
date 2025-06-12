@@ -198,7 +198,7 @@ impl StateKeeperIO for MempoolIO {
         // For versions >  v28 timestamps should be non-decreasing for each L2 block.
         // - We sleep past `prev_l2_block_timestamp` for <= v28.
         // - Otherwise, we do sanity sleep past `prev_l2_block_timestamp - 1`,
-        //      if clock returns consistent time then it shouldn't actually sleep.
+        //   if clock returns consistent time then it shouldn't actually sleep.
         let timestamp_to_sleep_past = if protocol_version.is_pre_fast_blocks() {
             cursor.prev_l2_block_timestamp
         } else {
@@ -507,18 +507,18 @@ impl MempoolIO {
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
             let curr_timestamp = millis_since_epoch() / 1000;
-            let mut storage = self.pool.connection_tagged("state_keeper").await?;
-            let protocol_version = storage
+            let mut conn = self.pool.connection_tagged("state_keeper").await?;
+            let protocol_version = conn
                 .protocol_versions_dal()
                 .protocol_version_id_by_timestamp(curr_timestamp)
                 .await
                 .context("Failed loading protocol version")?;
-            let previous_protocol_version = storage
+            let previous_protocol_version = conn
                 .blocks_dal()
                 .pending_protocol_version()
                 .await
                 .context("Failed loading previous protocol version")?;
-
+            drop(conn);
             // We cannot create two L1 batches with the same timestamp regardless of the protocol version.
             // For versions <= v28 timestamps should be increasing for each L2 block.
             // For versions >  v28 timestamps should be non-decreasing for each L2 block.
@@ -549,7 +549,9 @@ impl MempoolIO {
                 self.filter.fee_input
             );
             let batch_with_upgrade_tx = if previous_protocol_version != protocol_version {
-                storage
+                self.pool
+                    .connection_tagged("state_keeper")
+                    .await?
                     .protocol_versions_dal()
                     .get_protocol_upgrade_tx(protocol_version)
                     .await
@@ -558,7 +560,6 @@ impl MempoolIO {
             } else {
                 false
             };
-            drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
