@@ -288,7 +288,7 @@ async fn pending_batch_is_applied() {
         })
         .batch_sealed_with("Batch sealed with all 3 txs", |updates| {
             assert_eq!(
-                updates.l1_batch.executed_transactions.len(),
+                updates.l1_batch.executed_transaction_hashes.len(),
                 3,
                 "There should be 3 transactions in the batch"
             );

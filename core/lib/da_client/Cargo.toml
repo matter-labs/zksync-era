@@ -17,6 +17,7 @@ zksync_node_framework = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 async-trait.workspace = true
 anyhow.workspace = true
+chrono.workspace = true
 
 [features]
 default = []

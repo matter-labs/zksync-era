@@ -83,7 +83,8 @@ impl UpdatesManager {
                 .len(),
         );
 
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
+        let l1_tx_count = self.l1_batch.l1_tx_count;
+        let l2_tx_count = self.l1_batch.executed_transaction_hashes.len() - l1_tx_count;
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
@@ -162,7 +163,7 @@ impl UpdatesManager {
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(
                 self.l1_batch.number,
-                &self.l1_batch.executed_transactions,
+                &self.l1_batch.executed_transaction_hashes,
             )
             .await?;
         progress.observe(None);
@@ -262,7 +263,7 @@ impl UpdatesManager {
             .observe(writes_metrics.repeated_storage_writes);
         L1_BATCH_METRICS
             .transactions_in_l1_batch
-            .observe(self.l1_batch.executed_transactions.len());
+            .observe(self.l1_batch.executed_transaction_hashes.len());
 
         let batch_timestamp = self.batch_timestamp();
         let l1_batch_latency =

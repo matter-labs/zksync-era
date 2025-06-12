@@ -111,6 +111,9 @@ pub(super) const MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO: &str =
 pub(super) const MSG_DA_VALIDATOR_PAIR_UPDATED_TO: &str = "DA validator pair updated to";
 pub(super) const MSG_GOT_SETTLEMENT_LAYER_ADDRESS_FROM_GW: &str =
     "Got the settlement layer address from gateway";
+pub(super) const MSG_USE_GATEWAY_HELP: &str = "Use the Gateway to set the DA validator pair";
+pub(super) const MSG_GATEWAY_URL_MUST_BE_PRESET: &str =
+    "Gateway RPC URL must be provided when using the `--gateway` flag";
 pub(super) const MSG_UPDATING_PUBDATA_PRICING_MODE_SPINNER: &str =
     "Updating pubdata pricing mode...";
 pub(super) const MSG_PUBDATA_PRICING_MODE_UPDATED_TO: &str = "Pubdata pricing mode updated to";
@@ -611,11 +614,11 @@ pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
 pub(super) const MSG_CONSENSUS_REGISTRY_POLL_ERROR: &str = "failed querying L2 node";
 pub(super) const MSG_CONSENSUS_REGISTRY_WAIT_COMPONENT: &str = "main node HTTP RPC";
 
-pub(super) fn msg_setting_validator_committee_failed(
-    got: &validator::Committee,
-    want: &validator::Committee,
+pub(super) fn msg_setting_validator_schedule_failed(
+    got: &validator::Schedule,
+    want: &validator::Schedule,
 ) -> String {
-    format!("setting validator committee failed: got {got:?}, want {want:?}")
+    format!("setting validator schedule failed: got {got:?}, want {want:?}")
 }
 
 pub(super) fn msg_wait_consensus_registry_started_polling(addr: Address, url: &Url) -> String {
@@ -631,7 +634,6 @@ pub(super) const MSG_AVAIL_CLIENT_TYPE_PROMPT: &str = "Avail client type";
 pub(super) const MSG_AVAIL_API_TIMEOUT_MS: &str = "Avail API timeout in milliseconds";
 pub(super) const MSG_AVAIL_API_NODE_URL_PROMPT: &str = "Avail API node URL";
 pub(super) const MSG_AVAIL_APP_ID_PROMPT: &str = "Avail app id";
-pub(super) const MSG_AVAIL_FINALITY_STATE_PROMPT: &str = "Avail finality state";
 pub(super) const MSG_AVAIL_GAS_RELAY_API_URL_PROMPT: &str = "Gas relay API URL";
 pub(super) const MSG_AVAIL_GAS_RELAY_MAX_RETRIES_PROMPT: &str = "Gas relay max retries";
 pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API URL";
