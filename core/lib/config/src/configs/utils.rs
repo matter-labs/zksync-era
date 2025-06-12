@@ -20,6 +20,7 @@ impl PrometheusConfig {
     }
 
     /// Builds a Prometheus exporter configuration trying to use the provided `prometheus_port` or fallback to `self`.
+    #[cfg(feature = "observability_ext")]
     pub fn build_exporter_config(
         &self,
         prometheus_port: Option<u16>,
