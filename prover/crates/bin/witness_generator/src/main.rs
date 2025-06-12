@@ -25,9 +25,12 @@ use zksync_types::{basic_fri_types::AggregationRound, protocol_version::Protocol
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
     metrics::SERVER_METRICS,
+};
+use zksync_witness_generator_service::{
     rounds::{
-        BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler, WitnessGenerator,
+        BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler,
     },
+    witness_generator_runner
 };
 
 #[cfg(not(target_env = "msvc"))]
@@ -188,54 +191,59 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let generator = WitnessGenerator::<BasicCircuits>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<BasicCircuits>(
+                    config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::LeafAggregation => {
-                let generator = WitnessGenerator::<LeafAggregation>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<LeafAggregation>(
+                    config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::NodeAggregation => {
-                let generator = WitnessGenerator::<NodeAggregation>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<NodeAggregation>(
+                    config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::RecursionTip => {
-                let generator = WitnessGenerator::<RecursionTip>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<RecursionTip>(
+                    config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
             AggregationRound::Scheduler => {
-                let generator = WitnessGenerator::<Scheduler>::new(
-                    config.clone(),
+                let runner = witness_generator_runner::<Scheduler>(
+                    config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
+                    cancellation_token.clone(),
                 );
-                generator.run(stop_receiver.clone(), opt.batch_size)
+                runner.run()
             }
         };
 

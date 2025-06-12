@@ -7,7 +7,7 @@ use zksync_prover_fri_types::keys::AggregationsKey;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::NodeAggregationJobMetadata};
 
 use crate::{
-    artifacts::{AggregationBlobUrls, ArtifactsManager, JobId},
+    artifact_manager::{AggregationBlobUrls, ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
     rounds::node_aggregation::{NodeAggregation, NodeAggregationArtifacts},
     utils::AggregationWrapper,

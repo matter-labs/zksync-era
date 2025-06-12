@@ -38,16 +38,15 @@ use zkevm_test_harness::{
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{get_current_pod_name, keys::ClosedFormInputKey};
-use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchId,
 };
 
 use super::JobMetadata;
 use crate::{
-    artifacts::{ArtifactsManager, JobId},
+    artifact_manager::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::JobManager,
+    rounds::{JobManager, VerificationKeyManager},
     utils::ClosedFormInputWrapper,
 };
 
@@ -73,6 +72,7 @@ pub struct RecursionTipArtifacts {
 pub struct RecursionTipJobMetadata {
     pub batch_id: L1BatchId,
     pub final_node_proof_job_ids: Vec<(u8, JobId)>,
+    pub started_at: Instant,
 }
 
 pub struct RecursionTip;
@@ -93,8 +93,8 @@ impl JobManager for RecursionTip {
         job: Self::Job,
         _object_store: Arc<dyn ObjectStore>,
         _max_circuits_in_flight: usize,
-        started_at: Instant,
     ) -> anyhow::Result<RecursionTipArtifacts> {
+        let started_at = Instant::now();
         tracing::info!(
             "Starting fri witness generation of type {:?} for block {}",
             AggregationRound::RecursionTip,
@@ -136,7 +136,7 @@ impl JobManager for RecursionTip {
     async fn prepare_job(
         metadata: RecursionTipJobMetadata,
         object_store: &dyn ObjectStore,
-        keystore: Keystore,
+        keystore: Arc<dyn VerificationKeyManager>,
     ) -> anyhow::Result<RecursionTipWitnessGeneratorJob> {
         let started_at = Instant::now();
         let recursion_tip_proofs =
@@ -182,7 +182,7 @@ impl JobManager for RecursionTip {
 
         const EXPECTED_RECURSION_TIP_LEAVES: usize = 20;
 
-        let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
+        let leaf_vk_commits = keystore.get_leaf_vk_params().context("get_leaf_vk_params()")?;
         assert_eq!(
             leaf_vk_commits.len(),
             EXPECTED_RECURSION_TIP_LEAVES,
@@ -251,10 +251,11 @@ impl JobManager for RecursionTip {
             "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}",
             number_of_final_node_jobs, final_node_proof_job_ids.len()
         );
-
+        let started_at = Instant::now();
         Ok(Some(RecursionTipJobMetadata {
             batch_id: l1_batch_id,
             final_node_proof_job_ids,
+            started_at,
         }))
     }
 }
@@ -262,5 +263,8 @@ impl JobManager for RecursionTip {
 impl JobMetadata for RecursionTipJobMetadata {
     fn job_id(&self) -> JobId {
         JobId::new(self.batch_id.batch_number().0, self.batch_id.chain_id())
+    }
+    fn started_at(&self) -> Instant {
+        self.started_at
     }
 }

@@ -12,16 +12,15 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::get_current_pod_name;
 use zksync_prover_interface::inputs::WitnessInputData;
-use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchId,
 };
 
 use super::JobMetadata;
 use crate::{
-    artifacts::{ArtifactsManager, JobId},
+    artifact_manager::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::{basic_circuits::utils::generate_witness, JobManager},
+    rounds::{basic_circuits::utils::generate_witness, JobManager, VerificationKeyManager},
 };
 
 mod artifacts;
@@ -61,7 +60,7 @@ pub struct BasicCircuits;
 #[async_trait]
 impl JobManager for BasicCircuits {
     type Job = BasicWitnessGeneratorJob;
-    type Metadata = L1BatchId;
+    type Metadata = (L1BatchId, Instant);
 
     const ROUND: AggregationRound = AggregationRound::BasicCircuits;
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
@@ -70,8 +69,8 @@ impl JobManager for BasicCircuits {
         job: BasicWitnessGeneratorJob,
         object_store: Arc<dyn ObjectStore>,
         max_circuits_in_flight: usize,
-        started_at: Instant,
     ) -> anyhow::Result<BasicCircuitArtifacts> {
+        let started_at = Instant::now();
         let BasicWitnessGeneratorJob {
             batch_id,
             data: job,
@@ -102,12 +101,12 @@ impl JobManager for BasicCircuits {
     }
 
     async fn prepare_job(
-        metadata: L1BatchId,
+        metadata: Self::Metadata,
         object_store: &dyn ObjectStore,
-        _keystore: Keystore,
+        _keystore: Arc<dyn VerificationKeyManager>,
     ) -> anyhow::Result<Self::Job> {
+        let (metadata, started_at) = metadata;
         tracing::info!("Processing FRI basic witness-gen for block {}", metadata);
-        let started_at = Instant::now();
         let job = Self::get_artifacts(&metadata, object_store).await?;
 
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
@@ -121,23 +120,26 @@ impl JobManager for BasicCircuits {
         protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<Self::Metadata>> {
         let pod_name = get_current_pod_name();
-        if let Some(batch_id) = connection_pool
+        let Some(batch_id) = connection_pool
             .connection()
             .await
             .unwrap()
             .fri_basic_witness_generator_dal()
             .get_next_basic_circuit_witness_job(protocol_version, &pod_name)
             .await
-        {
-            Ok(Some(batch_id))
-        } else {
-            Ok(None)
-        }
+        else {
+            return Ok(None)
+        };
+        let started_at = Instant::now();
+        Ok(Some((batch_id, started_at)))
     }
 }
 
-impl JobMetadata for L1BatchId {
+impl JobMetadata for (L1BatchId, Instant) {
     fn job_id(&self) -> JobId {
-        JobId::new(self.batch_number().0, self.chain_id())
+        JobId::new(self.0.batch_number().0, self.0.chain_id())
+    }
+    fn started_at(&self) -> Instant {
+        self.1
     }
 }

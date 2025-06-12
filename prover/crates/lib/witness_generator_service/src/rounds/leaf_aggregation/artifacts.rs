@@ -8,7 +8,7 @@ use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata};
 
 use crate::{
-    artifacts::{AggregationBlobUrls, ArtifactsManager, JobId},
+    artifact_manager::{AggregationBlobUrls, ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
     rounds::leaf_aggregation::{LeafAggregation, LeafAggregationArtifacts},
     utils::{AggregationWrapper, ClosedFormInputWrapper},

@@ -25,6 +25,7 @@ zksync_prover_keystore.workspace = true
 zksync_prover_fri_types.workspace = true
 zksync_prover_fri_utils.workspace = true
 zksync_circuit_prover_service.workspace = true
+zksync_witness_generator_service.workspace = true
 
 zkevm_test_harness = { workspace = true }
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
