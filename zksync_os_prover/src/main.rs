@@ -11,21 +11,25 @@ use clap::Parser;
 use execution_utils::ProgramProof;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::thread::sleep;
+use std::path::PathBuf;
 use std::time::SystemTime;
 
-/// Command-line arguments for the Zksync OS prover
 #[derive(Parser, Debug)]
-#[command(name = "Zksync OS Prover")]
-#[command(version = "1.0")]
-#[command(about = "Prover for Zksync OS", long_about = None)]
-struct Args {
-    /// Base URL for the proof-data server (e.g., "http://<IP>:<PORT>")
-    #[arg(short, long, default_value = "http://localhost:3124")]
-    base_url: String,
-    /// Enable logging and use the logging-enabled binary
-    #[arg(long)]
-    enabled_logging: bool,
+#[command(name = "ZKsync OS Prover")]
+#[command(version = "0.0.1")]
+#[command(about = "FRI prover for ZKsync OS", long_about = None)]
+struct Cli {
+    /// Sequencer URL to submit proofs to (i.e., "http://<IP>:<PORT>")
+    #[arg(short, long, default_value = "http://localhost:3124", value_name = "URL")]
+    url: String,
+
+    /// Activate verbose logging (`-v`, `-vv`, ...)
+    #[arg(short, long, required = true, action = clap::ArgAction::Count)]
+    verbose: u8,
+
+    ///
+    #[arg(short, long, default_value = "../app.bin", value_name = "APP_BINARY_PATH")]
+    binary_path: PathBuf,
 }
 
 // Note: copied from zkos_prover_input_generator.rs
@@ -132,41 +136,58 @@ fn create_proof(
     program_proof_from_proof_list_and_metadata(&recursion_proof_list, &recursion_proof_metadata)
 }
 
+fn init_tracing(verbosity: u8) {
+    use tracing_subscriber::{fmt, EnvFilter};
+    let level = match verbosity {
+        0 => "info",
+        1 => "debug",
+        _ => "trace",
+    };
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(level));
+    fmt::Subscriber::builder()
+        .with_env_filter(env_filter)
+        .init();
+}
+
 #[tokio::main]
 pub async fn main() {
-    let args = Args::parse();
+    let cli = Cli::parse();
+    init_tracing(cli.verbose);
 
-    let client = ProofDataClient::new(args.base_url);
+    let client = ProofDataClient::new(&cli.url);
 
-    let binary_path = if args.enabled_logging {
-        "../app_logging_enabled.bin".to_string()
-    } else {
-        "../app.bin".to_string()
-    };
+    let bin_path = String::from(cli.binary_path.to_str()
+        .expect("Failed to convert binary path to string"));
 
-    let binary = load_binary_from_path(&binary_path.to_string());
+    let binary = load_binary_from_path(&bin_path);
+    tracing::debug!("Loaded binary from path: {}", bin_path);
     let mut gpu_state = GpuSharedState::default();
     #[cfg(feature = "gpu")]
     {
         gpu_state.preheat_for_universal_verifier(&binary);
         gpu_state.enable_multigpu();
     }
-
-    println!("Starting Zksync OS FRI prover for {}", client.base_url);
+    tracing::info!("Starting ZKsync OS FRI prover connected to {}", cli.url);
 
     loop {
+        tracing::info!("Getting FRI job...");
         let (block_number, prover_input) = match client.pick_next_prover_job().await {
             Err(err) => {
-                eprintln!("Error fetching next prover job: {}", err);
-                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                let duration = tokio::time::Duration::from_millis(1000);
+                tracing::error!("Failed getting FRI job: {:?}, bouncing back for {duration:?}", err);
+                tokio::time::sleep(duration).await;
                 continue;
             }
             Ok(Some(next_block)) => next_block,
             Ok(None) => {
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                let duration = tokio::time::Duration::from_millis(100);
+                tracing::debug!("No FRI job available, sleeping for {duration:?}");
+                tokio::time::sleep(duration).await;
                 continue;
             }
         };
+        tracing::info!("Received FRI job for block number {}", block_number);
 
         // make prover_input (Vec<u8>) into Vec<u32>:
         let prover_input: Vec<u32> = prover_input
@@ -174,18 +195,18 @@ pub async fn main() {
             .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
             .collect();
 
-        println!(
-            "{:?} starting proving block number {}",
-            SystemTime::now(),
+        tracing::info!(
+            "Starting proving block number {}",
             block_number
         );
 
         let proof = create_proof(prover_input, &binary, &mut gpu_state);
-        println!(
-            "{:?} finished proving block number {}",
-            SystemTime::now(),
+        tracing::info!("Finished proving block number {}",
             block_number
         );
+
+        tracing::info!("Sending proof for block number {} to sequencer at {}", block_number, cli.url);
+
         let proof_bytes: Vec<u8> =
             bincode::serialize(&proof).expect("failed to bincode-serialize proof");
 
@@ -193,15 +214,14 @@ pub async fn main() {
         let proof_b64 = base64::encode(&proof_bytes);
 
         match client.submit_proof(block_number, proof_b64).await {
-            Ok(_) => println!(
-                "{:?} successfully submitted proof for block number {}",
-                SystemTime::now(),
-                block_number
+            Ok(_) => tracing::info!(
+                "Submitted proof for block number {} to sequencer at {}",
+                block_number,
+                cli.url
             ),
             Err(err) => {
-                eprintln!(
-                    "{:?} failed to submit proof for block number {}: {}",
-                    SystemTime::now(),
+                tracing::error!(
+                    "Failed to submit proof for block number {}: {}",
                     block_number,
                     err
                 );
