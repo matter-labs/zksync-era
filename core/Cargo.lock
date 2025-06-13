@@ -8995,7 +8995,7 @@ dependencies = [
 [[package]]
 name = "rust-eigenda-v2-client"
 version = "0.1.3"
-source = "git+https://github.com/lambdaclass/eigenda-client-rs.git?branch=use_alloy_1.0#e54b7cb36875bf5d46a7ea5c42e2187334634355"
+source = "git+https://github.com/lambdaclass/eigenda-client-rs.git?branch=relocate_eigenda_cert_encoding#5ecb0b3db2620f3cd25980dfd5edbd2e9cc18387"
 dependencies = [
  "alloy",
  "ark-bn254",
@@ -9036,17 +9036,20 @@ dependencies = [
 [[package]]
 name = "rust-eigenda-v2-common"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4af6351774442a2fd6cf0c5797070b8ff91c5523cdaae246478a7033bc49c35"
+source = "git+https://github.com/lambdaclass/eigenda-client-rs.git?branch=relocate_eigenda_cert_encoding#5ecb0b3db2620f3cd25980dfd5edbd2e9cc18387"
 dependencies = [
+ "alloy-primitives 1.2.0",
+ "alloy-sol-types",
  "ark-bn254",
  "ark-ff 0.5.0",
  "ark-poly",
  "ark-serialize 0.5.0",
  "bincode",
+ "ethabi",
  "rust-kzg-bn254-primitives",
  "serde",
  "thiserror 1.0.69",
+ "tiny-keccak 2.0.2",
 ]
 
 [[package]]
