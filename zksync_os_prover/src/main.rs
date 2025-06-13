@@ -24,7 +24,7 @@ struct Cli {
     url: String,
 
     /// Activate verbose logging (`-v`, `-vv`, ...)
-    #[arg(short, long, required = true, action = clap::ArgAction::Count)]
+    #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
 
     ///
