@@ -21,7 +21,6 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::{compressor::load_all_resources, keystore::Keystore};
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
     initial_setup_keys::download_initial_setup_keys_if_not_present,
@@ -70,15 +69,27 @@ async fn main() -> anyhow::Result<()> {
     let config = general_config
         .proof_compressor_config
         .context("FriProofCompressorConfig")?;
+    let prover_config = general_config
+        .prover_config
+        .context("ProverConfig doesn't exist")?;
+    let object_store_config = prover_config.prover_object_store;
+
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(config.prometheus_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
+
+    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(metrics_stop_receiver),
+    )];
+
     let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
 
-    let prover_config = general_config
-        .prover_config
-        .context("ProverConfig doesn't exist")?;
-    let object_store_config = prover_config.prover_object_store;
     let blob_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await?;
@@ -102,7 +113,6 @@ async fn main() -> anyhow::Result<()> {
     load_all_resources(&keystore, is_fflonk);
 
     let cancellation_token = CancellationToken::new();
-    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
 
     PROOF_FRI_COMPRESSOR_INSTANCE_METRICS
         .startup_time
@@ -116,10 +126,6 @@ async fn main() -> anyhow::Result<()> {
         }
     })
     .context("Error setting Ctrl+C handler")?;
-
-    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
-
-    let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
 
     let proof_fri_compressor_runner = proof_fri_compressor_runner(
         pool,
@@ -139,10 +145,10 @@ async fn main() -> anyhow::Result<()> {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop request received, shutting down");
-            cancellation_token.cancel();
         }
     }
     let shutdown_time = Instant::now();
+    cancellation_token.cancel();
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;
