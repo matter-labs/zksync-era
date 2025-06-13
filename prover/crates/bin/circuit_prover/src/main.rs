@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context as _;
 use clap::Parser;
 use shivini::{ProverContext, ProverContextConfig};
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
 use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
@@ -92,11 +93,20 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to load configs")?;
 
+    let cancellation_token = CancellationToken::new();
+    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
+
     PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
 
-    let cancellation_token = CancellationToken::new();
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
 
-    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
@@ -141,16 +151,9 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {},
-        result = tokio::signal::ctrl_c() => {
-            match result {
-                Ok(_) => {
-                    tracing::info!("Stop request received, shutting down...");
-                    cancellation_token.cancel();
-                },
-                Err(_err) => {
-                    tracing::error!("failed to set up ctrl c listener");
-                }
-            }
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
+            cancellation_token.cancel();
         }
     }
     let shutdown_time = Instant::now();
