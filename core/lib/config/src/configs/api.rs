@@ -582,6 +582,20 @@ mod tests {
     }
 
     #[test]
+    fn parsing_null_time_limits() {
+        let yaml = r#"
+          port: 3071
+          slow_time_limit_ms: null
+          hard_time_limit_ms: null
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = test::<HealthCheckConfig>(yaml).unwrap();
+        assert_eq!(config.slow_time_limit, None);
+        assert_eq!(config.hard_time_limit, None);
+    }
+
+    #[test]
     fn parsing_max_response_overrides() {
         let yaml = r#"
           max_response_body_size_overrides:

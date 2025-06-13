@@ -2,7 +2,7 @@ use std::{collections::HashMap, hash::Hash, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Serde, WellKnown},
+    de::{Serde, WellKnown, WellKnownOption},
     metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
@@ -18,6 +18,8 @@ impl WellKnown for NamespaceName {
     type Deserializer = Serde![str];
     const DE: Self::Deserializer = Serde![str];
 }
+
+impl WellKnownOption for NamespaceName {}
 
 impl WellKnown for ClusterName {
     type Deserializer = Serde![str];
