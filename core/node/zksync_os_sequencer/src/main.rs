@@ -24,7 +24,7 @@ use crate::api::run_jsonrpsee_server;
 use crate::block_context_provider::BlockContextProvider;
 use crate::execution::block_executor::{execute_block};
 use crate::mempool::Mempool;
-use crate::model::{BlockCommand, TransactionSource};
+use crate::model::{BlockCommand, ReplayRecord, TransactionSource};
 use crate::storage::block_replay_wal::{BlockReplayWAL};
 use crate::storage::in_memory_state::{InMemoryStorage};
 use crate::storage::StateHandle;
@@ -84,7 +84,7 @@ pub async fn main() {
         }
 
         // ── Sequencer task ───────────────────────────────────────────────
-        res = run_sequencer(block_replay_wal, state_handle, mempool) => {
+        res = run_sequencer_actor(block_replay_wal, state_handle, mempool) => {
             match res {
                 Ok(_)  => tracing::warn!("Sequencer server unexpectedly exited"),
                 Err(e) => tracing::error!("Sequencer server failed: {e:#}"),
@@ -93,7 +93,53 @@ pub async fn main() {
     }
 }
 
-async fn run_sequencer(
+async fn run_sequencer_actor(
+    wal: BlockReplayWAL,
+    state: StateHandle,
+    mempool: Mempool,
+) -> Result<()> {
+    let last_block_in_wal = wal.latest_block().unwrap_or(0);
+    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
+    let wal_clone = wal.clone();
+    let state_clone = state.clone();
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(BatchOutput, ReplayRecord)>(1);
+
+    tokio::spawn(async move {
+        let mut stream = command_source(&wal_clone, last_block_in_wal);
+
+        while let Some(cmd) = stream.next().await {
+            let block_number = cmd.block_number();
+
+            tracing::info!(block = block_number, "▶ execute");
+            let (batch_out, replay) =
+                execute_block(cmd, mempool.clone(), state.clone())
+                    .await
+                    .context("execute_block")?;
+            tracing::info!(block = block_number, "▶ handle_block_output");
+            state.handle_block_output(
+                batch_out.clone(),
+                replay.transactions.clone(),
+            );
+            tx.send((batch_out, replay)).await.ok();   // back-pressure here
+        }
+        Result::<()>::Ok(())
+    });
+
+    /* ── Stage 2: canonise  (runs concurrently with next VM) ─────────── */
+    while let Some((batch_out, replay)) = rx.recv().await {
+        tracing::info!(block = batch_out.header.number, "▶ append_replay");
+        wal.clone().append_replay(batch_out.clone(), replay).await;
+        tracing::info!(block = batch_out.header.number, "▶ advance_canonized_block");
+        state_clone.clone().advance_canonized_block(batch_out.header.number);
+        tracing::info!(block = batch_out.header.number, "✔ done");
+    }
+
+    Ok(())
+}
+
+
+async fn run_sequencer_stream(
     wal: BlockReplayWAL,
     state: StateHandle,
     mempool: Mempool,
@@ -125,7 +171,7 @@ async fn run_sequencer(
         .try_buffered(1)
 
         // ── Stage 2: append_replay (canonise) ──────────────────────────────
-        .try_for_each(|(batch_out, replay)| {
+        .map_ok(|(batch_out, replay)| {
             let wal = wal.clone();
             let state = state.clone();
             async move {
@@ -138,42 +184,9 @@ async fn run_sequencer(
                 Ok::<_, anyhow::Error>(())
             }
         })
+        .try_buffered(1)
+        .try_for_each(|()| async { Ok::<_, anyhow::Error>(()) })
         .await?;
-
-
-    // pin_mut!(stream);
-    //
-    // stream.await;
-
-    // let mut ts = std::time::Instant::now();
-
-    // while let Some(command) = stream.next().await {
-    //     let block_number = command.block_number();
-    //
-    //     tracing::info!("Block {} - {} - started loop iteration in {:?}, executing", block_number, command, ts.elapsed());
-    //     ts = std::time::Instant::now();
-    //     let (block_output, replay_record) = execute_block(
-    //         command,
-    //         mempool.clone(),
-    //         state_handle.clone(),
-    //     ).await?;
-    //
-    //     tracing::info!("Block {} ({}txs) - executed after {:?}, canonizing", block_number, replay_record.transactions.len(), ts.elapsed());
-    //     ts = std::time::Instant::now();
-    //
-    //     let (block_output, replay_data) = block_replay_wal
-    //         .append_replay(block_output, replay_record.clone())
-    //         .await;
-    //
-    //     tracing::info!("Block {} ({}txs) - canonized after {:?}, saving", block_number, replay_record.transactions.len(), ts.elapsed());
-    //     ts = std::time::Instant::now();
-    //     state_handle.handle_block_output(
-    //         block_output,
-    //         replay_data.transactions,
-    //     );
-    //     tracing::info!("Block {} ({}txs) - saved after {:?}, next loop iteration", block_number, replay_record.transactions.len(), ts.elapsed());
-    //     ts = std::time::Instant::now();
-    // }
     Ok(())
 }
 
