@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::Context as _;
 use clap::Parser;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_config::{
     configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
@@ -29,7 +30,7 @@ use crate::{
 mod initial_setup_keys;
 mod metrics;
 
-const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(180);
+const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(90);
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -117,6 +118,15 @@ async fn main() -> anyhow::Result<()> {
         .startup_time
         .set(start_time.elapsed());
 
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
+
     let proof_fri_compressor_runner = proof_fri_compressor_runner(
         pool,
         blob_store,
@@ -133,19 +143,12 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {},
-        result = tokio::signal::ctrl_c() => {
-            match result {
-                Ok(_) => {
-                    tracing::info!("Stop signal received, shutting down...");
-                    cancellation_token.cancel();
-                },
-                Err(err) => {
-                    tracing::error!("Failed to set up ctrl c listener: {:?}", err);
-                }
-            }
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
         }
     }
     let shutdown_time = Instant::now();
+    cancellation_token.cancel();
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;
