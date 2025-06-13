@@ -4,3 +4,39 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.2.0" }
+execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.2.0" }
+
+anyhow = "1.0.98"
+base64 = "0.22.1"
+reqwest = "0.12.15"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "*"
+tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+bincode = "1"
+clap = "4.5.39"
+
+[features]
+gpu = ["air-compiler-cli/gpu"]
+
+
+#zksync_prover_job_processor = { version = "=20.3.1", path = "../prover/crates/lib/prover_job_processor" }
+#zksync_sequencer_proof_client = { path = "../sequencer_proof_client" }
+#zksync_types = { path = "../core/lib/types" }
+#
+#air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.2.0" }
+#execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.2.0" }
+#air-compiler-gpu = { package = "gpu_prover", features = ["gpu"], git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.2.0" }
+#
+#anyhow = "1.0.98"
+#clap = { version = "4.5.40", features = ["derive"] }
+##base64 = "0.22.1"
+##reqwest = "0.12.15"
+##serde = { version = "1.0.219", features = ["derive"] }
+##serde_json = "*"
+#tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+##bincode = "1"
+##clap = "4.5.39"
+#tracing = { version = "0.1", features = ["log"] }
+#tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
