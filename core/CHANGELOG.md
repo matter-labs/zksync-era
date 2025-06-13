@@ -1,5 +1,15 @@
 # Changelog
 
+## [28.6.1](https://github.com/matter-labs/zksync-era/compare/core-v28.6.0...core-v28.6.1) (2025-06-13)
+
+
+### Bug Fixes
+
+* **consensus:** Handle custom reverts on VM calls ([#4174](https://github.com/matter-labs/zksync-era/issues/4174)) ([c511cd0](https://github.com/matter-labs/zksync-era/commit/c511cd085800ff9f2922e8a6b706a96447e96ac1))
+* Fix crate features some more ([#4177](https://github.com/matter-labs/zksync-era/issues/4177)) ([2964b93](https://github.com/matter-labs/zksync-era/commit/2964b93c22a4fc60fc44ffd56f820b4bea1c828e))
+* Fix node_framework feature for high-level crates ([#4171](https://github.com/matter-labs/zksync-era/issues/4171)) ([d42e98d](https://github.com/matter-labs/zksync-era/commit/d42e98d6517c915458c7b79125b6d3544fb8d8db))
+* **prover:** Use unified prometheus initialization ([#4173](https://github.com/matter-labs/zksync-era/issues/4173)) ([db4f036](https://github.com/matter-labs/zksync-era/commit/db4f036a5c4fd450178d709793a62ddca43f54ec))
+
 ## [28.6.0](https://github.com/matter-labs/zksync-era/compare/core-v28.5.0...core-v28.6.0) (2025-06-11)
 
 
