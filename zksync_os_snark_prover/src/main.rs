@@ -30,7 +30,7 @@ fn deserialize_from_file<T: serde::de::DeserializeOwned>(filename: &str) -> T {
 fn main() {
     // we need a bigger stack, due to crypto code exhausting default stack size, 30 gigs picked here
     // note that size is not allocated, but only limits the amount to which it can grow
-    // 30 gigs has been picked as a super safe error-margin, much lower should be fine
+    // 30 gigs has been picked as a super safe error-margin, much lower should be fine (I assume some 20MB)
     let stack_size = 30 * 1024 * 1024 * 1024;
 
     tokio::runtime::Builder::new_multi_thread()

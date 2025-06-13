@@ -10,7 +10,7 @@ zksync_types = { path = "../core/lib/types" }
 
 zksync_airbender_cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.0.5" }
 zksync_airbender_execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.0.5" }
-zkos_wrapper = { path = "../../zkos-wrapper/wrapper", package = "zkos-wrapper" }
+zkos_wrapper = { package = "zkos-wrapper", git = "https://github.com/matter-labs/zkos-wrapper.git", revision = "7abaadc4c3c4be680ecd246594f9163146574870" }
 zksync_task_management = { path = "../core/lib/task_management" }
 
 

@@ -687,6 +687,7 @@ dependencies = [
 [[package]]
 name = "circuit_mersenne_field"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zkos-wrapper.git#7abaadc4c3c4be680ecd246594f9163146574870"
 dependencies = [
  "boojum",
  "field",
@@ -5377,6 +5378,7 @@ dependencies = [
 [[package]]
 name = "zkos-wrapper"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/zkos-wrapper.git#7abaadc4c3c4be680ecd246594f9163146574870"
 dependencies = [
  "boojum",
  "circuit_mersenne_field",
@@ -5387,7 +5389,7 @@ dependencies = [
  "serde",
  "serde_json",
  "setups",
- "sha3 0.10.8",
+ "sha3 0.9.1",
  "snark_wrapper",
  "zksync_bellman",
 ]
