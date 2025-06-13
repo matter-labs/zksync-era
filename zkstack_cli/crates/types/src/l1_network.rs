@@ -22,8 +22,8 @@ use strum::EnumIter;
 )]
 pub enum L1Network {
     #[default]
-    Localhost,
     Sepolia,
+    Localhost,
     Holesky,
     Mainnet,
 }
@@ -32,8 +32,8 @@ impl L1Network {
     #[must_use]
     pub fn chain_id(&self) -> u64 {
         match self {
-            L1Network::Localhost => 9,
             L1Network::Sepolia => 11_155_111,
+            L1Network::Localhost => 9,
             L1Network::Holesky => 17000,
             L1Network::Mainnet => 1,
         }
