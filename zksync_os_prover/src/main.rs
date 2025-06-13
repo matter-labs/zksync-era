@@ -143,8 +143,9 @@ fn init_tracing(verbosity: u8) {
         1 => "debug",
         _ => "trace",
     };
+    let filter_str = format!("info,zksync_os_prover={}", level);
     let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(level));
+        .unwrap_or_else(|_| EnvFilter::new(filter_str));
     fmt::Subscriber::builder()
         .with_env_filter(env_filter)
         .init();
@@ -181,7 +182,7 @@ pub async fn main() {
             }
             Ok(Some(next_block)) => next_block,
             Ok(None) => {
-                let duration = tokio::time::Duration::from_millis(100);
+                let duration = tokio::time::Duration::from_millis(30);
                 tracing::debug!("No FRI job available, sleeping for {duration:?}");
                 tokio::time::sleep(duration).await;
                 continue;
