@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::Context as _;
 use clap::Parser;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_config::{
     configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
@@ -30,7 +31,7 @@ use crate::{
 mod initial_setup_keys;
 mod metrics;
 
-const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(180);
+const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(90);
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -100,13 +101,22 @@ async fn main() -> anyhow::Result<()> {
     let keystore = Arc::new(keystore);
     load_all_resources(&keystore, is_fflonk);
 
+    let cancellation_token = CancellationToken::new();
+    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
+
     PROOF_FRI_COMPRESSOR_INSTANCE_METRICS
         .startup_time
         .set(start_time.elapsed());
 
-    let cancellation_token = CancellationToken::new();
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
 
-    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
 
     let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
@@ -127,16 +137,9 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {},
-        result = tokio::signal::ctrl_c() => {
-            match result {
-                Ok(_) => {
-                    tracing::info!("Stop signal received, shutting down...");
-                    cancellation_token.cancel();
-                },
-                Err(err) => {
-                    tracing::error!("Failed to set up ctrl c listener: {:?}", err);
-                }
-            }
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
+            cancellation_token.cancel();
         }
     }
     let shutdown_time = Instant::now();
