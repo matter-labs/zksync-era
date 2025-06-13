@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de,
-    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown},
+    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown, WellKnownOption},
     metadata::{BasicTypes, ParamMetadata, SizeUnit, TypeDescription},
     value::SecretString,
     ByteSize, DescribeConfig, DeserializeConfig, ErrorWithOrigin,
@@ -27,6 +27,8 @@ impl WellKnown for ValidatorPublicKey {
     const DE: Self::Deserializer =
         Qualified::new(Serde![str], "has `validator:public:bls12_381:` prefix");
 }
+
+impl WellKnownOption for ValidatorPublicKey {}
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -60,7 +62,7 @@ impl WellKnown for ProtocolVersion {
 
 /// Consensus genesis specification.
 /// It is a digest of the `validator::Genesis`,
-/// which allows to initialize genesis (if not present)
+/// which allows to initialize genesis (if not present) or
 /// decide whether a hard fork is necessary (if present).
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GenesisSpec {

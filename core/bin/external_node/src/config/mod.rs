@@ -1429,6 +1429,7 @@ impl ExternalNodeConfig {
             wrapped_base_token_store: self.remote.l1_wrapped_base_token_store,
             bridge_hub: self.remote.l1_bridgehub_proxy_addr,
             shared_bridge: self.remote.l1_shared_bridge_proxy_addr,
+            message_root: self.remote.l1_message_root_proxy_addr,
             erc_20_bridge: self.remote.l1_erc20_bridge_proxy_addr,
             base_token_address: self.remote.base_token_addr,
             server_notifier_addr: self.remote.l1_server_notifier_addr,

@@ -1024,11 +1024,13 @@ impl EthTxAggregator {
             },
             AggregatedOperation::L1Batch(agg_op) => {
                 let l1_batch_number_range = agg_op.l1_batch_range();
+                let dependency_roots_per_batch = agg_op.dependency_roots_per_batch();
                 match agg_op.get_action_type() {
                     L1BatchAggregatedActionType::Execute => {
                         L1GasCriterion::total_execute_gas_amount(
                             &mut transaction,
                             l1_batch_number_range.clone(),
+                            dependency_roots_per_batch,
                             is_gateway,
                         )
                         .await

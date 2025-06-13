@@ -127,6 +127,7 @@ where
         bytecode_supplier_addr: Option<Address>,
         wrapped_base_token_store: Option<Address>,
         l1_shared_bridge_addr: Option<Address>,
+        l1_message_root_address: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         server_notifier_address: Option<Address>,
@@ -163,7 +164,7 @@ where
             confirmations_for_eth_event,
             wrapped_base_token_store,
             l1_shared_bridge_addr,
-            l1_message_root_address: None, // kl todo add l1 message root address
+            l1_message_root_address,
             l2_chain_id,
         }
     }
