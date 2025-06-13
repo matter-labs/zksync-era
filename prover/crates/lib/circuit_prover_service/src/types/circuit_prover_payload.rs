@@ -3,7 +3,7 @@ use std::sync::Arc;
 use zksync_prover_fri_types::circuit_definitions::boojum::{
     cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField,
 };
-use zksync_prover_keystore::GoldilocksGpuProverSetupData;
+use crate::types::setup_data::GoldilocksGpuProverSetupData;
 
 use crate::types::circuit_wrapper::CircuitWrapper;
 

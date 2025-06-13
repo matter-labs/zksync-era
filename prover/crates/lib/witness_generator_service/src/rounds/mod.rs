@@ -64,7 +64,7 @@ pub trait JobManager: ArtifactsManager + Sync + Send + 'static {
 }
 
 
-pub trait VerificationKeyManager: 'static + std::fmt::Debug + Send + Sync {
+pub trait VerificationKeyManager: 'static + Send + Sync {
     fn load_base_layer_verification_key(
         &self,
         circuit_type: u8,

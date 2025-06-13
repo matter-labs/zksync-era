@@ -12,7 +12,7 @@ use crate::{artifact_manager::ArtifactsManager, rounds::{JobManager, JobMetadata
 
 /// WitnessGenerator job picker implementation.
 /// Picks job from database (via MetadataLoader) and gets data from object store.
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct WitnessGeneratorJobPicker<R> {
     pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,

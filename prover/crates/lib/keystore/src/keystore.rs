@@ -34,9 +34,12 @@ use zksync_utils::env::Workspace;
 
 #[cfg(feature = "gpu")]
 use crate::compressor::CompressorSetupData;
+use crate::VkCommitments;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use crate::{GoldilocksGpuProverSetupData, GpuProverSetupData};
-use crate::{GoldilocksProverSetupData, VkCommitments};
+use zksync_circuit_prover_service::types::setup_data::{
+    GoldilocksGpuProverSetupData, GpuProverSetupData,
+};
+use zksync_circuit_prover_service::types::setup_data::GoldilocksProverSetupData;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {

@@ -4,7 +4,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_prover_job_processor::JobPicker;
-use zksync_prover_keystore::GoldilocksGpuProverSetupData;
+use crate::types::setup_data::GoldilocksGpuProverSetupData;
 use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::{

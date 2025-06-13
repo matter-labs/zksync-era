@@ -1,7 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::time::{Duration, Instant};
+use std::{sync::Arc, time::{Duration, Instant}};
 
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
@@ -19,7 +19,6 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -30,8 +29,10 @@ use zksync_witness_generator_service::{
     rounds::{
         BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler,
     },
-    witness_generator_runner
+    witness_generator_runner,
 };
+use tokio_util::sync::CancellationToken;
+use tokio::sync::oneshot;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -181,6 +182,9 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Prometheus exporter is not configured");
     }
 
+    let keystore = Arc::new(keystore);
+    let cancellation_token = CancellationToken::new();
+
     for round in rounds {
         tracing::info!(
             "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
@@ -189,7 +193,7 @@ async fn main() -> anyhow::Result<()> {
             &protocol_version
         );
 
-        let witness_generator_task = match round {
+        let witness_generator_tasks = match round {
             AggregationRound::BasicCircuits => {
                 let runner = witness_generator_runner::<BasicCircuits>(
                     config.max_circuits_in_flight.clone(),
@@ -247,7 +251,7 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        tasks.push(tokio::spawn(witness_generator_task));
+        tasks.extend(witness_generator_tasks);
 
         tracing::info!(
             "initialized {:?} witness generator in {:?}",
@@ -267,9 +271,28 @@ async fn main() -> anyhow::Result<()> {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver.next() => {
             tracing::info!("Stop request received, shutting down");
+            cancellation_token.cancel();
         }
     }
 
+
+    // let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    // let mut stop_signal_sender = Some(stop_signal_sender);
+    // ctrlc::set_handler(move || {
+    //     if let Some(sender) = stop_signal_sender.take() {
+    //         sender.send(()).ok();
+    //     }
+    // })
+    // .context("Error setting Ctrl+C handler")?;
+
+    // let mut tasks = ManagedTasks::new(tasks);
+    // tokio::select! {
+    //     _ = tasks.wait_single() => {},
+    //     _ = stop_signal_receiver => {
+    //         tracing::info!("Stop request received, shutting down");
+    //         cancellation_token.cancel();
+    //     }
+    // }
     stop_sender.send_replace(true);
     tasks.complete(Duration::from_secs(5)).await;
     tracing::info!("Finished witness generation");

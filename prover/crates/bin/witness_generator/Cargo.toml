@@ -33,6 +33,7 @@ circuit_definitions = { workspace = true, features = ["log_tracing"] }
 anyhow.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
+tokio-util.workspace = true
 futures = { workspace = true, features = ["compat"] }
 serde = { workspace = true, features = ["derive"] }
 async-trait.workspace = true

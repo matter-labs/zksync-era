@@ -28,10 +28,8 @@ use zksync_prover_fri_types::{
     ProverServiceDataKey,
 };
 use zksync_prover_job_processor::Executor;
-use zksync_prover_keystore::{
-    keystore::{Keystore, ProverServiceDataType},
-    GoldilocksGpuProverSetupData,
-};
+use zksync_prover_keystore::keystore::{Keystore, ProverServiceDataType};
+use zksync_circuit_prover_service::types::setup_data::GoldilocksGpuProverSetupData;
 use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchId, L1BatchNumber,
     L2ChainId,

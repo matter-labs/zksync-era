@@ -18,3 +18,4 @@ mod utils;
 mod witness;
 
 pub use async_job_runner::witness_generator_runner;
+pub use rounds::VerificationKeyManager;
