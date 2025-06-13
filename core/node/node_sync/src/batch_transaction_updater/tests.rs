@@ -329,4 +329,3 @@ async fn normal_operation_1_batch(
 
     Ok(())
 }
-

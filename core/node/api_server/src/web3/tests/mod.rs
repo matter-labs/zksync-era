@@ -6,7 +6,6 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use chrono::Utc;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, ContractsConfig},
