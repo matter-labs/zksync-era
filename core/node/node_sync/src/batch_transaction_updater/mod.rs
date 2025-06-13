@@ -213,6 +213,15 @@ impl BatchTransactionUpdater {
                     finality_update
                 );
                 updated_count += 1;
+            } else {
+                tracing::warn!(
+                    "Failed to update finality status for transaction {} with type {} from {:?} to {:?} due to error: {}",
+                    db_eth_tx_history.tx_hash,
+                    db_eth_tx_history.tx_type,
+                    db_eth_tx_history.eth_tx_finality_status,
+                    finality_update,
+                    result.err().unwrap()
+                );
             }
         }
         Ok(updated_count)
