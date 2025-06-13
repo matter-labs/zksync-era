@@ -420,6 +420,7 @@ impl CompressorBlobStorage for Keystore {
             .setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode1_setup_data;
+        setup_data_cache.wait();
         if let Some(setup_data) = setup_data_cache.get() {
             Ok(setup_data)
         } else {
@@ -446,6 +447,7 @@ impl CompressorBlobStorage for Keystore {
             .setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode2_setup_data;
+        setup_data_cache.wait();
         if let Some(setup_data) = setup_data_cache.get() {
             Ok(setup_data)
         } else {
@@ -472,6 +474,7 @@ impl CompressorBlobStorage for Keystore {
             .setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode3_setup_data;
+        setup_data_cache.wait();
         if let Some(setup_data) = setup_data_cache.get() {
             Ok(setup_data)
         } else {
@@ -498,6 +501,7 @@ impl CompressorBlobStorage for Keystore {
             .setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode4_setup_data;
+        setup_data_cache.wait();
         if let Some(setup_data) = setup_data_cache.get() {
             Ok(setup_data)
         } else {
@@ -524,6 +528,7 @@ impl CompressorBlobStorage for Keystore {
             .setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode5_for_wrapper_setup_data;
+        setup_data_cache.wait();
         if let Some(setup_data) = setup_data_cache.get() {
             Ok(setup_data)
         } else {
@@ -552,6 +557,7 @@ impl CompressorBlobStorage for Keystore {
             .setup_data_cache_proof_compressor
             .plonk_setup_data
             .compression_mode1_for_wrapper_setup_data;
+        setup_data_cache.wait();
         if let Some(setup_data) = setup_data_cache.get() {
             Ok(setup_data)
         } else {
@@ -587,6 +593,7 @@ impl CompressorBlobStorage for Keystore {
             .setup_data_cache_proof_compressor
             .fflonk_setup_data
             .fflonk_snark_wrapper_setup_data;
+        setup_data_cache.wait();
         if let Some(setup_data) = setup_data_cache.get() {
             Ok(setup_data)
         } else {
