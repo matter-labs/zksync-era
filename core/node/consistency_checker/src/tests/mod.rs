@@ -16,7 +16,7 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     block::L2BlockHeader,
     commitment::{L1BatchWithMetadata, PubdataType},
     eth_sender::EthTxFinalityStatus,
@@ -86,9 +86,20 @@ pub(crate) fn build_commit_tx_input_data(
         PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
     } else if protocol_version.is_pre_shared_bridge() {
         POST_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
-    } else {
+    } else if protocol_version.is_pre_v29_interop() {
         // Post shared bridge transactions also require chain id
         let tokens: Vec<_> = vec![Token::Uint(ERA_CHAIN_ID.into())]
+            .into_iter()
+            .chain(tokens)
+            .collect();
+        contract
+            .function("commitBatchesSharedBridge")
+            .unwrap()
+            .encode_input(&tokens)
+            .unwrap()
+    } else {
+        // Post interop transactions require address of the diamond proxy
+        let tokens: Vec<_> = vec![Token::Address(L1_DIAMOND_PROXY_ADDR)]
             .into_iter()
             .chain(tokens)
             .collect();
@@ -365,7 +376,7 @@ impl SaveAction<'_> {
                     .eth_sender_dal()
                     .insert_bogus_confirmed_eth_tx(
                         l1_batch_number,
-                        AggregatedActionType::Commit,
+                        L1BatchAggregatedActionType::Commit,
                         commit_tx_hash,
                         chrono::Utc::now(),
                         chain_id,

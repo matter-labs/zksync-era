@@ -601,6 +601,7 @@ mod tests {
             l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_txs: false,
             pubdata_params: PubdataParams::default(),
+            rolling_txs_hash: Default::default(),
         };
 
         // Run.
@@ -662,6 +663,7 @@ mod tests {
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
             logs_bloom: Default::default(),
             pubdata_params: l2_block_seal_command.pubdata_params,
+            rolling_txs_hash: Some(l2_block_seal_command.rolling_txs_hash),
         };
         connection
             .protocol_versions_dal()
