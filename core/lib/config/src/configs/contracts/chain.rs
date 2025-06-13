@@ -174,6 +174,7 @@ impl ContractsConfig {
             wrapped_base_token_store: self.ecosystem_contracts.l1_wrapped_base_token_store,
             bridge_hub: Some(self.ecosystem_contracts.bridgehub_proxy_addr),
             shared_bridge: self.bridges.shared.l1_address,
+            message_root: self.ecosystem_contracts.message_root_proxy_addr,
             erc_20_bridge: self.bridges.erc20.l1_address,
             base_token_address: self.l1.base_token_addr,
             chain_admin: Some(self.l1.chain_admin_addr),

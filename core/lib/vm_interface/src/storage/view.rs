@@ -227,14 +227,6 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         self.storage_handle.get_enumeration_index(key)
     }
-
-    // fn get_interop_root(
-    //     &mut self,
-    //     chain_id: SLChainId,
-    //     block_number: L2BlockNumber,
-    // ) -> Option<H256> {
-    //     self.storage_handle.get_interop_root(chain_id, block_number)
-    // }
 }
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
