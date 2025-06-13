@@ -69,18 +69,14 @@ impl BatchFeeInput {
             })
     }
 
-    pub fn scale_linearly(
-        &self,
-        l1_gas_price_scale_factor: f64,
-        l1_pubdata_price_scale_factor: f64,
-    ) -> BatchFeeInput {
+    pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> BatchFeeInput {
         match self {
             BatchFeeInput::L1Pegged(input) => {
-                BatchFeeInput::L1Pegged(input.scale(l1_gas_price_scale_factor))
+                BatchFeeInput::L1Pegged(input.scale_fair_l2_gas_price(scale_factor))
             }
-            BatchFeeInput::PubdataIndependent(input) => BatchFeeInput::PubdataIndependent(
-                input.scale_linearly(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor),
-            ),
+            BatchFeeInput::PubdataIndependent(input) => {
+                BatchFeeInput::PubdataIndependent(input.scale_fair_l2_gas_price(scale_factor))
+            }
         }
     }
 }
@@ -187,10 +183,10 @@ pub struct L1PeggedBatchFeeModelInput {
 }
 
 impl L1PeggedBatchFeeModelInput {
-    pub fn scale(&self, l1_gas_price_scale_factor: f64) -> L1PeggedBatchFeeModelInput {
+    pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> L1PeggedBatchFeeModelInput {
         L1PeggedBatchFeeModelInput {
-            l1_gas_price: (self.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64,
-            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * l1_gas_price_scale_factor) as u64,
+            l1_gas_price: self.l1_gas_price,
+            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
         }
     }
 }
@@ -207,20 +203,15 @@ pub struct PubdataIndependentBatchFeeModelInput {
 }
 
 impl PubdataIndependentBatchFeeModelInput {
-    /// Scales the fee model input linearly based on the provided scale factors. It doesn't account
-    /// for the parameters being dependent on each other, it shouldn't be used anywhere outside API.
-    pub fn scale_linearly(
+    /// Scales the fair L2 gas price. This method shouldn't be used anywhere outside API.
+    pub fn scale_fair_l2_gas_price(
         self,
-        l1_gas_price_scale_factor: f64,
-        l1_pubdata_price_scale_factor: f64,
+        scale_factor: f64,
     ) -> PubdataIndependentBatchFeeModelInput {
         clip_batch_fee_model_input_v2(PubdataIndependentBatchFeeModelInput {
-            fair_l2_gas_price: (self.fair_l2_gas_price as f64
-                * (l1_gas_price_scale_factor + l1_pubdata_price_scale_factor)
-                / 2.0) as u64,
-            fair_pubdata_price: (self.fair_pubdata_price as f64 * l1_pubdata_price_scale_factor)
-                as u64,
-            l1_gas_price: (self.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64,
+            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
+            fair_pubdata_price: self.fair_pubdata_price,
+            l1_gas_price: self.l1_gas_price,
         })
     }
 }

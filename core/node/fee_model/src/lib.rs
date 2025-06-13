@@ -100,16 +100,19 @@ impl MainNodeFeeInputProvider {
 pub struct ApiFeeInputProvider {
     inner: Arc<dyn BatchFeeModelInputProvider>,
     connection_pool: ConnectionPool<Core>,
+    gas_price_scale_factor_for_open_batch: Option<f64>,
 }
 
 impl ApiFeeInputProvider {
     pub fn new(
         inner: Arc<dyn BatchFeeModelInputProvider>,
         connection_pool: ConnectionPool<Core>,
+        gas_price_scale_factor_for_open_batch: Option<f64>,
     ) -> Self {
         Self {
             inner,
             connection_pool,
+            gas_price_scale_factor_for_open_batch,
         }
     }
 }
@@ -137,9 +140,11 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
                 latest_batch_number = %latest_batch_header.number,
                 "Found an open batch; reporting its fee input"
             );
-            return Ok(latest_batch_header
-                .fee_input
-                .scale_linearly(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor));
+
+            return Ok(match self.gas_price_scale_factor_for_open_batch {
+                Some(scale) => latest_batch_header.fee_input.scale_fair_l2_gas_price(scale),
+                None => latest_batch_header.fee_input,
+            });
         }
 
         tracing::trace!(
@@ -435,7 +440,7 @@ mod tests {
             .await
             .unwrap();
         let provider: &dyn BatchFeeModelInputProvider =
-            &ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()), pool);
+            &ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()), pool, None);
         let fee_input = provider.get_batch_fee_input().await.unwrap();
         assert_eq!(fee_input, unsealed_batch_fee_input);
     }

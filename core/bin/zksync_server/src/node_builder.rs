@@ -218,7 +218,11 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
+        let api_config = try_load_config!(self.configs.api_config);
+        let l1_gas_layer = L1GasLayer::new(
+            &state_keeper_config,
+            api_config.web3_json_rpc.gas_price_scale_factor_open_batch,
+        );
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
