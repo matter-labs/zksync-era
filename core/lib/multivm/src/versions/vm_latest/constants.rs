@@ -145,13 +145,14 @@ pub(crate) const fn get_interop_root_offset(subversion: MultiVmSubversion) -> us
     get_interop_blocks_begin_offset(subversion) + MAX_MSG_ROOTS_IN_BATCH
 }
 
-pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;
+pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 5;
 
 pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
 
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     match subversion {
-        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS,
+        // The additional slot comes from INTEROP_ROOT_ROLLING_HASH_SLOT.
+        MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS + 1,
         _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
     }
 }
