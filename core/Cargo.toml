@@ -89,6 +89,8 @@ members = [
   # zk os
   "node/zkos_state_keeper",
   "node/zkos_vm_runner",
+  "tests/loadbase",
+  "node/zksync_os_sequencer",
 ]
 resolver = "2"
 
