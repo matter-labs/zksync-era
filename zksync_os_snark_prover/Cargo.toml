@@ -1,0 +1,28 @@
+[package]
+name = "zksync_os_snark_prover"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+zksync_prover_job_processor = { version = "=20.3.1", path = "../prover/crates/lib/prover_job_processor" }
+zksync_sequencer_proof_client = { path = "../sequencer_proof_client" }
+zksync_types = { path = "../core/lib/types" }
+
+zksync_airbender_cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.0.5" }
+zksync_airbender_execution_utils = { package = "execution_utils", git = "https://github.com/matter-labs/zksync-airbender.git", tag = "0.0.5" }
+zkos_wrapper = { path = "../../zkos-wrapper/wrapper", package = "zkos-wrapper" }
+zksync_task_management = { path = "../core/lib/task_management" }
+
+
+tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+serde_json = "1"
+#log = "0.4"
+#env_logger = "0"
+reqwest = "0.12.15"
+serde = { version = "1.0.219", features = ["derive"] }
+anyhow = "1.0.98"
+base64 = "0.22.1"
+async-trait = "0.1"
+bincode = "1"
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
