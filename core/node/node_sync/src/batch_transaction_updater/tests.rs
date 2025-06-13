@@ -109,90 +109,6 @@ fn new_mock_eth_interface() -> Box<dyn EthInterface> {
     )
 }
 
-#[test_casing(9, Product(([L1BatchStage::Committed, L1BatchStage::Proven, L1BatchStage::Executed], [EthTxFinalityStatus::Pending, EthTxFinalityStatus::FastFinalized, EthTxFinalityStatus::Finalized])))]
-#[tokio::test]
-async fn normal_operation_1_batch(
-    stage: L1BatchStage,
-    finality_status: EthTxFinalityStatus,
-) -> anyhow::Result<()> {
-    // Create a test database
-    let pool = zksync_dal::ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.connection().await?;
-
-    // Create genesis batch
-    let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params).await?;
-
-    // Create a batch and seal it
-    let batch_number = L1BatchNumber(1);
-    seal_l1_batch(&mut storage, batch_number).await;
-    let tranasctions_l1_block_number =
-        L1BlockNumber(mock_block_number_for_batch_transaction(batch_number));
-
-    // Create mock ETH interface
-    let eth_interface = new_mock_eth_interface();
-
-    // Insert transactions into the database based on the stage
-    // This simulates what BatchStatusUpdater would do
-    insert_batch_transactions(&mut storage, batch_number, stage).await?;
-
-    // Create BatchTransactionUpdater
-    let mut updater = BatchTransactionUpdater::from_parts(
-        eth_interface,
-        MOCK_DIAMON_PROXY_ADDRESS,
-        pool.clone(),
-        Duration::from_millis(10),
-    );
-
-    // Run the updater once
-    let l1_block_numbers = match finality_status {
-        EthTxFinalityStatus::Pending => L1BlockNumbers {
-            finalized: L1BlockNumber(10),
-            fast_finality: L1BlockNumber(10),
-            latest: tranasctions_l1_block_number,
-        },
-        EthTxFinalityStatus::FastFinalized => L1BlockNumbers {
-            finalized: L1BlockNumber(10),
-            fast_finality: tranasctions_l1_block_number,
-            latest: tranasctions_l1_block_number,
-        },
-        EthTxFinalityStatus::Finalized => L1BlockNumbers {
-            finalized: tranasctions_l1_block_number,
-            fast_finality: tranasctions_l1_block_number,
-            latest: tranasctions_l1_block_number,
-        },
-    };
-
-    // Update transaction statuses
-    let updated_count = updater.update_statuses(l1_block_numbers).await?;
-
-    // Verify the transaction statuses in the database
-    verify_transaction_statuses(&mut storage, batch_number, stage, finality_status).await?;
-
-    // verify expected update count
-    if finality_status == EthTxFinalityStatus::Pending {
-        assert_eq!(updated_count, 0);
-    } else {
-        match stage {
-            L1BatchStage::Committed => {
-                // For committed stage, we should have updated 1 transaction
-                assert_eq!(updated_count, 1);
-            }
-            L1BatchStage::Proven => {
-                // For proven stage, we should have updated 2 transactions (commit + prove)
-                assert_eq!(updated_count, 2);
-            }
-            L1BatchStage::Executed => {
-                // For executed stage, we should have updated 3 transactions (commit + prove + execute)
-                assert_eq!(updated_count, 3);
-            }
-            _ => unreachable!("Test only runs with Committed, Proven, or Executed stages"),
-        }
-    }
-
-    Ok(())
-}
-
 async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();
     // Insert a mock L2 block so that `get_block_details()` will return values.
@@ -329,3 +245,88 @@ fn create_tx_hash(tx_type: AggregatedActionType, batch_number: u32) -> H256 {
     h[28..].copy_from_slice(&batch_number.to_be_bytes());
     H256::from(h)
 }
+
+#[test_casing(9, Product(([L1BatchStage::Committed, L1BatchStage::Proven, L1BatchStage::Executed], [EthTxFinalityStatus::Pending, EthTxFinalityStatus::FastFinalized, EthTxFinalityStatus::Finalized])))]
+#[tokio::test]
+async fn normal_operation_1_batch(
+    stage: L1BatchStage,
+    finality_status: EthTxFinalityStatus,
+) -> anyhow::Result<()> {
+    // Create a test database
+    let pool = zksync_dal::ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await?;
+
+    // Create genesis batch
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params).await?;
+
+    // Create a batch and seal it
+    let batch_number = L1BatchNumber(1);
+    seal_l1_batch(&mut storage, batch_number).await;
+    let tranasctions_l1_block_number =
+        L1BlockNumber(mock_block_number_for_batch_transaction(batch_number));
+
+    // Create mock ETH interface
+    let eth_interface = new_mock_eth_interface();
+
+    // Insert transactions into the database based on the stage
+    // This simulates what BatchStatusUpdater would do
+    insert_batch_transactions(&mut storage, batch_number, stage).await?;
+
+    // Create BatchTransactionUpdater
+    let mut updater = BatchTransactionUpdater::from_parts(
+        eth_interface,
+        MOCK_DIAMON_PROXY_ADDRESS,
+        pool.clone(),
+        Duration::from_millis(10),
+    );
+
+    // Run the updater once
+    let l1_block_numbers = match finality_status {
+        EthTxFinalityStatus::Pending => L1BlockNumbers {
+            finalized: L1BlockNumber(10),
+            fast_finality: L1BlockNumber(10),
+            latest: tranasctions_l1_block_number,
+        },
+        EthTxFinalityStatus::FastFinalized => L1BlockNumbers {
+            finalized: L1BlockNumber(10),
+            fast_finality: tranasctions_l1_block_number,
+            latest: tranasctions_l1_block_number,
+        },
+        EthTxFinalityStatus::Finalized => L1BlockNumbers {
+            finalized: tranasctions_l1_block_number,
+            fast_finality: tranasctions_l1_block_number,
+            latest: tranasctions_l1_block_number,
+        },
+    };
+
+    // Update transaction statuses
+    let updated_count = updater.update_statuses(l1_block_numbers).await?;
+
+    // Verify the transaction statuses in the database
+    verify_transaction_statuses(&mut storage, batch_number, stage, finality_status).await?;
+
+    // verify expected update count
+    if finality_status == EthTxFinalityStatus::Pending {
+        assert_eq!(updated_count, 0);
+    } else {
+        match stage {
+            L1BatchStage::Committed => {
+                // For committed stage, we should have updated 1 transaction
+                assert_eq!(updated_count, 1);
+            }
+            L1BatchStage::Proven => {
+                // For proven stage, we should have updated 2 transactions (commit + prove)
+                assert_eq!(updated_count, 2);
+            }
+            L1BatchStage::Executed => {
+                // For executed stage, we should have updated 3 transactions (commit + prove + execute)
+                assert_eq!(updated_count, 3);
+            }
+            _ => unreachable!("Test only runs with Committed, Proven, or Executed stages"),
+        }
+    }
+
+    Ok(())
+}
+
