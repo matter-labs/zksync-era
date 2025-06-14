@@ -21,6 +21,7 @@ use crate::{
 #[derive(Debug)]
 pub struct L1GasLayer {
     fee_model_config: FeeModelConfig,
+    gas_price_scale_factor_open_batch: Option<f64>,
 }
 
 #[derive(Debug, FromContext)]
@@ -39,9 +40,13 @@ pub struct Output {
 }
 
 impl L1GasLayer {
-    pub fn new(state_keeper_config: &StateKeeperConfig) -> Self {
+    pub fn new(
+        state_keeper_config: &StateKeeperConfig,
+        gas_price_scale_factor_open_batch: Option<f64>,
+    ) -> Self {
         Self {
             fee_model_config: Self::map_config(state_keeper_config),
+            gas_price_scale_factor_open_batch,
         }
     }
 
@@ -86,6 +91,7 @@ impl WiringLayer for L1GasLayer {
         let api_fee_input_provider = Arc::new(ApiFeeInputProvider::new(
             main_fee_input_provider.clone(),
             replica_pool,
+            self.gas_price_scale_factor_open_batch,
         ));
 
         Ok(Output {
