@@ -29,6 +29,8 @@ thiserror.workspace = true
 itertools.workspace = true
 futures.workspace = true
 dashmap.workspace = true
+vise.workspace = true
+zksync_vlog.workspace = true
 
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
@@ -38,3 +40,4 @@ zksync_types.workspace = true
 crossbeam-queue = "0.3.12"
 futures-core = "0.3.31"
 time = "0.3.37"
+futures-util = "0.3.31"

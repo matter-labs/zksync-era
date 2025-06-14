@@ -24,6 +24,7 @@ impl InMemoryPreimages {
     /// If the key already exists, this does nothing.
     pub fn add(&self, key: Bytes32, preimage: Vec<u8>) {
         self.map.entry(key).or_insert(preimage);
+
     }
 
     /// Insert multiple preimages at once.
@@ -35,6 +36,7 @@ impl InMemoryPreimages {
         I: IntoIterator<Item = (Bytes32, Vec<u8>)>,
     {
         for (key, preimage) in entries {
+            // tracing::info!("Adding preimage for key: {:?}", key);
             // or_insert avoids overwriting existing entries
             self.map.entry(key).or_insert(preimage);
         }

@@ -36,11 +36,11 @@ impl NamedColumnFamily for BlockReplayColumnFamily {
 
 /// A write-ahead log storing replay blocks for sequencer recovery.
 #[derive(Clone, Debug)]
-pub struct BlockReplayWAL {
+pub struct BlockReplayStorage {
     db: RocksDB<BlockReplayColumnFamily>,
 }
 
-impl BlockReplayWAL {
+impl BlockReplayStorage {
     /// Key under `Latest` CF for tracking the highest block number.
     const LATEST_KEY: &'static [u8] = b"latest_block";
 
@@ -59,10 +59,12 @@ impl BlockReplayWAL {
         block_output: BatchOutput,
         record: ReplayRecord,
     ) -> (BatchOutput, ReplayRecord) {
+        assert!(!record.transactions.is_empty());
         let current_latest_block = self.latest_block().unwrap_or(0);
 
         if record.context.block_number <= current_latest_block {
             tracing::info!("Not appending block {}: already exists in WAL", record.context.block_number);
+            return (block_output, record);
         }
 
         let block_num = record.context.block_number;
@@ -91,6 +93,15 @@ impl BlockReplayWAL {
         None
     }
 
+
+    pub fn get_replay_record(&self, block_number: u64) -> Option<ReplayRecord> {
+        let key = block_number.to_be_bytes();
+        if let Ok(Some(bytes)) = self.db.get_cf(BlockReplayColumnFamily::Replay, &key) {
+            serde_json::from_slice(&bytes).ok()
+        } else {
+            None
+        }
+    }
     /// Streams all replay commands with block_number ≥ `start`, in ascending block order.
     ///
     /// todo: some dirty code

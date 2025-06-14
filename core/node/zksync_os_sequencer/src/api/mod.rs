@@ -1,4 +1,6 @@
 mod eth;
+mod eth_impl;
+mod api_tx_operations;
 
 use anyhow::Context;
 use zksync_types::api::{BlockId, BlockIdVariant, BlockNumber};
@@ -9,21 +11,23 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::jsonrpsee::RpcModule;
 use zksync_web3_decl::jsonrpsee::server::{RpcServiceBuilder, ServerBuilder};
-use crate::api::eth::EthNamespace;
 use crate::{BLOCKS_TO_RETAIN, JSON_RPC_ADDR};
+use crate::api::eth_impl::EthNamespace;
 use crate::mempool::Mempool;
+use crate::storage::block_replay_storage::BlockReplayStorage;
 use crate::storage::in_memory_state::InMemoryStorage;
 use crate::storage::StateHandle;
 
 // stripped-down version of `api_server/src/web3/mod.rs`
 pub async fn run_jsonrpsee_server(
     state_handle: StateHandle,
-    mempool: Mempool
+    mempool: Mempool,
+    block_replay_storage: BlockReplayStorage,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting JSON-RPC server at {}", JSON_RPC_ADDR);
 
     let mut rpc = RpcModule::new(());
-    rpc.merge(EthNamespace::new(state_handle, mempool).into_rpc())?;
+    rpc.merge(EthNamespace::new(state_handle, mempool, block_replay_storage).into_rpc())?;
 
     let server_builder = ServerBuilder::default();
     // .max_connections(max_connections as u32)
@@ -66,7 +70,7 @@ pub fn resolve_block_id(
             let current_number = state_handle.last_canonized_block_number();
             if number.as_u64() <= current_number - (BLOCKS_TO_RETAIN as u64) {
                 tracing::warn!(
-                    "Requested block number {} is too high, using latest block instead",
+                    "Requested block number {} is too low, using latest block instead",
                     number
                 );
                 unimplemented!()

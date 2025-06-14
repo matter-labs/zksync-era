@@ -53,8 +53,7 @@ impl InMemoryAccountProperties {
     /// each `block` is `> latest_block()`).
     /// After insertion, evicts the oldest diff if the number of diffs exceeds `max_entries`.
     pub fn add_diff(&self, block: u64, diff: HashMap<Address, AccountProperties>) {
-
-        tracing::trace!("Adding account properties diff for block {}: {:?}", block, diff);
+        // tracing::info!("Adding account properties diff for block {}: {:?}", block, diff);
 
         // Insert the new diff
         self.diffs.insert(block, Arc::new(diff));
@@ -98,11 +97,48 @@ impl InMemoryAccountProperties {
         for bn in (base + 1..=block).rev() {
             if let Some(diff_arc) = self.diffs.get(&bn) {
                 if let Some(props) = diff_arc.get(&addr) {
-                    return Some(props.clone());
+                    let res = props.clone();
+                    // tracing::info!("Found account properties for {:?} at block {}: {:?}",
+                    //     addr,
+                    //     bn,
+                    //     props
+                    // );
+                    return Some(res);
                 }
             }
         }
         // Fallback to base_state
-        self.base_state.get(&addr).map(|r| r.value().clone())
+        let res = self.base_state.get(&addr).map(|r| r.value().clone());
+
+        // tracing::info!("Account properties for {:?} at block {} not found in diffs, falling back to base state: {:?}",
+        //     addr,
+        //     block,
+        //     res
+        // );
+        res
+    }
+
+    fn latest_block(&self) -> u64 {
+        let base = self.base_block.load(Ordering::SeqCst);
+
+        // max over all known diff keys; if `diffs` is empty, fall back to base
+        self.diffs
+            .iter()
+            .map(|e| *e.key())
+            .fold(base, |acc, b| acc.max(b))
+    }
+
+    /// Read `AccountProperties` for `addr` at the latest known block,
+    /// falling back to the consolidated base state.
+    pub fn get_latest(&self, addr: &Address) -> Option<AccountProperties> {
+        let latest = self.latest_block();
+        let res = self.get(latest, addr);
+
+        // tracing::info!("Getting account properties for {:?} at latest block {}: {:?}",
+        //     address_to_bytes32(addr),
+        //     latest,
+        //     res
+        // );
+        res
     }
 }

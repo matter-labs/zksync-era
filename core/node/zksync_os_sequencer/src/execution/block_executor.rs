@@ -12,6 +12,8 @@ use zk_os_forward_system::run::{BatchContext, BatchOutput, InvalidTransaction};
 use zksync_types::Transaction;
 use zksync_zkos_vm_runner::zkos_conversions::tx_abi_encode;
 use crate::BLOCK_TIME_MS;
+use crate::execution::metrics;
+use crate::execution::metrics::{EXECUTION_METRICS};
 use crate::execution::vm_wrapper::VmWrapper;
 use crate::mempool::Mempool;
 use crate::model::{BlockCommand, ReplayRecord};
@@ -55,7 +57,7 @@ fn command_into_parts(
     match block_command {
         BlockCommand::Produce(ctx) => (
             ctx,
-            Box::pin(MempoolStream::new(mempool.clone())) as TxStream,
+            Box::pin(mempool),
             SealPolicy::Deadline(Duration::from_millis(BLOCK_TIME_MS)),
             InvalidTxPolicy::RejectAndContinue,
         ),
@@ -73,118 +75,123 @@ pub async fn execute_block(
     mempool: Mempool,
     state: StateHandle,
 ) -> Result<(BatchOutput, ReplayRecord)> {
+    let metrics_label = match cmd {
+        BlockCommand::Produce(_) => "produce",
+        BlockCommand::Replay(_) => "replay",
+    };
     let (ctx, stream, seal, invalid) = command_into_parts(cmd, mempool);
-    execute_block_inner(ctx, state, stream, seal, invalid).await
+    execute_block_inner(ctx, state, stream, seal, invalid, metrics_label).await
 }
 
-
 async fn execute_block_inner(
-    ctx:          BatchContext,
-    state:        StateHandle,
-    mut txs:      TxStream,
-    seal_policy:  SealPolicy,
-    fail_policy:  InvalidTxPolicy,
+    ctx: BatchContext,
+    state: StateHandle,
+    mut txs: TxStream,
+    seal_policy: SealPolicy,
+    fail_policy: InvalidTxPolicy,
+    metrics_label: &'static str,
 ) -> Result<(BatchOutput, ReplayRecord)> {
     tracing::info!(block = ctx.block_number, "start");
 
+    /* ---------- VM & state ----------------------------------------- */
     let state_view = state.view_at(ctx.block_number)?;
     let mut runner = VmWrapper::new(ctx.clone(), state_view);
-    let mut executed: Vec<Transaction> = Vec::new();
+    let mut executed = Vec::<Transaction>::new();
 
-    /* -------- 1. pre-fetch first tx ---------------------------------- */
-    let mut next_tx_opt = txs.next().await;
-    if next_tx_opt.is_none() {
-        return Err(anyhow!("empty replay for block {}", ctx.block_number));
-    }
-
-    let mut deadline: Option<Pin<Box<Sleep>>> = match seal_policy {
-        SealPolicy::Deadline(d) => Some(Box::pin(tokio::time::sleep(d))),
-        SealPolicy::Exhausted   => None,
+    /* ---------- deadline config ------------------------------------ */
+    let deadline_dur = match seal_policy {
+        SealPolicy::Deadline(d) => Some(d),
+        SealPolicy::Exhausted => None,
     };
+    let mut deadline: Option<Pin<Box<Sleep>>> = None;   // will arm after 1st success
 
-    /* -------- 2. main loop ------------------------------------------- */
+    /* ---------- main loop ------------------------------------------ */
     loop {
-        // future that resolves to Option<Transaction>
-        let tx_future = async {
-            if let Some(tx) = next_tx_opt.take() {
-                Some(tx)                   // pre-fetched one
-            } else {
-                txs.next().await           // poll stream
-            }
-        };
-
+        let mut wait_for_tx_latency = EXECUTION_METRICS.block_execution_stages[&"wait_for_tx"].start();
         tokio::select! {
-            // deadline branch
-            _ = async { if let Some(s) = &mut deadline { s.as_mut().await } },
-              if deadline.is_some() => {
-                tracing::info!(block = ctx.block_number, "deadline reached; sealing");
-                break;
+            /* -------- deadline branch ------------------------------ */
+            _ = async {
+                    if let Some(d) = &mut deadline {
+                        d.as_mut().await
+                    }
+                },
+                if deadline.is_some()
+            => {
+                tracing::info!(block = ctx.block_number,
+                               txs = executed.len(),
+                               "deadline reached → sealing");
+                break;                                     // leave the loop ⇒ seal
             }
 
-            // tx streaming branch
-            maybe_tx = tx_future => {
+            /* -------- stream branch ------------------------------- */
+            maybe_tx = txs.next() => {
                 match maybe_tx {
+                    /* ----- got a transaction ---------------------- */
                     Some(tx) => {
-                        // clone :(
+                        wait_for_tx_latency.observe();
+                        let mut latency = EXECUTION_METRICS.block_execution_stages[&"execute"].start();
                         match runner.execute_next_tx(tx_abi_encode(tx.clone())).await {
-                            Ok(_)  => executed.push(tx),
+                            Ok(res) => {
+                                // tracing::info!(block = ctx.block_number,
+                                //                tx = ?tx.hash(),
+                                //                 res = ?res,
+                                //                "tx executed");
+                                latency.observe();
+                                EXECUTION_METRICS.executed_transactions[&metrics_label.as_ref()].inc();
+
+                                executed.push(tx);
+
+                                // arm the timer once, after first successful tx
+                                if deadline.is_none() {
+                                    if let Some(dur) = deadline_dur {
+                                        deadline = Some(Box::pin(tokio::time::sleep(dur)));
+                                    }
+                                }
+                            }
                             Err(e) => match fail_policy {
                                 InvalidTxPolicy::RejectAndContinue => {
-                                    tracing::warn!(block = ctx.block_number, ?e, "invalid; skipping");
+                                    tracing::warn!(block = ctx.block_number, ?e,
+                                                   "invalid tx → skipped");
                                 }
-                                InvalidTxPolicy::Abort => return Err(anyhow!("invalid tx: {e:?}")),
-                            },
+                                InvalidTxPolicy::Abort => {
+                                    return Err(anyhow!("invalid tx: {e:?}"));
+                                }
+                            }
                         }
+                        wait_for_tx_latency = EXECUTION_METRICS.block_execution_stages[&"wait_for_tx"].start();
                     }
-                    None => break,        // stream finished → seal
+
+                    /* ----- stream ended --------------------------- */
+                    None => {
+                        if executed.is_empty() && matches!(seal_policy, SealPolicy::Exhausted)
+                        {
+                            // Replay path requires at least one tx.
+                            return Err(anyhow!(
+                                "empty replay for block {}",
+                                ctx.block_number
+                            ));
+                        }
+
+                        tracing::info!(block = ctx.block_number,
+                                       txs = executed.len(),
+                                       "stream exhausted → sealing");
+                        break;
+                    }
                 }
             }
         }
     }
+    let latency = EXECUTION_METRICS.block_execution_stages[&"seal"].start();
 
-    /* -------- 3. seal & return -------------------------------------- */
+    /* ---------- seal & return ------------------------------------- */
     let output = runner
         .seal_batch()
         .await
         .map_err(|e| anyhow!("VM seal failed: {e:?}"))?;
-
-    Ok((output, ReplayRecord { context: ctx, transactions: executed }))
-}
-
-
-
-/// ----- Minimal adapter turning a mempool into a `Stream` ------------------
-
-struct MempoolStream {
-    mempool: Mempool,
-}
-
-impl MempoolStream {
-    fn new(mempool: Mempool) -> Self { Self { mempool } }
-}
-
-impl Stream for MempoolStream {
-    type Item = Transaction;
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        // *Request*: make this function async on `Mempool` so we can just call
-        //  `self.mempool.next_tx().await`.  For now we fall back to the old
-        //  busy-wait API behind `tokio::task::block_in_place` to avoid
-        //  blocking the reactor.
-        match self.mempool.get_next() {
-            Some(tx) => Poll::Ready(Some(tx)),
-            None => {
-                // re-arm the waker every X ms (5 ms from the original code)
-                let waker = cx.waker().clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(Duration::from_millis(5)).await;
-                    waker.wake();
-                });
-                Poll::Pending
-            }
-        }
-    }
+    latency.observe();
+    Ok((output,
+        ReplayRecord {
+            context: ctx,
+            transactions: executed,
+        }))
 }

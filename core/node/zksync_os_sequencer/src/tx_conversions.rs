@@ -3,13 +3,14 @@
 
 use zk_os_forward_system::run::BatchOutput;
 use zksync_types::{api, H256, U256};
+use zksync_zkos_vm_runner::zkos_conversions::b160_to_address;
 use crate::CHAIN_ID;
 use crate::storage::in_memory_tx_receipts::TransactionApiData;
 
 pub fn transaction_to_api_data(
     block_output: &BatchOutput,
     index: usize,
-    tx: &zksync_types::Transaction
+    tx: &zksync_types::Transaction,
 ) -> TransactionApiData {
     // let mut ts = std::time::Instant::now();
 
@@ -35,7 +36,7 @@ pub fn transaction_to_api_data(
         y_parity: None,
         max_priority_fee_per_gas: Some(U256::from(1)),
         //todo: other fields
-        .. Default::default()
+        ..Default::default()
     };
 
     // tracing::info!("Block {} - saving - api::Transaction in {:?},", block_output.header.number, ts.elapsed());
@@ -55,7 +56,16 @@ pub fn transaction_to_api_data(
         // todo
         cumulative_gas_used: 7777.into(),
         gas_used: Some(100.into()),
-        contract_address: None, //todo:
+        contract_address: block_output
+            .tx_results
+            .iter()
+            .filter_map(|result| match result {
+                Ok(output) => Some(output.contract_address),
+                Err(_) => None,
+            })
+            .nth(index)
+            .expect("mismatch in number of transactions and results")
+            .map(b160_to_address),
         logs: vec![],
         l2_to_l1_logs: vec![],
         status: 1.into(),
