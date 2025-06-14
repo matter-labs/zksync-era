@@ -168,6 +168,7 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
     // console.log('Waiting for block to be finalized...', blockNumber);
     while (true) {
         const block = await wallet.provider.getBlock('finalized');
+        console.log('block', block.number, blockNumber);
         if (blockNumber <= block.number) {
             break;
         } else {
