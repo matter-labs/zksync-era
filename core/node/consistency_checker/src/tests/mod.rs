@@ -367,7 +367,6 @@ impl SaveAction<'_> {
                         l1_batch_number,
                         AggregatedActionType::Commit,
                         commit_tx_hash,
-                        chrono::Utc::now(),
                         chain_id,
                         EthTxFinalityStatus::Finalized,
                     )

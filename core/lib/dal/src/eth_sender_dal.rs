@@ -1,7 +1,6 @@
 use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
-use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
     match_query_as,
@@ -601,11 +600,9 @@ impl EthSenderDal<'_, '_> {
         Ok(Some(H256::from_str(tx_hash).context("invalid tx_hash")?))
     }
 
+    /// TESTS ONLY
     /// This method inserts a fake transaction into the database that would make the corresponding L1 batch
     /// to be considered committed/proven/executed.
-    ///
-    /// The designed use case is the External Node usage, where we don't really care about the actual transactions apart
-    /// from the hash and the fact that tx was sent.
     ///
     /// ## Warning
     ///
@@ -616,7 +613,6 @@ impl EthSenderDal<'_, '_> {
         l1_batch: L1BatchNumber,
         tx_type: AggregatedActionType,
         tx_hash: H256,
-        confirmed_at: DateTime<Utc>,
         sl_chain_id: Option<SLChainId>,
         finality_status: EthTxFinalityStatus,
     ) -> anyhow::Result<()> {
@@ -657,11 +653,10 @@ impl EthSenderDal<'_, '_> {
             let eth_history_id = sqlx::query_scalar!(
                 "INSERT INTO eth_txs_history \
                 (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
-                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3, TRUE, $4) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), now(), TRUE, $3) \
                 RETURNING id",
                 eth_tx_id,
                 tx_hash,
-                confirmed_at.naive_utc(),
                 finality_status.to_string()
             )
             .fetch_one(transaction.conn())
@@ -695,6 +690,165 @@ impl EthSenderDal<'_, '_> {
         transaction.commit().await.context("commit()")
     }
 
+    /// This method inserts a pending transaction into eth_txs_history table.
+    /// It should be used only in external node context as most properties are not set.
+    /// Inserted transaction does not need to be validated as its set as pending.
+    /// Validation needs to be done before marking with one of the executed statuses.
+    pub async fn insert_pending_received_eth_tx(
+        &mut self,
+        l1_batch: L1BatchNumber,
+        tx_type: AggregatedActionType,
+        tx_hash: H256,
+        sl_chain_id: Option<SLChainId>,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+        let tx_hash = format!("{:#x}", tx_hash);
+
+        let eth_tx_id = sqlx::query_scalar!(
+            "SELECT eth_txs.id FROM eth_txs_history JOIN eth_txs \
+            ON eth_txs.id = eth_txs_history.eth_tx_id \
+            WHERE eth_txs_history.tx_hash = $1",
+            tx_hash
+        )
+        .fetch_optional(transaction.conn())
+        .await?;
+
+        // Check if the transaction with the corresponding hash already exists.
+        let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
+            eth_tx_id
+        } else {
+            // No such transaction in the database yet, we have to insert it.
+
+            // Insert general tx descriptor.
+            let eth_tx_id = sqlx::query_scalar!(
+                "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, chain_id, created_at, updated_at) \
+                VALUES ('\\x00', 0, $1, '', NULL, $2, now(), now()) \
+                RETURNING id",
+                tx_type.to_string(),
+                sl_chain_id.map(|chain_id| chain_id.0 as i64)
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+
+            // Insert a "sent transaction".
+            sqlx::query_scalar!(
+                "INSERT INTO eth_txs_history \
+                (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at, sent_successfully, finality_status) \
+                VALUES ($1, 0, 0, $2, '\\x00', now(), now(), NULL, TRUE, $3) \
+                RETURNING id",
+                eth_tx_id,
+                tx_hash,
+                EthTxFinalityStatus::Pending.to_string()
+            )
+            .fetch_one(transaction.conn())
+            .await?;
+            eth_tx_id
+        };
+
+        // Tie the ETH tx to the L1 batch.
+        super::BlocksDal {
+            storage: &mut transaction,
+        }
+        .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
+        .await
+        .context("set_eth_tx_id()")?;
+
+        transaction.commit().await.context("commit()")
+    }
+
+    pub async fn get_unfinalized_tranasctions(
+        &mut self,
+        limit: u64,
+    ) -> sqlx::Result<Vec<TxHistory>> {
+        let tx_history = sqlx::query_as!(
+            StorageTxHistory,
+            r#"
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_txs_history.finality_status != 'finalized'
+            ORDER BY
+                eth_txs_history.id ASC
+            LIMIT
+                $1
+            "#,
+            limit as i64,
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+        Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
+    }
+
+    /// Sets `sent_at_block` for the eth_txs_history row.
+    /// Used for ExternalNode when syning batch tranasction state from SL.
+    pub async fn set_sent_at_block(
+        &mut self,
+        tx_history_id: u32,
+        block_number: u32,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET sent_at_block = $2
+            WHERE id = $1
+            "#,
+            tx_history_id as i32,
+            block_number as i32,
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
+    /// Sets sent_at_block to null in eth_txs_history row.
+    /// Used for ExternalNode when a previously included transaction on SL is excluded due to fork
+    pub async fn unset_sent_at_block(&mut self, tx_history_id: u32) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_txs_history
+            SET sent_at_block = NULL
+            WHERE id = $1
+            "#,
+            tx_history_id as i32,
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_eth_tx_history_by_id(
+        &mut self,
+        eth_tx_history_id: u32,
+    ) -> sqlx::Result<TxHistory> {
+        let tx_history = sqlx::query_as!(
+            StorageTxHistory,
+            r#"
+            SELECT
+                eth_txs_history.*,
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
+            FROM
+                eth_txs_history
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            WHERE
+                eth_txs_history.id = $1
+            "#,
+            eth_tx_history_id as i32,
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+        Ok(tx_history.into())
+    }
+
     pub async fn get_tx_history_to_check(
         &mut self,
         eth_tx_id: u32,
@@ -704,7 +858,8 @@ impl EthSenderDal<'_, '_> {
             r#"
             SELECT
                 eth_txs_history.*,
-                eth_txs.blob_sidecar
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
@@ -755,7 +910,8 @@ impl EthSenderDal<'_, '_> {
             r#"
             SELECT
                 eth_txs_history.*,
-                eth_txs.blob_sidecar
+                eth_txs.blob_sidecar,
+                eth_txs.tx_type
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
