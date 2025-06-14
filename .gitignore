@@ -89,6 +89,7 @@ core/lib/storage/.env
 .zcli-config.json
 
 db/
+!/prividium/private-rpc/src/db
 en_db/
 db-ssd/
 backups/

@@ -107,6 +107,7 @@ async fn initialize_private_rpc_database(
     let url_str = db_url.as_str();
     let migrations_dir = chain_config
         .link_to_code
+        .join("prividium")
         .join("private-rpc")
         .join("drizzle")
         .display()
@@ -146,7 +147,12 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let chain_name = chain_config.name.clone();
 
-    let _dir_guard = shell.push_dir(chain_config.link_to_code.join("private-rpc"));
+    let _dir_guard = shell.push_dir(
+        chain_config
+            .link_to_code
+            .join("prividium")
+            .join("private-rpc"),
+    );
 
     logger::info(msg_private_rpc_docker_image_being_built());
     Cmd::new(cmd!(
