@@ -1,13 +1,13 @@
 //! Handling outputs produced by the state keeper.
 
-use std::{fmt, sync::Arc};
+use std::{fmt, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_shared_resources::api::SyncState;
 use zksync_types::L2BlockNumber;
 
-use crate::{io::IoCursor, updates::UpdatesManager};
+use crate::{io::IoCursor, metrics::L1_BATCH_METRICS, updates::UpdatesManager};
 
 /// Handler for state keeper outputs (L2 blocks and L1 batches).
 #[async_trait]
@@ -63,6 +63,7 @@ impl StateKeeperOutputHandler for SyncState {
 #[derive(Debug)]
 pub struct OutputHandler {
     inner: Vec<Box<dyn StateKeeperOutputHandler>>,
+    last_l1_batch_sealed_at: Option<Instant>,
 }
 
 impl OutputHandler {
@@ -70,6 +71,7 @@ impl OutputHandler {
     pub fn new(main_handler: Box<dyn StateKeeperOutputHandler>) -> Self {
         Self {
             inner: vec![main_handler],
+            last_l1_batch_sealed_at: None,
         }
     }
 
@@ -133,6 +135,14 @@ impl OutputHandler {
                     )
                 })?;
         }
+
+        if let Some(last_l1_batch_sealed_at) = self.last_l1_batch_sealed_at {
+            L1_BATCH_METRICS
+                .seal_delta
+                .observe(last_l1_batch_sealed_at.elapsed());
+        }
+        self.last_l1_batch_sealed_at = Some(Instant::now());
+
         Ok(())
     }
 }

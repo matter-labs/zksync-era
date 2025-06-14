@@ -40,6 +40,7 @@ pub struct UpdatesManager {
     pubdata_params: PubdataParams,
     next_l2_block_params: Option<L2BlockParams>,
     previous_batch_protocol_version: ProtocolVersionId,
+    pub last_gas_remaining: Option<u32>,
 }
 
 impl UpdatesManager {
@@ -69,6 +70,7 @@ impl UpdatesManager {
             pubdata_params,
             next_l2_block_params: None,
             previous_batch_protocol_version,
+            last_gas_remaining: None,
         }
     }
 
@@ -137,13 +139,13 @@ impl UpdatesManager {
         self.previous_batch_protocol_version
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
         execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
+        gas_remaining: u32,
     ) {
         let latency = UPDATES_MANAGER_METRICS
             .extend_from_executed_transaction
@@ -156,6 +158,7 @@ impl UpdatesManager {
             execution_metrics,
             call_traces,
         );
+        self.last_gas_remaining = Some(gas_remaining);
         latency.observe();
     }
 
@@ -267,6 +270,7 @@ mod tests {
             create_execution_result([]),
             VmExecutionMetrics::default(),
             vec![],
+            1_000_000,
         );
 
         // Check that only pending state is updated.
