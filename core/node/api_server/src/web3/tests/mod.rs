@@ -1419,6 +1419,7 @@ impl HttpTest for HttpServerBatchStatusTest {
                 commit_eth_tx_hash,
                 EthTxFinalityStatus::FastFinalized,
                 U256::zero(),
+                0,
             )
             .await?;
         let block = client
@@ -1439,6 +1440,7 @@ impl HttpTest for HttpServerBatchStatusTest {
                 commit_eth_tx_hash,
                 EthTxFinalityStatus::Finalized,
                 U256::zero(),
+                0,
             )
             .await?;
         let prove_eth_tx_hash = save_eth_tx(
@@ -1453,6 +1455,7 @@ impl HttpTest for HttpServerBatchStatusTest {
                 prove_eth_tx_hash,
                 EthTxFinalityStatus::Finalized,
                 U256::zero(),
+                0,
             )
             .await?;
         let execute_eth_tx_hash =
@@ -1481,6 +1484,7 @@ impl HttpTest for HttpServerBatchStatusTest {
                 execute_eth_tx_hash,
                 EthTxFinalityStatus::FastFinalized,
                 U256::zero(),
+                0,
             )
             .await?;
         let block = client
@@ -1504,6 +1508,7 @@ impl HttpTest for HttpServerBatchStatusTest {
                 execute_eth_tx_hash,
                 EthTxFinalityStatus::Finalized,
                 U256::zero(),
+                0,
             )
             .await?;
         let block = client
@@ -1574,6 +1579,7 @@ async fn promote_l1_batch_to_the_state(
                     commit_eth_tx_hash,
                     EthTxFinalityStatus::Finalized,
                     U256::zero(),
+                    0,
                 )
                 .await?;
             commit_eth_tx_hash
@@ -1590,7 +1596,7 @@ async fn promote_l1_batch_to_the_state(
             .await;
             storage
                 .eth_sender_dal()
-                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
+                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
                 .await?;
             tx_hash
         }
@@ -1602,7 +1608,7 @@ async fn promote_l1_batch_to_the_state(
                 save_eth_tx(storage, l1_batch_number, AggregatedActionType::Execute).await;
             storage
                 .eth_sender_dal()
-                .confirm_tx(tx_hash, EthTxFinalityStatus::FastFinalized, U256::zero())
+                .confirm_tx(tx_hash, EthTxFinalityStatus::FastFinalized, U256::zero(), 0)
                 .await?;
             tx_hash
         }
@@ -1614,7 +1620,7 @@ async fn promote_l1_batch_to_the_state(
             };
             storage
                 .eth_sender_dal()
-                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
+                .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
                 .await?;
             tx_hash
         }

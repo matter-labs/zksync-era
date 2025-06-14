@@ -11,7 +11,6 @@ import path from 'path';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 import { Token } from '../src/types';
 import * as ethers from 'ethers';
-import { scaledGasPrice } from '../src/helpers';
 import { logsTestPath } from 'utils/build/logs';
 import { readFileSync } from 'node:fs';
 import YAML from 'yaml';
@@ -160,9 +159,8 @@ describe('Tests for the private rpc', () => {
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         const absurdly_high_value = ethers.parseEther('1000000.0');
-        const gasPrice = await scaledGasPrice(alice);
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
-        await expect(aliceErc20.transfer(bob.address, absurdly_high_value, { gasLimit, gasPrice })).toBeReverted([
+        await expect(aliceErc20.transfer(bob.address, absurdly_high_value, { gasLimit })).toBeReverted([
             noBalanceChange,
             feeTaken
         ]);

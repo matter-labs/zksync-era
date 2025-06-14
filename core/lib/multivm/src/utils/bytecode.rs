@@ -23,7 +23,7 @@ pub(crate) fn be_words_to_bytes(words: &[U256]) -> Vec<u8> {
         .collect()
 }
 
-pub(crate) fn bytes_to_be_words(bytes: &[u8]) -> Vec<U256> {
+pub fn bytes_to_be_words(bytes: &[u8]) -> Vec<U256> {
     assert_eq!(
         bytes.len() % 32,
         0,

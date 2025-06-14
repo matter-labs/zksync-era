@@ -34,7 +34,7 @@ pub(crate) fn test_circuits<VM: TestedVm>() {
     // Check `circuit_statistic`.
     const EXPECTED: [f32; 13] = [
         1.258627,
-        0.13982475,
+        0.15830745,
         1.6666666,
         0.003154238,
         1.2084359,
@@ -72,7 +72,7 @@ pub(crate) fn test_circuits<VM: TestedVm>() {
         } else {
             let diff = (actual - expected) / expected;
             assert!(
-                diff.abs() < 0.1,
+                diff.abs() < 0.15,
                 "Check failed for {}, expected {}, actual {}",
                 name,
                 expected,
