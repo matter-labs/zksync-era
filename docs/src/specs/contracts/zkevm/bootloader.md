@@ -9,7 +9,7 @@ On standard Ethereum clients, the workflow for executing blocks is the following
 However, having such flow on ZKsync (i.e. processing transaction one-by-one) would be too inefficient, since we have to
 run the entire proving workflow for each individual transaction. That’s why we need the _bootloader_: instead of running
 N transactions separately, we run the entire batch (set of blocks, more can be found
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20%26%20L2%20blocks%20on%20zkSync.md))
+[here](./batches_and_blocks_on_zksync.md))
 as a single program that accepts the array of transactions as well as some other batch metadata and processes them
 inside a single big “transaction”. The easiest way to think about bootloader is to think in terms of EntryPoint from
 EIP4337: it also accepts the array of transactions and facilitates the Account Abstraction protocol.
@@ -77,7 +77,7 @@ supported:
   [hashes of the priority transactions on L1](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Executor.sol#L282).
 
 You can also read more on L1->L2 transactions and upgrade transactions
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
+[here](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 However, as already stated, the bootloader’s memory is not deterministic and the operator is free to put anything it
 wants there. For all of the transaction types above the restrictions are imposed in the following
@@ -125,7 +125,7 @@ Once read, these slots can be used for temporary data.
   equal to 80 million gas. In the future, this feature will be removed.
 - `[3183..7282]` – slots for storing L2 block info for each transaction. You can read more on the difference L2 blocks
   and batches
-  [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20&%20L2%20blocks%20on%20zkSync.md).
+  [here](./batches_and_blocks_on_zksync.md).
 - `[7283..40050]` – slots used for compressed bytecodes each in the following format:
   - 32 bytecode hash
   - 32 zeroes (but then it will be modified by the bootloader to contain 28 zeroes and then the 4-byte selector of the
@@ -133,13 +133,13 @@ Once read, these slots can be used for temporary data.
   - The calldata to the bytecode compressor (without the selector).
 - `[40051..40052]` – slots where the hash and the number of current priority ops is stored. More on it in the priority
   operations
-  [section](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
+  [section](../settlement_contracts/priority_queue/README.md).
 
 ### L1Messenger Pubdata
 
 - `[40053..248052]` – slots where the final batch pubdata is supplied to be verified by the L1Messenger. More on how the
   L1Messenger system contracts handles the pubdata can be read
-  [here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md).
+  [here](../settlement_contracts/data_availability/pubdata.md).
 
 But briefly, this space is used for the calldata to the L1Messenger’s `publishPubdataAndClearState` function, which
 accepts the list of the user L2→L1 logs, published L2→L1 messages as well as bytecodes. It also takes the list of full
@@ -254,7 +254,7 @@ We process the L2 transactions according to our account abstraction protocol:
    [deduct](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L1073)
    the transaction’s upfront payment for the overhead for the block’s processing. You can read more on how that works in
    the fee model
-   [description](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/zkSync%20fee%20model.md).
+   [description](./zksync_fee_model.md).
 2. Then we calculate the gasPrice for these transactions according to the EIP1559 rules.
 3. We
    [conduct the validation step](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L1180)
@@ -284,7 +284,7 @@ We process the L2 transactions according to our account abstraction protocol:
 - The bootloader asks the operator to provide a refund. During the first VM run without proofs the provide directly
   inserts the refunds in the memory of the bootloader. During the run for the proved batches, the operator already knows
   what which values have to be inserted there. You can read more about it in the
-  [documentation](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/zkSync%20fee%20model.md)
+  [documentation](./zksync_fee_model.md)
   of the fee model.
 - The bootloader refunds the user.
 
@@ -299,7 +299,7 @@ transactions. It also has its L1 pubdata price as well as ergsPrice set on L1.
 
 Most of the steps from the execution of L2 transactions are omitted and we set `tx.origin` to the `from`, and
 `ergsPrice` to the one provided by transaction. After that, we use
-[mimicCall](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/advanced/0_alternative_vm_intro.md#zkevm-specific-opcodes)
+[mimicCall](../../../guides/advanced/12_alternative_vm_intro.md#zkevm-specific-opcodes)
 to provide the operation itself from the name of the sender account.
 
 Note, that for L1→L2 transactions, `reserved0` field denotes the amount of ETH that should be minted on L2 as a result
@@ -312,7 +312,7 @@ There are two kinds of L1->L2 transactions:
 - Upgrade transactions, that can be initiated during system upgrade (they have type `254`).
 
 You can read more about differences between those in the corresponding
-[document](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
+[document](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 ## End of the batch
 
@@ -324,11 +324,11 @@ Also, we
 the fictive L2 block’s data. Then, we call the system context to ensure that it publishes the timestamp of the L2 block
 as well as L1 batch. We also reset the `txNumberInBlock` counter to avoid its state diffs from being published on L1.
 You can read more about block processing on ZKsync
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Batches%20&%20L2%20blocks%20on%20zkSync.md).
+[here](./batches_and_blocks_on_zksync.md).
 
 After that, we publish the hash as well as the number of priority operations in this batch. More on it
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20L1%E2%86%92L2%20ops%20on%20zkSync.md).
+[here](../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md).
 
 Then, we call the L1Messenger system contract for it to compose the pubdata to be published on L1. You can read more
 about the pubdata processing
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md).
+[here](../settlement_contracts/data_availability/pubdata.md).

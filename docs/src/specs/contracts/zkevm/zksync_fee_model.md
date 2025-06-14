@@ -51,23 +51,23 @@ batch involves some operational costs as well. All of these values we call “Ba
 - The L1 requirements for the proof verification as well as general batch processing (denoted in L1 gas).
 
 We generally try to aggregate as many transactions as possible and each transaction pays for the batch overhead
-proportionally to how close did the transaction bring the batch to being _sealed,_ i.e. closed and prepared for proof
+proportionally to how close did the transaction bring the batch to being _sealed,_ i.e. closed and prepared for proof
 verification and submission on L1. A transaction gets closer to sealing a batch by using the batch’s _limited
 resources_.
 
 While on Ethereum, the main reason for the existence of batch gas limit is to keep the system decentralized & load low,
-i.e. assuming the existence of the correct hardware, only time would be a requirement for a batch to adhere to. In the
+i.e. assuming the existence of the correct hardware, only time would be a requirement for a batch to adhere to. In the
 case of ZKsync batches, there are some limited resources the batch should manage:
 
 - **Time.** The same as on Ethereum, the batch should generally not take too much time to be closed in order to provide
   better UX. To represent the time needed we use a batch gas limit, note that it is higher than the gas limit for a
   single transaction.
-- **Slots for transactions.** The bootloader has a limited number of slots for transactions, i.e. it can not take more
+- **Slots for transactions.** The bootloader has a limited number of slots for transactions, i.e. it can not take more
   than a certain transactions per batch.
 - **The memory of the bootloader.** The bootloader needs to store the transaction’s ABI encoding in its memory & this
   fills it up. In practical terms, it serves as a penalty for having transactions with large calldata/signatures in case
   of custom accounts.
-- **Pubdata bytes.** In order to fully appreciate the gains from the storage diffs, i.e. the fact that changes in a
+- **Pubdata bytes.** In order to fully appreciate the gains from the storage diffs, i.e. the fact that changes in a
   single slot happening in the same batch need to be published only once, we need to publish all the batch’s public data
   only after the transaction has been processed. Right now, we publish all the data with the storage diffs as well as
   L2→L1 messages, etc in a single transaction at the end of the batch. Most nodes have limit of 128kb per transaction
@@ -109,7 +109,7 @@ factory dependencies field of the transaction and so the operator already knows 
 
 That’s why, to provide the better UX for users, the operator may provide the
 [trusted gas limit](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/system-contracts/bootloader/bootloader.yul#L1137),
-i.e. the limit which exceeds `MAX_TRANSACTION_GAS_LIMIT` assuming that the operator knows what he is doing (e.g. he is
+i.e. the limit which exceeds `MAX_TRANSACTION_GAS_LIMIT` assuming that the operator knows what he is doing (e.g. he is
 sure that the excess gas will be spent on the pubdata).
 
 ### High-level: conclusion
@@ -154,7 +154,7 @@ instance circuits.
 contain almost any arbitrary value depending on the capacity of batch that we want to have.
 
 `BOOTLOADER_MEMORY_FOR_TXS` (_BM_) — The size of the bootloader memory that is used for transaction encoding
-(i.e. excluding the constant space, preallocated for other purposes).
+(i.e. excluding the constant space, preallocated for other purposes).
 
 `GUARANTEED_PUBDATA_PER_TX` (_PG_) — The guaranteed number of pubdata that should be possible to pay for in one ZKsync
 batch. This is a number that should be enough for most reasonable cases.
@@ -205,7 +205,7 @@ $$
 $$
 
 This means that the L1 gas price is so high that if we treated all the prices fairly, then the number of gas required to
-publish guaranteed pubdata is too high, i.e. allowing at least _PG_ pubdata bytes per transaction would mean that we
+publish guaranteed pubdata is too high, i.e. allowing at least _PG_ pubdata bytes per transaction would mean that we
 would to support _tx_._gasLimit_ greater that the maximum gas per transaction _TM_, allowing to run out of other finite
 resources.
 
@@ -450,7 +450,7 @@ At the moment, this counter is not accessible within the VM and so the operator 
 
 #### Refunds for repeated writes
 
-zkEVM is a statediff-based rollup, i.e. the pubdata is published not for transactions, but for storage changes. This
+zkEVM is a statediff-based rollup, i.e. the pubdata is published not for transactions, but for storage changes. This
 means that whenever a user writes into a storage slot, he incurs certain amount of pubdata. However, not all writes are
 equal:
 
@@ -461,9 +461,9 @@ equal:
 - Maybe the slot has been already written to in this batch and so we don’t to charge anything for it.
 
 You can read more about how we treat the pubdata
-[here](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Smart%20contract%20Section/Handling%20pubdata%20in%20Boojum.md).
+[here](../settlement_contracts/data_availability/pubdata.md).
 
-The important part here is that while such refunds are inlined (i.e. unlike the refunds for overhead they happen
+The important part here is that while such refunds are inlined (i.e. unlike the refunds for overhead they happen
 in-place during execution and not after the whole transaction has been processed), they are enforced by the operator.
 Right now, the operator is the one that decides what refund to provide.
 
