@@ -19,8 +19,9 @@ const MOCK_DIAMON_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42)
 
 static INVALID_HASH: H256 = H256::repeat_byte(0xbe);
 
-fn mock_block_number_for_batch_transaction(batch_number: L1BatchNumber) -> u32 {
-    batch_number.0 * 10 + 100
+/// tx_type is 1 for commit, 2 for prove, 3 for execute
+fn mock_block_number_for_batch_transaction(batch_number: L1BatchNumber, tx_type: u8) -> u32 {
+    batch_number.0 * 10 + 100 + tx_type as u32
 }
 
 fn new_mock_eth_interface() -> Box<dyn EthInterface> {
@@ -79,20 +80,23 @@ fn new_mock_eth_interface() -> Box<dyn EthInterface> {
                     _ => return Ok(None),
                 };
 
+                let block_number = Some(U64::from(mock_block_number_for_batch_transaction(
+                    L1BatchNumber(batch_number),
+                    tx_type,
+                )));
+
                 // Create a receipt with status 1 (success)
                 let receipt = TransactionReceipt {
                     status: Some(U64::one()),
-                    block_number: Some(U64::from(mock_block_number_for_batch_transaction(
-                        L1BatchNumber(batch_number),
-                    ))),
+                    block_number,
                     transaction_hash: tx_hash,
                     logs: vec![Log {
                         address: MOCK_DIAMON_PROXY_ADDRESS,
                         topics,
                         data: vec![].into(),
                         block_hash: None,
-                        block_number: None,
-                        transaction_hash: None,
+                        block_number,
+                        transaction_hash: Some(tx_hash),
                         transaction_index: None,
                         log_index: None,
                         transaction_log_index: None,
@@ -133,7 +137,7 @@ async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: L1BatchNumber
     storage.commit().await.unwrap();
 }
 
-// Helper function to insert a transaction for a specific action type
+// Helper function to insert a transaction for a specific action type.
 async fn insert_tx(
     storage: &mut Connection<'_, Core>,
     batch_number: L1BatchNumber,
@@ -177,13 +181,13 @@ async fn insert_batch_transactions(
 
     Ok(())
 }
-
 /// Verify that transaction statuses in the database match the expected values
-async fn verify_transaction_statuses(
+async fn verify_transaction_statuses_separate(
     storage: &mut Connection<'_, Core>,
     batch_number: L1BatchNumber,
-    stage: L1BatchStage,
-    expected_finality_status: EthTxFinalityStatus,
+    expected_commit_status: Option<EthTxFinalityStatus>,
+    expected_prove_status: Option<EthTxFinalityStatus>,
+    expected_execute_status: Option<EthTxFinalityStatus>,
 ) -> anyhow::Result<()> {
     // Get batch details from the database
     let batch_details = storage
@@ -192,44 +196,54 @@ async fn verify_transaction_statuses(
         .await?
         .expect("Batch should exist");
 
-    let expected_db_finality_status = if expected_finality_status == EthTxFinalityStatus::Pending {
-        // In pending status the transactions should not appear in DB
-        assert_eq!(batch_details.base.commit_tx_hash, None);
-        assert_eq!(batch_details.base.committed_at, None);
-        assert_eq!(batch_details.base.prove_tx_hash, None);
-        assert_eq!(batch_details.base.proven_at, None);
-        assert_eq!(batch_details.base.execute_tx_hash, None);
-        assert_eq!(batch_details.base.executed_at, None);
+    assert_eq!(
+        batch_details.base.commit_tx_finality, expected_commit_status,
+        "Commit transaction finality status mismatch"
+    );
+    assert_eq!(
+        batch_details.base.prove_tx_finality, expected_prove_status,
+        "Prove transaction finality status mismatch"
+    );
+    assert_eq!(
+        batch_details.base.execute_tx_finality, expected_execute_status,
+        "Execute transaction finality status mismatch"
+    );
+
+    Ok(())
+}
+
+/// Verify that transaction statuses in the database match the expected one value
+async fn verify_transaction_statuses(
+    storage: &mut Connection<'_, Core>,
+    batch_number: L1BatchNumber,
+    stage: L1BatchStage,
+    expected_finality_status: EthTxFinalityStatus,
+) -> anyhow::Result<()> {
+    let expected_finality_status = if expected_finality_status == EthTxFinalityStatus::Pending {
         None
     } else {
         Some(expected_finality_status)
     };
-
-    // Verify commit transaction status
-    if stage >= L1BatchStage::Committed {
-        assert_eq!(
-            batch_details.base.commit_tx_finality, expected_db_finality_status,
-            "Commit transaction finality status mismatch"
-        );
-    }
-
-    // Verify prove transaction status
-    if stage >= L1BatchStage::Proven {
-        assert_eq!(
-            batch_details.base.prove_tx_finality, expected_db_finality_status,
-            "Prove transaction finality status mismatch"
-        );
-    }
-
-    // Verify execute transaction status
-    if stage >= L1BatchStage::Executed {
-        assert_eq!(
-            batch_details.base.execute_tx_finality, expected_db_finality_status,
-            "Execute transaction finality status mismatch"
-        );
-    }
-
-    Ok(())
+    verify_transaction_statuses_separate(
+        storage,
+        batch_number,
+        if stage >= L1BatchStage::Committed {
+            expected_finality_status
+        } else {
+            None
+        },
+        if stage >= L1BatchStage::Proven {
+            expected_finality_status
+        } else {
+            None
+        },
+        if stage >= L1BatchStage::Executed {
+            expected_finality_status
+        } else {
+            None
+        },
+    )
+    .await
 }
 
 /// Helper function to create transaction hash
@@ -252,7 +266,6 @@ async fn normal_operation_1_batch(
     stage: L1BatchStage,
     finality_status: EthTxFinalityStatus,
 ) -> anyhow::Result<()> {
-    // Create a test database
     let pool = zksync_dal::ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await?;
 
@@ -264,7 +277,7 @@ async fn normal_operation_1_batch(
     let batch_number = L1BatchNumber(1);
     seal_l1_batch(&mut storage, batch_number).await;
     let tranasctions_l1_block_number =
-        L1BlockNumber(mock_block_number_for_batch_transaction(batch_number));
+        L1BlockNumber(mock_block_number_for_batch_transaction(batch_number, 3));
 
     // Create mock ETH interface
     let eth_interface = new_mock_eth_interface();
@@ -326,6 +339,159 @@ async fn normal_operation_1_batch(
             _ => unreachable!("Test only runs with Committed, Proven, or Executed stages"),
         }
     }
+
+    // Test second update does not change anything
+    let updated_count = updater.update_statuses(l1_block_numbers).await?;
+    assert_eq!(updated_count, 0);
+    verify_transaction_statuses(&mut storage, batch_number, stage, finality_status).await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_new_transactions_between_updates_with_finality_change() -> anyhow::Result<()> {
+    let pool = zksync_dal::ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await?;
+
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params).await?;
+
+    let batch_number = L1BatchNumber(1);
+    seal_l1_batch(&mut storage, batch_number).await;
+
+    let mut updater = BatchTransactionUpdater::from_parts(
+        new_mock_eth_interface(),
+        Address::random(),
+        pool.clone(),
+        Duration::from_secs(1),
+    );
+
+    // Start with commit tx online
+    insert_tx(&mut storage, batch_number, AggregatedActionType::Commit).await?;
+
+    // STAGE 1: Initial update with pending transactions
+    // ------------------------------------------------------------
+    // First update - should not change anything as transactions are pending
+    let block_commit = mock_block_number_for_batch_transaction(batch_number, 1);
+    let block_prove = mock_block_number_for_batch_transaction(batch_number, 2);
+    let block_execute = mock_block_number_for_batch_transaction(batch_number, 3);
+
+    let updated_count = updater
+        .update_statuses(L1BlockNumbers {
+            finalized: L1BlockNumber(30),
+            fast_finality: L1BlockNumber(30),
+            latest: L1BlockNumber(block_execute),
+        })
+        .await?;
+
+    // Verify no updates occurred
+    assert_eq!(updated_count, 0);
+    verify_transaction_statuses_separate(&mut storage, batch_number, None, None, None).await?;
+
+    // STAGE 2: Add prove transaction and update with partial finality
+    // ------------------------------------------------------------
+    // Add Prove transaction (progressing to Proven stage)
+    insert_tx(
+        &mut storage,
+        batch_number,
+        AggregatedActionType::PublishProofOnchain,
+    )
+    .await?;
+
+    // Update with blocks that won't finalize any transactions
+    let updated_count = updater
+        .update_statuses(L1BlockNumbers {
+            finalized: L1BlockNumber(50),
+            fast_finality: L1BlockNumber(70),
+            latest: L1BlockNumber(block_prove),
+        })
+        .await?;
+    assert_eq!(updated_count, 0);
+    verify_transaction_statuses_separate(&mut storage, batch_number, None, None, None).await?;
+
+    // Update with blocks that will fast-finalize only the commit transaction
+    let updated_count = updater
+        .update_statuses(L1BlockNumbers {
+            finalized: L1BlockNumber(50),
+            fast_finality: L1BlockNumber(block_commit),
+            latest: L1BlockNumber(block_prove),
+        })
+        .await?;
+    assert_eq!(updated_count, 1); // Only commit transaction should be updated
+
+    verify_transaction_statuses_separate(
+        &mut storage,
+        batch_number,
+        Some(EthTxFinalityStatus::FastFinalized),
+        None,
+        None,
+    )
+    .await?;
+
+    // STAGE 3: Add execute transaction and update with mixed finality
+    // ------------------------------------------------------------
+    // Add execute transaction for current batch and create next batch with all transactions
+    insert_tx(&mut storage, batch_number, AggregatedActionType::Execute).await?;
+    seal_l1_batch(&mut storage, batch_number + 1).await;
+    insert_batch_transactions(&mut storage, batch_number + 1, L1BatchStage::Executed).await?;
+
+    // Update with blocks that will finalize most transactions
+    let block_next_prove = mock_block_number_for_batch_transaction(batch_number + 1, 2);
+    let block_next_execute = mock_block_number_for_batch_transaction(batch_number + 1, 3);
+
+    let updated_count = updater
+        .update_statuses(L1BlockNumbers {
+            finalized: L1BlockNumber(block_next_prove), // Finalized up to next batch's prove
+            fast_finality: L1BlockNumber(block_next_execute), // Fast-finalized up to next batch's execute
+            latest: L1BlockNumber(block_next_execute),        // Latest is at next batch's execute
+        })
+        .await?;
+
+    // All transactions get updated, all but last execute to finalized
+    assert_eq!(updated_count, 6);
+
+    // Verify first batch is fully finalized
+    verify_transaction_statuses_separate(
+        &mut storage,
+        batch_number,
+        Some(EthTxFinalityStatus::Finalized),
+        Some(EthTxFinalityStatus::Finalized),
+        Some(EthTxFinalityStatus::Finalized),
+    )
+    .await?;
+
+    // Verify second batch has mixed finality status
+    verify_transaction_statuses_separate(
+        &mut storage,
+        batch_number + 1,
+        Some(EthTxFinalityStatus::Finalized),
+        Some(EthTxFinalityStatus::Finalized),
+        Some(EthTxFinalityStatus::FastFinalized),
+    )
+    .await?;
+
+    // STAGE 4: Final update to fully finalize all transactions
+    // ------------------------------------------------------------
+    // Update with blocks that will finalize all transactions
+    let final_l1_block_numbers = L1BlockNumbers {
+        finalized: L1BlockNumber(block_next_execute),
+        fast_finality: L1BlockNumber(block_next_execute),
+        latest: L1BlockNumber(block_next_execute),
+    };
+
+    // Final update - should update last execute to finalized
+    let updated_count = updater.update_statuses(final_l1_block_numbers).await?;
+    assert_eq!(updated_count, 1);
+
+    // Verify second batch is now fully finalized
+    verify_transaction_statuses_separate(
+        &mut storage,
+        batch_number + 1,
+        Some(EthTxFinalityStatus::Finalized),
+        Some(EthTxFinalityStatus::Finalized),
+        Some(EthTxFinalityStatus::Finalized),
+    )
+    .await?;
 
     Ok(())
 }
