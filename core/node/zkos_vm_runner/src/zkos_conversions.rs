@@ -197,6 +197,10 @@ pub fn b160_to_address(input: B160) -> Address {
     Address::from_slice(&input.to_be_bytes::<20>())
 }
 
+pub fn ruint_u256_to_api_u256(value: ruint::aliases::U256) -> U256 {
+    U256::from_big_endian(&value.to_be_bytes::<32>())
+}
+
 pub fn zkos_log_to_vm_event(log: Log, location: (L1BatchNumber, u32)) -> VmEvent {
     VmEvent {
         location,
@@ -205,3 +209,4 @@ pub fn zkos_log_to_vm_event(log: Log, location: (L1BatchNumber, u32)) -> VmEvent
         value: log.data,
     }
 }
+
