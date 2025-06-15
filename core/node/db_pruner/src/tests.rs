@@ -391,7 +391,6 @@ async fn mark_l1_batch_as_executed(storage: &mut Connection<'_, Core>, number: u
             L1BatchNumber(number),
             AggregatedActionType::Execute,
             H256::from_low_u64_be(number.into()),
-            chrono::Utc::now(),
             None,
             EthTxFinalityStatus::Finalized,
         )

@@ -41,3 +41,9 @@ impl FromStr for AggregatedActionType {
         }
     }
 }
+
+impl From<std::string::String> for AggregatedActionType {
+    fn from(s: std::string::String) -> Self {
+        Self::from_str(&s).expect("Failed to parse aggregated action type")
+    }
+}
