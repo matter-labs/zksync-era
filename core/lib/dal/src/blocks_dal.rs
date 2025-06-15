@@ -2369,14 +2369,17 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_metadata_only(
         &mut self,
         number: L1BatchNumber,
-    ) -> DalResult<Option<L1BatchMetadata>> {
+    ) -> anyhow::Result<Option<L1BatchMetadata>> {
         let Some(storage_batch) = self.get_storage_l1_batch(number).await? else {
             return Ok(None);
         };
-        let Ok(metadata) = storage_batch.clone().try_into() else {
-            return Ok(None);
-        };
-        Ok(Some(metadata))
+        match storage_batch.clone().try_into() {
+            Ok(metadata) => Ok(Some(metadata)),
+            Err(err) => Err(anyhow::Error::from(err).context(format!(
+                "Failed to convert L1 batch #{} from storage representation to L1BatchMetadata",
+                number
+            ))),
+        }
     }
 
     /// Returns the header and optional metadata for an L1 batch with the specified number. If a batch exists
