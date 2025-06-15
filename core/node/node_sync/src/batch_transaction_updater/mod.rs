@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
@@ -67,6 +67,7 @@ impl BatchTransactionUpdater {
 
     async fn apply_status_update(
         &mut self,
+        connection: &mut Connection<'_, Core>,
         db_eth_history_id: u32,
         receipt: TransactionReceipt,
         l1_block_numbers: &L1BlockNumbers,
@@ -80,11 +81,6 @@ impl BatchTransactionUpdater {
                 receipt.transaction_hash
             );
         }
-
-        let mut connection = self
-            .pool
-            .connection_tagged("batch_transaction_updater")
-            .await?;
 
         let db_eth_history_tx = connection
             .eth_sender_dal()
@@ -211,7 +207,12 @@ impl BatchTransactionUpdater {
 
             let db_eth_history_id = db_eth_tx_history.id;
             let result = self
-                .apply_status_update(db_eth_history_id, receipt, &l1_block_numbers)
+                .apply_status_update(
+                    &mut connection,
+                    db_eth_history_id,
+                    receipt,
+                    &l1_block_numbers,
+                )
                 .await;
 
             if result.is_ok() {
