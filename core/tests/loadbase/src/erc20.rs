@@ -1,5 +1,5 @@
 // src/erc20.rs
-//! Mintable ERC-20 helpers with parallel distribution & debug logs.
+//! ERC-20 deploy, mint, and sequential variable distribution.
 
 use anyhow::Result;
 use ethers::{
@@ -8,8 +8,8 @@ use ethers::{
     types::{Address, U256},
     utils::format_units,
 };
-use futures_util::future::join_all;
 use std::{sync::Arc, time::Duration};
+use tokio::time::{sleep, timeout};
 
 abigen!(
     SimpleERC20,
@@ -23,102 +23,77 @@ pub async fn deploy_and_mint<S: Signer + 'static>(
     signer: Arc<SignerMiddleware<Provider<Http>, S>>,
     name: &str,
     symbol: &str,
-    initial_supply: U256,
+    supply: U256,
 ) -> Result<SimpleERC20<SignerMiddleware<Provider<Http>, S>>> {
-    println!("▶ Deploying ERC-20 {name}/{symbol} …");
+    println!("▶ Deploying {name}/{symbol} …");
     let token = SimpleERC20::deploy(signer.clone(), (name.to_owned(), symbol.to_owned()))?
         .confirmations(0usize)
         .send()
         .await?;
-    println!("   deployed at {}", token.address());
+    println!("   deployed at {}\n", token.address());
 
-    println!(
-        "Total supply before mint: {}",
-        format_units(token.total_supply().call().await?, 18)?
-    );
-
-    // keep ContractCall alive
-    let call_mint    = token.mint(signer.address(), initial_supply);
+    let call_mint    = token.mint(signer.address(), supply);
     let pending_mint = call_mint.send().await?;
-    let mint_hash: H256 = pending_mint.tx_hash();          // ← copy first
-    println!("   mint tx hash: 0x{mint_hash:x}");
-    pending_mint.await?.ok_or_else(|| anyhow::anyhow!("mint tx dropped"))?;
+    println!("   mint tx hash 0x{:x}", pending_mint.tx_hash());
+    pending_mint.await?;
 
-    println!(
-        "Total supply after  mint: {}",
-        format_units(token.total_supply().call().await?, 18)?
-    );
-    println!(
-        "Deployer balance: {}",
-        format_units(token.balance_of(signer.address()).call().await?, 18)?
-    );
-    println!();
+    let supply_eth = format_units(token.total_supply().call().await?, 18)?;
+    println!("   total supply {supply_eth}\n");
     Ok(token)
 }
 
-// ───────────── parallel distribution ─────────────
-pub async fn distribute<M: Middleware + 'static>(
+// ───────────── sequential distribution ─────────────
+pub async fn distribute_varied<M: Middleware + 'static>(
     token: &SimpleERC20<M>,
     dests: &[Address],
-    amount: U256,
+    amounts: &[U256],
 ) -> Result<()> {
-    println!(
-        "▶ Distributing {} tokens to {} wallets …",
-        format_units(amount, 18)?,
-        dests.len()
-    );
+    assert_eq!(dests.len(), amounts.len(), "length mismatch");
+    println!("▶ Distributing tokens sequentially …");
 
     let provider = token.client().clone();
-    let mut handles = Vec::with_capacity(dests.len());
+    let timeout_s = 30;
 
-    for (idx, &addr) in dests.iter().enumerate() {
-        let call_transfer = token.transfer(addr, amount);
-        let pending_tx    = call_transfer.send().await?;
-        let tx_hash: H256 = pending_tx.tx_hash();          // copy
-
-        // retry a short time to fetch nonce
-        let mut nonce_repr = "?".to_string();
-        for _ in 0..5 {
-            if let Some(tx) = provider.get_transaction(tx_hash).await? {
-                nonce_repr = tx.nonce.to_string();
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
+    for (i, (&addr, &amt)) in dests.iter().zip(amounts).enumerate() {
+        // 1. broadcast
+        let call = token.transfer(addr, amt);
+        let pending = call.send().await?;
+        let tx_hash = pending.tx_hash();
         println!(
-            "   tx #{idx:<3} → {addr:?}  nonce {nonce_repr}  hash 0x{tx_hash:x}"
+            "   tx #{:<3} → {addr:?}  amt {:>12}  hash 0x{tx_hash:x}",
+            i,
+            format_units(amt, 18)?
         );
 
-        // spawn receipt poll
-        let prov = provider.clone();
-        handles.push(tokio::spawn(async move {
+        // 2. wait for receipt with timeout
+        match timeout(Duration::from_secs(timeout_s), async {
             loop {
-                match prov.get_transaction_receipt(tx_hash).await {
-                    Ok(Some(rcpt)) => {
-                        if rcpt.status != Some(U64::one()) {
-                            eprintln!(
-                                "⚠️  transfer #{idx} to {addr:?} failed (status {:?})",
-                                rcpt.status
-                            );
-                        }
-                        break;
-                    }
-                    Ok(None) => tokio::time::sleep(Duration::from_millis(100)).await,
-                    Err(e)   => { eprintln!("⚠️  transfer #{idx} to {addr:?} error {e}"); break; }
+                match provider.get_transaction_receipt(tx_hash).await {
+                    Ok(Some(rcpt)) => break Ok(rcpt),
+                    Ok(None)       => sleep(Duration::from_millis(150)).await,
+                    Err(e)         => break Err(anyhow::anyhow!(e)),
                 }
             }
-        }));
+        })
+            .await
+        {
+            Ok(Ok(rcpt)) if rcpt.status == Some(U64::one()) => {
+                println!("      ✅ tx 0x{tx_hash:x} success (block {})",
+                         rcpt.block_number.unwrap());
+            }
+            Ok(Ok(rcpt)) => {
+                println!("      ⚠️ tx 0x{tx_hash:x} reverted (status {:?})",
+                         rcpt.status);
+            }
+            Ok(Err(e)) => {
+                println!("      ⚠️ tx 0x{tx_hash:x} error {e}");
+            }
+            Err(_) => {
+                println!("      ⏳ tx 0x{tx_hash:x} timed-out after {timeout_s}s");
+            }
+        }
     }
 
-    join_all(handles).await;
-
-    // summary
-    println!("\n--- ERC-20 balances after distribution ---");
-    for (i, addr) in dests.iter().enumerate() {
-        let bal = token.balance_of(*addr).call().await?;
-        println!("wallet {:>2}: {}", i, format_units(bal, 18)?);
-    }
-    println!("------------------------------------------------------------\n");
+    println!("   ✅ distribution phase finished\n");
     Ok(())
 }

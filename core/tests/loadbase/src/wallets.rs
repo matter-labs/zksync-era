@@ -1,5 +1,6 @@
 // src/wallets.rs
-//! Derivation utilities plus *sequential* prefund logic.
+//! Wallet derivation + parallel ETH prefund with strictly monotonic nonces
+//! (no gaps when some wallets are already funded).
 
 use anyhow::Result;
 use ethers::{
@@ -8,74 +9,90 @@ use ethers::{
     types::{TransactionRequest, U256},
     utils::format_units,
 };
+use futures_util::future::join_all;
 use std::time::Duration;
 
-/// Derive `n` wallets from the given mnemonic (BIP-44 path m/44'/60'/0'/0/i).
+/// Derive `n` wallets from the mnemonic (m/44'/60'/0'/0/i).
 pub fn derive(mnemonic: &str, n: u32, chain_id: u64) -> Result<Vec<LocalWallet>> {
     let builder = MnemonicBuilder::<English>::default().phrase(mnemonic);
-    let mut wallets = Vec::with_capacity(n as usize);
-    for i in 0..n {
-        wallets.push(builder.clone().index(i)?.build()?.with_chain_id(chain_id));
-    }
-    Ok(wallets)
+    (0..n)
+        .map(|i| Ok(builder.clone().index(i)?.build()?.with_chain_id(chain_id)))
+        .collect()
 }
 
-/// Fund every destination wallet **sequentially**.
-///
-/// * If a wallet already has at least `amount`, it is skipped.
-/// * Otherwise we send a 21 000-gas transfer, wait for the receipt, then
-///   poll the balance until the top-up is visible.
-pub async fn prefund<S: Signer + 'static>(
+/// Prefund wallets concurrently while keeping consecutive nonces.
+pub async fn prefund_varied<S: Signer + 'static>(
     rich: &SignerMiddleware<Provider<Http>, S>,
     dests: &[Address],
-    amount_wei: &str,
+    amounts: &[U256],
 ) -> Result<()> {
-    let wei: U256 = amount_wei.parse()?;
-    let provider  = rich.provider();
+    assert_eq!(dests.len(), amounts.len(), "length mismatch");
+    let provider = rich.provider();
+    let mut next_nonce = provider
+        .get_transaction_count(rich.signer().address(), Some(BlockNumber::Pending.into()))
+        .await?;
 
-    for (i, dest) in dests.iter().enumerate() {
-        let bal_before = provider.get_balance(*dest, None).await?;
-        let bal_eth_before = format_units(bal_before, 18)?;
-        let need_topup = bal_before < wei;
+    println!("▶ ETH prefund (parallel) …");
+    let mut pendings = Vec::new();
+
+    for (idx, (&addr, &target)) in dests.iter().zip(amounts).enumerate() {
+        let bal_before = provider.get_balance(addr, None).await?;
+        if bal_before >= target {
+            println!(
+                "   wallet #{:<4} {} ≥ target ({} ETH)",
+                idx,
+                addr,
+                format_units(target, 18)?
+            );
+            continue; // no tx, nonce not consumed
+        }
+
+        let need = target - bal_before;
+        let tx = TransactionRequest::pay(addr, need)
+            .from(rich.signer().address())
+            .gas(U256::from(21_000))
+            .nonce(next_nonce);
 
         println!(
-            "Wallet #{:<3} {}  balance before: {} ETH  {}",
-            i,
-            dest,
-            bal_eth_before.trim_end_matches('0').trim_end_matches('.'),
-            if need_topup { "→ funding…" } else { "✓ already funded" }
+            "   tx #{:<4} nonce {} → {addr:?} need {} wei  hash …",
+            idx,
+            next_nonce,
+            need
         );
 
-        if !need_topup {
-            continue;
-        }
+        let pending = rich.send_transaction(tx, None).await?;
+        println!("      hash 0x{:x}", pending.tx_hash());
 
-        // send funding tx
-        let pending = rich
-            .send_transaction(
-                TransactionRequest::pay(*dest, wei)
-                    .from(rich.signer().address())
-                    .gas(U256::from(21_000u64)),
-                None,
-            )
-            .await?;
+        pendings.push(pending);
+        next_nonce += U256::one(); // advance only when we send
+    }
 
-        println!("   tx hash: 0x{:x}  awaiting inclusion…", pending.tx_hash());
-        pending.await?; // wait for mined receipt
+    // wait receipts in parallel
+    join_all(pendings.into_iter().map(|p| async move { let _ = p.await; })).await;
+    println!("   all prefund txs mined, verifying …");
 
-        // poll until balance reflects the transfer
-        loop {
-            let bal_now = provider.get_balance(*dest, None).await?;
-            if bal_now >= wei {
-                let bal_eth_after = format_units(bal_now, 18)?;
-                println!(
-                    "   balance after:  {} ETH  ✅",
-                    bal_eth_after.trim_end_matches('0').trim_end_matches('.')
-                );
-                break;
+    // bounded verification (≤20 s) so we never hang
+    const MAX_WAIT: Duration = Duration::from_secs(20);
+    let start = tokio::time::Instant::now();
+    loop {
+        let mut still_low = Vec::new();
+        for (idx, (&addr, &target)) in dests.iter().zip(amounts).enumerate() {
+            if provider.get_balance(addr, None).await? < target {
+                still_low.push((idx, addr));
             }
-            tokio::time::sleep(Duration::from_millis(200)).await;
         }
+        if still_low.is_empty() || start.elapsed() >= MAX_WAIT {
+            if still_low.is_empty() {
+                println!("   ✅ ETH prefund finished\n");
+            } else {
+                println!("   ⚠️ still under-funded after 20 s:");
+                for (idx, a) in still_low {
+                    println!("      wallet #{idx} {a:?}");
+                }
+            }
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
     }
     Ok(())
 }

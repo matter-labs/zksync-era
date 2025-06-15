@@ -123,3 +123,6 @@ install
 
 # zksync-os gas bench markers
 markers.bench
+#core/tests/loadbase/contracts/cache
+#core/tests/loadbase/contracts/lib
+#core/tests/loadbase/contracts/out
