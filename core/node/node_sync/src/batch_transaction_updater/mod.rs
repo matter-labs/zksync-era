@@ -124,6 +124,16 @@ impl BatchTransactionUpdater {
                 receipt.gas_used.unwrap_or_default(), // we don't care about gas used for synced transaction
             )
             .await?;
+
+        tracing::info!(
+            "Updated finality status for transaction {} ({} for batch {}) from {:?} to {:?}",
+            db_eth_history_tx.tx_hash,
+            db_eth_history_tx.tx_type,
+            batch_number,
+            db_eth_history_tx.eth_tx_finality_status,
+            updated_status
+        );
+
         Ok(())
     }
 
@@ -205,13 +215,6 @@ impl BatchTransactionUpdater {
                 .await;
 
             if result.is_ok() {
-                tracing::debug!(
-                    "Updated finality status for transaction {} with type {} from {:?} to {:?}",
-                    db_eth_tx_history.tx_hash,
-                    db_eth_tx_history.tx_type,
-                    db_eth_tx_history.eth_tx_finality_status,
-                    finality_update
-                );
                 updated_count += 1;
             } else {
                 tracing::warn!(
