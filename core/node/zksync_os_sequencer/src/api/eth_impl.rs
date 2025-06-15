@@ -5,7 +5,7 @@ use zk_os_forward_system::run::{ExecutionResult, PreimageSource};
 use zksync_web3_decl::jsonrpsee::core::RpcResult;
 use zksync_web3_decl::types::{Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U256, U64, U64Number};
 use crate::{CHAIN_ID, DEFAULT_ETH_CALL_GAS, MAX_TX_SIZE};
-use crate::storage::in_memory_state::{InMemoryStorage};
+use crate::storage::storage_map::{StorageMap};
 use zksync_zkos_vm_runner::zkos_conversions::{h256_to_bytes32, ruint_u256_to_api_u256, tx_abi_encode};
 
 use zksync_web3_decl::{namespaces::EthNamespaceServer};

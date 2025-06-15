@@ -31,9 +31,32 @@ pub struct StorageViewMetrics {
 
     #[metrics(unit = Unit::Seconds, labels = ["source"], buckets = BLOCKS_SCANNED)]
     pub storage_access_diffs_scanned: LabeledFamily<&'static str, Histogram<u64>>,
+
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
+    pub storage_add_diff: LabeledFamily<&'static str, Histogram<Duration>>,
+
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
+    pub storage_persistence: LabeledFamily<&'static str, Histogram<Duration>>,
+
+    #[metrics(labels = ["outcome"])]
+    pub storage_bloom_outcome: LabeledFamily<&'static str, Counter<u64>>,
+}
+
+#[derive(Debug, Metrics)]
+pub struct StorageMapRocksDBMetrics {
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
+    pub get: LabeledFamily<&'static str, Histogram<Duration>>,
+
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
+    pub compact: LabeledFamily<&'static str, Histogram<Duration>>,
+
+    #[metrics(labels = ["stage"])]
+    pub compact_batch_size: LabeledFamily<&'static str, Counter<u64>>,
 }
 
 #[vise::register]
 pub(crate) static EXECUTION_METRICS: vise::Global<ExecutionMetrics> = vise::Global::new();
 #[vise::register]
 pub(crate) static STORAGE_VIEW_METRICS: vise::Global<StorageViewMetrics> = vise::Global::new();
+#[vise::register]
+pub(crate) static STORAGE_MAP_ROCKS_DB_METRICS: vise::Global<StorageMapRocksDBMetrics> = vise::Global::new();

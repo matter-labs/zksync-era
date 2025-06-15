@@ -45,9 +45,8 @@ impl BlockReplayStorage {
     const LATEST_KEY: &'static [u8] = b"latest_block";
 
     /// Opens (or creates) the WAL at the specified filesystem path.
-    pub fn new(path: &Path) -> anyhow::Result<Self> {
-        let db = RocksDB::<BlockReplayColumnFamily>::new(path)?;
-        Ok(Self { db })
+    pub fn new(db: RocksDB<BlockReplayColumnFamily>) -> Self {
+        Self { db }
     }
 
     /// Appends a replay command (context + raw transactions) to the WAL.

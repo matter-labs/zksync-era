@@ -15,7 +15,7 @@ use crate::{BLOCKS_TO_RETAIN, JSON_RPC_ADDR};
 use crate::api::eth_impl::EthNamespace;
 use crate::mempool::Mempool;
 use crate::storage::block_replay_storage::BlockReplayStorage;
-use crate::storage::in_memory_state::InMemoryStorage;
+use crate::storage::storage_map::StorageMap;
 use crate::storage::StateHandle;
 
 // stripped-down version of `api_server/src/web3/mod.rs`

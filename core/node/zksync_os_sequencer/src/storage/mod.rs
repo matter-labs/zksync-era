@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -9,26 +10,28 @@ use zk_ee::utils::Bytes32;
 use zk_os_basic_system::system_implementation::flat_storage_model::{ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties};
 use zk_os_forward_system::run::{BatchOutput, PreimageSource, ReadStorage, ReadStorageTree};
 use zk_os_forward_system::run::output::TxResult;
+use zksync_storage::RocksDB;
 use zksync_types::{Address, api, h256_to_address, Transaction};
 use zksync_web3_decl::types::U256;
 use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
-use crate::CHAIN_ID;
+use crate::{CHAIN_ID, STATE_STORAGE_PATH};
 use crate::storage::in_memory_account_properties::InMemoryAccountProperties;
 use crate::storage::in_memory_block_receipts::InMemoryBlockReceipts;
 use crate::storage::in_memory_preimages::InMemoryPreimages;
-use crate::storage::in_memory_state::InMemoryStorage;
+use crate::storage::storage_map::{Diff, StorageMap, StorageMapView};
 use crate::storage::in_memory_tx_receipts::InMemoryTxReceipts;
 use crate::tx_conversions::transaction_to_api_data;
 use crate::util::{bytes32_to_address};
 use crate::execution::metrics::{STORAGE_VIEW_METRICS};
+use crate::storage::persistent_storage_map::StorageMapCF;
 
-pub mod in_memory_state;
+pub mod storage_map;
 pub mod block_replay_storage;
 pub mod in_memory_preimages;
 pub mod in_memory_account_properties;
 pub mod in_memory_block_receipts;
 pub mod in_memory_tx_receipts;
-
+pub mod persistent_storage_map;
 // This is a handle to the in-memory state of the sequencer.
 // It's composed of mulitple facets - note that they don't interact with each other, and we never lock them together.
 // all are thread-safe and provide state view for the last N blocks (BLOCKS_TO_RETAIN constant in mod.rs)
@@ -56,7 +59,7 @@ pub struct StateHandleInner {
 
     // stores full state -
     // per-block diff for last BLOCKS_TO_RETAIN blocks and compacted base state
-    pub in_memory_storage: InMemoryStorage,
+    pub in_memory_storage: StorageMap,
     // simple thread-safe HashMap<Hash, Preimage>
     pub in_memory_preimages: InMemoryPreimages,
 
@@ -76,12 +79,11 @@ pub struct StateHandleInner {
 #[derive(Clone, Debug)]
 pub struct StorageView {
     block: u64,
-    base_block: u64,
-    base_state: Arc<DashMap<Bytes32, Bytes32>>,
-    diffs: Arc<DashMap<u64, Arc<HashMap<Bytes32, Bytes32>>>>,
+    storage_map_view: StorageMapView,
 
     preimages: InMemoryPreimages,
 }
+
 
 impl StateHandle {
     /// Returns a `StorageView` for reading state at `block_number`.
@@ -101,21 +103,20 @@ impl StateHandle {
                 last_block
             ));
         }
+        let storage_map_view = self.0.in_memory_storage.view_at(block_number)?;
         let r = StorageView {
             block: block_number,
-            base_block: self.0.in_memory_storage.base_block.load(Ordering::SeqCst),
-            base_state: self.0.in_memory_storage.base_state.clone(),
-            diffs: self.0.in_memory_storage.diffs.clone(),
+            storage_map_view,
             preimages: self.0.in_memory_preimages.clone(),
         };
         Ok(r)
     }
 
-    pub fn empty() -> StateHandle {
+    pub fn empty(state_db: RocksDB<StorageMapCF>) -> StateHandle {
         StateHandle(Arc::new(StateHandleInner {
             last_pending_block_number: Arc::new(Default::default()),
             last_canonized_block_number: Arc::new(Default::default()),
-            in_memory_storage: InMemoryStorage::empty(),
+            in_memory_storage: StorageMap::new(state_db),
             in_memory_preimages: InMemoryPreimages::empty(),
             account_property_history: InMemoryAccountProperties::empty(),
             in_memory_block_receipts: InMemoryBlockReceipts::empty(),
@@ -174,13 +175,13 @@ impl StateHandle {
         //     }
         // });
         // block_output.storage_writes.iter().for_each(|log| {
-            // tracing::info!(
-                // "Storage write: account: {:?}, account: {:?}, key: {:?}, value: {:?}",
-                // log.account,
-                // log.account_key,
-                // log.account_key,
-                // log.value
-            // );
+        // tracing::info!(
+        // "Storage write: account: {:?}, account: {:?}, key: {:?}, value: {:?}",
+        // log.account,
+        // log.account_key,
+        // log.account_key,
+        // log.value
+        // );
         // });
 
         let mut ts = std::time::Instant::now();
@@ -288,9 +289,25 @@ impl StateHandle {
         }
         return result;
     }
+
+    pub async fn collect_state_metrics(
+        &self,
+    ) {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
+        let storage = self.0.in_memory_storage.clone();
+        loop {
+            ticker.tick().await;
+            let m = storage.collect_metrics();
+            tracing::info!("{:?}", m);
+        }
+    }
 }
 
-
+impl ReadStorage for StorageView {
+    fn read(&mut self, key: Bytes32) -> Option<Bytes32> {
+        self.storage_map_view.read(key)
+    }
+}
 impl PreimageSource for StorageView {
     fn get_preimage(&mut self, hash: Bytes32) -> Option<Vec<u8>> {
         let latency = STORAGE_VIEW_METRICS.preimage_access_latency[&"base"].start();
@@ -302,43 +319,16 @@ impl PreimageSource for StorageView {
 }
 
 
-impl ReadStorage for StorageView {
-    /// Reads `key` by scanning block diffs from `block - 1` down to `base_block + 1`,
-    /// then falling back to the mutable base state at `base_block`.
-    fn read(&mut self, key: Bytes32) -> Option<Bytes32> {
-        let started_at = Instant::now();
-        for bn in (self.base_block + 1..self.block).rev() {
-            if let Some(diff_arc) = self.diffs.get(&bn) {
-                if let Some(value) = diff_arc.get(&key) {
-                    STORAGE_VIEW_METRICS.storage_access_latency[&"diffs"].observe(started_at.elapsed());
-                    STORAGE_VIEW_METRICS.storage_access_diffs_scanned[&"diffs"].observe(self.block - bn);
-                    return Some(*value);
-                }
-            }
-        }
-        // Fallback to base_state
-        let r = self.base_state.get(&key).map(|r| *r.value());
-        STORAGE_VIEW_METRICS.storage_access_latency[&"base"].observe(started_at.elapsed());
-        STORAGE_VIEW_METRICS.storage_access_diffs_scanned[&"base"].observe(self.block - self.base_block);
-        r
-    }
-}
-
+/* ------------------------------------------------------------------ */
+/*  Dummy trait impls required by zk-OS                               */
+/* ------------------------------------------------------------------ */
 impl ReadStorageTree for StorageView {
-    /// Returns the index of the storage tree for the given key.
-    /// This is a no-op since in-memory storage does not use a tree structure.
     fn tree_index(&mut self, _key: Bytes32) -> Option<u64> {
         unimplemented!()
     }
-
-    /// Returns a proof for the given tree index.
-    /// This is a no-op since in-memory storage does not use a tree structure.
-    fn merkle_proof(&mut self, _tree_index: u64) -> zk_os_forward_system::run::LeafProof {
+    fn merkle_proof(&mut self, _idx: u64) -> zk_os_forward_system::run::LeafProof {
         unimplemented!()
     }
-
-    /// Returns the previous tree index for the given key.
-    /// This is a no-op since in-memory storage does not use a tree structure.
     fn prev_tree_index(&mut self, _key: Bytes32) -> u64 {
         unimplemented!()
     }
