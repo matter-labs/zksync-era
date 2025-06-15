@@ -13,11 +13,11 @@ pub fn execute(
     mut block_context: BatchContext,
      storage_view: StorageView,
 ) -> anyhow::Result<TxOutput> {
-    tracing::info!(
-        "Executing transaction: {:?} in block: {:?}",
-        tx,
-        block_context.block_number
-    );
+    // tracing::info!(
+    //     "Executing transaction: {:?} in block: {:?}",
+    //     tx,
+    //     block_context.block_number
+    // );
     let encoded_tx = tx_abi_encode(tx.into());
 
     block_context.eip1559_basefee = U256::from(0);

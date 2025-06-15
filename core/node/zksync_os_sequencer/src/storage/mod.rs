@@ -23,7 +23,9 @@ use crate::storage::in_memory_tx_receipts::InMemoryTxReceipts;
 use crate::tx_conversions::transaction_to_api_data;
 use crate::util::{bytes32_to_address};
 use crate::execution::metrics::{STORAGE_VIEW_METRICS};
-use crate::storage::persistent_storage_map::StorageMapCF;
+use crate::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
+use crate::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
+use crate::storage::storage_metrics::StorageMetrics;
 
 pub mod storage_map;
 pub mod block_replay_storage;
@@ -32,6 +34,8 @@ pub mod in_memory_account_properties;
 pub mod in_memory_block_receipts;
 pub mod in_memory_tx_receipts;
 pub mod persistent_storage_map;
+pub mod rocksdb_preimages;
+mod storage_metrics;
 // This is a handle to the in-memory state of the sequencer.
 // It's composed of mulitple facets - note that they don't interact with each other, and we never lock them together.
 // all are thread-safe and provide state view for the last N blocks (BLOCKS_TO_RETAIN constant in mod.rs)
@@ -60,8 +64,8 @@ pub struct StateHandleInner {
     // stores full state -
     // per-block diff for last BLOCKS_TO_RETAIN blocks and compacted base state
     pub in_memory_storage: StorageMap,
-    // simple thread-safe HashMap<Hash, Preimage>
-    pub in_memory_preimages: InMemoryPreimages,
+    // preimages are stored sync in RocksDB
+    pub rocks_db_preimages: RocksDbPreimages,
 
     // stores account properties of all accounts -
     // per-block diff for last BLOCKS_TO_RETAIN blocks and compacted values for blocks before
@@ -81,7 +85,7 @@ pub struct StorageView {
     block: u64,
     storage_map_view: StorageMapView,
 
-    preimages: InMemoryPreimages,
+    preimages: RocksDbPreimages,
 }
 
 
@@ -95,7 +99,7 @@ impl StateHandle {
         block_number: u64,
     ) -> anyhow::Result<StorageView> {
         let last_block = self.0.last_pending_block_number.load(Ordering::SeqCst);
-        tracing::info!("Creating StorageView for block {} (last pending: {})", block_number, last_block);
+        // tracing::info!("Creating StorageView for block {} (last pending: {})", block_number, last_block);
         if block_number > last_block + 1 {
             return Err(anyhow::anyhow!(
                 "Cannot create StorageView for future block {} (current is {})",
@@ -107,17 +111,24 @@ impl StateHandle {
         let r = StorageView {
             block: block_number,
             storage_map_view,
-            preimages: self.0.in_memory_preimages.clone(),
+            preimages: self.0.rocks_db_preimages.clone(),
         };
         Ok(r)
     }
 
-    pub fn empty(state_db: RocksDB<StorageMapCF>) -> StateHandle {
+    pub fn empty(
+        starting_block: u64,
+        persistent_storage_map: PersistentStorageMap,
+        rocks_db_preimages: RocksDbPreimages
+    ) -> StateHandle {
+        let last_pending_block_number = Arc::new(AtomicU64::new(starting_block));
+        let last_canonized_block_number = Arc::new(AtomicU64::new(starting_block));
+
         StateHandle(Arc::new(StateHandleInner {
-            last_pending_block_number: Arc::new(Default::default()),
-            last_canonized_block_number: Arc::new(Default::default()),
-            in_memory_storage: StorageMap::new(state_db),
-            in_memory_preimages: InMemoryPreimages::empty(),
+            last_pending_block_number,
+            last_canonized_block_number,
+            in_memory_storage: StorageMap::new(persistent_storage_map),
+            rocks_db_preimages,
             account_property_history: InMemoryAccountProperties::empty(),
             in_memory_block_receipts: InMemoryBlockReceipts::empty(),
             in_memory_tx_receipts: InMemoryTxReceipts::empty(),
@@ -210,7 +221,8 @@ impl StateHandle {
         // tracing::info!("Block {} - saving - added to in_memory_storage in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();
         // Update the preimages
-        self.0.in_memory_preimages.add_many(
+        self.0.rocks_db_preimages.add(
+            current_block_number,
             block_output.published_preimages.iter().map(|(hash, preimage, _)| (hash.clone(), preimage.clone()))
         );
 
@@ -294,10 +306,10 @@ impl StateHandle {
         &self,
     ) {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
-        let storage = self.0.in_memory_storage.clone();
+        let state_handle = self.clone();
         loop {
             ticker.tick().await;
-            let m = storage.collect_metrics();
+            let m = StorageMetrics::collect_metrics(state_handle.clone());
             tracing::info!("{:?}", m);
         }
     }
@@ -310,11 +322,7 @@ impl ReadStorage for StorageView {
 }
 impl PreimageSource for StorageView {
     fn get_preimage(&mut self, hash: Bytes32) -> Option<Vec<u8>> {
-        let latency = STORAGE_VIEW_METRICS.preimage_access_latency[&"base"].start();
-        let r = self.preimages.map.get(&hash).map(|r| r.value().clone());
-        latency.observe();
-        // tracing::info!("Preimage for {:?}: {:?}", hash, r);
-        r
+        self.preimages.get(hash)
     }
 }
 

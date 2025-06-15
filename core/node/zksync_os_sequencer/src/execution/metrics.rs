@@ -43,6 +43,7 @@ pub struct StorageViewMetrics {
 }
 
 #[derive(Debug, Metrics)]
+#[metrics(prefix = "storage_map_rocks_db")]
 pub struct StorageMapRocksDBMetrics {
     #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
     pub get: LabeledFamily<&'static str, Histogram<Duration>>,
@@ -54,9 +55,21 @@ pub struct StorageMapRocksDBMetrics {
     pub compact_batch_size: LabeledFamily<&'static str, Counter<u64>>,
 }
 
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "preimages_rocks_db")]
+pub struct PreimagesRocksDBMetrics {
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
+    pub get_latency: LabeledFamily<&'static str, Histogram<Duration>>,
+
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
+    pub set_latency: LabeledFamily<&'static str, Histogram<Duration>>,
+}
+
 #[vise::register]
 pub(crate) static EXECUTION_METRICS: vise::Global<ExecutionMetrics> = vise::Global::new();
 #[vise::register]
 pub(crate) static STORAGE_VIEW_METRICS: vise::Global<StorageViewMetrics> = vise::Global::new();
 #[vise::register]
 pub(crate) static STORAGE_MAP_ROCKS_DB_METRICS: vise::Global<StorageMapRocksDBMetrics> = vise::Global::new();
+#[vise::register]
+pub(crate) static PREIMAGES_ROCKS_DB_METRICS: vise::Global<PreimagesRocksDBMetrics> = vise::Global::new();

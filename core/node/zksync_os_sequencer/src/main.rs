@@ -30,13 +30,15 @@ use crate::storage::block_replay_storage::{BlockReplayColumnFamily, BlockReplayS
 use crate::storage::storage_map::{StorageMap};
 use crate::storage::StateHandle;
 use anyhow::{Result, Context};
+use futures_util::TryFutureExt;
 use itertools::Itertools;
 use tokio::sync::broadcast::channel;
 use tokio::sync::watch;
 use zksync_storage::RocksDB;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use crate::execution::metrics::{EXECUTION_METRICS};
-use crate::storage::persistent_storage_map::StorageMapCF;
+use crate::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
+use crate::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
 // Terms:
 // * BlockReplayData     - minimal info to (re)apply the block.
 //
@@ -56,6 +58,7 @@ use crate::storage::persistent_storage_map::StorageMapCF;
 
 const BLOCK_REPLAY_WAL_PATH: &str = "../chains/era/db/main/block_replay_wal";
 const STATE_STORAGE_PATH: &str = "../chains/era/db/main/state";
+const PREIMAGES_STORAGE_PATH: &str = "../chains/era/db/main/preimages";
 const CHAIN_ID: u64 = 270;
 
 // Maximum number of per-block information stored in memory - and thus returned from API.
@@ -76,17 +79,13 @@ const DEFAULT_ETH_CALL_GAS: u32 = 10000000;
 pub async fn main() {
     let prometheus: PrometheusExporterConfig =
         PrometheusExporterConfig::pull(3312);
-
     let (stop_sender, stop_receiver) = watch::channel(false);
+    tokio::task::spawn(prometheus.run(stop_receiver).map_ok(|o| tracing::error!("unexp")).map_err(|e| {
+        tracing::error!("Prometheus exporter failed: {e:#}");
+    }));
 
-    tokio::task::spawn(prometheus.run(stop_receiver));
-    // let prometheus_task = self.config.run(stop_receiver.0);
-
-    tracing_subscriber::fmt()
+    tracing_subscriber::fmt().init();
         // .pretty()
-        .init();
-
-    tracing::warn!("TODO: Current Implementation doesn't persist Block Recipies or State - so we replay all blocks starting from genesis");
 
     let block_replay_storage_rocks_db = RocksDB::<BlockReplayColumnFamily>::new(Path::new(BLOCK_REPLAY_WAL_PATH))
         .expect("Failed to open BlockReplayWAL");
@@ -95,11 +94,35 @@ pub async fn main() {
 
     let state_db = RocksDB::<StorageMapCF>::new(Path::new(STATE_STORAGE_PATH))
         .expect("Failed to open State DB");
+    let persistent_storage_map = PersistentStorageMap::new(state_db);
 
-    let state_handle = StateHandle::empty(state_db);
+
+    let preimages_db = RocksDB::<PreimagesCF>::new(Path::new(PREIMAGES_STORAGE_PATH))
+        .expect("Failed to open Preimages DB");
+    let rocks_db_preimages = RocksDbPreimages::new(preimages_db);
+
+    let state_db_block = persistent_storage_map.rocksdb_block_number();
+    let preimages_db_block = rocks_db_preimages.rocksdb_block_number();
+    assert!(
+        state_db_block <= preimages_db_block,
+        "State DB block number ({state_db_block}) is greater than Preimages DB block number ({preimages_db_block}). This is not allowed."
+    );
+
+    let state_handle = StateHandle::empty(
+        state_db_block,
+        persistent_storage_map,
+        rocks_db_preimages,
+    );
+
+    let block_to_start = state_db_block + 1;
+    tracing::info!(
+        "State DB block number: {state_db_block}, Preimages DB block number: {preimages_db_block}, starting execution from {block_to_start}"
+    );
+
     let mempool = Mempool::new(forced_deposit_transaction());
 
     tokio::select! {
+        // todo: only start after sequence caught up?
         // ── JSON-RPC task ────────────────────────────────────────────────
         res = run_jsonrpsee_server(state_handle.clone(), mempool.clone(), block_replay_storage.clone()) => {
             match res {
@@ -109,7 +132,12 @@ pub async fn main() {
         }
 
         // ── Sequencer task ───────────────────────────────────────────────
-        res = run_sequencer_actor(block_replay_storage, state_handle.clone(), mempool) => {
+        res = run_sequencer_actor(
+            block_to_start,
+            block_replay_storage,
+            state_handle.clone(),
+            mempool
+        ) => {
             match res {
                 Ok(_)  => tracing::warn!("Sequencer server unexpectedly exited"),
                 Err(e) => tracing::error!("Sequencer server failed: {e:#}"),
@@ -123,12 +151,11 @@ pub async fn main() {
 }
 
 async fn run_sequencer_actor(
+    block_to_start: u64,
     wal: BlockReplayStorage,
     state: StateHandle,
     mempool: Mempool,
 ) -> Result<()> {
-    let last_block_in_wal = wal.latest_block().unwrap_or(0);
-    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
     let wal_clone = wal.clone();
     let state_clone = state.clone();
 
@@ -143,7 +170,7 @@ async fn run_sequencer_actor(
         let state    = state.clone();
 
         async move {
-            let mut stream = command_source(&wal, last_block_in_wal);
+            let mut stream = command_source(&wal, block_to_start);
 
             while let Some(cmd) = stream.next().await {
                 let bn = cmd.block_number();
@@ -243,9 +270,13 @@ async fn run_sequencer_stream(
     Ok(())
 }
 
-fn command_source(block_replay_wal: &BlockReplayStorage, last_block_in_wal: u64) -> Chain<BoxStream<BlockCommand>, BoxStream<BlockCommand>> {
+fn command_source(block_replay_wal: &BlockReplayStorage, block_to_start: u64) -> Chain<BoxStream<BlockCommand>, BoxStream<BlockCommand>> {
+
+    let last_block_in_wal = block_replay_wal.latest_block().unwrap_or(0);
+    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
+
     // Stream of replay commands from WAL
-    let replay_stream: BoxStream<BlockCommand> = Box::pin(block_replay_wal.replay_commands_from(1));
+    let replay_stream: BoxStream<BlockCommand> = Box::pin(block_replay_wal.replay_commands_from(block_to_start));
 
     // Stream of produce commands: pull-based, fetch context on demand
     let produce_stream: BoxStream<BlockCommand> =

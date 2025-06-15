@@ -21,19 +21,6 @@ use crate::execution::metrics::{STORAGE_VIEW_METRICS};
 use crate::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
 use crate::storage::StorageView;
 
-#[derive(Debug)]
-pub struct StorageMapMetrics {
-    /// Sum of `len()` for all hot diffs.
-    pub diff_pairs: usize,
-    /// Distinct storage keys across all hot diffs.
-    pub unique_keys: usize,
-    /// Number of diff blocks in RAM.
-    pub diff_blocks: usize,
-    /// Estimated key-value pairs persisted in RocksDB.
-    pub rocks_entries: u64,
-}
-
-
 /* ------------------------------------------------------------------ */
 /*  Per-block diff with tiny Bloom                                    */
 /* ------------------------------------------------------------------ */
@@ -138,8 +125,8 @@ impl StorageMap {
         })
     }
 
-    pub fn new(rocks: RocksDB<StorageMapCF>) -> Self {
-        let persistent_storage_map = PersistentStorageMap::new(rocks);
+    pub fn new(persistent_storage_map: PersistentStorageMap) -> Self {
+
         let rocksdb_block = persistent_storage_map.rocksdb_block_number();
 
         tracing::info!("Initializing with RocksDB at: {}", rocksdb_block);
@@ -162,15 +149,6 @@ impl StorageMap {
             "StorageMap: cannot add diff for block {} - it's below what's already persisted: {}",
             block,
             persistent_block_upper_bound
-        );
-
-        let current_max = self.max_block_in_diffs();
-        assert_eq!(
-            current_max + 1,
-            block,
-            "StorageMap: diffs must be added in order, got {} after {}",
-            block,
-            current_max
         );
 
         let diff = Diff::new(writes);           // use builder with bloom
@@ -255,27 +233,6 @@ impl StorageMap {
         }
 
         STORAGE_VIEW_METRICS.storage_persistence[&"compact"].observe(started_at.elapsed());
-    }
-
-    pub fn collect_metrics(&self) -> StorageMapMetrics {
-        let mut unique: HashSet<Bytes32> = HashSet::new();
-        let mut diff_pairs = 0usize;
-
-        for entry in self.diffs.iter() {
-            let diff = entry.value();          // &Arc<HashMap<..>>
-            diff_pairs += diff.map.len();
-            unique.extend(diff.map.keys().copied()); // &Bytes32 → Bytes32
-        }
-
-        let rocks_entries =
-            self.persistent_storage_map.rocks.estimated_number_of_entries(StorageMapCF::Storage);
-
-        StorageMapMetrics {
-            diff_pairs,
-            unique_keys: unique.len(),
-            diff_blocks: self.diffs.len(),
-            rocks_entries,
-        }
     }
 }
 
