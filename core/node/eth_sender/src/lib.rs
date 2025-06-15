@@ -5,6 +5,7 @@ mod eth_tx_aggregator;
 mod eth_tx_manager;
 mod health;
 mod metrics;
+pub mod node;
 mod publish_criterion;
 mod zksync_functions;
 

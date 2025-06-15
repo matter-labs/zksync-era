@@ -1,11 +1,14 @@
-use std::{env, time::Duration};
+use std::time::Duration;
 
-use serde::Deserialize;
+use smart_config::{DescribeConfig, DeserializeConfig};
+#[cfg(feature = "observability_ext")]
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct PrometheusConfig {
     /// Port to which the Prometheus exporter server is listening.
-    pub listener_port: u16,
+    pub listener_port: Option<u16>,
     /// URL of the push gateway.
     pub pushgateway_url: Option<String>,
     /// Push interval in ms.
@@ -14,20 +17,24 @@ pub struct PrometheusConfig {
 
 impl PrometheusConfig {
     pub fn push_interval(&self) -> Duration {
-        Duration::from_millis(self.push_interval_ms.unwrap_or(100))
+        Duration::from_millis(self.push_interval_ms.unwrap_or(30000))
     }
 
-    /// Returns the full endpoint URL for the push gateway.
-    pub fn gateway_endpoint(&self) -> Option<String> {
-        let Some(gateway_url) = &self.pushgateway_url else {
+    /// Builds a Prometheus exporter configuration trying to use the provided `prometheus_port` or fallback to `self`.
+    #[cfg(feature = "observability_ext")]
+    pub fn build_exporter_config(
+        &self,
+        prometheus_port: Option<u16>,
+    ) -> Option<PrometheusExporterConfig> {
+        if let Some(port) = prometheus_port {
+            Some(PrometheusExporterConfig::pull(port))
+        } else if let Some(base_url) = &self.pushgateway_url {
+            let url = PrometheusExporterConfig::gateway_endpoint(base_url);
+            Some(PrometheusExporterConfig::push(url, self.push_interval()))
+        } else if let Some(port) = self.listener_port {
+            Some(PrometheusExporterConfig::pull(port))
+        } else {
             return None;
-        };
-        let job_id = "zksync-pushgateway";
-        let namespace =
-            env::var("POD_NAMESPACE").unwrap_or_else(|_| "UNKNOWN_NAMESPACE".to_owned());
-        let pod = env::var("POD_NAME").unwrap_or_else(|_| "UNKNOWN_POD".to_owned());
-        Some(format!(
-            "{gateway_url}/metrics/job/{job_id}/namespace/{namespace}/pod/{pod}"
-        ))
+        }
     }
 }

@@ -2,9 +2,10 @@
 
 use anyhow::Context as _;
 use clap::Parser;
+use smart_config::{ConfigRepository, ConfigSchema, DescribeConfig, Environment};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
-use zksync_core_leftovers::temp_config_store::load_general_config;
+use zksync_config::{sources::ConfigFilePaths, ObjectStoreConfig};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     snapshots::{SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey},
@@ -36,11 +37,17 @@ impl Cli {
     async fn run(self) -> anyhow::Result<()> {
         Self::init_logging();
         tracing::info!("Launched with options: {self:?}");
-        let general_config = load_general_config(self.config_path).context("general config")?;
 
-        let object_store_config = general_config
-            .core_object_store
-            .context("core object store config")?;
+        let config_schema = ConfigSchema::new(&ObjectStoreConfig::DESCRIPTION, "core_object_store");
+        let mut config_repo = ConfigRepository::new(&config_schema).with(Environment::prefixed(""));
+        if let Some(path) = &self.config_path {
+            let yaml = ConfigFilePaths::read_yaml(path)?;
+            config_repo = config_repo.with(yaml);
+        }
+        config_repo.deserializer_options().coerce_variant_names = true;
+        let mut config_repo = zksync_config::ConfigRepository::from(config_repo);
+
+        let object_store_config: ObjectStoreConfig = config_repo.parse()?;
         let object_store = ObjectStoreFactory::new(object_store_config)
             .create_store()
             .await

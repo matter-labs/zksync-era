@@ -22,13 +22,16 @@ pub(crate) struct AutoscalerMetrics {
     #[metrics(labels = ["target_cluster", "target_namespace", "gpu"])]
     pub provers: LabeledFamily<(ClusterName, NamespaceName, Gpu), Gauge<usize>, 3>,
     pub jobs: Family<JobLabels, Gauge<usize>>,
-    pub clusters_not_ready: Counter,
+    #[metrics(labels = ["agent_url"])]
+    pub agent_not_ready: LabeledFamily<String, Counter, 1>,
     #[metrics(labels = ["target", "status"])]
     pub calls: LabeledFamily<(String, u16), Counter, 2>,
     #[metrics(labels = ["target_cluster"])]
     pub scale_errors: LabeledFamily<ClusterName, Gauge<u64>>,
     #[metrics(labels = ["target_namespace", "job"])]
     pub queue: LabeledFamily<(NamespaceName, DeploymentName), Gauge<usize>, 2>,
+    #[metrics(labels = ["pod_name"])]
+    pub stale_pods: LabeledFamily<String, Counter, 1>,
 }
 
 #[vise::register]

@@ -45,6 +45,7 @@ pub struct ExplorerChainConfig {
     pub l1_explorer_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verification_api_url: Option<String>, // L2 verification API URL
+    pub prividium: bool,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }

@@ -84,7 +84,7 @@ pub struct EthTxAggregator {
     sl_chain_id: SLChainId,
     health_updater: HealthUpdater,
     priority_tree_start_index: Option<usize>,
-    settlement_layer: SettlementLayer,
+    settlement_layer: Option<SettlementLayer>,
     initial_pending_nonces: HashMap<Address, u64>,
 }
 
@@ -108,7 +108,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
         rollup_chain_id: L2ChainId,
-        settlement_layer: SettlementLayer,
+        settlement_layer: Option<SettlementLayer>,
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let eth_client_blobs = eth_client_blobs.map(|c| c.for_component("eth_tx_aggregator"));
@@ -159,7 +159,7 @@ impl EthTxAggregator {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
+                tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
                 break;
             }
 
@@ -169,7 +169,7 @@ impl EthTxAggregator {
                 tracing::warn!("eth_sender error {err:?}");
             }
 
-            tokio::time::sleep(self.config.aggregate_tx_poll_period()).await;
+            tokio::time::sleep(self.config.aggregate_tx_poll_period).await;
         }
         Ok(())
     }
@@ -656,7 +656,7 @@ impl EthTxAggregator {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             // For the migration from gateway to L1, we need to wait for all blocks to be executed
-            if !self.settlement_layer.is_gateway() {
+            if let None | Some(SettlementLayer::L1(_)) = self.settlement_layer {
                 op_restrictions.prove_restriction = reason;
                 op_restrictions.execute_restriction = reason;
             }
@@ -674,7 +674,7 @@ impl EthTxAggregator {
             )
             .await?
         {
-            let is_gateway = self.settlement_layer.is_gateway();
+            let is_gateway = self.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
@@ -851,17 +851,15 @@ impl EthTxAggregator {
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let (sender_addr, is_non_blob_sender) = match (op_type, is_gateway) {
+        let sender_addr = match (op_type, is_gateway) {
             (AggregatedActionType::Commit, false) => self
                 .eth_client_blobs
                 .as_ref()
-                .map(|c| (c.sender_account(), false))
-                .unwrap_or_else(|| (self.eth_client.sender_account(), true)),
-            (_, _) => (self.eth_client.sender_account(), true),
+                .map(|c| (c.sender_account()))
+                .unwrap_or_else(|| self.eth_client.sender_account()),
+            (_, _) => self.eth_client.sender_account(),
         };
-        let nonce = self
-            .get_next_nonce(&mut transaction, sender_addr, is_non_blob_sender)
-            .await?;
+        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
@@ -914,16 +912,24 @@ impl EthTxAggregator {
         Ok(eth_tx)
     }
 
+    // Just because we block all operations during gateway migration,
+    // this function should not be called when the settlement layer is unknown
+    fn is_gateway(&self) -> bool {
+        self.settlement_layer
+            .as_ref()
+            .map(|sl| sl.is_gateway())
+            .unwrap_or(false)
+    }
+
     async fn get_next_nonce(
         &self,
         storage: &mut Connection<'_, Core>,
         from_addr: Address,
-        is_non_blob_sender: bool,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.settlement_layer.is_gateway();
+        let is_gateway = self.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(from_addr, is_non_blob_sender, is_gateway)
+            .get_next_nonce(from_addr, is_gateway)
             .await
             .unwrap()
             .unwrap_or(0);

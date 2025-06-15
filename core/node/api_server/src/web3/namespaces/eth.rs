@@ -21,12 +21,14 @@ use zksync_web3_decl::{
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::{fill_transaction_receipts, open_readonly_transaction},
-    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
+    utils::open_readonly_transaction,
+    web3::{
+        backend_jsonrpsee::MethodTracer, receipts::fill_transaction_receipts, state::RpcState,
+        TypedFilter,
+    },
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
-pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug)]
 pub(crate) struct EthNamespace {
@@ -91,7 +93,8 @@ impl EthNamespace {
             .state
             .tx_sender
             .eth_call(block_args, call_overrides, tx, state_override)
-            .await?;
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(call_result.into())
     }
 
@@ -135,7 +138,7 @@ impl EthNamespace {
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-        let gas_price = self.state.tx_sender.gas_price().await?;
+        let (gas_price, _) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
         tx.common_data.fee.max_fee_per_gas = gas_price.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
@@ -156,12 +159,13 @@ impl EthNamespace {
                 state_override,
                 search_kind,
             )
-            .await?;
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
-        let gas_price = self.state.tx_sender.gas_price().await?;
+        let (gas_price, _) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
         Ok(gas_price.into())
     }
 
@@ -649,9 +653,15 @@ impl EthNamespace {
         Ok(installed_filters.lock().await.remove(idx))
     }
 
-    pub fn protocol_version(&self) -> String {
-        // TODO (SMA-838): Versioning of our protocol
-        PROTOCOL_VERSION.to_string()
+    pub async fn protocol_version_impl(&self) -> Result<String, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        let protocol_version = storage
+            .protocol_versions_dal()
+            .latest_semantic_version()
+            .await
+            .map_err(DalError::generalize)?
+            .context("expected some version to be present in DB")?;
+        Ok(format!("zks/{protocol_version}"))
     }
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
@@ -664,11 +674,9 @@ impl EthNamespace {
         tx.set_input(tx_bytes.0, hash);
 
         let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
-        submit_result.map(|_| hash).map_err(|err| {
-            tracing::debug!("Send raw transaction error: {err}");
-            API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            err.into()
-        })
+        submit_result
+            .map(|_| hash)
+            .map_err(|err| self.current_method().map_submit_err(err))
     }
 
     pub fn accounts_impl(&self) -> Vec<Address> {
@@ -677,14 +685,15 @@ impl EthNamespace {
 
     pub fn syncing_impl(&self) -> SyncState {
         if let Some(state) = &self.state.sync_state {
+            let state = state.borrow();
             // Node supports syncing process (i.e. not the main node).
             if state.is_synced() {
                 SyncState::NotSyncing
             } else {
                 SyncState::Syncing(SyncInfo {
-                    starting_block: 0u64.into(), // We always start syncing from genesis right now.
-                    current_block: state.get_local_block().0.into(),
-                    highest_block: state.get_main_node_block().0.into(),
+                    starting_block: 0_u64.into(), // We always start syncing from genesis right now.
+                    current_block: state.local_block().unwrap_or_default().0.into(),
+                    highest_block: state.main_node_block().unwrap_or_default().0.into(),
                 })
             }
         } else {

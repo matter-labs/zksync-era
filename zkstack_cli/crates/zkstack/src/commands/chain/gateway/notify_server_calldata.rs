@@ -102,9 +102,9 @@ pub async fn run(
                 logger::info("Migration in this direction has not yet started. Preparing the calldata for the notification.");
             }
             _ => {
-                let msg = message_for_gateway_migration_progress_state(status, direction);
-                logger::info(&msg);
-                return Ok(());
+                anyhow::bail!(message_for_gateway_migration_progress_state(
+                    status, direction
+                ));
             }
         }
     }

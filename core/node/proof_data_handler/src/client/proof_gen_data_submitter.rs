@@ -4,7 +4,7 @@ use tokio::sync::watch;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::L2ChainId;
 
 use super::http_client::HttpClient;
 use crate::processor::{Locking, Processor};
@@ -20,14 +20,12 @@ impl ProofGenDataSubmitter {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
-        commitment_mode: L1BatchCommitmentMode,
         l2_chain_id: L2ChainId,
     ) -> Self {
         let processor = Processor::new(
             blob_store.clone(),
             pool.clone(),
             config.clone(),
-            commitment_mode,
             l2_chain_id,
         );
 
@@ -49,7 +47,7 @@ impl ProofGenDataSubmitter {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!(
-                    "Stop signal received, proof generation data submitter is shutting down"
+                    "Stop request received, proof generation data submitter is shutting down"
                 );
                 break;
             }
@@ -82,10 +80,10 @@ impl ProofGenDataSubmitter {
 
             tracing::info!(
                 "No proof generation was sent, sleeping for {:?}",
-                self.config.proof_gen_data_submit_interval()
+                self.config.proof_gen_data_submit_interval
             );
 
-            tokio::time::sleep(self.config.proof_gen_data_submit_interval()).await;
+            tokio::time::sleep(self.config.proof_gen_data_submit_interval).await;
         }
 
         Ok(())

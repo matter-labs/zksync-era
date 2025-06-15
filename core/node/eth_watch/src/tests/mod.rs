@@ -106,10 +106,11 @@ async fn create_test_watcher(
     let watcher = EthWatch::new(
         Box::new(l1_client.clone()),
         sl_l2_client,
-        settlement_layer,
+        Some(settlement_layer),
         connection_pool,
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();
@@ -213,10 +214,11 @@ async fn test_normal_operation_upgrade_timestamp() {
     let mut watcher = EthWatch::new(
         Box::new(client.clone()),
         Box::new(client.clone()),
-        SettlementLayer::L1(SL_CHAIN_ID),
+        Some(SettlementLayer::L1(SL_CHAIN_ID)),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         L2ChainId::default(),
+        50_000,
     )
     .await
     .unwrap();

@@ -15,17 +15,25 @@ zksync_basic_types.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_concurrency.workspace = true
+
+# Observability exensions
 zksync_vlog = { workspace = true, optional = true }
-tracing = { workspace = true, optional = true }
+vise = { workspace = true, optional = true }
+
+# CLI extensions
+clap = { workspace = true, optional = true }
+smart-config-commands = { workspace = true, optional = true }
 
 anyhow.workspace = true
+smart-config = { workspace = true, features = ["primitive-types"] }
 rand.workspace = true
 secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
-
-[dev-dependencies]
 serde_json.workspace = true
+serde_yaml.workspace = true
+tracing.workspace = true
 
 [features]
 default = []
-observability_ext = ["zksync_vlog", "tracing"]
+observability_ext = ["dep:zksync_vlog", "dep:vise"]
+cli = ["observability_ext", "dep:clap", "dep:smart-config-commands"]

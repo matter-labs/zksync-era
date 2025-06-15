@@ -12,10 +12,15 @@ categories.workspace = true
 
 [dependencies]
 vise.workspace = true
-zksync_config.workspace = true
+zksync_config = { workspace = true, optional = true }
+zksync_node_framework = { workspace = true, optional = true }
 zksync_dal.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework", "dep:zksync_config"]

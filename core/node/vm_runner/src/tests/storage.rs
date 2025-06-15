@@ -41,7 +41,7 @@ impl StorageTester {
     ) -> anyhow::Result<VmRunnerStorage<Arc<RwLock<IoMock>>>> {
         let (vm_runner_storage, task) = VmRunnerStorage::new(
             self.pool.clone(),
-            self.db_dir.path().to_str().unwrap().to_owned(),
+            self.db_dir.path().to_owned(),
             io_mock,
             L2ChainId::default(),
         )
@@ -71,11 +71,11 @@ impl<Io: VmRunnerIo> VmRunnerStorage<Io> {
 
     async fn ensure_batch_unloads_eventually(&self, number: L1BatchNumber) -> anyhow::Result<()> {
         (|| async {
-            Ok(anyhow::ensure!(
+            anyhow::ensure!(
                 self.load_batch(number).await?.is_none(),
-                "Batch #{} is still available",
-                number
-            ))
+                "Batch #{number} is still available"
+            );
+            Ok(())
         })
         .retry(&ExponentialBuilder::default())
         .await

@@ -10,6 +10,7 @@ use zksync_web3_decl::{error::Web3Error, jsonrpsee::MethodResponse};
 use super::testonly::RecordedMethodCalls;
 use crate::{
     execution_sandbox::SANDBOX_METRICS,
+    tx_sender::SubmitTxError,
     web3::metrics::{ObservedRpcParams, API_METRICS},
 };
 
@@ -116,6 +117,13 @@ impl MethodTracer {
             metadata.has_app_error = true;
         }
     }
+
+    pub(super) fn observe_submit_error(&self, err: &SubmitTxError) {
+        let cell = self.inner.get_or_default();
+        if let Some(metadata) = &*cell.borrow() {
+            API_METRICS.observe_submit_error(metadata.name, err);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -150,7 +158,7 @@ impl MethodCall<'_> {
     pub(super) fn set_as_current(&mut self) -> CurrentMethodGuard<'_> {
         let meta = &mut self.meta;
         let cell = self.tracer.inner.get_or_default();
-        let prev = mem::replace(&mut *cell.borrow_mut(), Some(meta.clone()));
+        let prev = (*cell.borrow_mut()).replace(meta.clone());
         CurrentMethodGuard {
             prev,
             current: meta,

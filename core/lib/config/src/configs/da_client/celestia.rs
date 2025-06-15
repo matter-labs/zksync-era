@@ -1,7 +1,12 @@
+use std::time::Duration;
+
 use serde::Deserialize;
+use smart_config::{de::FromSecretString, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::secrets::PrivateKey;
 
-#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+// TODO: remove `#[derive(Deserialize)]` once env-based config in EN is reworked
+
+#[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
 pub struct CelestiaConfig {
     // gRPC URL for celestia-app instance
     pub api_node_url: String,
@@ -10,15 +15,17 @@ pub struct CelestiaConfig {
     pub eq_service_grpc_url: String,
     pub namespace: String,
     pub chain_id: String,
-    pub timeout_ms: u64,
     // Tendermint RPC URL of the Celestia core instance
     pub celestia_core_tendermint_rpc_url: String,
     pub blobstream_contract_address: String,
     pub blobstream_events_num_pages: u64,
     pub blobstream_events_page_size: u64,
+    #[config(default_t = Duration::from_secs(30))]
+    pub timeout: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 pub struct CelestiaSecrets {
+    #[config(with = FromSecretString)]
     pub private_key: PrivateKey,
 }

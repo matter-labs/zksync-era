@@ -1,4 +1,4 @@
-use std::{fmt, fmt::Debug, sync::Arc};
+use std::{fmt, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -10,12 +10,20 @@ use zksync_types::fee_model::{
 use crate::l1_gas_price::GasAdjuster;
 
 pub mod l1_gas_price;
+pub mod node;
 
 /// Trait responsible for providing numerator and denominator for adjusting gas price that is denominated
 /// in a non-eth base token
 #[async_trait]
-pub trait BaseTokenRatioProvider: Debug + Send + Sync + 'static {
+pub trait BaseTokenRatioProvider: fmt::Debug + Send + Sync + 'static {
     fn get_conversion_ratio(&self) -> BaseTokenConversionRatio;
+}
+
+#[async_trait]
+impl BaseTokenRatioProvider for BaseTokenConversionRatio {
+    fn get_conversion_ratio(&self) -> BaseTokenConversionRatio {
+        *self
+    }
 }
 
 /// Trait responsible for providing fee info for a batch
@@ -178,6 +186,7 @@ mod tests {
     use zksync_node_test_utils::create_l1_batch;
     use zksync_types::{
         commitment::L1BatchCommitmentMode,
+        eth_sender::EthTxFinalityStatus,
         fee_model::{BaseTokenConversionRatio, FeeModelConfigV2},
         pubdata_da::PubdataSendingMode,
         U256,
@@ -375,7 +384,7 @@ mod tests {
                 test_base_fees(1, U256::from(3), U256::from(0)),
             ])
             .build();
-        mock.advance_block_number(2); // Ensure we have enough blocks for the fee history
+        mock.advance_block_number(2, EthTxFinalityStatus::Finalized); // Ensure we have enough blocks for the fee history
 
         let gas_adjuster_config = GasAdjusterConfig {
             internal_enforced_l1_gas_price: Some(l1_gas_price),

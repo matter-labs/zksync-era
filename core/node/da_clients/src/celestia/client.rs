@@ -3,20 +3,14 @@ use std::{
     fmt::{Debug, Formatter},
     fs::File,
     str::FromStr,
-    sync::{Arc, Mutex},
-    time,
+    sync::Arc,
 };
 
 use async_trait::async_trait;
-use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
-use eq_sdk::{
-    get_keccak_inclusion_response::{
-        ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
-    },
-    types::BlobId,
-    EqClient, KeccakInclusionToDataRootProofOutput,
-};
-use subxt_signer::ExposeSecret;
+use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
+use chrono::{DateTime, Utc};
+use secrecy::ExposeSecret;
+use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
@@ -56,6 +50,7 @@ pub struct CelestiaClient {
 }
 
 impl CelestiaClient {
+<<<<<<< HEAD
     pub async fn new(
         config: CelestiaConfig,
         secrets: CelestiaSecrets,
@@ -63,6 +58,11 @@ impl CelestiaClient {
     ) -> anyhow::Result<Self> {
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(time::Duration::from_millis(config.timeout_ms))
+=======
+    pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
+        let grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
+            .timeout(config.timeout)
+>>>>>>> main
             .connect()
             .await?;
 
@@ -375,6 +375,7 @@ impl DataAvailabilityClient for CelestiaClient {
     async fn ensure_finality(
         &self,
         dispatch_request_id: String,
+        _: DateTime<Utc>,
     ) -> Result<Option<FinalityResponse>, DAError> {
         let blob_id = dispatch_request_id
             .parse::<BlobId>()

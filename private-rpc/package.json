@@ -1,0 +1,53 @@
+{
+  "name": "private-rpc",
+  "version": "0.0.0",
+  "title": "Double zero rpc proxy",
+  "description": "Double zero rpc proxy",
+  "author": "Moonsong labs",
+  "private": true,
+  "license": "MIT",
+  "repository": "https://github.com/Moonsong-Labs/double-zero",
+  "type": "module",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsx esbuild.ts",
+    "build:watch": "tsx esbuild.ts --watch",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"**/*.ts\"",
+    "lint:fix": "eslint \"**/*.ts\" --fix",
+    "ci:prepare": "run-s check:fix typecheck",
+    "test": "vitest run",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@t3-oss/env-core": "^0.11.1",
+    "close-with-grace": "^2.1.0",
+    "dotenv": "^16.4.5",
+    "drizzle-kit": "^0.27.1",
+    "drizzle-orm": "^0.36.0",
+    "fastify": "^5.0.0",
+    "fastify-type-provider-zod": "^4.0.2",
+    "nanoid": "^5.0.8",
+    "nochoices": "^1.1.4",
+    "pg": "^8.13.1",
+    "viem": "^2.30.4",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.6",
+    "@types/pg": "^8.11.10",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^8.12.1",
+    "esbuild": "^0.24.0",
+    "esbuild-node-externals": "^1.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "npm-run-all": "^4.1.5",
+    "tsx": "^4.19.1",
+    "vitest": "^2.1.4"
+  }
+}

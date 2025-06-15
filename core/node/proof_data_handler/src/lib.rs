@@ -11,7 +11,7 @@ use zksync_prover_interface::api::{
     ProofGenerationDataRequest, ProofGenerationDataResponse, SubmitProofRequest,
     SubmitProofResponse,
 };
-use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchId, L1BatchNumber, L2ChainId};
+use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
 
 pub use crate::{
     client::ProofDataHandlerClient,
@@ -22,27 +22,21 @@ pub use crate::{
 mod client;
 mod errors;
 mod metrics;
+pub mod node;
 mod processor;
 
 pub async fn run_server(
     config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
     api_mode: ApiMode,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::info!("Starting proof data handler server on {bind_address}");
-    let app = create_proof_processing_router(
-        blob_store,
-        connection_pool,
-        config,
-        api_mode,
-        commitment_mode,
-        l2_chain_id,
-    );
+    let app =
+        create_proof_processing_router(blob_store, connection_pool, config, api_mode, l2_chain_id);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -50,9 +44,9 @@ pub async fn run_server(
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop signal sender for proof data handler server was dropped without sending a signal");
+                tracing::warn!("Stop request sender for proof data handler server was dropped without sending a signal");
             }
-            tracing::info!("Stop signal received, proof data handler server is shutting down");
+            tracing::info!("Stop request received, proof data handler server is shutting down");
         })
         .await
         .context("Proof data handler server failed")?;
@@ -65,7 +59,6 @@ fn create_proof_processing_router(
     connection_pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     api_mode: ApiMode,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 ) -> Router {
     let mut router = Router::new();
@@ -75,7 +68,6 @@ fn create_proof_processing_router(
             blob_store.clone(),
             connection_pool.clone(),
             config.clone(),
-            commitment_mode,
             l2_chain_id,
         );
         let submit_proof_processor = get_proof_gen_processor.clone();
