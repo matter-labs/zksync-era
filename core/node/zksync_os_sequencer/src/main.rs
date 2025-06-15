@@ -92,13 +92,15 @@ pub async fn main() {
 
     let block_replay_storage = BlockReplayStorage::new(block_replay_storage_rocks_db);
 
-    let state_db = RocksDB::<StorageMapCF>::new(Path::new(STATE_STORAGE_PATH))
+    let mut state_db = RocksDB::<StorageMapCF>::new(Path::new(STATE_STORAGE_PATH))
         .expect("Failed to open State DB");
+    state_db = state_db.with_sync_writes();
     let persistent_storage_map = PersistentStorageMap::new(state_db);
 
 
-    let preimages_db = RocksDB::<PreimagesCF>::new(Path::new(PREIMAGES_STORAGE_PATH))
+    let mut preimages_db = RocksDB::<PreimagesCF>::new(Path::new(PREIMAGES_STORAGE_PATH))
         .expect("Failed to open Preimages DB");
+    preimages_db = preimages_db.with_sync_writes();
     let rocks_db_preimages = RocksDbPreimages::new(preimages_db);
 
     let state_db_block = persistent_storage_map.rocksdb_block_number();

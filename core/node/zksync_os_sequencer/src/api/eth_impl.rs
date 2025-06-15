@@ -23,6 +23,9 @@ use crate::execution::sandbox::execute;
 use crate::mempool::Mempool;
 use crate::storage::block_replay_storage::BlockReplayStorage;
 use crate::storage::StateHandle;
+use crate::api::metrics::{API_METRICS};
+
+
 pub(crate) struct EthNamespace {
     state_handle: StateHandle,
     mempool: Mempool,
@@ -75,6 +78,21 @@ impl EthNamespace {
         validate_tx_nonce(
             &l2_tx,
             &sender_account_properties,
+        )?;
+
+        let block_number = self.state_handle.last_canonized_block_number() + 1;
+        let block_context = self
+            .block_replay_storage
+            .get_replay_record(block_number - 1)
+            .context("Failed to get block context")?
+            .context;
+
+        let storage_view = self.state_handle.view_at(block_number)?;
+
+        let res = execute(
+            l2_tx.clone(),
+            block_context,
+            storage_view,
         )?;
 
         self.mempool.insert(l2_tx.into());
@@ -148,12 +166,15 @@ impl EthNamespaceServer for EthNamespace {
         block: Option<BlockIdVariant>,
         state_override: Option<StateOverride>,
     ) -> RpcResult<Bytes> {
-        self.call_impl(
+        let latency = API_METRICS.response_time[&"call"].start();
+        let r = self.call_impl(
             req,
             block,
             state_override,
         )
-            .map_err(|err| self.map_err(err))
+            .map_err(|err| self.map_err(err));
+        latency.observe();
+        r
     }
 
     async fn estimate_gas(
@@ -326,8 +347,13 @@ impl EthNamespaceServer for EthNamespace {
     }
 
     async fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256> {
-        self.send_raw_transaction_impl(tx_bytes)
-            .map_err(|err| self.map_err(err))
+        let latency = API_METRICS.response_time[&"send_raw_transaction"].start();
+
+        let r = self.send_raw_transaction_impl(tx_bytes)
+            .map_err(|err| self.map_err(err));
+        latency.observe();
+
+        r
     }
 
     async fn syncing(&self) -> RpcResult<SyncState> {

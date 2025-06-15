@@ -1,6 +1,7 @@
 mod eth;
 mod eth_impl;
 mod api_tx_operations;
+mod metrics;
 
 use anyhow::Context;
 use zksync_types::api::{BlockId, BlockIdVariant, BlockNumber};
@@ -29,8 +30,8 @@ pub async fn run_jsonrpsee_server(
     let mut rpc = RpcModule::new(());
     rpc.merge(EthNamespace::new(state_handle, mempool, block_replay_storage).into_rpc())?;
 
-    let server_builder = ServerBuilder::default();
-    // .max_connections(max_connections as u32)
+    let server_builder = ServerBuilder::default()
+    .max_connections(1000 as u32);
     // .set_http_middleware(middleware)
     // .max_response_body_size(response_body_size_limit)
     // .set_batch_request_config(batch_request_config)

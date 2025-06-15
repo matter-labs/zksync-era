@@ -5,15 +5,16 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use crossbeam_queue::SegQueue;
 use futures_core::{FusedStream, Stream};
 use futures_core::task::__internal::AtomicWaker;
 use tokio::sync::Notify;
+use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics};
 use zk_os_forward_system::run::TxSource;
 use zksync_types::l1::L1Tx;
 use zksync_types::{Address, Execute, L1TxCommonData, PriorityOpId, Transaction, U256};
-
+use crate::execution::metrics::PreimagesRocksDBMetrics;
 
 /// Thread-safe FIFO mempool that can be polled as a `Stream`.
 #[derive(Clone, Debug)]
@@ -21,6 +22,20 @@ pub struct Mempool {
     queue: Arc<SegQueue<Transaction>>,
     waker: Arc<AtomicWaker>,        // wakes one waiting consumer
 }
+
+
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "mempool")]
+pub struct MempoolMetrics {
+    #[metrics(labels = ["result"])]
+    pub try_pop: LabeledFamily<&'static str, Counter<u64>>,
+    #[metrics(buckets = Buckets::exponential(1.0..=1000000.0, 10.0))]
+    pub len: Histogram<u64>,
+}
+#[vise::register]
+pub(crate) static MEMPOOL_METRICS: vise::Global<MempoolMetrics> = vise::Global::new();
+
 
 impl Mempool {
     pub fn new(forced_tx: Transaction) -> Self {
@@ -37,7 +52,15 @@ impl Mempool {
     }
 
     pub fn try_pop(&self) -> Option<Transaction> {
-        self.queue.pop()
+        let r = self.queue.pop();
+        let metrics_key = if r.is_some() {
+            "some"
+        } else {
+            "none"
+        };
+        MEMPOOL_METRICS.try_pop[&metrics_key].inc();
+        MEMPOOL_METRICS.len.observe(self.queue.len() as u64);
+        r
     }
 
     /* -------- consumer helpers ------------------------------------ */

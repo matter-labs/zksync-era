@@ -210,7 +210,7 @@ impl StateHandle {
         // Account properties that were inserted/updated during this block
         // We'll use them to determine balances and nonces for API validation
         // And they'll also need to be stored as preimages for future decommit as well
-        let account_properties = Self::extract_account_properties(&block_output);
+        let account_properties = self.extract_account_properties(&block_output);
 
         // tracing::info!("Block {} - saving - prepared acc properties in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();
@@ -264,6 +264,7 @@ impl StateHandle {
     }
 
     fn extract_account_properties(
+        &self,
         block_output: &BatchOutput
     ) -> HashMap<Address, AccountProperties> {
         let mut account_properties_preimages: HashMap<Bytes32, AccountProperties> = block_output
@@ -290,15 +291,24 @@ impl StateHandle {
             if log.account == ACCOUNT_PROPERTIES_STORAGE_ADDRESS {
                 let account_address = bytes32_to_address(&log.account_key);
 
-                if let Some(properties) = account_properties_preimages.remove(&log.value) {
-                    result.insert(account_address, properties);
+                if let Some(properties) = account_properties_preimages.get(&log.value) {
+                    result.insert(account_address, properties.clone());
+                } else {
+                    let ex = self.0.rocks_db_preimages.get(log.value);
+                    tracing::warn!(
+                        "Account properties preimage not found for address {} and value {:?} - global storage: {}",
+                        account_address,
+                        log.value,
+                        ex.is_some()
+                    );
+
                 }
             }
         }
 
-        if !account_properties_preimages.is_empty() {
-            panic!("could not map account properties to addresses");
-        }
+        // if !account_properties_preimages.is_empty() {
+        //     panic!("could not map account properties to addresses");
+        // }
         return result;
     }
 

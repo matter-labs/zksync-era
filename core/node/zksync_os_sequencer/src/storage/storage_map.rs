@@ -114,7 +114,7 @@ impl StorageMap {
                 persistent_block_lower_bound
             ));
         }
-        tracing::info!("Creating StorageMapView for block {} with pesistance bounds {} to {}", block_number, persistent_block_lower_bound, persistent_block_upper_bound);
+        // tracing::info!("Creating StorageMapView for block {} with pesistance bounds {} to {}", block_number, persistent_block_lower_bound, persistent_block_upper_bound);
 
         Ok(StorageMapView {
             block: block_number,
