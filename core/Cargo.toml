@@ -277,17 +277,17 @@ bellman = { package = "zksync_bellman", version = "=0.32.1" }
 # * app.bin and app_logging_enabled.bin in root of this repo
 # * binaries used in SNARK wrapping
 # * L1 verifier
-#
+##
 #zk_os_forward_system = { package = "forward_system", path="../../zk_ee/forward_system", features = ["evm-compatibility", "unlimited_native", "no_print"] }
 #zk_ee = { package = "zk_ee", path="../../zk_ee/zk_ee" }
 #zk_os_basic_system = { package = "basic_system", path="../../zk_ee/basic_system"}
 #zk_os_evm_interpreter = { package = "evm_interpreter", path="../../zk_ee/evm_interpreter", features = ["evm-compatibility"] }
-
-
-zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "ad-disable-ecrecover-forward-run", features = ["evm-compatibility", "unlimited_native"] }
-zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "ad-disable-ecrecover-forward-run"}
-zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "ad-disable-ecrecover-forward-run"}
-zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "ad-disable-ecrecover-forward-run", features = ["evm-compatibility"] }
+#
+##
+zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zksync-os", branch = "rb-no-ecrecover", features = ["evm-compatibility", "unlimited_native", "no_print"] }
+zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "rb-no-ecrecover"}
+zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "rb-no-ecrecover"}
+zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "rb-no-ecrecover", features = ["evm-compatibility"] }
 
 # only used for verifinfg proofs
 air-compiler-cli = { package = "cli", git = "https://github.com/matter-labs/zksync-airbender.git", tag="0.0.5" }
