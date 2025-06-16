@@ -162,18 +162,25 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
-    pub async fn get_chain_id_of_last_eth_tx(&mut self) -> DalResult<Option<u64>> {
+    pub async fn get_chain_id_of_oldest_unfinalized_eth_tx(&mut self) -> DalResult<Option<u64>> {
         let res = sqlx::query!(
             r#"
             SELECT
                 chain_id
             FROM
                 eth_txs
-            ORDER BY id DESC
+                INNER JOIN l1_batches ON 
+                    eth_txs.id = l1_batches.eth_commit_tx_id
+                    OR eth_txs.id = l1_batches.eth_prove_tx_id
+                    OR eth_txs.id = l1_batches.eth_execute_tx_id
+                LEFT JOIN eth_txs_history ON eth_txs.id = eth_txs_history.eth_tx_id
+            WHERE
+                eth_txs_history.finality_status != 'finalized'
+            ORDER BY l1_batches.number ASC
             LIMIT 1
             "#,
         )
-        .instrument("get_settlement_layer_of_last_eth_tx")
+        .instrument("get_chain_id_of_oldest_unfinalized_eth_tx")
         .fetch_optional(self.storage)
         .await?
         .and_then(|row| row.chain_id.map(|a| a as u64));
@@ -762,7 +769,8 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn get_unfinalized_tranasctions(
         &mut self,
-        limit: u64,
+        limit: i64,
+        chain_id: Option<SLChainId>,
     ) -> sqlx::Result<Vec<TxHistory>> {
         let tx_history = sqlx::query_as!(
             StorageTxHistory,
@@ -776,12 +784,14 @@ impl EthSenderDal<'_, '_> {
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_txs_history.finality_status != 'finalized'
+                AND eth_txs.chain_id = $1
             ORDER BY
                 eth_txs_history.id ASC
             LIMIT
-                $1
+                $2
             "#,
-            limit as i64,
+            chain_id.map(|chain_id| chain_id.0 as i64),
+            limit,
         )
         .fetch_all(self.storage.conn())
         .await?;
