@@ -251,13 +251,18 @@ impl BatchTransactionUpdater {
                 .eth_sender_dal()
                 .get_unfinalized_tranasctions(1, None)
                 .await?;
-            if !all_chain_ids_transactions.is_empty() {
+            if !all_chain_ids_transactions.is_empty()
+                // following check is needd, becouse we might get a new transaction 
+                // with proper chain_id on this SELECT due to a race condition
+                && all_chain_ids_transactions[0].chain_id != Some(sl_chain_id)
+            {
                 anyhow::bail!(
-                        "No batch transactions to process for chain id {} while there are some for other.\
+                    "No batch transactions to process for chain id {} while there are some for {:?} chain_id.\
                         Error is thrown so node can restart and reload SL data. If node doesn't \
                         make any progress after restart, then it's bug, please contact developers.",
-                        sl_chain_id
-                    );
+                    sl_chain_id,
+                    all_chain_ids_transactions[0].chain_id
+                );
             }
         }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                    SELECT\n                        eth_txs_history.*,\n                        eth_txs.blob_sidecar,\n                        eth_txs.tx_type\n                    FROM\n                        eth_txs_history\n                    LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n                    WHERE\n                        eth_txs_history.finality_status != 'finalized'\n                        AND eth_txs.chain_id = $1\n                    ORDER BY\n                        eth_txs_history.id ASC\n                    LIMIT\n                        $2\n                    ",
+  "query": "\n                    SELECT\n                        eth_txs_history.*,\n                        eth_txs.blob_sidecar,\n                        eth_txs.tx_type,\n                        eth_txs.chain_id\n                    FROM\n                        eth_txs_history\n                    LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id\n                    WHERE\n                        eth_txs_history.finality_status != 'finalized'\n                        AND eth_txs.chain_id = $1\n                    ORDER BY\n                        eth_txs_history.id ASC\n                    LIMIT\n                        $2\n                    ",
   "describe": {
     "columns": [
       {
@@ -92,6 +92,11 @@
         "ordinal": 17,
         "name": "tx_type",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "chain_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -118,8 +123,9 @@
       false,
       false,
       true,
-      false
+      false,
+      true
     ]
   },
-  "hash": "ddf345ebf998919933ac7e73f5285b00ffc2ed43ec7c1b8d91976ac57f9decab"
+  "hash": "019edada27e1d01e8bf833c5a0e884dac38009e018fd37178308cfdfa28ffb94"
 }

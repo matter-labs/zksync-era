@@ -78,6 +78,7 @@ impl std::fmt::Debug for EthTx {
 pub struct TxHistory {
     pub id: u32,
     pub eth_tx_id: u32,
+    pub chain_id: Option<SLChainId>,
     pub tx_type: AggregatedActionType,
     pub base_fee_per_gas: u64,
     pub priority_fee_per_gas: u64,

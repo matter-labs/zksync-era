@@ -781,7 +781,8 @@ impl EthSenderDal<'_, '_> {
                     SELECT
                         eth_txs_history.*,
                         eth_txs.blob_sidecar,
-                        eth_txs.tx_type
+                        eth_txs.tx_type,
+                        eth_txs.chain_id
                     FROM
                         eth_txs_history
                     LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
@@ -807,7 +808,8 @@ impl EthSenderDal<'_, '_> {
                     SELECT
                         eth_txs_history.*,
                         eth_txs.blob_sidecar,
-                        eth_txs.tx_type
+                        eth_txs.tx_type,
+                        eth_txs.chain_id
                     FROM
                         eth_txs_history
                     LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
@@ -874,7 +876,8 @@ impl EthSenderDal<'_, '_> {
             SELECT
                 eth_txs_history.*,
                 eth_txs.blob_sidecar,
-                eth_txs.tx_type
+                eth_txs.tx_type,
+                eth_txs.chain_id
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
@@ -898,7 +901,8 @@ impl EthSenderDal<'_, '_> {
             SELECT
                 eth_txs_history.*,
                 eth_txs.blob_sidecar,
-                eth_txs.tx_type
+                eth_txs.tx_type,
+                eth_txs.chain_id
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
@@ -950,7 +954,8 @@ impl EthSenderDal<'_, '_> {
             SELECT
                 eth_txs_history.*,
                 eth_txs.blob_sidecar,
-                eth_txs.tx_type
+                eth_txs.tx_type,
+                eth_txs.chain_id
             FROM
                 eth_txs_history
             LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
