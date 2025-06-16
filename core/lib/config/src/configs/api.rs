@@ -170,8 +170,11 @@ pub struct Web3JsonRpcConfig {
     pub max_nonce_ahead: u32,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block
+    /// This value is only used when there is no open batch.
     #[config(default_t = 1.5)]
     pub gas_price_scale_factor: f64,
+    /// The factor by which to scale the gas price when there is an open batch.
+    pub gas_price_scale_factor_open_batch: Option<f64>,
     /// The factor by which to scale the gasLimit
     #[config(default_t = 1.3)]
     pub estimate_gas_scale_factor: f64,
@@ -257,6 +260,7 @@ impl Web3JsonRpcConfig {
     pub fn for_tests() -> Self {
         Self {
             gas_price_scale_factor: 1.2,
+            gas_price_scale_factor_open_batch: Some(1.2),
             estimate_gas_scale_factor: 1.5,
             ..Self::default()
         }
@@ -394,6 +398,7 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
+                gas_price_scale_factor_open_batch: Some(1.3),
             },
             healthcheck: HealthCheckConfig {
                 port: 8081,
@@ -419,6 +424,7 @@ mod tests {
             API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
             API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
+            API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.3
             API_WEB3_JSON_RPC_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
             API_WEB3_JSON_RPC_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
             API_WEB3_JSON_RPC_API_NAMESPACES=debug
@@ -489,6 +495,7 @@ mod tests {
             pubsub_polling_interval: 200
             max_nonce_ahead: 5
             gas_price_scale_factor: 1.2
+            gas_price_scale_factor_open_batch: 1.3
             estimate_gas_scale_factor: 1
             estimate_gas_acceptable_overestimation: 1000
             max_tx_size: 1000000
@@ -550,6 +557,7 @@ mod tests {
             pubsub_polling_interval: 200ms
             max_nonce_ahead: 5
             gas_price_scale_factor: 1.2
+            gas_price_scale_factor_open_batch: 1.3
             estimate_gas_scale_factor: 1
             estimate_gas_acceptable_overestimation: 1000
             max_tx_size: 1000000 B
