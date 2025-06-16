@@ -319,17 +319,17 @@ impl Aggregator {
             .get_number_of_last_l1_batch_committed_on_eth()
             .await?;
 
-        // let last_committed_finalized_l1_batch = storage
-        //     .blocks_dal()
-        //     .get_number_of_last_l1_batch_committed_finailized_on_eth()
-        //     .await?;
-        //
-        // if last_committed_l1_batch != last_committed_finalized_l1_batch {
-        //     // Last committed L1 batch is not finalized yet, skipping precommit operation. During the transition from not using
-        //     // to using precommit we have to wait for the last committed batch to be finalized.
-        //     // Otherwise we can have a race condition and either precommit or commit operation would fail.
-        //     return Ok(None);
-        // }
+        let last_committed_finalized_l1_batch = storage
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_finailized_on_eth()
+            .await?;
+
+        if last_committed_l1_batch != last_committed_finalized_l1_batch {
+            // Last committed L1 batch is not finalized yet, skipping precommit operation. During the transition from not using
+            // to using precommit we have to wait for the last committed batch to be finalized.
+            // Otherwise we can have a race condition and either precommit or commit operation would fail.
+            return Ok(None);
+        }
 
         let l1_batch_for_precommit = last_committed_l1_batch.unwrap_or(L1BatchNumber(0)) + 1;
         let txs = storage
