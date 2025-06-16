@@ -62,41 +62,6 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let start_time = Instant::now();
-    let opt = Cli::parse();
-    let schema = full_config_schema(false);
-    let config_file_paths = ConfigFilePaths {
-        general: opt.config_path,
-        secrets: opt.secrets_path,
-        ..ConfigFilePaths::default()
-    };
-    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
-
-    let _observability_guard = config_sources.observability()?.install()?;
-
-    let mut repo = config_sources.build_repository(&schema);
-    let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
-
-    let prover_config = general_config
-        .prover_config
-        .context("failed loading prover config")?;
-    let object_store_config = prover_config.prover_object_store.clone();
-    tracing::info!("Loaded configs.");
-
-    let (connection_pool, object_store, prover_context, setup_data_cache, hints) = load_resources(
-        database_secrets,
-        opt.max_allocation,
-        object_store_config,
-        prover_config.setup_data_path,
-    )
-    .await
-    .context("failed to load configs")?;
-
-    let prometheus_exporter_config = general_config
-        .prometheus_config
-        .build_exporter_config(prover_config.prometheus_port)
-        .context("Failed to build Prometheus exporter configuration")?;
-    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -108,52 +73,93 @@ async fn main() -> anyhow::Result<()> {
     .context("Error setting Ctrl+C handler")?;
 
     let cancellation_token = CancellationToken::new();
+    let mut tasks = vec![];
+    let mut managed_tasks = ManagedTasks::new(vec![]);
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
-    let mut tasks = vec![tokio::spawn(
-        prometheus_exporter_config.run(metrics_stop_receiver),
-    )];
 
-    let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
-
-    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
-    tracing::info!(
-        "Starting {} light WVGs and {} heavy WVGs.",
-        opt.light_wvg_count,
-        opt.heavy_wvg_count
-    );
-
-    let builder = WvgRunnerBuilder::new(
-        connection_pool.clone(),
-        object_store.clone(),
-        PROVER_PROTOCOL_SEMANTIC_VERSION,
-        hints.clone(),
-        witness_vector_sender,
-        cancellation_token.clone(),
-    );
-
-    let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
-    let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
-
-    tasks.extend(light_wvg_runner.run());
-    tasks.extend(heavy_wvg_runner.run());
-
-    // necessary as it has a connection_pool which will keep 1 connection active by default
-    drop(builder);
-
-    let circuit_prover_runner = circuit_prover_runner(
-        connection_pool,
-        object_store,
-        PROVER_PROTOCOL_SEMANTIC_VERSION,
-        setup_data_cache,
-        witness_vector_receiver,
-        prover_context,
-    );
-
-    tasks.extend(circuit_prover_runner.run());
-
-    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
-        _ = tasks.wait_single() => {},
+        _ = {
+            let opt = Cli::parse();
+            let schema = full_config_schema(false);
+            let config_file_paths = ConfigFilePaths {
+                general: opt.config_path,
+                secrets: opt.secrets_path,
+                ..ConfigFilePaths::default()
+            };
+            let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+
+            let _observability_guard = config_sources.observability()?.install()?;
+
+            let mut repo = config_sources.build_repository(&schema);
+            let general_config: GeneralConfig = repo.parse()?;
+            let database_secrets: DatabaseSecrets = repo.parse()?;
+
+            let prover_config = general_config
+                .prover_config
+                .context("failed loading prover config")?;
+            let object_store_config = prover_config.prover_object_store.clone();
+            tracing::info!("Loaded configs.");
+
+            let (connection_pool, object_store, prover_context, setup_data_cache, hints) = load_resources(
+                database_secrets,
+                opt.max_allocation,
+                object_store_config,
+                prover_config.setup_data_path,
+            )
+            .await
+            .context("failed to load configs")?;
+
+            let prometheus_exporter_config = general_config
+                .prometheus_config
+                .build_exporter_config(prover_config.prometheus_port)
+                .context("Failed to build Prometheus exporter configuration")?;
+            tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
+
+            tasks.push(tokio::spawn(
+                prometheus_exporter_config.run(metrics_stop_receiver),
+            ));
+
+            let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
+
+            PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
+            tracing::info!(
+                "Starting {} light WVGs and {} heavy WVGs.",
+                opt.light_wvg_count,
+                opt.heavy_wvg_count
+            );
+
+            let builder = WvgRunnerBuilder::new(
+                connection_pool.clone(),
+                object_store.clone(),
+                PROVER_PROTOCOL_SEMANTIC_VERSION,
+                hints.clone(),
+                witness_vector_sender,
+                cancellation_token.clone(),
+            );
+
+            let light_wvg_runner = builder.light_wvg_runner(opt.light_wvg_count);
+            let heavy_wvg_runner = builder.heavy_wvg_runner(opt.heavy_wvg_count);
+
+            tasks.extend(light_wvg_runner.run());
+            tasks.extend(heavy_wvg_runner.run());
+
+            // necessary as it has a connection_pool which will keep 1 connection active by default
+            drop(builder);
+
+            let circuit_prover_runner = circuit_prover_runner(
+                connection_pool,
+                object_store,
+                PROVER_PROTOCOL_SEMANTIC_VERSION,
+                setup_data_cache,
+                witness_vector_receiver,
+                prover_context,
+            );
+
+            tasks.extend(circuit_prover_runner.run());
+
+            managed_tasks = ManagedTasks::new(tasks);
+            managed_tasks.wait_single()
+        } => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop request received, shutting down");
         }
@@ -163,7 +169,7 @@ async fn main() -> anyhow::Result<()> {
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;
-    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    managed_tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
     tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
     Ok(())
 }
