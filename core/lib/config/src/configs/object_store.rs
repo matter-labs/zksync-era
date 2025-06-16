@@ -49,26 +49,26 @@ pub enum ObjectStoreMode {
     /// Writable GCS bucket with ambient authentication.
     #[config(alias = "Gcs")]
     GCS {
-        /// Name of the bucket.
-        // FIXME: this isn't a URL; would it make sense to rename it to `bucket_name`?
+        /// Name or URL of the bucket.
         bucket_base_url: String,
     },
     /// Publicly available GCS bucket.
     #[config(alias = "GcsAnonymousReadOnly")]
     GCSAnonymousReadOnly {
-        /// Name of the bucket.
+        /// Name or URL of the bucket.
         bucket_base_url: String,
     },
     /// GCS bucket with credential file authentication.
     #[config(alias = "GcsWithCredentialFile")]
     GCSWithCredentialFile {
+        /// Name or URL of the bucket.
         bucket_base_url: String,
         /// Path to the credentials file.
         gcs_credential_file_path: PathBuf,
     },
     /// Publicly available S3-compatible bucket.
     S3AnonymousReadOnly {
-        /// Name of the bucket.
+        /// Name or URL of the bucket.
         bucket_base_url: String,
         /// Allows overriding AWS S3 API endpoint, e.g. to use another S3-compatible store provider.
         endpoint: Option<String>,
@@ -77,7 +77,7 @@ pub enum ObjectStoreMode {
     },
     /// S3-compatible bucket with credential file authentication.
     S3WithCredentialFile {
-        /// Name of the bucket.
+        /// Name or URL of the bucket.
         bucket_base_url: String,
         /// Path to the credentials file.
         s3_credential_file_path: PathBuf,
