@@ -177,7 +177,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        keeper::BatchEnv,
+        io::BatchInitParams,
         tests::{create_execution_result, create_transaction, create_updates_manager},
     };
 
@@ -321,8 +321,8 @@ mod tests {
         };
         let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
         let mut manager = UpdatesManager::new(
-            &BatchEnv {
-                vm_batch_env: l1_batch_env,
+            &BatchInitParams {
+                l1_batch_env,
                 system_env,
                 pubdata_params: Default::default(),
                 timestamp_ms,

@@ -111,14 +111,22 @@ pub struct L1BatchParams {
     pub pubdata_params: PubdataParams,
 }
 
+#[derive(Debug)]
+pub(crate) struct BatchInitParams {
+    pub system_env: SystemEnv,
+    pub l1_batch_env: L1BatchEnv,
+    pub pubdata_params: PubdataParams,
+    pub timestamp_ms: u64,
+}
+
 impl L1BatchParams {
-    pub(crate) fn into_env(
+    pub(crate) fn into_init_params(
         self,
         chain_id: L2ChainId,
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-    ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
+    ) -> BatchInitParams {
         let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
@@ -134,7 +142,12 @@ impl L1BatchParams {
             chain_id,
         );
 
-        (system_env, l1_batch_env, self.pubdata_params)
+        BatchInitParams {
+            system_env,
+            l1_batch_env,
+            pubdata_params: self.pubdata_params,
+            timestamp_ms: self.first_l2_block.timestamp_ms(),
+        }
     }
 }
 

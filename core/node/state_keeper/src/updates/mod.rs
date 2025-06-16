@@ -10,10 +10,9 @@ use zksync_types::{
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
-    io::{IoCursor, L2BlockParams},
+    io::{BatchInitParams, IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
-use crate::keeper::BatchEnv;
 
 pub mod l1_batch_updates;
 pub mod l2_block_updates;
@@ -43,30 +42,39 @@ pub struct UpdatesManager {
 
 impl UpdatesManager {
     pub(crate) fn new(
-        batch_env: &BatchEnv,
+        batch_init_params: &BatchInitParams,
         previous_batch_protocol_version: ProtocolVersionId,
     ) -> Self {
-        let protocol_version = batch_env.system_env.version;
+        let protocol_version = batch_init_params.system_env.version;
         Self {
-            batch_timestamp: batch_env.vm_batch_env.timestamp,
-            fee_account_address: batch_env.vm_batch_env.fee_account,
-            batch_fee_input: batch_env.vm_batch_env.fee_input,
-            base_fee_per_gas: get_batch_base_fee(&batch_env.vm_batch_env, protocol_version.into()),
+            batch_timestamp: batch_init_params.l1_batch_env.timestamp,
+            fee_account_address: batch_init_params.l1_batch_env.fee_account,
+            batch_fee_input: batch_init_params.l1_batch_env.fee_input,
+            base_fee_per_gas: get_batch_base_fee(
+                &batch_init_params.l1_batch_env,
+                protocol_version.into(),
+            ),
             protocol_version,
-            base_system_contract_hashes: batch_env.system_env.base_system_smart_contracts.hashes(),
-            l1_batch: L1BatchUpdates::new(batch_env.vm_batch_env.number),
+            base_system_contract_hashes: batch_init_params
+                .system_env
+                .base_system_smart_contracts
+                .hashes(),
+            l1_batch: L1BatchUpdates::new(batch_init_params.l1_batch_env.number),
             l2_block: L2BlockUpdates::new(
-                batch_env.timestamp_ms,
-                L2BlockNumber(batch_env.vm_batch_env.first_l2_block.number),
-                batch_env.vm_batch_env.first_l2_block.prev_block_hash,
-                batch_env
-                    .vm_batch_env
+                batch_init_params.timestamp_ms,
+                L2BlockNumber(batch_init_params.l1_batch_env.first_l2_block.number),
+                batch_init_params
+                    .l1_batch_env
+                    .first_l2_block
+                    .prev_block_hash,
+                batch_init_params
+                    .l1_batch_env
                     .first_l2_block
                     .max_virtual_blocks_to_create,
                 protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
-            pubdata_params: batch_env.pubdata_params,
+            pubdata_params: batch_init_params.pubdata_params,
             next_l2_block_params: None,
             previous_batch_protocol_version,
         }

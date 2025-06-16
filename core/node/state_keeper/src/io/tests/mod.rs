@@ -27,7 +27,6 @@ use zksync_types::{
 use self::tester::Tester;
 use crate::{
     io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
-    keeper::BatchEnv,
     mempool_actor::l2_tx_filter,
     testonly::BASE_SYSTEM_CONTRACTS,
     tests::{create_execution_result, create_transaction, seconds_since_epoch, Query},
@@ -553,23 +552,14 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         .await
         .unwrap()
         .expect("no batch params generated");
-    let (system_env, vm_batch_env, pubdata_params) = l1_batch_params.into_env(
+    let batch_init_params = l1_batch_params.into_init_params(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
     );
-    let timestamp_ms = vm_batch_env.first_l2_block.timestamp * 1000;
-    let version = system_env.version;
-    let mut updates = UpdatesManager::new(
-        &BatchEnv {
-            vm_batch_env,
-            system_env,
-            pubdata_params,
-            timestamp_ms,
-        },
-        version,
-    );
+    let version = batch_init_params.system_env.version;
+    let mut updates = UpdatesManager::new(&batch_init_params, version);
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
@@ -711,38 +701,20 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
     let (cursor, _) = mempool.initialize().await.unwrap();
 
-    let new_l1_batch_params = mempool
+    let mut new_l1_batch_params = mempool
         .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no batch params generated");
 
-    assert_eq!(
-        old_l1_batch_params.protocol_version,
-        new_l1_batch_params.protocol_version
-    );
-    assert_eq!(
-        old_l1_batch_params.validation_computational_gas_limit,
-        new_l1_batch_params.validation_computational_gas_limit
-    );
-    assert_eq!(
-        old_l1_batch_params.operator_address,
-        new_l1_batch_params.operator_address
-    );
-    assert_eq!(old_l1_batch_params.fee_input, new_l1_batch_params.fee_input);
-    assert_eq!(
-        old_l1_batch_params.pubdata_params,
-        new_l1_batch_params.pubdata_params
-    );
-    assert_eq!(
-        old_l1_batch_params.first_l2_block.virtual_blocks,
-        new_l1_batch_params.first_l2_block.virtual_blocks
-    );
-    // Timestamp in millis can be different.
+    // Timestamp in millis can be different. So we check only the seconds part.
     assert_eq!(
         old_l1_batch_params.first_l2_block.timestamp(),
         new_l1_batch_params.first_l2_block.timestamp()
     );
+    *new_l1_batch_params.first_l2_block.timestamp_ms_mut() =
+        old_l1_batch_params.first_l2_block.timestamp_ms();
+    assert_eq!(new_l1_batch_params, old_l1_batch_params);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]

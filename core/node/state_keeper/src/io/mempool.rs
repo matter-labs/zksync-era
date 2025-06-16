@@ -503,6 +503,14 @@ impl MempoolIO {
 
         let deadline = Instant::now() + max_wait;
 
+        let previous_protocol_version = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await?
+            .blocks_dal()
+            .pending_protocol_version()
+            .await
+            .context("Failed loading previous protocol version")?;
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
@@ -513,11 +521,6 @@ impl MempoolIO {
                 .protocol_version_id_by_timestamp(curr_timestamp)
                 .await
                 .context("Failed loading protocol version")?;
-            let previous_protocol_version = conn
-                .blocks_dal()
-                .pending_protocol_version()
-                .await
-                .context("Failed loading previous protocol version")?;
             drop(conn);
             // We cannot create two L1 batches with the same timestamp regardless of the protocol version.
             // For versions <= v28 timestamps should be increasing for each L2 block.

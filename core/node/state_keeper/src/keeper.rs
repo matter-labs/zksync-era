@@ -11,7 +11,7 @@ use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        Halt, L1BatchEnv as VmBatchEnv, SystemEnv,
+        Halt, L1BatchEnv, SystemEnv,
     },
     utils::StorageWritesDeduplicator,
 };
@@ -27,7 +27,7 @@ use zksync_vm_executor::whitelist::DeploymentTxFilter;
 use crate::{
     executor::TxExecutionResult,
     health::StateKeeperHealthDetails,
-    io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, StateKeeperIO},
+    io::{BatchInitParams, IoCursor, L1BatchParams, L2BlockParams, OutputHandler, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     updates::UpdatesManager,
@@ -37,14 +37,6 @@ use crate::{
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
 pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
-
-#[derive(Debug)]
-pub(super) struct BatchEnv {
-    pub system_env: SystemEnv,
-    pub vm_batch_env: VmBatchEnv,
-    pub pubdata_params: PubdataParams,
-    pub timestamp_ms: u64,
-}
 
 /// State keeper represents a logic layer of L1 batch / L2 block processing flow.
 ///
@@ -108,7 +100,7 @@ impl ZkSyncStateKeeper {
         );
 
         // Re-execute pending batch if it exists. Otherwise, initialize a new batch.
-        let (mut batch_env, pending_l2_blocks) = match pending_batch_params {
+        let (mut batch_init_params, pending_l2_blocks) = match pending_batch_params {
             Some(params) => {
                 tracing::info!(
                     "There exists a pending batch consisting of {} L2 blocks, the first one is {}",
@@ -122,9 +114,9 @@ impl ZkSyncStateKeeper {
                 // For re-executing purposes it's ok to not use exact precise millis.
                 let timestamp_ms = params.l1_batch_env.first_l2_block.timestamp * 1000;
                 (
-                    BatchEnv {
+                    BatchInitParams {
                         system_env: params.system_env,
-                        vm_batch_env: params.l1_batch_env,
+                        l1_batch_env: params.l1_batch_env,
                         pubdata_params: params.pubdata_params,
                         timestamp_ms,
                     },
@@ -133,33 +125,34 @@ impl ZkSyncStateKeeper {
             }
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
-                let batch_env = self
-                    .wait_for_new_batch_env(&cursor, &mut stop_receiver)
+                let batch_init_params = self
+                    .wait_for_new_batch_init_params(&cursor, &mut stop_receiver)
                     .await
                     .stop_context("failed getting new batch params")?;
-                (batch_env, Vec::new())
+                (batch_init_params, Vec::new())
             }
         };
 
-        let protocol_version = batch_env.system_env.version;
+        let protocol_version = batch_init_params.system_env.version;
         let previous_batch_protocol_version = self
             .io
-            .load_batch_version_id(batch_env.vm_batch_env.number - 1)
+            .load_batch_version_id(batch_init_params.l1_batch_env.number - 1)
             .await?;
-        let mut updates_manager = UpdatesManager::new(&batch_env, previous_batch_protocol_version);
+        let mut updates_manager =
+            UpdatesManager::new(&batch_init_params, previous_batch_protocol_version);
         let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
             .load_protocol_upgrade_tx(
                 &pending_l2_blocks,
                 protocol_version,
-                batch_env.vm_batch_env.number,
+                batch_init_params.l1_batch_env.number,
             )
             .await?;
 
         let mut batch_executor = self
             .create_batch_executor(
-                batch_env.vm_batch_env.clone(),
-                batch_env.system_env.clone(),
-                batch_env.pubdata_params,
+                batch_init_params.l1_batch_env.clone(),
+                batch_init_params.system_env.clone(),
+                batch_init_params.pubdata_params,
                 &stop_receiver,
             )
             .await?;
@@ -203,7 +196,12 @@ impl ZkSyncStateKeeper {
             self.output_handler
                 .handle_l1_batch(Arc::new(updates_manager))
                 .await
-                .with_context(|| format!("failed sealing L1 batch {:?}", batch_env.vm_batch_env))?;
+                .with_context(|| {
+                    format!(
+                        "failed sealing L1 batch {:?}",
+                        batch_init_params.l1_batch_env
+                    )
+                })?;
 
             if let Some(delta) = l1_batch_seal_delta {
                 L1_BATCH_METRICS.seal_delta.observe(delta.elapsed());
@@ -212,22 +210,25 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             next_cursor.l1_batch += 1;
-            batch_env = self
-                .wait_for_new_batch_env(&next_cursor, &mut stop_receiver)
+            batch_init_params = self
+                .wait_for_new_batch_init_params(&next_cursor, &mut stop_receiver)
                 .await?;
-            updates_manager = UpdatesManager::new(&batch_env, previous_batch_protocol_version);
+            updates_manager =
+                UpdatesManager::new(&batch_init_params, previous_batch_protocol_version);
             batch_executor = self
                 .create_batch_executor(
-                    batch_env.vm_batch_env.clone(),
-                    batch_env.system_env.clone(),
-                    batch_env.pubdata_params,
+                    batch_init_params.l1_batch_env.clone(),
+                    batch_init_params.system_env.clone(),
+                    batch_init_params.pubdata_params,
                     &stop_receiver,
                 )
                 .await?;
 
-            let version_changed = batch_env.system_env.version != sealed_batch_protocol_version;
+            let version_changed =
+                batch_init_params.system_env.version != sealed_batch_protocol_version;
             protocol_upgrade_tx = if version_changed {
-                self.load_upgrade_tx(batch_env.system_env.version).await?
+                self.load_upgrade_tx(batch_init_params.system_env.version)
+                    .await?
             } else {
                 None
             };
@@ -237,7 +238,7 @@ impl ZkSyncStateKeeper {
 
     async fn create_batch_executor(
         &mut self,
-        l1_batch_env: VmBatchEnv,
+        l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
         stop_receiver: &watch::Receiver<bool>,
@@ -340,11 +341,11 @@ impl ZkSyncStateKeeper {
             l1_batch = %cursor.l1_batch,
         )
     )]
-    async fn wait_for_new_batch_env(
+    async fn wait_for_new_batch_init_params(
         &mut self,
         cursor: &IoCursor,
         stop_receiver: &mut watch::Receiver<bool>,
-    ) -> Result<BatchEnv, OrStopped> {
+    ) -> Result<BatchInitParams, OrStopped> {
         // `io.wait_for_new_batch_params(..)` is not cancel-safe; once we get new batch params, we must hold onto them
         // until we get the rest of parameters from I/O or receive a stop request.
         let params = self
@@ -365,14 +366,7 @@ impl ZkSyncStateKeeper {
         tokio::select! {
             hash_result = self.io.load_batch_state_hash(cursor.l1_batch - 1) => {
                 let previous_batch_hash = hash_result.context("cannot load state hash for previous L1 batch")?;
-                let timestamp_ms = params.first_l2_block.timestamp_ms();
-                let (system_env, vm_batch_env, pubdata_params) = params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash);
-                Ok(BatchEnv {
-                    system_env,
-                    vm_batch_env,
-                    pubdata_params,
-                    timestamp_ms,
-                })
+                Ok(params.into_init_params(self.io.chain_id(), contracts, cursor, previous_batch_hash))
             }
             _ = stop_receiver.changed() => Err(OrStopped::Stopped),
         }
