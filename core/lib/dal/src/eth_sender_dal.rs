@@ -773,30 +773,58 @@ impl EthSenderDal<'_, '_> {
         limit: i64,
         chain_id: Option<SLChainId>,
     ) -> sqlx::Result<Vec<TxHistory>> {
-        let tx_history = sqlx::query_as!(
-            StorageTxHistory,
-            r#"
-            SELECT
-                eth_txs_history.*,
-                eth_txs.blob_sidecar,
-                eth_txs.tx_type
-            FROM
-                eth_txs_history
-            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
-            WHERE
-                eth_txs_history.finality_status != 'finalized'
-                AND eth_txs.chain_id = $1
-            ORDER BY
-                eth_txs_history.id ASC
-            LIMIT
-                $2
-            "#,
-            chain_id.map(|chain_id| chain_id.0 as i64),
-            limit,
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-        Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
+        match chain_id {
+            Some(chain_id) => {
+                let tx_history = sqlx::query_as!(
+                    StorageTxHistory,
+                    r#"
+                    SELECT
+                        eth_txs_history.*,
+                        eth_txs.blob_sidecar,
+                        eth_txs.tx_type
+                    FROM
+                        eth_txs_history
+                    LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+                    WHERE
+                        eth_txs_history.finality_status != 'finalized'
+                        AND eth_txs.chain_id = $1
+                    ORDER BY
+                        eth_txs_history.id ASC
+                    LIMIT
+                        $2
+                    "#,
+                    chain_id.0 as i64,
+                    limit,
+                )
+                .fetch_all(self.storage.conn())
+                .await?;
+                Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
+            }
+            None => {
+                let tx_history = sqlx::query_as!(
+                    StorageTxHistory,
+                    r#"
+                    SELECT
+                        eth_txs_history.*,
+                        eth_txs.blob_sidecar,
+                        eth_txs.tx_type
+                    FROM
+                        eth_txs_history
+                    LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+                    WHERE
+                        eth_txs_history.finality_status != 'finalized'
+                    ORDER BY
+                        eth_txs_history.id ASC
+                    LIMIT
+                        $1
+                    "#,
+                    limit,
+                )
+                .fetch_all(self.storage.conn())
+                .await?;
+                Ok(tx_history.into_iter().map(|tx| tx.into()).collect())
+            }
+        }
     }
 
     /// Sets `sent_at_block` for the eth_txs_history row.
