@@ -3,7 +3,15 @@ import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
 import path from 'path';
 
-import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet, HealthCheckResponse } from '../src';
+import {
+    NodeProcess,
+    dropNodeData,
+    getExternalNodeHealth,
+    NodeComponents,
+    sleep,
+    FundedWallet,
+    HealthCheckResponse
+} from '../src';
 import { loadConfig } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 
@@ -111,7 +119,7 @@ describe('genesis recovery', () => {
             console.log('Reorg detector not ready', details);
         }
         return false;
-    }
+    };
 
     const consistencyCheckerCheck = (health: HealthCheckResponse, catchUpBatchNumber: number): boolean => {
         const status = health.components.consistency_checker?.status;
@@ -119,7 +127,11 @@ describe('genesis recovery', () => {
         const details = health.components.consistency_checker?.details;
         if (status === 'ready' && details !== undefined) {
             console.log('Received consistency checker health details', details);
-            if (details.first_checked_batch !== undefined && details.last_checked_batch !== undefined && details.last_checked_batch >= catchUpBatchNumber) {
+            if (
+                details.first_checked_batch !== undefined &&
+                details.last_checked_batch !== undefined &&
+                details.last_checked_batch >= catchUpBatchNumber
+            ) {
                 console.log('Consistency checker cought up to L1 batch #', catchUpBatchNumber);
                 return true;
             }
@@ -127,7 +139,7 @@ describe('genesis recovery', () => {
             console.log('Consistency checker not ready', details);
         }
         return false;
-    }
+    };
 
     step('initialize external node w/o a tree', async () => {
         externalNodeProcess = await NodeProcess.spawn(
