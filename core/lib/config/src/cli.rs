@@ -42,16 +42,16 @@ impl ConfigCommand {
         match self {
             Self::Help(HelpCommandArgs { filter }) => {
                 printer.print_help(repo.schema(), |param| {
-                    filter
-                        .as_ref()
-                        .is_none_or(|needle| param.all_paths().any(|path| path.contains(needle)))
+                    filter.as_ref().is_none_or(|needle| {
+                        param.all_paths().any(|(path, _)| path.contains(needle))
+                    })
                 })?;
             }
             Self::Debug { filter } => {
                 printer.print_debug(&repo, |param| {
-                    filter
-                        .as_ref()
-                        .is_none_or(|needle| param.all_paths().any(|path| path.contains(needle)))
+                    filter.as_ref().is_none_or(|needle| {
+                        param.all_paths().any(|(path, _)| path.contains(needle))
+                    })
                 })??;
             }
             Self::Print { diff, format } => {

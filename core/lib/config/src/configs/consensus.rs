@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de,
-    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown},
+    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown, WellKnownOption},
     metadata::{BasicTypes, ParamMetadata, SizeUnit, TypeDescription},
     value::SecretString,
     ByteSize, DescribeConfig, DeserializeConfig, ErrorWithOrigin,
@@ -27,6 +27,8 @@ impl WellKnown for ValidatorPublicKey {
     const DE: Self::Deserializer =
         Qualified::new(Serde![str], "has `validator:public:bls12_381:` prefix");
 }
+
+impl WellKnownOption for ValidatorPublicKey {}
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -60,7 +62,7 @@ impl WellKnown for ProtocolVersion {
 
 /// Consensus genesis specification.
 /// It is a digest of the `validator::Genesis`,
-/// which allows to initialize genesis (if not present)
+/// which allows to initialize genesis (if not present) or
 /// decide whether a hard fork is necessary (if present).
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GenesisSpec {
@@ -73,7 +75,7 @@ pub struct GenesisSpec {
     #[config(default, with = Entries::WELL_KNOWN.named("key", "weight"))]
     pub validators: Vec<(ValidatorPublicKey, u64)>,
     /// Leader of the committee.
-    pub leader: ValidatorPublicKey,
+    pub leader: Option<ValidatorPublicKey>,
     /// Address of the registry contract.
     pub registry_address: Option<ethabi::Address>,
     /// Recommended list of peers to connect to.
@@ -230,7 +232,7 @@ mod tests {
                 chain_id: L2ChainId::from(271),
                 protocol_version: ProtocolVersion(1),
                 validators: vec![(ValidatorPublicKey(VALIDATOR.into()), 1)],
-                leader: ValidatorPublicKey(VALIDATOR.into()),
+                leader: Some(ValidatorPublicKey(VALIDATOR.into())),
                 registry_address: Some("0x2469b58c37e02d53a65cdf248d4086beba17de85".parse().unwrap()),
                 seed_peers: BTreeMap::from([(
                     NodePublicKey("node:public:ed25519:68d29127ab03408bf5c838553b19c32bdb3aaaae9bf293e5e078c3a0d265822a".into()),
