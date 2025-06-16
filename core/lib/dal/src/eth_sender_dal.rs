@@ -169,11 +169,12 @@ impl EthSenderDal<'_, '_> {
                 chain_id
             FROM
                 eth_txs
-                INNER JOIN l1_batches ON 
+            INNER JOIN l1_batches
+                ON
                     eth_txs.id = l1_batches.eth_commit_tx_id
                     OR eth_txs.id = l1_batches.eth_prove_tx_id
                     OR eth_txs.id = l1_batches.eth_execute_tx_id
-                LEFT JOIN eth_txs_history ON eth_txs.id = eth_txs_history.eth_tx_id
+            LEFT JOIN eth_txs_history ON eth_txs.id = eth_txs_history.eth_tx_id
             WHERE
                 eth_txs_history.finality_status != 'finalized'
             ORDER BY l1_batches.number ASC
