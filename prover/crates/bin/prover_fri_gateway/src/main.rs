@@ -7,7 +7,7 @@ use proof_data_manager::ProofDataManager;
 use tokio::sync::{oneshot, watch};
 use traits::PeriodicApi as _;
 use zksync_config::{
-    configs::{fri_prover_gateway::ApiMode, DatabaseSecrets, GeneralConfig},
+    configs::{fri_prover_gateway::ApiMode, GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -38,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let config = general_config
         .prover_gateway

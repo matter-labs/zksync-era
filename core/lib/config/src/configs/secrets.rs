@@ -16,7 +16,7 @@ const EXAMPLE_POSTGRES_URL: &str = "postgres://postgres:notsecurepassword@localh
 
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
-pub struct DatabaseSecrets {
+pub struct PostgresSecrets {
     /// Postgres connection string for the server database.
     #[config(alias = "url", secret, with = Optional(Serde![str]))]
     #[config(fallback = &fallback::Env("DATABASE_URL"))]
@@ -67,8 +67,8 @@ pub struct ContractVerifierSecrets {
 pub struct Secrets {
     #[config(nest)]
     pub consensus: ConsensusSecrets,
-    #[config(nest)]
-    pub database: DatabaseSecrets,
+    #[config(nest, alias = "database")]
+    pub postgres: PostgresSecrets,
     #[config(nest)]
     pub l1: L1Secrets,
     #[config(nest, rename = "da_client", alias = "da")]
@@ -77,7 +77,7 @@ pub struct Secrets {
     pub contract_verifier: ContractVerifierSecrets,
 }
 
-impl DatabaseSecrets {
+impl PostgresSecrets {
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
     pub fn master_url(&self) -> anyhow::Result<SensitiveUrl> {
         self.server_url.clone().context("Master DB URL is absent")
@@ -107,15 +107,15 @@ mod tests {
 
     fn assert_secrets(secrets: Secrets) {
         assert_eq!(
-            secrets.database.server_url.unwrap().expose_str(),
+            secrets.postgres.server_url.unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era"
         );
         assert_eq!(
-            secrets.database.server_replica_url.unwrap().expose_str(),
+            secrets.postgres.server_replica_url.unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost/zksync_replica_local"
         );
         assert_eq!(
-            secrets.database.prover_url.unwrap().expose_str(),
+            secrets.postgres.prover_url.unwrap().expose_str(),
             "postgres://postgres:notsecurepassword@localhost/prover_local"
         );
         assert_eq!(

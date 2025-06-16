@@ -27,7 +27,7 @@ pub use self::{
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{
-        ContractVerifierSecrets, DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets,
+        ContractVerifierSecrets, DataAvailabilitySecrets, L1Secrets, PostgresSecrets, Secrets,
     },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,

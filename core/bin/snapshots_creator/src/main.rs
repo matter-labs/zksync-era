@@ -13,7 +13,7 @@ use anyhow::Context as _;
 use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{
-    configs::{DatabaseSecrets, PrometheusConfig},
+    configs::{PostgresSecrets, PrometheusConfig},
     full_config_schema,
     sources::ConfigFilePaths,
     SnapshotsCreatorConfig,
@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
     let creator_config: SnapshotsCreatorConfig = repo.parse()?;
     let prometheus_config: PrometheusConfig = repo.parse()?;
 

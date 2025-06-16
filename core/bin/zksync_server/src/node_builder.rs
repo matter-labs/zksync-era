@@ -131,7 +131,7 @@ impl MainNodeBuilder {
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
         let config = self.configs.postgres_config.clone();
-        let secrets = self.secrets.database.clone();
+        let secrets = self.secrets.postgres.clone();
         let pools_layer = PoolsLayer::empty(config, secrets)
             .with_master(true)
             .with_replica(true);

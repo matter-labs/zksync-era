@@ -11,7 +11,7 @@ use clap::Parser;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_config::{
-    configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
+    configs::{FriProofCompressorConfig, GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config

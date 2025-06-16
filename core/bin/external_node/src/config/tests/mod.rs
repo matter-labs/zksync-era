@@ -494,7 +494,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
 
     let secrets: Secrets = tester.for_config().test(source.clone()).unwrap();
     assert_eq!(
-        secrets.database.server_url.unwrap().expose_str(),
+        secrets.postgres.server_url.unwrap().expose_str(),
         "postgres://postgres:notsecurepassword@localhost:5432/en"
     );
     assert_eq!(

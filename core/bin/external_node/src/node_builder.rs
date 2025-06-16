@@ -98,7 +98,7 @@ impl<R> ExternalNodeBuilder<R> {
         // or are not used in the context of the external node.
         config.max_connections_master = config.max_connections;
 
-        let mut secrets = self.config.local.secrets.database.clone();
+        let mut secrets = self.config.local.secrets.postgres.clone();
         secrets.server_replica_url = secrets.server_url.clone();
         secrets.prover_url = None;
 
@@ -282,7 +282,7 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let da_client_config = self.config.local.data_availability.clone();
+        let da_client_config = self.config.local.da_client.clone();
         let da_client_config = da_client_config.context("DA client config is missing")?;
 
         if matches!(da_client_config, DAClientConfig::NoDA) {
