@@ -149,6 +149,13 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    #[cfg(not(target_env = "msvc"))]
+    fn add_jemalloc_monitor_layer(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(zksync_node_jemalloc::JemallocMonitorLayer);
+        Ok(self)
+    }
+
     fn add_postgres_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(PostgresMetricsLayer);
         Ok(self)
@@ -193,7 +200,11 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
+        let api_config = try_load_config!(self.configs.api_config);
+        let l1_gas_layer = L1GasLayer::new(
+            &state_keeper_config,
+            api_config.web3_json_rpc.gas_price_scale_factor_open_batch,
+        );
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
@@ -419,7 +430,7 @@ impl MainNodeBuilder {
             namespaces,
             filters_limit: rpc_config.filters_limit,
             subscriptions_limit: rpc_config.subscriptions_limit,
-            batch_request_size_limit: rpc_config.max_batch_request_size,
+            batch_request_size_limit: rpc_config.max_batch_request_size.get(),
             response_body_size_limit: rpc_config.max_response_body_size(),
             websocket_requests_per_minute_limit: Some(
                 rpc_config.websocket_requests_per_minute_limit,
@@ -719,6 +730,11 @@ impl MainNodeBuilder {
             .add_settlement_mode_data()?
             .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
+
+        #[cfg(not(target_env = "msvc"))]
+        {
+            self = self.add_jemalloc_monitor_layer()?;
+        }
 
         // Add preconditions for all the components.
         self = self

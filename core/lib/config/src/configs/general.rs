@@ -12,11 +12,11 @@ use crate::{
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         wallets::Wallets,
-        CommitmentGeneratorConfig, ExperimentalVmConfig, ExternalPriceApiClientConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, GatewayMigratorConfig, GenesisConfigWrapper,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, Secrets,
-        TeeProofDataHandlerConfig,
+        CommitmentGeneratorConfig, ConsistencyCheckerConfig, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, GatewayMigratorConfig,
+        GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        Secrets, TeeProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -92,6 +92,8 @@ pub struct GeneralConfig {
     pub timestamp_asserter_config: TimestampAsserterConfig,
     #[config(nest, rename = "gateway_migrator")]
     pub gateway_migrator_config: GatewayMigratorConfig,
+    #[config(nest, rename = "consistency_checker")]
+    pub consistency_checker_config: ConsistencyCheckerConfig,
 }
 
 /// Returns the config schema for the main node.

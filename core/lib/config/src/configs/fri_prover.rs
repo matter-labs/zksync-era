@@ -8,8 +8,7 @@ use crate::ObjectStoreConfig;
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct FriProverConfig {
     pub setup_data_path: PathBuf,
-    #[config(default_t = 3315)]
-    pub prometheus_port: u16,
+    pub prometheus_port: Option<u16>,
     #[config(default_t = 5)]
     pub max_attempts: u32,
     #[config(default_t = 10 * TimeUnit::Minutes)]
@@ -31,13 +30,13 @@ mod tests {
     fn expected_config() -> FriProverConfig {
         FriProverConfig {
             setup_data_path: "prover/data/keys".into(),
-            prometheus_port: 3315,
+            prometheus_port: Some(3315),
             max_attempts: 10,
             generation_timeout: Duration::from_secs(300),
             prover_object_store: ObjectStoreConfig {
                 mode: ObjectStoreMode::GCSWithCredentialFile {
                     bucket_base_url: "/base/url".to_owned(),
-                    gcs_credential_file_path: "/path/to/credentials1.json".to_owned(),
+                    gcs_credential_file_path: "/path/to/credentials1.json".into(),
                 },
                 max_retries: 5,
                 local_mirror_path: Some("/var/cache".into()),

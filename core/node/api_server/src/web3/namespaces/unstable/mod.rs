@@ -6,7 +6,10 @@ use utils::{
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
+use zksync_multivm::{
+    interface::VmEvent,
+    zk_evm_latest::ethereum_types::{U256, U64},
+};
 use zksync_types::{
     api,
     api::{
@@ -257,6 +260,11 @@ impl UnstableNamespace {
                 .map(|event| map_event(event, tx_hash))
                 .collect(),
         })
+    }
+
+    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
+        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
+        Ok(gas_per_pubdata.into())
     }
 }
 

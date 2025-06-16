@@ -49,7 +49,6 @@ pub struct MerkleTreeConfig {
     /// as a rudimentary way to control RAM usage of the tree.
     pub max_open_files: Option<NonZeroU32>,
     /// Capacity of the block cache for the Merkle tree RocksDB. Reasonable values range from ~100 MB to several GB.
-    /// The default value is 128 MB.
     #[config(default_t = 128 * SizeUnit::MiB)]
     pub block_cache_size: ByteSize,
     /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
@@ -117,7 +116,7 @@ pub struct PostgresConfig {
     /// Maximum size of the connection pool to master DB.
     #[config(alias = "pool_size_master")]
     pub max_connections_master: Option<u32>,
-    /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
+    /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (specified by the adjacent `acquire_retries` param)
     /// before acquire methods will return an error.
     #[config(default_t = Duration::from_secs(30))]
     pub acquire_timeout: Duration,

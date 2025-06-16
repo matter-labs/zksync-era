@@ -114,6 +114,13 @@ impl<R> ExternalNodeBuilder<R> {
         Ok(self)
     }
 
+    #[cfg(not(target_env = "msvc"))]
+    fn add_jemalloc_monitor_layer(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(zksync_node_jemalloc::JemallocMonitorLayer);
+        Ok(self)
+    }
+
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         let networks = &self.config.local.networks;
         self.node.add_layer(ExternalNodeMetricsLayer {
@@ -249,8 +256,9 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
-        let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
-        let layer = ConsistencyCheckerLayer::new(max_batches_to_recheck);
+        let layer = ConsistencyCheckerLayer::new(
+            self.config.local.consistency_checker.max_batches_to_recheck,
+        );
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -491,7 +499,7 @@ impl ExternalNodeBuilder {
             namespaces: config.api_namespaces.clone(),
             filters_limit: config.filters_limit,
             subscriptions_limit: config.subscriptions_limit,
-            batch_request_size_limit: config.max_batch_request_size,
+            batch_request_size_limit: config.max_batch_request_size.get(),
             response_body_size_limit: config.max_response_body_size(),
             with_extended_tracing: config.extended_api_tracing,
             pruning_info_refresh_interval,
@@ -576,6 +584,11 @@ impl ExternalNodeBuilder {
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
             .add_reorg_detector_layer()?;
+
+        #[cfg(not(target_env = "msvc"))]
+        {
+            self = self.add_jemalloc_monitor_layer()?;
+        }
 
         // Add layers that must run only on a single component.
         if components.contains(&Component::Core) {

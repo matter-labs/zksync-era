@@ -16,6 +16,7 @@ use zksync_config::{
         da_client::{avail::AvailClientConfig, eigen::PointsSource},
         database::MerkleTreeMode,
         object_store::ObjectStoreMode,
+        observability::LogFormat,
         CommitmentGeneratorConfig,
     },
     sources::ConfigFilePaths,
@@ -48,7 +49,7 @@ fn parse_prepared_env(env: smart_config::Environment) -> (LocalConfig, Observabi
 }
 
 fn assert_common_prepared_env(config: &LocalConfig, observability: &ObservabilityConfig) {
-    assert_eq!(observability.log_format, "plain");
+    assert_eq!(observability.log_format, LogFormat::Plain);
     assert!(
         observability.log_directives.contains("warn,zksync=info"),
         "{observability:?}"
@@ -324,7 +325,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.push_interval, Duration::from_millis(150));
 
     let config: ObservabilityConfig = tester.for_config().test_complete(source.clone()).unwrap();
-    assert_eq!(config.log_format, "json");
+    assert_eq!(config.log_format, LogFormat::Json);
     assert_eq!(config.log_directives, "warn,zksync=info");
     let sentry = config.sentry;
     assert_eq!(sentry.url.unwrap(), "https://example.com/new");
@@ -337,10 +338,10 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.max_tx_size, ByteSize(1_000_000));
     assert_eq!(config.vm_execution_cache_misses_limit, Some(1_000));
     assert_eq!(config.fee_history_limit, 100);
-    assert_eq!(config.max_batch_request_size, 50);
+    assert_eq!(config.max_batch_request_size.get(), 50);
     assert_eq!(config.max_response_body_size, ByteSize(5 << 20));
     assert_eq!(
-        config.max_response_body_size_overrides_mb,
+        config.max_response_body_size_overrides,
         MaxResponseSizeOverrides::from_iter([
             ("zks_getProof", NonZeroUsize::new(100)),
             ("eth_call", NonZeroUsize::new(2))

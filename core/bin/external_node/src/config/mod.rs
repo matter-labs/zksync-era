@@ -13,8 +13,8 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         networks::{NetworksConfig, SharedL1ContractsConfig},
-        CommitmentGeneratorConfig, DataAvailabilitySecrets, L1Secrets, ObservabilityConfig,
-        PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
+        CommitmentGeneratorConfig, ConsistencyCheckerConfig, DataAvailabilitySecrets, L1Secrets,
+        ObservabilityConfig, PrometheusConfig, PruningConfig, Secrets, SnapshotRecoveryConfig,
     },
     ApiConfig, CapturedParams, ConfigRepository, DAClientConfig, DBConfig, ObjectStoreConfig,
     PostgresConfig,
@@ -223,6 +223,7 @@ pub(crate) struct LocalConfig {
     pub data_availability: Option<DAClientConfig>,
     pub contracts: SharedL1ContractsConfig,
     pub networks: NetworksConfig,
+    pub consistency_checker: ConsistencyCheckerConfig,
     pub consensus: Option<ConsensusConfig>,
     pub secrets: Secrets,
 }
@@ -278,6 +279,10 @@ impl LocalConfig {
         schema
             .insert(&DAClientConfig::DESCRIPTION, "da_client")?
             .push_deprecated_alias("da")?;
+        schema.insert(
+            &ConsistencyCheckerConfig::DESCRIPTION,
+            "consistency_checker",
+        )?;
 
         schema
             .insert(&SharedL1ContractsConfig::DESCRIPTION, "contracts.l1")?
@@ -314,6 +319,7 @@ impl LocalConfig {
             data_availability: repo.parse_opt()?,
             contracts: repo.parse()?,
             networks: repo.parse()?,
+            consistency_checker: repo.parse()?,
             consensus: if has_consensus {
                 repo.parse_opt()?
             } else {
@@ -357,6 +363,7 @@ impl LocalConfig {
             data_availability: None,
             contracts: SharedL1ContractsConfig::default(),
             networks: NetworksConfig::for_tests(),
+            consistency_checker: ConsistencyCheckerConfig::default(),
             consensus: None,
             secrets: Secrets {
                 consensus: ConsensusSecrets::default(),

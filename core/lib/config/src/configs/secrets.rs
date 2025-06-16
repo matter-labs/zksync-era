@@ -12,18 +12,22 @@ use crate::configs::{
     da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
 };
 
+const EXAMPLE_POSTGRES_URL: &str = "postgres://postgres:notsecurepassword@localhost:5432/zksync";
+
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct DatabaseSecrets {
     /// Postgres connection string for the server database.
     #[config(alias = "url", secret, with = Optional(Serde![str]))]
     #[config(fallback = &fallback::Env("DATABASE_URL"))]
+    #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
     pub server_url: Option<SensitiveUrl>,
-    /// Postgres connection string for the prover database.
+    /// Postgres connection string for the prover database. Not used by external nodes.
     #[config(secret, with = Optional(Serde![str]))]
     pub prover_url: Option<SensitiveUrl>,
     /// Postgres connection string for the server replica (readonly).
     #[config(alias = "replica_url", secret, with = Optional(Serde![str]))]
+    #[config(example = Some(EXAMPLE_POSTGRES_URL.parse().unwrap()))]
     pub server_replica_url: Option<SensitiveUrl>,
 }
 
@@ -32,8 +36,9 @@ pub struct DatabaseSecrets {
 pub struct L1Secrets {
     /// RPC URL for L1.
     #[config(alias = "eth_client_url", secret, with = Optional(Serde![str]))]
+    #[config(example = Some("https://ethereum-rpc.publicnode.com/".parse().unwrap()))]
     pub l1_rpc_url: Option<SensitiveUrl>,
-    /// RPC URL for the gateway layer.
+    /// Web3 RPC URL for the gateway layer.
     #[config(secret, with = Optional(Serde![str]))]
     #[config(alias = "gateway_web3_url", alias = "gateway_url")]
     pub gateway_rpc_url: Option<SensitiveUrl>,

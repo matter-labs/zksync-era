@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use smart_config::{
     de,
-    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown},
+    de::{DeserializeContext, Entries, Qualified, Serde, WellKnown, WellKnownOption},
     metadata::{BasicTypes, ParamMetadata, SizeUnit, TypeDescription},
     value::SecretString,
     ByteSize, DescribeConfig, DeserializeConfig, ErrorWithOrigin,
@@ -27,6 +27,8 @@ impl WellKnown for ValidatorPublicKey {
     const DE: Self::Deserializer =
         Qualified::new(Serde![str], "has `validator:public:bls12_381:` prefix");
 }
+
+impl WellKnownOption for ValidatorPublicKey {}
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::node::PublicKey`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -60,11 +62,11 @@ impl WellKnown for ProtocolVersion {
 
 /// Consensus genesis specification.
 /// It is a digest of the `validator::Genesis`,
-/// which allows to initialize genesis (if not present)
+/// which allows to initialize genesis (if not present) or
 /// decide whether a hard fork is necessary (if present).
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GenesisSpec {
-    /// Chain ID.
+    /// Chain ID for L2.
     #[config(with = Serde![int])]
     pub chain_id: L2ChainId,
     /// Consensus protocol version.
@@ -84,8 +86,7 @@ pub struct GenesisSpec {
 #[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 #[config(derive(Default))]
 pub struct RpcConfig {
-    // FIXME: breaking change from `get_block_rate: Rate`, but it looks unused. (no mentions in configs)
-    /// Max number of blocks that can be sent from/to each peer. Defaults to 10 blocks/s/connection.
+    /// Max number of blocks that can be sent from/to each peer.
     #[config(default_t = NonZeroUsize::new(10).unwrap())]
     pub get_block_rps: NonZeroUsize,
 }

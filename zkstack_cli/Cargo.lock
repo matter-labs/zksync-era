@@ -6627,7 +6627,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6648,9 +6648,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.11.1"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e68a4a3016741275fcfa5a7d1bde98ad51a46d1d463ad6f0ba8fdd5b5b10888"
+checksum = "9e2dc7b3cddb8995e19ac9967896242f7f017b1daeaec7375fd07b884a1d1aff"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6667,9 +6667,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.11.1"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7db9bb4a7d28e50a63efdf127d5fec2949548b6c3fafc5a407a72981e1ee96de"
+checksum = "4fbbc9a062a65a9918f814db2b0c61d8f44875def9a466543b025ab069dda52a"
 dependencies = [
  "anyhow",
  "blst",
@@ -6677,20 +6677,17 @@ dependencies = [
  "elliptic-curve",
  "hex",
  "k256",
- "num-bigint",
- "num-traits",
  "rand",
  "sha3",
  "thiserror 1.0.69",
- "tracing",
  "zeroize",
 ]
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.11.1"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04b1551c512e3df42acd9a18630ca804fc4624e5352952f07166df7a5563776e"
+checksum = "6bd6e92de8ff7b31dd245efd355872ffb8cc124abb7873ed9c6ba18baade7338"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6698,9 +6695,7 @@ dependencies = [
  "num-bigint",
  "prost",
  "rand",
- "serde",
  "thiserror 1.0.69",
- "tracing",
  "zksync_concurrency",
  "zksync_consensus_crypto",
  "zksync_consensus_utils",
@@ -6710,11 +6705,10 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.11.1"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "086da5ba04d05b0582ee4aed314b071a58021386a12bc6dc4b98b01a78d7a181"
+checksum = "2aa6e711211929724d6e1deee6da90d9a311bc2341ed6d1f7b84f52e3bcc2af7"
 dependencies = [
- "anyhow",
  "rand",
  "thiserror 1.0.69",
  "zksync_concurrency",
@@ -6722,7 +6716,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "hex",
  "once_cell",
@@ -6734,7 +6728,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2",
@@ -6750,7 +6744,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6759,9 +6753,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.11.1"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc9d55b4849f03a736be5c0671772ad640b8f1a8e03d13cc3f8d3c2f1f4aa188"
+checksum = "7df9d1f5ca99acd51df6ffcc845862d29c00225b6c8ceafa301abf3cfe9a4c3b"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6780,9 +6774,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.11.1"
+version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a51a701ca170a69aaea22f8f634d597fdce87ffcc1cf7305418b3cd330d077d5"
+checksum = "9e7bb096cb1fa79ff1900b586e849ec729d275279bbf0d54bfc2cca77fb70650"
 dependencies = [
  "anyhow",
  "heck",
@@ -6797,7 +6791,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6805,7 +6799,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6830,7 +6824,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6840,7 +6834,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "28.5.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
