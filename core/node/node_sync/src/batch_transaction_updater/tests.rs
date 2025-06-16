@@ -18,6 +18,8 @@ use crate::metrics::L1BatchStage;
 
 const MOCK_DIAMON_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
 
+const SL_CHAIN_ID: SLChainId = SLChainId(1);
+
 static INVALID_HASH: H256 = H256::repeat_byte(0xbe);
 
 /// tx_type is 1 for commit, 2 for prove, 3 for execute
@@ -169,7 +171,7 @@ async fn insert_tx(
     let tx_hash = create_tx_hash(action_type, batch_number.0);
     storage
         .eth_sender_dal()
-        .insert_pending_received_eth_tx(batch_number, action_type, tx_hash, Some(SLChainId(1)))
+        .insert_pending_received_eth_tx(batch_number, action_type, tx_hash, Some(SL_CHAIN_ID))
         .await?;
     Ok(())
 }
@@ -182,7 +184,7 @@ async fn insert_invalid_tx(
 ) -> anyhow::Result<()> {
     storage
         .eth_sender_dal()
-        .insert_pending_received_eth_tx(batch_number, action_type, INVALID_HASH, Some(SLChainId(1)))
+        .insert_pending_received_eth_tx(batch_number, action_type, INVALID_HASH, Some(SL_CHAIN_ID))
         .await?;
     Ok(())
 }
@@ -337,7 +339,7 @@ async fn normal_operation_1_batch(
     finality_status: EthTxFinalityStatus,
 ) -> anyhow::Result<()> {
     // Set up test environment
-    let (_pool, mut storage, mut updater, batch_number, _genesis_params) =
+    let (_pool, mut storage, updater, batch_number, _genesis_params) =
         setup_test_environment().await?;
 
     let tranasctions_l1_block_number =
@@ -367,7 +369,8 @@ async fn normal_operation_1_batch(
     };
 
     // Update transaction statuses
-    let updated_count = updater.update_statuses(l1_block_numbers).await?;
+
+    let updated_count = updater.step(SL_CHAIN_ID, l1_block_numbers).await?;
 
     // Verify the transaction statuses in the database
     verify_transaction_statuses(&mut storage, batch_number, stage, finality_status).await?;
@@ -394,7 +397,7 @@ async fn normal_operation_1_batch(
     }
 
     // Test second update does not change anything
-    let updated_count = updater.update_statuses(l1_block_numbers).await?;
+    let updated_count = updater.step(SL_CHAIN_ID, l1_block_numbers).await?;
     assert_eq!(updated_count, 0);
     verify_transaction_statuses(&mut storage, batch_number, stage, finality_status).await?;
 
@@ -404,7 +407,7 @@ async fn normal_operation_1_batch(
 #[tokio::test]
 async fn test_new_transactions_between_updates_with_finality_change() -> anyhow::Result<()> {
     // Set up test environment
-    let (_pool, mut storage, mut updater, batch_number, _genesis_params) =
+    let (_pool, mut storage, updater, batch_number, _genesis_params) =
         setup_test_environment().await?;
 
     // Start with commit tx online
@@ -418,11 +421,14 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     let block_execute = mock_block_number_for_batch_transaction(batch_number, 3);
 
     let updated_count = updater
-        .update_statuses(L1BlockNumbers {
-            finalized: L1BlockNumber(30),
-            fast_finality: L1BlockNumber(30),
-            latest: L1BlockNumber(block_execute),
-        })
+        .step(
+            SL_CHAIN_ID,
+            L1BlockNumbers {
+                finalized: L1BlockNumber(30),
+                fast_finality: L1BlockNumber(30),
+                latest: L1BlockNumber(block_execute),
+            },
+        )
         .await?;
 
     // Verify no updates occurred
@@ -441,22 +447,28 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
 
     // Update with blocks that won't finalize any transactions
     let updated_count = updater
-        .update_statuses(L1BlockNumbers {
-            finalized: L1BlockNumber(50),
-            fast_finality: L1BlockNumber(70),
-            latest: L1BlockNumber(block_prove),
-        })
+        .step(
+            SL_CHAIN_ID,
+            L1BlockNumbers {
+                finalized: L1BlockNumber(50),
+                fast_finality: L1BlockNumber(70),
+                latest: L1BlockNumber(block_prove),
+            },
+        )
         .await?;
     assert_eq!(updated_count, 0);
     verify_transaction_statuses_separate(&mut storage, batch_number, None, None, None).await?;
 
     // Update with blocks that will fast-finalize only the commit transaction
     let updated_count = updater
-        .update_statuses(L1BlockNumbers {
-            finalized: L1BlockNumber(50),
-            fast_finality: L1BlockNumber(block_commit),
-            latest: L1BlockNumber(block_prove),
-        })
+        .step(
+            SL_CHAIN_ID,
+            L1BlockNumbers {
+                finalized: L1BlockNumber(50),
+                fast_finality: L1BlockNumber(block_commit),
+                latest: L1BlockNumber(block_prove),
+            },
+        )
         .await?;
     assert_eq!(updated_count, 1); // Only commit transaction should be updated
 
@@ -481,11 +493,14 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     let block_next_execute = mock_block_number_for_batch_transaction(batch_number + 1, 3);
 
     let updated_count = updater
-        .update_statuses(L1BlockNumbers {
-            finalized: L1BlockNumber(block_next_prove), // Finalized up to next batch's prove
-            fast_finality: L1BlockNumber(block_next_execute), // Fast-finalized up to next batch's execute
-            latest: L1BlockNumber(block_next_execute),        // Latest is at next batch's execute
-        })
+        .step(
+            SL_CHAIN_ID,
+            L1BlockNumbers {
+                finalized: L1BlockNumber(block_next_prove), // Finalized up to next batch's prove
+                fast_finality: L1BlockNumber(block_next_execute), // Fast-finalized up to next batch's execute
+                latest: L1BlockNumber(block_next_execute), // Latest is at next batch's execute
+            },
+        )
         .await?;
 
     // All transactions get updated, all but last execute to finalized
@@ -521,7 +536,7 @@ async fn test_new_transactions_between_updates_with_finality_change() -> anyhow:
     };
 
     // Final update - should update last execute to finalized
-    let updated_count = updater.update_statuses(final_l1_block_numbers).await?;
+    let updated_count = updater.step(SL_CHAIN_ID, final_l1_block_numbers).await?;
     assert_eq!(updated_count, 1);
 
     // Verify second batch is now fully finalized
@@ -543,7 +558,7 @@ async fn test_invalid_transaction_handling(
     invalid_tx_type: AggregatedActionType,
 ) -> anyhow::Result<()> {
     // Set up test environment
-    let (_pool, mut storage, mut updater, batch_number, _genesis_params) =
+    let (_pool, mut storage, updater, batch_number, _genesis_params) =
         setup_test_environment().await?;
 
     // Insert all three transaction types, but make the specified one invalid
@@ -579,11 +594,14 @@ async fn test_invalid_transaction_handling(
     let block_execute = mock_block_number_for_batch_transaction(batch_number, 3);
 
     let updated_count = updater
-        .update_statuses(L1BlockNumbers {
-            finalized: L1BlockNumber(block_execute),
-            fast_finality: L1BlockNumber(block_execute),
-            latest: L1BlockNumber(block_execute),
-        })
+        .step(
+            SL_CHAIN_ID,
+            L1BlockNumbers {
+                finalized: L1BlockNumber(block_execute),
+                fast_finality: L1BlockNumber(block_execute),
+                latest: L1BlockNumber(block_execute),
+            },
+        )
         .await?;
 
     // We should update 2 valid transactions but not the invalid one

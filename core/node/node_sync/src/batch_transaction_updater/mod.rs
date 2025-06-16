@@ -10,7 +10,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTxFinalityStatus, L1BlockNumbers, TxHistory},
     web3::TransactionReceipt,
-    Address,
+    Address, SLChainId,
 };
 
 use self::l1_transaction_verifier::L1TransactionVerifier;
@@ -68,7 +68,7 @@ impl BatchTransactionUpdater {
     }
 
     async fn apply_status_update(
-        &mut self,
+        &self,
         connection: &mut Connection<'_, Core>,
         db_eth_history_id: u32,
         receipt: TransactionReceipt,
@@ -136,7 +136,7 @@ impl BatchTransactionUpdater {
     }
 
     async fn update_statuses(
-        &mut self,
+        &self,
         mut connection: Connection<'_, Core>,
         to_process: Vec<TxHistory>,
         l1_block_numbers: L1BlockNumbers,
@@ -230,43 +230,49 @@ impl BatchTransactionUpdater {
         Ok(updated_count)
     }
 
-    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn step(
+        &self,
+        sl_chain_id: SLChainId,
+        l1_block_numbers: L1BlockNumbers,
+    ) -> anyhow::Result<i32> {
+        let mut connection = self
+            .pool
+            .connection_tagged("batch_transaction_updater")
+            .await?;
+        let to_process: Vec<TxHistory> = connection
+            .eth_sender_dal()
+            .get_unfinalized_tranasctions(10_000, Some(sl_chain_id))
+            .await?;
+
+        if to_process.is_empty() {
+            // Check if there are any unfinalized transactions for other chain_ids.
+            // If there are, we need to restart to make the node change the SL chain_id.
+            let all_chain_ids_transactions = connection
+                .eth_sender_dal()
+                .get_unfinalized_tranasctions(1, None)
+                .await?;
+            if !all_chain_ids_transactions.is_empty() {
+                anyhow::bail!(
+                        "No batch transactions to process for chain id {} while there are some for other.\
+                        Error is thrown so node can restart and reload SL data. If node doesn't \
+                        make any progress after restart, then it's bug, please contact developers.",
+                        sl_chain_id
+                    );
+            }
+        }
+
+        self.update_statuses(connection, to_process, l1_block_numbers)
+            .await
+    }
+
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
         let sl_chain_id = self.sl_client.fetch_chain_id().await?;
 
         while !*stop_receiver.borrow_and_update() {
             let l1_block_numbers = self.sl_client.get_block_numbers(None).await?;
-            let mut connection = self
-                .pool
-                .connection_tagged("batch_transaction_updater")
-                .await?;
-            let to_process: Vec<TxHistory> = connection
-                .eth_sender_dal()
-                .get_unfinalized_tranasctions(10_000, Some(sl_chain_id))
-                .await?;
-
-            if to_process.is_empty() {
-                // Check if there are any unfinalized transactions for other chain_ids.
-                // If there are, we need to restart to make the node change the SL chain_id.
-                let all_chain_ids_transactions = connection
-                    .eth_sender_dal()
-                    .get_unfinalized_tranasctions(1, None)
-                    .await?;
-                if !all_chain_ids_transactions.is_empty() {
-                    anyhow::bail!(
-                        "No batch transactions to process for chain id {} while there are some for other.\
-                        Error is thrown so node can restart and reload SL data. If node doesn't \
-                        make any progress after restart, then it's bug, please contact developers.",
-                        sl_chain_id
-                    );
-                }
-            }
-
-            let updates = self
-                .update_statuses(connection, to_process, l1_block_numbers)
-                .await?;
-
+            let updates = self.step(sl_chain_id, l1_block_numbers).await?;
             if updates == 0 {
                 tracing::debug!("No updates made, waiting for the next iteration");
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
