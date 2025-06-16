@@ -12,13 +12,13 @@ Interop requires the importing of a [MessageRoot](./message_root.md) from some o
 
 The batch where the interop tx is emitted is [sealed](../../blocks_batches.md#L1-batches) and committed to the chain's settlement layer (Gateway or L1). Proof is posted on the SL, and the batch is fully finalized and cannot be reverted. When this happens the SL's `MessageRoot` is updated. The receiving chain imports this `MessageRoot`. When the receiving chain settles using the [Executor facet](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L298), its imported `MessageRoot` is checked against the MessageRoot.sol contract.
 
-This solution is the most trustless, but it is the slowest, since proofs have to be generated. To use this kind of interop, we specify the `gw_message_root` log proof target when interacting with the SDK: this will serve a Merkle proof of inclusion of the log of interest inside Gateway's `MessageRoot`.
+This solution is the most trustless, but it is the slowest, since proofs have to be generated. To use this kind of interop, we specify the `proof_based_gw` interop mode when interacting with the SDK: this will serve a Merkle proof of inclusion of the log of interest inside Gateway's `MessageRoot`.
 
 ## Commit/Batch based interop
 
 The batch has to be sealed and committed to the SL. We do not wait for the `MessageRoot` to be updated. We get the `ChainBatchRoot` of the source chain from the DiamondProxy of the chain itself. When the receiving chain commits the batch, the imported `ChainBatchRoot` is stored as a dependency. When the batch is executed, it is checked that all the dependencies have been executed.
 
-This is faster than proof based interop, but not as fast as pre-commit based interop. It is also the middle ground in security. To use this kind of interop, we specify the `chain` log proof target when interacting with the SDK: this will serve a Merkle proof of inclusion of the log of interest inside the chain's `ChainBatchRoot`.
+This is faster than proof based interop, but not as fast as pre-commit based interop. It is also the middle ground in security.
 
 ## Pre-commit/parallel building interop
 
