@@ -163,7 +163,6 @@ impl LocalL1BatchCommitData {
             .get_eth_commit_tx_id(batch_number)
             .await?
         else {
-            tracing::warn!("L1 batch #{batch_number} is missing commit tx id");
             return Ok(None);
         };
 
@@ -172,7 +171,6 @@ impl LocalL1BatchCommitData {
             .get_l1_batch_pubdata_params(batch_number)
             .await?
         else {
-            tracing::warn!("L1 batch #{batch_number} is missing pubdata params");
             return Ok(None);
         };
 
@@ -182,7 +180,6 @@ impl LocalL1BatchCommitData {
             .await?;
 
         let Some(commit_tx_hash) = commit_tx_hash else {
-            tracing::warn!("L1 batch #{batch_number} is missing commit tx hash");
             return Ok(None);
         };
 
@@ -191,7 +188,6 @@ impl LocalL1BatchCommitData {
             .get_l1_batch_metadata(batch_number)
             .await?
         else {
-            tracing::warn!("L1 batch #{batch_number} is missing metadata");
             return Ok(None);
         };
 
@@ -216,7 +212,6 @@ impl LocalL1BatchCommitData {
             && (metadata.bootloader_initial_content_commitment.is_none()
                 || metadata.events_queue_commitment.is_none())
         {
-            tracing::warn!("L1 batch #{batch_number} is missing bootloader initial content commitment or events queue commitment");
             return Ok(None);
         }
 
@@ -724,9 +719,6 @@ impl ConsistencyChecker {
             // We need both.
             let local = LocalL1BatchCommitData::new(&mut storage, batch_number).await?;
             let Some(local) = local else {
-                tracing::warn!(
-                    "Batch commit data for L1 batch #{batch_number} is not present in the storage"
-                );
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
                     .await
                     .is_ok()
