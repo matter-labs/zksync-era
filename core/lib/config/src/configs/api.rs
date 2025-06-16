@@ -219,6 +219,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default_t = 1.5, validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor: f64,
     /// The factor by which to scale the gas price when there is an open batch.
+    #[config(validate(1.0.., "must be higher than one"))]
     pub gas_price_scale_factor_open_batch: Option<f64>,
     /// The factor by which to scale the gasLimit
     #[config(default_t = 1.3, validate(1.0.., "must be higher than one"))]

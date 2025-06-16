@@ -56,6 +56,7 @@ api:
     pubsub_polling_interval: 200
     max_nonce_ahead: 33
     gas_price_scale_factor: 1.4
+    gas_price_scale_factor_open_batch: 1.35
     estimate_gas_scale_factor: 1.2
     estimate_gas_acceptable_overestimation: 2000
     max_tx_size: 1000000

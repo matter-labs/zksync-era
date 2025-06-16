@@ -228,6 +228,7 @@ fn parsing_from_full_env() {
         EN_LATEST_VALUES_MAX_BLOCK_LAG=30
         EN_WHITELISTED_TOKENS_FOR_AA=0x0000000000000000000000000000000000000001
         EN_REQUEST_TIMEOUT_SEC=20
+        EN_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.35
         # NEW PARAMS: From HealthcheckConfig
         EN_HEALTHCHECK_EXPOSE_CONFIG=true
 
@@ -367,6 +368,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.estimate_gas_acceptable_overestimation, 2_000);
     assert!(config.estimate_gas_optimize_search);
     assert_eq!(config.gas_price_scale_factor, 1.4);
+    assert_eq!(config.gas_price_scale_factor_open_batch, Some(1.35));
     assert_eq!(config.request_timeout, Some(Duration::from_secs(20)));
     assert_eq!(config.http_port, 2_950);
     assert_eq!(config.ws_port, 2_951);
