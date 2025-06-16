@@ -96,7 +96,7 @@ impl BatchTransactionUpdater {
             .expect("eth_tx_history row must match a l1 batch");
 
         // validate the transaction against db
-        let () = match db_eth_history_tx.tx_type {
+        match db_eth_history_tx.tx_type {
             AggregatedActionType::Commit => {
                 self.l1_transaction_verifier
                     .validate_commit_tx(&receipt, batch_number)
