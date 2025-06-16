@@ -25,8 +25,9 @@ pub struct EcosystemArgs {
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
-    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
-    pub l1_rpc_url: Option<String>,
+    #[clap(long, help = MSG_L1_RPC_URL_HELP,default_value = "https://chain.instanodes.io/eth-testnet/?apikey=4e4e85545c34453a0d8f298629f51b8c"
+)]
+    pub l1_rpc_url: String,
 }
 
 impl EcosystemArgs {
