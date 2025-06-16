@@ -81,7 +81,7 @@ impl BatchState {
         }
     }
 
-    fn unwrap_init_ref_mut(&mut self) -> &mut InitializedBatchState {
+    fn unwrap_init_mut(&mut self) -> &mut InitializedBatchState {
         match self {
             BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
             BatchState::Init(init) => init.as_mut(),
@@ -978,7 +978,7 @@ impl StateKeeper {
     }
 
     async fn process_block_iteration(&mut self) -> Result<Option<ProcessBlockOutcome>, OrStopped> {
-        let state = self.batch_state.unwrap_init_ref_mut();
+        let state = self.batch_state.unwrap_init_mut();
         let updates_manager = &mut state.updates_manager;
         let batch_executor = state.batch_executor.as_mut();
 
