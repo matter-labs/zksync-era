@@ -139,15 +139,17 @@ fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
 }
 
 fn load_proof_manager_contract(path: (&str, &str)) -> Contract {
-  let forge_path = Path::new(FORGE_PROOF_MANAGER_PATH_PREFIX).join(path.1);
-  if let Some(contract) = load_contract_if_present(forge_path) {
-      return contract;
-  };
+    let forge_path = Path::new(FORGE_PROOF_MANAGER_PATH_PREFIX).join(path.1);
+    if let Some(contract) = load_contract_if_present(forge_path) {
+        return contract;
+    };
 
-  let hardhat_path = Path::new(HARDHAT_PROOF_MANAGER_PATH_PREFIX).join(path.0).join(path.1);
-  load_contract_if_present(hardhat_path).unwrap_or_else(|| {
-      panic!("Failed to load contract from {:?}", path);
-  })
+    let hardhat_path = Path::new(HARDHAT_PROOF_MANAGER_PATH_PREFIX)
+        .join(path.0)
+        .join(path.1);
+    load_contract_if_present(hardhat_path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
 }
 
 pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
