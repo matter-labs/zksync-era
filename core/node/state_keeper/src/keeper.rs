@@ -56,13 +56,13 @@ impl BatchState {
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<&mut InitializedBatchState, OrStopped> {
         let state = match self {
-            BatchState::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver).await?,
-            BatchState::Init(init) => return Ok(init.as_mut()),
+            Self::Uninit(cursor) => inner.start_batch(*cursor, stop_receiver).await?,
+            Self::Init(init) => return Ok(init.as_mut()),
         };
-        *self = BatchState::Init(Box::new(state));
+        *self = Self::Init(Box::new(state));
         match self {
-            BatchState::Init(init) => Ok(init.as_mut()),
-            BatchState::Uninit(_) => unreachable!(),
+            Self::Init(init) => Ok(init.as_mut()),
+            Self::Uninit(_) => unreachable!(),
         }
     }
 
@@ -70,28 +70,28 @@ impl BatchState {
     /// Returns the old state.
     fn finish(&mut self) -> Box<InitializedBatchState> {
         let mut next_cursor = match self {
-            BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
-            BatchState::Init(init) => init.updates_manager.io_cursor(),
+            Self::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
+            Self::Init(init) => init.updates_manager.io_cursor(),
         };
         next_cursor.l1_batch += 1;
-        let state = std::mem::replace(self, BatchState::Uninit(next_cursor));
+        let state = std::mem::replace(self, Self::Uninit(next_cursor));
         match state {
-            BatchState::Uninit(_) => unreachable!(),
-            BatchState::Init(init) => init,
+            Self::Uninit(_) => unreachable!(),
+            Self::Init(init) => init,
         }
     }
 
     fn unwrap_init_mut(&mut self) -> &mut InitializedBatchState {
         match self {
-            BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
-            BatchState::Init(init) => init.as_mut(),
+            Self::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
+            Self::Init(init) => init.as_mut(),
         }
     }
 
     fn unwrap_init_ref(&self) -> &InitializedBatchState {
         match self {
-            BatchState::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
-            BatchState::Init(init) => init.as_ref(),
+            Self::Uninit(_) => panic!("Unexpected `BatchState::Uninit`"),
+            Self::Init(init) => init.as_ref(),
         }
     }
 }
@@ -1150,7 +1150,7 @@ impl StateKeeper {
             .output_handler
             .handle_l1_batch(Arc::new(state.updates_manager))
             .await
-            .with_context(|| format!("failed sealing L1 batch #{}", l1_batch_number))?;
+            .with_context(|| format!("failed sealing L1 batch #{l1_batch_number}"))?;
 
         Ok(())
     }
