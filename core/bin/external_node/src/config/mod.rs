@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Context;
 use serde::{de, Deserialize, Deserializer};
-use smart_config::{ConfigRepository, ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
+use smart_config::{ConfigSchema, ConfigSources, DescribeConfig, Prefixed};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
@@ -22,10 +22,10 @@ use zksync_config::{
             SettlementLayerSpecificContracts,
         },
         en_config::ENConfig,
-        DataAvailabilitySecrets, GeneralConfig, Secrets,
+        ConsistencyCheckerConfig, DataAvailabilitySecrets, GeneralConfig, Secrets,
     },
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, DAClientConfig, ObjectStoreConfig,
+    CapturedParams, ConfigRepository, DAClientConfig, ObjectStoreConfig,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -544,7 +544,7 @@ impl OptionalENConfig {
             max_batch_request_size: web3_json_rpc.max_batch_request_size.get(),
             max_response_body_size_mb: web3_json_rpc.max_response_body_size.0 as usize
                 / BYTES_IN_MEGABYTE,
-            max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides_mb,
+            max_response_body_size_overrides_mb: web3_json_rpc.max_response_body_size_overrides,
             pubsub_polling_interval_ms: web3_json_rpc.pubsub_polling_interval.as_millis() as u64,
             max_nonce_ahead: web3_json_rpc.max_nonce_ahead,
             vm_concurrency_limit: web3_json_rpc.vm_concurrency_limit,
@@ -1175,6 +1175,9 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub data_availability: (Option<DAClientConfig>, Option<DataAvailabilitySecrets>),
+    pub consistency_checker: ConsistencyCheckerConfig,
+    // **NB.** Only filled for file-based configuration right now.
+    pub config_params: Option<CapturedParams>,
     pub remote: R,
 }
 
@@ -1199,8 +1202,10 @@ impl ExternalNodeConfig<()> {
         consensus_schema
             .insert(&ConsensusSecrets::DESCRIPTION, "secrets.consensus")
             .context("cannot create consensus config schema")?;
-        let mut repo = ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
+        let mut repo =
+            smart_config::ConfigRepository::new(&consensus_schema).with_all(consensus_sources);
         repo.deserializer_options().coerce_variant_names = true;
+        let mut repo = ConfigRepository::from(repo);
         let consensus = repo.parse_opt()?;
         let consensus_secrets = repo.parse()?;
 
@@ -1224,11 +1229,16 @@ impl ExternalNodeConfig<()> {
                 da_client_config_from_env("EN_DA_").ok(),
                 da_client_secrets_from_env("EN_DA_").ok(),
             ),
+            consistency_checker: envy::prefixed("EN_CONSISTENCY_CHECKER_")
+                .from_env::<ConsistencyCheckerConfig>()
+                .context("could not load external node config (API component params)")?,
+            config_params: None, // Since we don't capture most of params, exposing them would be misleading
             remote: (),
         })
     }
 
-    pub fn from_files(repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+    pub fn from_files(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+        repo.capture_parsed_params();
         let general_config: GeneralConfig = repo.parse()?;
         let external_node_config: ENConfig = repo.parse()?;
         let secrets_config: Secrets = repo.parse()?;
@@ -1278,6 +1288,8 @@ impl ExternalNodeConfig<()> {
             tree_component,
             consensus_secrets,
             data_availability,
+            consistency_checker: general_config.consistency_checker_config,
+            config_params: Some(repo.into_captured_params()),
             remote: (),
         })
     }
@@ -1314,6 +1326,8 @@ impl ExternalNodeConfig<()> {
             api_component: self.api_component,
             consensus_secrets: self.consensus_secrets,
             data_availability: self.data_availability,
+            consistency_checker: self.consistency_checker,
+            config_params: self.config_params,
             remote,
         })
     }
@@ -1335,6 +1349,8 @@ impl ExternalNodeConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
+            consistency_checker: ConsistencyCheckerConfig::default(),
+            config_params: None,
             data_availability: (None, None),
         }
     }

@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use smart_config::{
-    de::{Delimited, OrString, Serde, WellKnown},
+    de::{Delimited, Entries, NamedEntries, OrString, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
@@ -46,6 +46,12 @@ impl<S: Into<String>> FromIterator<(S, Option<NonZeroUsize>)> for MaxResponseSiz
                 .map(|(method_name, size)| (method_name.into(), size))
                 .collect(),
         )
+    }
+}
+
+impl ToEntries<String, Option<NonZeroUsize>> for MaxResponseSizeOverrides {
+    fn to_entries(&self) -> impl Iterator<Item = (&String, &Option<NonZeroUsize>)> {
+        self.0.iter()
     }
 }
 
@@ -115,8 +121,8 @@ impl MaxResponseSizeOverrides {
 }
 
 impl WellKnown for MaxResponseSizeOverrides {
-    type Deserializer = OrString<Serde![object]>;
-    const DE: Self::Deserializer = OrString(Serde![object]);
+    type Deserializer = OrString<NamedEntries<String, Option<NonZeroUsize>>>;
+    const DE: Self::Deserializer = OrString(Entries::WELL_KNOWN.named("method", "size_mb"));
 }
 
 /// Response size limits for JSON-RPC servers.
@@ -211,7 +217,8 @@ pub struct Web3JsonRpcConfig {
     pub max_response_body_size: ByteSize,
     /// Method-specific overrides in MiBs for the maximum response body size.
     #[config(default = MaxResponseSizeOverrides::empty)]
-    pub max_response_body_size_overrides_mb: MaxResponseSizeOverrides,
+    #[config(alias = "max_response_body_size_overrides_mb")]
+    pub max_response_body_size_overrides: MaxResponseSizeOverrides,
     /// Maximum number of requests per minute for the WebSocket server.
     /// The value is per active connection.
     /// Not used for the HTTP server; for it, rate limiting is expected to be configured on the infra level.
@@ -266,7 +273,7 @@ impl Web3JsonRpcConfig {
         let scale = NonZeroUsize::new(super::BYTES_IN_MEGABYTE).unwrap();
         MaxResponseSize {
             global: self.max_response_body_size.0 as usize,
-            overrides: self.max_response_body_size_overrides_mb.scale(scale),
+            overrides: self.max_response_body_size_overrides.scale(scale),
         }
     }
 }
@@ -281,6 +288,9 @@ pub struct HealthCheckConfig {
     /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
     /// If not specified, the default value in the health check crate will be used.
     pub hard_time_limit: Option<Duration>,
+    /// Expose config parameters as the `config` component. Mostly useful for debugging purposes, automations or end-to-end testing.
+    #[config(default)]
+    pub expose_config: bool,
 }
 
 impl HealthCheckConfig {
@@ -313,7 +323,10 @@ pub struct MerkleTreeApiConfig {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test, test_complete},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -362,7 +375,7 @@ mod tests {
                 fee_history_limit: 100,
                 max_batch_request_size: NonZeroUsize::new(200).unwrap(),
                 max_response_body_size: ByteSize::new(15, SizeUnit::MiB),
-                max_response_body_size_overrides_mb: [
+                max_response_body_size_overrides: [
                     ("eth_call", NonZeroUsize::new(1)),
                     ("eth_getTransactionReceipt", None),
                     ("zks_getProof", NonZeroUsize::new(32)),
@@ -385,6 +398,7 @@ mod tests {
                 port: 8081,
                 slow_time_limit: Some(Duration::from_millis(250)),
                 hard_time_limit: Some(Duration::from_millis(2_000)),
+                expose_config: true,
             },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
@@ -434,6 +448,7 @@ mod tests {
             API_HEALTHCHECK_PORT=8081
             API_HEALTHCHECK_SLOW_TIME_LIMIT_MS=250
             API_HEALTHCHECK_HARD_TIME_LIMIT_MS=2000
+            API_HEALTHCHECK_EXPOSE_CONFIG=true
             API_MERKLE_TREE_PORT=8082
         "#;
         let env = Environment::from_dotenv("test.env", env)
@@ -494,6 +509,7 @@ mod tests {
             port: 8081
             slow_time_limit_ms: 250
             hard_time_limit_ms: 2000
+            expose_config: true
           merkle_tree:
             port: 8082
         "#;
@@ -554,6 +570,7 @@ mod tests {
             port: 8081
             slow_time_limit: 250ms
             hard_time_limit: 2s
+            expose_config: true
           merkle_tree:
             port: 8082
         "#;
@@ -561,5 +578,40 @@ mod tests {
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test_complete::<ApiConfig>(yaml).unwrap();
         assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_null_time_limits() {
+        let yaml = r#"
+          port: 3071
+          slow_time_limit_ms: null
+          hard_time_limit_ms: null
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = test::<HealthCheckConfig>(yaml).unwrap();
+        assert_eq!(config.slow_time_limit, None);
+        assert_eq!(config.hard_time_limit, None);
+    }
+
+    #[test]
+    fn parsing_max_response_overrides() {
+        let yaml = r#"
+          max_response_body_size_overrides:
+           - method: eth_getTransactionReceipt
+           - method: zks_getProof
+             size_mb: 64
+          max_response_body_size_mb: 100
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let config = test::<Web3JsonRpcConfig>(yaml).unwrap();
+        assert_eq!(
+            config.max_response_body_size_overrides,
+            MaxResponseSizeOverrides::from_iter([
+                ("eth_getTransactionReceipt", None),
+                ("zks_getProof", NonZeroUsize::new(64)),
+            ])
+        );
     }
 }
