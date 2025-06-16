@@ -37,13 +37,18 @@ pub struct PlonkSetupData {
 }
 
 pub struct FflonkSetupData {
-    pub compression_mode1_setup_data: OnceLock<anyhow::Result<CompressionSetupData<CompressionMode1>>>,
-    pub compression_mode2_setup_data: OnceLock<anyhow::Result<CompressionSetupData<CompressionMode2>>>,
-    pub compression_mode3_setup_data: OnceLock<anyhow::Result<CompressionSetupData<CompressionMode3>>>,
-    pub compression_mode4_setup_data: OnceLock<anyhow::Result<CompressionSetupData<CompressionMode4>>>,
+    pub compression_mode1_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode1>>>,
+    pub compression_mode2_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode2>>>,
+    pub compression_mode3_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode3>>>,
+    pub compression_mode4_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode4>>>,
     pub compression_mode5_for_wrapper_setup_data:
         OnceLock<anyhow::Result<CompressionSetupData<CompressionMode5ForWrapper>>>,
-    pub fflonk_snark_wrapper_setup_data: OnceLock<anyhow::Result<SnarkWrapperSetupData<FflonkSnarkWrapper>>>,
+    pub fflonk_snark_wrapper_setup_data:
+        OnceLock<anyhow::Result<SnarkWrapperSetupData<FflonkSnarkWrapper>>>,
 }
 
 pub struct CompressorSetupData {
@@ -416,8 +421,7 @@ impl CompressorBlobStorage for Keystore {
     fn get_compression_mode1_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode1>> {
-        self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode1_setup_data
             .get_or_init(|| {
@@ -431,8 +435,7 @@ impl CompressorBlobStorage for Keystore {
     fn get_compression_mode2_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode2>> {
-        self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode2_setup_data
             .get_or_init(|| {
@@ -446,8 +449,7 @@ impl CompressorBlobStorage for Keystore {
     fn get_compression_mode3_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode3>> {
-        self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode3_setup_data
             .get_or_init(|| {
@@ -461,8 +463,7 @@ impl CompressorBlobStorage for Keystore {
     fn get_compression_mode4_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode4>> {
-        self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode4_setup_data
             .get_or_init(|| {
@@ -476,8 +477,7 @@ impl CompressorBlobStorage for Keystore {
     fn get_compression_mode5_for_wrapper_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode5ForWrapper>> {
-        self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
             .compression_mode5_for_wrapper_setup_data
             .get_or_init(|| {
@@ -486,15 +486,17 @@ impl CompressorBlobStorage for Keystore {
             })
             .as_ref()
             .map_err(|e| {
-                anyhow::anyhow!("Error loading compression mode 5 for wrapper setup data: {}", e)
+                anyhow::anyhow!(
+                    "Error loading compression mode 5 for wrapper setup data: {}",
+                    e
+                )
             })
     }
 
     fn get_compression_mode1_for_wrapper_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode1ForWrapper>> {
-        self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .plonk_setup_data
             .compression_mode1_for_wrapper_setup_data
             .get_or_init(|| {
@@ -503,7 +505,10 @@ impl CompressorBlobStorage for Keystore {
             })
             .as_ref()
             .map_err(|e| {
-                anyhow::anyhow!("Error loading compression mode 1 for wrapper setup data: {}", e)
+                anyhow::anyhow!(
+                    "Error loading compression mode 1 for wrapper setup data: {}",
+                    e
+                )
             })
     }
 
@@ -517,8 +522,7 @@ impl CompressorBlobStorage for Keystore {
     fn get_fflonk_snark_wrapper_setup_data(
         &self,
     ) -> anyhow::Result<&SnarkWrapperSetupData<FflonkSnarkWrapper>> {
-        self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
             .fflonk_snark_wrapper_setup_data
             .get_or_init(|| {
@@ -526,9 +530,7 @@ impl CompressorBlobStorage for Keystore {
                     .context("Failed to load Fflonk Snark Wrapper setup data")
             })
             .as_ref()
-            .map_err(|e| {
-                anyhow::anyhow!("Error loading Fflonk Snark Wrapper setup data: {}", e)
-            })
+            .map_err(|e| anyhow::anyhow!("Error loading Fflonk Snark Wrapper setup data: {}", e))
     }
 }
 
