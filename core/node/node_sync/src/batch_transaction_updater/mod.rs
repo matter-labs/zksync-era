@@ -20,7 +20,9 @@ mod l1_transaction_verifier;
 #[cfg(test)]
 mod tests;
 
-/// TODO DOC
+/// Module responsible for updating L1 batch status. (Pending->FastFinalized->Finalized)
+/// Its currently the component that should terminate EN when gateway migration happens.
+/// The EN only is stopped when all batches from previous SL are finalized.
 #[derive(Debug)]
 pub struct BatchTransactionUpdater {
     sl_client: Box<dyn EthInterface>,
@@ -245,7 +247,8 @@ impl BatchTransactionUpdater {
                 .await?;
 
             if to_process.is_empty() {
-                // Check if there are any unfinalized transactions for other chain_ids. If there are, we need to restart to make the node change the SL chain_id.
+                // Check if there are any unfinalized transactions for other chain_ids.
+                // If there are, we need to restart to make the node change the SL chain_id.
                 let all_chain_ids_transactions = connection
                     .eth_sender_dal()
                     .get_unfinalized_tranasctions(1, None)

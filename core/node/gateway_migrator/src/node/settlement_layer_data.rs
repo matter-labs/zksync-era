@@ -343,7 +343,8 @@ fn adjust_eth_sender_config(
     config
 }
 
-// Get settlement layer based on ETH tx in the database. We start on SL matching oldest unfinalized eth tx. This due to BatchTransactionUpdater needing this SL to finalize that batch transaction.
+// Get settlement layer based on ETH tx in the database. We start on SL matching oldest unfinalized eth tx.
+// This due to BatchTransactionUpdater needing this SL to finalize that batch transaction.
 async fn get_db_settlement_mode(
     connection: &mut Connection<'_, Core>,
     l1chain_id: SLChainId,
