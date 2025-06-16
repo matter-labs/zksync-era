@@ -124,12 +124,10 @@ pub fn full_config_schema() -> ConfigSchema {
         .insert(&ConsensusConfig::DESCRIPTION, "consensus")
         .unwrap();
 
-    // Contracts, wallets and genesis configs are only read by the main node.
     schema
         .insert(&GenesisConfigWrapper::DESCRIPTION, "")
         .unwrap();
     schema.insert(&Wallets::DESCRIPTION, "wallets").unwrap();
-
     ContractsConfig::insert_into_schema(&mut schema);
     schema
 }

@@ -39,7 +39,7 @@ pub struct MerkleTreeConfig {
     #[config(default)]
     pub mode: MerkleTreeMode,
     /// Processing delay between processing L1 batches in the Merkle tree.
-    #[config(default_t = Duration::from_millis(100))]
+    #[config(default_t = Duration::from_millis(100), deprecated = "..experimental.processing_delay")]
     pub processing_delay: Duration,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
@@ -54,7 +54,10 @@ pub struct MerkleTreeConfig {
     /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
     /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
     /// correspondingly; otherwise, RocksDB performance can significantly degrade.
-    #[config(default)]
+    #[config(
+        default,
+        deprecated = "..experimental.include_indices_and_filters_in_block_cache"
+    )]
     pub include_indices_and_filters_in_block_cache: bool,
     /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
@@ -181,8 +184,6 @@ mod tests {
             DATABASE_STATE_KEEPER_DB_PATH="/db/state_keeper"
             DATABASE_MERKLE_TREE_PATH="/db/tree"
             DATABASE_MERKLE_TREE_MODE=lightweight
-            DATABASE_MERKLE_TREE_INCLUDE_INDICES_AND_FILTERS_IN_BLOCK_CACHE=true
-            DATABASE_MERKLE_TREE_PROCESSING_DELAY_MS=0
             DATABASE_MERKLE_TREE_MAX_OPEN_FILES=512
             DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
             DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB=512
@@ -212,8 +213,6 @@ mod tests {
             path: /db/tree
             mode: LIGHTWEIGHT
             max_open_files: 512
-            processing_delay_ms: 0
-            include_indices_and_filters_in_block_cache: false
             multi_get_chunk_size: 250
             block_cache_size_mb: 128
             memtable_capacity_mb: 512
@@ -222,9 +221,8 @@ mod tests {
           experimental:
             state_keeper_db_block_cache_capacity_mb: 64
             reads_persistence_enabled: false
-            # Moved to `merkle_tree`
-            # processing_delay_ms: 0
-            # include_indices_and_filters_in_block_cache: false
+            processing_delay_ms: 0
+            include_indices_and_filters_in_block_cache: false
             merkle_tree_repair_stale_keys: true
             state_keeper_db_max_open_files: 100
         "#;
