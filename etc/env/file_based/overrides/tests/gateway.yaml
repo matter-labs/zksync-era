@@ -1,5 +1,6 @@
 eth:
   sender:
+    wait_confirmations: 1
     precommit_params:
       deadline: 1 sec
       l2_blocks_to_aggregate: 1
