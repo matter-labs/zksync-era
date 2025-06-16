@@ -30,9 +30,9 @@ db:
     path: /db/merkle-tree
     mode: LIGHTWEIGHT
     max_open_files: 1024
+  experimental:
     include_indices_and_filters_in_block_cache: true
     processing_delay_ms: 100
-  experimental:
     state_keeper_db_max_open_files: 512
     state_keeper_db_block_cache_capacity_mb: 256
     protective_reads_persistence_enabled: true
@@ -96,6 +96,8 @@ commitment_generator:
   max_parallelism: 4
 timestamp_asserter:
   min_time_till_end_sec: 90
+consistency_checker:
+  max_batches_to_recheck: 5
 
 snapshot_recovery:
   enabled: true

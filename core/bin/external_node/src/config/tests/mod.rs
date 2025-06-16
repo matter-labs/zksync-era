@@ -11,13 +11,11 @@ use assert_matches::assert_matches;
 use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource, Yaml};
 use zksync_config::{
     configs::{
-        api::{HealthCheckConfig, MaxResponseSizeOverrides, Namespace},
-        chain::TimestampAsserterConfig,
+        api::{MaxResponseSizeOverrides, Namespace},
         da_client::{avail::AvailClientConfig, eigen::PointsSource},
         database::MerkleTreeMode,
         object_store::ObjectStoreMode,
         observability::LogFormat,
-        CommitmentGeneratorConfig,
     },
     sources::ConfigFilePaths,
 };
@@ -45,7 +43,7 @@ fn parse_prepared_env(env: smart_config::Environment) -> (LocalConfig, Observabi
 
     let mut repo: ConfigRepository = tester.new_repository().with(env.strip_prefix("EN_")).into();
     let observability: ObservabilityConfig = repo.parse().unwrap();
-    (LocalConfig::new(&mut repo, false).unwrap(), observability)
+    (repo.parse().unwrap(), observability)
 }
 
 fn assert_common_prepared_env(config: &LocalConfig, observability: &ObservabilityConfig) {
@@ -67,7 +65,7 @@ fn assert_common_prepared_env(config: &LocalConfig, observability: &Observabilit
         config.db.merkle_tree.path.as_os_str(),
         "./db/ext-node/lightweight"
     );
-    let postgres_url = config.secrets.database.server_url.as_ref().unwrap();
+    let postgres_url = config.secrets.postgres.server_url.as_ref().unwrap();
     assert!(
         postgres_url.expose_str().starts_with("postgres://"),
         "{postgres_url:?}"
@@ -277,6 +275,7 @@ fn parsing_from_full_env() {
         EN_GATEWAY_URL=https://127.0.0.1:3150/
         EN_BRIDGE_ADDRESSES_REFRESH_INTERVAL_SEC=300
         EN_TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC=90
+        EN_CONSISTENCY_CHECKER_MAX_BATCHES_TO_RECHECK=5
 
         # Required config, in the order its params were defined.
         EN_L1_CHAIN_ID=8
@@ -478,6 +477,10 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
         tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.max_parallelism, Some(NonZeroU32::new(4).unwrap()));
 
+    let config: ConsistencyCheckerConfig =
+        tester.for_config().test_complete(source.clone()).unwrap();
+    assert_eq!(config.max_batches_to_recheck, 5);
+
     let config: NetworksConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(
         config.main_node_rate_limit_rps,
@@ -505,6 +508,9 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
         secrets.l1.gateway_rpc_url.unwrap().expose_str(),
         "https://127.0.0.1:3150/"
     );
+
+    // Check that a full config can be deserialized as well.
+    tester.for_config::<LocalConfig>().test(source).unwrap();
 }
 
 #[test]
@@ -528,8 +534,7 @@ fn parsing_with_consensus_from_yaml() {
     let config_sources = config_paths.into_config_sources(None).unwrap();
     let mut repo = config_sources.build_repository(&schema);
 
-    let config = LocalConfig::new(&mut repo, true).unwrap();
-    let config = config.consensus.unwrap();
+    let config: ConsensusConfig = repo.parse().unwrap();
     assert_eq!(config.port, Some(3_055));
     assert_eq!(config.max_payload_size, ByteSize(2_500_000));
     assert_eq!(config.gossip_dynamic_inbound_limit, 100);

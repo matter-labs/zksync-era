@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use anyhow::Context;
-use smart_config::{ConfigSchema, DescribeConfig};
+use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -209,22 +209,35 @@ where
 }
 
 /// Local configurations used by the node.
-#[derive(Debug)]
+#[derive(Debug, DescribeConfig, DeserializeConfig)]
 pub(crate) struct LocalConfig {
+    #[config(nest)]
     pub api: ApiConfig,
+    #[config(nest, deprecated = ".")]
     pub db: DBConfig,
+    #[config(nest)]
     pub prometheus: PrometheusConfig,
+    #[config(nest, alias = "database")]
     pub postgres: PostgresConfig,
+    #[config(nest, deprecated = ".")]
     pub state_keeper: SharedStateKeeperConfig,
+    #[config(nest, deprecated = "snapshots_recovery")]
     pub snapshot_recovery: SnapshotRecoveryConfig,
+    #[config(nest)]
     pub pruning: PruningConfig,
+    #[config(nest)]
     pub commitment_generator: CommitmentGeneratorConfig,
+    #[config(nest)]
     pub timestamp_asserter: TimestampAsserterConfig,
-    pub data_availability: Option<DAClientConfig>,
+    #[config(nest, deprecated = "da")]
+    pub da_client: Option<DAClientConfig>,
+    #[config(nest, alias = ".contracts.l1", deprecated = ".")]
     pub contracts: SharedL1ContractsConfig,
+    #[config(nest, deprecated = ".")]
     pub networks: NetworksConfig,
+    #[config(nest)]
     pub consistency_checker: ConsistencyCheckerConfig,
-    pub consensus: Option<ConsensusConfig>,
+    #[config(flatten)]
     pub secrets: Secrets,
 }
 
@@ -232,13 +245,15 @@ impl LocalConfig {
     /// Schema is chosen to be compatible both with file-based and env-based configs used for the node
     /// previously. This leads to deprecated aliases all around, which will hopefully be removed soon-ish.
     pub fn schema() -> anyhow::Result<ConfigSchema> {
-        let mut schema = ConfigSchema::default();
-        schema.insert(&PrometheusConfig::DESCRIPTION, "prometheus")?;
+        let mut schema = ConfigSchema::new(&Self::DESCRIPTION, "");
+        // We don't get observability config from the schema directly.
         schema
             .insert(&ObservabilityConfig::DESCRIPTION, "observability")?
             .push_deprecated_alias("")?;
+        // Consensus config is conditionally parsed.
+        schema.insert(&ConsensusConfig::DESCRIPTION, "consensus")?;
 
-        schema.insert(&ApiConfig::DESCRIPTION, "api")?;
+        // Aliases for API configs.
         schema
             .single_mut(&Web3JsonRpcConfig::DESCRIPTION)?
             .push_alias("api")?
@@ -251,49 +266,12 @@ impl LocalConfig {
             .push_deprecated_alias("tree.api")?;
 
         schema
-            .insert(&DBConfig::DESCRIPTION, "db")?
-            .push_deprecated_alias("")?;
-        schema
-            .insert(&zksync_config::PostgresConfig::DESCRIPTION, "postgres")?
-            .push_alias("database")?;
-        schema.insert(&PruningConfig::DESCRIPTION, "pruning")?;
-        schema
-            .insert(&SnapshotRecoveryConfig::DESCRIPTION, "snapshot_recovery")?
-            .push_deprecated_alias("snapshots_recovery")?;
-        schema
             .get_mut(
                 &ObjectStoreConfig::DESCRIPTION,
                 "snapshot_recovery.object_store",
             )
             .context("no object_store config for snapshot recovery")?
             .push_deprecated_alias("snapshots.object_store")?;
-
-        schema
-            .insert(&SharedStateKeeperConfig::DESCRIPTION, "state_keeper")?
-            .push_deprecated_alias("")?;
-        schema.insert(
-            &CommitmentGeneratorConfig::DESCRIPTION,
-            "commitment_generator",
-        )?;
-        schema.insert(&TimestampAsserterConfig::DESCRIPTION, "timestamp_asserter")?;
-        schema
-            .insert(&DAClientConfig::DESCRIPTION, "da_client")?
-            .push_deprecated_alias("da")?;
-        schema.insert(
-            &ConsistencyCheckerConfig::DESCRIPTION,
-            "consistency_checker",
-        )?;
-
-        schema
-            .insert(&SharedL1ContractsConfig::DESCRIPTION, "contracts.l1")?
-            .push_alias("contracts")? // match aliasing in the main node config
-            .push_deprecated_alias("")?;
-        schema
-            .insert(&NetworksConfig::DESCRIPTION, "networks")?
-            .push_deprecated_alias("")?;
-        schema.insert(&ConsensusConfig::DESCRIPTION, "consensus")?;
-
-        schema.insert(&Secrets::DESCRIPTION, "")?;
         schema
             .single_mut(&L1Secrets::DESCRIPTION)?
             .push_alias("networks")?
@@ -304,35 +282,10 @@ impl LocalConfig {
         Ok(schema)
     }
 
-    fn new(repo: &mut ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
-        repo.capture_parsed_params();
-        Ok(Self {
-            api: repo.parse()?,
-            db: repo.parse()?,
-            prometheus: repo.parse()?,
-            postgres: repo.parse()?,
-            state_keeper: repo.parse()?,
-            snapshot_recovery: repo.parse()?,
-            pruning: repo.parse()?,
-            commitment_generator: repo.parse()?,
-            timestamp_asserter: repo.parse()?,
-            data_availability: repo.parse_opt()?,
-            contracts: repo.parse()?,
-            networks: repo.parse()?,
-            consistency_checker: repo.parse()?,
-            consensus: if has_consensus {
-                repo.parse_opt()?
-            } else {
-                None
-            },
-            secrets: repo.parse()?,
-        })
-    }
-
     #[cfg(test)]
     fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         use zksync_config::configs::{
-            consensus::ConsensusSecrets, database::MerkleTreeConfig, secrets::DatabaseSecrets,
+            consensus::ConsensusSecrets, database::MerkleTreeConfig, secrets::PostgresSecrets,
             ContractVerifierSecrets, ExperimentalDBConfig,
         };
 
@@ -360,16 +313,15 @@ impl LocalConfig {
             pruning: PruningConfig::default(),
             commitment_generator: CommitmentGeneratorConfig::default(),
             timestamp_asserter: TimestampAsserterConfig::default(),
-            data_availability: None,
+            da_client: None,
             contracts: SharedL1ContractsConfig::default(),
             networks: NetworksConfig::for_tests(),
             consistency_checker: ConsistencyCheckerConfig::default(),
-            consensus: None,
             secrets: Secrets {
                 consensus: ConsensusSecrets::default(),
-                database: DatabaseSecrets {
+                postgres: PostgresSecrets {
                     server_url: Some(test_pool.database_url().clone()),
-                    ..DatabaseSecrets::default()
+                    ..PostgresSecrets::default()
                 },
                 l1: L1Secrets {
                     l1_rpc_url: Some("http://localhost:8545/".parse().unwrap()), // Not used, but must be provided
@@ -399,6 +351,7 @@ pub fn generate_consensus_secrets() {
 #[derive(Debug)]
 pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub local: LocalConfig,
+    pub consensus: Option<ConsensusConfig>,
     pub config_params: CapturedParams,
     pub remote: R,
 }
@@ -408,8 +361,14 @@ impl ExternalNodeConfig<()> {
     ///
     /// **Important.** This method is blocking.
     pub fn new(mut repo: ConfigRepository<'_>, has_consensus: bool) -> anyhow::Result<Self> {
+        repo.capture_parsed_params();
         Ok(Self {
-            local: LocalConfig::new(&mut repo, has_consensus)?,
+            local: repo.parse()?,
+            consensus: if has_consensus {
+                repo.parse_opt()?
+            } else {
+                None
+            },
             config_params: repo.into_captured_params(),
             remote: (),
         })
@@ -440,6 +399,7 @@ impl ExternalNodeConfig<()> {
 
         Ok(ExternalNodeConfig {
             local: self.local,
+            consensus: self.consensus,
             config_params: self.config_params,
             remote,
         })
@@ -451,6 +411,7 @@ impl ExternalNodeConfig {
     pub(crate) fn mock(temp_dir: &tempfile::TempDir, test_pool: &ConnectionPool<Core>) -> Self {
         Self {
             local: LocalConfig::mock(temp_dir, test_pool),
+            consensus: None,
             config_params: CapturedParams::default(),
             remote: RemoteENConfig::mock(),
         }
