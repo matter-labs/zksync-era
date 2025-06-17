@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_health_check::AppHealthCheck;
@@ -30,7 +30,19 @@ pub struct Output {
 
 /// Wiring layer for `BatchTransactionUpdater`, part of the external node.
 #[derive(Debug)]
-pub struct BatchTransactionUpdaterLayer;
+pub struct BatchTransactionUpdaterLayer {
+    sleep_interval: Duration,
+    processing_batch_size: i64,
+}
+
+impl BatchTransactionUpdaterLayer {
+    pub fn new(sleep_interval: Duration, processing_batch_size: i64) -> Self {
+        Self {
+            sleep_interval,
+            processing_batch_size,
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl WiringLayer for BatchTransactionUpdaterLayer {
@@ -56,6 +68,8 @@ impl WiringLayer for BatchTransactionUpdaterLayer {
                 .chain_contracts_config
                 .diamond_proxy_addr,
             pool.get().await?,
+            self.sleep_interval,
+            self.processing_batch_size,
         );
 
         // Insert healthcheck

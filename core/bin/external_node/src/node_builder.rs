@@ -285,7 +285,10 @@ impl<R> ExternalNodeBuilder<R> {
     }
 
     fn add_batch_transaction_updater_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(BatchTransactionUpdaterLayer);
+        self.node.add_layer(BatchTransactionUpdaterLayer::new(
+            self.config.optional.batch_transaction_updater_interval(),
+            self.config.optional.batch_transaction_updater_batch_size,
+        ));
         Ok(self)
     }
 

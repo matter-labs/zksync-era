@@ -517,6 +517,11 @@ pub(crate) struct OptionalENConfig {
     /// Minimum time between current block.timestamp and the end of the asserted range for TimestampAsserter
     #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_time_till_end_sec")]
     pub timestamp_asserter_min_time_till_end_sec: u32,
+
+    batch_transaction_updater_interval_sec: Option<NonZeroU64>,
+
+    #[serde(default = "OptionalENConfig::default_batch_transaction_updater_batch_size")]
+    pub batch_transaction_updater_batch_size: i64,
 }
 
 impl OptionalENConfig {
@@ -655,6 +660,12 @@ impl OptionalENConfig {
                 .timestamp_asserter_config
                 .min_time_till_end_sec
                 .as_secs() as u32,
+            batch_transaction_updater_interval_sec: enconfig
+                .batch_transaction_updater_interval
+                .and_then(|dur| NonZeroU64::new(dur.as_secs())),
+            batch_transaction_updater_batch_size: enconfig
+                .batch_transaction_updater_batch_size
+                .unwrap_or(OptionalENConfig::default_batch_transaction_updater_batch_size()),
         })
     }
 
@@ -789,6 +800,10 @@ impl OptionalENConfig {
         60
     }
 
+    fn default_batch_transaction_updater_batch_size() -> i64 {
+        10_000
+    }
+
     fn from_env() -> anyhow::Result<Self> {
         let mut result: OptionalENConfig = envy::prefixed("EN_")
             .from_env()
@@ -884,6 +899,11 @@ impl OptionalENConfig {
     pub fn bridge_addresses_refresh_interval(&self) -> Duration {
         self.bridge_addresses_refresh_interval_sec
             .map_or_else(|| Duration::from_secs(30), |n| Duration::from_secs(n.get()))
+    }
+
+    pub fn batch_transaction_updater_interval(&self) -> Duration {
+        self.batch_transaction_updater_interval_sec
+            .map_or_else(|| Duration::from_secs(5), |n| Duration::from_secs(n.get()))
     }
 
     #[cfg(test)]

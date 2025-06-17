@@ -30,21 +30,23 @@ pub struct BatchTransactionUpdater {
     pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     sleep_interval: Duration,
+    processing_batch_size: i64,
 }
 
 impl BatchTransactionUpdater {
-    const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
-
     pub fn new(
         sl_client: Box<dyn EthInterface>,
         diamond_proxy_addr: Address,
         pool: ConnectionPool<Core>,
+        sleep_interval: Duration,
+        processing_batch_size: i64,
     ) -> Self {
         Self::from_parts(
             sl_client,
             diamond_proxy_addr,
             pool,
-            Self::DEFAULT_SLEEP_INTERVAL,
+            sleep_interval,
+            processing_batch_size,
         )
     }
 
@@ -53,6 +55,7 @@ impl BatchTransactionUpdater {
         diamond_proxy_addr: Address,
         pool: ConnectionPool<Core>,
         sleep_interval: Duration,
+        processing_batch_size: i64,
     ) -> Self {
         Self {
             sl_client,
@@ -60,6 +63,7 @@ impl BatchTransactionUpdater {
             pool,
             health_updater: ReactiveHealthCheck::new("batch_transaction_updater").1,
             sleep_interval,
+            processing_batch_size,
         }
     }
 
@@ -242,7 +246,7 @@ impl BatchTransactionUpdater {
             .await?;
         let to_process: Vec<TxHistory> = connection
             .eth_sender_dal()
-            .get_unfinalized_tranasctions(10_000, Some(sl_chain_id))
+            .get_unfinalized_tranasctions(self.processing_batch_size, Some(sl_chain_id))
             .await?;
 
         if to_process.is_empty() {

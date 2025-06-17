@@ -215,6 +215,7 @@ async fn setup_test_environment() -> anyhow::Result<(
         MOCK_DIAMON_PROXY_ADDRESS,
         pool.clone(),
         Duration::from_secs(1),
+        10, // processing_batch_size
     );
     updater
         .l1_transaction_verifier
