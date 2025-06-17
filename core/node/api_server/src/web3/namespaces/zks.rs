@@ -19,8 +19,8 @@ use zksync_types::{
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, Transaction,
-    L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    Transaction, L2_BASE_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_web3_decl::{
     error::{ClientRpcContext, Web3Error},
@@ -447,6 +447,23 @@ impl ZksNamespace {
         Ok(storage
             .blocks_web3_dal()
             .get_block_details(block_number)
+            .await
+            .map_err(DalError::generalize)?)
+    }
+
+    pub async fn get_l2_block_interop_roots_impl(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> Result<Vec<InteropRoot>, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_number, &mut storage)
+            .await?;
+
+        Ok(storage
+            .interop_root_dal()
+            .get_interop_roots(block_number)
             .await
             .map_err(DalError::generalize)?)
     }

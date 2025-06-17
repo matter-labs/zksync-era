@@ -461,8 +461,11 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn load_latest_interop_root(&self) -> anyhow::Result<Vec<InteropRoot>> {
-        let mut storage = self.pool.connection_tagged("sync_layer").await?;
-        let interop_root = storage.interop_root_dal().get_new_interop_roots().await?;
+        let block_number = self.main_node_client.fetch_l2_block_number().await?;
+        let interop_root = self
+            .main_node_client
+            .fetch_l2_block_interop_roots(block_number)
+            .await?;
         Ok(interop_root)
     }
 

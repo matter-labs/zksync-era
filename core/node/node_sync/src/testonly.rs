@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use zksync_config::GenesisConfig;
 use zksync_eth_client::EnrichedClientError;
 use zksync_node_genesis::mock_genesis_config;
-use zksync_types::{api, Address, L2BlockNumber, ProtocolVersionId, H256};
+use zksync_types::{api, Address, InteropRoot, L2BlockNumber, ProtocolVersionId, H256};
 use zksync_web3_decl::error::EnrichedClientResult;
 
 use super::MainNodeClient;
@@ -69,6 +69,13 @@ impl MainNodeClient for MockMainNodeClient {
             block.transactions = None;
         }
         Ok(Some(block))
+    }
+
+    async fn fetch_l2_block_interop_roots(
+        &self,
+        _number: L2BlockNumber,
+    ) -> EnrichedClientResult<Vec<InteropRoot>> {
+        Ok(vec![])
     }
 
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {

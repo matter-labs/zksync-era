@@ -8,7 +8,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -109,6 +109,15 @@ impl ZksNamespaceServer for ZksNamespace {
         block_number: L2BlockNumber,
     ) -> RpcResult<Option<BlockDetails>> {
         self.get_block_details_impl(block_number)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn get_l2_block_interop_roots(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> RpcResult<Vec<InteropRoot>> {
+        self.get_l2_block_interop_roots_impl(block_number)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

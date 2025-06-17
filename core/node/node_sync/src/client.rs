@@ -8,7 +8,7 @@ use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     api::{self, en},
     bytecode::BytecodeHash,
-    get_code_key, h256_to_u256, Address, L2BlockNumber, ProtocolVersionId, H256, U64,
+    get_code_key, h256_to_u256, Address, InteropRoot, L2BlockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -41,6 +41,11 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         number: L2BlockNumber,
         with_transactions: bool,
     ) -> EnrichedClientResult<Option<en::SyncBlock>>;
+
+    async fn fetch_l2_block_interop_roots(
+        &self,
+        number: L2BlockNumber,
+    ) -> EnrichedClientResult<Vec<InteropRoot>>;
 
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig>;
 }
@@ -169,6 +174,16 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .rpc_context("fetch_l2_block")
             .with_arg("number", &number)
             .with_arg("with_transactions", &with_transactions)
+            .await
+    }
+
+    async fn fetch_l2_block_interop_roots(
+        &self,
+        number: L2BlockNumber,
+    ) -> EnrichedClientResult<Vec<InteropRoot>> {
+        self.get_l2_block_interop_roots(number)
+            .rpc_context("get_l2_block_interop_roots")
+            .with_arg("number", &number)
             .await
     }
 }
