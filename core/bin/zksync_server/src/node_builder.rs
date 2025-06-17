@@ -142,7 +142,7 @@ impl MainNodeBuilder {
             Some(da_client_config) => Ok(match da_client_config {
                 DAClientConfig::Avail(_) => PubdataType::Avail,
                 DAClientConfig::Celestia(_) => PubdataType::Celestia,
-                DAClientConfig::EigenDA(_) => PubdataType::Eigen,
+                DAClientConfig::Eigen(_) => PubdataType::Eigen,
                 DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
                 DAClientConfig::NoDA => PubdataType::NoDA,
             }),
@@ -600,7 +600,7 @@ impl MainNodeBuilder {
                 self.node
                     .add_layer(CelestiaWiringLayer::new(config, secret));
             }
-            (DAClientConfig::EigenDA(mut config), DataAvailabilitySecrets::EigenDA(secret)) => {
+            (DAClientConfig::Eigen(mut config), DataAvailabilitySecrets::Eigen(secret)) => {
                 if config.eigenda_eth_rpc.is_none() {
                     let l1_secrets = &self.secrets.l1;
                     config.eigenda_eth_rpc = l1_secrets.l1_rpc_url.clone();

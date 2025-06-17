@@ -61,4 +61,4 @@ pbjson-types.workspace = true
 # EigenDA dependencies
 rust-eigenda-v2-client.workspace = true
 rust-eigenda-v2-common.workspace = true
-rust-eigenda-client.workspace = true
+rust-eigenda-signers.workspace = true

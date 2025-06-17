@@ -235,9 +235,10 @@ tonic = { version = "0.11.0", default-features = false }
 pbjson-types = "0.6.0"
 
 # EigenDA
-rust-eigenda-v2-client = "0.1.2"
-rust-eigenda-v2-common = "0.1.2"
-rust-eigenda-client = "0.1.6"
+rust-eigenda-v2-client = {git = "https://github.com/lambdaclass/eigenda-client-rs.git", branch="relocate_eigenda_cert_encoding"}
+#rust-eigenda-v2-client = "0.1.3"
+rust-eigenda-v2-common = {git = "https://github.com/lambdaclass/eigenda-client-rs.git", branch="relocate_eigenda_cert_encoding"}
+rust-eigenda-signers = "0.1.6"
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
