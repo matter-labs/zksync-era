@@ -35,4 +35,24 @@ export function usersRoutes(app: WebServer) {
 
         return reply.send({ ok: true, token });
     });
+
+    const getUserSchema = {
+        schema: {
+            params: z.object({
+                address: addressSchema
+            })
+        }
+    };
+
+    app.get('/:address', getUserSchema, (req, reply) => {
+        const { address } = req.params;
+        const { authorizer } = app.context;
+
+        if (authorizer.whitelistedWallets === 'all') {
+            return reply.send({ authorized: true });
+        }
+
+        const isWhitelisted = authorizer.whitelistedWallets.has(address);
+        return reply.send({ authorized: isWhitelisted });
+    });
 }

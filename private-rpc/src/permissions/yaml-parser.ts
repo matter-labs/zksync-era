@@ -18,7 +18,7 @@ import YAML from 'yaml';
 
 const publicSchema = z.object({ type: z.literal('public') });
 const closedSchema = z.object({ type: z.literal('closed') });
-const groupSchema = z.object({
+const groupSchemaRaw = z.object({
     type: z.literal('group'),
     groups: z.array(z.string())
 });
@@ -28,10 +28,10 @@ const checkArgumentSchema = z.object({
 });
 const oneOfSchema = z.object({
     type: z.literal('oneOf'),
-    rules: z.array(z.union([publicSchema, groupSchema, checkArgumentSchema]))
+    rules: z.array(z.union([publicSchema, groupSchemaRaw, checkArgumentSchema]))
 });
 
-const ruleSchema = z.union([publicSchema, closedSchema, groupSchema, checkArgumentSchema, oneOfSchema]);
+const ruleSchema = z.union([publicSchema, closedSchema, groupSchemaRaw, checkArgumentSchema, oneOfSchema]);
 type Rule = z.infer<typeof ruleSchema>;
 
 const methodSchema = z.object({
@@ -42,20 +42,25 @@ const methodSchema = z.object({
 });
 type RawMethod = z.infer<typeof methodSchema>;
 
-const yamlSchema = z.object({
-    groups: z.array(
-        z.object({
+const groupSchema = z.object({
             name: z.string(),
             members: z.array(addressSchema)
-        })
-    ),
+});
+type RawGroup = z.infer<typeof groupSchema>;
 
-    contracts: z.array(
-        z.object({
+const contractSchema = z.object({
             address: addressSchema,
             methods: z.array(methodSchema)
-        })
-    )
+});
+
+type RawContract = z.infer<typeof contractSchema>;
+
+const yamlSchema = z.object({
+    whitelisted_wallets: z
+        .array(z.union([addressSchema, z.literal('all')]))
+        .nonempty({ message: 'whitelisted_wallets cannot be empty. To allow all wallets, use ["all"].' }),
+    groups: z.array(groupSchema),
+    contracts: z.array(contractSchema)
 });
 
 export class YamlParser {
@@ -66,7 +71,11 @@ export class YamlParser {
         const buf = readFileSync(filePath);
         const raw = YAML.parse(buf.toString());
         this.yaml = yamlSchema.parse(raw);
-        this.groups = this.yaml.groups.map(({ name, members }) => new Group(name, members));
+        this.groups = this.yaml.groups.map(({ name, members }: RawGroup) => new Group(name, members));
+    }
+
+    getWhitelistedWallets(): (Address | 'all')[] {
+        return this.yaml.whitelisted_wallets;
     }
 
     private extractSelector(method: RawMethod): Hex {
@@ -90,13 +99,13 @@ export class YamlParser {
             case 'closed':
                 return new AccessDeniedRule();
             case 'group':
-                const members = rule.groups.map((name) => this.membersForGroup(name)).flat();
+                const members = rule.groups.map((name: string) => this.membersForGroup(name)).flat();
                 return new GroupRule(members);
             case 'checkArgument':
                 const [fnDef] = parseAbi([fnSignature]) as Abi;
                 return new ArgumentIsCaller(rule.argIndex, fnDef as AbiFunction);
             case 'oneOf':
-                const rules = rule.rules.map((r) => this.hidrateRule(r, fnSignature));
+                const rules = rule.rules.map((r: Rule) => this.hidrateRule(r, fnSignature));
                 return new OneOfRule(rules);
             default:
                 throw new Error('Unknown rule type');
@@ -104,8 +113,8 @@ export class YamlParser {
     }
 
     load_rules(authorizer: Authorizer) {
-        this.yaml.contracts.forEach((rawContract) => {
-            const readPermissions = rawContract.methods.map((method) => {
+        this.yaml.contracts.forEach((rawContract: RawContract) => {
+            const readPermissions = rawContract.methods.map((method: RawMethod) => {
                 const selector = method.signature === '#BASE_TOKEN_TRANSFER' ? '0x' : this.extractSelector(method);
 
                 const readRule = this.hidrateRule(method.read, method.signature);

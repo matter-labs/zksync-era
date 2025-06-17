@@ -1,3 +1,9 @@
+# whitelisted_wallets must not be empty.
+# To allow any wallet to connect, use ["all"].
+# Otherwise, provide a list of authorized wallet addresses.
+whitelisted_wallets:
+  - 'all'
+  
 groups:
   - name: "group1"
     members:
