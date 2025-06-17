@@ -241,6 +241,12 @@ where
         self.inner.pop_snapshot_no_rollback();
         self.l2_blocks_snapshot = None;
     }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        // TODO
+        self.inner.pop_snapshot_no_rollback();
+        self.l2_blocks_snapshot = None;
+    }
 }
 
 impl<S, Vm> VmFactory<StorageView<S>> for DumpingVm<S, Vm>

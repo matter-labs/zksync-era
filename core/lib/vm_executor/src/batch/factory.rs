@@ -236,6 +236,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.pop_snapshot_no_rollback());
     }
 
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        dispatch_batch_vm!(self.pop_front_snapshot_no_rollback());
+    }
+
     fn inspect_transaction(
         &mut self,
         tx: Transaction,
@@ -323,6 +327,10 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         system_env: SystemEnv,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
+        // Maximal block depth that can be rolled back. 2 is enough for the current consensus implementation.
+        // In simpler words, value equals 2 means that block #X can be rolled back up until block #(X+2) is started.
+        const MAX_BLOCK_ROLLBACK_DEPTH: usize = 2;
+
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
@@ -347,15 +355,19 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             }
         }
 
-        let mut snapshots_in_last_block = 0usize;
+        let mut has_snapshot_before_tx = false;
+        let mut block_snapshot_depth = 0;
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
+                    if has_snapshot_before_tx {
+                        vm.pop_snapshot_no_rollback();
+                    }
                     let tx_hash = tx.hash();
                     let (result, latency) = self.execute_tx(*tx, &mut vm).with_context(|| {
                         format!("fatal error executing transaction {tx_hash:?}")
                     })?;
-                    snapshots_in_last_block += 1;
+                    has_snapshot_before_tx = true;
 
                     if self.observe_storage_metrics {
                         let storage_stats = storage_view.borrow().stats();
@@ -374,17 +386,26 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 }
                 Command::RollbackLastTx(resp) => {
                     self.rollback_last_tx(&mut vm);
-                    snapshots_in_last_block -= 1;
+                    // Snapshot was popped.
+                    has_snapshot_before_tx = false;
                     if resp.send(()).is_err() {
                         break;
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
-                    for _ in 0..snapshots_in_last_block {
+                    if has_snapshot_before_tx {
+                        // Pop snapshot that was made before the previous tx.
                         vm.pop_snapshot_no_rollback();
+                        has_snapshot_before_tx = false;
                     }
                     vm.make_snapshot();
-                    snapshots_in_last_block = 1;
+
+                    block_snapshot_depth += 1;
+                    assert!(block_snapshot_depth <= MAX_BLOCK_ROLLBACK_DEPTH + 1);
+                    if block_snapshot_depth == MAX_BLOCK_ROLLBACK_DEPTH + 1 {
+                        vm.pop_front_snapshot_no_rollback();
+                        block_snapshot_depth -= 1;
+                    }
 
                     vm.start_new_l2_block(l2_block_env);
                     if resp.send(()).is_err() {
@@ -400,10 +421,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     break;
                 }
                 Command::RollbackL2Block(resp) => {
-                    for _ in 0..snapshots_in_last_block {
-                        vm.rollback_to_the_latest_snapshot();
+                    if has_snapshot_before_tx {
+                        vm.pop_snapshot_no_rollback();
+                        has_snapshot_before_tx = false;
                     }
-                    snapshots_in_last_block = 0;
+                    vm.rollback_to_the_latest_snapshot();
+                    block_snapshot_depth -= 1;
+
                     if resp.send(()).is_err() {
                         break;
                     }

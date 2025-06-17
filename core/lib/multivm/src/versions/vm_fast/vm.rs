@@ -893,6 +893,12 @@ where
         self.inner.pop_snapshot();
         self.snapshot = None;
     }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        // TODO
+        self.inner.pop_snapshot();
+        self.snapshot = None;
+    }
 }
 
 impl<S: ReadStorage, Tr: Tracer> VmTrackingContracts for Vm<S, Tr>

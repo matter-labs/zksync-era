@@ -48,7 +48,7 @@ impl UpdatesManager {
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
         let finished_batch = self
-            .l1_batch
+            .committed_updates()
             .finished
             .as_ref()
             .context("L1 batch is not actually finished")?;
@@ -83,7 +83,8 @@ impl UpdatesManager {
                 .len(),
         );
 
-        let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
+        let (l1_tx_count, l2_tx_count) =
+            l1_l2_tx_count(&self.committed_updates().executed_transactions);
         let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
             finished_batch
                 .final_execution_state
@@ -96,23 +97,23 @@ impl UpdatesManager {
              ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
              {event_count} events, {dedup_reads_count} deduped reads, \
              {dedup_writes_count} deduped writes",
-            ts = display_timestamp(self.batch_timestamp()),
+            ts = display_timestamp(self.l1_batch_timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             l2_to_l1_log_count = finished_batch
                 .final_execution_state
                 .user_l2_to_l1_logs
                 .len(),
             event_count = finished_batch.final_execution_state.events.len(),
-            current_l1_batch_number = self.l1_batch.number
+            current_l1_batch_number = self.l1_batch_number()
         );
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
             VmEvent::extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
         let l1_batch = L1BatchHeader {
-            number: self.l1_batch.number,
-            timestamp: self.batch_timestamp(),
-            priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
+            number: self.l1_batch_number(),
+            timestamp: self.l1_batch_timestamp(),
+            priority_ops_onchain_data: self.committed_updates().priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             l2_to_l1_logs: finished_batch
@@ -129,8 +130,8 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs.clone(),
             pubdata_input: finished_batch.pubdata_input.clone(),
-            fee_address: self.fee_account_address,
-            batch_fee_input: self.batch_fee_input,
+            fee_address: self.fee_account_address(),
+            batch_fee_input: self.batch_fee_input(),
         };
 
         let final_bootloader_memory = finished_batch
@@ -153,7 +154,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForL2Blocks);
         transaction
             .blocks_dal()
-            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch.number)
+            .mark_l2_blocks_as_executed_in_l1_batch(self.l1_batch_number())
             .await?;
         progress.observe(None);
 
@@ -161,8 +162,8 @@ impl UpdatesManager {
         transaction
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(
-                self.l1_batch.number,
-                &self.l1_batch.executed_transactions,
+                self.l1_batch_number(),
+                &self.committed_updates().executed_transactions,
             )
             .await?;
         progress.observe(None);
@@ -178,7 +179,7 @@ impl UpdatesManager {
                 .collect();
             transaction
                 .storage_logs_dedup_dal()
-                .insert_protective_reads(self.l1_batch.number, &protective_reads)
+                .insert_protective_reads(self.l1_batch_number(), &protective_reads)
                 .await?;
             progress.observe(protective_reads.len());
         }
@@ -229,7 +230,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);
         transaction
             .storage_logs_dedup_dal()
-            .insert_initial_writes(self.l1_batch.number, &initial_writes)
+            .insert_initial_writes(self.l1_batch_number(), &initial_writes)
             .await?;
         progress.observe(initial_writes.len());
 
@@ -262,9 +263,9 @@ impl UpdatesManager {
             .observe(writes_metrics.repeated_storage_writes);
         L1_BATCH_METRICS
             .transactions_in_l1_batch
-            .observe(self.l1_batch.executed_transactions.len());
+            .observe(self.committed_updates().executed_transactions.len());
 
-        let batch_timestamp = self.batch_timestamp();
+        let batch_timestamp = self.l1_batch_timestamp();
         let l1_batch_latency =
             unix_timestamp_ms().saturating_sub(batch_timestamp * 1_000) as f64 / 1_000.0;
         APP_METRICS.block_latency[&BlockStage::Sealed]
@@ -272,7 +273,7 @@ impl UpdatesManager {
 
         let elapsed = started_at.elapsed();
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
-        tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
+        tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch_number());
     }
 }
 

@@ -64,7 +64,7 @@ impl StateKeeperOutputHandler for SyncState {
         &mut self,
         updates_manager: Arc<UpdatesManager>,
     ) -> anyhow::Result<()> {
-        let sealed_block_number = updates_manager.l2_block.number;
+        let sealed_block_number = updates_manager.last_pending_l2_block().number;
         self.set_local_block(sealed_block_number);
         Ok(())
     }
@@ -111,7 +111,7 @@ impl OutputHandler {
     #[tracing::instrument(
         name = "OutputHandler::handle_l2_block"
         skip_all,
-        fields(l2_block = %updates_manager.l2_block.number)
+        fields(l2_block = %updates_manager.last_pending_l2_block().number)
     )]
     pub(crate) async fn handle_l2_block(
         &mut self,
@@ -124,7 +124,7 @@ impl OutputHandler {
                 .with_context(|| {
                     format!(
                         "failed handling L2 block {:?} on handler {handler:?}",
-                        updates_manager.l2_block
+                        updates_manager.last_pending_l2_block().number
                     )
                 })?;
         }
@@ -176,7 +176,7 @@ impl OutputHandler {
     #[tracing::instrument(
         name = "OutputHandler::handle_l1_batch"
         skip_all,
-        fields(l1_batch = %updates_manager.l1_batch.number)
+        fields(l1_batch = %updates_manager.l1_batch_number())
     )]
     pub(crate) async fn handle_l1_batch(
         &mut self,
@@ -189,7 +189,7 @@ impl OutputHandler {
                 .with_context(|| {
                     format!(
                         "failed handling L1 batch #{} on handler {handler:?}",
-                        updates_manager.l1_batch.number
+                        updates_manager.l1_batch_number()
                     )
                 })?;
         }

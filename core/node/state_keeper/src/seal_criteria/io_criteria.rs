@@ -57,22 +57,26 @@ impl IoSealCriteria for TimeoutSealer {
         let block_commit_deadline_ms = self.block_commit_deadline_ms;
         // Verify timestamp
         let should_seal_timeout =
-            millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
+            millis_since(manager.l1_batch_timestamp()) > block_commit_deadline_ms;
 
         if should_seal_timeout {
             AGGREGATION_METRICS.l1_batch_reason_inc_criterion(RULE_NAME);
             tracing::debug!(
                 "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                  commit deadline: {block_commit_deadline_ms}ms",
-                display_timestamp(manager.batch_timestamp())
+                display_timestamp(manager.l1_batch_timestamp())
             );
         }
         Ok(should_seal_timeout)
     }
 
     fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
-        !manager.l2_block.executed_transactions.is_empty()
-            && millis_since(manager.l2_block.timestamp) > self.l2_block_commit_deadline_ms
+        !manager
+            .last_pending_l2_block()
+            .executed_transactions
+            .is_empty()
+            && millis_since(manager.last_pending_l2_block().timestamp)
+                > self.l2_block_commit_deadline_ms
     }
 }
 
@@ -89,7 +93,7 @@ impl L2BlockMaxPayloadSizeSealer {
     }
 
     pub fn should_seal_l2_block(&mut self, manager: &UpdatesManager) -> bool {
-        manager.l2_block.payload_encoding_size >= self.max_payload_size
+        manager.last_pending_l2_block().payload_encoding_size >= self.max_payload_size
     }
 }
 
@@ -199,7 +203,7 @@ mod tests {
 
         let mut manager = create_updates_manager();
         // Empty L2 block should not trigger.
-        manager.l2_block.timestamp = seconds_since_epoch() - 10;
+        manager.last_pending_l2_block_mut().timestamp = seconds_since_epoch() - 10;
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Empty L2 block shouldn't be sealed"
@@ -215,7 +219,7 @@ mod tests {
         // Check the timestamp logic. This relies on the fact that the test shouldn't run
         // for more than 10 seconds (while the test itself is trivial, it may be preempted
         // by other tests).
-        manager.l2_block.timestamp = seconds_since_epoch();
+        manager.last_pending_l2_block_mut().timestamp = seconds_since_epoch();
         assert!(
             !timeout_l2_block_sealer.should_seal_l2_block(&manager),
             "Non-empty L2 block with too recent timestamp shouldn't be sealed"

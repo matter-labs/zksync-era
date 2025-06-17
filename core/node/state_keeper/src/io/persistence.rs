@@ -240,7 +240,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         // We cannot start sealing an L1 batch until we've sealed all L2 blocks included in it.
         self.wait_for_all_commands().await;
 
-        let batch_number = updates_manager.l1_batch.number;
+        let batch_number = updates_manager.l1_batch_number();
         updates_manager
             .seal_l1_batch(
                 self.pool.clone(),
@@ -343,14 +343,14 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
     ) -> anyhow::Result<()> {
         let mut connection = self.pool.connection_tagged("state_keeper").await?;
         let finished_batch = updates_manager
-            .l1_batch
+            .committed_updates()
             .finished
             .as_ref()
             .context("L1 batch is not actually finished")?;
 
         let mut next_index = connection
             .storage_logs_dedup_dal()
-            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch.number - 1)
+            .max_enumeration_index_by_l1_batch(updates_manager.l1_batch_number() - 1)
             .await?
             .unwrap_or(0)
             + 1;
@@ -408,7 +408,7 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
 
         connection
             .blocks_dal()
-            .set_tree_writes(updates_manager.l1_batch.number, tree_input)
+            .set_tree_writes(updates_manager.l1_batch_number(), tree_input)
             .await?;
 
         Ok(())
@@ -555,7 +555,7 @@ mod tests {
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
         output_handler
-            .handle_l2_block_header(&updates.build_block_header())
+            .handle_l2_block_header(&updates.header_for_first_pending_block())
             .await
             .unwrap();
         updates.set_next_l2_block_params(L2BlockParams {

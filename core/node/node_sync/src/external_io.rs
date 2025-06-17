@@ -380,7 +380,7 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn rollback_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
-        self.actions.requeue_block();
+        assert!(self.actions.peeked_is_none());
         Ok(())
     }
 }

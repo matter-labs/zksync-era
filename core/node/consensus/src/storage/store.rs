@@ -235,6 +235,15 @@ impl EngineInterface for Store {
         let mut lock = sync::lock(ctx, &self.sk).await?.into_async();
         let sk = lock.as_mut().unwrap();
         if let Some(payloads) = &mut *payloads {
+            if sk.pending_block_number() == Some(block.number().0 as u32) {
+                if let Some(p_) = sk.pending_payload() {
+                    let encoded_payload = p_.encode();
+                    if &encoded_payload != p {
+                        sk.rollback().await?;
+                    }
+                }
+            }
+
             let cursor = sk.cursor_for_action_queue();
             let queued = payloads
                 .send2(
@@ -244,9 +253,6 @@ impl EngineInterface for Store {
                 .await
                 .context("payloads.send()")?;
             if queued {
-                if sk.pending_block_number() == Some(block.number().0 as u32) {
-                    sk.rollback().await?;
-                }
                 let (_sender, mut receiver) = sync::watch::channel(false);
                 sk.verify(&mut receiver).await.unwrap();
             }
@@ -328,9 +334,6 @@ impl EngineInterface for Store {
                 .send2(block, cursor)
                 .await
                 .context("payload_queue.send()")?;
-            dbg!(&cursor);
-            dbg!(&payload);
-            dbg!(&queued);
 
             if queued {
                 let (_sender, mut receiver) = sync::watch::channel(false);

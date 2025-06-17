@@ -184,17 +184,6 @@ impl L2BlockUpdates {
             max_virtual_blocks_to_create: self.virtual_blocks,
         }
     }
-
-    pub(crate) fn recreate(&mut self) {
-        *self = Self::new(
-            self.timestamp,
-            self.number,
-            self.prev_block_hash,
-            self.prev_block_timestamp,
-            self.virtual_blocks,
-            self.protocol_version,
-        );
-    }
 }
 
 #[cfg(test)]

@@ -620,7 +620,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     tokio::spawn(l2_block_sealer.run());
     persistence.handle_l2_block(&updates).await.unwrap();
     persistence
-        .handle_l2_block_header(&updates.build_block_header())
+        .handle_l2_block_header(&updates.header_for_first_pending_block())
         .await
         .unwrap();
 

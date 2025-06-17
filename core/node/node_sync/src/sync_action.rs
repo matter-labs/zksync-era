@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use tokio::sync::mpsc;
 use zksync_state_keeper::io::{L1BatchParams, L2BlockParams};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
@@ -87,8 +85,7 @@ impl ActionQueueSender {
 #[derive(Debug)]
 pub struct ActionQueue {
     receiver: mpsc::Receiver<SyncAction>,
-    current_block_actions: Vec<SyncAction>,
-    unprocessed_action_index: usize,
+    peeked: Option<SyncAction>,
 }
 
 impl ActionQueue {
@@ -99,116 +96,62 @@ impl ActionQueue {
         let sender = ActionQueueSender(sender);
         let this = Self {
             receiver,
-            current_block_actions: Vec::new(),
-            unprocessed_action_index: 0,
+            peeked: None,
         };
         (sender, this)
     }
 
     /// Removes the first action from the queue.
     pub(super) fn pop_action(&mut self) -> Option<SyncAction> {
-        if self.unprocessed_action_index == self.current_block_actions.len() {
-            let action = self.receiver.try_recv().ok()?;
-
-            if matches!(
-                action,
-                SyncAction::L2Block { .. } | SyncAction::OpenBatch { .. }
-            ) {
-                self.current_block_actions = vec![action];
-                self.unprocessed_action_index = 0;
-            } else {
-                self.current_block_actions.push(action);
-            }
+        if let Some(peeked) = self.peeked.take() {
+            QUEUE_METRICS.action_queue_size.dec_by(1);
+            return Some(peeked);
         }
-
+        let action = self.receiver.try_recv().ok()?;
         QUEUE_METRICS.action_queue_size.dec_by(1);
-        let action = self.current_block_actions[self.unprocessed_action_index].clone();
-        self.unprocessed_action_index += 1;
         Some(action)
     }
 
     /// Removes the first action from the queue.
-    pub(super) async fn recv_action(&mut self, max_wait: Duration) -> Option<SyncAction> {
-        if self.unprocessed_action_index == self.current_block_actions.len() {
-            let action = tokio::time::timeout(max_wait, self.receiver.recv())
-                .await
-                .ok()??;
-
-            if matches!(
-                action,
-                SyncAction::L2Block { .. } | SyncAction::OpenBatch { .. }
-            ) {
-                self.current_block_actions = vec![action];
-                self.unprocessed_action_index = 0;
-            } else {
-                self.current_block_actions.push(action);
-            }
+    pub(super) async fn recv_action(
+        &mut self,
+        max_wait: tokio::time::Duration,
+    ) -> Option<SyncAction> {
+        if let Some(action) = self.pop_action() {
+            return Some(action);
         }
-
+        let action = tokio::time::timeout(max_wait, self.receiver.recv())
+            .await
+            .ok()??;
         QUEUE_METRICS.action_queue_size.dec_by(1);
-        let action = self.current_block_actions[self.unprocessed_action_index].clone();
-        self.unprocessed_action_index += 1;
         Some(action)
     }
 
     /// Returns the first action from the queue without removing it.
     pub(super) fn peek_action(&mut self) -> Option<SyncAction> {
-        if self.unprocessed_action_index == self.current_block_actions.len() {
-            let action = self.receiver.try_recv().ok()?;
-
-            if matches!(
-                action,
-                SyncAction::L2Block { .. } | SyncAction::OpenBatch { .. }
-            ) {
-                panic!("{action:?} must not be peeked");
-            } else {
-                self.current_block_actions.push(action);
-            }
+        if let Some(action) = &self.peeked {
+            return Some(action.clone());
         }
-
-        Some(self.current_block_actions[self.unprocessed_action_index].clone())
+        self.peeked = self.receiver.try_recv().ok();
+        self.peeked.clone()
     }
 
     /// Returns the first action from the queue without removing it.
-    pub(super) async fn peek_action_async(&mut self, max_wait: Duration) -> Option<SyncAction> {
-        if self.unprocessed_action_index == self.current_block_actions.len() {
-            let action = tokio::time::timeout(max_wait, self.receiver.recv())
-                .await
-                .ok()??;
-
-            if matches!(
-                action,
-                SyncAction::L2Block { .. } | SyncAction::OpenBatch { .. }
-            ) {
-                panic!("{action:?} must not be peeked");
-            } else {
-                self.current_block_actions.push(action);
-            }
+    pub(super) async fn peek_action_async(
+        &mut self,
+        max_wait: tokio::time::Duration,
+    ) -> Option<SyncAction> {
+        if let Some(action) = &self.peeked {
+            return Some(action.clone());
         }
-
-        Some(self.current_block_actions[self.unprocessed_action_index].clone())
+        self.peeked = tokio::time::timeout(max_wait, self.receiver.recv())
+            .await
+            .ok()?;
+        self.peeked.clone()
     }
 
-    pub(super) fn requeue_block(&mut self) {
-        match self.current_block_actions.first() {
-            Some(SyncAction::OpenBatch { .. }) => {
-                assert!(self.unprocessed_action_index >= 1);
-                QUEUE_METRICS
-                    .action_queue_size
-                    .inc_by(self.unprocessed_action_index - 1);
-                self.unprocessed_action_index = 1;
-            }
-            Some(SyncAction::L2Block { .. }) => {
-                QUEUE_METRICS
-                    .action_queue_size
-                    .inc_by(self.unprocessed_action_index);
-                self.unprocessed_action_index = 0;
-            }
-            Some(action) => {
-                panic!("unexpected first action in `current_block_actions`: {action:?}")
-            }
-            None => {}
-        }
+    pub(super) fn peeked_is_none(&self) -> bool {
+        self.peeked.is_none()
     }
 }
 

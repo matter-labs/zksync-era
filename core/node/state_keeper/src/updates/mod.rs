@@ -1,9 +1,10 @@
+use std::collections::VecDeque;
+
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::consensus::Payload;
 use zksync_multivm::{
     interface::{
-        storage::StorageViewCache, Call, FinishedL1Batch, L1BatchEnv, SystemEnv,
-        VmExecutionMetrics, VmExecutionResultAndLogs,
+        Call, FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionMetrics, VmExecutionResultAndLogs,
     },
     utils::{
         get_batch_base_fee, get_max_batch_gas_limit, get_max_gas_per_pubdata_byte,
@@ -14,7 +15,7 @@ use zksync_types::{
     block::{build_bloom, L2BlockHeader},
     commitment::PubdataParams,
     fee_model::BatchFeeInput,
-    Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
+    Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -35,20 +36,28 @@ pub mod l2_block_updates;
 /// and provides information about the pending state of the current L1 batch.
 #[derive(Debug)]
 pub struct UpdatesManager {
-    batch_timestamp: u64,
-    pub fee_account_address: Address,
-    pub batch_fee_input: BatchFeeInput,
-    pub base_fee_per_gas: u64,
+    // immutable
+    l1_batch_number: L1BatchNumber,
+    l1_batch_timestamp: u64,
+    fee_account_address: Address,
+    batch_fee_input: BatchFeeInput,
+    base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
-    storage_view_cache: Option<StorageViewCache>,
-    pub l1_batch: L1BatchUpdates,
-    pub l2_block: L2BlockUpdates,
-    pub storage_writes_deduplicator: StorageWritesDeduplicator,
-    pub pubdata_params: PubdataParams,
-    next_l2_block_params: Option<L2BlockParams>,
+    pubdata_params: PubdataParams,
     previous_batch_protocol_version: ProtocolVersionId,
-    pub last_gas_remaining: Option<u32>,
+
+    // committed state
+    committed_updates: L1BatchUpdates,
+    last_committed_l2_block_number: L2BlockNumber,
+    last_committed_l2_block_timestamp: Option<u64>,
+    last_committed_l2_block_hash: H256,
+
+    // pending state
+    pending_l2_blocks: VecDeque<L2BlockUpdates>,
+    pub storage_writes_deduplicator: StorageWritesDeduplicator,
+    next_l2_block_params: Option<L2BlockParams>,
+    pub last_gas_remaining: Option<u32>, // TODO
 }
 
 impl UpdatesManager {
@@ -60,37 +69,34 @@ impl UpdatesManager {
         previous_block_timestamp: Option<u64>,
     ) -> Self {
         let protocol_version = system_env.version;
+        let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
+        storage_writes_deduplicator.make_snapshot();
         Self {
-            batch_timestamp: l1_batch_env.timestamp,
+            l1_batch_number: l1_batch_env.number,
+            l1_batch_timestamp: l1_batch_env.timestamp,
             fee_account_address: l1_batch_env.fee_account,
             batch_fee_input: l1_batch_env.fee_input,
             base_fee_per_gas: get_batch_base_fee(l1_batch_env, protocol_version.into()),
-            protocol_version,
             base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
-            l1_batch: L1BatchUpdates::new(l1_batch_env.number),
-            l2_block: L2BlockUpdates::new(
+            protocol_version,
+            pubdata_params,
+            previous_batch_protocol_version,
+            committed_updates: L1BatchUpdates::new(),
+            last_committed_l2_block_number: L2BlockNumber(l1_batch_env.first_l2_block.number) - 1,
+            last_committed_l2_block_timestamp: previous_block_timestamp,
+            last_committed_l2_block_hash: l1_batch_env.first_l2_block.prev_block_hash,
+            pending_l2_blocks: VecDeque::from([L2BlockUpdates::new(
                 l1_batch_env.first_l2_block.timestamp,
                 L2BlockNumber(l1_batch_env.first_l2_block.number),
                 l1_batch_env.first_l2_block.prev_block_hash,
                 previous_block_timestamp,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
-            ),
-            storage_writes_deduplicator: StorageWritesDeduplicator::new(),
-            storage_view_cache: None,
-            pubdata_params,
+            )]),
+            storage_writes_deduplicator,
             next_l2_block_params: None,
-            previous_batch_protocol_version,
             last_gas_remaining: None,
         }
-    }
-
-    pub(crate) fn batch_timestamp(&self) -> u64 {
-        self.batch_timestamp
-    }
-
-    pub fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
-        self.base_system_contract_hashes
     }
 
     pub(crate) fn next_l2_block_timestamp_mut(&mut self) -> Option<&mut u64> {
@@ -99,13 +105,11 @@ impl UpdatesManager {
             .map(|params| &mut params.timestamp)
     }
 
-    pub(crate) fn get_next_l2_block_params_or_batch_params(&mut self) -> L2BlockParams {
+    pub(crate) fn get_next_current_l2_block_timestamp(&mut self) -> u64 {
         if let Some(next_l2_block_params) = self.next_l2_block_params {
-            return next_l2_block_params;
-        }
-        L2BlockParams {
-            timestamp: self.l2_block.timestamp,
-            virtual_blocks: self.l2_block.virtual_blocks,
+            next_l2_block_params.timestamp
+        } else {
+            self.last_pending_l2_block().timestamp
         }
     }
 
@@ -114,19 +118,19 @@ impl UpdatesManager {
     }
 
     pub(crate) fn io_cursor(&self) -> IoCursor {
-        if self.l2_block.rolled_back {
+        if let Some(last) = self.pending_l2_blocks.back() {
             IoCursor {
-                next_l2_block: self.l2_block.number,
-                prev_l2_block_hash: self.l2_block.prev_block_hash,
-                prev_l2_block_timestamp: self.l2_block.prev_block_timestamp.unwrap(),
-                l1_batch: self.l1_batch.number,
+                next_l2_block: last.number + 1,
+                prev_l2_block_hash: last.get_l2_block_hash(),
+                prev_l2_block_timestamp: last.timestamp,
+                l1_batch: self.l1_batch_number,
             }
         } else {
             IoCursor {
-                next_l2_block: self.l2_block.number + 1,
-                prev_l2_block_hash: self.l2_block.get_l2_block_hash(),
-                prev_l2_block_timestamp: self.l2_block.timestamp,
-                l1_batch: self.l1_batch.number,
+                next_l2_block: self.last_committed_l2_block_number + 1,
+                prev_l2_block_hash: self.last_committed_l2_block_hash,
+                prev_l2_block_timestamp: self.last_committed_l2_block_timestamp.unwrap(),
+                l1_batch: self.l1_batch_number,
             }
         }
     }
@@ -136,10 +140,12 @@ impl UpdatesManager {
         l2_legacy_shared_bridge_addr: Option<Address>,
         pre_insert_txs: bool,
     ) -> L2BlockSealCommand {
+        let l2_block = self.last_pending_l2_block().clone();
+        let tx_count_in_last_block = l2_block.executed_transactions.len();
         L2BlockSealCommand {
-            l1_batch_number: self.l1_batch.number,
-            l2_block: self.l2_block.clone(),
-            first_tx_index: self.l1_batch.executed_transactions.len(),
+            l1_batch_number: self.l1_batch_number(),
+            l2_block,
+            first_tx_index: self.pending_executed_transactions_len() - tx_count_in_last_block,
             fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
@@ -149,14 +155,6 @@ impl UpdatesManager {
             pre_insert_txs,
             pubdata_params: self.pubdata_params,
         }
-    }
-
-    pub fn protocol_version(&self) -> ProtocolVersionId {
-        self.protocol_version
-    }
-
-    pub fn previous_batch_protocol_version(&self) -> ProtocolVersionId {
-        self.previous_batch_protocol_version
     }
 
     pub fn extend_from_executed_transaction(
@@ -172,12 +170,13 @@ impl UpdatesManager {
             .start();
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
-        self.l2_block.extend_from_executed_transaction(
-            tx,
-            tx_execution_result,
-            execution_metrics,
-            call_traces,
-        );
+        self.last_pending_l2_block_mut()
+            .extend_from_executed_transaction(
+                tx,
+                tx_execution_result,
+                execution_metrics,
+                call_traces,
+            );
         self.last_gas_remaining = Some(gas_remaining);
         latency.observe();
     }
@@ -185,7 +184,7 @@ impl UpdatesManager {
     pub fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
         let latency = UPDATES_MANAGER_METRICS.finish_batch.start();
         assert!(
-            self.l1_batch.finished.is_none(),
+            self.committed_updates.finished.is_none(),
             "Cannot finish already finished batch"
         );
 
@@ -198,54 +197,31 @@ impl UpdatesManager {
         let after = self.storage_writes_deduplicator.metrics();
         BATCH_TIP_METRICS.observe_writes_metrics(&before, &after, self.protocol_version());
 
-        self.l2_block
+        self.last_pending_l2_block_mut()
             .extend_from_fictive_transaction(result.clone(), batch_tip_execution_metrics);
-        self.l1_batch.finished = Some(finished_batch);
+        self.committed_updates.finished = Some(finished_batch);
 
         latency.observe();
     }
 
-    pub fn update_storage_view_cache(&mut self, storage_view_cache: StorageViewCache) {
-        self.storage_view_cache = Some(storage_view_cache);
-    }
-
-    pub fn storage_view_cache(&self) -> Option<StorageViewCache> {
-        self.storage_view_cache.clone()
-    }
-
-    /// Pushes a new L2 block with the specified timestamp into this manager. The previously
-    /// held L2 block is considered sealed and is used to extend the L1 batch data.
+    /// Pushes a new L2 block with the specified timestamp into this manager.
     pub fn push_l2_block(&mut self) {
         let next_l2_block_params = self
             .next_l2_block_params
             .take()
             .expect("next l2 block params cannot be empty");
 
-        let new_l2_block_updates = if self.l2_block.rolled_back {
-            L2BlockUpdates::new(
-                next_l2_block_params.timestamp,
-                self.l2_block.number,
-                self.l2_block.prev_block_hash,
-                self.l2_block.prev_block_timestamp,
-                next_l2_block_params.virtual_blocks,
-                self.protocol_version,
-            )
-        } else {
-            L2BlockUpdates::new(
-                next_l2_block_params.timestamp,
-                self.l2_block.number + 1,
-                self.l2_block.get_l2_block_hash(),
-                Some(self.l2_block.timestamp),
-                next_l2_block_params.virtual_blocks,
-                self.protocol_version,
-            )
-        };
-        let old_l2_block_updates = std::mem::replace(&mut self.l2_block, new_l2_block_updates);
-        if !old_l2_block_updates.rolled_back {
-            self.l1_batch
-                .extend_from_sealed_l2_block(old_l2_block_updates);
-        }
-        self.storage_writes_deduplicator.start_snapshot();
+        let cursor = self.io_cursor();
+        let new_l2_block_updates = L2BlockUpdates::new(
+            next_l2_block_params.timestamp,
+            cursor.next_l2_block,
+            cursor.prev_l2_block_hash,
+            Some(cursor.prev_l2_block_timestamp),
+            next_l2_block_params.virtual_blocks,
+            self.protocol_version,
+        );
+        self.pending_l2_blocks.push_back(new_l2_block_updates);
+        self.storage_writes_deduplicator.make_snapshot();
     }
 
     pub fn set_next_l2_block_params(&mut self, l2_block_params: L2BlockParams) {
@@ -261,50 +237,67 @@ impl UpdatesManager {
         self.next_l2_block_params = None;
     }
 
-    pub fn get_next_l2_block_params(&mut self) -> Option<L2BlockParams> {
-        self.next_l2_block_params
-    }
-
     pub(crate) fn pending_executed_transactions_len(&self) -> usize {
-        self.l1_batch.executed_transactions.len() + self.l2_block.executed_transactions.len()
+        self.committed_updates.executed_transactions.len()
+            + self
+                .pending_l2_blocks
+                .iter()
+                .map(|b| b.executed_transactions.len())
+                .sum::<usize>()
     }
 
     pub(crate) fn pending_l1_transactions_len(&self) -> usize {
-        self.l1_batch.l1_tx_count + self.l2_block.l1_tx_count
+        self.committed_updates.l1_tx_count
+            + self
+                .pending_l2_blocks
+                .iter()
+                .map(|b| b.l1_tx_count)
+                .sum::<usize>()
     }
 
     pub(crate) fn pending_execution_metrics(&self) -> VmExecutionMetrics {
-        self.l1_batch.block_execution_metrics + self.l2_block.block_execution_metrics
+        self.committed_updates.block_execution_metrics
+            + self
+                .pending_l2_blocks
+                .iter()
+                .fold(VmExecutionMetrics::default(), |sum, b| {
+                    sum + b.block_execution_metrics
+                })
     }
 
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {
-        self.l1_batch.txs_encoding_size + self.l2_block.txs_encoding_size
+        self.committed_updates.txs_encoding_size
+            + self
+                .pending_l2_blocks
+                .iter()
+                .map(|b| b.txs_encoding_size)
+                .sum::<usize>()
     }
 
-    pub(crate) fn build_payload(&self) -> Payload {
-        Payload {
+    pub(crate) fn build_payload(&self) -> Option<Payload> {
+        self.pending_l2_blocks.back().map(|last_block| Payload {
             protocol_version: self.protocol_version(),
-            hash: self.l2_block.get_l2_block_hash(),
-            l1_batch_number: self.l1_batch.number,
-            timestamp: self.l2_block.timestamp,
+            hash: last_block.get_l2_block_hash(),
+            l1_batch_number: self.l1_batch_number(),
+            timestamp: last_block.timestamp,
             l1_gas_price: self.batch_fee_input.l1_gas_price(),
             l2_fair_gas_price: self.batch_fee_input.fair_l2_gas_price(),
             fair_pubdata_price: Some(self.batch_fee_input.fair_pubdata_price()),
-            virtual_blocks: self.l2_block.virtual_blocks,
+            virtual_blocks: last_block.virtual_blocks,
             operator_address: self.fee_account_address,
-            transactions: self
-                .l2_block
+            transactions: last_block
                 .executed_transactions
                 .iter()
                 .map(|tx| tx.transaction.clone())
                 .collect(),
-            last_in_batch: self.l2_block.executed_transactions.is_empty(),
+            last_in_batch: last_block.executed_transactions.is_empty(),
             pubdata_params: self.pubdata_params,
-        }
+        })
     }
 
-    pub(crate) fn build_block_header(&self) -> L2BlockHeader {
-        let iter = self.l2_block.events.iter().flat_map(|event| {
+    pub(crate) fn header_for_first_pending_block(&self) -> L2BlockHeader {
+        let block = self.first_pending_l2_block();
+        let iter = block.events.iter().flat_map(|event| {
             event
                 .indexed_topics
                 .iter()
@@ -314,23 +307,105 @@ impl UpdatesManager {
         let logs_bloom = build_bloom(iter);
         let definite_vm_version = self.protocol_version().into();
         L2BlockHeader {
-            number: self.l2_block.number,
-            timestamp: self.l2_block.timestamp,
-            hash: self.l2_block.get_l2_block_hash(),
-            l1_tx_count: self.l2_block.l1_tx_count as u16,
-            l2_tx_count: (self.l2_block.executed_transactions.len() - self.l2_block.l1_tx_count)
-                as u16,
+            number: block.number,
+            timestamp: block.timestamp,
+            hash: block.get_l2_block_hash(),
+            l1_tx_count: block.l1_tx_count as u16,
+            l2_tx_count: (block.executed_transactions.len() - block.l1_tx_count) as u16,
             fee_account_address: self.fee_account_address,
             base_fee_per_gas: self.base_fee_per_gas,
             batch_fee_input: self.batch_fee_input,
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
-            virtual_blocks: self.l2_block.virtual_blocks,
+            virtual_blocks: block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
             logs_bloom,
             pubdata_params: self.pubdata_params,
         }
+    }
+
+    pub fn last_pending_l2_block(&self) -> &L2BlockUpdates {
+        self.pending_l2_blocks.back().unwrap()
+    }
+
+    pub fn last_pending_l2_block_checked(&self) -> Option<&L2BlockUpdates> {
+        self.pending_l2_blocks.back()
+    }
+
+    pub fn last_pending_l2_block_mut(&mut self) -> &mut L2BlockUpdates {
+        self.pending_l2_blocks.back_mut().unwrap()
+    }
+
+    pub fn next_l2_block_number(&self) -> L2BlockNumber {
+        if let Some(b) = self.pending_l2_blocks.back() {
+            b.number + 1
+        } else {
+            self.last_committed_l2_block_number + 1
+        }
+    }
+
+    pub fn is_in_first_pending_block_state(&self) -> bool {
+        self.committed_updates.executed_transactions.len() == 0 && self.pending_l2_blocks.len() == 1
+    }
+
+    pub fn number_of_pending_blocks(&self) -> usize {
+        self.pending_l2_blocks.len()
+    }
+
+    pub fn first_pending_l2_block(&self) -> &L2BlockUpdates {
+        self.pending_l2_blocks.front().unwrap()
+    }
+
+    pub fn pop_last_pending_block(&mut self) {
+        self.pending_l2_blocks.pop_back();
+        self.storage_writes_deduplicator
+            .rollback_to_latest_snapshot_popping();
+    }
+
+    pub fn commit_pending_block(&mut self) {
+        let block = self.pending_l2_blocks.pop_front().unwrap();
+        self.last_committed_l2_block_number = block.number;
+        self.last_committed_l2_block_hash = block.get_l2_block_hash();
+        self.last_committed_l2_block_timestamp = Some(block.timestamp);
+        self.committed_updates.extend_from_sealed_l2_block(block);
+        self.storage_writes_deduplicator
+            .pop_front_snapshot_no_rollback();
+    }
+}
+
+// Getters
+impl UpdatesManager {
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
+    }
+
+    pub fn previous_batch_protocol_version(&self) -> ProtocolVersionId {
+        self.previous_batch_protocol_version
+    }
+
+    pub fn l1_batch_number(&self) -> L1BatchNumber {
+        self.l1_batch_number
+    }
+
+    pub fn l1_batch_timestamp(&self) -> u64 {
+        self.l1_batch_timestamp
+    }
+
+    pub fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
+        self.base_system_contract_hashes
+    }
+
+    pub fn batch_fee_input(&self) -> BatchFeeInput {
+        self.batch_fee_input
+    }
+
+    pub fn fee_account_address(&self) -> Address {
+        self.fee_account_address
+    }
+
+    pub fn committed_updates(&self) -> &L1BatchUpdates {
+        &self.committed_updates
     }
 }
 
@@ -376,20 +451,34 @@ mod tests {
 
         // Check that only pending state is updated.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
-        assert_eq!(updates_manager.l2_block.executed_transactions.len(), 1);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
+        assert_eq!(
+            updates_manager
+                .last_pending_l2_block()
+                .executed_transactions
+                .len(),
+            1
+        );
+        assert_eq!(
+            updates_manager
+                .committed_updates
+                .executed_transactions
+                .len(),
+            0
+        );
 
         // Seal an L2 block.
-        updates_manager.set_next_l2_block_params(L2BlockParams {
-            timestamp: 2,
-            virtual_blocks: 1,
-        });
-        updates_manager.push_l2_block();
+        updates_manager.commit_pending_block();
 
         // Check that L1 batch updates are the same with the pending state
         // and L2 block updates are empty.
         assert_eq!(updates_manager.pending_executed_transactions_len(), 1);
-        assert_eq!(updates_manager.l2_block.executed_transactions.len(), 0);
-        assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 1);
+        assert!(updates_manager.last_pending_l2_block_checked().is_none());
+        assert_eq!(
+            updates_manager
+                .committed_updates
+                .executed_transactions
+                .len(),
+            1
+        );
     }
 }

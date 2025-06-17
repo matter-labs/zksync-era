@@ -258,7 +258,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_state_keeper_layer(mut self) -> anyhow::Result<Self> {
+    fn add_state_keeper_layer(mut self, consensus_enabled: bool) -> anyhow::Result<Self> {
         // Bytecode compression is currently mandatory for the transactions processed by the sequencer.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = false;
 
@@ -292,7 +292,7 @@ impl MainNodeBuilder {
         let state_keeper_layer = StateKeeperLayer::new(
             db_config.state_keeper_db_path,
             rocksdb_options,
-            RunMode::Propose,
+            (!consensus_enabled).then_some(RunMode::Propose),
         );
         self.node
             .add_layer(persistence_layer)
@@ -778,7 +778,7 @@ impl MainNodeBuilder {
         {
             self = self.add_pk_signing_client_layer()?;
         }
-
+        let consensus_enabled = components.contains(&Component::Consensus);
         // Add "component-specific" layers.
         // Note that the layers are added only once, so it's fine to add the same layer multiple times.
         for component in &components {
@@ -790,7 +790,7 @@ impl MainNodeBuilder {
                         .add_allow_list_task_layer()?
                         .add_l1_gas_layer()?
                         .add_storage_initialization_layer(LayerKind::Task)?
-                        .add_state_keeper_layer()?
+                        .add_state_keeper_layer(consensus_enabled)?
                         .add_logs_bloom_backfill_layer()?;
                 }
                 Component::HttpApi => {

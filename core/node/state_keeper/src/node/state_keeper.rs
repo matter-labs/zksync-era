@@ -24,7 +24,7 @@ use crate::{
 pub struct StateKeeperLayer {
     state_keeper_db_path: PathBuf,
     rocksdb_options: RocksdbStorageOptions,
-    run_mode: RunMode,
+    run_mode: Option<RunMode>,
 }
 
 #[derive(Debug, FromContext)]
@@ -42,9 +42,9 @@ pub struct Input {
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
-    // #[context(task)]
-    // state_keeper: StateKeeperTask,
-    state_keeper: StateKeeperResource,
+    #[context(task)]
+    state_keeper_task: Option<StateKeeperTask>,
+    state_keeper_resource: Option<StateKeeperResource>,
     #[context(task)]
     rocksdb_catchup: AsyncCatchupTaskWrapper,
     rocksdb_termination_hook: ShutdownHook,
@@ -54,7 +54,7 @@ impl StateKeeperLayer {
     pub fn new(
         state_keeper_db_path: PathBuf,
         rocksdb_options: RocksdbStorageOptions,
-        run_mode: RunMode,
+        run_mode: Option<RunMode>,
     ) -> Self {
         Self {
             state_keeper_db_path,
@@ -110,13 +110,20 @@ impl WiringLayer for StateKeeperLayer {
             input.shared_allow_list.map(DeploymentTxFilter::new),
         );
 
-        // input
-        //     .app_health
-        //     .insert_component(state_keeper_builder.health_check())
-        //     .map_err(WiringError::internal)?;
-        // let state_keeper = StateKeeperTask {
-        //     state_keeper_builder,
-        // };
+        input
+            .app_health
+            .insert_component(state_keeper_builder.health_check())
+            .map_err(WiringError::internal)?;
+        let (state_keeper_task, state_keeper_resource) = match self.run_mode {
+            Some(run_mode) => (
+                Some(StateKeeperTask {
+                    state_keeper_builder,
+                    run_mode,
+                }),
+                None,
+            ),
+            None => (None, Some(state_keeper_builder.into())),
+        };
 
         let rocksdb_termination_hook = ShutdownHook::new("rocksdb_terminaton", async {
             // Wait for all the instances of RocksDB to be destroyed.
@@ -125,7 +132,8 @@ impl WiringLayer for StateKeeperLayer {
                 .context("failed terminating RocksDB instances")
         });
         Ok(Output {
-            state_keeper: state_keeper_builder.into(),
+            state_keeper_task,
+            state_keeper_resource,
             rocksdb_catchup: AsyncCatchupTaskWrapper(rocksdb_catchup),
             rocksdb_termination_hook,
         })

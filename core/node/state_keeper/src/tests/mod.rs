@@ -141,7 +141,9 @@ async fn sealed_by_number_of_txs() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .next_tx("First tx", random_tx(1), successful_exec())
         .l2_block_sealed("L2 block 1")
         .next_tx("Second tx", random_tx(2), successful_exec())
@@ -161,12 +163,14 @@ async fn batch_sealed_before_l2_block_does() {
 
     // L2 block sealer will not return true before the batch is sealed because the batch only has 2 txs.
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 3)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 3
+        })
         .next_tx("First tx", random_tx(1), successful_exec())
         .next_tx("Second tx", random_tx(2), successful_exec())
         .l2_block_sealed_with("L2 block with two txs", |updates| {
             assert_eq!(
-                updates.l2_block.executed_transactions.len(),
+                updates.last_pending_l2_block().executed_transactions.len(),
                 2,
                 "The L2 block should have 2 txs"
             );
@@ -186,7 +190,9 @@ async fn rejected_tx() {
 
     let rejected_tx = random_tx(1);
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .next_tx(
             "Rejected tx",
             rejected_tx.clone(),
@@ -218,7 +224,9 @@ async fn bootloader_tip_out_of_gas_flow() {
     let bootloader_out_of_gas_tx = random_tx(2);
     let third_tx = random_tx(3);
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .next_tx("First tx", first_tx, successful_exec())
         .l2_block_sealed("L2 block with 1st tx")
         .next_tx(
@@ -273,19 +281,21 @@ async fn pending_batch_is_applied() {
 
     // We configured state keeper to use different system contract hashes, so it must seal the pending batch immediately.
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .load_pending_batch(pending_batch)
         .next_tx("Final tx of batch", random_tx(3), successful_exec())
         .l2_block_sealed_with("L2 block with a single tx", |updates| {
             assert_eq!(
-                updates.l2_block.executed_transactions.len(),
+                updates.last_pending_l2_block().executed_transactions.len(),
                 1,
                 "Only one transaction should be in L2 block"
             );
         })
         .batch_sealed_with("Batch sealed with all 3 txs", |updates| {
             assert_eq!(
-                updates.l1_batch.executed_transactions.len(),
+                updates.committed_updates().executed_transactions.len(),
                 3,
                 "There should be 3 transactions in the batch"
             );
@@ -394,7 +404,9 @@ async fn l2_block_timestamp_after_pending_batch() {
     }]);
 
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .load_pending_batch(pending_batch)
         .next_tx(
             "First tx after pending batch",
@@ -403,7 +415,8 @@ async fn l2_block_timestamp_after_pending_batch() {
         )
         .l2_block_sealed_with("L2 block with a single tx", move |updates| {
             assert_eq!(
-                updates.l2_block.timestamp, 2,
+                updates.last_pending_l2_block().timestamp,
+                2,
                 "Timestamp for the new block must be taken from the test IO"
             );
         })
@@ -429,43 +442,48 @@ async fn time_is_monotonic() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .next_tx("First tx", random_tx(1), successful_exec())
         .l2_block_sealed_with("L2 block 1", move |updates| {
             let min_expected = timestamp_first_l2_block.load(Ordering::Relaxed);
-            let actual = updates.l2_block.timestamp;
+            let actual = updates.last_pending_l2_block().timestamp;
             assert!(
                 actual > min_expected,
                 "First L2 block: Timestamp cannot decrease. Expected at least {}, got {}",
                 min_expected,
                 actual
             );
-            timestamp_first_l2_block.store(updates.l2_block.timestamp, Ordering::Relaxed);
+            timestamp_first_l2_block
+                .store(updates.last_pending_l2_block().timestamp, Ordering::Relaxed);
         })
         .next_tx("Second tx", random_tx(2), successful_exec())
         .l2_block_sealed_with("L2 block 2", move |updates| {
             let min_expected = timestamp_second_l2_block.load(Ordering::Relaxed);
-            let actual = updates.l2_block.timestamp;
+            let actual = updates.last_pending_l2_block().timestamp;
             assert!(
                 actual > min_expected,
                 "Second L2 block: Timestamp cannot decrease. Expected at least {}, got {}",
                 min_expected,
                 actual
             );
-            timestamp_second_l2_block.store(updates.l2_block.timestamp, Ordering::Relaxed);
+            timestamp_second_l2_block
+                .store(updates.last_pending_l2_block().timestamp, Ordering::Relaxed);
         })
         .batch_sealed_with("Batch 1", move |updates| {
             // Timestamp from the currently stored L2 block would be used in the fictive L2 block.
             // It should be correct as well.
             let min_expected = timestamp_third_l2_block.load(Ordering::Relaxed);
-            let actual = updates.l2_block.timestamp;
+            let actual = updates.last_pending_l2_block().timestamp;
             assert!(
                 actual > min_expected,
                 "Fictive L2 block: Timestamp cannot decrease. Expected at least {}, got {}",
                 min_expected,
                 actual
             );
-            timestamp_third_l2_block.store(updates.l2_block.timestamp, Ordering::Relaxed);
+            timestamp_third_l2_block
+                .store(updates.last_pending_l2_block().timestamp, Ordering::Relaxed);
         })
         .run(sealer)
         .await;
@@ -480,7 +498,9 @@ async fn protocol_upgrade() {
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .next_tx("First tx", random_tx(1), successful_exec())
         .l2_block_sealed("L2 block 1")
         .increment_protocol_version("Increment protocol version")
@@ -519,13 +539,15 @@ async fn l2_block_timestamp_updated_after_first_tx() {
     let new_timestamp = 555;
 
     TestScenario::new()
-        .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
         .next_tx("First tx", random_tx(1), successful_exec())
         .l2_block_sealed("L2 block 1")
         .update_l2_block_timestamp("Update the next l2 block timestamp", new_timestamp)
         .next_tx("New tx", random_tx(1), successful_exec())
         .l2_block_sealed_with("L2 block 2", move |updates| {
-            let actual = updates.l2_block.timestamp;
+            let actual = updates.last_pending_l2_block().timestamp;
             assert_eq!(actual, new_timestamp, "L2 block timestamp must be updated");
         })
         .run(sealer)

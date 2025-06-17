@@ -7,7 +7,6 @@ use crate::updates::l2_block_updates::L2BlockUpdates;
 
 #[derive(Debug)]
 pub struct L1BatchUpdates {
-    pub number: L1BatchNumber,
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     pub block_execution_metrics: VmExecutionMetrics,
@@ -17,9 +16,8 @@ pub struct L1BatchUpdates {
 }
 
 impl L1BatchUpdates {
-    pub(crate) fn new(number: L1BatchNumber) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            number,
             executed_transactions: Default::default(),
             priority_ops_onchain_data: Default::default(),
             block_execution_metrics: Default::default(),
@@ -73,7 +71,7 @@ mod tests {
             vec![],
         );
 
-        let mut l1_batch_accumulator = L1BatchUpdates::new(L1BatchNumber(1));
+        let mut l1_batch_accumulator = L1BatchUpdates::new();
         l1_batch_accumulator.extend_from_sealed_l2_block(l2_block_accumulator);
 
         assert_eq!(l1_batch_accumulator.executed_transactions.len(), 1);

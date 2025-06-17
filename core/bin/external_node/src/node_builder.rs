@@ -228,7 +228,7 @@ impl<R> ExternalNodeBuilder<R> {
         let state_keeper_layer = StateKeeperLayer::new(
             self.config.required.state_cache_path.clone(),
             rocksdb_options,
-            RunMode::Verify,
+            None,
         );
         self.node
             .add_layer(io_layer)
