@@ -84,6 +84,11 @@ pub fn da_client_config_from_env(prefix: &str) -> anyhow::Result<DAClientConfig>
                 _ => anyhow::bail!("Unknown Eigen polynomial form"),
             },
             eigenda_sidecar_rpc: env::var(format!("{}EIGENDA_SIDECAR_RPC", prefix))?,
+            version: match env::var(format!("{}EIGENDA_VERSION", prefix))?.as_str() {
+                "V2" => zksync_config::configs::da_client::eigen::Version::V2,
+                "V2Secure" => zksync_config::configs::da_client::eigen::Version::V2Secure,
+                _ => anyhow::bail!("Unknown EigenDA version"),
+            },
         }),
         OBJECT_STORE_CLIENT_CONFIG_NAME => {
             DAClientConfig::ObjectStore(envy_load("da_object_store", prefix)?)

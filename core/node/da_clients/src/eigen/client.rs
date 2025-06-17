@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
+use reqwest::Client;
 use rust_eigenda_signers::signers::private_key::Signer;
 use rust_eigenda_v2_client::{
     core::BlobKey,
@@ -8,10 +9,11 @@ use rust_eigenda_v2_client::{
     utils::SecretUrl as SecretUrlV2,
 };
 use rust_eigenda_v2_common::{Payload, PayloadForm};
+use serde_json::{json, Value};
 use subxt_signer::ExposeSecret;
 use url::Url;
 use zksync_config::{
-    configs::da_client::eigen::{EigenSecrets, PolynomialForm},
+    configs::da_client::eigen::{EigenSecrets, PolynomialForm, Version},
     EigenConfig,
 };
 use zksync_da_client::{
@@ -21,10 +23,15 @@ use zksync_da_client::{
 
 use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 
+// The JSON RPC Specification defines for the Server error (Reserved for implementation-defined server-errors) the range of codes -32000 to -32099
+const PROOF_NOT_FOUND_ERROR_CODE: i64 = -32001;
+
 // We can't implement DataAvailabilityClient for an outside struct, so it is needed to defined this intermediate struct
 #[derive(Debug, Clone)]
 pub struct EigenDAClient {
     client: PayloadDisperser,
+    sidecar_client: Client,
+    sidecar_rpc: String,
     secure: bool,
 }
 
@@ -69,7 +76,12 @@ impl EigenDAClient {
             Version::V2Secure => true,
         };
 
-        Ok(Self { client, secure })
+        Ok(Self {
+            client,
+            sidecar_client: Client::new(),
+            sidecar_rpc: config.eigenda_sidecar_rpc,
+            secure,
+        })
     }
 }
 
@@ -157,7 +169,7 @@ impl DataAvailabilityClient for EigenDAClient {
 
         if self.secure {
             // In V2Secure, we need to send the blob key to the sidecar for proof generation
-            self.send_blob_key(blob_key.clone())
+            self.send_blob_key(blob_key.to_hex())
                 .await
                 .map_err(to_retriable_da_error)?;
         }
@@ -208,7 +220,7 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
-            if secure {
+            if self.secure {
                 if let Some(proof) = self
                     .get_proof(blob_id)
                     .await
