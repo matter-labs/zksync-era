@@ -9015,7 +9015,7 @@ checksum = "5a5fede39e20d50047e6eb1aee008bd44db17e6a851b1e1b00bce117bdf74d50"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
- "syn 2.0.100",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -12423,8 +12423,8 @@ dependencies = [
  "blake2b_simd",
  "bytes",
  "celestia-types",
- "eq-sdk",
  "chrono",
+ "eq-sdk",
  "flate2",
  "futures 0.3.31",
  "hex",
@@ -12452,9 +12452,8 @@ dependencies = [
  "zksync_basic_types",
  "zksync_config",
  "zksync_da_client",
- "zksync_env_config",
- "zksync_eth_client",
  "zksync_dal",
+ "zksync_eth_client",
  "zksync_node_framework",
  "zksync_object_store",
  "zksync_types",

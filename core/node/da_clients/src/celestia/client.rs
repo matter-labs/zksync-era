@@ -7,8 +7,16 @@ use std::{
 };
 
 use async_trait::async_trait;
-use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
+use celestia_types::{nmt::Namespace, AppVersion, Blob, Height};
+
 use chrono::{DateTime, Utc};
+use eq_sdk::{
+    get_keccak_inclusion_response::{
+        ResponseValue as InclusionResponseValue, Status as InclusionResponseStatus,
+    },
+    types::BlobId,
+    EqClient, KeccakInclusionToDataRootProofOutput,
+};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Endpoint;
@@ -50,19 +58,14 @@ pub struct CelestiaClient {
 }
 
 impl CelestiaClient {
-<<<<<<< HEAD
     pub async fn new(
         config: CelestiaConfig,
         secrets: CelestiaSecrets,
         eth_client: Box<DynClient<L1>>,
     ) -> anyhow::Result<Self> {
+
         let celestia_grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
-            .timeout(time::Duration::from_millis(config.timeout_ms))
-=======
-    pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
-        let grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
             .timeout(config.timeout)
->>>>>>> main
             .connect()
             .await?;
 
@@ -73,7 +76,7 @@ impl CelestiaClient {
 
         let eq_service_grpc_channel =
             Endpoint::from_str(config.eq_service_grpc_url.clone().as_str())?
-                .timeout(time::Duration::from_millis(config.timeout_ms))
+                .timeout(config.timeout)
                 .connect()
                 .await?;
         let eq_client = EqClient::new(eq_service_grpc_channel);

@@ -59,7 +59,7 @@ bech32.workspace = true
 ripemd.workspace = true
 tonic = { workspace = true, features = ["tls-roots", "prost", "codegen"] }
 pbjson-types.workspace = true
-zksync_web3_decl.workspace = true
+zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 zksync_eth_client.workspace = true
 # Eigen dependencies
 rust-eigenda-client.workspace = true
