@@ -98,15 +98,18 @@ export class YamlParser {
                 return new PublicRule();
             case 'closed':
                 return new AccessDeniedRule();
-            case 'group':
+            case 'group': {
                 const members = rule.groups.map((name: string) => this.membersForGroup(name)).flat();
                 return new GroupRule(members);
-            case 'checkArgument':
+            }
+            case 'checkArgument': {
                 const [fnDef] = parseAbi([fnSignature]) as Abi;
                 return new ArgumentIsCaller(rule.argIndex, fnDef as AbiFunction);
-            case 'oneOf':
+            }
+            case 'oneOf': {
                 const rules = rule.rules.map((r: Rule) => this.hidrateRule(r, fnSignature));
                 return new OneOfRule(rules);
+            }
             default:
                 throw new Error('Unknown rule type');
         }
