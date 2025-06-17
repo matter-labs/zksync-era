@@ -81,6 +81,14 @@ impl TendermintRPCClient {
         end: u64,
     ) -> Result<String, ReqwestError> {
         let url = format!("{}/data_root_inclusion_proof", self.url);
+
+        let request = self.client
+            .get(url.clone())
+            .query(&[("height", height), ("start", start), ("end", end)])
+            .build()
+            .unwrap();
+        tracing::debug!("request: {:?}", request.url().as_str());
+
         self.client
             .get(url)
             .query(&[("height", height), ("start", start), ("end", end)])

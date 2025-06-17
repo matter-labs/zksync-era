@@ -268,7 +268,7 @@ impl CelestiaClient {
                 error: anyhow::anyhow!("Failed to get data root inclusion proof: {}", e),
                 is_retriable: false,
             })?;
-
+        tracing::debug!("data_root_inclusion_proof_string: {}", data_root_inclusion_proof_string);
         let data_root_inclusion_proof_response: DataRootInclusionProofResponse =
             serde_json::from_str(&data_root_inclusion_proof_string).unwrap();
 
