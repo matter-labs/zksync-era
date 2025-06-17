@@ -77,7 +77,7 @@ And a client setup that uses the holesky EigenDA V2 Secure client would look lik
 
 ```yaml
 da_dispatcher:
-  use_dummy_inclusion_data: true
+  use_dummy_inclusion_data: false
 da_client:
   client: Eigen
   disperser_rpc: https://disperser-testnet-holesky.eigenda.xyz
