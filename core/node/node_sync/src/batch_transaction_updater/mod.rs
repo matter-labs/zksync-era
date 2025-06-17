@@ -78,6 +78,7 @@ impl BatchTransactionUpdater {
             l1_block_numbers.get_finality_status_for_block(receipt.block_number.unwrap().as_u32());
 
         if updated_status == EthTxFinalityStatus::Pending {
+            // Errors from apply_status_update will result in a warning and retry
             anyhow::bail!(
                 "Transaction {} is still pending on SL",
                 receipt.transaction_hash
@@ -230,7 +231,7 @@ impl BatchTransactionUpdater {
         Ok(updated_count)
     }
 
-    pub async fn step(
+    pub async fn loop_iteration(
         &self,
         sl_chain_id: SLChainId,
         l1_block_numbers: L1BlockNumbers,
@@ -277,7 +278,7 @@ impl BatchTransactionUpdater {
 
         while !*stop_receiver.borrow_and_update() {
             let l1_block_numbers = self.sl_client.get_block_numbers(None).await?;
-            let updates = self.step(sl_chain_id, l1_block_numbers).await?;
+            let updates = self.loop_iteration(sl_chain_id, l1_block_numbers).await?;
             if updates == 0 {
                 tracing::debug!("No updates made, waiting for the next iteration");
                 if tokio::time::timeout(self.sleep_interval, stop_receiver.changed())
