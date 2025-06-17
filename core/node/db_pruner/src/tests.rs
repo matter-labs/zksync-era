@@ -13,7 +13,7 @@ use zksync_node_test_utils::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType, eth_sender::EthTxFinalityStatus, L2BlockNumber,
-    ProtocolVersion, H256,
+    ProtocolVersion, SLChainId, H256, U256,
 };
 
 use super::*;
@@ -385,15 +385,21 @@ async fn save_l1_batch_metadata(storage: &mut Connection<'_, Core>, number: u32)
 }
 
 async fn mark_l1_batch_as_executed(storage: &mut Connection<'_, Core>, number: u32) {
+    let tx_hash = H256::from_low_u64_be(number.into());
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
+        .insert_pending_received_eth_tx(
             L1BatchNumber(number),
             AggregatedActionType::Execute,
-            H256::from_low_u64_be(number.into()),
-            None,
-            EthTxFinalityStatus::Finalized,
+            tx_hash,
+            Some(SLChainId(1)),
         )
+        .await
+        .unwrap();
+
+    storage
+        .eth_sender_dal()
+        .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
         .await
         .unwrap();
 }

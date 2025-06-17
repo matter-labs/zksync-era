@@ -387,13 +387,7 @@ async fn save_eth_tx(
     let tx_hash = H256::random();
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
-            batch_number,
-            tx_type,
-            tx_hash,
-            None,
-            EthTxFinalityStatus::Pending,
-        )
+        .insert_pending_received_eth_tx(batch_number, tx_type, tx_hash, None)
         .await
         .unwrap();
     tx_hash
@@ -1404,11 +1398,8 @@ impl HttpTest for HttpServerBatchStatusTest {
             .await?
             .unwrap();
         assert_eq!(block.base.status, BlockStatus::Sealed);
-        assert_eq!(block.base.commit_tx_hash, Some(commit_eth_tx_hash));
-        assert_eq!(
-            block.base.commit_tx_finality,
-            Some(EthTxFinalityStatus::Pending)
-        );
+        assert_eq!(block.base.commit_tx_hash, None); // pending txs are not returned
+        assert_eq!(block.base.commit_tx_finality, None); // pending txs are not returned
 
         // Confirm commit transaction. But the block is still not finalized.
         storage
@@ -1466,11 +1457,8 @@ impl HttpTest for HttpServerBatchStatusTest {
             block.base.prove_tx_finality,
             Some(EthTxFinalityStatus::Finalized)
         );
-        assert_eq!(block.base.execute_tx_hash, Some(execute_eth_tx_hash));
-        assert_eq!(
-            block.base.execute_tx_finality,
-            Some(EthTxFinalityStatus::Pending)
-        );
+        assert_eq!(block.base.execute_tx_hash, None);
+        assert_eq!(block.base.execute_tx_finality, None);
 
         // Fast finalize Execute transaction, block should be fast finalized.
         storage
