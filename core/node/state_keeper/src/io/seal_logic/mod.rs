@@ -357,7 +357,7 @@ impl L2BlockSealCommand {
              with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events",
             l2_block_number = self.l2_block.number,
             l1_batch_number = self.l1_batch_number,
-            ts = display_timestamp(self.l2_block.timestamp),
+            ts = display_timestamp(self.l2_block.timestamp()),
             total_tx_count = l1_tx_count + l2_tx_count,
             event_count = self.l2_block.events.len()
         );
@@ -385,7 +385,7 @@ impl L2BlockSealCommand {
 
         let l2_block_header = L2BlockHeader {
             number: self.l2_block.number,
-            timestamp: self.l2_block.timestamp,
+            timestamp: self.l2_block.timestamp(),
             hash: self.l2_block.get_l2_block_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
@@ -544,7 +544,7 @@ impl L2BlockSealCommand {
         L2_BLOCK_METRICS.sealed_time.observe(started_at.elapsed());
 
         let l2_block_latency =
-            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp * 1_000) as f64 / 1_000.0;
+            unix_timestamp_ms().saturating_sub(self.l2_block.timestamp_ms()) as f64 / 1_000.0;
         let stage = &L2BlockStage::Sealed;
         APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(l2_block_latency));
         APP_METRICS.miniblock_number[stage].set(l2_block_number.0.into());

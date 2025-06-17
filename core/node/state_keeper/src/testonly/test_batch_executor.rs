@@ -198,11 +198,11 @@ impl TestScenario {
     pub(crate) fn update_l2_block_timestamp(
         mut self,
         description: &'static str,
-        new_timestamp: u64,
+        new_timestamp_ms: u64,
     ) -> Self {
         self.actions.push_back(ScenarioItem::UpdateBlockTimestamp(
             description,
-            new_timestamp,
+            new_timestamp_ms,
         ));
         self
     }
@@ -699,6 +699,7 @@ impl StateKeeperIO for TestIO {
             prev_l2_block_hash: H256::zero(),
             prev_l2_block_timestamp: self.timestamp.saturating_sub(1),
             l1_batch: self.batch_number,
+            prev_l1_batch_timestamp: self.timestamp.saturating_sub(1),
         };
         let pending_batch = self.pending_batch.take();
         if pending_batch.is_some() {
@@ -720,11 +721,7 @@ impl StateKeeperIO for TestIO {
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
-            first_l2_block: L2BlockParams {
-                timestamp: self.timestamp,
-                virtual_blocks: 1,
-                interop_roots: vec![],
-            },
+            first_l2_block: L2BlockParams::new(self.timestamp * 1000),
             pubdata_params: Default::default(),
         };
         self.l2_block_number += 1;
@@ -739,12 +736,7 @@ impl StateKeeperIO for TestIO {
         _max_wait: Duration,
     ) -> anyhow::Result<Option<L2BlockParams>> {
         assert_eq!(cursor.next_l2_block, self.l2_block_number);
-        let params = L2BlockParams {
-            timestamp: self.timestamp,
-            // 1 is just a constant used for tests.
-            virtual_blocks: 1,
-            interop_roots: vec![],
-        };
+        let params = L2BlockParams::new(self.timestamp * 1000);
         self.l2_block_number += 1;
         self.timestamp += 1;
         Ok(Some(params))

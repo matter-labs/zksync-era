@@ -14,13 +14,13 @@ struct ConfigParamInfo {
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_config")]
-pub(super) struct ConfigMetrics {
+pub(crate) struct ConfigMetrics {
     #[metrics(labels = ["path"])]
     params: LabeledFamily<String, Info<ConfigParamInfo>>,
 }
 
 impl ConfigMetrics {
-    pub(super) fn observe(&self, params: &CapturedParams) {
+    pub(crate) fn observe(&self, params: &CapturedParams) {
         for (path, param) in &params.0 {
             let info = ConfigParamInfo {
                 value: param.value.as_ref().map(ToString::to_string),
@@ -33,4 +33,4 @@ impl ConfigMetrics {
 }
 
 #[vise::register]
-pub(super) static METRICS: vise::Global<ConfigMetrics> = vise::Global::new();
+pub(crate) static METRICS: vise::Global<ConfigMetrics> = vise::Global::new();
