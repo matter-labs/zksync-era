@@ -65,6 +65,16 @@ pub struct PreimagesRocksDBMetrics {
     pub set_latency: LabeledFamily<&'static str, Histogram<Duration>>,
 }
 
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "block_replay_storage")]
+pub struct BlockReplayRocksDBMetrics {
+    #[metrics(unit = Unit::Seconds, buckets = LATENCIES_FAST)]
+    pub get_latency: Histogram<Duration>,
+
+    #[metrics(unit = Unit::Seconds, buckets = LATENCIES_FAST)]
+    pub set_latency: Histogram<Duration>,
+}
+
 #[vise::register]
 pub(crate) static EXECUTION_METRICS: vise::Global<ExecutionMetrics> = vise::Global::new();
 #[vise::register]
@@ -73,3 +83,5 @@ pub(crate) static STORAGE_VIEW_METRICS: vise::Global<StorageViewMetrics> = vise:
 pub(crate) static STORAGE_MAP_ROCKS_DB_METRICS: vise::Global<StorageMapRocksDBMetrics> = vise::Global::new();
 #[vise::register]
 pub(crate) static PREIMAGES_ROCKS_DB_METRICS: vise::Global<PreimagesRocksDBMetrics> = vise::Global::new();
+#[vise::register]
+pub(crate) static BLOCK_REPLAY_ROCKS_DB_METRICS: vise::Global<BlockReplayRocksDBMetrics> = vise::Global::new();

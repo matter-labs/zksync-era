@@ -31,6 +31,7 @@ futures.workspace = true
 dashmap.workspace = true
 vise.workspace = true
 zksync_vlog.workspace = true
+zksync_zk_os_merkle_tree.workspace = true
 
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"

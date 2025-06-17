@@ -14864,6 +14864,7 @@ dependencies = [
  "zksync_types",
  "zksync_vlog",
  "zksync_web3_decl",
+ "zksync_zk_os_merkle_tree",
  "zksync_zkos_vm_runner",
 ]
 

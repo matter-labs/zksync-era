@@ -83,17 +83,16 @@ impl EthNamespace {
         let block_number = self.state_handle.last_canonized_block_number() + 1;
         let block_context = self
             .block_replay_storage
-            .get_replay_record(block_number - 1)
-            .context("Failed to get block context")?
-            .context;
+            .get_context(block_number - 1)
+            .context("Failed to get block context")?;
 
         let storage_view = self.state_handle.view_at(block_number)?;
-
-        let res = execute(
-            l2_tx.clone(),
-            block_context,
-            storage_view,
-        )?;
+        //
+        // let res = execute(
+        //     l2_tx.clone(),
+        //     block_context,
+        //     storage_view,
+        // )?;
 
         self.mempool.insert(l2_tx.into());
 
@@ -183,6 +182,8 @@ impl EthNamespaceServer for EthNamespace {
         block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> RpcResult<U256> {
+        let latency = API_METRICS.response_time[&"estimate_gas"].start();
+        latency.observe();
         Ok(U256::from("1000000"))
     }
 

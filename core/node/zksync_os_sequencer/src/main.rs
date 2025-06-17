@@ -8,11 +8,13 @@ mod mempool;
 mod util;
 mod execution;
 mod tx_conversions;
+mod tree_manager;
 
 use std::path::Path;
 use std::pin::Pin;
 use std::ptr::null;
 use std::sync::Arc;
+use std::thread::sleep;
 use std::time::Duration;
 use futures::stream::{self, Stream, StreamExt, Fuse, Chain, TryStream, TryStreamExt};
 use futures::future::FutureExt;
@@ -36,9 +38,11 @@ use tokio::sync::broadcast::channel;
 use tokio::sync::watch;
 use zksync_storage::RocksDB;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
+use zksync_zk_os_merkle_tree::{MerkleTree, RocksDBWrapper};
 use crate::execution::metrics::{EXECUTION_METRICS};
 use crate::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
 use crate::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
+use crate::tree_manager::{MerkleTreeColumnFamily, TreeManager};
 // Terms:
 // * BlockReplayData     - minimal info to (re)apply the block.
 //
@@ -63,7 +67,7 @@ const CHAIN_ID: u64 = 270;
 
 // Maximum number of per-block information stored in memory - and thus returned from API.
 // Older blocks are discarded (or, in case of state diffs, compacted)
-const BLOCKS_TO_RETAIN: usize = 128;
+const BLOCKS_TO_RETAIN: usize = 512;
 
 const JSON_RPC_ADDR: &str = "127.0.0.1:3050";
 
@@ -94,13 +98,13 @@ pub async fn main() {
 
     let mut state_db = RocksDB::<StorageMapCF>::new(Path::new(STATE_STORAGE_PATH))
         .expect("Failed to open State DB");
-    state_db = state_db.with_sync_writes();
+    // state_db = state_db.with_sync_writes();
     let persistent_storage_map = PersistentStorageMap::new(state_db);
 
 
     let mut preimages_db = RocksDB::<PreimagesCF>::new(Path::new(PREIMAGES_STORAGE_PATH))
         .expect("Failed to open Preimages DB");
-    preimages_db = preimages_db.with_sync_writes();
+    // preimages_db = preimages_db.with_sync_writes();
     let rocks_db_preimages = RocksDbPreimages::new(preimages_db);
 
     let state_db_block = persistent_storage_map.rocksdb_block_number();
@@ -123,6 +127,17 @@ pub async fn main() {
 
     let mempool = Mempool::new(forced_deposit_transaction());
 
+    // Sequencer will not run the tree - batcher will (other component, other machine)
+    // running it for now just to test the performance
+    let tree_wrapper = RocksDBWrapper::new(Path::new("../chains/era/db/main/tree")).unwrap();
+    let mut tree_manager = TreeManager::new(
+        tree_wrapper,
+        state_handle.clone(),
+        // this is a lie - we don't know the actual last block that was processed before restaty
+        // but we only use tree for performance measure so its ok
+        state_handle.last_canonized_block_number()
+    );
+
     tokio::select! {
         // todo: only start after sequence caught up?
         // ── JSON-RPC task ────────────────────────────────────────────────
@@ -130,6 +145,14 @@ pub async fn main() {
             match res {
                 Ok(_)  => tracing::warn!("JSON-RPC server unexpectedly exited"),
                 Err(e) => tracing::error!("JSON-RPC server failed: {e:#}"),
+            }
+        }
+
+        // ── TREE task ────────────────────────────────────────────────
+        res = tree_manager.run_loop() => {
+            match res {
+                Ok(_)  => tracing::warn!("TREE server unexpectedly exited"),
+                Err(e) => tracing::error!("TREE server failed: {e:#}"),
             }
         }
 
@@ -149,6 +172,7 @@ pub async fn main() {
         res = state_handle.collect_state_metrics() => {
             tracing::warn!("collect_state_metrics unexpectedly exited")
         }
+
     }
 }
 

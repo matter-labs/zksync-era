@@ -9,6 +9,7 @@ use std::{
     },
 };
 use std::collections::HashSet;
+use std::ops::Range;
 use std::path::Path;
 use std::time::Instant;
 use dashmap::DashMap;
@@ -137,6 +138,24 @@ impl StorageMap {
             persistent_block_upper_bound: Arc::new(rocksdb_block.into()),
             persistent_storage_map,
         }
+    }
+
+    // returns Err when any of the blocks in range are not present in memory diffs
+    pub fn diffs_for_blocks(&self, from_incl: u64, to_incl: u64) -> anyhow::Result<HashMap<Bytes32, Bytes32>>{
+        let mut res = HashMap::new();
+        for block in from_incl..=to_incl {
+            if let Some(diff) = self.diffs.get(&block) {
+                diff.value().map.iter().for_each(|(k, v)| {
+                    res.insert(*k, *v);
+                });
+            } else {
+                return Err(anyhow::anyhow!(
+                    "StorageMap: no diff found for block {}",
+                    block
+                ));
+            }
+        }
+        Ok(res)
     }
 
     /// Adds a diff for block `block`.  When the ring exceeds `max_diffs`,
