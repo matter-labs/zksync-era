@@ -497,7 +497,7 @@ impl ZkSyncStateKeeper {
             if index > 0 {
                 Self::set_l2_block_params(
                     updates_manager,
-                    L2BlockParams::with_custom_virtual_block_count_and_interop_roots(
+                    L2BlockParams::new_raw(
                         l2_block.timestamp * 1000,
                         l2_block.virtual_blocks,
                         self.load_l2_block_interop_root(l2_block.number).await?,
@@ -631,15 +631,10 @@ impl ZkSyncStateKeeper {
                 self.seal_l2_block(updates_manager).await?;
 
                 // Get a tentative new l2 block parameters
-                let mut next_l2_block_params = self
+                let next_l2_block_params = self
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .stop_context("failed getting L2 block params")?;
-                let number_of_roots = get_bootloader_max_msg_roots_in_batch(
-                    updates_manager.protocol_version().into(),
-                );
-                next_l2_block_params
-                    .set_interop_roots(self.io.load_latest_interop_root(number_of_roots).await?);
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 

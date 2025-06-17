@@ -10,6 +10,7 @@ use zksync_protobuf::{
 use zksync_test_contracts::Account;
 use zksync_types::{
     commitment::{PubdataParams, PubdataType},
+    h256_to_u256,
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
@@ -68,6 +69,14 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                 l2_da_validator_address: rng.gen(),
             }
         },
+        interop_roots: (0..10)
+            .map(|_| InteropRoot {
+                chain_id: rng.gen(),
+                block_number: rng.gen(),
+                sides: (0..10).map(|_| h256_to_u256(rng.gen())).collect(),
+                received_timestamp: rng.gen(),
+            })
+            .collect(),
     }
 }
 

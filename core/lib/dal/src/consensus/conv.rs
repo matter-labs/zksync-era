@@ -164,6 +164,29 @@ impl ProtoFmt for Payload {
             }
         }
 
+        let interop_roots: Vec<InteropRoot> = r
+            .interop_roots
+            .iter()
+            .map(|r| {
+                Ok(InteropRoot {
+                    chain_id: *required(&r.chain_id).context("interop_root chain_id")?,
+                    block_number: *required(&r.block_number)
+                        .context("interop_root block_number")?,
+                    sides: r
+                        .sides
+                        .iter()
+                        .map(|s| {
+                            parse_h256(s)
+                                .context("interop_root sides")
+                                .map(h256_to_u256)
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .context("interop_root sides")?,
+                    received_timestamp: *required(&r.received_timestamp)
+                        .context("interop_root received_timestamp")?,
+                })
+            })
+            .collect::<anyhow::Result<_>>()?;
         let this = Self {
             protocol_version,
             hash: required(&r.hash)
@@ -185,6 +208,7 @@ impl ProtoFmt for Payload {
             pubdata_params: read_optional_repr(&r.pubdata_params)
                 .context("pubdata_params")?
                 .unwrap_or_default(),
+            interop_roots,
         };
         if this.protocol_version.is_pre_gateway() {
             anyhow::ensure!(
@@ -227,6 +251,20 @@ impl ProtoFmt for Payload {
             } else {
                 Some(ProtoRepr::build(&self.pubdata_params))
             },
+            interop_roots: self
+                .interop_roots
+                .iter()
+                .map(|r| proto::InteropRoot {
+                    chain_id: Some(r.chain_id),
+                    block_number: Some(r.block_number),
+                    sides: r
+                        .sides
+                        .iter()
+                        .map(|s| u256_to_h256(*s).as_bytes().to_vec())
+                        .collect(),
+                    received_timestamp: Some(r.received_timestamp),
+                })
+                .collect(),
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
