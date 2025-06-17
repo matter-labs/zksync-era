@@ -571,7 +571,6 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         create_execution_result([]),
         VmExecutionMetrics::default(),
         vec![],
-        1_000_000,
     );
 
     let (mut persistence, l2_block_sealer) =

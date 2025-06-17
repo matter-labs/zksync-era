@@ -185,7 +185,6 @@ mod tests {
             create_execution_result([]),
             VmExecutionMetrics::default(),
             vec![],
-            1_000_000,
         );
     }
 

@@ -574,7 +574,7 @@ impl StateKeeperInner {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
+                    ..
                 } = result
                 else {
                     tracing::error!(
@@ -598,7 +598,6 @@ impl StateKeeperInner {
                     *tx_result,
                     *tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
                 );
 
                 tracing::debug!(
@@ -639,7 +638,7 @@ impl StateKeeperInner {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
+                    ..
                 } = exec_result
                 else {
                     anyhow::bail!("Tx inclusion seal resolution must be a result of a successful tx execution");
@@ -656,7 +655,6 @@ impl StateKeeperInner {
                     *tx_result,
                     *tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
                 );
                 Ok(())
             }
@@ -1019,7 +1017,7 @@ impl StateKeeper {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
+                    ..
                 } = exec_result
                 else {
                     unreachable!(
@@ -1031,7 +1029,6 @@ impl StateKeeper {
                     *tx_result,
                     *tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
                 );
             }
             SealResolution::IncludeAndSeal => {
@@ -1039,7 +1036,7 @@ impl StateKeeper {
                     tx_result,
                     tx_metrics: tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
+                    ..
                 } = exec_result
                 else {
                     unreachable!(
@@ -1051,7 +1048,6 @@ impl StateKeeper {
                     *tx_result,
                     *tx_execution_metrics,
                     call_tracer_result,
-                    gas_remaining,
                 );
             }
             SealResolution::ExcludeAndSeal => {
