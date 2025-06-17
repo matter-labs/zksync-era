@@ -33,6 +33,29 @@ impl WellKnown for PolynomialForm {
     const DE: Self::Deserializer = Serde![str];
 }
 
+/// The EigenDA client has two versions: V2 and V2Secure.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub enum Version {
+    /// The EigenDA V2 client
+    V2,
+    /// The EigenDA V2 client with secure integration
+    V2Secure,
+}
+
+impl Version {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::V2 => "V2",
+            Self::V2Secure => "V2Secure",
+        }
+    }
+}
+
+impl WellKnown for Version {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
+}
+
 /// Configuration for the EigenDA remote disperser client.
 ///
 /// This configuration is meant to be used by the EigenDA V2 client.
@@ -58,6 +81,12 @@ pub struct EigenConfig {
     pub operator_state_retriever_addr: String,
     /// Address of the registry coordinator
     pub registry_coordinator_addr: String,
+    /// Version of the EigenDA client
+    pub version: Version,
+    // V2Secure specific fields
+    //
+    /// URL of the EigenDA Sidecar RPC server
+    pub eigenda_sidecar_rpc: String,
 }
 
 /// Configuration for the EigenDA secrets.

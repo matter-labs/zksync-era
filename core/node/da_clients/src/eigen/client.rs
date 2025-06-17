@@ -25,6 +25,7 @@ use crate::utils::{to_non_retriable_da_error, to_retriable_da_error};
 #[derive(Debug, Clone)]
 pub struct EigenDAClient {
     client: PayloadDisperser,
+    secure: bool,
 }
 
 impl EigenDAClient {
@@ -63,7 +64,80 @@ impl EigenDAClient {
             .await
             .map_err(|e| anyhow::anyhow!("EigenDA client Error: {:?}", e))?;
 
-        Ok(Self { client })
+        let secure = match config.version {
+            Version::V2 => false,
+            Version::V2Secure => true,
+        };
+
+        Ok(Self { client, secure })
+    }
+}
+
+impl EigenDAClient {
+    async fn send_blob_key(&self, blob_key: String) -> anyhow::Result<()> {
+        let body = json!({
+            "jsonrpc": "2.0",
+            "method": "generate_proof",
+            "params": { "blob_id": blob_key },
+            "id": 1
+        });
+        let response = self
+            .sidecar_client
+            .post(&self.sidecar_rpc)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to send blob key"))?;
+
+        let json_response: Value = response
+            .json()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to parse response"))?;
+
+        if json_response.get("error").is_some() {
+            Err(anyhow::anyhow!("Failed to send blob key"))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn get_proof(&self, blob_key: &str) -> anyhow::Result<Option<Vec<u8>>> {
+        let body = json!({
+            "jsonrpc": "2.0",
+            "method": "get_proof",
+            "params": { "blob_id": blob_key },
+            "id": 1
+        });
+        let response = self
+            .sidecar_client
+            .post(&self.sidecar_rpc)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to get proof"))?;
+
+        let json_response: Value = response
+            .json()
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to parse response"))?;
+
+        if let Some(error) = json_response.get("error") {
+            if let Some(error_code) = error.get("code") {
+                if error_code.as_i64() != Some(PROOF_NOT_FOUND_ERROR_CODE) {
+                    return Err(anyhow::anyhow!("Failed to get proof for {:?}", blob_key));
+                }
+            }
+        }
+
+        if let Some(result) = json_response.get("result") {
+            if let Some(proof) = result.as_str() {
+                let proof =
+                    hex::decode(proof).map_err(|_| anyhow::anyhow!("Failed to parse proof"))?;
+                return Ok(Some(proof));
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -81,6 +155,12 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
 
+        if self.secure {
+            // In V2Secure, we need to send the blob key to the sidecar for proof generation
+            self.send_blob_key(blob_key.clone())
+                .await
+                .map_err(to_retriable_da_error)?;
+        }
         Ok(DispatchResponse::from(blob_key.to_hex()))
     }
 
@@ -128,13 +208,25 @@ impl DataAvailabilityClient for EigenDAClient {
             .await
             .map_err(to_retriable_da_error)?;
         if let Some(eigenda_cert) = eigenda_cert {
-            let inclusion_data = eigenda_cert
-                .to_bytes()
-                .map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes"))
-                .map_err(to_non_retriable_da_error)?;
-            Ok(Some(InclusionData {
-                data: inclusion_data,
-            }))
+            if secure {
+                if let Some(proof) = self
+                    .get_proof(blob_id)
+                    .await
+                    .map_err(to_non_retriable_da_error)?
+                {
+                    Ok(Some(InclusionData { data: proof }))
+                } else {
+                    Ok(None)
+                }
+            } else {
+                let inclusion_data = eigenda_cert
+                    .to_bytes()
+                    .map_err(|_| anyhow::anyhow!("Failed to convert eigenda cert to bytes"))
+                    .map_err(to_non_retriable_da_error)?;
+                Ok(Some(InclusionData {
+                    data: inclusion_data,
+                }))
+            }
         } else {
             Ok(None)
         }
