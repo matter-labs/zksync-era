@@ -1,32 +1,36 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use clap::Parser;
-use tokio::sync::{oneshot, watch};
+use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 use zksync_config::{
     configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepositoryExt,
 };
 use zksync_object_store::ObjectStoreFactory;
+use zksync_proof_fri_compressor_service::proof_fri_compressor_runner;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-use zksync_prover_keystore::keystore::Keystore;
-use zksync_queued_job_processor::JobProcessor;
+use zksync_prover_keystore::{compressor::load_all_resources, keystore::Keystore};
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
-    compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
+    initial_setup_keys::download_initial_setup_keys_if_not_present,
+    metrics::PROOF_FRI_COMPRESSOR_INSTANCE_METRICS,
 };
 
-mod compressor;
 mod initial_setup_keys;
 mod metrics;
+
+const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(90);
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -45,6 +49,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let start_time = Instant::now();
     let opt = Cli::parse();
     let is_fflonk = opt.fflonk.unwrap_or(false);
     let schema = full_config_schema(false);
@@ -57,22 +62,34 @@ async fn main() -> anyhow::Result<()> {
 
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
     let database_secrets: DatabaseSecrets = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config
         .context("FriProofCompressorConfig")?;
+    let prover_config = general_config
+        .prover_config
+        .context("ProverConfig doesn't exist")?;
+    let object_store_config = prover_config.prover_object_store;
+
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(config.prometheus_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
+
+    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(metrics_stop_receiver),
+    )];
+
     let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
 
-    let prover_config = general_config
-        .prover_config
-        .context("ProverConfig doesn't exist")?;
-    let object_store_config = prover_config.prover_object_store;
     let blob_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await?;
@@ -90,48 +107,53 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("There was no FFLONK verification hash found in the database while trying to run compressor in FFLONK mode, aborting");
     }
 
-    let proof_compressor = ProofCompressor::new(
-        blob_store,
-        pool,
-        config.max_attempts,
-        protocol_version,
-        keystore,
-        is_fflonk,
-    );
+    setup_crs_keys(&config);
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
+    let keystore = Arc::new(keystore);
+    load_all_resources(&keystore, is_fflonk);
+
+    let cancellation_token = CancellationToken::new();
+
+    PROOF_FRI_COMPRESSOR_INSTANCE_METRICS
+        .startup_time
+        .set(start_time.elapsed());
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
     ctrlc::set_handler(move || {
-        if let Some(stop_signal_sender) = stop_signal_sender.take() {
-            stop_signal_sender.send(()).ok();
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
         }
     })
-    .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
+    .context("Error setting Ctrl+C handler")?;
 
-    setup_crs_keys(&config);
+    let proof_fri_compressor_runner = proof_fri_compressor_runner(
+        pool,
+        blob_store,
+        protocol_version,
+        is_fflonk,
+        cancellation_token.clone(),
+        keystore,
+    );
 
     tracing::info!("Starting proof compressor");
 
-    let prometheus_config = PrometheusExporterConfig::push(
-        config.prometheus_pushgateway_url,
-        config.prometheus_push_interval,
-    );
-    let tasks = vec![
-        tokio::spawn(prometheus_config.run(stop_receiver.clone())),
-        tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
-    ];
+    tasks.extend(proof_fri_compressor_runner.run());
 
-    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
+    let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop request received, shutting down");
         }
-    };
-    stop_sender.send_replace(true);
-    tasks.complete(Duration::from_secs(5)).await;
+    }
+    let shutdown_time = Instant::now();
+    cancellation_token.cancel();
+    metrics_stop_sender
+        .send(true)
+        .context("failed to stop metrics")?;
+    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
     Ok(())
 }
 
