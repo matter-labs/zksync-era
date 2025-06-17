@@ -6,7 +6,9 @@ use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
 use url::Url;
 use xshell::Shell;
-use zkstack_cli_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
+use zkstack_cli_common::{
+    db::DatabaseConfig, forge::ForgeScriptArgs, logger, Prompt, PromptConfirm, PromptSelect,
+};
 use zkstack_cli_config::ChainConfig;
 
 use super::{
@@ -42,6 +44,9 @@ pub struct ProverInitArgs {
     pub proof_store_gcs_config: ProofStorageGCSTmp,
     #[clap(flatten)]
     pub create_gcs_bucket_config: ProofStorageGCSCreateBucketTmp,
+
+    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
+    pub deploy_proving_networks: Option<bool>,
 
     // Bellman cuda
     #[clap(flatten)]
@@ -144,6 +149,7 @@ pub(crate) struct ProverInitArgsFinal {
     pub setup_keys: Option<SetupKeysArgs>,
     pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
     pub database_config: Option<ProverDatabaseConfig>,
+    pub deploy_proving_networks: bool,
 }
 
 impl ProverInitArgs {
@@ -153,6 +159,7 @@ impl ProverInitArgs {
         default_compressor_key_path: &Path,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
+        let deploy_proving_networks = self.fill_deploy_proving_networks_values_with_prompt();
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let compressor_key_args =
             self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
@@ -166,6 +173,15 @@ impl ProverInitArgs {
             setup_keys,
             bellman_cuda_config,
             database_config,
+            deploy_proving_networks,
+        })
+    }
+
+    fn fill_deploy_proving_networks_values_with_prompt(&self) -> bool {
+        self.deploy_proving_networks.unwrap_or_else(|| {
+            PromptConfirm::new("Do you want to deploy proving networks?")
+                .default(false)
+                .ask()
         })
     }
 

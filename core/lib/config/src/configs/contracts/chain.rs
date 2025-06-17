@@ -142,12 +142,18 @@ impl BridgesConfig {
 pub struct ProofManagerContracts {
     #[config(alias = "proof_manager_addr")]
     pub proof_manager_addr: Address,
+    #[config(alias = "proxy_addr")]
+    pub proxy_addr: Address,
+    #[config(alias = "proxy_admin_addr")]
+    pub proxy_admin_addr: Address,
 }
 
 impl ProofManagerContracts {
     fn for_tests() -> Self {
         Self {
             proof_manager_addr: Address::repeat_byte(0x1d),
+            proxy_addr: Address::repeat_byte(0x1e),
+            proxy_admin_addr: Address::repeat_byte(0x1f),
         }
     }
 }
@@ -310,6 +316,8 @@ mod tests {
             },
             proof_manager_contracts: ProofManagerContracts {
                 proof_manager_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+                proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+                proxy_admin_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
             },
         }
     }
