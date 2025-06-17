@@ -394,7 +394,6 @@ impl BatchStatusUpdater {
                 change.number <= last_sealed_batch,
                 "Incorrect update state: unknown batch marked as committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
                 .insert_pending_received_eth_tx(
@@ -419,7 +418,6 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_committed_l1_batch,
                 "Incorrect update state: proven batch must be committed"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
                 .insert_pending_received_eth_tx(
@@ -444,7 +442,6 @@ impl BatchStatusUpdater {
                 change.number <= cursor.last_proven_l1_batch,
                 "Incorrect update state: executed batch must be proven"
             );
-            // TODO mark finality status correspondingly
             transaction
                 .eth_sender_dal()
                 .insert_pending_received_eth_tx(
