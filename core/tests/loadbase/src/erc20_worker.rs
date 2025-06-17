@@ -58,7 +58,7 @@ pub fn spawn_erc20_workers(
                 while running_c.load(Ordering::Relaxed) {
                     let permit = match sem.clone().try_acquire_owned() {
                         Ok(p) => p,
-                        Err(_) => { tokio::time::sleep(Duration::from_millis(10)).await; continue; }
+                        Err(_) => { tokio::time::sleep(Duration::from_millis(100)).await; continue; }
                     };
 
                     let dest = if dest_rand {
