@@ -101,6 +101,7 @@ impl TreeUpdater {
                     format!("failed fetching tree input for L1 batch #{first_l1_batch_number}")
                 })?;
         drop(storage);
+        println!("l1_batch_data: {:?}", l1_batch_data);
 
         let mut total_logs = 0;
         let mut updated_batch_stats = vec![];

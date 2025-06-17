@@ -679,7 +679,7 @@ impl L1BatchWithLogs {
         l1_batch_number: L1BatchNumber,
         mode: MerkleTreeMode,
     ) -> anyhow::Result<Option<Self>> {
-        tracing::debug!(
+        tracing::info!(
             "Loading storage logs data for L1 batch #{l1_batch_number} for {mode:?} tree"
         );
         let load_changes_latency = METRICS.start_stage(TreeUpdateStage::LoadChanges);
@@ -693,7 +693,9 @@ impl L1BatchWithLogs {
         else {
             return Ok(None);
         };
+        println!("header: {:?}", header);
         let stats = header.into();
+        println!("stats: {:?}", stats);
         header_latency.observe();
 
         let protective_reads = match mode {
@@ -732,6 +734,11 @@ impl L1BatchWithLogs {
                 tree_writes = Self::wait_for_tree_writes(storage, l1_batch_number).await?;
             }
         }
+        println!(
+            "number of tree_writes: {:?}",
+            tree_writes.as_ref().map(|tw| tw.len())
+        );
+        println!("tree_writes: {:?}", tree_writes);
         load_tree_writes_latency.observe();
 
         let storage_logs = if let Some(tree_writes) = tree_writes {
@@ -752,6 +759,7 @@ impl L1BatchWithLogs {
             // Otherwise, load writes' data from other tables.
             Self::extract_storage_logs_from_db(storage, l1_batch_number, protective_reads).await?
         };
+        println!("storage_logs: {:?}", storage_logs);
 
         load_changes_latency.observe();
 

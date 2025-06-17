@@ -76,6 +76,7 @@ pub struct L2Contracts {
     pub da_validator_addr: Option<Address>,
     pub testnet_paymaster_addr: Option<Address>,
     pub multicall3: Option<Address>,
+    pub interop_root_storage_addr: Option<Address>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -89,6 +90,7 @@ pub struct L2ContractsConfig {
     pub da_validator_addr: Option<Address>,
     #[config(alias = "multicall3_addr")]
     pub multicall3: Option<Address>,
+    pub interop_root_storage_addr: Option<Address>,
 }
 
 impl L2ContractsConfig {
@@ -99,6 +101,7 @@ impl L2ContractsConfig {
             timestamp_asserter_addr: Some(Address::repeat_byte(0x19)),
             da_validator_addr: Some(Address::repeat_byte(0x1a)),
             multicall3: Some(Address::repeat_byte(0x1c)),
+            interop_root_storage_addr: Some(Address::repeat_byte(0x1d)),
         }
     }
 }
@@ -196,6 +199,7 @@ impl ContractsConfig {
             da_validator_addr: self.l2.da_validator_addr,
             testnet_paymaster_addr: self.l2.testnet_paymaster_addr,
             multicall3: self.l2.multicall3,
+            interop_root_storage_addr: self.l2.interop_root_storage_addr,
         }
     }
 
@@ -274,6 +278,7 @@ mod tests {
                 da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
                 timestamp_asserter_addr: Some(addr("0x0000000000000000000000000000000000000002")),
                 multicall3: Some(addr("0x0000000000000000000000000000000000010002")),
+                interop_root_storage_addr: Some(addr("0x0000000000000000000000000000000000010008")),
             },
             bridges: BridgesConfig {
                 shared: Bridge {

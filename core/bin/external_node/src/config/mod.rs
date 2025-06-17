@@ -39,7 +39,7 @@ use zksync_node_api_server::{
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
     commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1BatchNumber, L1ChainId,
-    L2ChainId, SLChainId, ETHEREUM_ADDRESS,
+    L2ChainId, SLChainId, ETHEREUM_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS,
 };
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_web3_decl::{
@@ -133,6 +133,7 @@ pub(crate) struct RemoteENConfig {
     pub l1_wrapped_base_token_store: Option<Address>,
     pub l1_server_notifier_addr: Option<Address>,
     pub l1_message_root_proxy_addr: Option<Address>,
+    pub l2_interop_root_storage_addr: Option<Address>,
     pub base_token_addr: Address,
     pub l2_multicall3: Option<Address>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -230,6 +231,7 @@ impl RemoteENConfig {
             l1_message_root_proxy_addr: l1_ecosystem_contracts
                 .as_ref()
                 .and_then(|a| a.message_root_proxy_addr),
+            l2_interop_root_storage_addr: Some(L2_INTEROP_ROOT_STORAGE_ADDRESS),
         })
     }
 
@@ -254,6 +256,7 @@ impl RemoteENConfig {
             l1_server_notifier_addr: None,
             l2_multicall3: None,
             l1_message_root_proxy_addr: None,
+            l2_interop_root_storage_addr: None,
         }
     }
 }
@@ -1446,6 +1449,7 @@ impl ExternalNodeConfig {
             da_validator_addr: None,
             testnet_paymaster_addr: self.remote.l2_testnet_paymaster_addr,
             multicall3: self.remote.l2_multicall3,
+            interop_root_storage_addr: self.remote.l2_interop_root_storage_addr,
         }
     }
 }
