@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context as _;
 use clap::Parser;
 use shivini::{ProverContext, ProverContextConfig};
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{FinalizationHintsCache, SetupDataCache, PROVER_BINARY_METRICS};
 use zksync_circuit_prover_service::job_runner::{circuit_prover_runner, WvgRunnerBuilder};
@@ -14,14 +15,13 @@ use zksync_config::{
     configs::{DatabaseSecrets, GeneralConfig},
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepositoryExt, ObjectStoreConfig,
+    ObjectStoreConfig,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// On most commodity hardware, WVG can take ~30 seconds to complete.
 /// GPU processing is ~1 second.
@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
     let database_secrets: DatabaseSecrets = repo.parse()?;
 
@@ -92,17 +92,30 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to load configs")?;
 
-    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(prover_config.prometheus_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
+
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
 
     let cancellation_token = CancellationToken::new();
-
-    let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
     let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
-
-    let mut tasks = vec![tokio::spawn(exporter_config.run(metrics_stop_receiver))];
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(metrics_stop_receiver),
+    )];
 
     let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(CHANNEL_SIZE);
 
+    PROVER_BINARY_METRICS.startup_time.set(start_time.elapsed());
     tracing::info!(
         "Starting {} light WVGs and {} heavy WVGs.",
         opt.light_wvg_count,
@@ -141,19 +154,12 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {},
-        result = tokio::signal::ctrl_c() => {
-            match result {
-                Ok(_) => {
-                    tracing::info!("Stop request received, shutting down...");
-                    cancellation_token.cancel();
-                },
-                Err(_err) => {
-                    tracing::error!("failed to set up ctrl c listener");
-                }
-            }
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
         }
     }
     let shutdown_time = Instant::now();
+    cancellation_token.cancel();
     metrics_stop_sender
         .send(true)
         .context("failed to stop metrics")?;

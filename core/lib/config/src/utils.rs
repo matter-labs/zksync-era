@@ -1,3 +1,5 @@
+use std::ops;
+
 use smart_config::{
     de::{DeserializeContext, DeserializeParam, WellKnown},
     metadata::{BasicTypes, ParamMetadata, TypeDescription},
@@ -18,7 +20,7 @@ where
     const EXPECTING: BasicTypes = <T::Deserializer>::EXPECTING.or(De::EXPECTING);
 
     fn describe(&self, description: &mut TypeDescription) {
-        self.0.describe(description);
+        T::DE.describe(description);
         description.set_fallback(&self.0);
     }
 
@@ -45,3 +47,6 @@ where
         self.0.serialize_param(param)
     }
 }
+
+/// Validation for floating-point config params.
+pub(crate) const ZERO_TO_ONE: ops::RangeInclusive<f64> = 0.0..=1.0;

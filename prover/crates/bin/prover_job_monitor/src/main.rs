@@ -13,7 +13,6 @@ use zksync_config::{
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepositoryExt,
 };
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_monitor::{
@@ -52,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
     let database_secrets: DatabaseSecrets = repo.parse()?;
 

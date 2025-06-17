@@ -6,7 +6,10 @@ use std::{
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use url::Url;
-use zkstack_cli_common::{db, docker::adjust_localhost_for_docker};
+use zkstack_cli_common::{
+    db,
+    docker::{self, adjust_localhost_for_docker},
+};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
@@ -18,7 +21,10 @@ use crate::{
     },
     docker_compose::{DockerComposeConfig, DockerComposeService},
     traits::ZkStackConfig,
-    EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL,
+    EXPLORER_API_DOCKER_IMAGE_TAG, EXPLORER_API_PRIVIDIUM_DOCKER_IMAGE_TAG,
+    EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL, EXPLORER_DATA_FETCHER_DOCKER_IMAGE_TAG,
+    EXPLORER_DATA_FETCHER_PRIVIDIUM_DOCKER_IMAGE_TAG, EXPLORER_WORKER_DOCKER_IMAGE_TAG,
+    EXPLORER_WORKER_PRIVIDIUM_DOCKER_IMAGE_TAG,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -135,6 +141,7 @@ impl ExplorerBackendComposeConfig {
             Self::create_data_fetcher_service(
                 config.ports.data_fetcher_http_port,
                 l2_rpc_url.as_ref(),
+                &config.prividium,
             ),
         );
 
@@ -144,6 +151,7 @@ impl ExplorerBackendComposeConfig {
             l2_rpc_url.as_ref(),
             &db_url,
             config.batches_processing_polling_interval,
+            &config.prividium,
         )
         .context("Failed to create worker service")?;
         services.insert(Self::WORKER_NAME.to_string(), worker);
@@ -162,15 +170,14 @@ impl ExplorerBackendComposeConfig {
         db_url: &str,
         prividium_config: &Option<PrividiumExplorerBackendConfig>,
     ) -> anyhow::Result<DockerComposeService> {
+        let is_prividium = prividium_config.is_some();
+
         let mut env = HashMap::new();
         env.insert("PORT".to_string(), port.to_string());
         env.insert("LOG_LEVEL".to_string(), "verbose".to_string());
         env.insert("NODE_ENV".to_string(), "development".to_string());
         env.insert("DATABASE_URL".to_string(), db_url.to_string());
-        env.insert(
-            "PRIVIDIUM".to_string(),
-            prividium_config.is_some().to_string(),
-        );
+        env.insert("PRIVIDIUM".to_string(), is_prividium.to_string());
 
         if let Some(config) = prividium_config {
             env.insert(
@@ -204,8 +211,15 @@ impl ExplorerBackendComposeConfig {
             env.insert("NODE_ENV".to_string(), "development".to_string());
         }
 
+        let docker_image_tag = if is_prividium {
+            EXPLORER_API_PRIVIDIUM_DOCKER_IMAGE_TAG
+        } else {
+            EXPLORER_API_DOCKER_IMAGE_TAG
+        };
+        let docker_image = docker::get_image_with_tag(EXPLORER_API_DOCKER_IMAGE, docker_image_tag);
+
         Ok(DockerComposeService {
-            image: EXPLORER_API_DOCKER_IMAGE.to_string(),
+            image: docker_image,
             platform: Some("linux/amd64".to_string()),
             ports: Some(vec![format!("{}:{}", port, port)]),
             volumes: None,
@@ -218,9 +232,21 @@ impl ExplorerBackendComposeConfig {
         })
     }
 
-    fn create_data_fetcher_service(port: u16, l2_rpc_url: &str) -> DockerComposeService {
+    fn create_data_fetcher_service(
+        port: u16,
+        l2_rpc_url: &str,
+        prividium_config: &Option<PrividiumExplorerBackendConfig>,
+    ) -> DockerComposeService {
+        let docker_image_tag = if prividium_config.is_some() {
+            EXPLORER_DATA_FETCHER_PRIVIDIUM_DOCKER_IMAGE_TAG
+        } else {
+            EXPLORER_DATA_FETCHER_DOCKER_IMAGE_TAG
+        };
+        let docker_image =
+            docker::get_image_with_tag(EXPLORER_DATA_FETCHER_DOCKER_IMAGE, docker_image_tag);
+
         DockerComposeService {
-            image: EXPLORER_DATA_FETCHER_DOCKER_IMAGE.to_string(),
+            image: docker_image,
             platform: Some("linux/amd64".to_string()),
             ports: Some(vec![format!("{}:{}", port, port)]),
             volumes: None,
@@ -244,8 +270,16 @@ impl ExplorerBackendComposeConfig {
         l2_rpc_url: &str,
         db_url: &Url,
         batches_processing_polling_interval: u64,
+        prividium_config: &Option<PrividiumExplorerBackendConfig>,
     ) -> anyhow::Result<DockerComposeService> {
         let data_fetcher_url = format!("http://{}:{}", Self::DATA_FETCHER_NAME, data_fetcher_port);
+        let docker_image_tag = if prividium_config.is_some() {
+            EXPLORER_WORKER_PRIVIDIUM_DOCKER_IMAGE_TAG
+        } else {
+            EXPLORER_WORKER_DOCKER_IMAGE_TAG
+        };
+        let docker_image =
+            docker::get_image_with_tag(EXPLORER_WORKER_DOCKER_IMAGE, docker_image_tag);
 
         // Parse database URL
         let db_config = db::DatabaseConfig::from_url(db_url)?;
@@ -258,7 +292,7 @@ impl ExplorerBackendComposeConfig {
             .to_string();
 
         Ok(DockerComposeService {
-            image: EXPLORER_WORKER_DOCKER_IMAGE.to_string(),
+            image: docker_image,
             platform: Some("linux/amd64".to_string()),
             ports: None,
             volumes: None,

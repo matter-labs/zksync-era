@@ -432,7 +432,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        io::L2BlockParams,
+        io::{BatchInitParams, L2BlockParams},
         tests::{create_execution_result, create_transaction, create_updates_manager, Query},
         OutputHandler,
     };
@@ -523,11 +523,17 @@ mod tests {
         pool: &ConnectionPool<Core>,
     ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let previous_batch_timestamp = l1_batch_env.first_l2_block.timestamp - 1;
+        let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
         let mut updates = UpdatesManager::new(
-            &l1_batch_env,
-            &default_system_env(),
-            Default::default(),
-            Default::default(),
+            &BatchInitParams {
+                l1_batch_env: l1_batch_env.clone(),
+                system_env: default_system_env(),
+                pubdata_params: Default::default(),
+                timestamp_ms,
+            },
+            ProtocolVersionId::latest(),
+            previous_batch_timestamp,
             None,
         );
         pool.connection()
@@ -551,17 +557,13 @@ mod tests {
             tx_result,
             VmExecutionMetrics::default(),
             vec![],
-            1_000_000,
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
         output_handler
             .handle_l2_block_header(&updates.header_for_first_pending_block())
             .await
             .unwrap();
-        updates.set_next_l2_block_params(L2BlockParams {
-            timestamp: 1,
-            virtual_blocks: 1,
-        });
+        updates.set_next_l2_block_params(L2BlockParams::new(1000));
         updates.push_l2_block();
 
         let mut batch_result = FinishedL1Batch::mock();
@@ -670,10 +672,7 @@ mod tests {
         persistence.submit_l2_block(seal_command).await;
 
         // The second command should lead to blocking
-        updates_manager.set_next_l2_block_params(L2BlockParams {
-            timestamp: 2,
-            virtual_blocks: 1,
-        });
+        updates_manager.set_next_l2_block_params(L2BlockParams::new(2000));
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
         {
@@ -699,10 +698,7 @@ mod tests {
         // Check that `wait_for_all_commands()` state is reset after use.
         persistence.wait_for_all_commands().await;
 
-        updates_manager.set_next_l2_block_params(L2BlockParams {
-            timestamp: 3,
-            virtual_blocks: 1,
-        });
+        updates_manager.set_next_l2_block_params(L2BlockParams::new(3000));
         updates_manager.push_l2_block();
         let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
         persistence.submit_l2_block(seal_command).await;
@@ -724,10 +720,7 @@ mod tests {
         for i in 1..=5 {
             let seal_command =
                 updates_manager.seal_l2_block_command(Some(Address::default()), false);
-            updates_manager.set_next_l2_block_params(L2BlockParams {
-                timestamp: i,
-                virtual_blocks: 1,
-            });
+            updates_manager.set_next_l2_block_params(L2BlockParams::new(i * 1000));
             updates_manager.push_l2_block();
             persistence.submit_l2_block(seal_command).await;
         }

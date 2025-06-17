@@ -97,7 +97,7 @@ jobs:
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
   
   install-zkstack-with-upgrades:
-    runs-on: [ubuntu-24.04-github-hosted-16core]
+    runs-on: [ ubuntu-24.04-github-hosted-16core ]
 
     defaults:
       run:
@@ -610,11 +610,12 @@ jobs:
           echo "Updating DA validator addresses on L1 and restarting the server"
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.validium_da_validator' "./chains/gateway/configs/gateway.yaml")
+            ci_run zkstack chain set-da-validator-pair --gateway --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000 
           else
             L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/da_migration/configs/contracts.yaml")
+            ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000
           fi
           
-          ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000
           
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/da_migration/configs/general.yaml

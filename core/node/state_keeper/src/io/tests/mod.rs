@@ -72,7 +72,7 @@ async fn test_filter_with_pending_batch(commitment_mode: L1BatchCommitmentMode) 
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     // Inserting a pending L2 block that isn't included in a sealed batch means there is a pending batch.
@@ -117,7 +117,7 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     // Create a copy of the tx filter that the mempool will use.
@@ -166,7 +166,7 @@ async fn test_timestamps_are_distinct(
         tester.set_timestamp(prev_l2_block_timestamp - 1);
     }
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool).await;
@@ -190,7 +190,7 @@ async fn test_timestamps_are_distinct(
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(l1_batch_params.first_l2_block.timestamp > prev_l2_block_timestamp);
+    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -261,7 +261,7 @@ fn create_block_header(l2_block: L2BlockUpdates) -> L2BlockHeader {
         hash: l2_block.get_l2_block_hash(),
         l1_tx_count: l2_block.l1_tx_count as u16,
         l2_tx_count: (l2_block.executed_transactions.len() - l2_block.l1_tx_count) as u16,
-        timestamp: l2_block.timestamp,
+        timestamp: l2_block.timestamp(),
         fee_account_address: Address::repeat_byte(0x23),
         batch_fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
             l1_gas_price: 100,
@@ -590,17 +590,17 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         .await
         .unwrap()
         .expect("no batch params generated");
-    let (system_env, l1_batch_env, pubdata_params) = l1_batch_params.into_env(
+    let batch_init_params = l1_batch_params.into_init_params(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
     );
+    let version = batch_init_params.system_env.version;
     let mut updates = UpdatesManager::new(
-        &l1_batch_env,
-        &system_env,
-        pubdata_params,
-        system_env.version,
+        &batch_init_params,
+        version,
+        cursor.prev_l1_batch_timestamp,
         Some(cursor.prev_l2_block_timestamp),
     );
 
@@ -610,7 +610,6 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         create_execution_result([]),
         VmExecutionMetrics::default(),
         vec![],
-        1_000_000,
     );
 
     let (mut persistence, l2_block_sealer) =
@@ -688,7 +687,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     assert_eq!(pending_batch.pending_l2_blocks[0].txs[0].hash(), tx_hash);
 }
 
-/// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps
+/// Ensure that subsequent L2 blocks that belong to the same L1 batch have different timestamps for <= v28.
 #[test_casing(2, COMMITMENT_MODES)]
 #[tokio::test]
 async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1BatchCommitmentMode) {
@@ -702,12 +701,13 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
     let current_timestamp = seconds_since_epoch();
     io_cursor.prev_l2_block_timestamp = current_timestamp;
 
+    mempool.set_last_batch_protocol_version(ProtocolVersionId::Version28);
     let l2_block_params = mempool
         .wait_for_new_l2_block_params(&io_cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no new L2 block params");
-    assert!(l2_block_params.timestamp > current_timestamp);
+    assert!(l2_block_params.timestamp() > current_timestamp);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -748,13 +748,20 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
     let (cursor, _) = mempool.initialize().await.unwrap();
 
-    let new_l1_batch_params = mempool
+    let mut new_l1_batch_params = mempool
         .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no batch params generated");
 
-    assert_eq!(old_l1_batch_params, new_l1_batch_params);
+    // Timestamp in millis can be different. So we check only the seconds part.
+    assert_eq!(
+        old_l1_batch_params.first_l2_block.timestamp(),
+        new_l1_batch_params.first_l2_block.timestamp()
+    );
+    *new_l1_batch_params.first_l2_block.timestamp_ms_mut() =
+        old_l1_batch_params.first_l2_block.timestamp_ms();
+    assert_eq!(new_l1_batch_params, old_l1_batch_params);
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
@@ -768,7 +775,7 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .insert_l2_block(&connection_pool, 1, 5, fee_input)
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
     // Pre-insert L2 block without its unsealed L1 batch counterpart
     tester.set_timestamp(2);
@@ -788,7 +795,7 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .unwrap()
         .expect("no batch params generated");
     assert_eq!(l1_batch_params.fee_input, fee_input);
-    assert_eq!(l1_batch_params.first_l2_block.timestamp, 2);
+    assert_eq!(l1_batch_params.first_l2_block.timestamp(), 2);
 }
 
 #[tokio::test]
@@ -806,7 +813,7 @@ async fn test_mempool_with_timestamp_assertion() {
         .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
         .await;
     tester
-        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
         .await;
 
     // Create a copy of the tx filter that the mempool will use.

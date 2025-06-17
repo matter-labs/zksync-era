@@ -249,9 +249,8 @@ impl MempoolStore {
     /// Advances mempool state after processed block, i.e. updates `next_priority_id` and next nonces for accounts.
     pub fn advance_after_block(&mut self, input: AdvanceInput) {
         if let Some(next_priority_id) = input.next_priority_id {
-            assert!(self.next_priority_id <= next_priority_id);
-            self.next_priority_id = next_priority_id;
-            self.l1_transactions = self.l1_transactions.split_off(&next_priority_id);
+            self.next_priority_id = self.next_priority_id.max(next_priority_id);
+            self.l1_transactions = self.l1_transactions.split_off(&self.next_priority_id);
         }
 
         for (address, nonce) in input.next_account_nonces {

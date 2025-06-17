@@ -529,25 +529,15 @@ mod tests {
         let new_factory_deps = vec![(bytecode_hash, bytecode)].into_iter().collect();
         let l2_block_seal_command = L2BlockSealCommand {
             l1_batch_number: L1BatchNumber(1),
-            l2_block: L2BlockUpdates {
+            l2_block: L2BlockUpdates::new_with_data(
+                L2BlockNumber(1),
+                1000,
                 executed_transactions,
                 events,
                 storage_logs,
                 user_l2_to_l1_logs,
-                system_l2_to_l1_logs: Default::default(),
                 new_factory_deps,
-                block_execution_metrics: Default::default(),
-                txs_encoding_size: Default::default(),
-                payload_encoding_size: Default::default(),
-                l1_tx_count: 0,
-                timestamp: 1,
-                number: L2BlockNumber(1),
-                prev_block_hash: Default::default(),
-                prev_block_timestamp: None,
-                virtual_blocks: Default::default(),
-                protocol_version: ProtocolVersionId::latest(),
-                rolled_back: false,
-            },
+            ),
             first_tx_index: 0,
             fee_account_address: Default::default(),
             fee_input: Default::default(),
@@ -604,7 +594,7 @@ mod tests {
         // Insert block header.
         let l2_block_header = L2BlockHeader {
             number: l2_block_seal_command.l2_block.number,
-            timestamp: l2_block_seal_command.l2_block.timestamp,
+            timestamp: l2_block_seal_command.l2_block.timestamp(),
             hash: l2_block_seal_command.l2_block.get_l2_block_hash(),
             l1_tx_count: 0,
             l2_tx_count: 1,
