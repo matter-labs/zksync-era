@@ -308,11 +308,25 @@ impl SandboxExecutor {
         block_args: &BlockArgs,
         state_override: Option<StateOverride>,
     ) -> anyhow::Result<SandboxExecutionOutput> {
+        use zk_ee::{
+            system::metadata::{InteropRoot, InteropRoots},
+            utils::Bytes32,
+        };
+
         let (env, storage) = self
             .prepare_env_and_storage(connection, block_args, &action)
             .await?;
 
         let (execution_args, tracing_params) = action.into_parts();
+
+        let interop_root = InteropRoot {
+            root: [Bytes32::from_array([8u8; 32])],
+            block_number: 1337,
+            chain_id: 260,
+        };
+
+        let mut interop_roots = InteropRoots::default();
+        interop_roots.0[0] = interop_root;
 
         // todo: gas - currently many txs fail with `BaseFeeGreaterThanMaxFee`
         let context = BatchContext {
