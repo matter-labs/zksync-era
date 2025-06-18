@@ -74,6 +74,10 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
+
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        panic!("unexpected l2 block rollback");
+    }
 }
 
 pub(crate) async fn apply_genesis_logs(storage: &mut Connection<'_, Core>, logs: &[StorageLog]) {

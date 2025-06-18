@@ -520,6 +520,10 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         let storage = OwnedStorage::boxed(InMemoryStorage::default());
         Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
+
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
