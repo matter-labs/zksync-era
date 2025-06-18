@@ -54,7 +54,7 @@ impl TeeRequestProcessor {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
         let batch_ignored_timeout = ChronoDuration::from_std(
-            self.config.tee_batch_permanently_ignored_timeout(),
+            self.config.batch_permanently_ignored_timeout,
         )
         .map_err(|err| {
             TeeProcessorError::GeneralError(format!(
@@ -194,7 +194,7 @@ impl TeeRequestProcessor {
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
                 tee_type,
-                self.config.tee_proof_generation_timeout(),
+                self.config.proof_generation_timeout,
                 min_batch_number,
             )
             .await

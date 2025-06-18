@@ -13,7 +13,7 @@ use zkstack_cli_config::{
             input::DeployL2ContractsInput,
             output::{
                 ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-                Multicall3Output, TimestampAsserterOutput,
+                L2DAValidatorAddressOutput, Multicall3Output, TimestampAsserterOutput,
             },
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
@@ -33,6 +33,7 @@ pub enum Deploy2ContractsOption {
     ConsensusRegistry,
     Multicall3,
     TimestampAsserter,
+    L2DAValidator,
 }
 
 pub async fn run(
@@ -100,6 +101,16 @@ pub async fn run(
                 args,
             )
             .await?;
+        }
+        Deploy2ContractsOption::L2DAValidator => {
+            deploy_l2_da_validator(
+                shell,
+                &chain_config,
+                &ecosystem_config,
+                &mut contracts,
+                args,
+            )
+            .await?
         }
     }
 
@@ -214,6 +225,28 @@ pub async fn deploy_timestamp_asserter(
         |shell, out| {
             contracts_config
                 .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)
+        },
+        true,
+    )
+    .await
+}
+
+pub async fn deploy_l2_da_validator(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: ForgeScriptArgs,
+) -> anyhow::Result<()> {
+    build_and_deploy(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployL2DAValidator"),
+        |shell, out| {
+            contracts_config
+                .set_l2_da_validator_address(&L2DAValidatorAddressOutput::read(shell, out)?)
         },
         true,
     )

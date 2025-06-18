@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn test_gas_for_batch_tip_seal_criterion() {
         // Create an empty config.
-        let config = StateKeeperConfig::default();
+        let config = StateKeeperConfig::for_tests();
 
         let criterion = GasForBatchTipCriterion;
         let protocol_version = ProtocolVersionId::latest();

@@ -23,8 +23,13 @@ pub use ethabi::{
 use serde::{de, Deserialize, Deserializer, Serialize};
 use vise::_reexports::encoding::{EncodeLabelValue, LabelValueEncoder};
 
-pub use self::conversions::{
-    address_to_h256, address_to_u256, h256_to_address, h256_to_u256, u256_to_address, u256_to_h256,
+pub use self::{
+    conversions::{
+        address_to_h256, address_to_u256, h256_to_address, h256_to_u256, u256_to_address,
+        u256_to_h256,
+    },
+    errors::{OrStopped, StopContext},
+    stop_guard::{StopGuard, StopToken},
 };
 
 #[macro_use]
@@ -33,6 +38,7 @@ pub mod basic_fri_types;
 pub mod bytecode;
 pub mod commitment;
 mod conversions;
+mod errors;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
@@ -40,6 +46,7 @@ pub mod pubdata_da;
 pub mod secrets;
 pub mod serde_wrappers;
 pub mod settlement;
+mod stop_guard;
 pub mod tee_types;
 pub mod url;
 pub mod vm;
@@ -251,8 +258,7 @@ impl std::fmt::Display for L1BatchId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "L1BatchId
-        (chain_id: {}, batch_number: {})",
+            "L1BatchId(chain_id: {}, batch_number: {})",
             self.chain_id.as_u64(),
             self.batch_number.0
         )

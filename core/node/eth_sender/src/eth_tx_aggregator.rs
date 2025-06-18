@@ -159,7 +159,7 @@ impl EthTxAggregator {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
+                tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
                 break;
             }
 
@@ -169,7 +169,7 @@ impl EthTxAggregator {
                 tracing::warn!("eth_sender error {err:?}");
             }
 
-            tokio::time::sleep(self.config.aggregate_tx_poll_period()).await;
+            tokio::time::sleep(self.config.aggregate_tx_poll_period).await;
         }
         Ok(())
     }
@@ -851,17 +851,15 @@ impl EthTxAggregator {
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let (sender_addr, is_non_blob_sender) = match (op_type, is_gateway) {
+        let sender_addr = match (op_type, is_gateway) {
             (AggregatedActionType::Commit, false) => self
                 .eth_client_blobs
                 .as_ref()
-                .map(|c| (c.sender_account(), false))
-                .unwrap_or_else(|| (self.eth_client.sender_account(), true)),
-            (_, _) => (self.eth_client.sender_account(), true),
+                .map(|c| (c.sender_account()))
+                .unwrap_or_else(|| self.eth_client.sender_account()),
+            (_, _) => self.eth_client.sender_account(),
         };
-        let nonce = self
-            .get_next_nonce(&mut transaction, sender_addr, is_non_blob_sender)
-            .await?;
+        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, chain_protocol_version_id);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
@@ -927,12 +925,11 @@ impl EthTxAggregator {
         &self,
         storage: &mut Connection<'_, Core>,
         from_addr: Address,
-        is_non_blob_sender: bool,
     ) -> Result<u64, EthSenderError> {
         let is_gateway = self.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce(from_addr, is_non_blob_sender, is_gateway)
+            .get_next_nonce(from_addr, is_gateway)
             .await
             .unwrap()
             .unwrap_or(0);

@@ -12,6 +12,26 @@ The order of the files here only roughly represents the order of reading. A lot 
   - [Admin role](../contracts/chain_management/admin_role.md)
   - [Chain genesis](../contracts/chain_management/chain_genesis.md)
   - [Standard Upgrade process](../contracts/chain_management/upgrade_process.md)
+- [Bridging](../contracts/bridging/overview.md)
+  - [Asset Router](../contracts/bridging/asset_router_and_ntv/asset_router.md)
+  - [Native token vault](../contracts/bridging/asset_router_and_ntv/native_token_vault.md)
+- [Settlement Contracts](../contracts/settlement_contracts/zkchain_basics.md)
+  - [L1 <> L2 communication](../contracts/settlement_contracts/priority_queue/README.md)
+    - [Handling L1→L2 operations](../contracts/settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md)
+    - [L2→L1 communication](../contracts/settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)
+    - [Overview - Deposits and Withdrawals](../contracts/settlement_contracts/priority_queue/l1_l2_communication/overview_deposits_withdrawals.md)
+    - [Priority queue](../contracts/settlement_contracts/priority_queue/priority-queue.md)
+  - [Data availability](../contracts/settlement_contracts/data_availability/README.md)
+    - [Pubdata](../contracts/settlement_contracts/data_availability/pubdata.md)
+    - [Compression](../contracts/settlement_contracts/data_availability/compression.md)
+    - [Reconstruction](../contracts/settlement_contracts/data_availability/reconstruction.md)
+    - [Validium and zkPorter](../contracts/settlement_contracts/data_availability/validium_zk_porter.md)
+    - [Custom DA support](../contracts/settlement_contracts/data_availability/custom_da.md)
+    - [Rollup DA support](../contracts/settlement_contracts/data_availability/rollup_da.md)
+    - [Standard pubdata format](../contracts/settlement_contracts/data_availability/standard_pubdata_format.md)
+    - [State diff compression v1 spec](../contracts/settlement_contracts/data_availability/state_diff_compression_v1_spec.md)
+- [Consensus](../contracts/consensus/README.md)
+  - [Consensus Registry](../contracts/consensus/consensus-registry.md)
 
 ![Reading order](./img/reading_order.png)
 
@@ -33,6 +53,6 @@ This section is for auditors of the codebase. It includes some of the important 
 - GW → L1 migration never fails. If it is possible to get into a state where the migration is not possible to finish, then the chain is basically lost. There are some exceptions where for now it is the expected behavior. (check out the “Migration invariants & protocol upgradability” section)
 - The general consistency of chains when migration between different settlement layers is done. Including the feasibility of emergency upgrades, etc. I.e. whether the whole system is thought-through.
 - Preimage attacks in the L3→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
-- Data availability guarantees. Whether rollup users can always restore all their storage slots, etc. An example of a potential tricky issue can be found in “Security notes for Gateway-based rollups” [in this document][TODO].
+- Data availability guarantees. Whether rollup users can always restore all their storage slots, etc. An example of a potential tricky issue can be found in “Security notes for Gateway-based rollups” [in this document](./gateway/gateway_da.md).
 
 The desired properties of the system are that funds can not be stolen from the L1 contracts, and that L2 constracts are executed securely.

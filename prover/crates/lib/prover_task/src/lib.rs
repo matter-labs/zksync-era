@@ -36,7 +36,7 @@ impl PeriodicTask {
                 .await
                 .context("failed to invoke task")?;
         }
-        tracing::info!("Stop signal received; Task {} is shut down", self.name);
+        tracing::info!("Stop request received; Task {} is shut down", self.name);
         Ok(())
     }
 }
@@ -54,6 +54,18 @@ impl TaskRunner {
             interval,
             job: Box::new(job),
         });
+    }
+
+    /// Adds multiple tasks from an iterator, generating names from a prefix.
+    pub fn extend<T: Task + Send + Sync + 'static>(
+        &mut self,
+        name_prefix: &str,
+        interval: Duration,
+        jobs: impl IntoIterator<Item = T>,
+    ) {
+        for (idx, job) in jobs.into_iter().enumerate() {
+            self.add(&format!("{}_{}", name_prefix, idx), interval, job);
+        }
     }
 
     pub fn spawn(

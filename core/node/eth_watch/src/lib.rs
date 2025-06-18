@@ -8,7 +8,6 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
@@ -28,6 +27,7 @@ use crate::event_processors::{
 mod client;
 mod event_processors;
 mod metrics;
+pub mod node;
 #[cfg(test)]
 mod tests;
 
@@ -45,6 +45,7 @@ pub struct EthWatch {
     l1_client: Arc<dyn EthClient>,
     sl_client: Arc<dyn EthClient>,
     poll_interval: Duration,
+    event_expiration_blocks: u64,
     event_processors: Vec<Box<dyn EventProcessor>>,
     pool: ConnectionPool<Core>,
 }
@@ -58,6 +59,7 @@ impl EthWatch {
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         chain_id: L2ChainId,
+        event_expiration_blocks: u64,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let l1_client: Arc<dyn EthClient> = l1_client.into();
@@ -98,6 +100,7 @@ impl EthWatch {
             l1_client,
             sl_client: sl_eth_client,
             poll_interval,
+            event_expiration_blocks,
             event_processors,
             pool,
         })
@@ -171,7 +174,7 @@ impl EthWatch {
             }
         }
 
-        tracing::info!("Stop signal received, eth_watch is shutting down");
+        tracing::info!("Stop request received, eth_watch is shutting down");
         Ok(())
     }
 
@@ -198,7 +201,7 @@ impl EthWatch {
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
-                    to_block.saturating_sub(PRIORITY_EXPIRATION),
+                    to_block.saturating_sub(self.event_expiration_blocks),
                 )
                 .await
                 .map_err(DalError::generalize)?;

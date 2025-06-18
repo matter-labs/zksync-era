@@ -24,7 +24,7 @@ fn read_secret_text<T: TextFmt>(text: Option<&SecretString>) -> anyhow::Result<O
 pub(super) fn validator_key(
     secrets: &ConsensusSecrets,
 ) -> anyhow::Result<Option<validator::SecretKey>> {
-    read_secret_text(secrets.validator_key.as_ref().map(|x| &x.0))
+    read_secret_text(secrets.validator_key.as_ref())
 }
 
 /// Consensus genesis specification.
@@ -35,8 +35,7 @@ pub(super) fn validator_key(
 pub(super) struct GenesisSpec {
     pub(super) chain_id: validator::ChainId,
     pub(super) protocol_version: validator::ProtocolVersion,
-    pub(super) validators: validator::Committee,
-    pub(super) leader_selection: validator::v1::LeaderSelectionMode,
+    pub(super) validators: Option<validator::Schedule>,
     pub(super) registry_address: Option<ethabi::Address>,
     pub(super) seed_peers: BTreeMap<node::PublicKey, net::Host>,
 }
@@ -46,34 +45,47 @@ impl GenesisSpec {
         Self {
             chain_id: cfg.genesis.chain_id,
             protocol_version: cfg.genesis.protocol_version,
-            validators: cfg.genesis.validators.clone(),
-            leader_selection: cfg.genesis.leader_selection.clone(),
+            validators: cfg.genesis.validators_schedule.clone(),
             registry_address: cfg.registry_address,
             seed_peers: cfg.seed_peers.clone(),
         }
     }
 
     pub(super) fn parse(x: &configs::consensus::GenesisSpec) -> anyhow::Result<Self> {
-        let validators: Vec<_> = x
-            .validators
-            .iter()
-            .enumerate()
-            .map(|(i, v)| {
-                Ok(validator::WeightedValidator {
-                    key: Text::new(&v.key.0).decode().context("key").context(i)?,
-                    weight: v.weight,
+        let schedule = if x.validators.is_empty() || x.leader.is_none() {
+            None
+        } else {
+            let leader = x.leader.as_ref().unwrap(); // safe to unwrap because of the check above
+
+            let validators: Vec<_> = x
+                .validators
+                .iter()
+                .enumerate()
+                .map(|(i, (key, weight))| {
+                    Ok(validator::ValidatorInfo {
+                        key: Text::new(&key.0).decode().context("key").context(i)?,
+                        weight: *weight,
+                        leader: key == leader,
+                    })
                 })
-            })
-            .collect::<anyhow::Result<_>>()
-            .context("validators")?;
+                .collect::<anyhow::Result<_>>()
+                .context("validators")?;
+
+            Some(
+                validator::Schedule::new(validators, validator::LeaderSelection::default())
+                    .context("schedule")?,
+            )
+        };
+
+        anyhow::ensure!(
+            schedule.is_some() || x.registry_address.is_some(),
+            "either validators or registry_address must be present"
+        );
 
         Ok(Self {
             chain_id: validator::ChainId(x.chain_id.as_u64()),
             protocol_version: validator::ProtocolVersion(x.protocol_version.0),
-            leader_selection: validator::v1::LeaderSelectionMode::Sticky(
-                Text::new(&x.leader.0).decode().context("leader")?,
-            ),
-            validators: validator::Committee::new(validators).context("validators")?,
+            validators: schedule,
             registry_address: x.registry_address,
             seed_peers: x
                 .seed_peers
@@ -93,7 +105,7 @@ impl GenesisSpec {
 }
 
 pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
-    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
+    read_secret_text(secrets.node_key.as_ref())
 }
 
 pub(super) fn executor(
@@ -127,21 +139,20 @@ pub(super) fn executor(
     let mut rpc = executor::RpcConfig::default();
     rpc.get_block_rate = cfg.rpc().get_block_rate();
 
-    let debug_page = cfg.debug_page_addr.map(|addr| network::debug_page::Config {
-        addr,
-        credentials: None,
-        tls: None,
-    });
+    let debug_page = cfg
+        .debug_page_addr
+        .map(|addr| network::debug_page::Config { addr });
 
     Ok(executor::Config {
         build_version,
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
-        max_payload_size: cfg.max_payload_size,
-        view_timeout: cfg.view_timeout(),
+        max_payload_size: cfg.max_payload_size.0 as usize,
+        view_timeout: cfg.view_timeout.try_into().context("view_timeout")?,
         node_key: node_key(secrets)
             .context("node_key")?
             .context("missing node_key")?,
+        validator_key: validator_key(secrets).context("validator_key")?,
         gossip_dynamic_inbound_limit: cfg.gossip_dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip_static_inbound

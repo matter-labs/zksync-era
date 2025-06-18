@@ -6,8 +6,13 @@ use std::{
 
 use circuit_definitions::{
     circuit_definitions::base_layer::ZkSyncBaseLayerStorage,
-    encodings::recursion_request::RecursionQueueSimulator,
-    zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
+    encodings::{recursion_request::RecursionRequest, FullWidthQueueSimulator},
+    zkevm_circuits::{
+        base_structures::{
+            recursion_query::RECURSION_QUERY_PACKED_WIDTH, vm_state::FULL_SPONGE_QUEUE_STATE_WIDTH,
+        },
+        fsm_input_output::ClosedFormInputCompactFormWitness,
+    },
 };
 use tokio::sync::Semaphore;
 use tracing::Instrument;
@@ -246,7 +251,13 @@ pub(super) async fn generate_witness(
 async fn save_recursion_queue(
     batch_id: L1BatchId,
     circuit_id: u8,
-    recursion_queue_simulator: RecursionQueueSimulator<GoldilocksField>,
+    recursion_queue_simulator: FullWidthQueueSimulator<
+        GoldilocksField,
+        RecursionRequest<GoldilocksField>,
+        RECURSION_QUERY_PACKED_WIDTH,
+        FULL_SPONGE_QUEUE_STATE_WIDTH,
+        1,
+    >,
     closed_form_inputs: Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
     object_store: Arc<dyn ObjectStore>,
 ) -> (u8, String, usize) {

@@ -4,13 +4,16 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionExecutionInfo,
+        TransactionDetailedResult, TransactionExecutionInfo,
     },
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    L1BatchNumber, L2ChainId, H256, U256,
 };
 
-use crate::client::{ForWeb3Network, L2};
+use crate::{
+    client::{ForWeb3Network, L2},
+    types::Bytes,
+};
 
 /// RPCs in this namespace are experimental, and their interface is unstable, and it WILL change.
 #[cfg_attr(
@@ -59,4 +62,13 @@ pub trait UnstableNamespace {
 
     #[method(name = "gatewayMigrationStatus")]
     async fn gateway_migration_status(&self) -> RpcResult<GatewayMigrationStatus>;
+
+    #[method(name = "sendRawTransactionWithDetailedOutput")]
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: Bytes,
+    ) -> RpcResult<TransactionDetailedResult>;
+
+    #[method(name = "gasPerPubdata")]
+    async fn gas_per_pubdata(&self) -> RpcResult<U256>;
 }

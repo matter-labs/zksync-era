@@ -6,18 +6,28 @@ use utils::{
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_multivm::{
+    interface::VmEvent,
+    zk_evm_latest::ethereum_types::{U256, U64},
+};
 use zksync_types::{
+    api,
     api::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionExecutionInfo,
+        TransactionDetailedResult, TransactionExecutionInfo,
     },
     server_notification::GatewayMigrationState,
     tee_types::TeeType,
+    web3,
+    web3::Bytes,
     L1BatchNumber, L2ChainId,
 };
 use zksync_web3_decl::{error::Web3Error, types::H256};
 
-use crate::web3::{backend_jsonrpsee::MethodTracer, RpcState};
+use crate::{
+    execution_sandbox::BlockArgs,
+    web3::{backend_jsonrpsee::MethodTracer, RpcState},
+};
 
 mod utils;
 
@@ -216,5 +226,62 @@ impl UnstableNamespace {
             state,
             settlement_layer: self.state.api_config.settlement_layer,
         })
+    }
+
+    #[tracing::instrument(skip(self, tx_bytes))]
+    pub async fn send_raw_transaction_with_detailed_output_impl(
+        &self,
+        tx_bytes: Bytes,
+    ) -> Result<TransactionDetailedResult, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let (mut tx, tx_hash) = self
+            .state
+            .parse_transaction_bytes(&tx_bytes.0, &block_args)?;
+        tx.set_input(tx_bytes.0, tx_hash);
+
+        let submit_output = self
+            .state
+            .tx_sender
+            .submit_tx(tx, block_args)
+            .await
+            .map_err(|err| self.current_method().map_submit_err(err))?;
+        Ok(TransactionDetailedResult {
+            transaction_hash: tx_hash,
+            storage_logs: submit_output
+                .write_logs
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            events: submit_output
+                .events
+                .into_iter()
+                .map(|event| map_event(event, tx_hash))
+                .collect(),
+        })
+    }
+
+    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
+        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
+        Ok(gas_per_pubdata.into())
+    }
+}
+
+fn map_event(vm_event: VmEvent, tx_hash: H256) -> api::Log {
+    api::Log {
+        address: vm_event.address,
+        topics: vm_event.indexed_topics,
+        data: web3::Bytes::from(vm_event.value),
+        block_hash: None,
+        block_number: None,
+        l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
+        transaction_hash: Some(tx_hash),
+        transaction_index: Some(web3::Index::from(vm_event.location.1)),
+        log_index: None,
+        transaction_log_index: None,
+        log_type: None,
+        removed: Some(false),
+        block_timestamp: None,
     }
 }

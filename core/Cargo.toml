@@ -14,7 +14,7 @@ members = [
   "bin/genesis_generator",
   "bin/zksync_tee_prover",
   # Node services
-  "node/node_framework",
+  "node/jemalloc",
   "node/proof_data_handler",
   "node/block_reverter",
   "node/commitment_generator",
@@ -44,7 +44,6 @@ members = [
   "node/zk_os_tree_manager",
   # Libraries
   "lib/db_connection",
-  "lib/zksync_core_leftovers",
   "lib/basic_types",
   "lib/config",
   "lib/constants",
@@ -52,7 +51,6 @@ members = [
   "lib/contracts",
   "lib/circuit_breaker",
   "lib/dal",
-  "lib/env_config",
   "lib/da_client",
   "lib/eth_client",
   "lib/eth_signer",
@@ -60,7 +58,9 @@ members = [
   "lib/mempool",
   "lib/merkle_tree",
   "lib/mini_merkle_tree",
+  "lib/node_framework",
   "lib/node_framework_derive",
+  "lib/shared_resources",
   "lib/object_store",
   "lib/prover_interface",
   "lib/queued_job_processor",
@@ -69,10 +69,10 @@ members = [
   "lib/tee_prover_interface",
   "lib/tee_verifier",
   "lib/types",
-  "lib/protobuf_config",
   "lib/utils",
   "lib/vlog",
   "lib/multivm",
+  "lib/instrument",
   "lib/vm_interface",
   "lib/vm_executor",
   "lib/web3_decl",
@@ -96,7 +96,7 @@ inherits = "release"
 debug = true
 
 [workspace.package]
-version = "28.1.0-non-semver-compat"
+version = "28.6.0-non-semver-compat"
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -195,6 +195,7 @@ test-log = "0.2.15"
 thiserror = "2.0.12"
 thread_local = "1.1"
 tikv-jemallocator = "0.5"
+tikv-jemalloc-ctl = "0.5"
 tiny-keccak = "2"
 tokio = "1"
 tower = "0.4.13"
@@ -214,8 +215,10 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-vise = "0.3.0"
-vise-exporter = "0.3.0"
+vise = "0.3.1"
+vise-exporter = "0.3.1"
+smart-config = "=0.2.0-pre"
+smart-config-commands = "=0.2.0-pre"
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
 
 # DA clients' dependencies
@@ -235,26 +238,26 @@ tonic = { version = "0.11.0", default-features = false }
 pbjson-types = "0.6.0"
 
 # Eigen
-rust-eigenda-client = "0.1.3"
+rust-eigenda-client = "0.1.6"
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
 
-circuit_encodings = "=0.152.2"
-circuit_sequencer_api = "=0.152.2"
-circuit_definitions = "=0.152.2"
+circuit_encodings = "=0.152.3"
+circuit_sequencer_api = "=0.152.3"
+circuit_definitions = "=0.152.3"
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.1" }
 
-kzg = { package = "zksync_kzg", version = "=0.152.2" }
+kzg = { package = "zksync_kzg", version = "=0.152.3" }
 
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.5" }
-zk_evm_1_5_2 = { package = "zk_evm", version = "=0.152.2" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
+zk_evm_1_5_2 = { package = "zk_evm", version = "=0.152.3" }
 
 fflonk = "=0.32.1"
 
@@ -264,86 +267,86 @@ bellman = { package = "zksync_bellman", version = "=0.32.1" }
 zksync_vm2 = "=0.4.0"
 
 # Consensus dependencies.
-zksync_concurrency = "=0.10.0"
-zksync_consensus_bft = "=0.10.0"
-zksync_consensus_crypto = "=0.10.0"
-zksync_consensus_executor = "=0.10.0"
-zksync_consensus_network = "=0.10.0"
-zksync_consensus_roles = "=0.10.0"
-zksync_consensus_storage = "=0.10.0"
-zksync_consensus_utils = "=0.10.0"
-zksync_protobuf = "=0.10.0"
-zksync_protobuf_build = "=0.10.0"
+zksync_concurrency = "=0.11.3"
+zksync_consensus_bft = "=0.11.3"
+zksync_consensus_crypto = "=0.11.3"
+zksync_consensus_engine = "=0.11.3"
+zksync_consensus_executor = "=0.11.3"
+zksync_consensus_network = "=0.11.3"
+zksync_consensus_roles = "=0.11.3"
+zksync_consensus_utils = "=0.11.3"
+zksync_protobuf = "=0.11.3"
+zksync_protobuf_build = "=0.11.3"
 
 # "Local" dependencies
-zksync_multivm = { version = "28.1.0-non-semver-compat", path = "lib/multivm" }
-zksync_vlog = { version = "28.1.0-non-semver-compat", path = "lib/vlog" }
-zksync_vm_interface = { version = "28.1.0-non-semver-compat", path = "lib/vm_interface" }
-zksync_vm_executor = { version = "28.1.0-non-semver-compat", path = "lib/vm_executor" }
-zksync_basic_types = { version = "28.1.0-non-semver-compat", path = "lib/basic_types" }
-zksync_circuit_breaker = { version = "28.1.0-non-semver-compat", path = "lib/circuit_breaker" }
-zksync_config = { version = "28.1.0-non-semver-compat", path = "lib/config" }
-zksync_contract_verifier_lib = { version = "28.1.0-non-semver-compat", path = "lib/contract_verifier" }
-zksync_contracts = { version = "28.1.0-non-semver-compat", path = "lib/contracts" }
-zksync_core_leftovers = { version = "28.1.0-non-semver-compat", path = "lib/zksync_core_leftovers" }
-zksync_dal = { version = "28.1.0-non-semver-compat", path = "lib/dal" }
-zksync_db_connection = { version = "28.1.0-non-semver-compat", path = "lib/db_connection" }
-zksync_env_config = { version = "28.1.0-non-semver-compat", path = "lib/env_config" }
-zksync_eth_client = { version = "28.1.0-non-semver-compat", path = "lib/eth_client" }
-zksync_da_client = { version = "28.1.0-non-semver-compat", path = "lib/da_client" }
-zksync_eth_signer = { version = "28.1.0-non-semver-compat", path = "lib/eth_signer" }
-zksync_health_check = { version = "28.1.0-non-semver-compat", path = "lib/health_check" }
-zksync_l1_contract_interface = { version = "28.1.0-non-semver-compat", path = "lib/l1_contract_interface" }
-zksync_mempool = { version = "28.1.0-non-semver-compat", path = "lib/mempool" }
-zksync_merkle_tree = { version = "28.1.0-non-semver-compat", path = "lib/merkle_tree" }
-zksync_mini_merkle_tree = { version = "28.1.0-non-semver-compat", path = "lib/mini_merkle_tree" }
-zksync_object_store = { version = "28.1.0-non-semver-compat", path = "lib/object_store" }
-zksync_protobuf_config = { version = "28.1.0-non-semver-compat", path = "lib/protobuf_config" }
-zksync_prover_interface = { version = "28.1.0-non-semver-compat", path = "lib/prover_interface" }
-zksync_queued_job_processor = { version = "28.1.0-non-semver-compat", path = "lib/queued_job_processor" }
-zksync_snapshots_applier = { version = "28.1.0-non-semver-compat", path = "lib/snapshots_applier" }
-zksync_state = { version = "28.1.0-non-semver-compat", path = "lib/state" }
-zksync_storage = { version = "28.1.0-non-semver-compat", path = "lib/storage" }
-zksync_system_constants = { version = "28.1.0-non-semver-compat", path = "lib/constants" }
-zksync_tee_prover_interface = { version = "28.1.0-non-semver-compat", path = "lib/tee_prover_interface" }
-zksync_tee_verifier = { version = "28.1.0-non-semver-compat", path = "lib/tee_verifier" }
-zksync_test_contracts = { version = "28.1.0-non-semver-compat", path = "lib/test_contracts" }
-zksync_types = { version = "28.1.0-non-semver-compat", path = "lib/types" }
-zksync_utils = { version = "28.1.0-non-semver-compat", path = "lib/utils" }
-zksync_web3_decl = { version = "28.1.0-non-semver-compat", path = "lib/web3_decl" }
-zksync_crypto_primitives = { version = "28.1.0-non-semver-compat", path = "lib/crypto_primitives" }
-zksync_external_price_api = { version = "28.1.0-non-semver-compat", path = "lib/external_price_api" }
-zksync_task_management = { version = "28.1.0-non-semver-compat", path = "lib/task_management" }
-zk_os_merkle_tree = { version = "28.1.0-non-semver-compat", path = "lib/zk_os_merkle_tree" }
+zksync_multivm = { version = "28.6.0-non-semver-compat", path = "lib/multivm" }
+zksync_vlog = { version = "28.6.0-non-semver-compat", path = "lib/vlog" }
+zksync_vm_interface = { version = "28.6.0-non-semver-compat", path = "lib/vm_interface" }
+zksync_vm_executor = { version = "28.6.0-non-semver-compat", path = "lib/vm_executor" }
+zksync_basic_types = { version = "28.6.0-non-semver-compat", path = "lib/basic_types" }
+zksync_circuit_breaker = { version = "28.6.0-non-semver-compat", path = "lib/circuit_breaker" }
+zksync_config = { version = "28.6.0-non-semver-compat", path = "lib/config" }
+zksync_contract_verifier_lib = { version = "28.6.0-non-semver-compat", path = "lib/contract_verifier" }
+zksync_contracts = { version = "28.6.0-non-semver-compat", path = "lib/contracts" }
+zksync_dal = { version = "28.6.0-non-semver-compat", path = "lib/dal" }
+zksync_db_connection = { version = "28.6.0-non-semver-compat", path = "lib/db_connection" }
+zksync_eth_client = { version = "28.6.0-non-semver-compat", path = "lib/eth_client" }
+zksync_da_client = { version = "28.6.0-non-semver-compat", path = "lib/da_client" }
+zksync_eth_signer = { version = "28.6.0-non-semver-compat", path = "lib/eth_signer" }
+zksync_health_check = { version = "28.6.0-non-semver-compat", path = "lib/health_check" }
+zksync_instrument = { version = "28.6.0-non-semver-compat", path = "lib/instrument" }
+zksync_l1_contract_interface = { version = "28.6.0-non-semver-compat", path = "lib/l1_contract_interface" }
+zksync_mempool = { version = "28.6.0-non-semver-compat", path = "lib/mempool" }
+zksync_merkle_tree = { version = "28.6.0-non-semver-compat", path = "lib/merkle_tree" }
+zksync_mini_merkle_tree = { version = "28.6.0-non-semver-compat", path = "lib/mini_merkle_tree" }
+zksync_object_store = { version = "28.6.0-non-semver-compat", path = "lib/object_store" }
+zksync_prover_interface = { version = "28.6.0-non-semver-compat", path = "lib/prover_interface" }
+zksync_queued_job_processor = { version = "28.6.0-non-semver-compat", path = "lib/queued_job_processor" }
+zksync_snapshots_applier = { version = "28.6.0-non-semver-compat", path = "lib/snapshots_applier" }
+zksync_state = { version = "28.6.0-non-semver-compat", path = "lib/state" }
+zksync_storage = { version = "28.6.0-non-semver-compat", path = "lib/storage" }
+zksync_system_constants = { version = "28.6.0-non-semver-compat", path = "lib/constants" }
+zksync_tee_prover_interface = { version = "28.6.0-non-semver-compat", path = "lib/tee_prover_interface" }
+zksync_tee_verifier = { version = "28.6.0-non-semver-compat", path = "lib/tee_verifier" }
+zksync_test_contracts = { version = "28.6.0-non-semver-compat", path = "lib/test_contracts" }
+zksync_types = { version = "28.6.0-non-semver-compat", path = "lib/types" }
+zksync_utils = { version = "28.6.0-non-semver-compat", path = "lib/utils" }
+zksync_web3_decl = { version = "28.6.0-non-semver-compat", path = "lib/web3_decl" }
+zksync_crypto_primitives = { version = "28.6.0-non-semver-compat", path = "lib/crypto_primitives" }
+zksync_external_price_api = { version = "28.6.0-non-semver-compat", path = "lib/external_price_api" }
+zksync_task_management = { version = "28.6.0-non-semver-compat", path = "lib/task_management" }
+zk_os_merkle_tree = { version = "28.6.0-non-semver-compat", path = "lib/zk_os_merkle_tree" }
 
 # Framework and components
-zksync_node_framework = { version = "28.1.0-non-semver-compat", path = "node/node_framework" }
-zksync_node_framework_derive = { version = "28.1.0-non-semver-compat", path = "lib/node_framework_derive" }
-zksync_eth_watch = { version = "28.1.0-non-semver-compat", path = "node/eth_watch" }
-zksync_shared_metrics = { version = "28.1.0-non-semver-compat", path = "node/shared_metrics" }
-zksync_proof_data_handler = { version = "28.1.0-non-semver-compat", path = "node/proof_data_handler" }
-zksync_tee_proof_data_handler = { version = "28.1.0-non-semver-compat", path = "node/tee_proof_data_handler" }
-zksync_block_reverter = { version = "28.1.0-non-semver-compat", path = "node/block_reverter" }
-zksync_commitment_generator = { version = "28.1.0-non-semver-compat", path = "node/commitment_generator" }
-zksync_house_keeper = { version = "28.1.0-non-semver-compat", path = "node/house_keeper" }
-zksync_node_genesis = { version = "28.1.0-non-semver-compat", path = "node/genesis" }
-zksync_da_dispatcher = { version = "28.1.0-non-semver-compat", path = "node/da_dispatcher" }
-zksync_da_clients = { version = "28.1.0-non-semver-compat", path = "node/da_clients" }
-zksync_eth_sender = { version = "28.1.0-non-semver-compat", path = "node/eth_sender" }
-zksync_node_db_pruner = { version = "28.1.0-non-semver-compat", path = "node/db_pruner" }
-zksync_node_fee_model = { version = "28.1.0-non-semver-compat", path = "node/fee_model" }
-zksync_vm_runner = { version = "28.1.0-non-semver-compat", path = "node/vm_runner" }
-zksync_external_proof_integration_api = { version = "28.1.0-non-semver-compat", path = "node/external_proof_integration_api" }
-zksync_node_test_utils = { version = "28.1.0-non-semver-compat", path = "node/test_utils" }
-zksync_state_keeper = { version = "28.1.0-non-semver-compat", path = "node/state_keeper" }
-zksync_reorg_detector = { version = "28.1.0-non-semver-compat", path = "node/reorg_detector" }
-zksync_consistency_checker = { version = "28.1.0-non-semver-compat", path = "node/consistency_checker" }
-zksync_metadata_calculator = { version = "28.1.0-non-semver-compat", path = "node/metadata_calculator" }
-zksync_node_sync = { version = "28.1.0-non-semver-compat", path = "node/node_sync" }
-zksync_node_storage_init = { version = "28.1.0-non-semver-compat", path = "node/node_storage_init" }
-zksync_node_consensus = { version = "28.1.0-non-semver-compat", path = "node/consensus" }
-zksync_contract_verification_server = { version = "28.1.0-non-semver-compat", path = "node/contract_verification_server" }
-zksync_node_api_server = { version = "28.1.0-non-semver-compat", path = "node/api_server" }
-zksync_base_token_adjuster = { version = "28.1.0-non-semver-compat", path = "node/base_token_adjuster" }
-zksync_logs_bloom_backfill = { version = "28.1.0-non-semver-compat", path = "node/logs_bloom_backfill" }
-zksync_gateway_migrator = { version = "28.1.0-non-semver-compat", path = "node/gateway_migrator" }
+zksync_node_framework = { version = "28.6.0-non-semver-compat", path = "lib/node_framework" }
+zksync_node_framework_derive = { version = "28.6.0-non-semver-compat", path = "lib/node_framework_derive" }
+zksync_shared_resources = { version = "28.6.0-non-semver-compat", path = "lib/shared_resources" }
+zksync_node_jemalloc = { version = "28.6.0-non-semver-compat", path = "node/jemalloc" }
+zksync_eth_watch = { version = "28.6.0-non-semver-compat", path = "node/eth_watch" }
+zksync_shared_metrics = { version = "28.6.0-non-semver-compat", path = "node/shared_metrics" }
+zksync_proof_data_handler = { version = "28.6.0-non-semver-compat", path = "node/proof_data_handler" }
+zksync_tee_proof_data_handler = { version = "28.6.0-non-semver-compat", path = "node/tee_proof_data_handler" }
+zksync_block_reverter = { version = "28.6.0-non-semver-compat", path = "node/block_reverter" }
+zksync_commitment_generator = { version = "28.6.0-non-semver-compat", path = "node/commitment_generator" }
+zksync_house_keeper = { version = "28.6.0-non-semver-compat", path = "node/house_keeper" }
+zksync_node_genesis = { version = "28.6.0-non-semver-compat", path = "node/genesis" }
+zksync_da_dispatcher = { version = "28.6.0-non-semver-compat", path = "node/da_dispatcher" }
+zksync_da_clients = { version = "28.6.0-non-semver-compat", path = "node/da_clients" }
+zksync_eth_sender = { version = "28.6.0-non-semver-compat", path = "node/eth_sender" }
+zksync_node_db_pruner = { version = "28.6.0-non-semver-compat", path = "node/db_pruner" }
+zksync_node_fee_model = { version = "28.6.0-non-semver-compat", path = "node/fee_model" }
+zksync_vm_runner = { version = "28.6.0-non-semver-compat", path = "node/vm_runner" }
+zksync_external_proof_integration_api = { version = "28.6.0-non-semver-compat", path = "node/external_proof_integration_api" }
+zksync_node_test_utils = { version = "28.6.0-non-semver-compat", path = "node/test_utils" }
+zksync_state_keeper = { version = "28.6.0-non-semver-compat", path = "node/state_keeper" }
+zksync_reorg_detector = { version = "28.6.0-non-semver-compat", path = "node/reorg_detector" }
+zksync_consistency_checker = { version = "28.6.0-non-semver-compat", path = "node/consistency_checker" }
+zksync_metadata_calculator = { version = "28.6.0-non-semver-compat", path = "node/metadata_calculator" }
+zksync_node_sync = { version = "28.6.0-non-semver-compat", path = "node/node_sync" }
+zksync_node_storage_init = { version = "28.6.0-non-semver-compat", path = "node/node_storage_init" }
+zksync_node_consensus = { version = "28.6.0-non-semver-compat", path = "node/consensus" }
+zksync_contract_verification_server = { version = "28.6.0-non-semver-compat", path = "node/contract_verification_server" }
+zksync_node_api_server = { version = "28.6.0-non-semver-compat", path = "node/api_server" }
+zksync_base_token_adjuster = { version = "28.6.0-non-semver-compat", path = "node/base_token_adjuster" }
+zksync_logs_bloom_backfill = { version = "28.6.0-non-semver-compat", path = "node/logs_bloom_backfill" }
+zksync_gateway_migrator = { version = "28.6.0-non-semver-compat", path = "node/gateway_migrator" }

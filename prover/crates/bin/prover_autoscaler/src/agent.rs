@@ -46,10 +46,10 @@ pub async fn run_server(
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
-                    "Stop signal sender for Autoscaler agent was dropped without sending a signal"
+                    "Stop request sender for Autoscaler agent was dropped without sending a signal"
                 );
             }
-            tracing::info!("Stop signal received, Autoscaler agent is shutting down");
+            tracing::info!("Stop request received, Autoscaler agent is shutting down");
         })
         .await
         .context("Autoscaler agent failed")?;
@@ -66,9 +66,7 @@ fn create_agent_router(watcher: Watcher, scaler: Scaler) -> Router {
         .with_state(app)
 }
 
-// TODO: Use
-// https://github.com/matter-labs/zksync-era/blob/9821a20018c367ce246dba656daab5c2e7757973/core/node/api_server/src/healthcheck.rs#L53
-// instead.
+// TODO: Report health only after get initial cluster state.
 async fn health() -> &'static str {
     "Ok\n"
 }
@@ -101,7 +99,7 @@ pub struct ScaleResponse {
     pub scale_result: Vec<String>,
 }
 
-/// To test or forse scale in particular cluster use:
+/// To test or force scale in particular cluster use:
 /// $ curl -X POST -H "Content-Type: application/json" --data '{"deployments": [{"namespace": "prover-red", "name": "witness-vector-generator-spec-9-f", "size":0},{"namespace": "prover-red", "name": "witness-vector-generator-spec-9-c", "size":0}]}' <ip>:8081/scale
 async fn scale(
     State(app): State<App>,

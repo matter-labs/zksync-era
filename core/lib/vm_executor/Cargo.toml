@@ -13,8 +13,10 @@ categories.workspace = true
 [dependencies]
 zksync_contracts.workspace = true
 zksync_dal.workspace = true
+zksync_instrument.workspace = true
 zksync_types.workspace = true
 zksync_multivm.workspace = true
+zksync_node_framework = { workspace = true, optional = true }
 
 async-trait.workspace = true
 once_cell.workspace = true
@@ -26,3 +28,7 @@ vise.workspace = true
 [dev-dependencies]
 assert_matches.workspace = true
 test-casing.workspace = true
+
+[features]
+default = []
+node_framework = ["dep:zksync_node_framework"]
