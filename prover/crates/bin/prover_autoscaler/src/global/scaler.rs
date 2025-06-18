@@ -302,9 +302,16 @@ impl<K: Key> Scaler<K> {
         }
 
         // Remove unneeded pods.
-        if total as usize - total as usize * self.hysteresis / 100 > queue {
+        let mut total_hysteresis = total - total * self.hysteresis as i64 / 100;
+        tracing::debug!(
+            "Queue already covered with pods: {} (with hysteresis: {})",
+            total,
+            total_hysteresis
+        );
+        if total_hysteresis > queue as i64 {
             for cluster in sorted_clusters.iter().rev() {
-                let mut excess_queue = total - self.normalize_queue(cluster.key, queue) as i64;
+                let mut excess_queue =
+                    total_hysteresis - self.normalize_queue(cluster.key, queue) as i64;
                 if excess_queue <= 0 {
                     continue;
                 }
@@ -319,7 +326,8 @@ impl<K: Key> Scaler<K> {
                 }
                 *replicas -= excess_replicas;
                 total -= excess_queue;
-                if total <= 0 {
+                total_hysteresis -= excess_queue;
+                if total_hysteresis <= 0 {
                     break;
                 };
             }
@@ -1578,7 +1586,7 @@ mod tests {
         };
 
         assert_eq!(
-            scaler.calculate(&"prover".into(), 2 * 1500 + 3000 - 1500, &clusters),
+            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
             [
                 (
                     PoolKey {
@@ -1599,7 +1607,28 @@ mod tests {
             "Override priority: H100 in foo, then L4 in bar"
         );
         assert_eq!(
-            scaler2.calculate(&"prover".into(), 2 * 1500 + 3000 - 1500, &clusters),
+            scaler.calculate(&"prover".into(), 2 * 1500 + 2 * 3000 - 1500, &clusters),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    3,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    1,
+                ),
+            ]
+            .into(),
+            "Override priority: H100 in foo, then L4 in bar"
+        );
+        assert_eq!(
+            scaler2.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
             [
                 (
                     PoolKey {
