@@ -123,7 +123,7 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        min(self.l2_blocks.len(), 1) - 1
+        min(self.l2_blocks.len(), 0)
     }
 
     pub(crate) fn push_tx(

@@ -805,16 +805,6 @@ impl EthSenderDal<'_, '_> {
         Ok(history_item)
     }
 
-    pub async fn get_last_sent_successfully_eth_tx(
-        &mut self,
-        eth_tx_id: u32,
-    ) -> sqlx::Result<Option<TxHistory>> {
-        let history_item = self
-            .get_last_sent_successfully_eth_storage_tx(eth_tx_id)
-            .await?;
-        Ok(history_item.map(|tx| tx.into()))
-    }
-
     pub async fn get_last_sent_successfully_eth_tx_id_by_batch_and_op(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -1002,9 +992,10 @@ impl EthSenderDal<'_, '_> {
         let eth_tx_id = self
             .get_last_sent_successfully_eth_tx_id_by_batch_and_op(l1_batch_number, op_type)
             .await;
-        self.get_last_sent_successfully_eth_tx(eth_tx_id.unwrap()?)
+        self.get_last_sent_successfully_eth_storage_tx(eth_tx_id.unwrap()?)
             .await
             .unwrap()
+            .map(|tx| tx.into())
     }
 
     pub async fn is_using_blobs_in_latest_batch(&mut self) -> DalResult<bool> {

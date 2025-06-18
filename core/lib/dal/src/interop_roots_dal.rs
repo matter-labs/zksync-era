@@ -128,6 +128,7 @@ impl InteropRootDal<'_, '_> {
         db_transaction.commit().await?;
         Ok(())
     }
+
     pub async fn get_interop_roots(
         &mut self,
         l2block_number: L2BlockNumber,
@@ -197,7 +198,6 @@ impl InteropRootDal<'_, '_> {
                 received_timestamp: rec.received_timestamp as u64,
             }
         })
-        .sorted_by_key(|root| root.received_timestamp)
         .collect();
 
         Ok(roots)

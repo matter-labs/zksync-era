@@ -153,5 +153,3 @@ impl EventProcessor for InteropRootProcessor {
         true
     }
 }
-
-impl InteropRootProcessor {}
