@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use anyhow::Context;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_prover_task::Task;
-use zksync_types::L1BatchId;
+use zksync_types::{L1BatchId, L2ChainId};
 
 use crate::metrics::{WitnessType, SERVER_METRICS};
 
@@ -24,15 +26,22 @@ impl WitnessJobQueuer {
             .fri_leaf_witness_generator_dal()
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
             .await;
+
+        let mut count_by_chain_id: HashMap<L2ChainId, u64> = HashMap::new();
+
         for (l1_batch_id, circuit_id) in l1_batch_ids {
-            tracing::info!(
+            tracing::debug!(
                 "Marked leaf job for l1_batch {} and circuit_id {} as queued.",
                 l1_batch_id,
                 circuit_id
             );
+            *count_by_chain_id.entry(l1_batch_id.chain_id()).or_insert(0) += 1;
+        }
+
+        for (chain_id, count) in count_by_chain_id {
             SERVER_METRICS.witness_generator_waiting_to_queued_jobs_transitions
-                [&(WitnessType::LeafAggregationJobsFri, l1_batch_id.chain_id())]
-                .inc_by(1);
+                [&(WitnessType::LeafAggregationJobsFri, chain_id)]
+                .inc_by(count);
         }
     }
 
@@ -59,16 +68,23 @@ impl WitnessJobQueuer {
         let l1_batch_ids = self
             .move_node_aggregation_jobs_from_waiting_to_queued(connection)
             .await;
+
+        let mut count_by_chain_id: HashMap<L2ChainId, u64> = HashMap::new();
+
         for (batch_id, circuit_id, depth) in l1_batch_ids {
-            tracing::info!(
+            tracing::debug!(
                 "Marked node job for l1_batch {} and circuit_id {} at depth {} as queued.",
                 batch_id,
                 circuit_id,
                 depth
             );
+            *count_by_chain_id.entry(batch_id.chain_id()).or_insert(0) += 1;
+        }
+
+        for (chain_id, count) in count_by_chain_id {
             SERVER_METRICS.witness_generator_waiting_to_queued_jobs_transitions
-                [&(WitnessType::NodeAggregationJobsFri, batch_id.chain_id())]
-                .inc_by(1);
+                [&(WitnessType::NodeAggregationJobsFri, chain_id)]
+                .inc_by(count);
         }
     }
 
@@ -79,14 +95,21 @@ impl WitnessJobQueuer {
             .fri_recursion_tip_witness_generator_dal()
             .move_recursion_tip_jobs_from_waiting_to_queued()
             .await;
+
+        let mut count_by_chain_id: HashMap<L2ChainId, u64> = HashMap::new();
+
         for l1_batch_id in &l1_batch_ids {
-            tracing::info!(
+            tracing::debug!(
                 "Marked recursion tip job for l1_batch {} as queued.",
                 l1_batch_id,
             );
+            *count_by_chain_id.entry(l1_batch_id.chain_id()).or_insert(0) += 1;
+        }
+
+        for (chain_id, count) in count_by_chain_id {
             SERVER_METRICS.witness_generator_waiting_to_queued_jobs_transitions
-                [&(WitnessType::RecursionTipJobsFri, l1_batch_id.chain_id())]
-                .inc_by(1);
+                [&(WitnessType::RecursionTipJobsFri, chain_id)]
+                .inc_by(count);
         }
     }
 
@@ -97,14 +120,21 @@ impl WitnessJobQueuer {
             .fri_scheduler_witness_generator_dal()
             .move_scheduler_jobs_from_waiting_to_queued()
             .await;
+
+        let mut count_by_chain_id: HashMap<L2ChainId, u64> = HashMap::new();
+
         for l1_batch_id in &l1_batch_ids {
-            tracing::info!(
+            tracing::debug!(
                 "Marked scheduler job for l1_batch {} as queued.",
                 l1_batch_id,
             );
+            *count_by_chain_id.entry(l1_batch_id.chain_id()).or_insert(0) += 1;
+        }
+
+        for (chain_id, count) in count_by_chain_id {
             SERVER_METRICS.witness_generator_waiting_to_queued_jobs_transitions
-                [&(WitnessType::SchedulerJobsFri, l1_batch_id.chain_id())]
-                .inc_by(1);
+                [&(WitnessType::SchedulerJobsFri, chain_id)]
+                .inc_by(count);
         }
     }
 }
