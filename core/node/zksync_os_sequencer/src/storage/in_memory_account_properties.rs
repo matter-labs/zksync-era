@@ -26,7 +26,7 @@ pub struct InMemoryAccountProperties {
     /// The lowest block whose state lives entirely in `base_state`.
     base_block: Arc<AtomicU64>,
     /// Base properties at `base_block`.
-    base_state: Arc<DashMap<Address, AccountProperties>>,
+    pub base_state: Arc<DashMap<Address, AccountProperties>>,
     /// Per-block snapshots: block_number → full AccountProperties map for that block.
     diffs: Arc<DashMap<u64, Arc<HashMap<Address, AccountProperties>>>>,
     /// How many diffs to retain before compaction.

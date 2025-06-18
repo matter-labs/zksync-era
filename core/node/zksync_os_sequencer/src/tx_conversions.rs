@@ -1,8 +1,8 @@
 // we use zksync-era transaction types for now, so we need to convert back and forth.
 // we should have a lightweight wrapper for zksync-os (or use some common crate) to avoid this conversion
 
-use zk_os_forward_system::run::BatchOutput;
-use zksync_types::{api, H256, U256};
+use zk_os_forward_system::run::{BatchOutput, ExecutionResult};
+use zksync_types::{api, H256, U256, U64};
 use zksync_zkos_vm_runner::zkos_conversions::b160_to_address;
 use crate::CHAIN_ID;
 use crate::storage::in_memory_tx_receipts::TransactionApiData;
@@ -41,7 +41,15 @@ pub fn transaction_to_api_data(
 
     // tracing::info!("Block {} - saving - api::Transaction in {:?},", block_output.header.number, ts.elapsed());
     // ts = std::time::Instant::now();
-
+    let tx_output = block_output
+        .tx_results
+        .iter()
+        .filter_map(|result| match result {
+            Ok(output) => Some(output),
+            Err(_) => None,
+        })
+        .nth(index)
+        .expect("mismatch in number of transactions and results");
 
     let api_receipt = api::TransactionReceipt {
         transaction_hash: tx.hash(),
@@ -55,23 +63,18 @@ pub fn transaction_to_api_data(
         to: tx.execute.contract_address,
         // todo
         cumulative_gas_used: 7777.into(),
-        gas_used: Some(100.into()),
-        contract_address: block_output
-            .tx_results
-            .iter()
-            .filter_map(|result| match result {
-                Ok(output) => Some(output.contract_address),
-                Err(_) => None,
-            })
-            .nth(index)
-            .expect("mismatch in number of transactions and results")
-            .map(b160_to_address),
+        gas_used: Some(U256::from(tx_output.gas_used)),
+        contract_address: tx_output.contract_address.map(b160_to_address),
         logs: vec![],
         l2_to_l1_logs: vec![],
-        status: 1.into(),
+        status: if matches!(tx_output.execution_result, ExecutionResult::Success(_)) {
+            U64::from(1)
+        } else {
+            U64::from(0)
+        },
         logs_bloom: Default::default(),
-        transaction_type: None,
-        effective_gas_price: None,
+        transaction_type: Some((tx.tx_format() as u32).into()),
+        effective_gas_price: Some(block_output.header.base_fee_per_gas.into()),
     };
 
     // tracing::info!("Block {} - saving - api::TransactionReceipt in {:?},", block_output.header.number, ts.elapsed());
