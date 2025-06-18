@@ -1,10 +1,9 @@
 //! This module provides a "builder" for the main node,
 //! as well as an interface to run the node with the specified components.
 
-use std::time::Duration;
+use std::{mem, time::Duration};
 
 use anyhow::{bail, Context};
-use tokio::runtime::Runtime;
 use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
@@ -23,7 +22,7 @@ use zksync_config::{
         wallets::Wallets,
         GeneralConfig, Secrets,
     },
-    GenesisConfig,
+    CapturedParams, GenesisConfig,
 };
 use zksync_contract_verification_server::node::ContractVerificationApiLayer;
 use zksync_da_clients::node::{
@@ -89,48 +88,22 @@ macro_rules! try_load_config {
 }
 
 pub(crate) struct MainNodeBuilder {
-    node: ZkStackServiceBuilder,
-    configs: GeneralConfig,
-    wallets: Wallets,
-    genesis_config: GenesisConfig,
-    consensus: Option<ConsensusConfig>,
-    secrets: Secrets,
-    l1_specific_contracts: L1SpecificContracts,
+    pub node: ZkStackServiceBuilder,
+    pub config_params: CapturedParams,
+    pub configs: GeneralConfig,
+    pub wallets: Wallets,
+    pub genesis_config: GenesisConfig,
+    pub consensus: Option<ConsensusConfig>,
+    pub secrets: Secrets,
+    pub l1_specific_contracts: L1SpecificContracts,
     // This field is a fallback for situation
     // if use pre v26 contracts and not all functions are available for loading contracts
-    l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
-    l2_contracts: L2Contracts,
-    multicall3: Option<Address>,
+    pub l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
+    pub l2_contracts: L2Contracts,
+    pub multicall3: Option<Address>,
 }
 
 impl MainNodeBuilder {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        runtime: Runtime,
-        configs: GeneralConfig,
-        wallets: Wallets,
-        genesis_config: GenesisConfig,
-        consensus: Option<ConsensusConfig>,
-        secrets: Secrets,
-        l1_specific_contracts: L1SpecificContracts,
-        l2_contracts: L2Contracts,
-        l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
-        multicall3: Option<Address>,
-    ) -> Self {
-        Self {
-            node: ZkStackServiceBuilder::on_runtime(runtime),
-            configs,
-            wallets,
-            genesis_config,
-            consensus,
-            secrets,
-            l1_specific_contracts,
-            l1_sl_contracts,
-            l2_contracts,
-            multicall3,
-        }
-    }
-
     pub fn get_pubdata_type(&self) -> anyhow::Result<PubdataType> {
         if self.genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup
         {
@@ -171,6 +144,13 @@ impl MainNodeBuilder {
         } else {
             tracing::info!("Prometheus listener port port is not configured; Prometheus exporter is not initialized");
         }
+        Ok(self)
+    }
+
+    #[cfg(not(target_env = "msvc"))]
+    fn add_jemalloc_monitor_layer(mut self) -> anyhow::Result<Self> {
+        self.node
+            .add_layer(zksync_node_jemalloc::JemallocMonitorLayer);
         Ok(self)
     }
 
@@ -218,7 +198,11 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
+        let api_config = try_load_config!(self.configs.api_config);
+        let l1_gas_layer = L1GasLayer::new(
+            &state_keeper_config,
+            api_config.web3_json_rpc.gas_price_scale_factor_open_batch,
+        );
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
@@ -349,7 +333,9 @@ impl MainNodeBuilder {
 
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = try_load_config!(self.configs.api_config).healthcheck;
-        self.node.add_layer(HealthCheckLayer(healthcheck_config));
+        let config_params = mem::take(&mut self.config_params);
+        self.node
+            .add_layer(HealthCheckLayer::new(healthcheck_config).with_config_params(config_params));
         Ok(self)
     }
 
@@ -445,7 +431,7 @@ impl MainNodeBuilder {
             namespaces: Some(namespaces),
             filters_limit: Some(rpc_config.filters_limit),
             subscriptions_limit: Some(rpc_config.subscriptions_limit),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size.get()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
             request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
@@ -487,7 +473,7 @@ impl MainNodeBuilder {
             namespaces: Some(namespaces),
             filters_limit: Some(rpc_config.filters_limit),
             subscriptions_limit: Some(rpc_config.subscriptions_limit),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size.get()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
             websocket_requests_per_minute_limit: Some(
                 rpc_config.websocket_requests_per_minute_limit,
@@ -752,6 +738,11 @@ impl MainNodeBuilder {
             .add_settlement_mode_data()?
             .add_gateway_migrator_layer()?
             .add_gas_adjuster_layer()?;
+
+        #[cfg(not(target_env = "msvc"))]
+        {
+            self = self.add_jemalloc_monitor_layer()?;
+        }
 
         // Add preconditions for all the components.
         self = self

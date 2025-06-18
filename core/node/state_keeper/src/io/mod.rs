@@ -46,8 +46,8 @@ pub struct PendingBatchData {
 
 #[derive(Debug, Copy, Clone, Default, PartialEq)]
 pub struct L2BlockParams {
-    /// The timestamp of the L2 block.
-    pub timestamp: u64,
+    /// The timestamp of the L2 block in ms.
+    timestamp_ms: u64,
     /// The maximal number of virtual blocks that can be created within this L2 block.
     /// During the migration from displaying users `batch.number` to L2 block number in Q3 2023
     /// in order to make the process smoother for users, we temporarily display the virtual blocks for users.
@@ -56,7 +56,42 @@ pub struct L2BlockParams {
     /// Note that it is the *maximal* number of virtual blocks that can be created within this L2 block since
     /// once the virtual blocks' number reaches the L2 block number, they will never be allowed to exceed those, i.e.
     /// any "excess" created blocks will be ignored.
-    pub virtual_blocks: u32,
+    virtual_blocks: u32,
+}
+
+impl L2BlockParams {
+    pub fn new(timestamp_ms: u64) -> Self {
+        Self {
+            timestamp_ms,
+            virtual_blocks: 1,
+        }
+    }
+
+    pub fn with_custom_virtual_block_count(timestamp_ms: u64, virtual_blocks: u32) -> Self {
+        Self {
+            timestamp_ms,
+            virtual_blocks,
+        }
+    }
+
+    /// The timestamp of the L2 block in seconds.
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp_ms / 1000
+    }
+
+    /// The timestamp of the L2 block in milliseconds.
+    pub fn timestamp_ms(&self) -> u64 {
+        self.timestamp_ms
+    }
+
+    /// Mutable reference for the timestamp of the L2 block in milliseconds.
+    pub fn timestamp_ms_mut(&mut self) -> &mut u64 {
+        &mut self.timestamp_ms
+    }
+
+    pub fn virtual_blocks(&self) -> u32 {
+        self.virtual_blocks
+    }
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
@@ -76,18 +111,26 @@ pub struct L1BatchParams {
     pub pubdata_params: PubdataParams,
 }
 
+#[derive(Debug)]
+pub(crate) struct BatchInitParams {
+    pub system_env: SystemEnv,
+    pub l1_batch_env: L1BatchEnv,
+    pub pubdata_params: PubdataParams,
+    pub timestamp_ms: u64,
+}
+
 impl L1BatchParams {
-    pub(crate) fn into_env(
+    pub(crate) fn into_init_params(
         self,
         chain_id: L2ChainId,
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-    ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
+    ) -> BatchInitParams {
         let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
-            self.first_l2_block.timestamp,
+            self.first_l2_block.timestamp(),
             previous_batch_hash,
             self.fee_input,
             cursor.next_l2_block,
@@ -99,7 +142,12 @@ impl L1BatchParams {
             chain_id,
         );
 
-        (system_env, l1_batch_env, self.pubdata_params)
+        BatchInitParams {
+            system_env,
+            l1_batch_env,
+            pubdata_params: self.pubdata_params,
+            timestamp_ms: self.first_l2_block.timestamp_ms(),
+        }
     }
 }
 

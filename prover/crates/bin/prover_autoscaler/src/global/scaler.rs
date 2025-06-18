@@ -58,17 +58,20 @@ pub struct Scaler<K> {
     max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
     // TODO Add default speed for default K
     speed: HashMap<K, usize>,
+    hysteresis: usize,
     config: Arc<ScalerConfig>,
     target_priority: Option<PriorityConfig>,
 }
 
 impl<K: Key> Scaler<K> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         queue_report_field: QueueReportFields,
         deployment: DeploymentName,
         min_replicas: usize,
         max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
         speed: HashMap<K, usize>,
+        hysteresis: usize,
         config: Arc<ScalerConfig>,
         target_priority: Option<PriorityConfig>,
     ) -> Self {
@@ -78,6 +81,7 @@ impl<K: Key> Scaler<K> {
             min_replicas,
             max_replicas,
             speed,
+            hysteresis,
             config,
             target_priority,
         }
@@ -298,9 +302,16 @@ impl<K: Key> Scaler<K> {
         }
 
         // Remove unneeded pods.
-        if (total as usize) > queue {
+        let mut total_hysteresis = total - total * self.hysteresis as i64 / 100;
+        tracing::debug!(
+            "Queue already covered with pods: {} (with hysteresis: {})",
+            total,
+            total_hysteresis
+        );
+        if total_hysteresis > queue as i64 {
             for cluster in sorted_clusters.iter().rev() {
-                let mut excess_queue = total - self.normalize_queue(cluster.key, queue) as i64;
+                let mut excess_queue =
+                    total_hysteresis - self.normalize_queue(cluster.key, queue) as i64;
                 if excess_queue <= 0 {
                     continue;
                 }
@@ -315,7 +326,8 @@ impl<K: Key> Scaler<K> {
                 }
                 *replicas -= excess_replicas;
                 total -= excess_queue;
-                if total <= 0 {
+                total_hysteresis -= excess_queue;
+                if total_hysteresis <= 0 {
                     break;
                 };
             }
@@ -481,6 +493,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
+            0,
             scaler_config("prover-other"),
             None,
         );
@@ -633,6 +646,7 @@ mod tests {
                 (GpuKey(Gpu::T4), 700),
             ]
             .into(),
+            0,
             scaler_config("prover"),
             None,
         );
@@ -799,6 +813,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
+            0,
             scaler_config("prover"),
             None,
         );
@@ -997,6 +1012,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
+            0,
             scaler_config("prover"),
             None,
         );
@@ -1117,6 +1133,7 @@ mod tests {
             ]
             .into(),
             [(NoKey(), 10)].into(),
+            0,
             scaler_config(""),
             None,
         );
@@ -1294,6 +1311,7 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            0,
             scaler_config("prover"),
             target_priority,
         );
@@ -1396,6 +1414,7 @@ mod tests {
             )]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            0,
             scaler_config("prover"),
             target_priority,
         );
@@ -1479,6 +1498,160 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
+    fn test_calculate_hysteresis() {
+        let target_priority = Some(PriorityConfig::Gpu(vec![
+            ("foo".into(), GpuKey(Gpu::L4)),
+            ("foo".into(), GpuKey(Gpu::H100)),
+        ]));
+
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [(
+                "foo".into(),
+                [(GpuKey(Gpu::L4), 50), (GpuKey(Gpu::H100), 10)].into(),
+            )]
+            .into(),
+            [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            50,
+            scaler_config("prover"),
+            target_priority.clone(),
+        );
+
+        let scaler2 = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [(
+                "foo".into(),
+                [(GpuKey(Gpu::L4), 50), (GpuKey(Gpu::H100), 10)].into(),
+            )]
+            .into(),
+            [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            0,
+            scaler_config("prover"),
+            target_priority,
+        );
+
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [
+                                ("circuit-prover-gpu".into(), Deployment::default()),
+                                ("circuit-prover-gpu-h100".into(), Deployment::default()),
+                            ]
+                            .into(),
+                            pods: [
+                                (
+                                    "circuit-prover-gpu-7c5f8fc747-gmtcr".into(),
+                                    Pod {
+                                        status: "Running".into(),
+                                        changed: Utc::now(),
+                                        ..Default::default()
+                                    },
+                                ),
+                                (
+                                    "circuit-prover-gpu-7c5f8fc747-gmtc2".into(),
+                                    Pod {
+                                        status: "Running".into(),
+                                        changed: Utc::now(),
+                                        out_of_resources: true,
+                                        ..Default::default()
+                                    },
+                                ),
+                                (
+                                    "circuit-prover-gpu-h100-7c5f8fc747-gmtc3".into(),
+                                    Pod {
+                                        status: "Running".into(),
+                                        changed: Utc::now(),
+                                        ..Default::default()
+                                    },
+                                ),
+                            ]
+                            .into(),
+                            scale_errors: vec![],
+                        },
+                    )]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            scaler.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    2,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    1,
+                ),
+            ]
+            .into(),
+            "Override priority: H100 in foo, then L4 in bar"
+        );
+        assert_eq!(
+            scaler.calculate(&"prover".into(), 2 * 1500 + 2 * 3000 - 1500, &clusters),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    3,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    1,
+                ),
+            ]
+            .into(),
+            "Override priority: H100 in foo, then L4 in bar"
+        );
+        assert_eq!(
+            scaler2.calculate(&"prover".into(), 2 * 1500 + 1 * 3000 - 1500, &clusters),
+            [
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::L4),
+                    },
+                    1,
+                ),
+                (
+                    PoolKey {
+                        cluster: "foo".into(),
+                        key: GpuKey(Gpu::H100),
+                    },
+                    1,
+                ),
+            ]
+            .into(),
+            "Override priority: H100 in foo, then L4 in bar"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
     fn test_convert_to_pool() {
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
@@ -1486,6 +1659,7 @@ mod tests {
             2,
             [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
             [(GpuKey(Gpu::L4), 500)].into(),
+            0,
             scaler_config("prover"),
             None,
         );

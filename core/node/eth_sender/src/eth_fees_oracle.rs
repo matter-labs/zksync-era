@@ -200,7 +200,7 @@ impl GasAdjusterFeesOracle {
         );
         let base_fee_per_gas = self
             .gas_adjuster
-            .get_base_fee(capped_time_in_mempool_in_l1_blocks);
+            .gateway_get_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
         if self.is_base_fee_exceeding_limit(base_fee_per_gas) {
             return Err(EthSenderError::ExceedMaxBaseFee);

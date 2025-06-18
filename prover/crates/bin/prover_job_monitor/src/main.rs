@@ -13,7 +13,6 @@ use zksync_config::{
     },
     full_config_schema,
     sources::ConfigFilePaths,
-    ConfigRepositoryExt,
 };
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_monitor::{
@@ -28,7 +27,6 @@ use zksync_prover_job_monitor::{
 };
 use zksync_prover_task::TaskRunner;
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -52,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 
     let _observability_guard = config_sources.observability()?.install()?;
 
-    let repo = config_sources.build_repository(&schema);
+    let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
     let database_secrets: DatabaseSecrets = repo.parse()?;
 
@@ -66,7 +64,11 @@ async fn main() -> anyhow::Result<()> {
     let witness_generator_config = general_config
         .witness_generator_config
         .context("witness_generator_config")?;
-    let exporter_config = PrometheusExporterConfig::pull(prover_job_monitor_config.prometheus_port);
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(prover_job_monitor_config.prometheus_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -91,7 +93,9 @@ async fn main() -> anyhow::Result<()> {
 
     let graceful_shutdown_timeout = prover_job_monitor_config.graceful_shutdown_timeout;
 
-    let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver.clone()))];
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(stop_receiver.clone()),
+    )];
 
     tasks.extend(get_tasks(
         connection_pool.clone(),
