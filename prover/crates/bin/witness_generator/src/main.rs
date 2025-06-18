@@ -146,6 +146,7 @@ async fn run_inner(
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
     let database_secrets: DatabaseSecrets = repo.parse()?;
+    let started_at = Instant::now();
 
     let prover_config = general_config.prover_config.context("prover config")?;
     let object_store_config = prover_config.prover_object_store;
