@@ -683,7 +683,8 @@ impl BlocksWeb3Dal<'_, '_> {
                 commit_tx.confirmed_at AS "committed_at?",
                 commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
-                prove_tx.confirmed_at AS "proven_at?",
+                (zkos_proofs.fri_proof_picked_at + zkos_proofs.fri_prove_time_taken) AS "proven_at?",
+                (zkos_proofs.fri_proof_picked_at) AS "proving_started_at?",
                 prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",
                 execute_tx.confirmed_at AS "executed_at?",
@@ -699,6 +700,7 @@ impl BlocksWeb3Dal<'_, '_> {
             FROM
                 miniblocks
             LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+            LEFT JOIN zkos_proofs ON zkos_proofs.l2_block_number = l1_batches.number
             LEFT JOIN eth_txs_history AS commit_tx
                 ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
