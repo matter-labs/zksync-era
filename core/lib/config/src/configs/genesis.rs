@@ -10,7 +10,7 @@ use serde::{
     Deserialize, Serialize,
 };
 use smart_config::{
-    de::{DeserializeContext, DeserializeParam, WellKnown},
+    de::{DeserializeContext, DeserializeParam, WellKnown, WellKnownOption},
     metadata::{BasicTypes, ParamMetadata},
     DescribeConfig, DeserializeConfig, ErrorWithOrigin,
 };
@@ -219,6 +219,8 @@ impl WellKnown for GenesisConfig {
     type Deserializer = GenesisConfigDeserializer;
     const DE: Self::Deserializer = GenesisConfigDeserializer;
 }
+
+impl WellKnownOption for GenesisConfig {}
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct GenesisConfigWrapper {

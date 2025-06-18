@@ -17,6 +17,7 @@ tokio-util.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 clap = { workspace = true, features = ["derive"] }
+ctrlc = { workspace = true, features = ["termination"] }
 
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_object_store.workspace = true

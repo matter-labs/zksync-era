@@ -34,12 +34,17 @@ pub struct AvailDefaultConfig {
     #[serde(default = "AvailDefaultConfig::default_dispatch_timeout")]
     pub dispatch_timeout: Duration,
     #[config(default_t = 5)]
+    #[serde(default = "AvailDefaultConfig::default_max_blocks_to_look_back")]
     pub max_blocks_to_look_back: usize,
 }
 
 impl AvailDefaultConfig {
     const fn default_dispatch_timeout() -> Duration {
         Duration::from_secs(180)
+    }
+
+    const fn default_max_blocks_to_look_back() -> usize {
+        5
     }
 }
 

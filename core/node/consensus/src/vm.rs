@@ -116,10 +116,23 @@ impl VM {
             }
             // If the execution was reverted by a general revert reason (i.e. the contract called revert()),
             // we can extract the revert reason from the output.
-            // We ignore the data from the revert reason, but we can decode it if necessary.
             ExecutionResult::Revert {
-                output: VmRevertReason::General { msg, .. },
-            } => Ok(VMResult::Revert { revert_reason: msg }),
+                output: VmRevertReason::General { msg, data },
+            } => Ok(VMResult::Revert {
+                revert_reason: format!("General revert:\nmsg: {msg}\ndata: {data:?}"),
+            }),
+            // If the execution was reverted with a custom revert reason, it will appear as Unknown.
+            ExecutionResult::Revert {
+                output:
+                    VmRevertReason::Unknown {
+                        function_selector,
+                        data,
+                    },
+            } => Ok(VMResult::Revert {
+                revert_reason: format!(
+                    "Custom revert:\nfunction_selector: {function_selector:?}\ndata: {data:?}"
+                ),
+            }),
             // In all other cases, we just return the error.
             other => Err(anyhow::format_err!("Unsuccessful execution: {other:?}").into()),
         }

@@ -1,8 +1,4 @@
-use serde::{Deserialize, Serialize};
-use smart_config::{
-    de::{Serde, WellKnown},
-    ConfigSchema, DescribeConfig, DeserializeConfig,
-};
+use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::{Address, H256};
 
 use super::{
@@ -101,26 +97,25 @@ impl L2ContractsConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct Bridge {
-    #[serde(alias = "proxy_addr")]
+    /// Address of the bridge on L1.
+    #[config(alias = "proxy_addr")]
     pub l1_address: Option<Address>,
-    #[serde(alias = "addr")]
+    /// Address of the bridge on L2.
+    #[config(alias = "addr")]
     pub l2_address: Option<Address>,
 }
 
-impl WellKnown for Bridge {
-    type Deserializer = Serde![object];
-    const DE: Self::Deserializer = Serde![object];
-}
-
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
 pub struct BridgesConfig {
-    #[config(default, alias = "shared_bridge")]
+    #[config(nest, alias = "shared_bridge")]
     pub shared: Bridge,
-    #[config(default, alias = "erc20_bridge")]
+    #[config(nest, alias = "erc20_bridge")]
     pub erc20: Bridge,
-    #[config(default, alias = "weth_bridge")]
+    #[config(nest, alias = "weth_bridge")]
     pub weth: Bridge,
 }
 

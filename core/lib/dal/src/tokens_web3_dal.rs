@@ -35,55 +35,6 @@ pub struct TokensWeb3Dal<'a, 'c> {
 }
 
 impl TokensWeb3Dal<'_, '_> {
-    /// Returns information about well-known tokens.
-    pub async fn get_well_known_tokens(&mut self) -> DalResult<Vec<TokenInfo>> {
-        let records = sqlx::query_as!(
-            StorageTokenInfo,
-            r#"
-            SELECT
-                l1_address,
-                l2_address,
-                name,
-                symbol,
-                decimals
-            FROM
-                tokens
-            WHERE
-                well_known = TRUE
-            ORDER BY
-                symbol
-            "#
-        )
-        .instrument("get_well_known_tokens")
-        .fetch_all(self.storage)
-        .await?;
-
-        let l2_token_addresses = records
-            .iter()
-            .map(|storage_token_info| Address::from_slice(&storage_token_info.l2_address));
-        let token_deployment_data = self
-            .storage
-            .storage_logs_dal()
-            .filter_deployed_contracts(l2_token_addresses, None)
-            .await?;
-
-        let tokens = records
-            .into_iter()
-            .filter_map(|storage_token_info| {
-                let l2_token_address = Address::from_slice(&storage_token_info.l2_address);
-                if !l2_token_address.is_zero()
-                    && !token_deployment_data.contains_key(&l2_token_address)
-                {
-                    return None;
-                }
-
-                Some(TokenInfo::from(storage_token_info))
-            })
-            .collect();
-
-        Ok(tokens)
-    }
-
     /// Returns information about all tokens.
     pub async fn get_all_tokens(
         &mut self,

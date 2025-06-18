@@ -8,10 +8,8 @@ pub struct FriProofCompressorConfig {
     /// The compression mode to use
     #[config(default_t = 1)]
     pub compression_mode: u8,
-    // Configurations for prometheus
-    pub prometheus_pushgateway_url: String,
-    #[config(default_t = Duration::from_millis(100))]
-    pub prometheus_push_interval: Duration,
+    // Prometheus metrics port
+    pub prometheus_port: Option<u16>,
     /// Max time for proof compression to be performed
     #[config(default_t = 1 * TimeUnit::Hours)]
     pub generation_timeout: Duration,
@@ -36,8 +34,7 @@ mod tests {
     fn expected_config() -> FriProofCompressorConfig {
         FriProofCompressorConfig {
             compression_mode: 1,
-            prometheus_pushgateway_url: "http://127.0.0.1:9091".to_string(),
-            prometheus_push_interval: Duration::from_millis(100),
+            prometheus_port: Some(3326),
             generation_timeout: Duration::from_secs(3000),
             max_attempts: 5,
             universal_setup_path: "keys/setup/setup_2^26.key".into(),
@@ -52,9 +49,7 @@ mod tests {
     fn parsing_from_env() {
         let env = r#"
             FRI_PROOF_COMPRESSOR_COMPRESSION_MODE=1
-            FRI_PROOF_COMPRESSOR_PROMETHEUS_LISTENER_PORT=3316
-            FRI_PROOF_COMPRESSOR_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
-            FRI_PROOF_COMPRESSOR_PROMETHEUS_PUSH_INTERVAL_MS=100
+            FRI_PROOF_COMPRESSOR_PROMETHEUS_PORT=3326
             FRI_PROOF_COMPRESSOR_GENERATION_TIMEOUT_IN_SECS=3000
             FRI_PROOF_COMPRESSOR_MAX_ATTEMPTS=5
             FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_PATH="keys/setup/setup_2^26.key"
@@ -73,9 +68,7 @@ mod tests {
     fn parsing_from_yaml() {
         let yaml = r#"
           compression_mode: 1
-          prometheus_listener_port: 3326
-          prometheus_pushgateway_url: http://127.0.0.1:9091
-          prometheus_push_interval_ms: 100
+          prometheus_port: 3326
           generation_timeout_in_secs: 3000
           max_attempts: 5
           universal_setup_path: keys/setup/setup_2^26.key
@@ -91,9 +84,7 @@ mod tests {
     fn parsing_from_idiomatic_yaml() {
         let yaml = r#"
           compression_mode: 1
-          prometheus_listener_port: 3326
-          prometheus_pushgateway_url: http://127.0.0.1:9091
-          prometheus_push_interval: 100ms
+          prometheus_port: 3326
           generation_timeout: 50min
           max_attempts: 5
           universal_setup_path: keys/setup/setup_2^26.key
