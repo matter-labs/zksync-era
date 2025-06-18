@@ -10,9 +10,9 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, h256_to_u256, l1::L1Tx, l2::L2Tx,
-    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, InteropRoot,
-    L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    block::L2BlockExecutionData, debug_flat_call::CallTraceMeta, l1::L1Tx, l2::L2Tx,
+    protocol_upgrade::ProtocolUpgradeTx, Address, ExecuteTransactionCommon, L1BatchNumber,
+    L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
     TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_interface::{
@@ -2225,7 +2225,11 @@ impl TransactionsDal<'_, '_> {
                     H256::from_slice(&row.miniblock_hash)
                 }
             };
-            let interop_roots = self.storage.interop_root_dal().get_interop_roots(number).await?;
+            let interop_roots = self
+                .storage
+                .interop_root_dal()
+                .get_interop_roots(number)
+                .await?;
 
             data.push(L2BlockExecutionData {
                 number,
