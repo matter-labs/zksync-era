@@ -18,13 +18,20 @@ runs:
         echo CI=1 >> $GITHUB_ENV
         echo IN_DOCKER=1 >> .env
         echo CI=1 >> .env
+        echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
 
-    - name: Setup sccache client
+    - name: Setup sccache for building rust code outside Docker
       shell: bash
       run: |
-        echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
-        echo SCCACHE_SERVER_PORT=4226 >> $GITHUB_ENV
+        echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
+        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
+        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
+        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
+        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
         echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
+        
+        # sccache outside docker will run it's own server
+        echo SCCACHE_SERVER_PORT=4225 >> $GITHUB_ENV
 
     - name: Setup sccache for building rust code inside Docker
       shell: bash
@@ -32,8 +39,8 @@ runs:
         echo SCCACHE_CACHE_SIZE=50G >> .env
         echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> .env
         echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> .env
-        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
+        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
         echo RUSTC_WRAPPER=sccache >> .env
 
     - name: Start localnet
@@ -46,9 +53,7 @@ runs:
       shell: bash
       run: |
         ci_run sccache --start-server
-        ci_run sccache --show-stats
-        # Check if sccache is accessible outside of the container
-        sccache --show-stats 
+        sccache --start-server
 
     - name: Init git safe directories
       shell: bash
