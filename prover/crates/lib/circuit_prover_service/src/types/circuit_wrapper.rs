@@ -30,6 +30,7 @@ use zksync_prover_fri_types::{
     keys::FriCircuitKey,
     FriProofWrapper,
 };
+
 use crate::types::setup_data::GoldilocksGpuProverSetupData;
 
 type Transcript = GoldilocksPoisedon2Transcript;

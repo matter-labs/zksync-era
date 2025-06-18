@@ -103,7 +103,7 @@ impl JobManager for Scheduler {
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
-        
+
         tracing::info!(
             "Scheduler generation for block {} is complete in {:?}",
             job.batch_id,
@@ -155,7 +155,9 @@ impl JobManager for Scheduler {
             .context("get_recursion_tip_vk()")?;
         scheduler_witness.proof_witnesses = vec![recursion_tip_proof].into();
 
-        let leaf_vk_commits = keystore.get_leaf_vk_params().context("get_leaf_vk_params()")?;
+        let leaf_vk_commits = keystore
+            .get_leaf_vk_params()
+            .context("get_leaf_vk_params()")?;
         let leaf_layer_parameters = leaf_vk_commits
             .iter()
             .map(|el| el.1.clone())

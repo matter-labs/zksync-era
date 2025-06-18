@@ -229,7 +229,8 @@ impl JobManager for NodeAggregation {
             proofs_ids: metadata.prover_job_ids_for_proofs,
             leaf_vk,
             node_vk,
-            all_leafs_layer_params: keystore.get_leaf_vk_params()
+            all_leafs_layer_params: keystore
+                .get_leaf_vk_params()
                 .context("get_leaf_vk_params()")?,
         })
     }

@@ -1,20 +1,21 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
+use circuit_definitions::circuit_definitions::{
+    base_layer::ZkSyncBaseLayerVerificationKey,
+    recursion_layer::ZkSyncRecursionLayerVerificationKey,
+};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
-
-use crate::artifact_manager::{ArtifactsManager, JobId};
-
-use circuit_definitions::circuit_definitions::{base_layer::ZkSyncBaseLayerVerificationKey, recursion_layer::ZkSyncRecursionLayerVerificationKey};
-use zksync_types::H256;
 use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
-    zkevm_circuits::{
-        recursion::leaf_layer::input::RecursionLeafParametersWitness,
-    },
+    zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
 };
+use zksync_types::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, H256,
+};
+
+use crate::artifact_manager::{ArtifactsManager, JobId};
 
 mod basic_circuits;
 mod leaf_aggregation;

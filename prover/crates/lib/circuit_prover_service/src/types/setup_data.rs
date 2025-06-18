@@ -20,8 +20,6 @@ use zksync_prover_fri_types::circuit_definitions::boojum::{
     implementations::poseidon2::Poseidon2Goldilocks,
 };
 
-
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(
     bound = "F: serde::Serialize + serde::de::DeserializeOwned, P: serde::Serialize + serde::de::DeserializeOwned"

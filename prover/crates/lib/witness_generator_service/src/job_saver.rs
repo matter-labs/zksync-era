@@ -5,7 +5,12 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_job_processor::JobSaver;
 
-use crate::{artifact_manager::ArtifactsManager, executor::WitnessGeneratorExecutor, metrics::WITNESS_GENERATOR_METRICS, rounds::{JobManager, JobMetadata}};
+use crate::{
+    artifact_manager::ArtifactsManager,
+    executor::WitnessGeneratorExecutor,
+    metrics::WITNESS_GENERATOR_METRICS,
+    rounds::{JobManager, JobMetadata},
+};
 
 /// Witness Generator job saver implementation.
 /// Persists the job execution to database. In case of success, artifacts are uploaded to object store.
@@ -30,7 +35,7 @@ impl<R> WitnessGeneratorJobSaver<R> {
 }
 
 #[async_trait]
-impl<R> JobSaver for WitnessGeneratorJobSaver<R> 
+impl<R> JobSaver for WitnessGeneratorJobSaver<R>
 where
     R: JobManager + ArtifactsManager,
 {
@@ -58,7 +63,8 @@ where
         match result {
             Ok(artifacts) => {
                 let blob_save_started_at = Instant::now();
-                let blob_urls = R::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
+                let blob_urls =
+                    R::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
 
                 WITNESS_GENERATOR_METRICS.blob_save_time[&R::ROUND.into()]
                     .observe(blob_save_started_at.elapsed());
@@ -80,7 +86,12 @@ where
                     .await
                     .unwrap()
                     .fri_witness_generator_dal()
-                    .mark_witness_job_failed(&error_message, job_id.id(), job_id.chain_id(), R::ROUND)
+                    .mark_witness_job_failed(
+                        &error_message,
+                        job_id.id(),
+                        job_id.chain_id(),
+                        R::ROUND,
+                    )
                     .await;
             }
         };

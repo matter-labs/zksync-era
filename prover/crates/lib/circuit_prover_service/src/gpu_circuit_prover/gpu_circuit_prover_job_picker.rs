@@ -4,14 +4,13 @@ use anyhow::Context;
 use async_trait::async_trait;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_prover_job_processor::JobPicker;
-use crate::types::setup_data::GoldilocksGpuProverSetupData;
 use zksync_types::prover_dal::FriProverJobMetadata;
 
 use crate::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     metrics::CIRCUIT_PROVER_METRICS,
     types::{
-        circuit_prover_payload::GpuCircuitProverPayload,
+        circuit_prover_payload::GpuCircuitProverPayload, setup_data::GoldilocksGpuProverSetupData,
         witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
     },
 };

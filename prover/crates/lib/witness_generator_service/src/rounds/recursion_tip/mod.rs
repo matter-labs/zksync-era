@@ -179,7 +179,9 @@ impl JobManager for RecursionTip {
 
         const EXPECTED_RECURSION_TIP_LEAVES: usize = 20;
 
-        let leaf_vk_commits = keystore.get_leaf_vk_params().context("get_leaf_vk_params()")?;
+        let leaf_vk_commits = keystore
+            .get_leaf_vk_params()
+            .context("get_leaf_vk_params()")?;
         assert_eq!(
             leaf_vk_commits.len(),
             EXPECTED_RECURSION_TIP_LEAVES,

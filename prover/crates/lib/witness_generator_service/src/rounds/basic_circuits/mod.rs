@@ -113,7 +113,7 @@ impl JobManager for BasicCircuits {
             .get_next_basic_circuit_witness_job(protocol_version, &pod_name)
             .await
         else {
-            return Ok(None)
+            return Ok(None);
         };
         let started_at = Instant::now();
         Ok(Some((batch_id, started_at)))

@@ -29,17 +29,17 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
+use zksync_circuit_prover_service::types::setup_data::GoldilocksProverSetupData;
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
+use zksync_circuit_prover_service::types::setup_data::{
+    GoldilocksGpuProverSetupData, GpuProverSetupData,
+};
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage, MAX_COMPRESSION_CIRCUITS};
 use zksync_utils::env::Workspace;
 
 #[cfg(feature = "gpu")]
 use crate::compressor::CompressorSetupData;
 use crate::VkCommitments;
-#[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use zksync_circuit_prover_service::types::setup_data::{
-    GoldilocksGpuProverSetupData, GpuProverSetupData,
-};
-use zksync_circuit_prover_service::types::setup_data::GoldilocksProverSetupData;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {

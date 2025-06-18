@@ -1,12 +1,17 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::{sync::Arc, time::{Duration, Instant}};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::{anyhow, Context as _};
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 use structopt::StructOpt;
+use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 use zksync_config::{
     configs::{DatabaseSecrets, GeneralConfig},
     full_config_schema,
@@ -20,17 +25,11 @@ use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-use zksync_witness_generator::{
-    metrics::SERVER_METRICS,
-};
+use zksync_witness_generator::metrics::SERVER_METRICS;
 use zksync_witness_generator_service::{
-    rounds::{
-        BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler,
-    },
+    rounds::{BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler},
     witness_generator_runner,
 };
-use tokio_util::sync::CancellationToken;
-use tokio::sync::oneshot;
 
 const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(20);
 
@@ -297,7 +296,7 @@ async fn run_inner(
         );
         SERVER_METRICS.init_latency[&round.into()].set(started_at.elapsed());
     }
-    
+
     *managed_tasks = ManagedTasks::new(tasks);
     managed_tasks.wait_single().await;
     Ok(())

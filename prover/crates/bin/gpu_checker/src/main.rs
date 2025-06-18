@@ -14,7 +14,7 @@ use tokio::fs;
 use zksync_circuit_prover_service::{
     gpu_circuit_prover::GpuCircuitProverExecutor,
     types::{
-        circuit_prover_payload::GpuCircuitProverPayload,
+        circuit_prover_payload::GpuCircuitProverPayload, setup_data::GoldilocksGpuProverSetupData,
         witness_vector_generator_payload::WitnessVectorGeneratorPayload,
     },
     witness_vector_generator::WitnessVectorGeneratorExecutor,
@@ -29,7 +29,6 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_job_processor::Executor;
 use zksync_prover_keystore::keystore::{Keystore, ProverServiceDataType};
-use zksync_circuit_prover_service::types::setup_data::GoldilocksGpuProverSetupData;
 use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::FriProverJobMetadata, L1BatchId, L1BatchNumber,
     L2ChainId,

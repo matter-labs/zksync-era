@@ -14,19 +14,16 @@ use zkevm_test_harness::{
     compute_setups::{generate_circuit_setup_data, CircuitSetupData},
     data_source::SetupDataSource,
 };
+use zksync_circuit_prover_service::types::setup_data::GoldilocksProverSetupData;
+#[cfg(any(feature = "gpu", feature = "gpu-light"))]
+use zksync_circuit_prover_service::types::setup_data::GpuProverSetupData;
 use zksync_prover_fri_types::{ProverServiceDataKey, ProvingStage};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use {
-    shivini::ProverContext,
-    zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker,
+    shivini::ProverContext, zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker,
 };
 
 use crate::keystore::Keystore;
-#[cfg(any(feature = "gpu", feature = "gpu-light"))]
-use zksync_circuit_prover_service::types::setup_data::{
-    GpuProverSetupData,
-};
-use zksync_circuit_prover_service::types::setup_data::GoldilocksProverSetupData;
 
 /// Internal helper function, that calls the test harness to generate the setup data.
 /// It also does a final sanity check to make sure that verification keys didn't change.

@@ -1,16 +1,16 @@
-use crate::keystore::Keystore;
-use zksync_witness_generator_service::rounds::VerificationKeyManager;
 use anyhow::Context;
-use crate::utils::get_leaf_vk_params;
-
-use circuit_definitions::circuit_definitions::{base_layer::ZkSyncBaseLayerVerificationKey, recursion_layer::ZkSyncRecursionLayerVerificationKey};
-use zksync_types::H256;
+use circuit_definitions::circuit_definitions::{
+    base_layer::ZkSyncBaseLayerVerificationKey,
+    recursion_layer::ZkSyncRecursionLayerVerificationKey,
+};
 use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
-    zkevm_circuits::{
-        recursion::leaf_layer::input::RecursionLeafParametersWitness,
-    },
+    zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
 };
+use zksync_types::H256;
+use zksync_witness_generator_service::rounds::VerificationKeyManager;
+
+use crate::{keystore::Keystore, utils::get_leaf_vk_params};
 
 impl VerificationKeyManager for Keystore {
     fn load_base_layer_verification_key(
@@ -37,7 +37,6 @@ impl VerificationKeyManager for Keystore {
     fn get_leaf_vk_params(
         &self,
     ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
-        get_leaf_vk_params(&self)
-            .context("Failed to get leaf verification key parameters")
+        get_leaf_vk_params(&self).context("Failed to get leaf verification key parameters")
     }
 }
