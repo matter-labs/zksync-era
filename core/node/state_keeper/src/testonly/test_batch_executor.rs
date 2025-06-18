@@ -806,6 +806,13 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
+    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+    }
+
     async fn load_base_system_contracts(
         &self,
         _protocol_version: ProtocolVersionId,
