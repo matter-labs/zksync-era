@@ -1,5 +1,7 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{h256_to_u256, InteropRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256};
+use zksync_types::{
+    h256_to_u256, u256_to_h256, InteropRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256,
+};
 
 use crate::Core;
 
@@ -101,6 +103,64 @@ impl InteropRootDal<'_, '_> {
     }
 
     pub async fn mark_interop_roots_as_executed(
+        &mut self,
+        interop_roots: &[InteropRoot],
+        l2block_number: L2BlockNumber,
+        insert_roots: bool,
+    ) -> DalResult<()> {
+        if insert_roots {
+            self.inserted_executed_interop_roots(interop_roots, l2block_number)
+                .await
+        } else {
+            self.update_interop_roots_as_executed(interop_roots, l2block_number)
+                .await
+        }
+    }
+    pub async fn inserted_executed_interop_roots(
+        &mut self,
+        interop_roots: &[InteropRoot],
+        l2block_number: L2BlockNumber,
+    ) -> DalResult<()> {
+        let mut db_transaction = self.storage.start_transaction().await?;
+        for root in interop_roots {
+            let sides = root
+                .sides
+                .iter()
+                .cloned()
+                .map(|root| u256_to_h256(root).as_bytes().to_vec())
+                .collect::<Vec<_>>();
+
+            // There can be interop root in the DB in case of block rollback or if the DB was restored from a dump.
+            sqlx::query!(
+                r#"
+                INSERT INTO interop_roots
+                (
+                    chain_id,
+                    dependency_block_number,
+                    interop_root_sides,
+                    received_timestamp,
+                    processed_block_number
+                )
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (chain_id, dependency_block_number)
+                DO UPDATE SET interop_root_sides = excluded.interop_root_sides,
+                processed_block_number = excluded.processed_block_number;
+                "#,
+                root.chain_id as i32,
+                root.block_number as i32,
+                &sides,
+                root.received_timestamp as i64,
+                l2block_number.0 as i32,
+            )
+            .instrument("mark_interop_roots_as_executed")
+            .execute(&mut db_transaction)
+            .await?;
+        }
+        db_transaction.commit().await?;
+        Ok(())
+    }
+
+    pub async fn update_interop_roots_as_executed(
         &mut self,
         interop_roots: &[InteropRoot],
         l2block_number: L2BlockNumber,

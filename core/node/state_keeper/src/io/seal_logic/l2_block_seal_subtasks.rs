@@ -213,7 +213,7 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
                 &command.l2_block.executed_transactions,
                 command.base_fee_per_gas.into(),
                 command.l2_block.protocol_version,
-                command.pre_insert_txs,
+                command.pre_insert_data,
             )
             .await?;
 
@@ -478,6 +478,7 @@ impl L2BlockSealSubtask for MarkInteropRootsAsSealed {
             .mark_interop_roots_as_executed(
                 &command.l2_block.interop_roots,
                 command.l2_block.number,
+                command.pre_insert_data,
             )
             .await?;
 
@@ -590,7 +591,7 @@ mod tests {
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_legacy_shared_bridge_addr: Default::default(),
-            pre_insert_txs: false,
+            pre_insert_data: false,
             pubdata_params: PubdataParams::default(),
         };
 
