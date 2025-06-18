@@ -6,9 +6,7 @@ use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
 use url::Url;
 use xshell::Shell;
-use zkstack_cli_common::{
-    db::DatabaseConfig, forge::ForgeScriptArgs, logger, Prompt, PromptConfirm, PromptSelect,
-};
+use zkstack_cli_common::{db::DatabaseConfig, logger, Prompt, PromptConfirm, PromptSelect};
 use zkstack_cli_config::ChainConfig;
 
 use super::{

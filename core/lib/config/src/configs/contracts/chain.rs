@@ -356,7 +356,9 @@ mod tests {
             CONTRACTS_BRIDGES_WETH_L1_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_WETH_L2_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 
-            CONTRACTS_PROOF_MANAGER_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROOF_MANAGER_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADMIN_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
 
@@ -410,6 +412,8 @@ mod tests {
               multicall3: '0x0000000000000000000000000000000000010002'
             proof_manager_contracts:
               proof_manager_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+              proxy_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+              proxy_admin_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
