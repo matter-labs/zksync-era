@@ -46,6 +46,9 @@ runs:
       shell: bash
       run: |
         ci_run sccache --start-server
+        ci_run sccache --show-stats
+        # Check if sccache is accessible outside of the container
+        sccache --show-stats 
 
     - name: Init git safe directories
       shell: bash
