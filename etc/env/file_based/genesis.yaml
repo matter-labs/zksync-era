@@ -14,4 +14,5 @@ prover:
   snark_wrapper_vk_hash: 0x5a091e307e516869a79fa79db2aa70865fe606adb6d9ac16e6426d2b7b8530ac
   fflonk_snark_wrapper_vk_hash: 0x17e8d7931f1314431359233e65c22657a32c335205e3c24ce292c5819becfaa7
 genesis_protocol_semantic_version: 0.28.0
+evm_emulator_hash: 0x01000d83e0329d9144ad041430fafcbc2b388e5434db8cb8a96e80157738a1da
 l1_batch_commit_data_generator_mode: Rollup
