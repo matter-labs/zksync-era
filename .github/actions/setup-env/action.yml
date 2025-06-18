@@ -42,6 +42,7 @@ runs:
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
         echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
         echo RUSTC_WRAPPER=sccache >> .env
+        echo DOCKER_PWD=$(pwd) >> .env
 
     - name: Start localnet
       shell: bash
