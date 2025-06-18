@@ -96,6 +96,13 @@ impl ZkosCommitment {
 
 impl ZkosCommitment {
     pub fn new(batch: &L1BatchWithMetadata, chain_id: L2ChainId) -> Self {
+        // We instantiate the l2 chain id only after the first block, the zero batch is always 271
+        let chain_id = if batch.header.number.0 == 0 {
+            L2ChainId::from(271)
+        } else {
+            chain_id
+        };
+
         ZkosCommitment {
             batch_number: batch.header.number.0,
             block_timestamp: batch.header.timestamp,

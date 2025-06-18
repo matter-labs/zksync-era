@@ -35,8 +35,11 @@ impl ExecuteBatches {
                 self.l1_batches
                     .iter()
                     .map(|batch| {
-                        CommitBoojumOSBatchInfo::new(&ZkosCommitment::new(batch, l2chain_id))
-                            .into_token()
+                        StoredBatchInfo::new(
+                            &ZkosCommitment::new(&batch, l2chain_id),
+                            batch.metadata.commitment.as_fixed_bytes().clone(),
+                        )
+                        .into_token()
                     })
                     .collect(),
             )]
@@ -46,8 +49,11 @@ impl ExecuteBatches {
                     self.l1_batches
                         .iter()
                         .map(|batch| {
-                            CommitBoojumOSBatchInfo::new(&ZkosCommitment::new(batch, l2chain_id))
-                                .into_token()
+                            StoredBatchInfo::new(
+                                &ZkosCommitment::new(&batch, l2chain_id),
+                                batch.metadata.commitment.as_fixed_bytes().clone(),
+                            )
+                            .into_token()
                         })
                         .collect(),
                 ),

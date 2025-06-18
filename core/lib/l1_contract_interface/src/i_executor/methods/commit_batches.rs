@@ -35,16 +35,8 @@ impl Tokenize for &CommitBatches<'_> {
             "Only one batch can be committed at a time in zk os"
         );
 
-        // We instantiate the l2 chain id only after the first block, the zero batch is always 271
-        let last_block_chain_id = if self.last_committed_l1_batch.header.number.0 == 0 {
-            L2ChainId::from(271)
-        } else {
-            self.chain_id
-        };
-
-        // TODO use the data from the database and do not calculate it again
         let last_block_commitment: ZkosCommitment =
-            ZkosCommitment::new(self.last_committed_l1_batch, last_block_chain_id);
+            ZkosCommitment::new(self.last_committed_l1_batch, self.chain_id);
         let batch_output: BatchOutput = zkos_commitment_to_vm_batch_output(&last_block_commitment);
         let stored_batch_info = StoredBatchInfo::new(&last_block_commitment, batch_output.hash());
 

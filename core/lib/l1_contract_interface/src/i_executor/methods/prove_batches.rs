@@ -39,14 +39,24 @@ impl ProveBatches {
         is_verifier_pre_fflonk: bool,
         l2chain_id: L2ChainId,
     ) -> Vec<Token> {
-        let prev_l1_batch_info =
-            CommitBoojumOSBatchInfo::new(&ZkosCommitment::new(&self.prev_l1_batch, l2chain_id))
-                .into_token();
+        let prev_l1_batch_info = StoredBatchInfo::new(
+            &ZkosCommitment::new(&self.prev_l1_batch, l2chain_id),
+            self.prev_l1_batch
+                .metadata
+                .commitment
+                .as_fixed_bytes()
+                .clone(),
+        )
+        .into_token();
         let batches_arg = self
             .l1_batches
             .iter()
             .map(|batch| {
-                CommitBoojumOSBatchInfo::new(&ZkosCommitment::new(batch, l2chain_id)).into_token()
+                StoredBatchInfo::new(
+                    &ZkosCommitment::new(&batch, l2chain_id),
+                    batch.metadata.commitment.as_fixed_bytes().clone(),
+                )
+                .into_token()
             })
             .collect();
         let batches_arg = Token::Array(batches_arg);
