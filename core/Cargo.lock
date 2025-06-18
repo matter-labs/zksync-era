@@ -14842,6 +14842,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "basic_system",
+ "bincode",
  "crossbeam-queue",
  "dashmap 5.5.3",
  "forward_system",

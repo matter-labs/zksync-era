@@ -1,24 +1,29 @@
-// block_replay_wal.rs
-
-use std::{path::Path, convert::TryInto};
-use futures::Stream;
+use crate::execution::metrics::BLOCK_REPLAY_ROCKS_DB_METRICS;
+use crate::model::{BlockCommand, ReplayRecord, TransactionSource};
 use futures::stream::{self, BoxStream, StreamExt};
-use serde::{Serialize, Deserialize};
+use futures::Stream;
+use serde::{Deserialize, Serialize};
+use std::{convert::TryInto, path::Path};
 use zk_os_forward_system::run::{BatchContext, BatchOutput};
 use zksync_storage::db::{NamedColumnFamily, WriteBatch};
 use zksync_storage::RocksDB;
 use zksync_types::Transaction;
-use crate::model::{BlockCommand, ReplayRecord, TransactionSource};
-use crate::execution::metrics::{BLOCK_REPLAY_ROCKS_DB_METRICS};
+
+/// A write-ahead log storing replay blocks for:
+///  * Context + Transaction list: sequencer recovery.
+///  * Context: provides execution environment for `eth_call`s against older blocks
+#[derive(Clone, Debug)]
+pub struct BlockReplayStorage {
+    db: RocksDB<BlockReplayColumnFamily>,
+}
 
 /// Column families for WAL storage of block replay commands.
 #[derive(Copy, Clone, Debug)]
 pub enum BlockReplayColumnFamily {
+    /// ReplayRecord = Txs + Context
     Context,
+    /// ReplayRecord = Txs + Context
     Txs,
-
-    /// Serialized replay commands, keyed by block number (big-endian bytes).
-    Replay,
     /// Stores the latest appended block number under a fixed key.
     Latest,
 }
@@ -26,7 +31,6 @@ pub enum BlockReplayColumnFamily {
 impl NamedColumnFamily for BlockReplayColumnFamily {
     const DB_NAME: &'static str = "block_replay_wal";
     const ALL: &'static [Self] = &[
-        BlockReplayColumnFamily::Replay,
         BlockReplayColumnFamily::Context,
         BlockReplayColumnFamily::Txs,
         BlockReplayColumnFamily::Latest,
@@ -34,7 +38,6 @@ impl NamedColumnFamily for BlockReplayColumnFamily {
 
     fn name(&self) -> &'static str {
         match self {
-            BlockReplayColumnFamily::Replay => "replay",
             BlockReplayColumnFamily::Context => "context",
             BlockReplayColumnFamily::Txs => "txs",
             BlockReplayColumnFamily::Latest => "latest",
@@ -42,132 +45,104 @@ impl NamedColumnFamily for BlockReplayColumnFamily {
     }
 }
 
-/// A write-ahead log storing replay blocks for sequencer recovery.
-#[derive(Clone, Debug)]
-pub struct BlockReplayStorage {
-    db: RocksDB<BlockReplayColumnFamily>,
-}
-
 impl BlockReplayStorage {
     /// Key under `Latest` CF for tracking the highest block number.
     const LATEST_KEY: &'static [u8] = b"latest_block";
 
-    /// Opens (or creates) the WAL at the specified filesystem path.
     pub fn new(db: RocksDB<BlockReplayColumnFamily>) -> Self {
-        let mut batch: WriteBatch<'_, BlockReplayColumnFamily> = db.new_write_batch();
-        let from = 0u32.to_be_bytes();
-        let to = 1000000u32.to_be_bytes();
-        batch.delete_range_cf(
-            BlockReplayColumnFamily::Replay,
-            &from..&to,
-        );
-        db.write(batch).expect("Failed to write to WAL");
-
-
         Self { db }
     }
-
     /// Appends a replay command (context + raw transactions) to the WAL.
-    /// Also updates the Latest CF. Returns the corresponding BlockCommand.
+    /// Also updates the Latest CF. Returns the corresponding ReplayRecord.
 
-    // todo: blockcontext is just passthrough
-    pub async fn append_replay(
-        &self,
-        block_output: BatchOutput,
-        record: ReplayRecord,
-    ) -> (BatchOutput, ReplayRecord) {
+    pub fn append_replay(&self, record: ReplayRecord) {
         let latency = BLOCK_REPLAY_ROCKS_DB_METRICS.get_latency.start();
         assert!(!record.transactions.is_empty());
+
         let current_latest_block = self.latest_block().unwrap_or(0);
 
         if record.context.block_number <= current_latest_block {
-            tracing::info!("Not appending block {}: already exists in WAL", record.context.block_number);
-            return (block_output, record);
+            tracing::debug!(
+                "Not appending block {}: already exists in WAL",
+                record.context.block_number
+            );
+            return;
         }
 
-        let block_num = record.context.block_number;
-        let key = block_num.to_be_bytes();
-
         // Prepare record
-        let context_value = serde_json::to_vec(&record.context).expect("Failed to serialize ReplayRecord");
-        let txs_value = serde_json::to_vec(&record.transactions).expect("Failed to serialize ReplayRecord");
+        let block_num = record.context.block_number.to_be_bytes();
+        let context_value =
+            bincode::serialize(&record.context).expect("Failed to serialize record.context");
+        let txs_value = bincode::serialize(&record.transactions)
+            .expect("Failed to serialize record.transactions");
 
         // Batch both writes: replay entry and latest pointer
         let mut batch: WriteBatch<'_, BlockReplayColumnFamily> = self.db.new_write_batch();
-        batch.put_cf(BlockReplayColumnFamily::Latest, Self::LATEST_KEY, &key);
-        batch.put_cf(BlockReplayColumnFamily::Context, &key, &context_value);
-        batch.put_cf(BlockReplayColumnFamily::Txs, &key, &txs_value);
+        batch.put_cf(
+            BlockReplayColumnFamily::Latest,
+            Self::LATEST_KEY,
+            &block_num,
+        );
+        batch.put_cf(BlockReplayColumnFamily::Context, &block_num, &context_value);
+        batch.put_cf(BlockReplayColumnFamily::Txs, &block_num, &txs_value);
 
         self.db.write(batch).expect("Failed to write to WAL");
         latency.observe();
-        (block_output, record)
     }
 
     /// Returns the greatest block number that has been appended, or None if empty.
     pub fn latest_block(&self) -> Option<u64> {
-        if let Ok(Some(bytes)) = self.db.get_cf(BlockReplayColumnFamily::Latest, Self::LATEST_KEY) {
-            if bytes.len() == 8 {
-                let arr: [u8; 8] = bytes.as_slice().try_into().ok()?;
-                return Some(u64::from_be_bytes(arr));
-            }
-        }
-        None
+        self.db
+            .get_cf(BlockReplayColumnFamily::Latest, Self::LATEST_KEY)
+            .expect("Cannot read from DB")
+            .map(|bytes| {
+                assert_eq!(bytes.len(), 8);
+                let arr: [u8; 8] = bytes.as_slice().try_into().unwrap();
+                u64::from_be_bytes(arr)
+            })
     }
-
 
     pub fn get_context(&self, block_number: u64) -> Option<BatchContext> {
         let key = block_number.to_be_bytes();
-        if let Ok(Some(bytes)) = self.db.get_cf(BlockReplayColumnFamily::Context, &key) {
-            serde_json::from_slice(&bytes).ok()
-        } else {
-            None
-        }
+        self.db
+            .get_cf(BlockReplayColumnFamily::Context, &key)
+            .expect("Cannot read from DB")
+            .map(|bytes| bincode::deserialize(&bytes).expect("Failed to deserialize context"))
     }
 
     pub fn get_replay_record(&self, block_number: u64) -> Option<ReplayRecord> {
         let key = block_number.to_be_bytes();
-        if let Ok(Some(bytes_context)) = self.db.get_cf(BlockReplayColumnFamily::Context, &key) {
-            if let Ok(Some(bytes_txs)) = self.db.get_cf(BlockReplayColumnFamily::Txs, &key) {
-                Some(ReplayRecord {
-                    context: serde_json::from_slice(&bytes_context).ok()?,
-                    transactions: serde_json::from_slice(&bytes_txs).ok()?,
-                })
-            } else {
-                None
-            }
-        } else {
-            None
+        let context_result = self
+            .db
+            .get_cf(BlockReplayColumnFamily::Context, &key)
+            .expect("Failed to read from Context CF");
+        let txs_result = self
+            .db
+            .get_cf(BlockReplayColumnFamily::Txs, &key)
+            .expect("Failed to read from Txs CF");
+
+        match (context_result, txs_result) {
+            (Some(bytes_context), Some(bytes_txs)) => Some(ReplayRecord {
+                context: bincode::deserialize(&bytes_context)
+                    .expect("Failed to deserialize context"),
+                transactions: bincode::deserialize(&bytes_txs)
+                    .expect("Failed to deserialize transactions"),
+            }),
+            (None, None) => None,
+            _ => panic!("Inconsistent state: Context and Txs must be written atomically"),
         }
     }
-    /// Streams all replay commands with block_number ≥ `start`, in ascending block order.
-    ///
-    /// todo: some dirty code
-    pub fn replay_commands_from<'a>(&'a self, start: u64) -> impl Stream<Item=BlockCommand> + 'a {
-        let start_key = start.to_be_bytes();
-        let iter = self.db.from_iterator_cf(
-            BlockReplayColumnFamily::Context,
-            std::ops::RangeFrom { start: &start_key[..] },
-        );
-        stream::iter(iter)
-            .filter_map(move |(key_bytes, context_bytes)| {
-                // Parse 8-byte block number
-                if let Some(arr) = key_bytes.as_ref().get(0..8).and_then(|b| b.try_into().ok()) {
-                    let block_num = u64::from_be_bytes(arr);
-                    if block_num >= start {
-                        // Deserialize record
-                        if let Ok(context) = serde_json::from_slice::<BatchContext>(&context_bytes) {
-                            let txs = self.db.get_cf(BlockReplayColumnFamily::Txs, &key_bytes).expect("").expect("");
-                            let txs_parsed = serde_json::from_slice::<Vec<Transaction>>(&txs).expect("Failed to deserialize transactions");
-                            let record = ReplayRecord{
-                                context,
-                                transactions: txs_parsed,
-                            };
-                            let cmd = BlockCommand::Replay(record);
-                            return futures::future::ready(Some(cmd));
-                        }
-                    }
-                }
-                futures::future::ready(None)
-            })
+
+    /// Streams all replay commands with block_number ≥ `start`, in ascending block order - used for state recovery
+    pub fn replay_commands_from(&self, start: u64) -> BoxStream<BlockCommand> {
+        let latest = self.latest_block().unwrap_or(0);
+        let stream = stream::iter(start..=latest).filter_map(move |block_num| {
+            let record = self.get_replay_record(block_num);
+            match record {
+                Some(record) => futures::future::ready(Some(BlockCommand::Replay(record))),
+                None => futures::future::ready(None),
+            }
+        });
+        Box::pin(stream)
     }
 }

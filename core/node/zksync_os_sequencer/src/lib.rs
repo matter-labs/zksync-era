@@ -129,7 +129,7 @@ pub async fn run_sequencer_actor(
         while let Some((batch_out, replay)) = rx.recv().await {
             let bn = batch_out.header.number;
             tracing::info!(block = bn, "▶ append_replay");
-            wal.append_replay(batch_out.clone(), replay).await;
+            wal.append_replay(replay);
 
             tracing::info!(block = bn, "▶ advance_canonized_block");
             state.advance_canonized_block(bn);
@@ -147,56 +147,56 @@ pub async fn run_sequencer_actor(
 }
 
 
-pub async fn run_sequencer_stream(
-    wal: BlockReplayStorage,
-    state: StateHandle,
-    mempool: Mempool,
-) -> Result<()> {
-    let last_block_in_wal = wal.latest_block().unwrap_or(0);
-    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
-
-    command_source(&wal, last_block_in_wal)
-        .map(Ok)                                         // ⇒ TryStream<Item = BlockCommand, Error = _>
-
-        // ── Stage 1: execute_block ─────────────────────────────────────────
-        .map_ok(|cmd| {
-            let state = state.clone();
-            let mempool = mempool.clone();
-            async move {
-                tracing::info!(block = cmd.block_number(), "▶ execute");
-                execute_block(cmd, Box::pin(mempool.clone()), state.clone())
-                    .await
-                    .map(|(batch_out, replay)| {
-                        state.handle_block_output(
-                            batch_out.clone(),
-                            replay.transactions.clone(),
-                        );
-                        (batch_out, replay)
-                    }
-                    ).context("execute_block")
-            }
-        })
-        .try_buffered(1)
-
-        // ── Stage 2: append_replay (canonise) ──────────────────────────────
-        .map_ok(|(batch_out, replay)| {
-            let wal = wal.clone();
-            let state = state.clone();
-            async move {
-                tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "▶ append_replay");
-                wal.append_replay(batch_out.clone(), replay.clone()).await;
-                tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "▶ advance_canonized_block");
-                state.advance_canonized_block(batch_out.header.number);
-                tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "✔ done");
-
-                Ok::<_, anyhow::Error>(())
-            }
-        })
-        .try_buffered(1)
-        .try_for_each(|()| async { Ok::<_, anyhow::Error>(()) })
-        .await?;
-    Ok(())
-}
+// pub async fn run_sequencer_stream(
+//     wal: BlockReplayStorage,
+//     state: StateHandle,
+//     mempool: Mempool,
+// ) -> Result<()> {
+//     let last_block_in_wal = wal.latest_block().unwrap_or(0);
+//     tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
+// 
+//     command_source(&wal, last_block_in_wal)
+//         .map(Ok)                                         // ⇒ TryStream<Item = BlockCommand, Error = _>
+// 
+//         // ── Stage 1: execute_block ─────────────────────────────────────────
+//         .map_ok(|cmd| {
+//             let state = state.clone();
+//             let mempool = mempool.clone();
+//             async move {
+//                 tracing::info!(block = cmd.block_number(), "▶ execute");
+//                 execute_block(cmd, Box::pin(mempool.clone()), state.clone())
+//                     .await
+//                     .map(|(batch_out, replay)| {
+//                         state.handle_block_output(
+//                             batch_out.clone(),
+//                             replay.transactions.clone(),
+//                         );
+//                         (batch_out, replay)
+//                     }
+//                     ).context("execute_block")
+//             }
+//         })
+//         .try_buffered(1)
+// 
+//         // ── Stage 2: append_replay (canonise) ──────────────────────────────
+//         .map_ok(|(batch_out, replay)| {
+//             let wal = wal.clone();
+//             let state = state.clone();
+//             async move {
+//                 tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "▶ append_replay");
+//                 wal.append_replay(batch_out.clone(), replay.clone()).await;
+//                 tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "▶ advance_canonized_block");
+//                 state.advance_canonized_block(batch_out.header.number);
+//                 tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "✔ done");
+// 
+//                 Ok::<_, anyhow::Error>(())
+//             }
+//         })
+//         .try_buffered(1)
+//         .try_for_each(|()| async { Ok::<_, anyhow::Error>(()) })
+//         .await?;
+//     Ok(())
+// }
 
 fn command_source(block_replay_wal: &BlockReplayStorage, block_to_start: u64) -> Chain<BoxStream<BlockCommand>, BoxStream<BlockCommand>> {
 
