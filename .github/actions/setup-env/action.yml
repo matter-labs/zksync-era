@@ -89,13 +89,11 @@ runs:
       run: |
         ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
         ci_run zkstackup -g --local
-        ci_run which zkstack
         ci_run cp /usr/local/bin/zkstack /usr/src/zksync/zkstack
-        ls
 
     - name: Save zkstack binary to cache (on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: zkstack
-        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**') }}
+        key: ${{ steps.zkstack_cache.outputs.cache-primary-key }}
