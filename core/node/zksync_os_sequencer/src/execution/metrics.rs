@@ -4,6 +4,7 @@ use zksync_types::prover_dal::WitnessJobStatusFailed;
 
 const LATENCIES_FAST: Buckets = Buckets::exponential(0.0000001..=1.0, 2.0);
 const BLOCKS_SCANNED: Buckets = Buckets::linear(1.0..=1000.0, 100.0);
+const STORAGE_WRITES: Buckets = Buckets::exponential(1.0..=1000.0, 1.7);
 
 
 #[derive(Debug, Metrics)]
@@ -16,9 +17,11 @@ pub struct ExecutionMetrics {
     #[metrics(labels = ["stage"])]
     pub sealed_block: LabeledFamily<&'static str, Gauge<u64>>,
 
-    ///
     #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
     pub block_execution_stages: LabeledFamily<&'static str, Histogram<Duration>>,
+
+    #[metrics(buckets = STORAGE_WRITES)]
+    pub storage_writes_per_block: Histogram<u64>,
 }
 
 #[derive(Debug, Metrics)]

@@ -1,4 +1,5 @@
 use std::ops::Div;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use anyhow::Context;
 use tokio::time::Instant;
@@ -29,8 +30,9 @@ pub struct TreeMetrics {
 #[vise::register]
 pub(crate) static TREE_METRICS: vise::Global<TreeMetrics> = vise::Global::new();
 
+// todo: replace with the proper TreeManager implementation (currently it only works with Postgres)
 pub struct TreeManager {
-    tree: MerkleTree<RocksDBWrapper>,
+    tree: Arc<RwLock<MerkleTree<RocksDBWrapper>>>,
     state_handle: StateHandle,
     last_processed_block: u64,
 }
@@ -55,7 +57,7 @@ impl TreeManager {
         // todo: error handling
         let tree = MerkleTree::new(wrapper).unwrap();
         Self {
-            tree,
+            tree: Arc::new(RwLock::new(tree)),
             state_handle,
             last_processed_block,
         }
@@ -92,12 +94,16 @@ impl TreeManager {
                 )
                 .collect::<Vec<_>>();
 
-            let output = self.tree.extend(&tree_entries)?;
+            let clone = self.tree.clone();
+            let count = tree_entries.len();
+            let output = tokio::task::spawn_blocking(move || {
+                clone.write().unwrap().extend(&tree_entries)
+            }).await??;
             tracing::info!("Processed block {} in tree, output: {:?}", last_block_to_process, output);
 
             TREE_METRICS
                 .entry_time
-                .observe(started_at.elapsed().div(tree_entries.len() as u32));
+                .observe(started_at.elapsed().div(count as u32));
 
             TREE_METRICS
                 .block_time

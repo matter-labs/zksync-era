@@ -188,6 +188,7 @@ async fn execute_block_inner(
         .seal_batch()
         .await
         .map_err(|e| anyhow!("VM seal failed: {e:?}"))?;
+    EXECUTION_METRICS.storage_writes_per_block.observe(output.storage_writes.len() as u64);
     latency.observe();
     Ok((output,
         ReplayRecord {

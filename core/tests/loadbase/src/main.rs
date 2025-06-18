@@ -75,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
 
     //-------------------------------- ERC-20 deploy/distribute -------------//
     use erc20::{SimpleERC20, distribute_varied};
-    let supply = U256::from_dec_str("1000000000000000000000000")?; // 1e6 tokens
+    let supply = U256::from_dec_str("1000000000000000000000000000000")?; // 1e6 tokens
     let per_wallet = supply / U256::from(args.wallets);
     let token_amounts = vec![per_wallet; args.wallets as usize];
 

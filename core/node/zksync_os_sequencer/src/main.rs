@@ -36,7 +36,7 @@ use futures_util::TryFutureExt;
 use itertools::Itertools;
 use tokio::sync::broadcast::channel;
 use tokio::sync::watch;
-use zksync_storage::RocksDB;
+use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_zk_os_merkle_tree::{MerkleTree, RocksDBWrapper};
 use crate::execution::metrics::{EXECUTION_METRICS};
@@ -63,11 +63,12 @@ use crate::tree_manager::{MerkleTreeColumnFamily, TreeManager};
 const BLOCK_REPLAY_WAL_PATH: &str = "../chains/era/db/main/block_replay_wal";
 const STATE_STORAGE_PATH: &str = "../chains/era/db/main/state";
 const PREIMAGES_STORAGE_PATH: &str = "../chains/era/db/main/preimages";
+const TREE_STORAGE_PATH: &str = "../chains/era/db/main/tree";
 const CHAIN_ID: u64 = 270;
 
 // Maximum number of per-block information stored in memory - and thus returned from API.
 // Older blocks are discarded (or, in case of state diffs, compacted)
-const BLOCKS_TO_RETAIN: usize = 512;
+const BLOCKS_TO_RETAIN: usize = 1024;
 
 const JSON_RPC_ADDR: &str = "127.0.0.1:3050";
 
@@ -129,7 +130,17 @@ pub async fn main() {
 
     // Sequencer will not run the tree - batcher will (other component, other machine)
     // running it for now just to test the performance
-    let tree_wrapper = RocksDBWrapper::new(Path::new("../chains/era/db/main/tree")).unwrap();
+    let db = RocksDB::with_options(
+        Path::new(TREE_STORAGE_PATH),
+        RocksDBOptions {
+            block_cache_capacity: Some(128 << 20),
+            include_indices_and_filters_in_block_cache: false,
+            large_memtable_capacity: Some(256 << 20),
+            stalled_writes_retries: StalledWritesRetries::new(Duration::from_secs(10)),
+            max_open_files: None,
+        },
+    ).unwrap();
+    let tree_wrapper = RocksDBWrapper::from(db);
     let mut tree_manager = TreeManager::new(
         tree_wrapper,
         state_handle.clone(),
