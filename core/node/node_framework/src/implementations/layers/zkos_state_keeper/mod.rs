@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_node_framework_derive::{FromContext, IntoContext};
-use zksync_state::{AsyncCatchupTask, KeepUpdatedTask, ReadStorageFactory, RocksdbStorageOptions};
+use zksync_state::{AsyncCatchupTask, KeepUpdatedTask, RocksdbStorageOptions};
 use zksync_storage::RocksDB;
-use zksync_vm_executor::interface::BatchExecutorFactory;
 use zksync_zkos_state_keeper::{
-    state_keeper_storage::ZkOsAsyncRocksdbCache, ConditionalSealer, OutputHandler, SequencerSealer,
-    StateKeeperIO, ZkosStateKeeper,
+    state_keeper_storage::ZkOsAsyncRocksdbCache, ConditionalSealer, OutputHandler, StateKeeperIO,
+    ZkosStateKeeper,
 };
 
 use crate::{
@@ -19,7 +18,6 @@ use crate::{
         },
     },
     service::ShutdownHook,
-    task::TaskKind,
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 

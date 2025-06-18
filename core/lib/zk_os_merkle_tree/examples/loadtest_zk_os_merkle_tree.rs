@@ -10,13 +10,13 @@ use rand::{
 };
 use tempfile::TempDir;
 use tracing_subscriber::EnvFilter;
+use zksync_basic_types::H256;
+use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
+use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
 use zksync_zk_os_merkle_tree::{
     unstable, Database, DefaultTreeParams, DeserializeError, HashTree, MerkleTree,
     MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper, TreeEntry, TreeParams,
 };
-use zksync_basic_types::H256;
-use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
-use zksync_storage::{db::NamedColumnFamily, RocksDB, RocksDBOptions};
 
 #[derive(Debug)]
 struct WithDynHasher;

@@ -9,7 +9,7 @@ use tokio::{
 use zk_ee::system::errors::InternalError;
 use zk_os_forward_system::run::{
     result_keeper::TxProcessingOutputOwned, run_batch, BatchContext, BatchOutput,
-    InvalidTransaction, NextTxResponse, StorageCommitment, TxResultCallback, TxSource,
+    InvalidTransaction, NextTxResponse, TxResultCallback, TxSource,
 };
 use zksync_state::ArcOwnedStorage;
 use zksync_types::Transaction;

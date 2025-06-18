@@ -1,21 +1,19 @@
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
-    Json, Router, serve,
+    serve, Json, Router,
 };
-use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
-use axum::extract::{DefaultBodyLimit, Path};
 use execution_utils::ProgramProof;
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 use tracing::{error, info};
-use tracing_subscriber;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{L1BatchNumber, L2BlockNumber};
-use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
+use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber, L2BlockNumber};
+
 use crate::proof_verifier::verify_fri_proof;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -35,17 +33,16 @@ struct AvailableProofsPayload {
     available_proofs: Vec<String>,
 }
 /// Handler to fetch the next FRI block to prove
-async fn pick_fri_job(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
-) -> Response {
+async fn pick_fri_job(State(pool): State<Arc<ConnectionPool<Core>>>) -> Response {
     let mut conn = pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
 
     tracing::trace!("Fetching next FRI block to prove");
-    let response = match conn.zkos_prover_dal()
-        .pick_next_fri_proof(Duration::from_secs(60), 5,  "unknown")
+    let response = match conn
+        .zkos_prover_dal()
+        .pick_next_fri_proof(Duration::from_secs(60), 5, "unknown")
         .await
     {
         Ok(Some((block_number, data))) => {
@@ -81,55 +78,73 @@ async fn submit_fri_proof(
 
     let proof_bytes = base64::decode(&payload.proof).map_err(|err| {
         error!("Invalid base64 FRI proof: {err}");
-        (StatusCode::BAD_REQUEST, format!("Invalid base64 FRI proof: {err}"))
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid base64 FRI proof: {err}"),
+        )
     })?;
 
     let current_l1_batch = load_batch_metadata(&mut conn, L1BatchNumber(payload.block_number))
         .await
         .map_err(|err| {
             error!("Error loading current L1 batch metadata: {}", err);
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Error loading current L1 batch metadata: {}", err))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error loading current L1 batch metadata: {}", err),
+            )
         })?;
     let prev_l1_batch = load_batch_metadata(&mut conn, L1BatchNumber(payload.block_number - 1))
         .await
         .map_err(|err| {
             error!("Error loading previous L1 batch metadata: {}", err);
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Error loading previous L1 batch metadata: {}", err))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error loading previous L1 batch metadata: {}", err),
+            )
         })?;
 
-    let program_proof = bincode::deserialize::<ProgramProof>(&proof_bytes)
-        .map_err(|err| {
-            error!("Unable to deserialize FRI proof: {}", err);
-            (StatusCode::BAD_REQUEST, format!("Unable to deserialize FRI proof: {}", err))
-        })?;
+    let program_proof = bincode::deserialize::<ProgramProof>(&proof_bytes).map_err(|err| {
+        error!("Unable to deserialize FRI proof: {}", err);
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Unable to deserialize FRI proof: {}", err),
+        )
+    })?;
 
-    verify_fri_proof(prev_l1_batch, current_l1_batch, program_proof)
-        .map_err(|err| {
-            error!("FRI proof verification failed: {}", err);
-            (StatusCode::BAD_REQUEST, format!("FRI proof verification failed: {}", err))
-        })?;
-
+    verify_fri_proof(prev_l1_batch, current_l1_batch, program_proof).map_err(|err| {
+        error!("FRI proof verification failed: {}", err);
+        (
+            StatusCode::BAD_REQUEST,
+            format!("FRI proof verification failed: {}", err),
+        )
+    })?;
 
     conn.zkos_prover_dal()
         .save_fri_proof(L2BlockNumber(payload.block_number), proof_bytes)
         .await
-        .map_err(|err|
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Error saving FRI proof: {}", err))
-        )?;
-    Ok((StatusCode::NO_CONTENT, "FRI proof submitted successfully".to_string()).into_response())
+        .map_err(|err| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error saving FRI proof: {}", err),
+            )
+        })?;
+    Ok((
+        StatusCode::NO_CONTENT,
+        "FRI proof submitted successfully".to_string(),
+    )
+        .into_response())
 }
 
 /// Handler to fetch the next SNARK block to prove
-async fn pick_snark_job(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
-) -> Response {
+async fn pick_snark_job(State(pool): State<Arc<ConnectionPool<Core>>>) -> Response {
     let mut conn = pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
 
     tracing::trace!("Fetching next SNARK block to prove");
-    let response = match conn.zkos_prover_dal()
+    let response = match conn
+        .zkos_prover_dal()
         .pick_next_snark_proof(Duration::from_secs(3600), "unknown")
         .await
     {
@@ -173,7 +188,8 @@ async fn submit_snark_proof(
 
     let block_number = L2BlockNumber(payload.block_number);
     info!("Submitting SNARK proof for block {}", block_number);
-    match conn.zkos_prover_dal()
+    match conn
+        .zkos_prover_dal()
         .save_snark_proof(block_number, proof_bytes)
         .await
     {
@@ -185,11 +201,8 @@ async fn submit_snark_proof(
     }
 }
 
-
 /// Handler to list blocks with available proofs
-async fn list_available_proofs(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
-) -> Response {
+async fn list_available_proofs(State(pool): State<Arc<ConnectionPool<Core>>>) -> Response {
     let mut conn = pool
         .connection_tagged("zkos_proof_data_server")
         .await
@@ -198,11 +211,7 @@ async fn list_available_proofs(
     info!("Fetching available proofs per block");
     // TODO: implement `list_available_proofs` in DAL. Expected signature:
     //   async fn list_available_proofs(&mut self) -> anyhow::Result<Vec<(L2BlockNumber, Vec<String>)>>
-    match conn
-        .zkos_prover_dal()
-        .list_available_proofs()
-        .await
-    {
+    match conn.zkos_prover_dal().list_available_proofs().await {
         Ok(rows) => {
             let payload: Vec<AvailableProofsPayload> = rows
                 .into_iter()
@@ -253,7 +262,11 @@ async fn get_proof(
         "SNARK" => {
             info!("Fetching SNARK proof for block {}", block_number_l2);
             // TODO: implement `get_snark_proof` in DAL
-            match conn.zkos_prover_dal().get_snark_proof(block_number_l2).await {
+            match conn
+                .zkos_prover_dal()
+                .get_snark_proof(block_number_l2)
+                .await
+            {
                 Ok(Some(bytes)) => {
                     let resp = ProofPayload {
                         block_number,
@@ -281,31 +294,13 @@ pub async fn run(pool: ConnectionPool<Core>) -> anyhow::Result<()> {
 
     let app = Router::new()
         // FRI proof routes
-        .route(
-            "/prover-jobs/FRI/pick",
-            post(pick_fri_job),
-        )
-        .route(
-            "/prover-jobs/FRI/submit",
-            post(submit_fri_proof),
-        )
+        .route("/prover-jobs/FRI/pick", post(pick_fri_job))
+        .route("/prover-jobs/FRI/submit", post(submit_fri_proof))
         // SNARK proof routes
-        .route(
-            "/prover-jobs/SNARK/pick",
-            post(pick_snark_job),
-        )
-        .route(
-            "/prover-jobs/SNARK/submit",
-            post(submit_snark_proof),
-        )
-        .route(
-            "/prover-jobs/available",
-            get(list_available_proofs),
-        )
-        .route(
-            "/prover-jobs/:proof_type/:block_number",
-            get(get_proof),
-        )
+        .route("/prover-jobs/SNARK/pick", post(pick_snark_job))
+        .route("/prover-jobs/SNARK/submit", post(submit_snark_proof))
+        .route("/prover-jobs/available", get(list_available_proofs))
+        .route("/prover-jobs/:proof_type/:block_number", get(get_proof))
         .layer(axum::extract::DefaultBodyLimit::disable())
         .with_state(shared_pool);
 
@@ -324,7 +319,8 @@ async fn load_batch_metadata(
     connection: &mut Connection<'_, Core>,
     number: L1BatchNumber,
 ) -> Result<L1BatchWithMetadata, String> {
-    connection.blocks_dal()
+    connection
+        .blocks_dal()
         .get_l1_batch_metadata(number)
         .await
         .map_err(|e| e.to_string())

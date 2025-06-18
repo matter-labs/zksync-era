@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::{runtime::Handle, sync::Mutex, task::spawn_blocking};
+use tokio::{runtime::Handle, sync::Mutex};
 use zksync_dal::{Connection, Core};
 use zksync_multivm::{
     interface::{
@@ -19,16 +19,16 @@ use zksync_multivm::{
         storage::StorageWithOverrides,
         tracer::TimestampAsserterParams,
         utils::{DivergenceHandler, VmDump},
-        Call, DeduplicatedWritesMetrics, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams,
-        TransactionExecutionMetrics, TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
+        Call, DeduplicatedWritesMetrics, ExecutionResult, OneshotEnv, OneshotTracingParams,
+        TransactionExecutionMetrics, TxExecutionArgs, VmEvent,
     },
     utils::StorageWritesDeduplicator,
 };
 use zksync_object_store::{Bucket, ObjectStore};
-use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
+use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
-    AccountTreeId, StorageKey, StorageLog, StorageLogKind, Transaction,
+    StorageLog, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 #[cfg(feature = "zkos")]

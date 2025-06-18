@@ -616,9 +616,9 @@ impl StorageLogsDal<'_, '_> {
                 operation_number
             "#
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .expect("get_all_storage_logs_for_tests");
+        .fetch_all(self.storage.conn())
+        .await
+        .expect("get_all_storage_logs_for_tests");
 
         rows.into_iter()
             .map(|row| DbStorageLog {
@@ -633,7 +633,10 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Retrieves all storage log entries for testing purposes.
-    pub async fn dump_all_storage_logs_until_batch(&mut self, batch_excluding: L2BlockNumber) -> Vec<DbStorageLog> {
+    pub async fn dump_all_storage_logs_until_batch(
+        &mut self,
+        batch_excluding: L2BlockNumber,
+    ) -> Vec<DbStorageLog> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -653,9 +656,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(batch_excluding.0)
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .expect("dump_all_storage_logs_until_batch");
+        .fetch_all(self.storage.conn())
+        .await
+        .expect("dump_all_storage_logs_until_batch");
 
         rows.into_iter()
             .map(|row| DbStorageLog {
@@ -689,9 +692,9 @@ impl StorageLogsDal<'_, '_> {
             "#,
             i64::from(block.0)
         )
-            .fetch_all(self.storage.conn())
-            .await
-            .expect("storage_logs_for_block");
+        .fetch_all(self.storage.conn())
+        .await
+        .expect("storage_logs_for_block");
 
         rows.into_iter()
             .map(|row| DbStorageLog {

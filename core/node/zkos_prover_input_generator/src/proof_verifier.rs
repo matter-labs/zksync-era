@@ -1,15 +1,5 @@
-use air_compiler_cli::prover_utils::{
-    generate_oracle_data_from_metadata_and_proof_list, proof_list_and_metadata_from_program_proof,
-};
 use execution_utils::ProgramProof;
-use zk_os_basic_system::system_implementation::system::BatchPublicInput;
-use zksync_dal::{Connection, Core};
-use zksync_l1_contract_interface::i_executor::{
-    batch_output_hash_as_register_values, batch_public_input,
-};
-use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
-use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
-use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
+use zksync_types::commitment::L1BatchWithMetadata;
 
 #[cfg(not(feature = "include_verifiers"))]
 pub fn verify_fri_proof(

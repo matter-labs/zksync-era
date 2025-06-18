@@ -1,6 +1,5 @@
 use std::fs::File;
 
-use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::{configs::contracts::SettlementLayerSpecificContracts, GenesisConfig};
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};

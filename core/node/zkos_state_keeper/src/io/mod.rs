@@ -8,7 +8,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_state_keeper::seal_criteria::UnexecutableReason;
 use zksync_types::{
     block::UnsealedL1BatchHeader, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
-    L2ChainId, ProtocolVersionId, Transaction, H256,
+    L2ChainId, ProtocolVersionId, Transaction,
 };
 
 use crate::seal_criteria::IoSealCriterion;

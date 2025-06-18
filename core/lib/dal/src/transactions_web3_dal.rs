@@ -9,8 +9,8 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, block::build_bloom, web3, web3::keccak256, Address, BloomInput,
-    L2BlockNumber, L2ChainId, Transaction, H256, U256,
+    api, api::TransactionReceipt, block::build_bloom, web3, Address, BloomInput, L2BlockNumber,
+    L2ChainId, Transaction, H256, U256,
 };
 
 use crate::{

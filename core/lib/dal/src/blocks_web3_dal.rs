@@ -683,7 +683,9 @@ impl BlocksWeb3Dal<'_, '_> {
                 commit_tx.confirmed_at AS "committed_at?",
                 commit_tx_data.chain_id AS "commit_chain_id?",
                 prove_tx.tx_hash AS "prove_tx_hash?",
-                (zkos_proofs.fri_proof_picked_at + zkos_proofs.fri_prove_time_taken) AS "proven_at?",
+                (
+                    zkos_proofs.fri_proof_picked_at + zkos_proofs.fri_prove_time_taken
+                ) AS "proven_at?",
                 (zkos_proofs.fri_proof_picked_at) AS "proving_started_at?",
                 prove_tx_data.chain_id AS "prove_chain_id?",
                 execute_tx.tx_hash AS "execute_tx_hash?",

@@ -14,14 +14,13 @@ use serde::Serialize;
 use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_dal::{
-    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal, DalError,
+    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_multivm::{
     interface::{
-        tracer::{TimestampAsserterParams as TracerTimestampAsserterParams, ValidationTraces},
-        ExecutionResult, OneshotTracingParams, TransactionExecutionMetrics, VmExecutionLogs,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
+        TransactionExecutionMetrics,
     },
     utils::{
         derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,

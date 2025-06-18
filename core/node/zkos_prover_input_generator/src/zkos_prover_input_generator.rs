@@ -1,22 +1,27 @@
-use std::alloc::Global;
-use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    alloc::Global,
+    collections::{HashMap, VecDeque},
+    path::PathBuf,
+};
+
 use anyhow::Context;
 use ruint::aliases::U256;
 use tokio::sync::watch;
 use zk_os_basic_system::system_implementation::flat_storage_model::TestingTree;
-use zk_os_basic_system::system_implementation::system::BatchOutput;
-use zk_os_forward_system::run::{BatchContext, StorageCommitment};
-use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource};
+use zk_os_forward_system::run::{
+    test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
+    BatchContext, StorageCommitment,
+};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_l1_contract_interface::i_executor::{batch_output_hash_as_register_values, batch_public_input};
-use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
-use zksync_types::{H256, L1BatchNumber, L2BlockNumber};
-use zksync_types::block::L2BlockHeader;
-use zksync_types::commitment::ZkosCommitment;
+use zksync_l1_contract_interface::{
+    i_executor::{batch_output_hash_as_register_values, batch_public_input},
+    zkos_commitment_to_vm_batch_output,
+};
+use zksync_types::{
+    block::L2BlockHeader, commitment::ZkosCommitment, L1BatchNumber, L2BlockNumber, H256,
+};
 use zksync_zkos_vm_runner::zkos_conversions::{h256_to_bytes32, tx_abi_encode};
+
 use crate::zkos_proof_data_server::run;
 
 pub struct ZkosProverInputGenerator {
@@ -36,9 +41,10 @@ impl ZkosProverInputGenerator {
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        let mut connection =
-            self.pool.connection_tagged("zkos_prover_input_generator").await?;
-
+        let mut connection = self
+            .pool
+            .connection_tagged("zkos_prover_input_generator")
+            .await?;
 
         // get from env vars
         let dry_run_block_number = std::env::var("DRY_RUN_BLOCK")
@@ -47,11 +53,17 @@ impl ZkosProverInputGenerator {
             .map(L2BlockNumber);
 
         if let Some(dry_run_block) = dry_run_block_number {
-            tracing::info!("Starting Prover Input Generator - initializing in-memory storages for block {:?}", dry_run_block - 1);
-            let (mut tree, mut preimages) = self.initialize_in_memory_storages(dry_run_block - 1).await?;
+            tracing::info!(
+                "Starting Prover Input Generator - initializing in-memory storages for block {:?}",
+                dry_run_block - 1
+            );
+            let (mut tree, mut preimages) = self
+                .initialize_in_memory_storages(dry_run_block - 1)
+                .await?;
             tracing::info!("initialized in-memory storages");
 
-            self.dry_run_block(&mut tree, &mut preimages, dry_run_block).await?;
+            self.dry_run_block(&mut tree, &mut preimages, dry_run_block)
+                .await?;
             tracing::info!("Dry run completed - exiting");
             return Ok(());
         }
@@ -60,11 +72,15 @@ impl ZkosProverInputGenerator {
         tracing::info!("Starting HTTP server in a separate thread");
         tokio::spawn(run(self.pool.clone()));
 
-        let last_processed_block = connection.zkos_prover_dal().last_block_with_generated_input().await?;
-
+        let last_processed_block = connection
+            .zkos_prover_dal()
+            .last_block_with_generated_input()
+            .await?;
 
         tracing::info!("Starting Prover Input Generator - initializing in-memory storages - last processed block {:?}", last_processed_block);
-        let (mut tree, mut preimages) = self.initialize_in_memory_storages(last_processed_block).await?;
+        let (mut tree, mut preimages) = self
+            .initialize_in_memory_storages(last_processed_block)
+            .await?;
         tracing::info!("initialized in-memory storages");
 
         let mut next_block_to_process = last_processed_block + 1;
@@ -75,16 +91,22 @@ impl ZkosProverInputGenerator {
                 return Ok(());
             }
 
-            let mut connection =
-                self.pool.connection_tagged("zkos_prover_input_generator").await?;
+            let mut connection = self
+                .pool
+                .connection_tagged("zkos_prover_input_generator")
+                .await?;
 
-
-            if let Some(block) = connection.blocks_dal().get_l2_block_header(next_block_to_process).await? {
+            if let Some(block) = connection
+                .blocks_dal()
+                .get_l2_block_header(next_block_to_process)
+                .await?
+            {
                 tracing::info!("Processing block {:?}", block);
                 let started_at = std::time::Instant::now();
 
-                let prover_input =
-                    self.generate_prover_input_for_block(tree.clone(), preimages.clone(), &block).await?;
+                let prover_input = self
+                    .generate_prover_input_for_block(tree.clone(), preimages.clone(), &block)
+                    .await?;
 
                 let duration = started_at.elapsed();
 
@@ -96,11 +118,10 @@ impl ZkosProverInputGenerator {
 
                 Self::print_expected_values_for_block(&mut connection, &block).await?;
 
-                connection.zkos_prover_dal().insert_prover_input(
-                    block.number,
-                    prover_input,
-                    duration,
-                ).await?;
+                connection
+                    .zkos_prover_dal()
+                    .insert_prover_input(block.number, prover_input, duration)
+                    .await?;
 
                 // apply changes to in-memory tree/storage
                 // will be removed when the persistent tree is used
@@ -109,7 +130,8 @@ impl ZkosProverInputGenerator {
                     block.number,
                     &mut tree,
                     &mut preimages,
-                ).await?;
+                )
+                .await?;
 
                 next_block_to_process += 1;
             } else {
@@ -122,31 +144,42 @@ impl ZkosProverInputGenerator {
 
     async fn dry_run_block(
         self,
-        mut tree: &mut InMemoryTree,
-        mut preimages: &mut InMemoryPreimageSource,
-        dry_run_block: L2BlockNumber
+        tree: &mut InMemoryTree,
+        preimages: &mut InMemoryPreimageSource,
+        dry_run_block: L2BlockNumber,
     ) -> anyhow::Result<()> {
-        let mut connection =
-            self.pool.connection_tagged("zkos_prover_input_generator").await?;
+        let mut connection = self
+            .pool
+            .connection_tagged("zkos_prover_input_generator")
+            .await?;
 
-        let block= connection
+        let block = connection
             .blocks_dal()
             .get_l2_block_header(dry_run_block)
             .await?
             .context("Block not found")?;
 
+        tracing::info!(
+            "Dry run mode enabled - processing block {:?}",
+            dry_run_block
+        );
+        let prover_input = self
+            .generate_prover_input_for_block(tree.clone(), preimages.clone(), &block)
+            .await?;
 
-        tracing::info!("Dry run mode enabled - processing block {:?}", dry_run_block);
-        let prover_input =
-            self.generate_prover_input_for_block(tree.clone(), preimages.clone(), &block).await?;
-
-        tracing::info!("Dry run completed - generated prover input for block {:?}", dry_run_block);
+        tracing::info!(
+            "Dry run completed - generated prover input for block {:?}",
+            dry_run_block
+        );
 
         Self::print_expected_values_for_block(&mut connection, &block).await?;
         Ok(())
     }
 
-    async fn print_expected_values_for_block(connection: &mut Connection<'_, Core>, block: &L2BlockHeader) -> anyhow::Result<()> {
+    async fn print_expected_values_for_block(
+        connection: &mut Connection<'_, Core>,
+        block: &L2BlockHeader,
+    ) -> anyhow::Result<()> {
         let batch = connection
             .blocks_dal()
             .get_l1_batch_metadata(L1BatchNumber(block.number.0))
@@ -160,11 +193,31 @@ impl ZkosProverInputGenerator {
             .context("Failed to get L1 batch header for the block")?;
 
         let expected_batch_public_input = batch_public_input(&prev_batch, &batch);
-        tracing::info!("Block {} Expected batch public input: {:?}", block.number.0, expected_batch_public_input);
-        tracing::info!("Block {} Expected batch public input hash: {:?}", block.number.0, H256::from_slice(&expected_batch_public_input.hash()));
-        tracing::info!("Block {} Expected batch public input hash registers: {:?}", block.number.0, batch_output_hash_as_register_values(&expected_batch_public_input));
-        tracing::info!("Block {} Expected batch output preimage: {:?}", block.number.0, zkos_commitment_to_vm_batch_output(&ZkosCommitment::from(&batch)));
-        tracing::info!("Block {} full pubdata: {:?}", block.number.0, batch.header.pubdata_input);
+        tracing::info!(
+            "Block {} Expected batch public input: {:?}",
+            block.number.0,
+            expected_batch_public_input
+        );
+        tracing::info!(
+            "Block {} Expected batch public input hash: {:?}",
+            block.number.0,
+            H256::from_slice(&expected_batch_public_input.hash())
+        );
+        tracing::info!(
+            "Block {} Expected batch public input hash registers: {:?}",
+            block.number.0,
+            batch_output_hash_as_register_values(&expected_batch_public_input)
+        );
+        tracing::info!(
+            "Block {} Expected batch output preimage: {:?}",
+            block.number.0,
+            zkos_commitment_to_vm_batch_output(&ZkosCommitment::from(&batch))
+        );
+        tracing::info!(
+            "Block {} full pubdata: {:?}",
+            block.number.0,
+            batch.header.pubdata_input
+        );
         Ok(())
     }
 
@@ -172,7 +225,7 @@ impl ZkosProverInputGenerator {
         &self,
         tree: InMemoryTree,
         preimages: InMemoryPreimageSource,
-        block: &L2BlockHeader
+        block: &L2BlockHeader,
     ) -> anyhow::Result<Vec<u32>> {
         let context = BatchContext {
             //todo: gas
@@ -191,7 +244,7 @@ impl ZkosProverInputGenerator {
         };
 
         let storage_commitment = StorageCommitment {
-            root: tree.storage_tree.root().clone(),
+            root: *tree.storage_tree.root(),
             next_free_slot: tree.storage_tree.next_free_slot,
         };
 
@@ -206,15 +259,20 @@ impl ZkosProverInputGenerator {
             tree,
             preimages,
             list_source,
-        ).map_err(|err| anyhow::anyhow!("{}", err.0).context("zk_ee internal error"))?;
+        )
+        .map_err(|err| anyhow::anyhow!("{}", err.0).context("zk_ee internal error"))?;
 
         Ok(prover_input)
     }
 
-    async fn load_transactions_for_block(&self, block_number: L2BlockNumber) -> anyhow::Result<VecDeque<Vec<u8>>> {
-        let mut connection =
-            self.pool.connection_tagged("zkos_prover_input_generator").await?;
-
+    async fn load_transactions_for_block(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> anyhow::Result<VecDeque<Vec<u8>>> {
+        let mut connection = self
+            .pool
+            .connection_tagged("zkos_prover_input_generator")
+            .await?;
 
         // todo: relying on miniblock === l1 batch
         let l2_blocks = connection
@@ -222,12 +280,17 @@ impl ZkosProverInputGenerator {
             .get_l2_blocks_to_execute_for_l1_batch(L1BatchNumber(block_number.0))
             .await?;
 
-        assert_eq!(l2_blocks.len(), 1, "Expected exactly one miniblock for the given l1 batch");
+        assert_eq!(
+            l2_blocks.len(),
+            1,
+            "Expected exactly one miniblock for the given l1 batch"
+        );
 
         let l2_block = l2_blocks.into_iter().next().unwrap();
-        let transactions = l2_block.txs
+        let transactions = l2_block
+            .txs
             .into_iter()
-            .map(|tx| tx_abi_encode(tx))
+            .map(tx_abi_encode)
             .collect::<VecDeque<_>>();
         Ok(transactions)
     }
@@ -237,8 +300,11 @@ impl ZkosProverInputGenerator {
         block_number: L2BlockNumber,
         tree: &mut InMemoryTree,
         preimage_source: &mut InMemoryPreimageSource,
-    ) -> anyhow::Result<()>{
-        let mut conn = self.pool.connection_tagged("zkos_prover_input_generator").await?;
+    ) -> anyhow::Result<()> {
+        let mut conn = self
+            .pool
+            .connection_tagged("zkos_prover_input_generator")
+            .await?;
 
         let storage_logs = conn
             .storage_logs_dal()
@@ -268,7 +334,6 @@ impl ZkosProverInputGenerator {
         preimages.extend(factory_deps);
         preimages.extend(account_props);
 
-
         for storage_logs in storage_logs {
             // todo: awkwardly we need to insert both into cold_storage and storage_tree
             tree.cold_storage.insert(
@@ -281,16 +346,16 @@ impl ZkosProverInputGenerator {
             );
         }
 
-
         for (hash, value) in preimages {
-            preimage_source
-                .inner
-                .insert(h256_to_bytes32(hash), value);
+            preimage_source.inner.insert(h256_to_bytes32(hash), value);
         }
         Ok(())
     }
 
-    async fn initialize_in_memory_storages(&self, l2_block_number: L2BlockNumber) -> anyhow::Result<(InMemoryTree, InMemoryPreimageSource)> {
+    async fn initialize_in_memory_storages(
+        &self,
+        l2_block_number: L2BlockNumber,
+    ) -> anyhow::Result<(InMemoryTree, InMemoryPreimageSource)> {
         let mut tree = InMemoryTree {
             storage_tree: TestingTree::new_in(Global),
             cold_storage: HashMap::new(),
@@ -299,8 +364,10 @@ impl ZkosProverInputGenerator {
             inner: Default::default(),
         };
 
-
-        let mut conn = self.pool.connection_tagged("zkos_prover_input_generator").await?;
+        let mut conn = self
+            .pool
+            .connection_tagged("zkos_prover_input_generator")
+            .await?;
 
         let all_storage_logs = conn
             .storage_logs_dal()
@@ -346,9 +413,7 @@ impl ZkosProverInputGenerator {
         tracing::info!("Recovering preimages...");
 
         for (hash, value) in preimages {
-            preimage_source
-                .inner
-                .insert(h256_to_bytes32(hash), value);
+            preimage_source.inner.insert(h256_to_bytes32(hash), value);
         }
 
         tracing::info!("Preimage recovery complete");

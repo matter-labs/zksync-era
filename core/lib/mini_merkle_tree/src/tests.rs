@@ -41,7 +41,7 @@ fn hash_of_empty_tree_with_single_item() {
 fn hash_of_large_empty_tree_with_multiple_items() {
     for len in [50, 64, 100, 128, 256, 512, 1_000, 1_024] {
         println!("checking tree with {len} items");
-        let leaves = iter::repeat([0_u8; 88]).take(len);
+        let leaves = std::iter::repeat_n([0_u8; 88], len);
         let tree_size = len.next_power_of_two();
 
         let tree = MiniMerkleTree::new(leaves.clone(), Some(tree_size));
@@ -375,7 +375,7 @@ fn pushing_new_leaves() {
 
 #[test]
 fn trim_all_and_grow() {
-    let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(4), None);
+    let mut tree = MiniMerkleTree::new(std::iter::repeat_n([1; 88], 4), None);
     tree.trim_start(4);
     tree.push([1; 88]);
     let expected_root = "0xfa4c924185122254742622b10b68df8de89d33f685ee579f37a50c552b0d245d"
@@ -387,13 +387,13 @@ fn trim_all_and_grow() {
 #[test]
 fn trim_all_and_check_root() {
     for len in 1..=50 {
-        let mut tree = MiniMerkleTree::new(iter::repeat([1; 88]).take(len), None);
+        let mut tree = MiniMerkleTree::new(std::iter::repeat_n([1; 88], len), None);
         let root = tree.merkle_root();
         tree.trim_start(len);
         assert_eq!(tree.merkle_root(), root);
 
         let mut tree = MiniMerkleTree::new(
-            iter::repeat([1; 88]).take(len),
+            std::iter::repeat_n([1; 88], len),
             Some(len.next_power_of_two() * 2),
         );
         let root = tree.merkle_root();

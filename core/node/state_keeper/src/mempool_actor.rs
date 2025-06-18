@@ -11,7 +11,7 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{vm::VmVersion, Address, Nonce, Transaction};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::v26_utils::find_unsafe_deposit;
@@ -232,7 +232,8 @@ mod tests {
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
-        u256_to_h256, L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog, H256,
+        get_nonce_key, u256_to_h256, L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog,
+        H256,
     };
 
     use super::*;

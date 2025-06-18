@@ -1,4 +1,7 @@
-use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate;
+use bellman::plonk::better_better_cs::proof::Proof as PlonkProof;
+use circuit_definitions::circuit_definitions::aux_layer::{
+    ZkSyncSnarkWrapperCircuit, ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+};
 use crypto_codegen::serialize_proof;
 use fflonk::{
     bellman::{
@@ -8,17 +11,10 @@ use fflonk::{
     },
     FflonkProof,
 };
-use zksync_prover_interface::outputs::{L1BatchProofForL1, TypedL1BatchProofForL1};
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{encode, Token},
     U256,
-};
-use bellman::plonk::better_better_cs::proof::Proof as PlonkProof;
-use circuit_definitions::{
-    circuit_definitions::aux_layer::{
-        ZkSyncSnarkWrapperCircuit,
-    },
 };
 
 use crate::{
@@ -52,7 +48,7 @@ impl ProveBatches {
             assert_eq!(self.l1_batches.len(), 1);
 
             let verifier_type = U256::from(1); //plonk
-            let (_, proof) = serialize_proof(&self.proofs.first().unwrap());
+            let (_, proof) = serialize_proof(self.proofs.first().unwrap());
 
             // original logic:
             // let (verifier_type, proof) = match self.proofs.first().unwrap().inner() {

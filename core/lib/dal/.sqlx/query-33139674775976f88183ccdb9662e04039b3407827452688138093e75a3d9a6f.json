@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                l2_block_number,\n                fri_proof IS NOT NULL   AS \"has_fri!\",\n                snark_proof IS NOT NULL AS \"has_snark!\"\n            FROM zkos_proofs\n            ORDER BY l2_block_number\n            ",
+  "query": "\n            SELECT\n                l2_block_number,\n                fri_proof IS NOT NULL AS \"has_fri!\",\n                snark_proof IS NOT NULL AS \"has_snark!\"\n            FROM zkos_proofs\n            ORDER BY l2_block_number\n            ",
   "describe": {
     "columns": [
       {
@@ -28,5 +28,5 @@
       null
     ]
   },
-  "hash": "872aac9d47018048c73b8b8f949e9c8f9a55d283528ccbf31cba8c176a9d6191"
+  "hash": "33139674775976f88183ccdb9662e04039b3407827452688138093e75a3d9a6f"
 }
