@@ -9,7 +9,6 @@ use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregatio
 
 use crate::{
     artifact_manager::{AggregationBlobUrls, ArtifactsManager, JobId},
-    metrics::WITNESS_GENERATOR_METRICS,
     rounds::leaf_aggregation::{LeafAggregation, LeafAggregationArtifacts},
     utils::{AggregationWrapper, ClosedFormInputWrapper},
 };
@@ -47,7 +46,6 @@ impl ArtifactsManager for LeafAggregation {
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> AggregationBlobUrls {
-        let started_at = Instant::now();
         let key = AggregationsKey {
             batch_id: artifacts.batch_id,
             circuit_id: get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
@@ -57,9 +55,6 @@ impl ArtifactsManager for LeafAggregation {
             .put(key, &AggregationWrapper(artifacts.aggregations))
             .await
             .unwrap();
-
-        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
-            .observe(started_at.elapsed());
 
         AggregationBlobUrls {
             aggregation_urls,

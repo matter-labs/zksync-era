@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -8,11 +8,10 @@ use zksync_prover_job_processor::JobPicker;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
 use super::executor::WitnessGeneratorExecutor;
-use crate::{artifact_manager::ArtifactsManager, rounds::{JobManager, JobMetadata, VerificationKeyManager}};
+use crate::{artifact_manager::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, rounds::{JobManager, JobMetadata, VerificationKeyManager}};
 
 /// WitnessGenerator job picker implementation.
-/// Picks job from database (via MetadataLoader) and gets data from object store.
-// #[derive(Debug)]
+/// Picks job from database (via MetadataLoader), gets data from object store and prepares the job.
 pub struct WitnessGeneratorJobPicker<R> {
     pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
@@ -48,17 +47,28 @@ where
     async fn pick_job(
         &mut self,
     ) -> anyhow::Result<Option<(R::Job, R::Metadata)>> {
-        tracing::info!("Started picking witness generator {:?} job", R::ROUND);
+        let start_time = Instant::now();
+        tracing::info!("Starting picking witness generator {:?} job", R::ROUND);
 
         if let Some(job_metadata) =
             R::get_metadata(self.pool.clone(), self.protocol_version)
                 .await
                 .context("get_metadata()")?
         {
+            let prepare_job_start_time = Instant::now();
             tracing::info!("Processing {:?} job {:?}", R::ROUND, job_metadata.job_id());
             let job = R::prepare_job(job_metadata.clone(), &*self.object_store, self.keystore.clone())
                 .await
                 .context("prepare_job()")?;
+            WITNESS_GENERATOR_METRICS.prepare_job_time[&R::ROUND.into()]
+                .observe(prepare_job_start_time.elapsed());
+
+            tracing::info!(
+                "Finished picking witness generator {:?} job on batch {} in {:?}",
+                R::ROUND,
+                job_metadata.job_id(),
+                start_time.elapsed()
+            );
             Ok(Some((
                 job,
                 job_metadata,

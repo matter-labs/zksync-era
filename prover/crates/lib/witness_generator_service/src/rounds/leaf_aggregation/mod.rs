@@ -173,10 +173,6 @@ impl JobManager for LeafAggregation {
             .flat_map(|x| x.unwrap())
             .collect();
 
-        WITNESS_GENERATOR_METRICS.witness_generation_time
-            [&AggregationRound::LeafAggregation.into()]
-            .observe(started_at.elapsed());
-
         tracing::info!(
             "Leaf witness generation for block {} with circuit id {}: is complete in {:?}.",
             job.batch_id,
@@ -208,7 +204,6 @@ impl JobManager for LeafAggregation {
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
             .observe(started_at.elapsed());
 
-        let started_at = Instant::now();
         let base_vk = keystore
             .load_base_layer_verification_key(metadata.circuit_id)
             .context("get_base_layer_vk_for_circuit_type()")?;
@@ -221,9 +216,6 @@ impl JobManager for LeafAggregation {
             .load_recursive_layer_verification_key(leaf_circuit_id)
             .context("get_recursive_layer_vk_for_circuit_type()")?;
         let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);
-
-        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::LeafAggregation.into()]
-            .observe(started_at.elapsed());
 
         Ok(LeafAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,

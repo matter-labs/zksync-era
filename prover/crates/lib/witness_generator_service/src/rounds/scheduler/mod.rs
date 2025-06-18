@@ -103,9 +103,7 @@ impl JobManager for Scheduler {
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
-            .observe(started_at.elapsed());
-
+        
         tracing::info!(
             "Scheduler generation for block {} is complete in {:?}",
             job.batch_id,
@@ -142,7 +140,6 @@ impl JobManager for Scheduler {
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
             .observe(started_at.elapsed());
 
-        let started_at = Instant::now();
         let node_vk = keystore
             .load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
@@ -165,9 +162,6 @@ impl JobManager for Scheduler {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-
-        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::Scheduler.into()]
-            .observe(started_at.elapsed());
 
         Ok(SchedulerWitnessGeneratorJob {
             batch_id: metadata.batch_id,

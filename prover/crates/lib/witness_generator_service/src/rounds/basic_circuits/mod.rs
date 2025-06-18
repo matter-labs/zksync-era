@@ -70,27 +70,13 @@ impl JobManager for BasicCircuits {
         object_store: Arc<dyn ObjectStore>,
         max_circuits_in_flight: usize,
     ) -> anyhow::Result<BasicCircuitArtifacts> {
-        let started_at = Instant::now();
         let BasicWitnessGeneratorJob {
             batch_id,
             data: job,
         } = job;
 
-        tracing::info!(
-            "Starting witness generation of type {:?} for block {}",
-            AggregationRound::BasicCircuits,
-            batch_id
-        );
-
         let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
             generate_witness(batch_id, object_store, job, max_circuits_in_flight).await;
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
-            .observe(started_at.elapsed());
-        tracing::info!(
-            "Witness generation for block {} is complete in {:?}",
-            batch_id,
-            started_at.elapsed()
-        );
 
         Ok(BasicCircuitArtifacts {
             circuit_urls,
@@ -106,7 +92,6 @@ impl JobManager for BasicCircuits {
         _keystore: Arc<dyn VerificationKeyManager>,
     ) -> anyhow::Result<Self::Job> {
         let (metadata, started_at) = metadata;
-        tracing::info!("Processing FRI basic witness-gen for block {}", metadata);
         let job = Self::get_artifacts(&metadata, object_store).await?;
 
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]

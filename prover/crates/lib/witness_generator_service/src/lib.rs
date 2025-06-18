@@ -3,7 +3,7 @@
 
 mod executor;
 mod job_picker;
-mod async_job_runner;
+mod job_runner;
 mod job_saver;
 
 mod metrics;
@@ -17,5 +17,5 @@ mod tests;
 mod utils;
 mod witness;
 
-pub use async_job_runner::witness_generator_runner;
+pub use job_runner::witness_generator_runner;
 pub use rounds::VerificationKeyManager;

@@ -113,9 +113,6 @@ impl JobManager for RecursionTip {
             _marker: std::marker::PhantomData,
         };
 
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::RecursionTip.into()]
-            .observe(started_at.elapsed());
-
         tracing::info!(
             "Recursion tip generation for block {} is complete in {:?}",
             job.batch_id,
@@ -209,9 +206,6 @@ impl JobManager for RecursionTip {
             vk_witness: node_vk.clone().into_inner(),
             proof_witnesses: recursion_tip_proofs.into(),
         };
-
-        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::RecursionTip.into()]
-            .observe(started_at.elapsed());
 
         Ok(RecursionTipWitnessGeneratorJob {
             batch_id: metadata.batch_id,

@@ -179,10 +179,6 @@ impl JobManager for NodeAggregation {
             recursive_circuit_ids_and_urls.extend(recursive_circuit_id_and_url);
         }
 
-        WITNESS_GENERATOR_METRICS.witness_generation_time
-            [&AggregationRound::NodeAggregation.into()]
-            .observe(started_at.elapsed());
-
         tracing::info!(
             "Node witness generation for block {} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
             job.batch_id,
@@ -216,7 +212,6 @@ impl JobManager for NodeAggregation {
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
 
-        let started_at = Instant::now();
         let leaf_vk = keystore
             .load_recursive_layer_verification_key(metadata.circuit_id)
             .context("get_recursive_layer_vk_for_circuit_type")?;
@@ -225,9 +220,6 @@ impl JobManager for NodeAggregation {
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
             )
             .context("get_recursive_layer_vk_for_circuit_type()")?;
-
-        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
-            .observe(started_at.elapsed());
 
         Ok(NodeAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,

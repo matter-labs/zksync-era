@@ -8,7 +8,6 @@ use zksync_types::{basic_fri_types::AggregationRound, prover_dal::NodeAggregatio
 
 use crate::{
     artifact_manager::{AggregationBlobUrls, ArtifactsManager, JobId},
-    metrics::WITNESS_GENERATOR_METRICS,
     rounds::node_aggregation::{NodeAggregation, NodeAggregationArtifacts},
     utils::AggregationWrapper,
 };
@@ -52,7 +51,6 @@ impl ArtifactsManager for NodeAggregation {
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> AggregationBlobUrls {
-        let started_at = Instant::now();
         let key = AggregationsKey {
             batch_id: artifacts.batch_id,
             circuit_id: artifacts.circuit_id,
@@ -62,9 +60,6 @@ impl ArtifactsManager for NodeAggregation {
             .put(key, &AggregationWrapper(artifacts.next_aggregations))
             .await
             .unwrap();
-
-        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
-            .observe(started_at.elapsed());
 
         AggregationBlobUrls {
             aggregation_urls,

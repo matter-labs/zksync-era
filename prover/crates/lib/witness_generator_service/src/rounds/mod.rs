@@ -16,7 +16,6 @@ use zksync_prover_fri_types::circuit_definitions::{
     },
 };
 
-
 mod basic_circuits;
 mod leaf_aggregation;
 mod node_aggregation;
@@ -28,9 +27,6 @@ pub use leaf_aggregation::LeafAggregation;
 pub use node_aggregation::NodeAggregation;
 pub use recursion_tip::RecursionTip;
 pub use scheduler::Scheduler;
-// use zksync_types::basic_fri_types::AggregationRound;
-
-
 
 pub trait JobMetadata {
     fn job_id(&self) -> JobId;
@@ -62,7 +58,6 @@ pub trait JobManager: ArtifactsManager + Sync + Send + 'static {
         protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<Self::Metadata>>;
 }
-
 
 pub trait VerificationKeyManager: 'static + Send + Sync {
     fn load_base_layer_verification_key(

@@ -4,11 +4,9 @@
 use std::{sync::Arc, time::{Duration, Instant}};
 
 use anyhow::{anyhow, Context as _};
-use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
 use structopt::StructOpt;
-use tokio::sync::watch;
 use zksync_config::{
     configs::{DatabaseSecrets, GeneralConfig},
     full_config_schema,
@@ -33,6 +31,8 @@ use zksync_witness_generator_service::{
 };
 use tokio_util::sync::CancellationToken;
 use tokio::sync::oneshot;
+
+const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(20);
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -100,6 +100,40 @@ async fn ensure_protocol_alignment(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
+
+    let cancellation_token = CancellationToken::new();
+    let mut managed_tasks = ManagedTasks::new(vec![]);
+    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
+
+    tokio::select! {
+        _ = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {},
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
+        }
+    }
+    let shutdown_time = Instant::now();
+    cancellation_token.cancel();
+    metrics_stop_sender
+        .send(true)
+        .context("failed to stop metrics")?;
+    managed_tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
+    Ok(())
+}
+
+async fn run_inner(
+    cancellation_token: CancellationToken,
+    metrics_stop_receiver: tokio::sync::watch::Receiver<bool>,
+    managed_tasks: &mut ManagedTasks,
+) -> anyhow::Result<()> {
     let opt = Opt::from_args();
     let schema = full_config_schema(false);
     let config_file_paths = ConfigFilePaths {
@@ -144,7 +178,6 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;
-    let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
@@ -176,14 +209,13 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = Vec::new();
     if let Some(config) = prometheus_exporter_config {
         tracing::info!("Using Prometheus exporter with {config:?}");
-        let prometheus_task = tokio::spawn(config.run(stop_receiver.clone()));
+        let prometheus_task = tokio::spawn(config.run(metrics_stop_receiver));
         tasks.push(prometheus_task);
     } else {
         tracing::info!("Prometheus exporter is not configured");
     }
 
     let keystore = Arc::new(keystore);
-    let cancellation_token = CancellationToken::new();
 
     for round in rounds {
         tracing::info!(
@@ -199,6 +231,7 @@ async fn main() -> anyhow::Result<()> {
                     config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
+                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -210,6 +243,7 @@ async fn main() -> anyhow::Result<()> {
                     config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
+                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -221,6 +255,7 @@ async fn main() -> anyhow::Result<()> {
                     config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
+                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -232,6 +267,7 @@ async fn main() -> anyhow::Result<()> {
                     config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
+                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -243,6 +279,7 @@ async fn main() -> anyhow::Result<()> {
                     config.max_circuits_in_flight.clone(),
                     store_factory.create_store().await?,
                     connection_pool.clone(),
+                    1,
                     protocol_version,
                     keystore.clone(),
                     cancellation_token.clone(),
@@ -260,41 +297,8 @@ async fn main() -> anyhow::Result<()> {
         );
         SERVER_METRICS.init_latency[&round.into()].set(started_at.elapsed());
     }
-
-    let (mut stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
-    ctrlc::set_handler(move || {
-        block_on(stop_signal_sender.send(true)).expect("Ctrl+C signal send");
-    })
-    .expect("Error setting Ctrl+C handler");
-    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
-    tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = stop_signal_receiver.next() => {
-            tracing::info!("Stop request received, shutting down");
-            cancellation_token.cancel();
-        }
-    }
-
-
-    // let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
-    // let mut stop_signal_sender = Some(stop_signal_sender);
-    // ctrlc::set_handler(move || {
-    //     if let Some(sender) = stop_signal_sender.take() {
-    //         sender.send(()).ok();
-    //     }
-    // })
-    // .context("Error setting Ctrl+C handler")?;
-
-    // let mut tasks = ManagedTasks::new(tasks);
-    // tokio::select! {
-    //     _ = tasks.wait_single() => {},
-    //     _ = stop_signal_receiver => {
-    //         tracing::info!("Stop request received, shutting down");
-    //         cancellation_token.cancel();
-    //     }
-    // }
-    stop_sender.send_replace(true);
-    tasks.complete(Duration::from_secs(5)).await;
-    tracing::info!("Finished witness generation");
+    
+    *managed_tasks = ManagedTasks::new(tasks);
+    managed_tasks.wait_single().await;
     Ok(())
 }

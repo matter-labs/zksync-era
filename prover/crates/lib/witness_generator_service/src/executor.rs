@@ -1,9 +1,11 @@
 use std::{marker::PhantomData, sync::Arc, time::Instant};
 
 use async_trait::async_trait;
+use tokio::runtime::Handle;
 use zksync_object_store::ObjectStore;
 use zksync_prover_job_processor::Executor;
 
+use crate::metrics::WITNESS_GENERATOR_METRICS;
 use crate::rounds::{JobManager, JobMetadata};
 use crate::artifact_manager::ArtifactsManager;
 
@@ -47,37 +49,36 @@ where
         skip_all,
         fields(l1_batch = % metadata.job_id())
     )]
-    async fn execute_async(
-        self: Arc<Self>,
+    fn execute(
+        &self,
         data: Self::Input,
         metadata: Self::Metadata,
     ) -> anyhow::Result<Self::Output> {
         let started_at = Instant::now();
 
         tracing::info!(
-            "Starting witness generation of type {:?} for block {:?}",
+            "Starting executing witness generation of type {:?} for block {:?}",
             R::ROUND,
             metadata.job_id()
         );
 
         let object_store = self.object_store.clone();
         let max_circuits_in_flight = self.max_circuits_in_flight;
-        let artifacts = R::process_job(data, object_store, max_circuits_in_flight).await;
+        let rt_handle = Handle::current();
+        let artifacts = rt_handle.block_on(
+            R::process_job(data, object_store, max_circuits_in_flight)
+        );
 
-        // WITNESS_GENERATOR_METRICS.witness_generation_time
-        //     [R::ROUND.into()]
-        //     .observe(started_at.elapsed());
+        WITNESS_GENERATOR_METRICS.witness_generation_time
+            [&R::ROUND.into()]
+            .observe(started_at.elapsed());
         tracing::info!(
-            "Witness generation for block {:?} is complete in {:?}",
+            "Finished executing witness generation of type {:?} for block {:?} in {:?}",
+            R::ROUND,
             metadata.job_id(),
             started_at.elapsed()
         );
 
         artifacts
-    }
-    
-    fn execute(&self,_input:Self::Input,_metadata:Self::Metadata) -> anyhow::Result<Self::Output>  {
-        unimplemented!("Synchronous execution is not supported for WitnessGeneratorExecutor");
-        // This executor is designed to be used asynchronously, so synchronous execution is not implemented.
     }
 }

@@ -13,7 +13,6 @@ use crate::{artifact_manager::ArtifactsManager, executor::WitnessGeneratorExecut
 pub struct WitnessGeneratorJobSaver<R> {
     connection_pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
-    // protocol_version: ProtocolSemanticVersion,
     _marker: std::marker::PhantomData<R>,
 }
 
@@ -21,12 +20,10 @@ impl<R> WitnessGeneratorJobSaver<R> {
     pub fn new(
         connection_pool: ConnectionPool<Prover>,
         object_store: Arc<dyn ObjectStore>,
-        // protocol_version: ProtocolSemanticVersion,
     ) -> Self {
         Self {
             connection_pool,
             object_store,
-            // protocol_version,
             _marker: std::marker::PhantomData,
         }
     }
@@ -48,22 +45,24 @@ where
         &self,
         data: (anyhow::Result<R::OutputArtifacts>, R::Metadata),
     ) -> anyhow::Result<()> {
-        // let start_time = Instant::now();
+        let start_time = Instant::now();
         let (result, metadata) = data;
         let job_id = metadata.job_id();
 
+        tracing::info!(
+            "Starting saving witness generation of type {:?} for block {:?}",
+            R::ROUND,
+            job_id
+        );
+
         match result {
             Ok(artifacts) => {
-                tracing::info!("Saving {:?} artifacts for job {:?}", R::ROUND, job_id);
-
                 let blob_save_started_at = Instant::now();
-
                 let blob_urls = R::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
 
                 WITNESS_GENERATOR_METRICS.blob_save_time[&R::ROUND.into()]
                     .observe(blob_save_started_at.elapsed());
 
-                tracing::info!("Saved {:?} artifacts for job {:?}", R::ROUND, job_id);
                 R::save_to_database(
                     &self.connection_pool,
                     job_id,
@@ -72,8 +71,6 @@ where
                     artifacts,
                 )
                 .await?;
-
-                tracing::info!("Saved {:?} to database for job {:?}", R::ROUND, job_id);
             }
             Err(error) => {
                 let error_message = error.to_string();
@@ -87,12 +84,13 @@ where
                     .await;
             }
         };
-        // CIRCUIT_PROVER_METRICS
-        //     .save_time
-        //     .observe(start_time.elapsed());
-        // CIRCUIT_PROVER_METRICS
-        //     .full_time
-        //     .observe(metadata.pick_time.elapsed());
+        tracing::info!(
+            "Finished saving witness generation of type {:?} for block {:?} in {:?}",
+            R::ROUND,
+            job_id,
+            start_time.elapsed()
+        );
+
         Ok(())
     }
 }
