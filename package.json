@@ -12,7 +12,6 @@
       "contracts/system-contracts",
       "etc/ERC20",
       "etc/utils",
-      "infrastructure/zk",
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
       "core/tests/recovery-test",
