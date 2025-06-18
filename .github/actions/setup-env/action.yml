@@ -77,13 +77,13 @@ runs:
         path: zkstack
         key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**') }}
 
-    - name: Copy zkstack binary so that it is usable inside docker
-      if: steps.zkstack_cache.outputs.cache-hit != 'true'
+    - name: Copy cached zkstack binary to inside docker (on cache hit)
+      if: steps.zkstack_cache.outputs.cache-hit == 'true'
       shell: bash
       run: |
         ci_run cp /usr/src/zksync/zkstack /usr/local/bin/zkstack 
 
-    - name: Install zkstack (only on cache miss)
+    - name: Install zkstack (on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
@@ -93,7 +93,7 @@ runs:
         ci_run cp /usr/local/bin/zkstack /usr/src/zksync/zkstack
         ls
 
-    - name: Save zkstack binary to cache (only on cache miss)
+    - name: Save zkstack binary to cache (on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
