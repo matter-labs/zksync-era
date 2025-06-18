@@ -6653,6 +6653,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tiny-keccak",
  "url",
+ "vise",
 ]
 
 [[package]]
