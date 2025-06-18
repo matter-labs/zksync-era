@@ -12,30 +12,16 @@ jobs:
 
       - name: Setup environment
         run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
           echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
           echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
           echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Build
         run: |
           ci_run yarn install
-          ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Database setup
         run: |
