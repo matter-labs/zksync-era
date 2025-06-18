@@ -32,18 +32,23 @@ const COMPACT_CRS_ENV_VAR: &str = "COMPACT_CRS_FILE";
 
 pub struct PlonkSetupData {
     pub compression_mode1_for_wrapper_setup_data:
-        OnceLock<CompressionSetupData<CompressionMode1ForWrapper>>,
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode1ForWrapper>>>,
     // We can't use cache for Plonk setup data so we load it in-place
 }
 
 pub struct FflonkSetupData {
-    pub compression_mode1_setup_data: OnceLock<CompressionSetupData<CompressionMode1>>,
-    pub compression_mode2_setup_data: OnceLock<CompressionSetupData<CompressionMode2>>,
-    pub compression_mode3_setup_data: OnceLock<CompressionSetupData<CompressionMode3>>,
-    pub compression_mode4_setup_data: OnceLock<CompressionSetupData<CompressionMode4>>,
+    pub compression_mode1_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode1>>>,
+    pub compression_mode2_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode2>>>,
+    pub compression_mode3_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode3>>>,
+    pub compression_mode4_setup_data:
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode4>>>,
     pub compression_mode5_for_wrapper_setup_data:
-        OnceLock<CompressionSetupData<CompressionMode5ForWrapper>>,
-    pub fflonk_snark_wrapper_setup_data: OnceLock<SnarkWrapperSetupData<FflonkSnarkWrapper>>,
+        OnceLock<anyhow::Result<CompressionSetupData<CompressionMode5ForWrapper>>>,
+    pub fflonk_snark_wrapper_setup_data:
+        OnceLock<anyhow::Result<SnarkWrapperSetupData<FflonkSnarkWrapper>>>,
 }
 
 pub struct CompressorSetupData {
@@ -304,7 +309,7 @@ fn load_compression_mode1_setup_data(keystore: &Arc<Keystore>) {
             .get_or_init(|| {
                 keystore
                     .load_compression_setup_data::<CompressionMode1>()
-                    .expect("Failed to load compression mode 1 setup data")
+                    .context("Failed to load compression mode 1 setup data")
             });
     });
 }
@@ -319,7 +324,7 @@ fn load_compression_mode2_setup_data(keystore: &Arc<Keystore>) {
             .get_or_init(|| {
                 keystore
                     .load_compression_setup_data::<CompressionMode2>()
-                    .expect("Failed to load compression mode 2 setup data")
+                    .context("Failed to load compression mode 2 setup data")
             });
     });
 }
@@ -334,7 +339,7 @@ fn load_compression_mode3_setup_data(keystore: &Arc<Keystore>) {
             .get_or_init(|| {
                 keystore
                     .load_compression_setup_data::<CompressionMode3>()
-                    .expect("Failed to load compression mode 3 setup data")
+                    .context("Failed to load compression mode 3 setup data")
             });
     });
 }
@@ -349,7 +354,7 @@ fn load_compression_mode4_setup_data(keystore: &Arc<Keystore>) {
             .get_or_init(|| {
                 keystore
                     .load_compression_setup_data::<CompressionMode4>()
-                    .expect("Failed to load compression mode 4 setup data")
+                    .context("Failed to load compression mode 4 setup data")
             });
     });
 }
@@ -364,7 +369,7 @@ fn load_compression_mode5_for_wrapper_setup_data(keystore: &Arc<Keystore>) {
             .get_or_init(|| {
                 keystore
                     .load_compression_setup_data::<CompressionMode5ForWrapper>()
-                    .expect("Failed to load compression mode 5 for wrapper setup data")
+                    .context("Failed to load compression mode 5 for wrapper setup data")
             });
     });
 }
@@ -379,7 +384,7 @@ fn load_compression_mode1_for_wrapper_setup_data(keystore: &Arc<Keystore>) {
             .get_or_init(|| {
                 keystore
                     .load_compression_setup_data::<CompressionMode1ForWrapper>()
-                    .expect("Failed to load compression mode 1 for wrapper setup data")
+                    .context("Failed to load compression mode 1 for wrapper setup data")
             });
     });
 }
@@ -394,7 +399,7 @@ fn load_fflonk_snark_wrapper_setup_data(keystore: &Arc<Keystore>) {
             .get_or_init(|| {
                 keystore
                     .load_snark_wrapper_setup_data::<FflonkSnarkWrapper>()
-                    .expect("Failed to load Fflonk Snark Wrapper setup data")
+                    .context("Failed to load Fflonk Snark Wrapper setup data")
             });
     });
 }
@@ -416,161 +421,95 @@ impl CompressorBlobStorage for Keystore {
     fn get_compression_mode1_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode1>> {
-        let setup_data_cache = &self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
-            .compression_mode1_setup_data;
-        if let Some(setup_data) = setup_data_cache.get() {
-            Ok(setup_data)
-        } else {
-            let setup_data = self
-                .load_compression_setup_data::<CompressionMode1>()
-                .context("Failed to load compression mode 1 setup data")?;
-            setup_data_cache.set(setup_data).map_err(|_| {
-                anyhow::anyhow!("Compression mode 1 setup data is already initialized in cache")
-            })?;
-            if let Some(setup_data) = setup_data_cache.get() {
-                Ok(setup_data)
-            } else {
-                Err(anyhow::anyhow!(
-                    "Compression mode 1 setup data not found in cache"
-                ))
-            }
-        }
+            .compression_mode1_setup_data
+            .get_or_init(|| {
+                self.load_compression_setup_data::<CompressionMode1>()
+                    .context("Failed to load compression mode 1 setup data")
+            })
+            .as_ref()
+            .map_err(|e| anyhow::anyhow!("Error loading compression mode 1 setup data: {}", e))
     }
 
     fn get_compression_mode2_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode2>> {
-        let setup_data_cache = &self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
-            .compression_mode2_setup_data;
-        if let Some(setup_data) = setup_data_cache.get() {
-            Ok(setup_data)
-        } else {
-            let setup_data = self
-                .load_compression_setup_data::<CompressionMode2>()
-                .context("Failed to load compression mode 2 setup data")?;
-            setup_data_cache.set(setup_data).map_err(|_| {
-                anyhow::anyhow!("Compression mode 2 setup data is already initialized in cache")
-            })?;
-            if let Some(setup_data) = setup_data_cache.get() {
-                Ok(setup_data)
-            } else {
-                Err(anyhow::anyhow!(
-                    "Compression mode 2 setup data not found in cache"
-                ))
-            }
-        }
+            .compression_mode2_setup_data
+            .get_or_init(|| {
+                self.load_compression_setup_data::<CompressionMode2>()
+                    .context("Failed to load compression mode 2 setup data")
+            })
+            .as_ref()
+            .map_err(|e| anyhow::anyhow!("Error loading compression mode 2 setup data: {}", e))
     }
 
     fn get_compression_mode3_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode3>> {
-        let setup_data_cache = &self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
-            .compression_mode3_setup_data;
-        if let Some(setup_data) = setup_data_cache.get() {
-            Ok(setup_data)
-        } else {
-            let setup_data = self
-                .load_compression_setup_data::<CompressionMode3>()
-                .context("Failed to load compression mode 3 setup data")?;
-            setup_data_cache.set(setup_data).map_err(|_| {
-                anyhow::anyhow!("Compression mode 3 setup data is already initialized in cache")
-            })?;
-            if let Some(setup_data) = setup_data_cache.get() {
-                Ok(setup_data)
-            } else {
-                Err(anyhow::anyhow!(
-                    "Compression mode 3 setup data not found in cache"
-                ))
-            }
-        }
+            .compression_mode3_setup_data
+            .get_or_init(|| {
+                self.load_compression_setup_data::<CompressionMode3>()
+                    .context("Failed to load compression mode 3 setup data")
+            })
+            .as_ref()
+            .map_err(|e| anyhow::anyhow!("Error loading compression mode 3 setup data: {}", e))
     }
 
     fn get_compression_mode4_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode4>> {
-        let setup_data_cache = &self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
-            .compression_mode4_setup_data;
-        if let Some(setup_data) = setup_data_cache.get() {
-            Ok(setup_data)
-        } else {
-            let setup_data = self
-                .load_compression_setup_data::<CompressionMode4>()
-                .context("Failed to load compression mode 4 setup data")?;
-            setup_data_cache.set(setup_data).map_err(|_| {
-                anyhow::anyhow!("Compression mode 4 setup data is already initialized in cache")
-            })?;
-            if let Some(setup_data) = setup_data_cache.get() {
-                Ok(setup_data)
-            } else {
-                Err(anyhow::anyhow!(
-                    "Compression mode 4 setup data not found in cache"
-                ))
-            }
-        }
+            .compression_mode4_setup_data
+            .get_or_init(|| {
+                self.load_compression_setup_data::<CompressionMode4>()
+                    .context("Failed to load compression mode 4 setup data")
+            })
+            .as_ref()
+            .map_err(|e| anyhow::anyhow!("Error loading compression mode 4 setup data: {}", e))
     }
 
     fn get_compression_mode5_for_wrapper_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode5ForWrapper>> {
-        let setup_data_cache = &self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
-            .compression_mode5_for_wrapper_setup_data;
-        if let Some(setup_data) = setup_data_cache.get() {
-            Ok(setup_data)
-        } else {
-            let setup_data = self
-                .load_compression_setup_data::<CompressionMode5ForWrapper>()
-                .context("Failed to load compression mode 5 for wrapper setup data")?;
-            setup_data_cache.set(setup_data).map_err(|_| {
+            .compression_mode5_for_wrapper_setup_data
+            .get_or_init(|| {
+                self.load_compression_setup_data::<CompressionMode5ForWrapper>()
+                    .context("Failed to load compression mode 5 for wrapper setup data")
+            })
+            .as_ref()
+            .map_err(|e| {
                 anyhow::anyhow!(
-                    "Compression mode 5 for wrapper setup data is already initialized in cache"
+                    "Error loading compression mode 5 for wrapper setup data: {}",
+                    e
                 )
-            })?;
-            if let Some(setup_data) = setup_data_cache.get() {
-                Ok(setup_data)
-            } else {
-                Err(anyhow::anyhow!(
-                    "Compression mode 5 for wrapper setup data not found in cache"
-                ))
-            }
-        }
+            })
     }
 
     fn get_compression_mode1_for_wrapper_setup_data(
         &self,
     ) -> anyhow::Result<&CompressionSetupData<CompressionMode1ForWrapper>> {
-        let setup_data_cache = &self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .plonk_setup_data
-            .compression_mode1_for_wrapper_setup_data;
-        if let Some(setup_data) = setup_data_cache.get() {
-            Ok(setup_data)
-        } else {
-            let setup_data = self
-                .load_compression_setup_data::<CompressionMode1ForWrapper>()
-                .context("Failed to load compression mode 1 for wrapper setup data")?;
-            setup_data_cache.set(setup_data).map_err(|_| {
+            .compression_mode1_for_wrapper_setup_data
+            .get_or_init(|| {
+                self.load_compression_setup_data::<CompressionMode1ForWrapper>()
+                    .context("Failed to load compression mode 1 for wrapper setup data")
+            })
+            .as_ref()
+            .map_err(|e| {
                 anyhow::anyhow!(
-                    "Compression mode 1 for wrapper setup data is already initialized in cache"
+                    "Error loading compression mode 1 for wrapper setup data: {}",
+                    e
                 )
-            })?;
-            if let Some(setup_data) = setup_data_cache.get() {
-                Ok(setup_data)
-            } else {
-                Err(anyhow::anyhow!(
-                    "Compression mode 1 for wrapper setup data not found in cache"
-                ))
-            }
-        }
+            })
     }
 
     fn get_plonk_snark_wrapper_setup_data(
@@ -583,27 +522,15 @@ impl CompressorBlobStorage for Keystore {
     fn get_fflonk_snark_wrapper_setup_data(
         &self,
     ) -> anyhow::Result<&SnarkWrapperSetupData<FflonkSnarkWrapper>> {
-        let setup_data_cache = &self
-            .setup_data_cache_proof_compressor
+        self.setup_data_cache_proof_compressor
             .fflonk_setup_data
-            .fflonk_snark_wrapper_setup_data;
-        if let Some(setup_data) = setup_data_cache.get() {
-            Ok(setup_data)
-        } else {
-            let setup_data = self
-                .load_snark_wrapper_setup_data::<FflonkSnarkWrapper>()
-                .context("Failed to load Fflonk Snark Wrapper setup data")?;
-            setup_data_cache.set(setup_data).map_err(|_| {
-                anyhow::anyhow!("Fflonk Snark Wrapper setup data is already initialized in cache")
-            })?;
-            if let Some(setup_data) = setup_data_cache.get() {
-                Ok(setup_data)
-            } else {
-                Err(anyhow::anyhow!(
-                    "Fflonk Snark Wrapper setup data not found in cache"
-                ))
-            }
-        }
+            .fflonk_snark_wrapper_setup_data
+            .get_or_init(|| {
+                self.load_snark_wrapper_setup_data::<FflonkSnarkWrapper>()
+                    .context("Failed to load Fflonk Snark Wrapper setup data")
+            })
+            .as_ref()
+            .map_err(|e| anyhow::anyhow!("Error loading Fflonk Snark Wrapper setup data: {}", e))
     }
 }
 
