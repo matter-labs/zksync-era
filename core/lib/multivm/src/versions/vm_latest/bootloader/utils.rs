@@ -221,8 +221,8 @@ pub(crate) fn apply_interop_root_number_in_block_number(
 ) {
     let mut number_of_written_blocks = 0;
     if memory.iter().any(|(slot, _)| {
-        if *slot < get_interop_blocks_begin_offset(subversion)
-            || *slot >= get_interop_root_offset(subversion)
+        if *slot >= get_interop_blocks_begin_offset(subversion)
+            && *slot < get_interop_root_offset(subversion)
         {
             return false;
         }
