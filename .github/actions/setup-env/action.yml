@@ -18,17 +18,11 @@ runs:
         echo CI=1 >> $GITHUB_ENV
         echo IN_DOCKER=1 >> .env
         echo CI=1 >> .env
-        echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
 
-    - name: Setup sccache for building rust code outside Docker
+    - name: Setup sccache client
       shell: bash
       run: |
         echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
-        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
-        echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
-        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
-        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
-        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
         echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
 
     - name: Setup sccache for building rust code inside Docker
@@ -51,7 +45,6 @@ runs:
       shell: bash
       run: |
         ci_run sccache --start-server
-        sccache --start-server
 
     - name: Init git safe directories
       shell: bash
