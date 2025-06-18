@@ -83,7 +83,7 @@ runs:
       run: |
         ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
         ci_run zkstackup -g --local
-        ci_run which zkstackup
+        ci_run which zkstack
 
     - name: Save zkstack binary to cache (only on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
