@@ -227,6 +227,7 @@ impl EngineInterface for Store {
             ),
             validator::Block::PreGenesis(block) => (&block.payload, None),
         };
+        dbg!(p);
         if let Some(payloads) = &mut *payloads {
             payloads
                 .send(to_fetched_block(block.number(), p).context("to_fetched_block")?)
@@ -407,6 +408,7 @@ impl StoreRunner {
                     .recv(ctx)
                     .instrument(tracing::info_span!("wait_for_block_certificate"))
                     .await?;
+                dbg!(&cert);
                 // Wait for the block to be persisted, so that we can attach a cert to it.
                 // We may exit this loop without persisting the certificate in case the
                 // corresponding block has been pruned in the meantime.

@@ -87,6 +87,7 @@ impl Payload {
     }
 
     pub fn encode(&self) -> validator::Payload {
+        dbg!(self);
         validator::Payload(zksync_protobuf::encode(self))
     }
 }
