@@ -559,28 +559,22 @@ impl Aggregator {
             .get_patch_versions_for_vk(minor_version, l1_verifier_config.snark_wrapper_vk_hash)
             .await
             .unwrap();
-        // if allowed_patch_versions.is_empty() {
-        //     tracing::warn!(
-        //         "No patch version corresponds to the verification key on L1: {:?}",
-        //         l1_verifier_config.snark_wrapper_vk_hash
-        //     );
-        //     return None;
-        // };
+        
+        // todo: can we just ignore it?
+        if allowed_patch_versions.is_empty() {
+            tracing::warn!(
+                "No patch version corresponds to the verification key on L1: {:?}",
+                l1_verifier_config.snark_wrapper_vk_hash
+            );
+            return None;
+        };
 
-        let allowed_versions: Vec<_> = allowed_patch_versions
-            .into_iter()
-            .map(|patch| ProtocolSemanticVersion {
-                minor: minor_version,
-                patch,
-            })
-            .collect();
 
         let proof_bytes: Option<Vec<u8>> = storage
             .zkos_prover_dal()
             .get_snark_proof(L2BlockNumber(batch_to_prove.0))
             .await
             .unwrap();
-
 
         let Some(proof_bytes) = proof_bytes else {
             // The proof for the next L1 batch is not generated yet
