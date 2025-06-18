@@ -68,7 +68,7 @@ pub struct ChainCreateArgs {
     pub(crate) set_as_default: Option<bool>,
     #[clap(long, default_value = "false")]
     pub(crate) legacy_bridge: bool,
-    #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "false", num_args = 0..=1)]
     evm_emulator: Option<bool>,
     #[clap(long, help = "Whether to update git submodules of repo")]
     update_submodules: Option<bool>,
