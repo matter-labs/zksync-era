@@ -12447,7 +12447,6 @@ dependencies = [
  "zksync_db_connection",
  "zksync_health_check",
  "zksync_l1_contract_interface",
- "zksync_multivm",
  "zksync_node_framework",
  "zksync_protobuf",
  "zksync_protobuf_build",

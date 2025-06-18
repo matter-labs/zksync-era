@@ -13,7 +13,7 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         Halt, L1BatchEnv, SystemEnv,
     },
-    utils::StorageWritesDeduplicator,
+    utils::{get_bootloader_max_msg_roots_in_batch, StorageWritesDeduplicator},
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
@@ -635,7 +635,11 @@ impl ZkSyncStateKeeper {
                     .wait_for_new_l2_block_params(updates_manager, stop_receiver)
                     .await
                     .stop_context("failed getting L2 block params")?;
-                next_l2_block_params.set_interop_roots(self.io.load_latest_interop_root().await?);
+                let number_of_roots = get_bootloader_max_msg_roots_in_batch(
+                    updates_manager.protocol_version().into(),
+                );
+                next_l2_block_params
+                    .set_interop_roots(self.io.load_latest_interop_root(number_of_roots).await?);
                 Self::set_l2_block_params(updates_manager, next_l2_block_params);
             }
 
