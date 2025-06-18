@@ -31,6 +31,9 @@ runs:
           echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
           echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
           echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
+
+          # sccache outside docker will run it's own server
+          echo SCCACHE_SERVER_PORT=4225 >> $GITHUB_ENV
         fi
 
     - name: Setup sccache for building rust code inside Docker
