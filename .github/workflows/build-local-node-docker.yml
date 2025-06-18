@@ -43,16 +43,6 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: start-services
-        run: |
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
-        
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g
-
       - name: init
         run: |
 

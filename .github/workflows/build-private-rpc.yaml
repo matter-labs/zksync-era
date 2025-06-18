@@ -23,11 +23,6 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
 
-      - name: start-services
-        run: |
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
-
       - name: init
         run: |
           ci_run zk
