@@ -176,6 +176,10 @@ impl ProverInitArgs {
     }
 
     fn fill_deploy_proving_networks_values_with_prompt(&self) -> bool {
+        if self.dev {
+            return false;
+        }
+
         self.deploy_proving_networks.unwrap_or_else(|| {
             PromptConfirm::new("Do you want to deploy proving networks?")
                 .default(false)
