@@ -101,5 +101,5 @@ runs:
     - name: Install zkstack binary locally as well
       shell: bash
       run: |
-        cp zkstack /usr/local/bin/zkstack
+        cp zkstack bin/zkstack
         rm ./zkstack
