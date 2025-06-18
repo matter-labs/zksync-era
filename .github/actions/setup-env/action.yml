@@ -83,14 +83,13 @@ runs:
       run: |
         ci_run cp /usr/src/zksync/zkstack /usr/local/bin/zkstack 
 
-    - name: Install zkstack (on cache miss)
+    - name: Install zkstack inside docker (on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
         ci_run zkstackup -g --local
         ci_run cp /usr/local/bin/zkstack /usr/src/zksync/zkstack
-        cp zkstack /usr/local/bin/zkstack
 
     - name: Save zkstack binary to cache (on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
@@ -98,3 +97,9 @@ runs:
       with:
         path: zkstack
         key: ${{ steps.zkstack_cache.outputs.cache-primary-key }}
+
+    - name: Install zkstack binary locally as well
+      shell: bash
+      run: |
+        cp zkstack /usr/local/bin/zkstack
+        rm ./zkstack
