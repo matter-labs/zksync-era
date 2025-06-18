@@ -10,18 +10,14 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-
       - name: Setup environment
         run: |
           echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
           echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
           echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
 
-      - name: Start services
-        run: |
-          ci_localnet_up
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Install zkstack
         run: |

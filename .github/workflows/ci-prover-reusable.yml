@@ -13,18 +13,15 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-
       - name: Setup environment
         run: |
           echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
           echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
 
-      - name: Start services
-        run: |
-          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
 
       - name: Install zkstack
         run: |
@@ -52,14 +49,14 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-
       - name: Start services
         run: |
           echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
-          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
 
       - name: Install zkstack
         run: |

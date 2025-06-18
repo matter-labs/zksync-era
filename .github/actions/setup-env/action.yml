@@ -1,5 +1,10 @@
 name: Setup Environment
 
+inputs:
+  runner-compose-file:
+    description: 'Path to the runner compose file'
+    default: 'docker-compose.yml'
+
 runs:
   using: composite
   steps:
@@ -18,6 +23,7 @@ runs:
     - name: Setup sccache for building rust code outside Docker
       shell: bash
       run: |
+        echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
         echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
         echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
         echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
@@ -34,6 +40,12 @@ runs:
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
         echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
         echo RUSTC_WRAPPER=sccache >> .env
+
+    - name: Start localnet
+      shell: bash
+      run: |
+        ci_localnet_up
+        ci_run sccache --start-server
 
     - name: Init git safe directories
       shell: bash

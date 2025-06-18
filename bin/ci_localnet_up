@@ -4,5 +4,5 @@ set -e
 
 cd $ZKSYNC_HOME
 
-run_retried docker-compose pull
-docker-compose --profile runner up -d --wait
+run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+docker-compose --profile runner -f ${RUNNER_COMPOSE_FILE} up -d --wait
