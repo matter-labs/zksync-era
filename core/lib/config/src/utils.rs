@@ -1,3 +1,5 @@
+use std::ops;
+
 use smart_config::{
     de::{DeserializeContext, DeserializeParam, WellKnown},
     metadata::{BasicTypes, ParamMetadata, TypeDescription},
@@ -45,3 +47,6 @@ where
         self.0.serialize_param(param)
     }
 }
+
+/// Validation for floating-point config params.
+pub(crate) const ZERO_TO_ONE: ops::RangeInclusive<f64> = 0.0..=1.0;

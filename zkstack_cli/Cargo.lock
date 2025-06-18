@@ -6658,9 +6658,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e2dc7b3cddb8995e19ac9967896242f7f017b1daeaec7375fd07b884a1d1aff"
+checksum = "fd78167a0cc7ce83103929aabc58b4f819ca9fc4acac4ae4076f2d1748215839"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6677,9 +6677,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fbbc9a062a65a9918f814db2b0c61d8f44875def9a466543b025ab069dda52a"
+checksum = "b27bfa499a47d8a8916eb1d251f612790209deef18868d0033c08ca3e4a7b8f4"
 dependencies = [
  "anyhow",
  "blst",
@@ -6695,9 +6695,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bd6e92de8ff7b31dd245efd355872ffb8cc124abb7873ed9c6ba18baade7338"
+checksum = "1b060555df53620677c82d4da9ae0b4438f8d6f11fbb82c0633e8d9c5381b1cd"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6715,9 +6715,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2aa6e711211929724d6e1deee6da90d9a311bc2341ed6d1f7b84f52e3bcc2af7"
+checksum = "0df57fdc2a2791ae0031e86931f2d08b31a54a46f5f28b0f833f2e4aa598bc59"
 dependencies = [
  "rand",
  "thiserror 1.0.69",
@@ -6764,9 +6764,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7df9d1f5ca99acd51df6ffcc845862d29c00225b6c8ceafa301abf3cfe9a4c3b"
+checksum = "5c76eacd3b54bf8ea132a2a265fc6c78d0839b48b9a07ae2cb7d02a4b6b7389d"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6785,9 +6785,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e7bb096cb1fa79ff1900b586e849ec729d275279bbf0d54bfc2cca77fb70650"
+checksum = "dd1cd4ac0c6767585fc3f68fc5c5d87322ff8d48c62c8c6d913442553bce0fc1"
 dependencies = [
  "anyhow",
  "heck",
