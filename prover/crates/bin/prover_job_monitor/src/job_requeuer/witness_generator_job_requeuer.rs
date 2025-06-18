@@ -32,7 +32,7 @@ impl WitnessGeneratorJobRequeuer {
     fn emit_telemetry(&self, witness_type: WitnessType, stuck_jobs: &Vec<StuckJobs>) {
         for stuck_job in stuck_jobs {
             tracing::info!("requeued {:?} {:?}", witness_type, stuck_job);
-            SERVER_METRICS.requeued_jobs[&(witness_type, stuck_job.chain_id.as_u64())].inc_by(1);
+            SERVER_METRICS.requeued_jobs[&(witness_type, stuck_job.chain_id)].inc_by(1);
         }
     }
 

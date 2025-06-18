@@ -1,5 +1,5 @@
 use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFamily, Metrics};
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L2ChainId};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "prover_job_monitor")]
@@ -129,26 +129,17 @@ impl From<&str> for WitnessType {
 #[metrics(prefix = "server")]
 pub(crate) struct ServerMetrics {
     #[metrics(labels = ["chain_id"])]
-    pub prover_fri_requeued_jobs: LabeledFamily<u64, Counter<u64>>,
+    pub prover_fri_requeued_jobs: LabeledFamily<L2ChainId, Counter<u64>>,
     #[metrics(labels = ["witness_type", "chain_id"])]
-    pub requeued_jobs: LabeledFamily<(WitnessType, u64), Counter<u64>, 2>,
+    pub requeued_jobs: LabeledFamily<(WitnessType, L2ChainId), Counter<u64>, 2>,
     #[metrics(labels = ["type", "round", "protocol_version"])]
     pub witness_generator_jobs_by_round:
         LabeledFamily<(&'static str, String, String), Gauge<u64>, 3>,
     #[metrics(labels = ["type", "protocol_version", "chain_id"])]
-    pub witness_generator_jobs: LabeledFamily<(&'static str, String, u64), Gauge<u64>, 3>,
-    #[metrics(labels = ["chain_id"])]
-    pub leaf_fri_witness_generator_waiting_to_queued_jobs_transitions:
-        LabeledFamily<u64, Counter<u64>>,
-    #[metrics(labels = ["chain_id"])]
-    pub node_fri_witness_generator_waiting_to_queued_jobs_transitions:
-        LabeledFamily<u64, Counter<u64>>,
-    #[metrics(labels = ["chain_id"])]
-    pub recursion_tip_witness_generator_waiting_to_queued_jobs_transitions:
-        LabeledFamily<u64, Counter<u64>>,
-    #[metrics(labels = ["chain_id"])]
-    pub scheduler_witness_generator_waiting_to_queued_jobs_transitions:
-        LabeledFamily<u64, Counter<u64>>,
+    pub witness_generator_jobs: LabeledFamily<(&'static str, String, L2ChainId), Gauge<u64>, 3>,
+    #[metrics(labels = ["witness_type", "chain_id"])]
+    pub witness_generator_waiting_to_queued_jobs_transitions:
+        LabeledFamily<(WitnessType, L2ChainId), Counter<u64>, 2>,
 }
 
 #[vise::register]

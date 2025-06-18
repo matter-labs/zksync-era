@@ -45,7 +45,7 @@ impl Task for ProverJobRequeuer {
 
         for stuck_job in stuck_jobs {
             tracing::info!("requeued circuit prover job {:?}", stuck_job);
-            SERVER_METRICS.prover_fri_requeued_jobs[&stuck_job.chain_id.as_u64()].inc_by(1);
+            SERVER_METRICS.prover_fri_requeued_jobs[&stuck_job.chain_id].inc_by(1);
         }
         Ok(())
     }

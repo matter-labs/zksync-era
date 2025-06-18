@@ -21,6 +21,7 @@ pub use ethabi::{
     },
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
+use vise::_reexports::encoding::{EncodeLabelValue, LabelValueEncoder};
 
 pub use self::conversions::{
     address_to_h256, address_to_u256, h256_to_address, h256_to_u256, u256_to_address, u256_to_h256,
@@ -123,6 +124,12 @@ impl TryFrom<U256> for AccountTreeId {
 /// ChainId in the ZKsync network.
 #[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct L2ChainId(u64);
+
+impl EncodeLabelValue for L2ChainId {
+    fn encode(&self, encoder: &mut LabelValueEncoder) -> Result<(), std::fmt::Error> {
+        EncodeLabelValue::encode(&self.0.to_string(), encoder)
+    }
+}
 
 impl<'de> Deserialize<'de> for L2ChainId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
