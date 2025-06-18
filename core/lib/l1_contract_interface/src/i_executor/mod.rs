@@ -24,6 +24,7 @@ pub fn zkos_commitment_to_vm_batch_output(commitment: &ZkosCommitment) -> BatchO
         priority_operations_hash: h256_to_bytes32(commitment.priority_operations_hash()),
         l2_logs_tree_root: h256_to_bytes32(commitment.l2_to_l1_logs_root_hash),
         upgrade_tx_hash: Bytes32::zero(),
+        dependency_roots_rolling_hash: h256_to_bytes32(commitment.dependency_roots_rolling_hash),
     }
 }
 

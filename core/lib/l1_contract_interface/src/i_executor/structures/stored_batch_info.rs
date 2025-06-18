@@ -122,27 +122,17 @@ impl StoredBatchInfo {
 // commitment is not computed correctly here
 impl From<&L1BatchWithMetadata> for StoredBatchInfo {
     fn from(x: &L1BatchWithMetadata) -> Self {
-        unimplemented!("unused in zkos, use `ZkosCommitment` instead");
+        // unimplemented!("unused in zkos, use `ZkosCommitment` instead");
         Self {
             batch_number: x.header.number.0.into(),
             batch_hash: x.metadata.root_hash,
             index_repeated_storage_changes: x.metadata.rollup_last_leaf_index,
             number_of_layer1_txs: x.header.l1_tx_count.into(),
             priority_operations_hash: x.header.priority_ops_onchain_data_hash(),
-            dependency_roots_rolling_hash: if x.header.system_logs.is_empty() {
-                H256::zero()
-            } else {
-                x.header
-                    .system_logs
-                    .iter()
-                    .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                    .unwrap()
-                    .0
-                    .value
-            },
             l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
             timestamp: x.header.timestamp.into(),
             commitment: x.metadata.commitment,
+            dependency_roots_rolling_hash: x.metadata.local_root.unwrap_or_default(),
         }
     }
 }

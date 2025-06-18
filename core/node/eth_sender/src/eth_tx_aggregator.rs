@@ -738,7 +738,7 @@ impl EthTxAggregator {
         op: &AggregatedOperation,
         chain_protocol_version_id: ProtocolVersionId,
     ) -> TxData {
-        let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
+        let mut args = vec![Token::Address(dbg!(self.state_transition_chain_contract))];
         let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {

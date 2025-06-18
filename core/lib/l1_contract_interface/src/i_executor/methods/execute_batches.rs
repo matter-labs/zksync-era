@@ -1,5 +1,6 @@
+use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_types::{
-    commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
+    commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof, ZkosCommitment},
     ethabi::{encode, Token},
     InteropRoot, ProtocolVersionId,
 };
@@ -8,7 +9,7 @@ use crate::{
     i_executor::structures::{
         StoredBatchInfo, PRE_INTEROP_ENCODING_VERSION, SUPPORTED_ENCODING_VERSION,
     },
-    Tokenizable,
+    zkos_commitment_to_vm_batch_output, Tokenizable,
 };
 
 /// Input required to encode `executeBatches` call.
@@ -32,7 +33,10 @@ impl ExecuteBatches {
                 self.l1_batches
                     .iter()
                     .map(|batch| {
-                        StoredBatchInfo::from(batch)
+                        let last_block_commitment: ZkosCommitment = ZkosCommitment::from(batch);
+                        let batch_output: BatchOutput =
+                            zkos_commitment_to_vm_batch_output(&last_block_commitment);
+                        StoredBatchInfo::new(&last_block_commitment, batch_output.hash())
                             .into_token_with_protocol_version(internal_protocol_version)
                     })
                     .collect(),
@@ -45,7 +49,10 @@ impl ExecuteBatches {
                     self.l1_batches
                         .iter()
                         .map(|batch| {
-                            StoredBatchInfo::from(batch)
+                            let last_block_commitment: ZkosCommitment = ZkosCommitment::from(batch);
+                            let batch_output: BatchOutput =
+                                zkos_commitment_to_vm_batch_output(&last_block_commitment);
+                            StoredBatchInfo::new(&last_block_commitment, batch_output.hash())
                                 .into_token_with_protocol_version(internal_protocol_version)
                         })
                         .collect(),
@@ -72,7 +79,10 @@ impl ExecuteBatches {
                     self.l1_batches
                         .iter()
                         .map(|batch| {
-                            StoredBatchInfo::from(batch)
+                            let last_block_commitment: ZkosCommitment = ZkosCommitment::from(batch);
+                            let batch_output: BatchOutput =
+                                zkos_commitment_to_vm_batch_output(&last_block_commitment);
+                            StoredBatchInfo::new(&last_block_commitment, batch_output.hash())
                                 .into_token_with_protocol_version(internal_protocol_version)
                         })
                         .collect(),

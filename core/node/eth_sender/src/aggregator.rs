@@ -88,8 +88,9 @@ impl OperationSkippingRestrictions {
         commit_op: Option<AggregatedOperation>,
     ) -> Option<AggregatedOperation> {
         let commit_op = commit_op?;
-        self.check_for_continuation(&commit_op, self.commit_restriction)
-            .then_some(commit_op)
+        // self.check_for_continuation(&commit_op, self.commit_restriction)
+        //     .then_some(commit_op)
+        Some(commit_op)
     }
 
     fn filter_prove_op(&self, prove_op: Option<ProveBatches>) -> Option<AggregatedOperation> {
@@ -336,7 +337,7 @@ impl Aggregator {
                 .unwrap()
                 .filter(|id| *id >= priority_tree_start_index);
             // TODO: zk os kludge
-            first_priority_op_id_option = None;
+            // first_priority_op_id_option = None;
 
             let count = batch.header.l1_tx_count as usize;
             if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {

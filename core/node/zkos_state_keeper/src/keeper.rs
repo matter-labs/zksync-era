@@ -157,15 +157,6 @@ impl ZkosStateKeeper {
                     .await?;
             }
 
-            let interop_root = InteropRoot {
-                root: [Bytes32::from_array([8u8; 32])],
-                block_number: 1337,
-                chain_id: 260,
-            };
-
-            let mut interop_roots = InteropRoots::default();
-            interop_roots.0[0] = interop_root;
-
             let gas_limit = 100_000_000; // TODO: what value should be used?;
             let context = BatchContext {
                 //todo: gas
@@ -180,7 +171,7 @@ impl ZkosStateKeeper {
                 gas_limit,
                 coinbase: Default::default(),
                 block_hashes: Default::default(),
-                interop_roots,
+                interop_roots: Default::default(),
             };
 
             tracing::info!(

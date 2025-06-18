@@ -319,15 +319,6 @@ impl SandboxExecutor {
 
         let (execution_args, tracing_params) = action.into_parts();
 
-        let interop_root = InteropRoot {
-            root: [Bytes32::from_array([8u8; 32])],
-            block_number: 1337,
-            chain_id: 260,
-        };
-
-        let mut interop_roots = InteropRoots::default();
-        interop_roots.0[0] = interop_root;
-
         // todo: gas - currently many txs fail with `BaseFeeGreaterThanMaxFee`
         let context = BatchContext {
             eip1559_basefee: U256::from(100),
