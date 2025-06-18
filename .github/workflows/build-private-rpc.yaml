@@ -20,13 +20,8 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: setup-env
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: start-services
         run: |
@@ -35,10 +30,6 @@ jobs:
 
       - name: init
         run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-
           ci_run zk
           ci_run cp etc/tokens/{test,localhost}.json
 

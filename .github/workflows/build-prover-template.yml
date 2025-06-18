@@ -53,27 +53,13 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: setup-env
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: setup rust
         uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
         with:
           toolchain: nightly-2024-09-01
-
-      - name: Prepare sccache-cache env vars
-        shell: bash
-        run: |
-          echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
-          echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
-          echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
-          echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
-          echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
 
       - name: protocol-version
         id: protocolversion
@@ -112,13 +98,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
-      - name: setup-env
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Set env vars
         shell: bash

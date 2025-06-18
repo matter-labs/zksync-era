@@ -12,15 +12,8 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Start services
         run: |
@@ -35,7 +28,6 @@ jobs:
       - name: Build
         run: |
           ci_run yarn install
-          ci_run git config --global --add safe.directory /usr/src/zksync
 
       - name: Lints
         run: |
