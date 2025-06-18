@@ -678,7 +678,7 @@ impl EthSenderDal<'_, '_> {
         transaction.commit().await.context("commit()")
     }
 
-    pub async fn get_unfinalized_tranasctions(
+    pub async fn get_unfinalized_transactions(
         &mut self,
         limit: i64,
         chain_id: Option<SLChainId>,
@@ -714,7 +714,7 @@ impl EthSenderDal<'_, '_> {
     }
 
     /// Sets `sent_at_block` for the eth_txs_history row.
-    /// Used for ExternalNode when syning batch tranasction state from SL.
+    /// Used for ExternalNode when syncing batch transaction state from SL.
     pub async fn set_sent_at_block(
         &mut self,
         tx_history_id: u32,

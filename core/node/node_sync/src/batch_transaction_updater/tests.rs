@@ -16,7 +16,7 @@ use zksync_web3_decl::client::{MockClient, L1};
 use super::*;
 use crate::metrics::L1BatchStage;
 
-const MOCK_DIAMON_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
+const MOCK_DIAMOND_PROXY_ADDRESS: zksync_types::H160 = Address::repeat_byte(0x42);
 
 const SL_CHAIN_ID: SLChainId = SLChainId(1);
 
@@ -32,7 +32,7 @@ fn new_mock_eth_interface() -> Box<dyn EthInterface> {
     Box::new(
         MockClient::builder(L1::default())
             .method("eth_getTransactionReceipt", move |tx_hash: H256| {
-                // if "INVALID" transaction is requests we return a successfull transaction, but without any logs
+                // if "INVALID" transaction is requests we return a successful transaction, but without any logs
                 if tx_hash == INVALID_HASH {
                     return Ok(Some(TransactionReceipt {
                         status: Some(U64::one()),
@@ -97,7 +97,7 @@ fn new_mock_eth_interface() -> Box<dyn EthInterface> {
                     block_number,
                     transaction_hash: tx_hash,
                     logs: vec![Log {
-                        address: MOCK_DIAMON_PROXY_ADDRESS,
+                        address: MOCK_DIAMOND_PROXY_ADDRESS,
                         topics,
                         data: vec![].into(),
                         block_hash: None,
@@ -212,7 +212,7 @@ async fn setup_test_environment() -> anyhow::Result<(
     // Create BatchTransactionUpdater
     let mut updater = BatchTransactionUpdater::from_parts(
         new_mock_eth_interface(),
-        MOCK_DIAMON_PROXY_ADDRESS,
+        MOCK_DIAMOND_PROXY_ADDRESS,
         pool.clone(),
         Duration::from_secs(1),
         10, // processing_batch_size
@@ -343,7 +343,7 @@ async fn normal_operation_1_batch(
     let (_pool, mut storage, updater, batch_number, _genesis_params) =
         setup_test_environment().await?;
 
-    let tranasctions_l1_block_number =
+    let transactions_l1_block_number =
         L1BlockNumber(mock_block_number_for_batch_transaction(batch_number, 3));
 
     // Insert transactions into the database based on the stage
@@ -355,17 +355,17 @@ async fn normal_operation_1_batch(
         EthTxFinalityStatus::Pending => L1BlockNumbers {
             finalized: L1BlockNumber(10),
             fast_finality: L1BlockNumber(10),
-            latest: tranasctions_l1_block_number,
+            latest: transactions_l1_block_number,
         },
         EthTxFinalityStatus::FastFinalized => L1BlockNumbers {
             finalized: L1BlockNumber(10),
-            fast_finality: tranasctions_l1_block_number,
-            latest: tranasctions_l1_block_number,
+            fast_finality: transactions_l1_block_number,
+            latest: transactions_l1_block_number,
         },
         EthTxFinalityStatus::Finalized => L1BlockNumbers {
-            finalized: tranasctions_l1_block_number,
-            fast_finality: tranasctions_l1_block_number,
-            latest: tranasctions_l1_block_number,
+            finalized: transactions_l1_block_number,
+            fast_finality: transactions_l1_block_number,
+            latest: transactions_l1_block_number,
         },
     };
 

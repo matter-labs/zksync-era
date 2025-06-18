@@ -148,7 +148,7 @@ impl BatchTransactionUpdater {
     ) -> anyhow::Result<i32> {
         let mut updated_count = 0;
 
-        tracing::debug!("Checking {} nonfinalized transactions", to_process.len());
+        tracing::debug!("Checking {} unfinalized transactions", to_process.len());
 
         for mut db_eth_tx_history in to_process {
             // we save receipt here to avoid fetching multiple times
@@ -246,7 +246,7 @@ impl BatchTransactionUpdater {
             .await?;
         let to_process: Vec<TxHistory> = connection
             .eth_sender_dal()
-            .get_unfinalized_tranasctions(self.processing_batch_size, Some(sl_chain_id))
+            .get_unfinalized_transactions(self.processing_batch_size, Some(sl_chain_id))
             .await?;
 
         if to_process.is_empty() {
@@ -254,10 +254,10 @@ impl BatchTransactionUpdater {
             // If there are, we need to restart to make the node change the SL chain_id.
             let all_chain_ids_transactions = connection
                 .eth_sender_dal()
-                .get_unfinalized_tranasctions(1, None)
+                .get_unfinalized_transactions(1, None)
                 .await?;
             if !all_chain_ids_transactions.is_empty()
-                // following check is needd, becouse we might get a new transaction 
+                // following check is needed, because we might get a new transaction 
                 // with proper chain_id on this SELECT due to a race condition
                 && all_chain_ids_transactions[0].chain_id != Some(sl_chain_id)
             {

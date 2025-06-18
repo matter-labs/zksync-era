@@ -25,9 +25,9 @@ pub enum TransactionValidationError {
     DatabaseError(#[from] zksync_dal::DalError),
     #[error("SL client error")]
     SlClientError(#[from] zksync_eth_client::EnrichedClientError),
-    #[error("Batch tranasction invalid: {reason}")]
+    #[error("Batch transaction invalid: {reason}")]
     BatchTransactionInvalid { reason: String },
-    #[error("Other validaion error")]
+    #[error("Other validation error")]
     OtherValidationError(#[from] anyhow::Error),
 }
 
@@ -116,11 +116,11 @@ impl L1TransactionVerifier {
             .event("BlockCommit")
             .context("`BlockCommit` event not found for ZKsync L1 contract")?;
 
-        let commited_batch_info: Option<(H256, H256)> =
+        let committed_batch_info: Option<(H256, H256)> =
             receipt.logs.iter().find_map(|log| {
                 if log.address != self.diamond_proxy_addr {
                     tracing::debug!(
-                        "Log address {} does not match diamond proxy adb_batchddress {}, skipping",
+                        "Log address {} does not match diamond proxy address {}, skipping",
                         log.address,
                         self.diamond_proxy_addr
                     );
@@ -156,7 +156,7 @@ impl L1TransactionVerifier {
                 Some((batch_hash, commitment))
             });
 
-        if let Some((batch_hash, commitment)) = commited_batch_info {
+        if let Some((batch_hash, commitment)) = committed_batch_info {
             if db_batch.commitment != commitment {
                 return Err(TransactionValidationError::BatchTransactionInvalid { reason: format!("Commit transaction {} for batch {} has different commitment: expected {:?}, got {:?}",
                     receipt.transaction_hash,
@@ -304,7 +304,7 @@ impl L1TransactionVerifier {
             .event("BlockExecution")
             .context("`BlockExecution` event not found for ZKsync L1 contract")?;
 
-        let commited_batch_info: Option<(H256, H256)> =
+        let executed_batch_info: Option<(H256, H256)> =
             receipt.logs.iter().find_map(|log| {
                 if log.address != self.diamond_proxy_addr {
                     tracing::debug!(
@@ -349,7 +349,7 @@ impl L1TransactionVerifier {
                 Some((batch_hash, commitment))
             });
 
-        if let Some((batch_hash, commitment)) = commited_batch_info {
+        if let Some((batch_hash, commitment)) = executed_batch_info {
             if db_batch.commitment != commitment {
                 return Err(TransactionValidationError::BatchTransactionInvalid {
                     reason: format!(
