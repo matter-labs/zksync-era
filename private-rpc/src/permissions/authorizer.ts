@@ -47,6 +47,13 @@ export class Authorizer {
         return this.postReadFilters.get(`${address}:${method}`) || null;
     }
 
+    isAddressWhitelisted(address: Address): boolean {
+        if (this.whitelistedWallets === 'all') {
+            return true;
+        }
+        return this.whitelistedWallets.has(address);
+    }
+
     reloadFromEnv(): Authorizer {
         const filePath = env.PERMISSIONS_YAML_PATH;
         console.log(`loading permissions from ${filePath}`);
@@ -56,10 +63,10 @@ export class Authorizer {
         parser.load_rules(this);
 
         const wallets = parser.getWhitelistedWallets();
-        if (wallets.includes('all')) {
+        if (wallets === 'all') {
             this.whitelistedWallets = 'all';
         } else {
-            this.whitelistedWallets = new Set(wallets as Address[]);
+            this.whitelistedWallets = new Set(wallets);
         }
         return this;
     }

@@ -56,9 +56,10 @@ const contractSchema = z.object({
 type RawContract = z.infer<typeof contractSchema>;
 
 const yamlSchema = z.object({
-    whitelisted_wallets: z
-        .array(z.union([addressSchema, z.literal('all')]))
-        .nonempty({ message: 'whitelisted_wallets cannot be empty. To allow all wallets, use ["all"].' }),
+    whitelisted_wallets: z.union([
+        z.array(addressSchema).nonempty({ message: 'whitelisted_wallets array cannot be empty. To allow all wallets, use the literal "all".' }),
+        z.literal('all')  
+    ]),
     groups: z.array(groupSchema),
     contracts: z.array(contractSchema)
 });
@@ -74,7 +75,7 @@ export class YamlParser {
         this.groups = this.yaml.groups.map(({ name, members }: RawGroup) => new Group(name, members));
     }
 
-    getWhitelistedWallets(): (Address | 'all')[] {
+    getWhitelistedWallets(): Address[] | 'all' {
         return this.yaml.whitelisted_wallets;
     }
 
@@ -98,26 +99,23 @@ export class YamlParser {
                 return new PublicRule();
             case 'closed':
                 return new AccessDeniedRule();
-            case 'group': {
-                const members = rule.groups.map((name: string) => this.membersForGroup(name)).flat();
+            case 'group':
+                const members = rule.groups.map((name) => this.membersForGroup(name)).flat();
                 return new GroupRule(members);
-            }
-            case 'checkArgument': {
+            case 'checkArgument':
                 const [fnDef] = parseAbi([fnSignature]) as Abi;
                 return new ArgumentIsCaller(rule.argIndex, fnDef as AbiFunction);
-            }
-            case 'oneOf': {
-                const rules = rule.rules.map((r: Rule) => this.hidrateRule(r, fnSignature));
+            case 'oneOf':
+                const rules = rule.rules.map((r) => this.hidrateRule(r, fnSignature));
                 return new OneOfRule(rules);
-            }
             default:
                 throw new Error('Unknown rule type');
         }
     }
 
     load_rules(authorizer: Authorizer) {
-        this.yaml.contracts.forEach((rawContract: RawContract) => {
-            const readPermissions = rawContract.methods.map((method: RawMethod) => {
+        this.yaml.contracts.forEach((rawContract) => {
+            const readPermissions = rawContract.methods.map((method) => {
                 const selector = method.signature === '#BASE_TOKEN_TRANSFER' ? '0x' : this.extractSelector(method);
 
                 const readRule = this.hidrateRule(method.read, method.signature);

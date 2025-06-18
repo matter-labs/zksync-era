@@ -48,11 +48,7 @@ export function usersRoutes(app: WebServer) {
         const { address } = req.params;
         const { authorizer } = app.context;
 
-        if (authorizer.whitelistedWallets === 'all') {
-            return reply.send({ authorized: true });
-        }
-
-        const isWhitelisted = authorizer.whitelistedWallets.has(address);
-        return reply.send({ authorized: isWhitelisted });
+        const authorized = authorizer.isAddressWhitelisted(address);
+        return reply.send({ authorized });
     });
 }
