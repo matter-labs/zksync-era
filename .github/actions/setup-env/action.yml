@@ -23,16 +23,17 @@ runs:
       shell: bash
       run: |
         echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
+        echo SCCACHE_SERVER_PORT=4226 >> $GITHUB_ENV
         echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
 
     - name: Setup sccache for building rust code inside Docker
       shell: bash
       run: |
-        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> .env
         echo SCCACHE_CACHE_SIZE=50G >> .env
+        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> .env
         echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> .env
-        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
         echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
+        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
         echo RUSTC_WRAPPER=sccache >> .env
 
     - name: Start localnet
