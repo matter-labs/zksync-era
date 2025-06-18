@@ -29,6 +29,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/src/keys:/mnt/prover_setup_keys
       # We set CUDAARCHS for l4 gpu's
+    environment:
       - CUDAARCHS=89
     # We need to forward all nvidia-devices, as due to bug with cgroups and nvidia-container-runtime (https://github.com/NVIDIA/libnvidia-container/issues/176#issuecomment-1159454366), cgroups are disabled and thou GPU isn't properly forwarded to dind
     devices:
