@@ -1151,4 +1151,48 @@ impl StateKeeper {
 
         Ok(())
     }
+
+    pub async fn rollback(&mut self) -> anyhow::Result<()> {
+        let state = self.batch_state.unwrap_init_mut();
+        let pending_block = state.updates_manager.last_pending_l2_block();
+        tracing::info!("Rolling back block #{}", pending_block.number);
+
+        // Rollback postgres if block is non-fictive.
+        // If block is fictive then its data wasn't saved.
+        if !pending_block.executed_transactions.is_empty() {
+            self.inner
+                .output_handler
+                .rollback_pending_l2_block_data(pending_block.number)
+                .await?;
+        }
+
+        // Rollback mempool.
+        let txs = pending_block
+            .executed_transactions
+            .iter()
+            .map(|tx| tx.transaction.clone())
+            .collect();
+        self.inner.io.rollback_l2_block(txs).await?;
+
+        if state.updates_manager.is_in_first_pending_block_state() {
+            // Rollback state to `Uninit`.
+            state.updates_manager.pop_last_pending_block();
+            self.batch_state = BatchState::Uninit(state.updates_manager.io_cursor());
+        } else {
+            // No need to rollback `state.protocol_upgrade_tx`, since it's only changed in the first block and this is the branch for non-first blocks.
+            state.batch_executor.rollback_l2_block().await?;
+            state.updates_manager.pop_last_pending_block();
+            // Reset `state.next_block_should_be_fictive` in case non-fictive block is rolled back.
+            if !state
+                .updates_manager
+                .last_pending_l2_block()
+                .executed_transactions
+                .is_empty()
+            {
+                state.next_block_should_be_fictive = false;
+            }
+        }
+
+        Ok(())
+    }
 }
