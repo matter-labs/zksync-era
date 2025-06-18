@@ -1,12 +1,11 @@
 use blake2::{Blake2s, Blake2s256, Digest};
-use zksync_basic_types::web3;
-use zksync_basic_types::web3::keccak256;
+use zksync_basic_types::{web3, web3::keccak256};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use crate::{Address, ethabi, H256, U256};
-use crate::commitment::L1BatchWithMetadata;
-use crate::ethabi::Token;
-use crate::priority_op_onchain_data::PriorityOpOnchainData;
 
+use crate::{
+    commitment::L1BatchWithMetadata, ethabi, ethabi::Token,
+    priority_op_onchain_data::PriorityOpOnchainData, Address, H256, U256,
+};
 
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
@@ -97,7 +96,6 @@ impl ZkosCommitment {
     }
 }
 
-
 impl From<&L1BatchWithMetadata> for ZkosCommitment {
     fn from(batch: &L1BatchWithMetadata) -> Self {
         ZkosCommitment {
@@ -114,4 +112,3 @@ impl From<&L1BatchWithMetadata> for ZkosCommitment {
         }
     }
 }
-

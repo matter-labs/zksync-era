@@ -1,23 +1,31 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
+
 use zksync_node_framework_derive::{FromContext, IntoContext};
 use zksync_state::{AsyncCatchupTask, KeepUpdatedTask};
 use zksync_zkos_prover_input_generator::ZkosProverInputGenerator;
 use zksync_zkos_state_keeper::ZkosStateKeeper;
-use crate::implementations::resources::pools::{MasterPool, PoolResource};
-use crate::{StopReceiver, Task, TaskId, WiringError, WiringLayer};
-use crate::implementations::layers::zkos_state_keeper::ZkOsStateKeeperTask;
-use crate::implementations::resources::fee_input::SequencerFeeInputResource;
-use crate::implementations::resources::state_keeper::{ZkOsConditionalSealerResource, ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource};
-use crate::service::ShutdownHook;
+
+use crate::{
+    implementations::{
+        layers::zkos_state_keeper::ZkOsStateKeeperTask,
+        resources::{
+            fee_input::SequencerFeeInputResource,
+            pools::{MasterPool, PoolResource},
+            state_keeper::{
+                ZkOsConditionalSealerResource, ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource,
+            },
+        },
+    },
+    service::ShutdownHook,
+    StopReceiver, Task, TaskId, WiringError, WiringLayer,
+};
 
 #[derive(Debug)]
 pub struct ZkOsProverInputGeneratorLayer;
 
-
 impl ZkOsProverInputGeneratorLayer {
     pub fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
 }
 
@@ -58,7 +66,6 @@ impl WiringLayer for ZkOsProverInputGeneratorLayer {
     }
 }
 
-
 #[async_trait::async_trait]
 impl Task for ZkOsProverInputGeneratorTask {
     fn id(&self) -> TaskId {
@@ -66,10 +73,11 @@ impl Task for ZkOsProverInputGeneratorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let zkos_prover_input_generator = ZkosProverInputGenerator::new(
-            stop_receiver.0,
-            self.pool.get().await?,
-        );
-        zkos_prover_input_generator.run().await
+        loop {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        // let zkos_prover_input_generator =
+        //     ZkosProverInputGenerator::new(stop_receiver.0, self.pool.get().await?);
+        // zkos_prover_input_generator.run().await
     }
 }

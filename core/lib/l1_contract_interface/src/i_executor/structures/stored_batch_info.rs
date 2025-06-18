@@ -1,14 +1,13 @@
 use anyhow::Context as _;
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
+    commitment::{L1BatchWithMetadata, ZkosCommitment},
     ethabi::{self, ParamType, Token},
     parse_h256, web3,
     web3::contract::Error as ContractError,
     H256, U256,
 };
-use zksync_types::commitment::ZkosCommitment;
-use crate::i_executor::structures::CommitBoojumOSBatchInfo;
-use crate::Tokenizable;
+
+use crate::{i_executor::structures::CommitBoojumOSBatchInfo, Tokenizable};
 
 // https://github.com/matter-labs/era-contracts/blob/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L64-L73
 // struct StoredBatchInfo {
@@ -70,10 +69,7 @@ impl StoredBatchInfo {
 
 // todo when L1BatchWithMetadata is refactored, we should convert it to this struct directly
 impl StoredBatchInfo {
-    pub fn new(
-        batch: &ZkosCommitment,
-        commitment: [u8; 32]
-    ) -> Self {
+    pub fn new(batch: &ZkosCommitment, commitment: [u8; 32]) -> Self {
         Self {
             batch_number: batch.batch_number.into(),
             batch_hash: batch.state_commitment(),
@@ -82,11 +78,10 @@ impl StoredBatchInfo {
             priority_operations_hash: batch.priority_operations_hash(),
             l2_logs_tree_root: batch.l2_to_l1_logs_root_hash,
             timestamp: 0.into(),
-            commitment: commitment.into()
+            commitment: commitment.into(),
         }
     }
 }
-
 
 // todo: this conversion is only used by legacy methods - it will not work correctly in zkos
 // commitment is not computed correctly here
@@ -105,7 +100,6 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
         }
     }
 }
-
 
 impl Tokenizable for StoredBatchInfo {
     fn from_token(token: Token) -> Result<Self, ContractError> {

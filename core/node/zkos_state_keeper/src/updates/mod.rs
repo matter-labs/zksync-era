@@ -6,12 +6,15 @@ use zk_os_basic_system::system_implementation::flat_storage_model::AccountProper
 use zk_os_forward_system::run::{
     output::BlockHeader, result_keeper::TxProcessingOutputOwned, BatchOutput,
 };
-use zksync_types::{boojum_os::AccountProperties, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, Transaction, H256, U256, ExecuteTransactionCommon};
-use zksync_types::block::L1BatchTreeData;
-use zksync_types::priority_op_onchain_data::PriorityOpOnchainData;
+use zksync_types::{
+    block::L1BatchTreeData, boojum_os::AccountProperties, fee_model::BatchFeeInput,
+    priority_op_onchain_data::PriorityOpOnchainData, AccountTreeId, Address,
+    ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
+    StorageLog, StorageLogKind, Transaction, H256, U256,
+};
 use zksync_vm_interface::{TransactionExecutionResult, TxExecutionStatus, VmEvent, VmRevertReason};
 use zksync_zkos_vm_runner::zkos_conversions::{
-    b160_to_address, bytes32_to_h256, convert_boojum_account_properties, zkos_log_to_vm_event
+    b160_to_address, bytes32_to_h256, convert_boojum_account_properties, zkos_log_to_vm_event,
 };
 
 use crate::io::IoCursor;
@@ -48,7 +51,7 @@ pub struct UpdatesManager {
     pub block_pubdata: Option<Vec<u8>>,
 
     // todo: this shouldn't be set in state keeper - set in tree instead
-    pub tree_data: Option<L1BatchTreeData>
+    pub tree_data: Option<L1BatchTreeData>,
 }
 
 impl UpdatesManager {
@@ -83,7 +86,7 @@ impl UpdatesManager {
             cumulative_gas_used: 0,
             priority_ops_onchain_data: Vec::new(),
             block_pubdata: None,
-            tree_data: None
+            tree_data: None,
         }
     }
 
@@ -106,10 +109,7 @@ impl UpdatesManager {
                 .map(|log| zkos_log_to_vm_event(log, location));
             self.events.extend(events);
 
-            let logs = tx_output
-                .l2_to_l1_logs
-                .into_iter()
-                .map(|log| { log.log });
+            let logs = tx_output.l2_to_l1_logs.into_iter().map(|log| log.log);
             self.user_l2_to_l1_logs.extend(logs);
         }
 
@@ -120,13 +120,11 @@ impl UpdatesManager {
                 PreimageType::Bytecode => Either::Left((bytes32_to_h256(hash), preimage)),
                 PreimageType::AccountData => Either::Right((
                     bytes32_to_h256(hash),
-                    convert_boojum_account_properties(
-                        BoojumAccountProperties::decode(
-                            &preimage
-                                .try_into()
-                                .expect("Preimage should be exactly 124 bytes"),
-                        )
-                    ),
+                    convert_boojum_account_properties(BoojumAccountProperties::decode(
+                        &preimage
+                            .try_into()
+                            .expect("Preimage should be exactly 124 bytes"),
+                    )),
                 )),
             });
         self.new_factory_deps = factory_deps.into_iter().collect();

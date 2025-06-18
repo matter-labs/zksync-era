@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use zksync_basic_types::{AccountTreeId, Address, U256};
-use zksync_contracts::{read_l1_evm_contract, read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
+use zksync_contracts::{
+    read_l1_evm_contract, read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo,
+};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
     EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS,
@@ -261,12 +263,16 @@ pub fn get_zk_os_system_smart_contracts() -> Vec<DeployedContract> {
     let mut system_contracts = vec![];
 
     system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(COMPLEX_UPGRADER_ADDRESS),
+        bytecode: read_l1_evm_contract("L2ComplexUpgrader"),
+    });
+    system_contracts.push(DeployedContract {
         account_id: AccountTreeId::new(L2_GENESIS_UPGRADE_ADDRESS),
-        bytecode: read_l1_evm_contract("L2ZKOSGenesisUpgrade")
+        bytecode: read_l1_evm_contract("L2GenesisUpgrade"),
     });
     system_contracts.push(DeployedContract {
         account_id: AccountTreeId::new(L2_WRAPPED_BASE_TOKEN_IMPL),
-        bytecode: read_l1_evm_contract("L2WrappedBaseToken")
+        bytecode: read_l1_evm_contract("L2WrappedBaseToken"),
     });
 
     system_contracts

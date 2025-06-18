@@ -4,10 +4,10 @@ use air_compiler_cli::prover_utils::{
 use execution_utils::ProgramProof;
 use zk_os_basic_system::system_implementation::system::BatchPublicInput;
 use zksync_dal::{Connection, Core};
-use zksync_l1_contract_interface::i_executor::{
-    batch_output_hash_as_register_values, batch_public_input,
+use zksync_l1_contract_interface::{
+    i_executor::{batch_output_hash_as_register_values, batch_public_input},
+    zkos_commitment_to_vm_batch_output,
 };
-use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
 use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
 use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
 

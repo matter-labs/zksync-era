@@ -12,9 +12,7 @@ use tokio::{
     time::Instant,
 };
 use tracing::info_span;
-use zk_ee::{
-    common_structs::derive_flat_storage_key, utils::Bytes32,
-};
+use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zk_os_basic_system::system_implementation::flat_storage_model::TestingTree;
 use zk_os_forward_system::run::{
     result_keeper::TxProcessingOutputOwned,
@@ -30,10 +28,11 @@ use zksync_state_keeper::{
     metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams, MempoolGuard,
 };
 use zksync_types::{
-    block::UnsealedL1BatchHeader, snapshots::SnapshotStorageLog, Address, L1BatchNumber,
-    L2BlockNumber, StorageKey, StorageLog, Transaction, ERC20_TRANSFER_TOPIC, H256,
+    block::{L1BatchTreeData, UnsealedL1BatchHeader},
+    snapshots::SnapshotStorageLog,
+    Address, L1BatchNumber, L2BlockNumber, StorageKey, StorageLog, Transaction,
+    ERC20_TRANSFER_TOPIC, H256,
 };
-use zksync_types::block::L1BatchTreeData;
 use zksync_vm_interface::Halt;
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
 
@@ -155,8 +154,12 @@ impl ZkosStateKeeper {
             }
 
             // TODO: maybe move it wait for new l2 block params here?
-            
-            let mut conn = self.pool.connection_tagged("zkos_state_keeper").await.map_err(|_| Error::Fatal(anyhow::anyhow!("Failed to get connection")))?;
+
+            let mut conn = self
+                .pool
+                .connection_tagged("zkos_state_keeper")
+                .await
+                .map_err(|_| Error::Fatal(anyhow::anyhow!("Failed to get connection")))?;
 
             let should_load_protocol_upgrade_tx = if cursor.next_l2_block.0 == 1 {
                 // Genesis block
@@ -164,7 +167,13 @@ impl ZkosStateKeeper {
             } else {
                 // I am not sure if it is the right way to do it, but I will just wait until the previous block is there
                 let previous_block = loop {
-                    let previous_block = conn.blocks_dal().get_l2_block_header(L2BlockNumber(cursor.next_l2_block.0 - 1)).await.map_err(|_| Error::Fatal(anyhow::anyhow!("Failed to get previous block header")))?;
+                    let previous_block = conn
+                        .blocks_dal()
+                        .get_l2_block_header(L2BlockNumber(cursor.next_l2_block.0 - 1))
+                        .await
+                        .map_err(|_| {
+                            Error::Fatal(anyhow::anyhow!("Failed to get previous block header"))
+                        })?;
                     if let Some(previous_block) = previous_block {
                         break previous_block;
                     }
@@ -176,13 +185,19 @@ impl ZkosStateKeeper {
             };
 
             let protocol_upgrade_tx = if should_load_protocol_upgrade_tx {
-                let protocol_upgrade_tx = conn.protocol_versions_dal().get_protocol_upgrade_tx(block_params.protocol_version).await.map_err(|_| Error::Fatal(anyhow::anyhow!("Failed to get protocol upgrade tx")))?;
+                let protocol_upgrade_tx = conn
+                    .protocol_versions_dal()
+                    .get_protocol_upgrade_tx(block_params.protocol_version)
+                    .await
+                    .map_err(|_| {
+                        Error::Fatal(anyhow::anyhow!("Failed to get protocol upgrade tx"))
+                    })?;
 
                 protocol_upgrade_tx.map(|tx| tx.into())
             } else {
                 None
             };
-            
+
             drop(conn);
 
             let gas_limit = 100_000_000; // TODO: what value should be used?;
@@ -201,7 +216,11 @@ impl ZkosStateKeeper {
                 block_hashes: Default::default(),
             };
 
-            tracing::info!("State keeper is processing block {:?} with context {:?}", cursor.next_l2_block.0, context);
+            tracing::info!(
+                "State keeper is processing block {:?} with context {:?}",
+                cursor.next_l2_block.0,
+                context
+            );
 
             let Some(storage) = self
                 .storage_factory
@@ -219,10 +238,8 @@ impl ZkosStateKeeper {
                     cursor.l1_batch
                 ))?;
 
-            let batch_executor = MainBatchExecutor::new(
-                context,
-                ArcOwnedStorage(Arc::new(storage)),
-            );
+            let batch_executor =
+                MainBatchExecutor::new(context, ArcOwnedStorage(Arc::new(storage)));
 
             tracing::info!("Starting block {}", cursor.next_l2_block);
 
@@ -236,7 +253,9 @@ impl ZkosStateKeeper {
                 block_params.protocol_version,
                 gas_limit,
             );
-            let batch_output = self.run_batch(batch_executor, protocol_upgrade_tx, &mut updates_manager).await?;
+            let batch_output = self
+                .run_batch(batch_executor, protocol_upgrade_tx, &mut updates_manager)
+                .await?;
 
             tracing::info!("Batch #{} executed successfully", cursor.l1_batch);
 
@@ -263,9 +282,8 @@ impl ZkosStateKeeper {
 
             let tree_data = L1BatchTreeData {
                 hash: bytes32_to_h256(*root),
-                rollup_last_leaf_index: self.tree.storage_tree.next_free_slot - 1
+                rollup_last_leaf_index: self.tree.storage_tree.next_free_slot - 1,
             };
-
 
             updates_manager.final_extend(batch_output.clone(), tree_data);
             let initial_writes = self.initial_writes(&updates_manager).await?;
@@ -421,7 +439,9 @@ impl ZkosStateKeeper {
 
             if self.io.should_seal_block(updates_manager) {
                 if updates_manager.executed_transactions.is_empty() {
-                    return Err(Error::Fatal(anyhow::anyhow!("No transactions executed, but block should be sealed")));
+                    return Err(Error::Fatal(anyhow::anyhow!(
+                        "No transactions executed, but block should be sealed"
+                    )));
                 }
 
                 break batch_executor.finish_batch().await?;

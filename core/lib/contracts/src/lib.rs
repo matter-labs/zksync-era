@@ -228,7 +228,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_l1_zk_contract("MessageRoot")
+    load_l1_zk_contract("L2MessageRoot")
 }
 
 pub fn l2_asset_router() -> Contract {
@@ -254,9 +254,10 @@ pub fn read_l1_zk_contract(name: &str) -> Vec<u8> {
 }
 
 pub fn read_l1_evm_contract(name: &str) -> Vec<u8> {
-  read_deployed_bytecode_from_path(&Path::new(&format!(
-      "contracts/l1-contracts/out/{name}.sol/{name}.json"
-  ))).expect("Failed to open file")
+    read_deployed_bytecode_from_path(&Path::new(&format!(
+        "contracts/l1-contracts/out/{name}.sol/{name}.json"
+    )))
+    .expect("Failed to open file")
 }
 
 pub fn load_l1_zk_contract(name: &str) -> Contract {

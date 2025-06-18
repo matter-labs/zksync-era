@@ -211,9 +211,9 @@ impl AccountPropertiesDal<'_, '_> {
             address.as_bytes(),
             l2_block_number,
         )
-            .instrument("get_all_account_properties")
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("get_all_account_properties")
+        .fetch_optional(self.storage)
+        .await?;
 
         Ok(result)
     }

@@ -1,4 +1,7 @@
-use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuitNoLookupCustomGate;
+use bellman::plonk::better_better_cs::proof::Proof as PlonkProof;
+use circuit_definitions::circuit_definitions::aux_layer::{
+    ZkSyncSnarkWrapperCircuit, ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+};
 use crypto_codegen::serialize_proof;
 use fflonk::{
     bellman::{
@@ -13,12 +16,6 @@ use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{encode, Token},
     U256,
-};
-use bellman::plonk::better_better_cs::proof::Proof as PlonkProof;
-use circuit_definitions::{
-    circuit_definitions::aux_layer::{
-        ZkSyncSnarkWrapperCircuit,
-    },
 };
 
 use crate::{

@@ -1,12 +1,20 @@
 use zk_os_basic_system::system_implementation::system::BatchOutput;
-use zksync_types::{commitment::{L1BatchCommitmentMode, L1BatchWithMetadata}, ethabi::{encode, Token}, H256, pubdata_da::PubdataSendingMode};
-use zksync_types::commitment::ZkosCommitment;
+use zksync_types::{
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, ZkosCommitment},
+    ethabi::{encode, Token},
+    pubdata_da::PubdataSendingMode,
+    H256,
+};
+
 use crate::{
-    i_executor::structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    i_executor::{
+        structures::{
+            CommitBatchInfo, CommitBoojumOSBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION,
+        },
+        zkos_commitment_to_vm_batch_output,
+    },
     Tokenizable, Tokenize,
 };
-use crate::i_executor::structures::CommitBoojumOSBatchInfo;
-use crate::i_executor::zkos_commitment_to_vm_batch_output;
 
 /// Input required to encode `commitBatches` call for a contract
 #[derive(Debug)]
@@ -22,13 +30,14 @@ impl Tokenize for &CommitBatches<'_> {
         // other modes are not yet supported in ZK OS
         assert_eq!(self.mode, L1BatchCommitmentMode::Rollup);
         assert_eq!(self.pubdata_da, PubdataSendingMode::Calldata);
-        assert_eq!(self.l1_batches.len(), 1, "Only one batch can be committed at a time in zk os");
+        assert_eq!(
+            self.l1_batches.len(),
+            1,
+            "Only one batch can be committed at a time in zk os"
+        );
         let last_block_commitment: ZkosCommitment = self.last_committed_l1_batch.into();
         let batch_output: BatchOutput = zkos_commitment_to_vm_batch_output(&last_block_commitment);
-        let stored_batch_info = StoredBatchInfo::new(
-            &last_block_commitment,
-            batch_output.hash()
-        );
+        let stored_batch_info = StoredBatchInfo::new(&last_block_commitment, batch_output.hash());
 
         let l1_batch = self.l1_batches.first().unwrap();
         let current_block_commitment: ZkosCommitment = l1_batch.into();
@@ -67,7 +76,9 @@ impl Tokenize for &CommitBatches<'_> {
 
         let mut encoded_data = encode(&[
             stored_batch_info.into_token(),
-            Token::Array(vec![Token::Tuple(commit_boojum_os_batch_info.into_tokens())]),
+            Token::Array(vec![Token::Tuple(
+                commit_boojum_os_batch_info.into_tokens(),
+            )]),
         ]);
 
         encoded_data.insert(0, SUPPORTED_ENCODING_VERSION);

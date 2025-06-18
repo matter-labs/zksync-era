@@ -1,12 +1,14 @@
 use std::time::Duration;
-use zksync_db_connection::connection::Connection;
-use zksync_db_connection::error::DalResult;
-use zksync_types::L2BlockNumber;
-use crate::Core;
+
 use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
     instrument::{CopyStatement, InstrumentExt},
     utils::pg_interval_from_duration,
 };
+use zksync_types::L2BlockNumber;
+
+use crate::Core;
 
 #[derive(Debug)]
 pub struct ZkosProverDal<'a, 'c> {
@@ -15,9 +17,7 @@ pub struct ZkosProverDal<'a, 'c> {
 
 impl ZkosProverDal<'_, '_> {
     /// returns 0 if no inputs are found
-    pub async fn last_block_with_generated_input(
-        &mut self,
-    ) -> DalResult<L2BlockNumber> {
+    pub async fn last_block_with_generated_input(&mut self) -> DalResult<L2BlockNumber> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -26,10 +26,10 @@ impl ZkosProverDal<'_, '_> {
                 zkos_proofs
             "#
         )
-            .instrument("last_block_with_generated_input")
-            .report_latency()
-            .fetch_one(self.storage)
-            .await?;
+        .instrument("last_block_with_generated_input")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
         let number = row.number.unwrap_or(0) as u32;
         Ok(L2BlockNumber(number))
     }
@@ -73,7 +73,7 @@ impl ZkosProverDal<'_, '_> {
     pub async fn pick_next_fri_proof(
         &mut self,
         timeout: Duration,
-        max_attempts : u32,
+        max_attempts: u32,
         picked_by: &str,
     ) -> DalResult<Option<(L2BlockNumber, Vec<u8>)>> {
         let maybe_row = sqlx::query!(
@@ -113,9 +113,7 @@ impl ZkosProverDal<'_, '_> {
             .fetch_optional(self.storage)
             .await?;
 
-        Ok(maybe_row.map(|row| {
-            (L2BlockNumber(row.l2_block_number as u32), row.prover_input)
-        }))
+        Ok(maybe_row.map(|row| (L2BlockNumber(row.l2_block_number as u32), row.prover_input)))
     }
 
     /// Save a completed FRI proof
@@ -180,14 +178,12 @@ impl ZkosProverDal<'_, '_> {
             pg_interval_from_duration(timeout),
             picked_by,
         )
-            .instrument("pick_next_snark_proof")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("pick_next_snark_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
-        Ok(maybe_row.map(|row| {
-            (L2BlockNumber(row.l2_block_number as u32), row.fri_proof)
-        }))
+        Ok(maybe_row.map(|row| (L2BlockNumber(row.l2_block_number as u32), row.fri_proof)))
     }
 
     /// Save a completed SNARK proof
@@ -215,9 +211,7 @@ impl ZkosProverDal<'_, '_> {
 
         Ok(())
     }
-    pub async fn list_available_proofs(
-        &mut self,
-    ) -> DalResult<Vec<(L2BlockNumber, Vec<String>)>> {
+    pub async fn list_available_proofs(&mut self) -> DalResult<Vec<(L2BlockNumber, Vec<String>)>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -261,10 +255,10 @@ impl ZkosProverDal<'_, '_> {
             "#,
             i64::from(block_number.0),
         )
-            .instrument("get_fri_proof")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("get_fri_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
         Ok(row.and_then(|r| r.fri_proof))
     }
@@ -282,12 +276,11 @@ impl ZkosProverDal<'_, '_> {
             "#,
             i64::from(block_number.0),
         )
-            .instrument("get_snark_proof")
-            .report_latency()
-            .fetch_optional(self.storage)
-            .await?;
+        .instrument("get_snark_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?;
 
         Ok(row.and_then(|r| r.snark_proof))
     }
-
 }

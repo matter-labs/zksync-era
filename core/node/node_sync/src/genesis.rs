@@ -3,7 +3,9 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemCon
 use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal};
 use zksync_node_genesis::{ensure_genesis_state, GenesisParams};
 use zksync_types::{
-    block::DeployedContract, system_contracts::{get_system_smart_contracts, get_zk_os_system_smart_contracts}, AccountTreeId, L2ChainId,
+    block::DeployedContract,
+    system_contracts::{get_system_smart_contracts, get_zk_os_system_smart_contracts},
+    AccountTreeId, L2ChainId,
 };
 
 use super::client::MainNodeClient;

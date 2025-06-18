@@ -9,7 +9,15 @@ use zksync_multivm::{
 };
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
-    block::{DeployedContract, L1BatchTreeData}, boojum_os::AccountProperties, bytecode::BytecodeHash, commitment::L1BatchCommitment, get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256, tokens::{TokenInfo, TokenMetadata}, u256_to_h256, zk_evm_types::{LogQuery, Timestamp}, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256
+    block::{DeployedContract, L1BatchTreeData},
+    boojum_os::AccountProperties,
+    bytecode::BytecodeHash,
+    commitment::L1BatchCommitment,
+    get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
+    tokens::{TokenInfo, TokenMetadata},
+    u256_to_h256,
+    zk_evm_types::{LogQuery, Timestamp},
+    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
 };
 use zksync_zk_os_merkle_tree::{BatchOutput, MerkleTree, PatchSet, TreeEntry};
 
@@ -232,7 +240,10 @@ pub(super) async fn insert_account_data_preimages(
     account_data_preimages: HashMap<Address, AccountProperties>,
 ) -> Result<(), GenesisError> {
     let properties = account_data_preimages.into_iter().collect::<Vec<_>>();
-    transaction.account_properies_dal().insert_account_properties(L2BlockNumber(0), properties.as_slice()).await?;
+    transaction
+        .account_properies_dal()
+        .insert_account_properties(L2BlockNumber(0), properties.as_slice())
+        .await?;
     Ok(())
 }
 

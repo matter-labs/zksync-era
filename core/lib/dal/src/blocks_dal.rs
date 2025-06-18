@@ -1201,7 +1201,6 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-
     pub async fn save_l1_batch_commitment_artifacts(
         &mut self,
         number: L1BatchNumber,
