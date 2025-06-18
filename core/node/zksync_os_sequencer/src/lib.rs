@@ -104,7 +104,7 @@ pub async fn run_sequencer_actor(
                 tracing::info!(block = bn, "▶ execute");
 
                 let (batch_out, replay) =
-                    execute_block(cmd, mempool.clone(), state.clone())
+                    execute_block(cmd, Box::pin(mempool.clone()), state.clone())
                         .await
                         .context("execute_block")?;
 
@@ -163,7 +163,7 @@ pub async fn run_sequencer_stream(
             let mempool = mempool.clone();
             async move {
                 tracing::info!(block = cmd.block_number(), "▶ execute");
-                execute_block(cmd, mempool.clone(), state.clone())
+                execute_block(cmd, Box::pin(mempool.clone()), state.clone())
                     .await
                     .map(|(batch_out, replay)| {
                         state.handle_block_output(

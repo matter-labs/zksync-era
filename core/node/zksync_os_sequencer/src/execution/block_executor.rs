@@ -47,7 +47,7 @@ type TxStream = Pin<Box<dyn Stream<Item=Transaction> + Send>>;
 /// The `mempool` parameter is *used only* by `Produce`.
 fn command_into_parts(
     block_command: BlockCommand,
-    mempool: Mempool,
+    tx_stream: TxStream,
 ) -> (
     BatchContext,
     TxStream,
@@ -57,7 +57,7 @@ fn command_into_parts(
     match block_command {
         BlockCommand::Produce(ctx) => (
             ctx,
-            Box::pin(mempool),
+            tx_stream,
             SealPolicy::Deadline(Duration::from_millis(BLOCK_TIME_MS)),
             InvalidTxPolicy::RejectAndContinue,
         ),
@@ -72,14 +72,14 @@ fn command_into_parts(
 
 pub async fn execute_block(
     cmd: BlockCommand,
-    mempool: Mempool,
+    tx_stream: TxStream,
     state: StateHandle,
 ) -> Result<(BatchOutput, ReplayRecord)> {
     let metrics_label = match cmd {
         BlockCommand::Produce(_) => "produce",
         BlockCommand::Replay(_) => "replay",
     };
-    let (ctx, stream, seal, invalid) = command_into_parts(cmd, mempool);
+    let (ctx, stream, seal, invalid) = command_into_parts(cmd, tx_stream);
     execute_block_inner(ctx, state, stream, seal, invalid, metrics_label).await
 }
 
