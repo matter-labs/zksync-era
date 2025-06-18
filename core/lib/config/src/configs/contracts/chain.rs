@@ -148,6 +148,16 @@ pub struct ProofManagerContracts {
     pub proxy_admin_addr: Address,
 }
 
+impl Default for ProofManagerContracts {
+    fn default() -> Self {
+        Self {
+            proof_manager_addr: Address::zero(),
+            proxy_addr: Address::zero(),
+            proxy_admin_addr: Address::zero(),
+        }
+    }
+}
+
 impl ProofManagerContracts {
     fn for_tests() -> Self {
         Self {
@@ -169,7 +179,8 @@ pub struct ContractsConfig {
     pub bridges: BridgesConfig,
     #[config(nest)]
     pub ecosystem_contracts: EcosystemContracts,
-    #[config(nest)]
+    // Setting default values to zero(for bakwards compatibility)
+    #[config(nest, default_t = ProofManagerContracts::default())]
     pub proof_manager_contracts: ProofManagerContracts,
 }
 
