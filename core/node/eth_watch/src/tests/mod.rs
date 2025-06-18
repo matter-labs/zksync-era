@@ -914,7 +914,7 @@ async fn setup_batch_roots(
             .unwrap();
         connection
             .eth_sender_dal()
-            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
             .await
             .unwrap();
 

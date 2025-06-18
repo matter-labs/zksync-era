@@ -466,7 +466,6 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         eth_tx_finality_status: EthTxFinalityStatus,
         gas_used: U256,
-        confirmed_at_block: u32,
     ) -> anyhow::Result<()> {
         let mut transaction = self
             .storage
@@ -483,8 +482,7 @@ impl EthSenderDal<'_, '_> {
                 updated_at = NOW(),
                 confirmed_at = NOW(),
                 finality_status = $2,
-                sent_successfully = TRUE,
-                confirmed_at_block = $3
+                sent_successfully = TRUE
             WHERE
                 tx_hash = $1
             RETURNING
@@ -492,8 +490,7 @@ impl EthSenderDal<'_, '_> {
             eth_tx_id
             "#,
             tx_hash,
-            eth_tx_finality_status.to_string(),
-            confirmed_at_block as i32
+            eth_tx_finality_status.to_string()
         )
         .fetch_one(transaction.conn())
         .await?;
