@@ -70,7 +70,7 @@ runs:
         ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
         ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-    - name: Cache zkstack
+    - name: restore zkstack binary from cache
       id: zkstack_cache
       uses: actions/cache/restore@v4
       with:
@@ -90,6 +90,7 @@ runs:
         ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
         ci_run zkstackup -g --local
         ci_run cp /usr/local/bin/zkstack /usr/src/zksync/zkstack
+        cp zkstack /usr/local/bin/zkstack
 
     - name: Save zkstack binary to cache (on cache miss)
       if: steps.zkstack_cache.outputs.cache-hit != 'true'
