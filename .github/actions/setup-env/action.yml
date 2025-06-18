@@ -69,3 +69,25 @@ runs:
         ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
         ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
         ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+
+    - name: Cache zkstack
+      id: zk_cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.local/bin/zkstackup
+        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**') }}
+
+    - name: Install zkstack (only on cache miss)
+      if: steps.zkstack_cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        ./zkstack_cli/zkstackup/install --path ~/.zkstack
+        zkstackup --local || true
+        which zkstackup
+
+    - name: Save zkstack binary to cache (only on cache miss)
+      if: steps.zkstack_cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.local/bin/zkstackup
+        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**') }}

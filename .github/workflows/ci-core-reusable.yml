@@ -51,11 +51,6 @@ jobs:
         run: |
           ci_run run_retried rustup show
 
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local
-
       - name: Build contracts
         run: |
           ci_run zkstack dev contracts
