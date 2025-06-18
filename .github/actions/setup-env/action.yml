@@ -46,7 +46,12 @@ runs:
       run: |
         mkdir -p ./hardhat-nodejs
         ci_localnet_up
+
+    - name: Start sccache servers
+      shell: bash
+      run: |
         ci_run sccache --start-server
+        sccache --start-server
 
     - name: Init git safe directories
       shell: bash
