@@ -44,6 +44,7 @@ runs:
     - name: Start localnet
       shell: bash
       run: |
+        mkdir -p ./hardhat-nodejs
         ci_localnet_up
         ci_run sccache --start-server
 
