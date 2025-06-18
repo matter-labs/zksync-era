@@ -26,16 +26,8 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -140,15 +132,8 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Loadtest configuration
         run: |
@@ -157,19 +142,11 @@ jobs:
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
           echo FAIL_FAST=true >> .env
-          echo IN_DOCKER=1 >> .env
 
       - name: Start services
         run: |
           ci_localnet_up
           ci_run sccache --start-server
-
-      - name: Init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
       - name: Install zkstack
         run: |
@@ -233,16 +210,11 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+
       - name: Setup environment
         run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
-          echo DOCKER_PWD=$(pwd) >> .env
-          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
-          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
-          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
-          echo "RUSTC_WRAPPER=sccache" >> .env
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
 
@@ -257,12 +229,6 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-
-      - name: Set safe git directories
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
       - name: Install zkstack
         run: |
