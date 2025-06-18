@@ -34,9 +34,6 @@ jobs:
           ci_run git config --global --add safe.directory "*"
           ci_run chmod -R +x ./bin
           
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
-          
           ci_run zkstack chain create \
             --chain-name proving_chain \
             --chain-id sequential \

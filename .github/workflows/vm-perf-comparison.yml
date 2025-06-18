@@ -43,7 +43,6 @@ jobs:
       - name: run benchmarks on base branch
         shell: bash
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstack dev contracts
           ci_run cargo bench --manifest-path ./core/Cargo.toml \
             --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
@@ -59,7 +58,6 @@ jobs:
         shell: bash
         id: comparison
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstack dev contracts
           ci_run cargo bench --manifest-path ./core/Cargo.toml --package vm-benchmark --bench instructions -- --verbose
 
