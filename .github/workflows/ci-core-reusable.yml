@@ -47,10 +47,6 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-
       - name: Init
         run: |
           ci_run run_retried rustup show
@@ -132,9 +128,6 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-
       - name: Loadtest configuration
         run: |
           echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 16000 }} >> .env
@@ -143,10 +136,8 @@ jobs:
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
           echo FAIL_FAST=true >> .env
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Install zkstack
         run: |
@@ -210,13 +201,13 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-
       - name: Setup environment
         run: |
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
@@ -225,10 +216,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-
-      - name: Start services
-        run: |
-          ci_localnet_up
 
       - name: Install zkstack
         run: |

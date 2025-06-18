@@ -22,23 +22,16 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
-
-      - name: Setup environment
-        run: |
-          mkdir -p prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}
-
-      - name: Start services
-        run: |
-          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
-          ci_run sccache --start-server
-          ci_run git config --global --add safe.directory "*"
+        with:
+          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
 
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
 
       - name: Init
         run: |
+          mkdir -p prover_logs_${{matrix.compressor-mode}}_${{matrix.gateway-mode}}
+          ci_run git config --global --add safe.directory "*"
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
