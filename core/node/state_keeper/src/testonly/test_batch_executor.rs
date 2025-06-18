@@ -548,7 +548,10 @@ impl TestPersistence {
 
 #[async_trait]
 impl StateKeeperOutputHandler for TestPersistence {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l2_block_data(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_l2_block");
         let ScenarioItem::L2BlockSeal(_, check_fn) = action else {
             anyhow::bail!("Unexpected action: {:?}", action);
