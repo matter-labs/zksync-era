@@ -20,6 +20,9 @@ use circuit_definitions::{
         ZkSyncSnarkWrapperCircuit,
     },
 };
+use zksync_types::commitment::ZkosCommitment;
+use crate::i_executor::zkos_commitment_to_vm_batch_output;
+use crate::i_executor::BatchOutput;
 
 use crate::{
     i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
@@ -37,15 +40,26 @@ pub struct ProveBatches {
 
 impl ProveBatches {
     pub fn conditional_into_tokens(&self, is_verifier_pre_fflonk: bool) -> Vec<Token> {
-        let prev_l1_batch_info = StoredBatchInfo::from(&self.prev_l1_batch).into_token();
+        let last_block_commitment = ZkosCommitment::from(&self.prev_l1_batch);
+        let prev_l1_batch_info = StoredBatchInfo::new(
+            &last_block_commitment,
+            zkos_commitment_to_vm_batch_output(&last_block_commitment).hash()
+        ).into_token();
         let batches_arg = self
             .l1_batches
             .iter()
-            .map(|batch| StoredBatchInfo::from(batch).into_token())
+            .map(|batch| {
+                let commitment: ZkosCommitment = ZkosCommitment::from(batch);
+                StoredBatchInfo::new(
+                    &commitment,
+                    zkos_commitment_to_vm_batch_output(&commitment).hash()
+                ).into_token()
+            })
             .collect();
         let batches_arg = Token::Array(batches_arg);
         let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
 
+        println!("--------------------------------------- {:?}", self.should_verify);
         if self.should_verify {
             // currently we only support submitting a single proof
             assert_eq!(self.proofs.len(), 1);
@@ -68,7 +82,7 @@ impl ProveBatches {
             //     }
             // };
 
-            let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();
+            let should_use_fflonk = false;
             assert!(!should_use_fflonk);
             if protocol_version.is_pre_gateway() {
                 unreachable!("");
@@ -95,7 +109,13 @@ impl ProveBatches {
                             .collect(),
                     )
                 } else {
-                    Token::Array(proof.into_iter().map(Token::Uint).collect())
+                    Token::Array(
+                        vec![verifier_type]
+                            .into_iter()
+                            .chain(proof)
+                            .map(Token::Uint)
+                            .collect()
+                        )
                 };
 
                 let encoded_data = encode(&[prev_l1_batch_info, batches_arg, proof_input]);
