@@ -76,9 +76,7 @@ impl Tokenize for &CommitBatches<'_> {
 
         let mut encoded_data = encode(&[
             stored_batch_info.into_token(),
-            Token::Array(vec![Token::Tuple(
-                commit_boojum_os_batch_info.into_tokens(),
-            )]),
+            commit_boojum_os_batch_info.into_token(),
         ]);
 
         encoded_data.insert(0, SUPPORTED_ENCODING_VERSION);

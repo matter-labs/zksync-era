@@ -774,7 +774,10 @@ impl EthTxAggregator {
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
+                args.extend(op.conditional_into_tokens(
+                    self.config.is_verifier_pre_fflonk,
+                    self.rollup_chain_id,
+                ));
                 let encoding_fn = if is_op_pre_gateway {
                     &self.functions.post_shared_bridge_prove
                 } else {
@@ -786,7 +789,7 @@ impl EthTxAggregator {
                 (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
-                args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                args.extend(op.encode_for_eth_tx(chain_protocol_version_id, self.rollup_chain_id));
                 let encoding_fn = if is_op_pre_gateway && chain_protocol_version_id.is_pre_gateway()
                 {
                     &self.functions.post_shared_bridge_execute

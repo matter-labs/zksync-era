@@ -83,24 +83,6 @@ impl StoredBatchInfo {
     }
 }
 
-// todo: this conversion is only used by legacy methods - it will not work correctly in zkos
-// commitment is not computed correctly here
-impl From<&L1BatchWithMetadata> for StoredBatchInfo {
-    fn from(x: &L1BatchWithMetadata) -> Self {
-        unimplemented!("unused in zkos, use `ZkosCommitment` instead");
-        Self {
-            batch_number: x.header.number.0.into(),
-            batch_hash: x.metadata.root_hash,
-            index_repeated_storage_changes: x.metadata.rollup_last_leaf_index,
-            number_of_layer1_txs: x.header.l1_tx_count.into(),
-            priority_operations_hash: x.header.priority_ops_onchain_data_hash(),
-            l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
-            timestamp: x.header.timestamp.into(),
-            commitment: x.metadata.commitment,
-        }
-    }
-}
-
 impl Tokenizable for StoredBatchInfo {
     fn from_token(token: Token) -> Result<Self, ContractError> {
         (|| {
