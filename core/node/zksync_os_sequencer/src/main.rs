@@ -1,20 +1,7 @@
-// sequencer_stream.rs
-
-mod storage;
-mod model;
-mod block_context_provider;
-mod api;
-mod mempool;
-mod util;
-mod execution;
-mod tx_conversions;
-mod tree_manager;
-
 use std::path::Path;
 use std::pin::Pin;
 use std::ptr::null;
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Duration;
 use futures::stream::{self, Stream, StreamExt, Fuse, Chain, TryStream, TryStreamExt};
 use futures::future::FutureExt;
@@ -23,61 +10,29 @@ use futures::stream::BoxStream;
 use zk_ee::utils::Bytes32;
 use zk_os_forward_system::run::{BatchContext, BatchOutput};
 use zksync_types::{Address, address_to_h256, H256};
-use crate::api::run_jsonrpsee_server;
-use crate::block_context_provider::BlockContextProvider;
-use crate::execution::block_executor::{execute_block};
-use crate::mempool::{forced_deposit_transaction, Mempool};
-use crate::model::{BlockCommand, ReplayRecord, TransactionSource};
-use crate::storage::block_replay_storage::{BlockReplayColumnFamily, BlockReplayStorage};
-use crate::storage::storage_map::{StorageMap};
-use crate::storage::StateHandle;
 use anyhow::{Result, Context};
 use futures_util::TryFutureExt;
 use itertools::Itertools;
 use tokio::sync::broadcast::channel;
 use tokio::sync::watch;
+use zksync_os_sequencer::{
+    api::run_jsonrpsee_server,
+    mempool::{forced_deposit_transaction, Mempool},
+    run_sequencer_actor,
+    storage::{
+        block_replay_storage::{BlockReplayColumnFamily, BlockReplayStorage},
+        persistent_storage_map::{PersistentStorageMap, StorageMapCF},
+        rocksdb_preimages::{PreimagesCF, RocksDbPreimages},
+        StateHandle,
+    },
+    BLOCK_REPLAY_WAL_PATH, PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH
+};
+use zksync_os_sequencer::execution::block_executor::execute_block;
+use zksync_os_sequencer::model::{BlockCommand, ReplayRecord};
+use zksync_os_sequencer::tree_manager::TreeManager;
 use zksync_storage::RocksDB;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-use zksync_zk_os_merkle_tree::{MerkleTree, RocksDBWrapper};
-use crate::execution::metrics::{EXECUTION_METRICS};
-use crate::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
-use crate::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
-use crate::tree_manager::{MerkleTreeColumnFamily, TreeManager};
-// Terms:
-// * BlockReplayData     - minimal info to (re)apply the block.
-//
-// * `Canonize` block operation   - after block is processed in the VM, we want to expose it in API asap.
-//                         But we can only do that once it's durable - that is, it will not change after node crash/restart.
-//                         Canonization is the process of making a block durable.
-//                         For the centralized sequencer we persist a WAL of `BlockReplayData`s
-//                         For leader rotation we only consider block Canonized when it's accepted by the network (we have quorum)
-
-// Node state consists of three things:
-
-// * State (storage logs + factory deps)
-// * BlockReceipts (events + pubdata + other heavy info)
-// * WAL of BlockReplayData (only in centralized case)
-//
-// Note that we only ever persist canonized blocks
-
-const BLOCK_REPLAY_WAL_PATH: &str = "../chains/era/db/main/block_replay_wal";
-const STATE_STORAGE_PATH: &str = "../chains/era/db/main/state";
-const PREIMAGES_STORAGE_PATH: &str = "../chains/era/db/main/preimages";
-const CHAIN_ID: u64 = 270;
-
-// Maximum number of per-block information stored in memory - and thus returned from API.
-// Older blocks are discarded (or, in case of state diffs, compacted)
-const BLOCKS_TO_RETAIN: usize = 512;
-
-const JSON_RPC_ADDR: &str = "127.0.0.1:3050";
-
-const BLOCK_TIME_MS: u64 = 150;
-
-const MAX_TX_SIZE: usize = 100000;
-
-const MAX_NONCE_AHEAD : u32 = 1000;
-
-const DEFAULT_ETH_CALL_GAS: u32 = 10000000;
+use zksync_zk_os_merkle_tree::RocksDBWrapper;
 
 #[tokio::main]
 pub async fn main() {
@@ -174,147 +129,5 @@ pub async fn main() {
         }
 
     }
-}
-
-async fn run_sequencer_actor(
-    block_to_start: u64,
-    wal: BlockReplayStorage,
-    state: StateHandle,
-    mempool: Mempool,
-) -> Result<()> {
-    let wal_clone = wal.clone();
-    let state_clone = state.clone();
-
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<(BatchOutput, ReplayRecord)>(1);
-
-    /* ------------------------------------------------------------------ */
-    /*  Stage 1: execute VM and send results                              */
-    /* ------------------------------------------------------------------ */
-    let exec_loop = {
-        let wal      = wal.clone();
-        let mempool  = mempool.clone();
-        let state    = state.clone();
-
-        async move {
-            let mut stream = command_source(&wal, block_to_start);
-
-            while let Some(cmd) = stream.next().await {
-                let bn = cmd.block_number();
-                tracing::info!(block = bn, "▶ execute");
-
-                let (batch_out, replay) =
-                    execute_block(cmd, mempool.clone(), state.clone())
-                        .await
-                        .context("execute_block")?;
-
-                state.handle_block_output(batch_out.clone(), replay.transactions.clone());
-                tx.send((batch_out, replay))
-                    .await
-                    .map_err(|_| anyhow::anyhow!("canonise loop stopped"))?;
-
-                EXECUTION_METRICS.sealed_block[&"execute"].set(bn);
-            }
-            Ok::<(), anyhow::Error>(())
-        }
-    };
-
-
-
-    /* ------------------------------------------------------------------ */
-    /*  Stage 2: canonise                                                 */
-    /* ------------------------------------------------------------------ */
-    let canonise_loop = async {
-        while let Some((batch_out, replay)) = rx.recv().await {
-            let bn = batch_out.header.number;
-            tracing::info!(block = bn, "▶ append_replay");
-            wal.append_replay(batch_out.clone(), replay).await;
-
-            tracing::info!(block = bn, "▶ advance_canonized_block");
-            state.advance_canonized_block(bn);
-            EXECUTION_METRICS.sealed_block[&"canonize"].set(bn);
-            tracing::info!(block = bn, "✔ done");
-        }
-        Ok::<(), anyhow::Error>(())
-    };
-
-    tokio::select! {
-        res = exec_loop      => res?,
-        res = canonise_loop  => res?,
-    }
-    Ok(())
-}
-
-
-async fn run_sequencer_stream(
-    wal: BlockReplayStorage,
-    state: StateHandle,
-    mempool: Mempool,
-) -> Result<()> {
-    let last_block_in_wal = wal.latest_block().unwrap_or(0);
-    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
-
-    command_source(&wal, last_block_in_wal)
-        .map(Ok)                                         // ⇒ TryStream<Item = BlockCommand, Error = _>
-
-        // ── Stage 1: execute_block ─────────────────────────────────────────
-        .map_ok(|cmd| {
-            let state = state.clone();
-            let mempool = mempool.clone();
-            async move {
-                tracing::info!(block = cmd.block_number(), "▶ execute");
-                execute_block(cmd, mempool, state.clone())
-                    .await
-                    .map(|(batch_out, replay)| {
-                        state.handle_block_output(
-                            batch_out.clone(),
-                            replay.transactions.clone(),
-                        );
-                        (batch_out, replay)
-                    }
-                    ).context("execute_block")
-            }
-        })
-        .try_buffered(1)
-
-        // ── Stage 2: append_replay (canonise) ──────────────────────────────
-        .map_ok(|(batch_out, replay)| {
-            let wal = wal.clone();
-            let state = state.clone();
-            async move {
-                tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "▶ append_replay");
-                wal.append_replay(batch_out.clone(), replay.clone()).await;
-                tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "▶ advance_canonized_block");
-                state.advance_canonized_block(batch_out.header.number);
-                tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "✔ done");
-
-                Ok::<_, anyhow::Error>(())
-            }
-        })
-        .try_buffered(1)
-        .try_for_each(|()| async { Ok::<_, anyhow::Error>(()) })
-        .await?;
-    Ok(())
-}
-
-fn command_source(block_replay_wal: &BlockReplayStorage, block_to_start: u64) -> Chain<BoxStream<BlockCommand>, BoxStream<BlockCommand>> {
-
-    let last_block_in_wal = block_replay_wal.latest_block().unwrap_or(0);
-    tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
-
-    // Stream of replay commands from WAL
-    let replay_stream: BoxStream<BlockCommand> = Box::pin(block_replay_wal.replay_commands_from(block_to_start));
-
-    // Stream of produce commands: pull-based, fetch context on demand
-    let produce_stream: BoxStream<BlockCommand> =
-        futures::stream::unfold(last_block_in_wal + 1, move |block_number| {
-            async move {
-                Some((BlockContextProvider.get_produce_command(block_number).await, block_number + 1))
-            }
-        }).boxed();
-
-    // Combined source: run WAL replay first, then produce blocks from mempool
-    let mut stream = replay_stream
-        .chain(produce_stream);
-    stream
 }
 
