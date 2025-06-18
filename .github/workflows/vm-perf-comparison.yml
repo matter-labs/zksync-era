@@ -32,18 +32,13 @@ jobs:
       - name: checkout divergence point
         run: git checkout ${{ steps.merge_base.outputs.sha }} --recurse-submodules
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-
       - name: setup-env
         run: |
           # Set the minimum reported instruction count difference to reduce noise
           echo "BENCHMARK_DIFF_THRESHOLD_PERCENT=2" >> .env
 
-      - name: init
-        run: |
-          run_retried docker compose pull zk
-          docker compose up -d zk
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: run benchmarks on base branch
         shell: bash

@@ -19,22 +19,12 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-
       - name: setup-env
         run: |
           echo BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL=${{ secrets.BENCHMARK_PROMETHEUS_PUSHGATEWAY_URL }} >> .env
 
-      - name: init
-        run: |
-          run_retried docker compose pull zk
-          docker compose up -d zk
-
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
 
       - name: build contracts
         run: |

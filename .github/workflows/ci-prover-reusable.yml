@@ -23,11 +23,6 @@ jobs:
         with:
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
 
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
-          ci_run zkstackup -g --local
-
       - name: Database setup
         run: |
           ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
@@ -57,11 +52,6 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
-
-      - name: Install zkstack
-        run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --local
 
       - name: Init
         run: |

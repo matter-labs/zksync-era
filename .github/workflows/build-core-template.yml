@@ -122,12 +122,6 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: Install zkstack
-        if: env.BUILD_CONTRACTS == 'true'
-        run: |
-          ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
-          zkstackup --local || true
-
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
         shell: bash
