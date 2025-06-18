@@ -69,14 +69,16 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                 l2_da_validator_address: rng.gen(),
             }
         },
-        interop_roots: (0..10)
-            .map(|_| InteropRoot {
-                chain_id: rng.gen(),
-                block_number: rng.gen(),
-                sides: (0..10).map(|_| h256_to_u256(rng.gen())).collect(),
-                received_timestamp: rng.gen(),
-            })
-            .collect(),
+        interop_roots: (1..10).map(|_| interop_root(rng)).collect(),
+    }
+}
+
+fn interop_root(rng: &mut impl Rng) -> InteropRoot {
+    InteropRoot {
+        chain_id: rng.gen(),
+        block_number: rng.gen(),
+        sides: (0..10).map(|_| h256_to_u256(rng.gen())).collect(),
+        received_timestamp: rng.gen(),
     }
 }
 
@@ -93,6 +95,8 @@ fn test_encoding() {
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l2_transaction(rng));
+    encode_decode::<proto::InteropRoot, InteropRoot>(interop_root(rng));
+
     encode_decode::<proto::Transaction, ComparableTransaction>(
         mock_protocol_upgrade_transaction().into(),
     );
