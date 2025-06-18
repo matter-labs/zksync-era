@@ -1,4 +1,4 @@
-use std::{convert::Infallible, sync::Arc, time::Duration};
+use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -16,7 +16,7 @@ use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
-    utils::display_timestamp, L1BatchNumber, OrStopped, StopContext, Transaction,
+    utils::display_timestamp, L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -1181,7 +1181,6 @@ impl StateKeeper {
         } else {
             // No need to rollback `state.protocol_upgrade_tx`, since it's only changed in the first block and this is the branch for non-first blocks.
             state.batch_executor.rollback_l2_block().await?;
-            state.updates_manager.pop_last_pending_block();
             // Reset `state.next_block_should_be_fictive` in case non-fictive block is rolled back.
             if !state
                 .updates_manager
@@ -1190,6 +1189,36 @@ impl StateKeeper {
                 .is_empty()
             {
                 state.next_block_should_be_fictive = false;
+            }
+            state.updates_manager.pop_last_pending_block();
+        }
+
+        Ok(())
+    }
+}
+
+// Test only!!
+impl StateKeeper {
+    pub async fn run_with_rollback_enabled(
+        mut self,
+        mut stop_receiver: watch::Receiver<bool>,
+        mut block_numbers_to_rollback: VecDeque<L2BlockNumber>,
+    ) -> anyhow::Result<()> {
+        while !is_canceled(&stop_receiver) {
+            try_stoppable!(self.process_block(&mut stop_receiver).await);
+            self.seal_last_pending_block_data().await?;
+
+            let block_number = self
+                .batch_state
+                .unwrap_init_ref()
+                .updates_manager
+                .last_pending_l2_block()
+                .number;
+            if block_numbers_to_rollback.front().copied() == Some(block_number) {
+                block_numbers_to_rollback.pop_front();
+                self.rollback().await?;
+            } else {
+                self.commit_pending_block().await?;
             }
         }
 

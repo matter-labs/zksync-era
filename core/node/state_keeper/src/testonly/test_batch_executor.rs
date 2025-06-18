@@ -126,6 +126,18 @@ impl TestScenario {
         self
     }
 
+    /// Expect the state keeper to rollback the block.
+    pub(crate) fn block_rollback(
+        mut self,
+        description: &'static str,
+        number: L2BlockNumber,
+        txs: Vec<Transaction>,
+    ) -> Self {
+        self.actions
+            .push_back(ScenarioItem::RollbackBlock(description, number, txs));
+        self
+    }
+
     /// Expect the state keeper to reject the transaction.
     /// `err` argument is an optional substring of the expected error message. If `None` is provided, any rejection
     /// would work. If `Some` is provided, rejection reason would be checked against the provided substring.
@@ -213,6 +225,17 @@ impl TestScenario {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor = TestBatchExecutorBuilder::new(&self);
+        let block_numbers_to_rollback = self
+            .actions
+            .iter()
+            .filter_map(|item| {
+                if let ScenarioItem::RollbackBlock(_, number, _) = item {
+                    Some(*number)
+                } else {
+                    None
+                }
+            })
+            .collect();
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
         let builder = StateKeeperBuilder::new(
@@ -224,7 +247,9 @@ impl TestScenario {
             None,
         );
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
-        let sk_thread = tokio::spawn(state_keeper.run(stop_receiver));
+        let sk_thread = tokio::spawn(
+            state_keeper.run_with_rollback_enabled(stop_receiver, block_numbers_to_rollback),
+        );
 
         // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
@@ -301,6 +326,7 @@ enum ScenarioItem {
     IncrementProtocolVersion(&'static str),
     Tx(&'static str, Transaction, BatchTransactionExecutionResult),
     Rollback(&'static str, Transaction),
+    RollbackBlock(&'static str, L2BlockNumber, Vec<Transaction>),
     Reject(&'static str, Transaction, UnexecutableReason),
     L2BlockSeal(
         &'static str,
@@ -336,6 +362,11 @@ impl fmt::Debug for ScenarioItem {
                 .field(descr)
                 .field(tx)
                 .finish(),
+            Self::RollbackBlock(descr, number, _) => formatter
+                .debug_tuple("RollbackBlock")
+                .field(descr)
+                .field(number)
+                .finish(),
             Self::Reject(descr, tx, err) => formatter
                 .debug_tuple("Reject")
                 .field(descr)
@@ -365,14 +396,17 @@ pub struct TestBatchExecutorBuilder {
     /// When initializing each batch, we will `pop_front` known txs for the corresponding executor.
     txs: ExpectedTransactions,
     /// Set of transactions that would be rolled back at least once.
-    rollback_set: HashSet<H256>,
+    tx_rollback_set: HashSet<H256>,
+    /// Set of blocks that would be rolled back.
+    block_rollback_set: HashSet<L2BlockNumber>,
 }
 
 impl TestBatchExecutorBuilder {
     pub(crate) fn new(scenario: &TestScenario) -> Self {
         let mut txs = VecDeque::new();
         let mut batch_txs = HashMap::<_, VecDeque<BatchTransactionExecutionResult>>::new();
-        let mut rollback_set = HashSet::new();
+        let mut tx_rollback_set = HashSet::new();
+        let mut block_rollback_set = HashSet::new();
 
         // Insert data about the pending batch, if it exists.
         // All the txs from the pending batch must succeed.
@@ -404,10 +438,13 @@ impl TestBatchExecutorBuilder {
                     }
                 }
                 ScenarioItem::Rollback(_, tx) => {
-                    rollback_set.insert(tx.hash());
+                    tx_rollback_set.insert(tx.hash());
+                }
+                ScenarioItem::RollbackBlock(_, number, _) => {
+                    block_rollback_set.insert(*number);
                 }
                 ScenarioItem::Reject(_, tx, _) => {
-                    rollback_set.insert(tx.hash());
+                    tx_rollback_set.insert(tx.hash());
                 }
                 ScenarioItem::BatchSeal(_, _) => txs.push_back(mem::take(&mut batch_txs)),
                 _ => {}
@@ -422,7 +459,11 @@ impl TestBatchExecutorBuilder {
         // for the initialization of the "next-to-last" batch.
         txs.push_back(HashMap::default());
 
-        Self { txs, rollback_set }
+        Self {
+            txs,
+            tx_rollback_set,
+            block_rollback_set,
+        }
     }
 
     /// Adds successful transactions to be executed in a single L1 batch.
@@ -443,8 +484,11 @@ impl BatchExecutorFactory<OwnedStorage> for TestBatchExecutorBuilder {
         _system_env: SystemEnv,
         _pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
-        let executor =
-            TestBatchExecutor::new(self.txs.pop_front().unwrap(), self.rollback_set.clone());
+        let executor = TestBatchExecutor::new(
+            self.txs.pop_front().unwrap(),
+            self.tx_rollback_set.clone(),
+            self.block_rollback_set.clone(),
+        );
         Box::new(executor)
     }
 }
@@ -455,20 +499,27 @@ pub(super) struct TestBatchExecutor {
     /// The same transaction can be executed several times, so we use a sequence of responses and consume them by one.
     txs: HashMap<H256, VecDeque<BatchTransactionExecutionResult>>,
     /// Set of transactions that are expected to be rolled back.
-    rollback_set: HashSet<H256>,
+    tx_rollback_set: HashSet<H256>,
+    /// Set of blocks that are expected to be rolled back.
+    block_rollback_set: HashSet<L2BlockNumber>,
     /// Last executed tx hash.
     last_tx: H256,
+    /// Last started block number.
+    last_block: L2BlockNumber,
 }
 
 impl TestBatchExecutor {
     pub(super) fn new(
         txs: HashMap<H256, VecDeque<BatchTransactionExecutionResult>>,
-        rollback_set: HashSet<H256>,
+        tx_rollback_set: HashSet<H256>,
+        block_rollback_set: HashSet<L2BlockNumber>,
     ) -> Self {
         Self {
             txs,
-            rollback_set,
+            tx_rollback_set,
+            block_rollback_set,
             last_tx: H256::default(), // We don't expect rollbacks until the first tx is executed.
+            last_block: L2BlockNumber(0),
         }
     }
 }
@@ -498,7 +549,7 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         // This is an additional safety check: IO would check that every rollback is included in the
         // test scenario, but here we want to additionally check that each such request goes to the
         // the batch executor as well.
-        if !self.rollback_set.contains(&self.last_tx) {
+        if !self.tx_rollback_set.contains(&self.last_tx) {
             // Request to rollback an unexpected tx.
             panic!(
                 "Received a request to rollback an unexpected tx. Last executed tx: {:?}",
@@ -510,7 +561,8 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
         Ok(())
     }
 
-    async fn start_next_l2_block(&mut self, _env: L2BlockEnv) -> anyhow::Result<()> {
+    async fn start_next_l2_block(&mut self, env: L2BlockEnv) -> anyhow::Result<()> {
+        self.last_block = env.number.into();
         Ok(())
     }
 
@@ -522,7 +574,15 @@ impl BatchExecutor<OwnedStorage> for TestBatchExecutor {
     }
 
     async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
-        todo!()
+        if !self.block_rollback_set.contains(&self.last_block) {
+            // Request to rollback an unexpected block.
+            panic!(
+                "Received a request to rollback an unexpected block. Last started block: {}",
+                self.last_block,
+            )
+        }
+        self.last_block -= 1;
+        Ok(())
     }
 }
 
@@ -809,8 +869,17 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
-        todo!()
+    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+        let action = self.pop_next_item("rollback_l2_block");
+        let ScenarioItem::RollbackBlock(_, _, expected_txs) = action else {
+            panic!("Unexpected action: {:?}", action);
+        };
+        assert_eq!(txs, expected_txs);
+
+        self.l2_block_number -= 1;
+        self.timestamp -= 1;
+
+        Ok(())
     }
 
     async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {

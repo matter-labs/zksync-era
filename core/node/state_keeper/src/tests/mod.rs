@@ -571,3 +571,38 @@ async fn l2_block_timestamp_updated_after_first_tx() {
         .run(sealer)
         .await;
 }
+
+/// Basic test for L2 block rollback.
+#[tokio::test]
+async fn l2_block_rollback_basics() {
+    let config = StateKeeperConfig {
+        transaction_slots: 3,
+        ..StateKeeperConfig::for_tests()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+    let tx1 = random_tx(1);
+    let tx2 = random_tx(2);
+
+    TestScenario::new()
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
+        .next_tx("First tx", tx1, successful_exec())
+        .l2_block_sealed("L2 block 1")
+        .next_tx("Second tx", tx2.clone(), successful_exec())
+        .l2_block_sealed("L2 block 2")
+        .block_rollback("Rollback block 2", L2BlockNumber(2), vec![tx2.clone()])
+        .next_tx("Second tx again", tx2, successful_exec())
+        .l2_block_sealed_with("L2 block 2 again", move |updates| {
+            assert_eq!(
+                updates.last_pending_l2_block().number,
+                L2BlockNumber(2),
+                "L2 block number should be correct after rollback"
+            );
+        })
+        .next_tx("Third tx", random_tx(3), successful_exec())
+        .l2_block_sealed("L2 block 3")
+        .batch_sealed("Batch 1")
+        .run(sealer)
+        .await;
+}
