@@ -742,4 +742,128 @@ mod tests {
 
         persistence.wait_for_all_commands().await;
     }
+
+    #[tokio::test]
+    async fn l2_block_sealer_rollback() {
+        // Preparation
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
+        storage
+            .blocks_dal()
+            .set_l1_batch_hash(L1BatchNumber(0), H256::zero())
+            .await
+            .unwrap();
+        drop(storage);
+        let (persistence, l2_block_sealer) =
+            StateKeeperPersistence::new(pool.clone(), Some(Address::default()), 10)
+                .await
+                .unwrap();
+        let mut output_handler = OutputHandler::new(Box::new(persistence));
+        tokio::spawn(l2_block_sealer.run());
+        let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let previous_batch_timestamp = l1_batch_env.first_l2_block.timestamp - 1;
+        let timestamp_ms = l1_batch_env.first_l2_block.timestamp * 1000;
+        let mut updates = UpdatesManager::new(
+            &BatchInitParams {
+                l1_batch_env: l1_batch_env.clone(),
+                system_env: default_system_env(),
+                pubdata_params: Default::default(),
+                timestamp_ms,
+            },
+            ProtocolVersionId::latest(),
+            previous_batch_timestamp,
+            None,
+        );
+        pool.connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .insert_l1_batch(l1_batch_env.into_unsealed_header(None))
+            .await
+            .unwrap();
+
+        // Actual test starts here
+        let mut batch_storage_logs = Vec::new();
+        let tx1 = create_transaction(10, 100);
+        let storage_logs = [(U256::from(2), Query::InitialWrite(U256::from(1)))];
+        let tx_result = create_execution_result(storage_logs);
+        batch_storage_logs.extend_from_slice(&tx_result.logs.storage_logs);
+        updates.extend_from_executed_transaction(
+            tx1,
+            tx_result,
+            VmExecutionMetrics::default(),
+            vec![],
+        );
+
+        // Seal first block data
+        output_handler.handle_l2_block_data(&updates).await.unwrap();
+
+        // Start second block
+        updates.set_next_l2_block_params(L2BlockParams::new(2000));
+        updates.push_l2_block();
+
+        let tx2 = create_transaction(10, 100);
+        let storage_logs = [(U256::from(3), Query::InitialWrite(U256::from(1)))];
+        let tx_result = create_execution_result(storage_logs);
+        batch_storage_logs.extend_from_slice(&tx_result.logs.storage_logs);
+        updates.extend_from_executed_transaction(
+            tx2,
+            tx_result,
+            VmExecutionMetrics::default(),
+            vec![],
+        );
+
+        // Seal second block data
+        output_handler.handle_l2_block_data(&updates).await.unwrap();
+
+        // Rollback the second block data
+        output_handler
+            .rollback_pending_l2_block_data(L2BlockNumber(2))
+            .await
+            .unwrap();
+
+        // Commit the first block
+        output_handler
+            .handle_l2_block_header(&updates.header_for_first_pending_block())
+            .await
+            .unwrap();
+        updates.commit_pending_block();
+
+        // Seal second block data one more time and commit
+        output_handler.handle_l2_block_data(&updates).await.unwrap();
+        output_handler
+            .handle_l2_block_header(&updates.header_for_first_pending_block())
+            .await
+            .unwrap();
+        updates.commit_pending_block();
+
+        // Finish batch
+        updates.set_next_l2_block_params(L2BlockParams::new(3000));
+        updates.push_l2_block();
+        let mut batch_result = FinishedL1Batch::mock();
+        batch_result.final_execution_state.deduplicated_storage_logs =
+            batch_storage_logs.iter().map(|log| log.log).collect();
+        batch_result.state_diffs = Some(
+            batch_storage_logs
+                .into_iter()
+                .filter(|&log| log.log.kind == StorageLogKind::InitialWrite)
+                .map(|log| StateDiffRecord {
+                    address: *log.log.key.address(),
+                    key: h256_to_u256(*log.log.key.key()),
+                    derived_key: log.log.key.hashed_key().0,
+                    enumeration_index: 0,
+                    initial_value: h256_to_u256(log.previous_value),
+                    final_value: h256_to_u256(log.log.value),
+                })
+                .collect(),
+        );
+        updates.finish_batch(batch_result);
+        output_handler
+            .handle_l1_batch(Arc::new(updates))
+            .await
+            .unwrap();
+    }
 }
