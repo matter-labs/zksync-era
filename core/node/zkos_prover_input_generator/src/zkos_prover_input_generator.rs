@@ -18,7 +18,7 @@ use zksync_l1_contract_interface::{
     zkos_commitment_to_vm_batch_output,
 };
 use zksync_types::{
-    block::L2BlockHeader, commitment::ZkosCommitment, L1BatchNumber, L2BlockNumber, H256,
+    block::L2BlockHeader, commitment::ZkosCommitment, L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 use zksync_zkos_vm_runner::zkos_conversions::{h256_to_bytes32, tx_abi_encode};
 
@@ -27,16 +27,19 @@ use crate::zkos_proof_data_server::run;
 pub struct ZkosProverInputGenerator {
     stop_receiver: watch::Receiver<bool>,
     pool: ConnectionPool<Core>,
+    l2chain_id: L2ChainId,
 }
 
 impl ZkosProverInputGenerator {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         pool: ConnectionPool<Core>,
+        l2chain_id: L2ChainId,
     ) -> ZkosProverInputGenerator {
         Self {
             stop_receiver,
             pool,
+            l2chain_id,
         }
     }
 
@@ -105,7 +108,12 @@ impl ZkosProverInputGenerator {
                 let started_at = std::time::Instant::now();
 
                 let prover_input = self
-                    .generate_prover_input_for_block(tree.clone(), preimages.clone(), &block)
+                    .generate_prover_input_for_block(
+                        tree.clone(),
+                        preimages.clone(),
+                        &block,
+                        self.l2chain_id,
+                    )
                     .await?;
 
                 let duration = started_at.elapsed();
@@ -116,7 +124,8 @@ impl ZkosProverInputGenerator {
                     duration
                 );
 
-                Self::print_expected_values_for_block(&mut connection, &block).await?;
+                Self::print_expected_values_for_block(&mut connection, &block, self.l2chain_id)
+                    .await?;
 
                 connection
                     .zkos_prover_dal()
@@ -163,8 +172,13 @@ impl ZkosProverInputGenerator {
             "Dry run mode enabled - processing block {:?}",
             dry_run_block
         );
-        let prover_input = self
-            .generate_prover_input_for_block(tree.clone(), preimages.clone(), &block)
+        let _prover_input = self
+            .generate_prover_input_for_block(
+                tree.clone(),
+                preimages.clone(),
+                &block,
+                self.l2chain_id,
+            )
             .await?;
 
         tracing::info!(
@@ -172,13 +186,14 @@ impl ZkosProverInputGenerator {
             dry_run_block
         );
 
-        Self::print_expected_values_for_block(&mut connection, &block).await?;
+        Self::print_expected_values_for_block(&mut connection, &block, self.l2chain_id).await?;
         Ok(())
     }
 
     async fn print_expected_values_for_block(
         connection: &mut Connection<'_, Core>,
         block: &L2BlockHeader,
+        l2chain_id: L2ChainId,
     ) -> anyhow::Result<()> {
         let batch = connection
             .blocks_dal()
@@ -192,7 +207,7 @@ impl ZkosProverInputGenerator {
             .await?
             .context("Failed to get L1 batch header for the block")?;
 
-        let expected_batch_public_input = batch_public_input(&prev_batch, &batch);
+        let expected_batch_public_input = batch_public_input(&prev_batch, &batch, l2chain_id);
         tracing::info!(
             "Block {} Expected batch public input: {:?}",
             block.number.0,
@@ -211,7 +226,7 @@ impl ZkosProverInputGenerator {
         tracing::info!(
             "Block {} Expected batch output preimage: {:?}",
             block.number.0,
-            zkos_commitment_to_vm_batch_output(&ZkosCommitment::from(&batch))
+            zkos_commitment_to_vm_batch_output(&ZkosCommitment::new(&batch, l2chain_id))
         );
         tracing::info!(
             "Block {} full pubdata: {:?}",
@@ -226,6 +241,7 @@ impl ZkosProverInputGenerator {
         tree: InMemoryTree,
         preimages: InMemoryPreimageSource,
         block: &L2BlockHeader,
+        l2chain_id: L2ChainId,
     ) -> anyhow::Result<Vec<u32>> {
         let context = BatchContext {
             //todo: gas
@@ -235,8 +251,7 @@ impl ZkosProverInputGenerator {
             gas_per_pubdata: Default::default(),
             block_number: block.number.0 as u64,
             timestamp: block.timestamp,
-            // todo: get from config
-            chain_id: 271,
+            chain_id: l2chain_id.as_u64(),
             // TODO: copied from `keeper.rs`
             gas_limit: 100_000_000,
             coinbase: Default::default(),

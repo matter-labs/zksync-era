@@ -753,6 +753,7 @@ impl EthTxAggregator {
                     l1_batches,
                     pubdata_da: *pubdata_da,
                     mode: *commitment_mode,
+                    chain_id: self.rollup_chain_id,
                 };
                 let commit_data_base = commit_batches.into_tokens();
 
