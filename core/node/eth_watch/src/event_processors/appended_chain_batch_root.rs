@@ -5,13 +5,12 @@ use itertools::Itertools;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
     api::{ChainAggProof, Log},
     ethabi, h256_to_u256,
     l2_to_l1_log::{
         BatchAndChainMerklePath, BATCH_LEAF_PADDING, LOG_PROOF_SUPPORTED_METADATA_VERSION,
     },
-    u256_to_h256, L1BatchNumber, L1BlockNumber, L2BlockNumber, L2ChainId, SLChainId, H256, U256,
+    u256_to_h256, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256, U256,
 };
 
 use crate::{
@@ -191,7 +190,6 @@ impl EventProcessor for BatchRootProcessor {
 
                 // The local batch chain Merkle path for each batch number has different chain proof vector as it hashes to
                 // the root at the GW block number where the containing batch was executed
-                println!("gw_block_number: {}", sl_block_number);
                 let local_chain_agg_proof = self
                     .sl_l2_client
                     .get_inner_chain_log_proof(*sl_block_number, self.l2_chain_id)
@@ -246,36 +244,6 @@ impl BatchRootProcessor {
             .copy_from_slice(H256::from_low_u64_be(batch_number.0 as u64).as_bytes());
 
         full_preimage
-    }
-
-    async fn get_sl_block_number_at_execute(
-        storage: &mut Connection<'_, Core>,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<L2BlockNumber, EventProcessorError> {
-        let eth_tx_id = storage
-            .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_id_by_batch_and_op(
-                l1_batch_number,
-                AggregatedActionType::Execute,
-            )
-            .await
-            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?
-            .expect("Execute tx not found");
-
-        let tx = storage
-            .eth_sender_dal()
-            .get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id)
-            .await
-            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
-
-        let Some(tx) = tx else {
-            return Err(EventProcessorError::Internal(anyhow::anyhow!(
-                "Execute tx not found"
-            )));
-        };
-        tx.confirmed_at_block
-            .map(|block| L2BlockNumber(block as u32))
-            .ok_or_else(|| EventProcessorError::Internal(anyhow::anyhow!("Execute tx not found")))
     }
 
     fn chain_proof_vector(
