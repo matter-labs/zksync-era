@@ -18,7 +18,6 @@ zksync_concurrency.workspace = true
 
 # Observability exensions
 zksync_vlog = { workspace = true, optional = true }
-tracing = { workspace = true, optional = true }
 vise = { workspace = true, optional = true }
 
 # CLI extensions
@@ -32,8 +31,9 @@ secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml.workspace = true
+tracing.workspace = true
 
 [features]
 default = []
-observability_ext = ["dep:zksync_vlog", "dep:tracing", "dep:vise"]
+observability_ext = ["dep:zksync_vlog", "dep:vise"]
 cli = ["observability_ext", "dep:clap", "dep:smart-config-commands"]

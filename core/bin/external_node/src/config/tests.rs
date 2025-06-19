@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
+use zksync_config::configs::observability::LogFormat;
 
 use super::*;
 use crate::config::observability::ObservabilityENConfig;
@@ -43,12 +44,12 @@ fn parsing_observability_config() {
     assert_eq!(config.prometheus_port, Some(3322));
     assert_eq!(config.sentry_url.unwrap(), "https://example.com/");
     assert_eq!(config.sentry_environment.unwrap(), "mainnet - mainnet2");
-    assert_matches!(config.log_format, zksync_vlog::logs::LogFormat::Plain);
+    assert_matches!(config.log_format, LogFormat::Plain);
     assert_eq!(config.prometheus_push_interval_ms, 10_000);
 
     env_vars.0.insert("MISC_LOG_FORMAT", "json");
     let config = ObservabilityENConfig::new(&env_vars).unwrap();
-    assert_matches!(config.log_format, zksync_vlog::logs::LogFormat::Json);
+    assert_matches!(config.log_format, LogFormat::Json);
 
     // If both the canonical and obsolete vars are specified, the canonical one should prevail.
     env_vars.0.insert("EN_LOG_FORMAT", "plain");
@@ -56,7 +57,7 @@ fn parsing_observability_config() {
         .0
         .insert("EN_SENTRY_URL", "https://example.com/new");
     let config = ObservabilityENConfig::new(&env_vars).unwrap();
-    assert_matches!(config.log_format, zksync_vlog::logs::LogFormat::Plain);
+    assert_matches!(config.log_format, LogFormat::Plain);
     assert_eq!(config.sentry_url.unwrap(), "https://example.com/new");
 }
 

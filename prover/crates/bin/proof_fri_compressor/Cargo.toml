@@ -30,3 +30,4 @@ tokio = { workspace = true, features = ["time", "macros"] }
 tokio-util.workspace = true
 clap = { workspace = true, features = ["derive"] }
 reqwest = { workspace = true, features = ["blocking"] }
+ctrlc = { workspace = true, features = ["termination"] }
