@@ -2,7 +2,7 @@ use vise::{Buckets, Counter, Histogram, LabeledFamily, Metrics, Unit};
 
 use super::AllocationStats;
 
-const OP_SIZE_BUCKETS: Buckets = Buckets::exponential(256.0..=256.0 * 1_024.0 * 1_204.0, 4.0);
+const OP_SIZE_BUCKETS: Buckets = Buckets::exponential(4_096.0..=(1 << 30) as f64, 4.0);
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "jemalloc_operation")]

@@ -226,7 +226,7 @@ where
         let current_span = tracing::Span::current();
         tokio::task::spawn_blocking(move || {
             let _entered_span = current_span.entered();
-            let _guard = AllocationGuard::for_operation("oneshot#validate");
+            let _guard = AllocationGuard::for_operation("oneshot_vm#validate");
             let version = sandbox.env.system.version.into();
             let batch_timestamp = l1_batch_env.timestamp;
 
