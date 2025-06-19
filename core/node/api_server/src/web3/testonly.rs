@@ -1,6 +1,6 @@
 //! Test utilities useful for writing unit tests outside of this crate.
 
-use std::{pin::Pin, time::Instant};
+use std::time::Instant;
 
 use tokio::sync::watch;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, wallets::Wallets};
@@ -54,6 +54,13 @@ pub(crate) async fn create_test_tx_sender(
     (tx_sender, vm_barrier)
 }
 
+/// Handles to the initialized API server.
+#[derive(Debug)]
+pub struct ApiServerHandles {
+    pub tasks: Vec<JoinHandle<anyhow::Result<()>>>,
+    pub health_check: ReactiveHealthCheck,
+}
+
 impl ApiServerHandles {
     /// Waits until the server health check reports the ready state. Must be called once per server instance.
     pub async fn wait_until_ready(&mut self) -> SocketAddr {
@@ -64,18 +71,13 @@ impl ApiServerHandles {
                 "Timed out waiting for API server"
             );
             let health = self.health_check.check_health().await;
-            if health.status().is_healthy() {
-                break;
+            if matches!(health.status(), HealthStatus::Ready) {
+                let health_details = health.details().unwrap();
+                break serde_json::from_value(health_details["local_addr"].clone())
+                    .expect("invalid `local_addr` in health details");
             }
             tokio::time::sleep(POLL_INTERVAL).await;
         }
-
-        let mut local_addr_future = Pin::new(&mut self.local_addr);
-        local_addr_future
-            .as_mut()
-            .await
-            .expect("API server panicked");
-        local_addr_future.output_mut().copied().unwrap()
     }
 
     pub async fn shutdown(self) {
@@ -199,9 +201,21 @@ impl TestServerBuilder {
         let bridge_addresses_handle =
             BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
 
-        let server_builder = match transport {
-            ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
+        let mut server_tasks = vec![];
+        let (pub_sub, server_builder) = match transport {
+            ApiTransportLabel::Http => (
+                None,
+                ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
+            ),
             ApiTransportLabel::Ws => {
+                let mut pub_sub = EthSubscribe::new();
+                pub_sub.set_events_sender(pub_sub_events_sender);
+                server_tasks.extend(pub_sub.spawn_notifiers(
+                    pool.clone(),
+                    POLL_INTERVAL,
+                    &stop_receiver,
+                ));
+
                 let mut builder = ApiBuilder::jsonrpsee_backend(api_config, pool)
                     .ws(0)
                     .with_subscriptions_limit(100);
@@ -212,7 +226,7 @@ impl TestServerBuilder {
                         websocket_requests_per_minute_limit,
                     );
                 }
-                builder
+                (Some(pub_sub), builder)
             }
         };
 
@@ -220,7 +234,6 @@ impl TestServerBuilder {
             .with_polling_interval(POLL_INTERVAL)
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
-            .with_pub_sub_events(pub_sub_events_sender)
             .with_method_tracer(method_tracer)
             .enable_api_namespaces(namespaces)
             .with_sealed_l2_block_handle(sealed_l2_block_handle)
@@ -229,12 +242,13 @@ impl TestServerBuilder {
             server_builder = server_builder.with_request_timeout(timeout);
         }
 
-        let server_handles = server_builder
-            .build()
-            .expect("Unable to build API server")
-            .run(stop_receiver)
-            .await
-            .expect("Failed spawning JSON-RPC server");
-        (server_handles, pub_sub_events_receiver)
+        let server = server_builder.build().expect("Unable to build API server");
+        let health_check = server.health_check();
+        server_tasks.push(tokio::spawn(server.run(pub_sub, stop_receiver)));
+        let handles = ApiServerHandles {
+            tasks: server_tasks,
+            health_check,
+        };
+        (handles, pub_sub_events_receiver)
     }
 }

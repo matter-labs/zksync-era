@@ -5,13 +5,13 @@ use chrono::NaiveDateTime;
 use futures::future;
 use serde::Deserialize;
 use tokio::{
-    sync::{mpsc, oneshot, watch, Mutex},
+    sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
-use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     tree::TreeApiClient,
@@ -58,7 +58,7 @@ pub mod backend_jsonrpsee;
 pub mod mempool_cache;
 pub(super) mod metrics;
 pub mod namespaces;
-mod pubsub;
+pub(crate) mod pubsub;
 pub(super) mod receipts;
 pub mod state;
 pub mod testonly;
@@ -119,15 +119,6 @@ impl Namespace {
     ];
 }
 
-/// Handles to the initialized API server.
-#[derive(Debug)]
-pub struct ApiServerHandles {
-    pub tasks: Vec<JoinHandle<anyhow::Result<()>>>,
-    pub health_check: ReactiveHealthCheck,
-    #[allow(unused)] // only used in tests
-    pub(crate) local_addr: future::TryMaybeDone<oneshot::Receiver<SocketAddr>>,
-}
-
 /// Optional part of the API server parameters.
 #[derive(Debug, Default)]
 struct OptionalApiParams {
@@ -142,7 +133,6 @@ struct OptionalApiParams {
     tree_api: Option<Arc<dyn TreeApiClient>>,
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
-    pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
     l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
 }
 
@@ -318,13 +308,6 @@ impl ApiBuilder {
 
     // Intended for tests only.
     #[doc(hidden)]
-    fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
-        self.optional.pub_sub_events_sender = Some(sender);
-        self
-    }
-
-    // Intended for tests only.
-    #[doc(hidden)]
     fn with_method_tracer(mut self, method_tracer: Arc<MethodTracer>) -> Self {
         self.method_tracer = method_tracer;
         self
@@ -454,10 +437,11 @@ impl ApiServer {
         Ok(rpc)
     }
 
-    pub async fn run(
+    pub(crate) async fn run(
         self,
+        pub_sub: Option<EthSubscribe>, // FIXME: awkward
         stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<ApiServerHandles> {
+    ) -> anyhow::Result<()> {
         if self.config.filters_disabled {
             if self.optional.filters_limit.is_some() {
                 tracing::warn!(
@@ -488,7 +472,7 @@ impl ApiServer {
             _ => {}
         }
 
-        self.build_jsonrpsee(stop_receiver).await
+        self.run_jsonrpsee_server(stop_receiver, pub_sub).await
     }
 
     async fn wait_for_vm(vm_barrier: VmConcurrencyBarrier, transport: &str) {
@@ -502,46 +486,6 @@ impl ApiServer {
         } else {
             tracing::info!("VM execution on {transport} JSON-RPC server stopped");
         }
-    }
-
-    async fn build_jsonrpsee(
-        self,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<ApiServerHandles> {
-        let transport = self.transport;
-        let mut tasks = vec![];
-
-        let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
-            && self.namespaces.contains(&Namespace::Pubsub)
-        {
-            let mut pub_sub = EthSubscribe::new();
-            if let Some(sender) = &self.optional.pub_sub_events_sender {
-                pub_sub.set_events_sender(sender.clone());
-            }
-
-            tasks.extend(pub_sub.spawn_notifiers(
-                self.pool.clone(),
-                self.polling_interval,
-                stop_receiver.clone(),
-            ));
-            Some(pub_sub)
-        } else {
-            None
-        };
-
-        // TODO (QIT-26): We still expose `health_check` in `ApiServerHandles` for the old code. After we switch to the
-        // framework it'll no longer be needed.
-        let health_check = self.health_updater.subscribe();
-        let (local_addr_sender, local_addr) = oneshot::channel();
-        let server_task =
-            tokio::spawn(self.run_jsonrpsee_server(stop_receiver, pub_sub, local_addr_sender));
-
-        tasks.push(server_task);
-        Ok(ApiServerHandles {
-            health_check,
-            tasks,
-            local_addr: future::try_maybe_done(local_addr),
-        })
     }
 
     /// Overrides max response sizes for specific RPC methods by additionally wrapping their callbacks
@@ -603,7 +547,6 @@ impl ApiServer {
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
-        local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
         let (transport_str, is_http, addr) = match transport {
@@ -748,8 +691,10 @@ impl ApiServer {
             format!("Failed getting local address for {transport_str} JSON-RPC server")
         })?;
         tracing::info!("Initialized {transport_str} API on {local_addr:?}");
-        local_addr_sender.send(local_addr).ok();
-        health_updater.update(HealthStatus::Ready.into());
+        let health = Health::from(HealthStatus::Ready).with_details(serde_json::json!({
+            "local_addr": local_addr,
+        }));
+        health_updater.update(health);
 
         // We want to be able to immediately stop the server task if the server stops on its own for whatever reason.
         // Hence, we monitor `stop_receiver` on a separate Tokio task.
@@ -759,6 +704,7 @@ impl ApiServer {
         // TODO (QIT-26): While `Arc<HealthUpdater>` is stored in `self`, we rely on the fact that `self` is consumed and
         // dropped by `self.build_rpc_module` above, so we should still have just one strong reference.
         let closing_health_updater = Arc::downgrade(&health_updater);
+
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(

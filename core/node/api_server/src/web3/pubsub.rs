@@ -49,7 +49,8 @@ pub enum PubSubEvent {
 
 /// Manager of notifications for a certain type of subscriptions.
 #[derive(Debug)]
-struct PubSubNotifier {
+pub(crate) struct PubSubNotifier {
+    ty: SubscriptionType,
     sender: broadcast::Sender<Vec<PubSubResult>>,
     connection_pool: ConnectionPool<Core>,
     polling_interval: Duration,
@@ -57,6 +58,10 @@ struct PubSubNotifier {
 }
 
 impl PubSubNotifier {
+    pub(crate) fn subscription_type(&self) -> SubscriptionType {
+        self.ty
+    }
+
     // Notifier tasks are spawned independently of the main server task, so we need to wait for
     // Postgres to be non-empty separately.
     async fn get_starting_l2_block_number(
@@ -86,9 +91,7 @@ impl PubSubNotifier {
             sender.send(event).ok();
         }
     }
-}
 
-impl PubSubNotifier {
     async fn notify_blocks(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let Some(mut last_block_number) = self
             .get_starting_l2_block_number(&mut stop_receiver)
@@ -237,10 +240,19 @@ impl PubSubNotifier {
             .await
             .map_err(Into::into)
     }
+
+    pub(crate) async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        match self.ty {
+            SubscriptionType::Blocks => self.notify_blocks(stop_receiver).await,
+            SubscriptionType::Txs => self.notify_txs(stop_receiver).await,
+            SubscriptionType::Logs => self.notify_logs(stop_receiver).await,
+        }
+    }
 }
 
 /// Subscription support for Web3 APIs.
-pub(super) struct EthSubscribe {
+#[derive(Debug)]
+pub(crate) struct EthSubscribe {
     blocks: broadcast::Sender<Vec<PubSubResult>>,
     transactions: broadcast::Sender<Vec<PubSubResult>>,
     logs: broadcast::Sender<Vec<PubSubResult>>,
@@ -261,6 +273,7 @@ impl EthSubscribe {
         }
     }
 
+    // FIXME: ???
     pub fn set_events_sender(&mut self, sender: mpsc::UnboundedSender<PubSubEvent>) {
         self.events_sender = Some(sender);
     }
@@ -356,7 +369,7 @@ impl EthSubscribe {
     }
 
     #[tracing::instrument(level = "debug", skip(self, pending_sink))]
-    pub async fn sub(
+    async fn sub(
         &self,
         pending_sink: PendingSubscriptionSink,
         sub_type: String,
@@ -432,43 +445,45 @@ impl EthSubscribe {
         }
     }
 
-    /// Spawns notifier tasks. This should be called once per instance.
-    pub fn spawn_notifiers(
+    pub(crate) fn create_notifier(
         &self,
+        ty: SubscriptionType,
         connection_pool: ConnectionPool<Core>,
         polling_interval: Duration,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> Vec<JoinHandle<anyhow::Result<()>>> {
-        let mut notifier_tasks = Vec::with_capacity(3);
-
-        let notifier = PubSubNotifier {
-            sender: self.blocks.clone(),
-            connection_pool: connection_pool.clone(),
-            polling_interval,
-            events_sender: self.events_sender.clone(),
+    ) -> PubSubNotifier {
+        let sender = match ty {
+            SubscriptionType::Blocks => self.blocks.clone(),
+            SubscriptionType::Txs => self.transactions.clone(),
+            SubscriptionType::Logs => self.logs.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_blocks(stop_receiver.clone()));
-        notifier_tasks.push(notifier_task);
 
-        let notifier = PubSubNotifier {
-            sender: self.transactions.clone(),
-            connection_pool: connection_pool.clone(),
-            polling_interval,
-            events_sender: self.events_sender.clone(),
-        };
-        let notifier_task = tokio::spawn(notifier.notify_txs(stop_receiver.clone()));
-        notifier_tasks.push(notifier_task);
-
-        let notifier = PubSubNotifier {
-            sender: self.logs.clone(),
+        PubSubNotifier {
+            ty,
+            sender,
             connection_pool,
             polling_interval,
             events_sender: self.events_sender.clone(),
-        };
-        let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
+        }
+    }
 
-        notifier_tasks.push(notifier_task);
-        notifier_tasks
+    /// Test-only helper spawning all 3 notifier tasks.
+    pub(crate) fn spawn_notifiers(
+        &self,
+        connection_pool: ConnectionPool<Core>,
+        polling_interval: Duration,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Vec<JoinHandle<anyhow::Result<()>>> {
+        [
+            SubscriptionType::Blocks,
+            SubscriptionType::Txs,
+            SubscriptionType::Logs,
+        ]
+        .into_iter()
+        .map(|ty| {
+            let notifier = self.create_notifier(ty, connection_pool.clone(), polling_interval);
+            tokio::spawn(notifier.run(stop_receiver.clone()))
+        })
+        .collect()
     }
 }
 

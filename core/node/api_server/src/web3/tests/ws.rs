@@ -113,7 +113,7 @@ async fn notifiers_start_after_snapshot_recovery() {
     let mut subscribe_logic = EthSubscribe::new();
     subscribe_logic.set_events_sender(events_sender);
     let notifier_handles =
-        subscribe_logic.spawn_notifiers(pool.clone(), POLL_INTERVAL, stop_receiver);
+        subscribe_logic.spawn_notifiers(pool.clone(), POLL_INTERVAL, &stop_receiver);
     assert!(!notifier_handles.is_empty());
 
     // Wait a little doing nothing and check that notifier tasks are still active (i.e., have not panicked).
