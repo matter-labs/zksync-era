@@ -10,7 +10,7 @@ use zksync_types::{
     l2_to_l1_log::{
         BatchAndChainMerklePath, BATCH_LEAF_PADDING, LOG_PROOF_SUPPORTED_METADATA_VERSION,
     },
-    u256_to_h256, L1BatchNumber, L1BlockNumber, L2BlockNumber, L2ChainId, SLChainId, H256, U256,
+    u256_to_h256, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256, U256,
 };
 
 use crate::{
