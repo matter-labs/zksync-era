@@ -198,7 +198,11 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
+        let api_config = try_load_config!(self.configs.api_config);
+        let l1_gas_layer = L1GasLayer::new(
+            &state_keeper_config,
+            api_config.web3_json_rpc.gas_price_scale_factor_open_batch,
+        );
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
@@ -427,7 +431,7 @@ impl MainNodeBuilder {
             namespaces: Some(namespaces),
             filters_limit: Some(rpc_config.filters_limit),
             subscriptions_limit: Some(rpc_config.subscriptions_limit),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size.get()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
             request_timeout: rpc_config.request_timeout,
             with_extended_tracing: rpc_config.extended_api_tracing,
@@ -469,7 +473,7 @@ impl MainNodeBuilder {
             namespaces: Some(namespaces),
             filters_limit: Some(rpc_config.filters_limit),
             subscriptions_limit: Some(rpc_config.subscriptions_limit),
-            batch_request_size_limit: Some(rpc_config.max_batch_request_size),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size.get()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
             websocket_requests_per_minute_limit: Some(
                 rpc_config.websocket_requests_per_minute_limit,

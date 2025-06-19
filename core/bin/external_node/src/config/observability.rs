@@ -2,7 +2,8 @@ use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_vlog::{logs::LogFormat, prometheus::PrometheusExporterConfig};
+use zksync_config::configs::observability::LogFormat;
+use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use super::{ConfigurationSource, Environment};
 
@@ -80,7 +81,7 @@ impl ObservabilityENConfig {
     }
 
     pub fn build_observability(&self) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
-        let logs = zksync_vlog::Logs::from(self.log_format)
+        let logs = zksync_vlog::Logs::new(self.log_format.into())
             .with_log_directives(self.log_directives.clone());
 
         // Some legacy deployments use `unset` as an equivalent of `None`.

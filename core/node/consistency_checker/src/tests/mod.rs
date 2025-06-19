@@ -86,7 +86,7 @@ pub(crate) fn build_commit_tx_input_data(
         PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
     } else if protocol_version.is_pre_shared_bridge() {
         POST_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
-    } else if protocol_version.is_pre_v29_interop() {
+    } else if protocol_version.is_pre_interop() {
         // Post shared bridge transactions also require chain id
         let tokens: Vec<_> = vec![Token::Uint(ERA_CHAIN_ID.into())]
             .into_iter()

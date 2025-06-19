@@ -1156,7 +1156,7 @@ mod tests {
             .await
             .unwrap();
         conn.eth_sender_dal()
-            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero(), 0)
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
             .await
             .unwrap();
         conn.blocks_dal()

@@ -95,7 +95,6 @@ eth:
     aggregated_block_prove_deadline: 5
     aggregated_block_execute_deadline: 5
     timestamp_criteria_max_allowed_lag: 30
-    max_eth_tx_data_size: 120000
     max_aggregated_tx_gas: 15000000
     max_acceptable_priority_fee_in_gwei: 100000000000 # typo: value is in wei (100 gwei)
     pubdata_sending_mode: BLOBS

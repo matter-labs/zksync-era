@@ -142,7 +142,7 @@ impl EventProcessor for InteropRootProcessor {
     }
 
     fn event_source(&self) -> EventsSource {
-        self.event_source.clone()
+        self.event_source
     }
 
     fn event_type(&self) -> EventType {
@@ -153,5 +153,3 @@ impl EventProcessor for InteropRootProcessor {
         true
     }
 }
-
-impl InteropRootProcessor {}
