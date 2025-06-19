@@ -1,11 +1,12 @@
 //! (Largely) backend-agnostic logic for dealing with Web3 subscriptions.
 
+use std::time::Duration;
+
 use chrono::NaiveDateTime;
 use futures::FutureExt;
 use tokio::{
     sync::{broadcast, mpsc, watch},
     task::JoinHandle,
-    time::{interval, Duration},
 };
 use tracing::Instrument as _;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -101,13 +102,12 @@ impl PubSubNotifier {
             return Ok(());
         };
 
-        let mut timer = interval(self.polling_interval);
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
-                break;
+        let mut timer = tokio::time::interval(self.polling_interval);
+        while !*stop_receiver.borrow() {
+            tokio::select! {
+                _ = stop_receiver.changed() => break,
+                _ = timer.tick() => { /* continue processing */ }
             }
-            timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS[&SubscriptionType::Blocks]
                 .db_poll_latency
@@ -128,6 +128,8 @@ impl PubSubNotifier {
                 SubscriptionType::Blocks,
             ));
         }
+
+        tracing::info!("Stop request received, pubsub_block_notifier is shutting down");
         Ok(())
     }
 
@@ -152,15 +154,14 @@ impl PubSubNotifier {
             .map_err(Into::into)
     }
 
-    async fn notify_txs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    async fn notify_txs(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut last_time = chrono::Utc::now().naive_utc();
-        let mut timer = interval(self.polling_interval);
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, pubsub_tx_notifier is shutting down");
-                break;
+        let mut timer = tokio::time::interval(self.polling_interval);
+        while !*stop_receiver.borrow() {
+            tokio::select! {
+                _ = stop_receiver.changed() => break,
+                _ = timer.tick() => { /* continue processing */ }
             }
-            timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS[&SubscriptionType::Txs]
                 .db_poll_latency
@@ -178,6 +179,8 @@ impl PubSubNotifier {
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Txs));
         }
+
+        tracing::info!("Stop request received, pubsub_tx_notifier is shutting down");
         Ok(())
     }
 
@@ -203,13 +206,12 @@ impl PubSubNotifier {
             return Ok(());
         };
 
-        let mut timer = interval(self.polling_interval);
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
-                break;
+        let mut timer = tokio::time::interval(self.polling_interval);
+        while !*stop_receiver.borrow() {
+            tokio::select! {
+                _ = stop_receiver.changed() => break,
+                _ = timer.tick() => { /* continue processing */ }
             }
-            timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS[&SubscriptionType::Logs]
                 .db_poll_latency
@@ -228,6 +230,7 @@ impl PubSubNotifier {
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }
+        tracing::info!("Stop request received, pubsub_logs_notifier is shutting down");
         Ok(())
     }
 
