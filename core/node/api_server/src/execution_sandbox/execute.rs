@@ -13,13 +13,6 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::Mutex};
 use zksync_dal::{Connection, Core};
-
-use super::{
-    vm_metrics::{SandboxStage, SANDBOX_METRICS},
-    BlockArgs, VmPermit,
-};
-
-use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
@@ -32,10 +25,10 @@ use zksync_multivm::{
     utils::StorageWritesDeduplicator,
 };
 use zksync_object_store::{Bucket, ObjectStore};
-use zksync_state::PostgresStorage;
-use zksync_state::PostgresStorageCaches;
+use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode, StorageLog, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
+    StorageLog, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 #[cfg(feature = "zkos")]
@@ -49,10 +42,17 @@ use {
     zksync_multivm::interface::Halt,
     zksync_multivm::interface::{VmExecutionMetrics, VmRevertReason},
     zksync_state::PostgresStorageForZkOs,
+    zksync_types::{AccountTreeId, StorageKey, StorageLogKind},
     zksync_zkos_vm_runner::zkos_conversions::{
         b160_to_address, bytes32_to_h256, tx_abi_encode, zkos_log_to_vm_event,
     },
 };
+
+use super::{
+    vm_metrics::{SandboxStage, SANDBOX_METRICS},
+    BlockArgs, VmPermit,
+};
+use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
 
 /// Action that can be executed by [`SandboxExecutor`].
 #[derive(Debug)]

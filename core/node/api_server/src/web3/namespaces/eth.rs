@@ -18,6 +18,8 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
+#[cfg(feature = "zkos")]
+use crate::utils::{AccountType, ExternalAccountType};
 // #[cfg(feature = "zkos")]
 // use {
 //     ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
@@ -30,9 +32,6 @@ use crate::{
     utils::{fill_transaction_receipts, open_readonly_transaction},
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
-
-#[cfg(feature = "zkos")]
-use crate::utils::{AccountType, ExternalAccountType};
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
