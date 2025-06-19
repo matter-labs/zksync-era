@@ -188,7 +188,15 @@ async fn test_timestamps_are_distinct(
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
+
+    if l1_batch_params
+        .protocol_version
+        .is_pre_interop_fast_blocks()
+    {
+        assert!(l1_batch_params.first_l2_block.timestamp() > prev_l2_block_timestamp);
+    } else {
+        assert!(l1_batch_params.first_l2_block.timestamp() >= prev_l2_block_timestamp);
+    }
 }
 
 #[test_casing(2, COMMITMENT_MODES)]
