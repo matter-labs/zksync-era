@@ -39,11 +39,11 @@ The order of the files here only roughly represents the order of reading. A lot 
 
 The repository contains the following sections:
 
-- [gas-bound-caller][TODO] that contains `GasBoundCaller` utility contract implementation. You can read more about it in its README.
-- [da-contracts][TODO] contracts that should be deployed on L1 only.
-- [l1-contracts][TODO]. Despite the legacy name, it contains contracts that are deployed both on L1 and on L2. This folder encompasses bridging, ZK chain contracts, the contracts for chain admin, etc. The name is historical due to the fact that these contracts were usually deployed on L1 only. However with Gateway, settlement and bridging-related contracts will be deployed on both EVM and eraVM environment. Also, bridging has been unified between L1 and L2 in many places and so keeping everything in one project allows to avoid code duplication.
-- [l2-contracts][TODO]. Contains contracts that are deployed only on L2.
-- [system-contracts][TODO]. Contains system contracts or predeployed L2 contracts.
+- [gas-bound-caller](https://github.com/matter-labs/era-contracts/tree/main/gas-bound-caller) that contains `GasBoundCaller` utility contract implementation. You can read more about it in its README.
+- [da-contracts](https://github.com/matter-labs/era-contracts/tree/main/da-contracts) contracts that should be deployed on L1 only.
+- [l1-contracts](https://github.com/matter-labs/era-contracts/tree/main/l1-contracts). Despite the legacy name, it contains contracts that are deployed both on L1 and on L2. This folder encompasses bridging, ZK chain contracts, the contracts for chain admin, etc. The name is historical due to the fact that these contracts were usually deployed on L1 only. However with Gateway, settlement and bridging-related contracts will be deployed on both EVM and eraVM environment. Also, bridging has been unified between L1 and L2 in many places and so keeping everything in one project allows to avoid code duplication.
+- [l2-contracts](https://github.com/matter-labs/era-contracts/tree/main/l2-contracts). Contains contracts that are deployed only on L2.
+- [system-contracts](https://github.com/matter-labs/era-contracts/tree/main/system-contracts). Contains system contracts or predeployed L2 contracts.
 
 ## For auditors: Invariants/tricky places to look out for
 

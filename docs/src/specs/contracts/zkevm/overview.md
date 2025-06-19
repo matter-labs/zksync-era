@@ -1,4 +1,4 @@
-# Overview
+# zkEVM
 
 The zkEVM is used to execute transactions. It is similar in construction to the EVM, so it executes transactions
 similarly, but it plays a fundamentally different role in the zkStack than the EVM does in Ethereum. The EVM is used to
@@ -22,5 +22,5 @@ The zkEVM also has user-facing features. For the best possible UX the ZK Stack s
 execute their transactions.
 
 All transactions need to pay fees. The requirements to run a rollup are different than the ones needed to run Ethereum,
-so the ZK Stack has a different [fee model](./fee_model.md). The fee model is designed to consider all the components
+so the ZK Stack has a different [fee model](./zksync_fee_model.md). The fee model is designed to consider all the components
 that are needed to run the rollup: data and proof execution costs on L1, sequencer costs, and prover costs.
