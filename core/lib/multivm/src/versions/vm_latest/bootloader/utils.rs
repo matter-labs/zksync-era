@@ -159,7 +159,24 @@ fn apply_l2_block_inner(
         ),
     ]);
 
-    if subversion != MultiVmSubversion::Interop || !apply_interop_roots {
+    if subversion != MultiVmSubversion::Interop {
+        return;
+    }
+
+    println!("block_number: {}", bootloader_l2_block.number);
+    println!(
+        "preexisting_interop_roots_number: {}",
+        preexisting_interop_roots_number
+    );
+    println!(
+        "applying interop roots {}",
+        bootloader_l2_block.interop_roots.len()
+    );
+
+    // dbg!(memory.clone());
+
+    if !apply_interop_roots {
+        println!("not applying interop roots");
         return;
     }
 
@@ -197,6 +214,7 @@ pub(crate) fn apply_interop_root(
     l2_block_number: u32,
 ) {
     let interop_root_slot = get_interop_root_offset(subversion);
+    println!("setting interop_root: {:?}", interop_root);
     // Convert the byte array into U256 words
     let mut u256_words: Vec<U256> = vec![
         U256::from(l2_block_number),
@@ -235,8 +253,13 @@ pub(crate) fn apply_interop_root_number_in_block_number(
     if number_of_written_blocks == 0 {
         first_empty_slot = get_interop_blocks_begin_offset(subversion) + preexisting_blocks_number;
     }
+    println!("first_empty_slot: {}", first_empty_slot);
+    println!("number_of_interop_roots: {}", number_of_interop_roots);
     let number_of_interop_roots_plus_one: U256 = (number_of_interop_roots + 1).into();
+    println!("pushing to memory: {}", number_of_interop_roots_plus_one);
     memory.extend(vec![(first_empty_slot, number_of_interop_roots_plus_one)]);
+    println!("memory: {:?}", memory[memory.len() - 2]);
+    println!("memory: {:?}", memory[memory.len() - 1]);
     memory.extend(vec![(
         get_current_number_of_roots_in_block_offset(subversion),
         preexisting_blocks_number.into(),

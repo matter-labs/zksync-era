@@ -180,6 +180,10 @@ impl EventProcessor for BatchRootProcessor {
             {
                 // The batch chain Merkle path for each batch number shares the same chain proof vector as it hashes to
                 // the same root on the L1
+                println!(
+                    "gw block number for batch {}: {}; base proof: {:?}",
+                    batch_number, sl_block_number, base_proof
+                );
                 let mut batch_chain_proof = base_proof.clone();
                 batch_chain_proof.proof.extend(chain_proof_vector.clone());
                 transaction
