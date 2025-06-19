@@ -1,3 +1,4 @@
+use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof, ZkosCommitment},
     ethabi::{encode, Token},
@@ -8,7 +9,7 @@ use crate::{
     i_executor::structures::{
         CommitBoojumOSBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION,
     },
-    Tokenizable,
+    zkos_commitment_to_vm_batch_output, Tokenizable,
 };
 
 /// Input required to encode `executeBatches` call.
@@ -35,11 +36,9 @@ impl ExecuteBatches {
                 self.l1_batches
                     .iter()
                     .map(|batch| {
-                        StoredBatchInfo::new(
-                            &ZkosCommitment::new(&batch, l2chain_id),
-                            batch.metadata.commitment.as_fixed_bytes().clone(),
-                        )
-                        .into_token()
+                        let batch_commitment = ZkosCommitment::new(batch, l2chain_id);
+                        let batch_output = zkos_commitment_to_vm_batch_output(&batch_commitment);
+                        StoredBatchInfo::new(&batch_commitment, batch_output.hash()).into_token()
                     })
                     .collect(),
             )]
@@ -49,11 +48,11 @@ impl ExecuteBatches {
                     self.l1_batches
                         .iter()
                         .map(|batch| {
-                            StoredBatchInfo::new(
-                                &ZkosCommitment::new(&batch, l2chain_id),
-                                batch.metadata.commitment.as_fixed_bytes().clone(),
-                            )
-                            .into_token()
+                            let batch_commitment = ZkosCommitment::new(batch, l2chain_id);
+                            let batch_output =
+                                zkos_commitment_to_vm_batch_output(&batch_commitment);
+                            StoredBatchInfo::new(&batch_commitment, batch_output.hash())
+                                .into_token()
                         })
                         .collect(),
                 ),

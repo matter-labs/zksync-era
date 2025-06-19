@@ -11,6 +11,7 @@ use fflonk::{
     },
     FflonkProof,
 };
+use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_types::{
     commitment::{L1BatchWithMetadata, ZkosCommitment},
     ethabi::{encode, Token},
@@ -21,7 +22,7 @@ use crate::{
     i_executor::structures::{
         CommitBoojumOSBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION,
     },
-    Tokenizable, Tokenize,
+    zkos_commitment_to_vm_batch_output, Tokenizable, Tokenize,
 };
 
 /// Input required to encode `proveBatches` call.
@@ -39,24 +40,18 @@ impl ProveBatches {
         is_verifier_pre_fflonk: bool,
         l2chain_id: L2ChainId,
     ) -> Vec<Token> {
-        let prev_l1_batch_info = StoredBatchInfo::new(
-            &ZkosCommitment::new(&self.prev_l1_batch, l2chain_id),
-            self.prev_l1_batch
-                .metadata
-                .commitment
-                .as_fixed_bytes()
-                .clone(),
-        )
-        .into_token();
+        let batch_commitment = ZkosCommitment::new(&self.prev_l1_batch, l2chain_id);
+        let batch_output = zkos_commitment_to_vm_batch_output(&batch_commitment);
+        let prev_l1_batch_info =
+            StoredBatchInfo::new(&batch_commitment, batch_output.hash()).into_token();
+
         let batches_arg = self
             .l1_batches
             .iter()
             .map(|batch| {
-                StoredBatchInfo::new(
-                    &ZkosCommitment::new(&batch, l2chain_id),
-                    batch.metadata.commitment.as_fixed_bytes().clone(),
-                )
-                .into_token()
+                let batch_commitment = ZkosCommitment::new(batch, l2chain_id);
+                let batch_output = zkos_commitment_to_vm_batch_output(&batch_commitment);
+                StoredBatchInfo::new(&batch_commitment, batch_output.hash()).into_token()
             })
             .collect();
         let batches_arg = Token::Array(batches_arg);
