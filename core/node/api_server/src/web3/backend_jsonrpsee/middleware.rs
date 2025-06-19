@@ -24,6 +24,7 @@ use tracing::instrument::{Instrument, Instrumented};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
 };
+use zksync_instrument::alloc::AllocationAccumulator;
 use zksync_web3_decl::jsonrpsee::{
     server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
     types::{error::ErrorCode, ErrorObject, Id, Request},
@@ -144,7 +145,11 @@ where
             ObservedRpcParams::Unknown
         };
         let call = self.method_tracer.new_call(method_name, observed_params);
-        WithMethodCall::new(self.inner.call(request), call)
+        let mut future = WithMethodCall::new(self.inner.call(request), call);
+        if TRACE_PARAMS {
+            future.alloc = Some(AllocationAccumulator::new(method_name)); // FIXME: use `rpc#` prefix or something
+        }
+        future
     }
 }
 
@@ -154,12 +159,17 @@ pin_project! {
         #[pin]
         inner: F,
         call: MethodCall<'a>,
+        alloc: Option<AllocationAccumulator>,
     }
 }
 
 impl<'a, F> WithMethodCall<'a, F> {
     fn new(inner: F, call: MethodCall<'a>) -> Self {
-        Self { inner, call }
+        Self {
+            inner,
+            call,
+            alloc: None,
+        }
     }
 }
 
@@ -169,6 +179,7 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<'_, F> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let projection = self.project();
         let guard = projection.call.set_as_current();
+        let _alloc_guard = projection.alloc.as_mut().map(AllocationAccumulator::start);
         match projection.inner.poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(response) => {

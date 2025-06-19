@@ -2,7 +2,7 @@
 
 use std::{fmt, thread};
 
-use self::guard_impl::AllocationGuardImpl;
+use self::guard_impl::{AllocationAccumulatorImpl, AllocationGuardImpl};
 
 #[cfg(feature = "jemalloc")]
 mod guard_impl;
@@ -12,10 +12,11 @@ mod guard_impl;
 #[cfg(feature = "jemalloc")]
 mod metrics;
 
-#[derive(Debug, Clone, Copy)]
-enum AllocationGuardKind {
+#[derive(Debug)]
+enum AllocationGuardKind<'a> {
     Operation,
     Task,
+    Accumulator(&'a mut AllocationAccumulatorImpl),
 }
 
 /// Monitors (de)allocation while in scope.
@@ -23,18 +24,18 @@ enum AllocationGuardKind {
 /// This type is `!Send` and thus should only be used to monitor single-threaded / blocking routines.
 /// It cannot be used in Tokio futures.
 #[must_use = "Observes (de)allocation stats on drop"]
-pub struct AllocationGuard {
+pub struct AllocationGuard<'a> {
     inner: AllocationGuardImpl,
-    kind: AllocationGuardKind,
+    kind: AllocationGuardKind<'a>,
 }
 
-impl fmt::Debug for AllocationGuard {
+impl fmt::Debug for AllocationGuard<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.inner, formatter)
     }
 }
 
-impl AllocationGuard {
+impl AllocationGuard<'_> {
     /// Creates an allocation guard for the specified operation. The operation name should be globally unique.
     pub fn for_operation(operation: &'static str) -> Self {
         Self {
@@ -52,13 +53,42 @@ impl AllocationGuard {
     }
 }
 
-impl Drop for AllocationGuard {
+impl Drop for AllocationGuard<'_> {
     fn drop(&mut self) {
         if !thread::panicking() {
-            match self.kind {
+            match &mut self.kind {
                 AllocationGuardKind::Operation => self.inner.observe_operation(),
                 AllocationGuardKind::Task => self.inner.observe_task(),
+                AllocationGuardKind::Accumulator(acc) => acc.accumulate(&self.inner),
             }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct AllocationAccumulator {
+    inner: AllocationAccumulatorImpl,
+}
+
+impl AllocationAccumulator {
+    pub fn new(operation: &'static str) -> Self {
+        Self {
+            inner: AllocationAccumulatorImpl::new(operation),
+        }
+    }
+
+    pub fn start(&mut self) -> AllocationGuard<'_> {
+        AllocationGuard {
+            inner: AllocationGuardImpl::new(""),
+            kind: AllocationGuardKind::Accumulator(&mut self.inner),
+        }
+    }
+}
+
+impl Drop for AllocationAccumulator {
+    fn drop(&mut self) {
+        if !thread::panicking() {
+            self.inner.observe();
         }
     }
 }

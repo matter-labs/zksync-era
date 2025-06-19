@@ -51,3 +51,30 @@ impl AllocationGuardImpl {
         TASK_METRICS.observe_task_increments(self.name, alloc, dealloc);
     }
 }
+
+#[derive(Debug)]
+pub(super) struct AllocationAccumulatorImpl {
+    name: &'static str,
+    allocated: u64,
+    deallocated: u64,
+}
+
+impl AllocationAccumulatorImpl {
+    pub(super) fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            allocated: 0,
+            deallocated: 0,
+        }
+    }
+
+    pub(super) fn accumulate(&mut self, guard: &AllocationGuardImpl) {
+        let (allocated, deallocated) = guard.increments();
+        self.allocated += allocated;
+        self.deallocated += deallocated;
+    }
+
+    pub(super) fn observe(&self) {
+        OP_METRICS.observe_op_stats(self.name, self.allocated, self.deallocated);
+    }
+}
