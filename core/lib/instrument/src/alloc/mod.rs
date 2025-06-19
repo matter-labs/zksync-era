@@ -28,7 +28,7 @@ impl AllocationStats {
     }
 
     #[cfg(not(feature = "jemalloc"))]
-    fn current() -> Option<Self> {
+    fn for_current_thread() -> Option<Self> {
         None
     }
 }
