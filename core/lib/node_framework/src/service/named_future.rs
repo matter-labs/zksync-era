@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, future::Future, pin::Pin, task};
+use std::{fmt, future::Future, pin::Pin, task};
 
 use futures::{future::Fuse, FutureExt};
 use pin_project_lite::pin_project;
@@ -12,7 +12,7 @@ pin_project! {
     pub(crate) struct NamedFuture<F> {
         #[pin]
         inner: F,
-        name: &'static str,
+        name: TaskId,
     }
 }
 
@@ -23,26 +23,19 @@ where
 {
     /// Creates a new future with the name tag attached.
     pub(crate) fn new(inner: F, name: TaskId) -> Self {
-        let name = match name.0 {
-            Cow::Borrowed(name) => name,
-            Cow::Owned(name) => {
-                // Since we don't have that many tasks, we consider leaking their `name`s OK.
-                name.leak()
-            }
-        };
         Self { inner, name }
     }
 
     /// Returns the ID of the task attached to the future.
     pub fn id(&self) -> TaskId {
-        self.name.into()
+        self.name.clone()
     }
 
     /// Spawns the wrapped future on the provided runtime handle.
     /// Returns a named wrapper over the join handle.
     pub fn spawn(self, handle: &tokio::runtime::Handle) -> TaskFuture<F::Output> {
         TaskFuture {
-            name: self.name,
+            name: self.name.clone(),
             inner: handle.spawn(self).fuse(),
         }
     }
@@ -52,10 +45,12 @@ impl<F: Future> Future for NamedFuture<F> {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
-        METRICS.poll_count[&self.name].inc();
-        let _span_guard = tracing::info_span!("NamedFuture", name = %self.name).entered();
-        let _alloc_guard = AllocationGuard::for_task(self.name);
-        self.project().inner.poll(cx)
+        let projection = self.project();
+        let name = projection.name.0.as_ref();
+        METRICS.poll_count[name].inc();
+        let _span_guard = tracing::info_span!("NamedFuture", name).entered();
+        let _alloc_guard = AllocationGuard::for_task(name);
+        projection.inner.poll(cx)
     }
 }
 
@@ -70,13 +65,13 @@ impl<F> fmt::Debug for NamedFuture<F> {
 /// Named future wrapper for a spawned Tokio task.
 #[derive(Debug)]
 pub(crate) struct TaskFuture<R = anyhow::Result<()>> {
-    name: &'static str,
+    name: TaskId,
     inner: Fuse<JoinHandle<R>>,
 }
 
 impl<R> TaskFuture<R> {
     pub fn id(&self) -> TaskId {
-        self.name.into()
+        self.name.clone()
     }
 }
 

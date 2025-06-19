@@ -67,6 +67,7 @@ enum AllocationGuardKind<'a> {
 pub struct AllocationGuard<'a> {
     kind: AllocationGuardKind<'a>,
     stats: Option<AllocationStats>,
+    // Required so that the starting and ending `AllocationStats` are measured on the same thread
     _not_send: PhantomData<*mut ()>,
 }
 

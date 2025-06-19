@@ -5,7 +5,7 @@ use vise::{Counter, LabeledFamily, Metrics};
 pub(crate) struct TaskMetrics {
     /// Number of times a certain task was polled.
     #[metrics(labels = ["task"])]
-    pub poll_count: LabeledFamily<&'static str, Counter>,
+    pub poll_count: LabeledFamily<String, Counter>,
 }
 
 #[vise::register]
