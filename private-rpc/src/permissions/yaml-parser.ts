@@ -53,8 +53,6 @@ const contractSchema = z.object({
     methods: z.array(methodSchema)
 });
 
-type RawContract = z.infer<typeof contractSchema>;
-
 const yamlSchema = z.object({
     whitelisted_wallets: z.union([
         z.array(addressSchema).nonempty({
