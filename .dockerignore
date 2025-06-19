@@ -17,6 +17,7 @@ keys/setup
 !db/
 !backups/
 !core/
+!zkos_prover/
 !prover/
 !yarn.lock
 !package.json
