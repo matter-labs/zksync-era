@@ -43,22 +43,24 @@ const methodSchema = z.object({
 type RawMethod = z.infer<typeof methodSchema>;
 
 const groupSchema = z.object({
-            name: z.string(),
-            members: z.array(addressSchema)
+    name: z.string(),
+    members: z.array(addressSchema)
 });
 type RawGroup = z.infer<typeof groupSchema>;
 
 const contractSchema = z.object({
-            address: addressSchema,
-            methods: z.array(methodSchema)
+    address: addressSchema,
+    methods: z.array(methodSchema)
 });
 
 type RawContract = z.infer<typeof contractSchema>;
 
 const yamlSchema = z.object({
     whitelisted_wallets: z.union([
-        z.array(addressSchema).nonempty({ message: 'whitelisted_wallets array cannot be empty. To allow all wallets, use the literal "all".' }),
-        z.literal('all')  
+        z.array(addressSchema).nonempty({
+            message: 'whitelisted_wallets array cannot be empty. To allow all wallets, use the literal "all".'
+        }),
+        z.literal('all')
     ]),
     groups: z.array(groupSchema),
     contracts: z.array(contractSchema)
