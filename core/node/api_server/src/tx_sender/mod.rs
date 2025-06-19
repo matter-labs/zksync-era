@@ -54,6 +54,9 @@ use crate::execution_sandbox::{
     VmConcurrencyBarrier, VmConcurrencyLimiter, SANDBOX_METRICS,
 };
 
+#[cfg(feature = "zkos")]
+use zksync_dal::DalError;
+
 mod gas_estimation;
 pub mod master_pool_sink;
 pub mod proxy;

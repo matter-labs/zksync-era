@@ -31,6 +31,9 @@ use crate::{
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
+#[cfg(feature = "zkos")]
+use crate::utils::{AccountType, ExternalAccountType};
+
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 

@@ -54,7 +54,8 @@ async fn run_server(
         args.components.clone(),
         chain_config.link_to_code.clone(),
         args.uring,
-        args.zkos,
+        // enable zkOS by default
+        !args.no_zkos,
     );
 
     let mode = if args.genesis {

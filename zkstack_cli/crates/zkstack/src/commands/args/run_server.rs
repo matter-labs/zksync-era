@@ -51,7 +51,7 @@ pub struct RunServerArgs {
     #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
     pub uring: bool,
     #[clap(help = MSG_SERVER_URING_HELP, long, default_missing_value = "true")]
-    pub zkos: bool,
+    pub no_zkos: bool,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
 }
