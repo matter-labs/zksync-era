@@ -306,7 +306,7 @@ pub(crate) fn test_l2_block_new_l2_block<VM: TestedVm>() {
     );
 
     // Case 2: Timestamp not increasing
-    if default_system_env().version.is_pre_fast_blocks() {
+    if default_system_env().version.is_pre_interop_fast_blocks() {
         test_new_l2_block::<VM>(
             correct_first_block.clone(),
             None,

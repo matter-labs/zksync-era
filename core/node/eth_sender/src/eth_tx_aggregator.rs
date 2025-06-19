@@ -850,7 +850,7 @@ impl EthTxAggregator {
             AggregatedOperation::L1Batch(op) => {
                 let protocol_version = op.protocol_version();
 
-                let mut args = if protocol_version.is_pre_interop() {
+                let mut args = if protocol_version.is_pre_interop_fast_blocks() {
                     vec![Token::Uint(self.rollup_chain_id.as_u64().into())]
                 } else {
                     vec![Token::Address(self.state_transition_chain_contract)]
@@ -875,7 +875,7 @@ impl EthTxAggregator {
                         let commit_data = args;
                         let encoding_fn = if protocol_version.is_pre_gateway() {
                             &self.functions.post_shared_bridge_commit
-                        } else if protocol_version.is_pre_interop() {
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_commit
                         } else {
                             &self.functions.post_v29_interop_commit
@@ -893,7 +893,7 @@ impl EthTxAggregator {
                         args.extend(op.conditional_into_tokens(self.config.is_verifier_pre_fflonk));
                         let encoding_fn = if protocol_version.is_pre_gateway() {
                             &self.functions.post_shared_bridge_prove
-                        } else if protocol_version.is_pre_interop() {
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_prove
                         } else {
                             &self.functions.post_v29_timelock_interop_prove
@@ -909,7 +909,7 @@ impl EthTxAggregator {
                             && chain_protocol_version_id.is_pre_gateway()
                         {
                             &self.functions.post_shared_bridge_execute
-                        } else if protocol_version.is_pre_interop() {
+                        } else if protocol_version.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_execute
                         } else {
                             &self.functions.post_v29_interop_execute

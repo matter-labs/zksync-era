@@ -34,7 +34,7 @@ impl Tokenize for &CommitBatches<'_> {
         if protocol_version.is_pre_gateway() {
             vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
         } else {
-            let encoding_version = if protocol_version.is_pre_interop() {
+            let encoding_version = if protocol_version.is_pre_interop_fast_blocks() {
                 PRE_INTEROP_ENCODING_VERSION
             } else {
                 SUPPORTED_ENCODING_VERSION

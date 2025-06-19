@@ -62,7 +62,7 @@ impl StoredBatchInfo {
     }
 
     pub fn into_token_with_protocol_version(self, protocol_version: ProtocolVersionId) -> Token {
-        if protocol_version.is_pre_interop() {
+        if protocol_version.is_pre_interop_fast_blocks() {
             Token::Tuple(vec![
                 Token::Uint(self.batch_number.into()),
                 Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
