@@ -420,7 +420,7 @@ export class TestContextOwner {
                         gasPrice
                     },
                     // not: why did it help???
-                    l2GasLimit: 1000000
+                    l2GasLimit: 72000000
                 })
                 .then((tx) => {
                     const amount = ethers.formatEther(l2ETHAmountToDeposit);
@@ -462,7 +462,7 @@ export class TestContextOwner {
                 approveERC20: true,
                 approveBaseERC20: true,
                 // FIXME: gas estimation does not work for L1->L2 txs
-                l2GasLimit: 1000000,
+                l2GasLimit: 72000000,
                 approveBaseOverrides: {
                     nonce: nonce,
                     gasPrice

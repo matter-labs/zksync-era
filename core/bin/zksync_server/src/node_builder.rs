@@ -14,7 +14,7 @@ use zksync_config::{
     },
     GenesisConfig,
 };
-use zksync_core_leftovers::{Component, Component::ZkOsProverInputGenerator};
+use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
@@ -60,10 +60,7 @@ use zksync_node_framework::{
         settlement_layer_client::SettlementLayerClientLayer,
         settlement_layer_data::{MainNodeConfig, SettlementLayerData},
         sigint::SigintHandlerLayer,
-        state_keeper::{
-            main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            RocksdbStorageOptions, StateKeeperLayer,
-        },
+        state_keeper::RocksdbStorageOptions,
         tee_proof_data_handler::TeeProofDataHandlerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,

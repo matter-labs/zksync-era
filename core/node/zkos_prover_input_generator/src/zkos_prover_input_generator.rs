@@ -2,18 +2,14 @@ use std::{
     alloc::Global,
     collections::{HashMap, VecDeque},
     path::PathBuf,
-    sync::Arc,
-    time::{Duration, Instant},
 };
 
 use anyhow::Context;
 use ruint::aliases::U256;
 use tokio::sync::watch;
-use zk_os_basic_system::system_implementation::{
-    flat_storage_model::TestingTree, system::BatchOutput,
-};
+use zk_os_basic_system::system_implementation::flat_storage_model::TestingTree;
 use zk_os_forward_system::run::{
-    test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
+    test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
     BatchContext, StorageCommitment,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -148,8 +144,8 @@ impl ZkosProverInputGenerator {
 
     async fn dry_run_block(
         self,
-        mut tree: &mut InMemoryTree,
-        mut preimages: &mut InMemoryPreimageSource,
+        tree: &mut InMemoryTree,
+        preimages: &mut InMemoryPreimageSource,
         dry_run_block: L2BlockNumber,
     ) -> anyhow::Result<()> {
         let mut connection = self
@@ -248,7 +244,7 @@ impl ZkosProverInputGenerator {
         };
 
         let storage_commitment = StorageCommitment {
-            root: tree.storage_tree.root().clone(),
+            root: *tree.storage_tree.root(),
             next_free_slot: tree.storage_tree.next_free_slot,
         };
 
@@ -294,7 +290,7 @@ impl ZkosProverInputGenerator {
         let transactions = l2_block
             .txs
             .into_iter()
-            .map(|tx| tx_abi_encode(tx))
+            .map(tx_abi_encode)
             .collect::<VecDeque<_>>();
         Ok(transactions)
     }

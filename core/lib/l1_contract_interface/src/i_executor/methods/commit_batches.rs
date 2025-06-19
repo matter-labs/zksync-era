@@ -3,14 +3,11 @@ use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, ZkosCommitment},
     ethabi::{encode, Token},
     pubdata_da::PubdataSendingMode,
-    H256,
 };
 
 use crate::{
     i_executor::{
-        structures::{
-            CommitBatchInfo, CommitBoojumOSBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION,
-        },
+        structures::{CommitBoojumOSBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
         zkos_commitment_to_vm_batch_output,
     },
     Tokenizable, Tokenize,

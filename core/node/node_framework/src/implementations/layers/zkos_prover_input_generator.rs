@@ -1,27 +1,21 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use zksync_node_framework_derive::{FromContext, IntoContext};
-use zksync_state::{AsyncCatchupTask, KeepUpdatedTask};
 use zksync_zkos_prover_input_generator::ZkosProverInputGenerator;
-use zksync_zkos_state_keeper::ZkosStateKeeper;
 
 use crate::{
-    implementations::{
-        layers::zkos_state_keeper::ZkOsStateKeeperTask,
-        resources::{
-            fee_input::SequencerFeeInputResource,
-            pools::{MasterPool, PoolResource},
-            state_keeper::{
-                ZkOsConditionalSealerResource, ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource,
-            },
-        },
-    },
-    service::ShutdownHook,
+    implementations::resources::pools::{MasterPool, PoolResource},
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
 
 #[derive(Debug)]
 pub struct ZkOsProverInputGeneratorLayer;
+
+impl Default for ZkOsProverInputGeneratorLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ZkOsProverInputGeneratorLayer {
     pub fn new() -> Self {
@@ -73,6 +67,7 @@ impl Task for ZkOsProverInputGeneratorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        // FIXME: for now it does not work
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }

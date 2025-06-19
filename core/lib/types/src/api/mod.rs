@@ -872,6 +872,7 @@ pub struct BlockDetailsBase {
     pub committed_at: Option<DateTime<Utc>>,
     pub commit_chain_id: Option<SLChainId>,
     pub prove_tx_hash: Option<H256>,
+    pub proving_started_at: Option<DateTime<Utc>>,
     pub proven_at: Option<DateTime<Utc>>,
     pub prove_chain_id: Option<SLChainId>,
     pub execute_tx_hash: Option<H256>,

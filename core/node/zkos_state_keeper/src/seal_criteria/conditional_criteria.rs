@@ -1,8 +1,7 @@
 use std::fmt;
 
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_types::{L2BlockNumber, ProtocolVersionId};
-use zksync_vm_interface::{DeduplicatedWritesMetrics, VmExecutionMetrics};
+use zksync_types::L2BlockNumber;
 
 use crate::seal_criteria::criteria::{GasCriterion, PayloadSizeCriterion, TxCountCriterion};
 

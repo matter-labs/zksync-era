@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{
-    extract::{DefaultBodyLimit, Path, State},
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -9,14 +9,10 @@ use axum::{
 };
 use execution_utils::ProgramProof;
 use serde::{Deserialize, Serialize};
-use tokio::{net::TcpListener, sync::Mutex};
+use tokio::net::TcpListener;
 use tracing::{error, info};
-use tracing_subscriber;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{
-    commitment::{L1BatchWithMetadata, ZkosCommitment},
-    L1BatchNumber, L2BlockNumber,
-};
+use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber, L2BlockNumber};
 
 use crate::proof_verifier::verify_fri_proof;
 

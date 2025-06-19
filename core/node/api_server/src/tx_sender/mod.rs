@@ -19,9 +19,8 @@ use zksync_dal::{
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_multivm::{
     interface::{
-        tracer::{TimestampAsserterParams as TracerTimestampAsserterParams, ValidationTraces},
-        ExecutionResult, OneshotTracingParams, TransactionExecutionMetrics, VmExecutionLogs,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        tracer::TimestampAsserterParams as TracerTimestampAsserterParams, OneshotTracingParams,
+        TransactionExecutionMetrics,
     },
     utils::{
         derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,

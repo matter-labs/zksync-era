@@ -3,10 +3,7 @@ use std::{ops, time::Instant};
 use anyhow::Context;
 use zksync_dal::CoreDal;
 use zksync_multivm::{
-    interface::{
-        ExecutionResult, Refunds, TransactionExecutionMetrics, VmExecutionMetrics,
-        VmExecutionResultAndLogs, VmExecutionStatistics, VmRevertReason,
-    },
+    interface::{ExecutionResult, TransactionExecutionMetrics},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,

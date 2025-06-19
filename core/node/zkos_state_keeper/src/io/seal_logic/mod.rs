@@ -1,32 +1,24 @@
 //! This module is a source-of-truth on what is expected to be done when sealing a block.
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
-use std::{
-    ops,
-    time::{Duration, Instant},
-};
+use std::time::Instant;
 
 use anyhow::Context as _;
 use itertools::Itertools;
 use zk_ee::common_structs::L2ToL1Log;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     block::{build_bloom, L1BatchHeader, L2BlockHeader},
     hasher::{keccak::KeccakHasher, Hasher},
-    helpers::unix_timestamp_ms,
-    l2_to_l1_log::UserL2ToL1Log,
     tx::IncludedTxLocation,
-    u256_to_h256,
     utils::display_timestamp,
-    Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
-    Transaction, H256,
+    BloomInput, ExecuteTransactionCommon, StorageLog, H256,
 };
 use zksync_vm_interface::{TransactionExecutionResult, VmEvent};
 
 use crate::{
-    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
-    updates::{BlockSealCommand, UpdatesManager},
+    io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, updates::BlockSealCommand,
 };
 
 pub mod l2_block_seal_subtasks;
@@ -139,8 +131,7 @@ impl BlockSealCommand {
 
         // todo - extract constant
         let l2_l1_local_root =
-            MiniMerkleTree::new(encoded_l2_l1_logs.clone().into_iter(), Some(1 << 14))
-                .merkle_root();
+            MiniMerkleTree::new(encoded_l2_l1_logs.clone(), Some(1 << 14)).merkle_root();
         // The result should be Keccak(l2_l1_local_root, aggreagation_root) - we don't compute aggregation root yet
         let l2_l1_final_root = KeccakHasher.compress(&l2_l1_local_root, &H256::zero());
 

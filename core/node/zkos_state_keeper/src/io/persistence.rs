@@ -1,8 +1,7 @@
 //! State keeper persistence logic.
 
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
-use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
@@ -12,7 +11,7 @@ use crate::{
     io::{
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, IoCursor, StateKeeperOutputHandler,
     },
-    updates::{BlockSealCommand, FinishedBlock, UpdatesManager},
+    updates::{BlockSealCommand, FinishedBlock},
 };
 
 /// Canonical [`StateKeeperOutputHandler`] implementation that queues storing of L2 blocks and L1 batches to Postgres.

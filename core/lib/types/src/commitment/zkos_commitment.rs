@@ -1,10 +1,8 @@
-use blake2::{Blake2s, Blake2s256, Digest};
-use zksync_basic_types::{web3, web3::keccak256};
-use zksync_mini_merkle_tree::MiniMerkleTree;
+use blake2::{Blake2s256, Digest};
+use zksync_basic_types::web3::keccak256;
 
 use crate::{
-    commitment::L1BatchWithMetadata, ethabi, ethabi::Token,
-    priority_op_onchain_data::PriorityOpOnchainData, Address, H256, U256,
+    commitment::L1BatchWithMetadata, priority_op_onchain_data::PriorityOpOnchainData, H256,
 };
 
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;

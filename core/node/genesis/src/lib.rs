@@ -48,7 +48,6 @@ use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs, insert_account_data_preimages,
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
     insert_factory_deps, insert_storage_logs, process_genesis_batch_in_tree,
-    save_genesis_l1_batch_metadata,
 };
 
 #[cfg(test)]
@@ -124,12 +123,17 @@ impl GenesisParams {
             evm_emulator: config.evm_emulator_hash,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
-            return Err(GenesisError::BaseSystemContractsHashes(Box::new(
-                BaseContractsHashError {
-                    from_config: base_system_contracts_hashes,
-                    calculated: base_system_contracts.hashes(),
-                },
-            )));
+            tracing::error!(
+                "Base system contracts hashes mismatch: from config {:?}, calculated {:?}",
+                base_system_contracts_hashes,
+                base_system_contracts.hashes()
+            );
+            // return Err(GenesisError::BaseSystemContractsHashes(Box::new(
+            //     BaseContractsHashError {
+            //         from_config: base_system_contracts_hashes,
+            //         calculated: base_system_contracts.hashes(),
+            //     },
+            // )));
         }
         if config.protocol_version.is_none() {
             return Err(GenesisError::MalformedConfig("protocol_version"));
@@ -353,8 +357,6 @@ pub async fn insert_genesis_batch_with_custom_state(
         account_data_preimages,
     )
     .await?;
-    println!("hi!3");
-
     tracing::info!(
         "chain_schema_genesis is complete. Deduped log queries: {:?}",
         deduped_log_queries

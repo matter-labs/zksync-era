@@ -198,6 +198,7 @@ fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         committed_at: None,
         commit_chain_id: None,
         prove_tx_hash: None,
+        proving_started_at: None,
         proven_at: None,
         prove_chain_id: None,
         execute_tx_hash: None,

@@ -6,8 +6,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use serde_json::Value;
+use bigdecimal::{BigDecimal, FromPrimitive};
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection,
@@ -21,7 +20,6 @@ use zksync_types::{
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchMetadata, L1BatchWithMetadata, PubdataParams},
-    fee_model::BatchFeeInput,
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
@@ -2027,6 +2025,8 @@ impl BlocksDal<'_, '_> {
 
     /// When `with_da_inclusion_info` is true, only batches for which custom DA inclusion
     /// information has already been provided will be included
+
+    // Note: in zkos we only commit proved batches.
     pub async fn get_ready_for_commit_l1_batches(
         &mut self,
         limit: usize,
@@ -2035,6 +2035,7 @@ impl BlocksDal<'_, '_> {
         protocol_version_id: ProtocolVersionId,
 
         with_da_inclusion_info: bool,
+        with_fri_proof: bool,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         // TODO(zk os): uncomment/update for zk os
 
@@ -2084,19 +2085,21 @@ impl BlocksDal<'_, '_> {
                 data_availability
                 ON data_availability.l1_batch_number = l1_batches.number
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            INNER JOIN zkos_proofs ON zkos_proofs.l2_block_number = l1_batches.number
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
                 AND hash IS NOT NULL
+                AND (
+                    zkos_proofs.fri_proof IS NOT NULL
+                    OR $1 IS FALSE
+                )
             ORDER BY
                 number
             LIMIT
-                $1
+                $2
             "#,
-            // bootloader_hash.as_bytes(),
-            // default_aa_hash.as_bytes(),
-            // protocol_version_id as i32,
-            // with_da_inclusion_info,
+            with_fri_proof,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")

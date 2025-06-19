@@ -425,6 +425,7 @@ pub(crate) struct StorageBlockDetails {
     pub commit_chain_id: Option<i64>,
     pub prove_tx_hash: Option<String>,
     pub proven_at: Option<NaiveDateTime>,
+    pub proving_started_at: Option<NaiveDateTime>,
     pub prove_chain_id: Option<i64>,
     pub execute_tx_hash: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
@@ -468,6 +469,9 @@ impl From<StorageBlockDetails> for api::BlockDetails {
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
+            proving_started_at: details
+                .proving_started_at
+                .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
             proven_at: details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
@@ -551,6 +555,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
+            proving_started_at: None,
             proven_at: details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),

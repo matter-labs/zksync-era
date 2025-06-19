@@ -11,24 +11,18 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::{runtime::Handle, sync::Mutex, task::spawn_blocking};
-use zksync_dal::{Connection, Core};
+use tokio::{runtime::Handle, sync::Mutex};
+use zksync_dal::{Connection, Core, DalError};
 use zksync_multivm::{
     interface::{
-        executor::{OneshotExecutor, TransactionValidator},
-        storage::StorageWithOverrides,
-        tracer::TimestampAsserterParams,
-        utils::{DivergenceHandler, VmDump},
-        Call, DeduplicatedWritesMetrics, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams,
-        TransactionExecutionMetrics, TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason,
+        executor::{OneshotExecutor, TransactionValidator}, storage::StorageWithOverrides, tracer::TimestampAsserterParams, utils::{DivergenceHandler, VmDump}, Call, DeduplicatedWritesMetrics, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams, TransactionExecutionMetrics, TxExecutionArgs, VmEvent, VmExecutionMetrics, VmRevertReason
     },
     utils::StorageWritesDeduplicator,
 };
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, PostgresStorageForZkOs};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
-    AccountTreeId, StorageKey, StorageLog, StorageLogKind, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode, AccountTreeId, StorageKey, StorageLog, StorageLogKind, Transaction
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 #[cfg(feature = "zkos")]
@@ -44,7 +38,7 @@ use {
 };
 
 use super::{vm_metrics::SandboxStage, BlockArgs, VmPermit, SANDBOX_METRICS};
-use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions};
+use crate::{execution_sandbox::storage::apply_state_override, tx_sender::SandboxExecutorOptions, utils::{AccountType, ExternalAccountType}};
 
 /// Action that can be executed by [`SandboxExecutor`].
 #[derive(Debug)]
@@ -332,7 +326,7 @@ impl SandboxExecutor {
 
         let abi = tx_abi_encode(execution_args.transaction);
 
-        let result = spawn_blocking(move || {
+        let result = tokio::task::spawn_blocking(move || {
             let zkos_storage = PostgresStorageForZkOs::new(storage);
             zk_os_forward_system::run::simulate_tx(
                 abi,

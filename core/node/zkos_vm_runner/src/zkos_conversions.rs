@@ -1,26 +1,18 @@
 use ruint::aliases::B160;
-use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
-use zk_os_forward_system::run::{
-    test_impl::{InMemoryPreimageSource, InMemoryTree},
-    Log,
-};
+use zk_os_forward_system::run::Log;
 use zksync_types::{
-    address_to_h256,
-    boojum_os::AccountProperties,
-    bytecode::BytecodeHash,
-    ethabi::{encode, Address, Token},
-    h256_to_u256,
-    l2::TransactionType,
-    ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256,
+    boojum_os::AccountProperties, bytecode::BytecodeHash, ethabi::{encode, Address, Token}, l2::TransactionType, ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256
 };
 use zksync_vm_interface::VmEvent;
+use zk_ee::utils::Bytes32;
+
 
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 
 pub fn tx_abi_encode(tx: Transaction) -> Vec<u8> {
     let tx_data: TransactionData = tx.into();
-    let encoded = tx_data.abi_encode();
-    encoded
+
+    tx_data.abi_encode()
 }
 
 #[derive(Debug, Default, Clone)]

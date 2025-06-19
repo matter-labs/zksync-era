@@ -98,7 +98,7 @@ impl UpdatesManager {
     }
 
     // todo: we temporarily pass block hash here - move it to tree
-    pub fn final_extend(&mut self, mut batch_output: BatchOutput, tree_data: L1BatchTreeData) {
+    pub fn final_extend(&mut self, batch_output: BatchOutput, tree_data: L1BatchTreeData) {
         let tx_output_iter = batch_output.tx_results.into_iter().filter_map(|r| r.ok());
         // todo: instead of concatenating them, store grouped by tx
         for (idx, tx_output) in tx_output_iter.enumerate() {

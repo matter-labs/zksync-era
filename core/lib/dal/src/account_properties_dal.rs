@@ -1,13 +1,8 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::collections::HashMap;
 
-use anyhow::Context as _;
 use bigdecimal::{BigDecimal, ToPrimitive};
 use itertools::Itertools;
-use zksync_db_connection::{
-    connection::Connection,
-    error::DalResult,
-    instrument::{InstrumentExt, Instrumented},
-};
+use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::{
     boojum_os::AccountProperties, Address, L1BatchNumber, L2BlockNumber, H256, U256,
 };
@@ -64,9 +59,9 @@ impl AccountPropertiesDal<'_, '_> {
                     p.observable_bytecode_hash.as_bytes(),
                     p.bytecode_hash.as_bytes(),
                     u256_to_big_decimal(p.nominal_token_balance),
-                    p.bytecode_len as i64,
-                    p.artifacts_len as i64,
-                    p.observable_bytecode_len as i64,
+                    i64::from(p.bytecode_len),
+                    i64::from(p.artifacts_len),
+                    i64::from(p.observable_bytecode_len),
                 )
             })
             .multiunzip();
@@ -406,17 +401,15 @@ impl AccountPropertiesDal<'_, '_> {
     ) -> DalResult<Option<i64>> {
         let l2_block_number = i64::from(if let Some(l2_block_number) = l2_block_number {
             l2_block_number.0
+        } else if let Some(number) = self
+            .storage
+            .blocks_dal()
+            .get_sealed_l2_block_number()
+            .await?
+        {
+            number.0
         } else {
-            if let Some(number) = self
-                .storage
-                .blocks_dal()
-                .get_sealed_l2_block_number()
-                .await?
-            {
-                number.0
-            } else {
-                return Ok(None);
-            }
+            return Ok(None);
         });
 
         Ok(Some(l2_block_number))

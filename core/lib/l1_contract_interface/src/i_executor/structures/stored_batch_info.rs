@@ -7,7 +7,7 @@ use zksync_types::{
     H256, U256,
 };
 
-use crate::{i_executor::structures::CommitBoojumOSBatchInfo, Tokenizable};
+use crate::Tokenizable;
 
 // https://github.com/matter-labs/era-contracts/blob/ad-for-rb-only-l1/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L64-L73
 // struct StoredBatchInfo {

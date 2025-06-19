@@ -44,6 +44,7 @@ fn mock_block_details_base(number: u32, hash: Option<H256>) -> api::BlockDetails
         committed_at: None,
         commit_chain_id: None,
         prove_tx_hash: None,
+        proving_started_at: None,
         proven_at: None,
         prove_chain_id: None,
         execute_tx_hash: None,
@@ -157,9 +158,8 @@ impl EthereumParameters {
 
         let l1_block_number = U64::from(l1_block_number);
         let last_commit = self.batches_and_sl_blocks_for_commits.last().copied();
-        let is_increasing = last_commit.map_or(true, |last| {
-            last.0 <= l1_batch_number && last.1 <= l1_block_number
-        });
+        let is_increasing =
+            last_commit.is_none_or(|last| last.0 <= l1_batch_number && last.1 <= l1_block_number);
         assert!(
             is_increasing,
             "Invalid batch number or L1 block number for commit"

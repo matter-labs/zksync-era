@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use anyhow::Context as _;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
@@ -9,7 +7,6 @@ use zksync_types::{
         Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
     bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
-    h256_to_u256,
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     u256_to_h256,
@@ -21,7 +18,6 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::utils::{AccountType, ExternalAccountType};
 // #[cfg(feature = "zkos")]
 // use {
 //     ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
@@ -31,7 +27,7 @@ use crate::utils::{AccountType, ExternalAccountType};
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::{fill_transaction_receipts, open_readonly_transaction},
+    utils::{fill_transaction_receipts, open_readonly_transaction, AccountType, ExternalAccountType},
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 

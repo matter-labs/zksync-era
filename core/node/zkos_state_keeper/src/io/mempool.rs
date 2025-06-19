@@ -1,5 +1,4 @@
 use std::{
-    cmp,
     collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
@@ -12,12 +11,10 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_state_keeper::{
-    l2_tx_filter, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams,
-    MempoolGuard,
+    l2_tx_filter, metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, MempoolGuard,
 };
 use zksync_types::{
-    block::UnsealedL1BatchHeader, utils::display_timestamp, Address, L2BlockNumber, L2ChainId,
-    ProtocolVersionId, Transaction, U256,
+    block::UnsealedL1BatchHeader, Address, L2ChainId, ProtocolVersionId, Transaction, U256,
 };
 use zksync_vm_interface::Halt;
 
@@ -176,7 +173,7 @@ impl StateKeeperIO for MempoolIO {
                 // goes outside of the allowed range while being in the mempool
                 let matches_range = constraint
                     .timestamp_asserter_range
-                    .map_or(true, |x| x.contains(&l2_block_timestamp));
+                    .is_none_or(|x| x.contains(&l2_block_timestamp));
 
                 if !matches_range {
                     self.reject(
@@ -260,7 +257,7 @@ impl MempoolIO {
         Ok(Self {
             mempool,
             pool,
-            timeout_sealer: TimeoutSealer::new(&config),
+            timeout_sealer: TimeoutSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             fee_account,
@@ -279,5 +276,5 @@ fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize {
     let delay_interval_millis = delay_interval.as_millis() as u64;
     assert!(delay_interval_millis > 0, "delay interval must be positive");
 
-    ((max_wait_millis + delay_interval_millis - 1) / delay_interval_millis).max(1) as usize
+    max_wait_millis.div_ceil(delay_interval_millis).max(1) as usize
 }
