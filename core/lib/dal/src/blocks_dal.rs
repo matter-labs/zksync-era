@@ -6,8 +6,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use serde_json::Value;
+use bigdecimal::{BigDecimal, FromPrimitive};
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{
     connection::Connection,
@@ -21,7 +20,6 @@ use zksync_types::{
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchMetadata, L1BatchWithMetadata, PubdataParams},
-    fee_model::BatchFeeInput,
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
@@ -1200,7 +1198,6 @@ impl BlocksDal<'_, '_> {
 
         Ok(())
     }
-
 
     pub async fn save_l1_batch_commitment_artifacts(
         &mut self,

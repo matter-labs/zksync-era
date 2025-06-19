@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH next_fri AS (\n                SELECT l2_block_number\n                FROM zkos_proofs\n                WHERE\n                    prover_input IS NOT NULL\n                    AND fri_proof IS NULL\n                    AND (fri_proof_attempts IS NULL OR fri_proof_attempts < $1)\n                    AND (\n                        fri_proof_picked_at IS NULL\n                        OR fri_proof_picked_at < NOW() - $2::INTERVAL\n                    )\n                ORDER BY l2_block_number ASC\n                LIMIT 1\n                FOR UPDATE SKIP LOCKED\n            )\n            \n            UPDATE zkos_proofs\n            SET\n                fri_proof_picked_at = NOW(),\n                fri_proof_picked_by = $3,\n                fri_proof_attempts = COALESCE(fri_proof_attempts, 0) + 1,\n                updated_at = NOW()\n            FROM next_fri\n            WHERE zkos_proofs.l2_block_number = next_fri.l2_block_number\n            RETURNING\n            zkos_proofs.l2_block_number AS \"l2_block_number!\",\n            zkos_proofs.prover_input AS \"prover_input!\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l2_block_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "prover_input!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Interval",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "c3765a85821617d1e91c973b9cbbdd6c6a387edae7684d4151ba0c6a32899ab4"
+}

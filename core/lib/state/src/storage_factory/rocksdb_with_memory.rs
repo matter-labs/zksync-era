@@ -147,11 +147,10 @@ impl BatchDiffs {
 
     /// Returns number of the last l1 batch present in the struct.
     pub fn last_l1_batch_number(&self) -> Option<L1BatchNumber> {
-        if let Some(first_diff_l1_batch_number) = self.first_diff_l1_batch_number {
-            Some(first_diff_l1_batch_number + u32::try_from(self.diffs.len() - 1).unwrap())
-        } else {
-            None
-        }
+        self.first_diff_l1_batch_number
+            .map(|first_diff_l1_batch_number| {
+                first_diff_l1_batch_number + u32::try_from(self.diffs.len() - 1).unwrap()
+            })
     }
 
     /// Returns number of initial writes in diffs for batches with number up to `l1_batch_number`.
@@ -197,13 +196,12 @@ impl BatchDiffs {
                     let diff_batch_number = first_diff_l1_batch_number + u32::try_from(*i).unwrap();
                     diff_batch_number <= l1_batch_number
                 })
-                .map(|(_, diff)| {
+                .flat_map(|(_, diff)| {
                     diff.enum_index_diff
                         .keys()
                         .filter(|key| key_set.contains(key))
                         .copied()
                 })
-                .flatten()
                 .collect(),
         }
     }

@@ -1,4 +1,4 @@
-pub use conditional_criteria::{ConditionalSealer, NoopSealer, SequencerSealer};
+pub use conditional_criteria::{ConditionalSealer, SequencerSealer};
 pub(crate) use conditional_criteria::{SealData, SealResolution};
 pub(crate) use io_criteria::{IoSealCriterion, TimeoutSealer};
 

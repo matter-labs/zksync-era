@@ -1,10 +1,10 @@
 use std::fmt::Debug;
-use zksync_types::{commitment::{L1BatchCommitmentMode, L1BatchWithMetadata}, ethabi::{ParamType, Token}, pubdata_da::PubdataSendingMode, web3::{contract::Error as ContractError, keccak256}, ProtocolVersionId, H256, U256, Address};
-use zksync_types::commitment::ZkosCommitment;
-use crate::{Tokenizable, Tokenize};
+
+use zksync_types::{commitment::ZkosCommitment, ethabi::Token, Address, H256, U256};
+
+use crate::Tokenize;
 pub const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 pub const PUBDATA_SOURCE_BLOBS: u8 = 1;
-
 
 // from https://github.com/matter-labs/era-contracts/blob/6ae03f3/l1-contracts/contracts/state-transition/chain-interfaces/IExecutor.sol#L106C1-L121C6
 //
@@ -42,12 +42,11 @@ pub struct CommitBoojumOSBatchInfo {
 impl CommitBoojumOSBatchInfo {
     // todo: refactor `l1_batch_with_metadata` and corresponding table structure
     // currently it has fields for pre-boojum, boojum and zkos and most are not needed
-    pub fn new(
-        commitment: &ZkosCommitment,
-    ) -> CommitBoojumOSBatchInfo {
-        let (operator_da_input, operator_da_input_header_hash) = commitment.calculate_operator_da_input();
+    pub fn new(commitment: &ZkosCommitment) -> CommitBoojumOSBatchInfo {
+        let (operator_da_input, operator_da_input_header_hash) =
+            commitment.calculate_operator_da_input();
 
-        return Self {
+        Self {
             batch_number: commitment.batch_number,
             new_state_commitment: commitment.state_commitment(),
             number_of_layer1_txs: commitment.number_of_layer1_txs.into(),
@@ -59,13 +58,13 @@ impl CommitBoojumOSBatchInfo {
             last_block_timestamp: commitment.block_timestamp,
             chain_id: U256::from(commitment.chain_id),
             operator_da_input,
-        };
+        }
     }
 }
 
 impl Tokenize for CommitBoojumOSBatchInfo {
     fn into_tokens(self) -> Vec<Token> {
-        return vec![
+        vec![
             Token::Uint(self.batch_number.into()),
             Token::FixedBytes(self.new_state_commitment.as_bytes().to_vec()),
             Token::Uint(self.number_of_layer1_txs),
@@ -77,6 +76,6 @@ impl Tokenize for CommitBoojumOSBatchInfo {
             Token::Uint(U256::from(self.last_block_timestamp)),
             Token::Uint(self.chain_id),
             Token::Bytes(self.operator_da_input),
-        ];
+        ]
     }
 }

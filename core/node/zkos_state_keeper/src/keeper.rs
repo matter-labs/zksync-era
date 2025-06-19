@@ -1,41 +1,22 @@
-use std::{alloc::Global, collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+use std::{alloc::Global, collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use ruint::aliases::{B160, U256};
-use serde::Serialize;
-use tokio::{
-    sync::{
-        mpsc::{error::TryRecvError, Receiver, Sender},
-        watch,
-    },
-    task::{spawn_blocking, JoinHandle},
-    time::Instant,
-};
-use tracing::info_span;
-use zk_ee::{
-    common_structs::derive_flat_storage_key, utils::Bytes32,
-};
+use ruint::aliases::U256;
+use tokio::sync::watch;
 use zk_os_basic_system::system_implementation::flat_storage_model::TestingTree;
 use zk_os_forward_system::run::{
-    result_keeper::TxProcessingOutputOwned,
-    run_batch,
-    test_impl::{InMemoryPreimageSource, InMemoryTree, TxListSource},
-    BatchContext, BatchOutput, ExecutionResult, InvalidTransaction, LeafProof, NextTxResponse,
-    PreimageSource, ReadStorage, ReadStorageTree, StorageCommitment, TxResultCallback, TxSource,
+    test_impl::{InMemoryPreimageSource, InMemoryTree},
+    BatchContext, BatchOutput,
 };
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_mempool::L2TxFilter;
-use zksync_state::{ArcOwnedStorage, BatchDiff, CommonStorage, OwnedStorage, ReadStorageFactory};
-use zksync_state_keeper::{
-    metrics::KEEPER_METRICS, seal_criteria::UnexecutableReason, L2BlockParams, MempoolGuard,
-};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_state::{ArcOwnedStorage, BatchDiff, ReadStorageFactory};
+use zksync_state_keeper::seal_criteria::UnexecutableReason;
 use zksync_types::{
-    block::UnsealedL1BatchHeader, snapshots::SnapshotStorageLog, Address, L1BatchNumber,
-    L2BlockNumber, StorageKey, StorageLog, Transaction, ERC20_TRANSFER_TOPIC, H256,
+    block::{L1BatchTreeData, UnsealedL1BatchHeader},
+    H256,
 };
-use zksync_types::block::L1BatchTreeData;
 use zksync_vm_interface::Halt;
-use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32, tx_abi_encode};
+use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};
 
 use crate::{
     batch_executor::MainBatchExecutor,
@@ -111,7 +92,7 @@ impl ZkosStateKeeper {
         }
     }
 
-    pub async fn run(mut self) -> anyhow::Result<()> {
+    pub async fn run(self) -> anyhow::Result<()> {
         match self.run_inner().await {
             Ok(_) => unreachable!(),
             Err(Error::Fatal(err)) => Err(err).context("state_keeper failed"),
@@ -170,7 +151,11 @@ impl ZkosStateKeeper {
                 block_hashes: Default::default(),
             };
 
-            tracing::info!("State keeper is processing block {:?} with context {:?}", cursor.next_l2_block.0, context);
+            tracing::info!(
+                "State keeper is processing block {:?} with context {:?}",
+                cursor.next_l2_block.0,
+                context
+            );
 
             let Some(storage) = self
                 .storage_factory
@@ -188,10 +173,8 @@ impl ZkosStateKeeper {
                     cursor.l1_batch
                 ))?;
 
-            let batch_executor = MainBatchExecutor::new(
-                context,
-                ArcOwnedStorage(Arc::new(storage)),
-            );
+            let batch_executor =
+                MainBatchExecutor::new(context, ArcOwnedStorage(Arc::new(storage)));
 
             tracing::info!("Starting block {}", cursor.next_l2_block);
 
@@ -232,9 +215,8 @@ impl ZkosStateKeeper {
 
             let tree_data = L1BatchTreeData {
                 hash: bytes32_to_h256(*root),
-                rollup_last_leaf_index: self.tree.storage_tree.next_free_slot - 1
+                rollup_last_leaf_index: self.tree.storage_tree.next_free_slot - 1,
             };
-
 
             updates_manager.final_extend(batch_output.clone(), tree_data);
             let initial_writes = self.initial_writes(&updates_manager).await?;
@@ -367,7 +349,7 @@ impl ZkosStateKeeper {
         while !self.is_canceled() {
             if let (Some(params), header) = self
                 .io
-                .wait_for_new_l2_block_params(&cursor, POLL_WAIT_DURATION)
+                .wait_for_new_l2_block_params(cursor, POLL_WAIT_DURATION)
                 .await
                 .context("error waiting for new L2 block params")?
             {

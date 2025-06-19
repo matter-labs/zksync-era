@@ -8,9 +8,8 @@
 //! while `Tokenize` trait represents items that are encoded via array of `Token`s
 //! (for example, transaction input).
 
+pub use i_executor::{deserialize_snark_plank_proof, zkos_commitment_to_vm_batch_output};
 pub use zksync_types::web3::contract::{Detokenize, Tokenizable, Tokenize};
-pub use i_executor::zkos_commitment_to_vm_batch_output;
-pub use i_executor::deserialize_snark_plank_proof;
 /// Rust interface for (subset of) `IExector.sol`.
 pub mod i_executor;
 /// Utilities for interacting with `Multicall3` contract.

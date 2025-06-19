@@ -2,8 +2,8 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::{collections::HashMap, fmt::Formatter};
-use std::str::FromStr;
+use std::{collections::HashMap, fmt::Formatter, str::FromStr};
+
 use anyhow::Context as _;
 use zksync_config::GenesisConfig;
 use zksync_contracts::{
@@ -12,20 +12,31 @@ use zksync_contracts::{
 };
 use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal, DalError};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
-use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_multivm::zk_evm_latest::blake2::{Blake2s256, Digest};
+use zksync_multivm::{
+    utils::get_max_gas_per_pubdata_byte,
+    zk_evm_latest::blake2::{Blake2s256, Digest},
+};
 use zksync_system_constants::PRIORITY_EXPIRATION;
-use zksync_types::{block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader}, bytecode::BytecodeHash, commitment::{CommitmentInput, L1BatchCommitment}, fee_model::BatchFeeInput, protocol_upgrade::decode_genesis_upgrade_event, protocol_version::{L1VerifierConfig, ProtocolSemanticVersion}, system_contracts::get_system_smart_contracts, u256_to_h256, web3::{BlockNumber, FilterBuilder}, zk_evm_types::LogQuery, AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256, ethabi};
-use zksync_types::block::L1BatchTreeData;
-use zksync_types::ethabi::Token;
+use zksync_types::{
+    block::{DeployedContract, L1BatchHeader, L1BatchTreeData, L2BlockHasher, L2BlockHeader},
+    bytecode::BytecodeHash,
+    commitment::{CommitmentInput, L1BatchCommitment},
+    fee_model::BatchFeeInput,
+    protocol_upgrade::decode_genesis_upgrade_event,
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    system_contracts::get_system_smart_contracts,
+    u256_to_h256,
+    web3::{BlockNumber, FilterBuilder},
+    zk_evm_types::LogQuery,
+    AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
+};
 use zksync_zk_os_merkle_tree::TreeEntry;
 
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
     insert_base_system_contracts_to_factory_deps, insert_deduplicated_writes_and_protective_reads,
     insert_factory_deps, insert_storage_logs, process_genesis_batch_in_tree,
-    save_genesis_l1_batch_metadata,
 };
 
 #[cfg(test)]
@@ -267,7 +278,10 @@ pub async fn insert_genesis_batch_with_custom_state(
         verifier_config,
     )
     .await?;
-    tracing::info!("chain_schema_genesis is complete. Deduped log queries: {:?}", deduped_log_queries);
+    tracing::info!(
+        "chain_schema_genesis is complete. Deduped log queries: {:?}",
+        deduped_log_queries
+    );
 
     let base_system_contract_hashes = BaseSystemContractsHashes {
         bootloader: genesis_params
@@ -301,7 +315,9 @@ pub async fn insert_genesis_batch_with_custom_state(
     //
     // code will be reused after commitment refactor
 
-    let commitment: H256 = H256::from_str("0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183").unwrap();
+    let commitment: H256 =
+        H256::from_str("0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183")
+            .unwrap();
 
     // note: for zkos `genesis_root` is blake(root, slot_index)
     // but the same field is reused over smart contract side - so it has differnt meanings for pre-zkos / zkos.
@@ -312,7 +328,7 @@ pub async fn insert_genesis_batch_with_custom_state(
     hasher.update(metadata.leaf_count.to_be_bytes()); // as_be_bytes in ruint
 
     // return the final hash
-    let zkos_root_batch_hash= H256::from_slice(&hasher.finalize());
+    let zkos_root_batch_hash = H256::from_slice(&hasher.finalize());
 
     let genesis_batch_params = GenesisBatchParams {
         root_hash: zkos_root_batch_hash,
@@ -322,14 +338,13 @@ pub async fn insert_genesis_batch_with_custom_state(
 
     let tree_data = L1BatchTreeData {
         hash: metadata.root_hash,
-        rollup_last_leaf_index: metadata.leaf_count - 1,  // here we dont set zero - as this field is used fopr state_commitment
+        rollup_last_leaf_index: metadata.leaf_count - 1, // here we dont set zero - as this field is used fopr state_commitment
     };
 
     transaction
         .blocks_dal()
         .save_l1_batch_tree_data(L1BatchNumber(0), &tree_data)
         .await?;
-
 
     transaction
         .blocks_dal()

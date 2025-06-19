@@ -1,28 +1,20 @@
 use ruint::aliases::B160;
-use zk_ee::{
-    common_structs::derive_flat_storage_key,
-    utils::Bytes32,
-};
-use zk_os_forward_system::run::{
-    test_impl::{InMemoryPreimageSource, InMemoryTree},
-    Log,
-};
+use zk_ee::utils::Bytes32;
+use zk_os_forward_system::run::Log;
 use zksync_types::{
-    address_to_h256,
+    bytecode::BytecodeHash,
     ethabi::{encode, Address, Token},
-    h256_to_u256,
     l2::TransactionType,
     ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256,
 };
-use zksync_types::bytecode::BytecodeHash;
 use zksync_vm_interface::VmEvent;
 
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 
 pub fn tx_abi_encode(tx: Transaction) -> Vec<u8> {
     let tx_data: TransactionData = tx.into();
-    let encoded = tx_data.abi_encode();
-    encoded
+
+    tx_data.abi_encode()
 }
 
 #[derive(Debug, Default, Clone)]
@@ -69,9 +61,12 @@ impl TransactionData {
             Token::FixedArray(self.reserved.iter().copied().map(Token::Uint).collect()),
             Token::Bytes(self.data),
             Token::Bytes(self.signature),
-            Token::Array(self.factory_deps.into_iter().map(|dep| {
-                Token::FixedBytes(dep.as_bytes().to_vec())
-            }).collect()),
+            Token::Array(
+                self.factory_deps
+                    .into_iter()
+                    .map(|dep| Token::FixedBytes(dep.as_bytes().to_vec()))
+                    .collect(),
+            ),
             Token::Bytes(self.paymaster_input),
             Token::Bytes(self.reserved_dynamic),
         ])]);
@@ -137,7 +132,9 @@ impl From<Transaction> for TransactionData {
                     data: execute_tx.execute.calldata,
                     signature: common_data.signature,
                     // todo: currently zksync_os cannot process factory_deps due to a bug
-                    factory_deps: execute_tx.execute.factory_deps
+                    factory_deps: execute_tx
+                        .execute
+                        .factory_deps
                         .iter()
                         .map(|b| BytecodeHash::for_bytecode(b).value())
                         .collect(),
@@ -167,7 +164,9 @@ impl From<Transaction> for TransactionData {
                     ],
                     data: execute_tx.execute.calldata,
                     signature: vec![],
-                    factory_deps: execute_tx.execute.factory_deps
+                    factory_deps: execute_tx
+                        .execute
+                        .factory_deps
                         .iter()
                         .map(|b| BytecodeHash::for_bytecode(b).value())
                         .collect(),

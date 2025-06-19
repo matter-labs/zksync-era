@@ -28,8 +28,8 @@ use crate::{
     tee_proof_generation_dal::TeeProofGenerationDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
+    zkos_prover_dal::ZkosProverDal,
 };
-use crate::zkos_prover_dal::ZkosProverDal;
 
 pub mod account_properties_dal;
 pub mod base_token_dal;

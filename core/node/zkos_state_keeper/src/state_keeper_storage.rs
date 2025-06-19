@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::{watch, Mutex};
-use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_state::{
     AsyncCatchupTask, BatchDiff, BatchDiffs, KeepUpdatedTask, OwnedStorage, ReadStorageFactory,
     RocksdbCell, RocksdbStorage, RocksdbStorageOptions,
@@ -150,7 +150,9 @@ impl ReadStorageFactory for ZkOsAsyncRocksdbCache {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<OwnedStorage>> {
         let initial_state = self.rocksdb_cell.ensure_initialized().await?;
-        let rocksdb = if initial_state.next_l1_batch_number.unwrap_or(L1BatchNumber(0))
+        let rocksdb = if initial_state
+            .next_l1_batch_number
+            .unwrap_or(L1BatchNumber(0))
             >= l1_batch_number
         {
             tracing::info!(
@@ -168,10 +170,8 @@ impl ReadStorageFactory for ZkOsAsyncRocksdbCache {
 
         if let Some(rocksdb) = rocksdb {
             let mut batch_diffs_lock = self.batch_diffs.lock().await;
-            let rocksdb: RocksdbStorage = rocksdb.clone().into();
-            let rocksdb_l1_batch_number = rocksdb
-                .next_l1_batch_number()
-                .await;
+            let rocksdb: RocksdbStorage = rocksdb.clone();
+            let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
 
             let storage =
                 OwnedStorage::rocksdb_with_memory(rocksdb, &batch_diffs_lock, l1_batch_number)

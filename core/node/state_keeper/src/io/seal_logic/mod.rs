@@ -21,8 +21,7 @@ use zksync_types::{
     tx::IncludedTxLocation,
     u256_to_h256,
     utils::display_timestamp,
-    Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
-    Transaction, H256,
+    Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog, H256,
 };
 
 use crate::{

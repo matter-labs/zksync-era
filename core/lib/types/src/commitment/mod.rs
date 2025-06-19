@@ -9,8 +9,8 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
-pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType};
 pub use zkos_commitment::ZkosCommitment;
+pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;

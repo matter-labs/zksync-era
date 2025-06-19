@@ -15,7 +15,6 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_core_leftovers::Component;
-use zksync_core_leftovers::Component::ZkOsProverInputGenerator;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
@@ -61,10 +60,7 @@ use zksync_node_framework::{
         settlement_layer_client::SettlementLayerClientLayer,
         settlement_layer_data::{MainNodeConfig, SettlementLayerData},
         sigint::SigintHandlerLayer,
-        state_keeper::{
-            main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
-            RocksdbStorageOptions, StateKeeperLayer,
-        },
+        state_keeper::RocksdbStorageOptions,
         tee_proof_data_handler::TeeProofDataHandlerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
@@ -78,6 +74,7 @@ use zksync_node_framework::{
             tx_sink::{whitelist::WhitelistedMasterPoolSinkLayer, MasterPoolSinkLayer},
         },
         zk_os_tree_manager::ZkOsTreeManagerLayer,
+        zkos_prover_input_generator::ZkOsProverInputGeneratorLayer,
         zkos_state_keeper::{
             mempool_io::MempoolIOLayer as ZkOsMempoolIOLayer, output_handler::OutputHandlerLayer,
             ZkOsStateKeeperLayer,
@@ -85,7 +82,6 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_node_framework::implementations::layers::zkos_prover_input_generator::ZkOsProverInputGeneratorLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataType},
     pubdata_da::PubdataSendingMode,
