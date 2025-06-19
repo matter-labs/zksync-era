@@ -5,7 +5,6 @@ use itertools::Itertools;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
     api::{ChainAggProof, Log},
     ethabi, h256_to_u256,
     l2_to_l1_log::{
@@ -77,17 +76,27 @@ impl EventProcessor for BatchRootProcessor {
                         .as_u32(),
                 );
                 let chain_l1_batch_number = L1BatchNumber(h256_to_u256(log.topics[2]).as_u32());
+                let sl_block_number = L2BlockNumber(
+                    log.block_number
+                        .expect("Missing block number for finalized event")
+                        .as_u32(),
+                );
                 let logs_root_hash = H256::from_slice(&log.data.0);
 
-                (sl_l1_batch_number, chain_l1_batch_number, logs_root_hash)
+                (
+                    sl_l1_batch_number,
+                    sl_block_number,
+                    chain_l1_batch_number,
+                    logs_root_hash,
+                )
             })
-            .chunk_by(|(sl_l1_batch_number, _, _)| *sl_l1_batch_number)
+            .chunk_by(|(sl_l1_batch_number, _, _, _)| *sl_l1_batch_number)
             .into_iter()
             .map(|(sl_l1_batch_number, group)| {
                 let group: Vec<_> = group
                     .into_iter()
-                    .map(|(_, chain_l1_batch_number, logs_root_hash)| {
-                        (chain_l1_batch_number, logs_root_hash)
+                    .map(|(_, block_number, chain_l1_batch_number, logs_root_hash)| {
+                        (chain_l1_batch_number, block_number, logs_root_hash)
                     })
                     .collect();
 
@@ -124,7 +133,7 @@ impl EventProcessor for BatchRootProcessor {
             let chain_proof_vector =
                 Self::chain_proof_vector(sl_l1_batch_number.0, chain_agg_proof, sl_chain_id);
 
-            for (batch_number, batch_root) in &chain_batches {
+            for (batch_number, _block_number, batch_root) in &chain_batches {
                 let root_from_db = transaction
                     .blocks_dal()
                     .get_l1_batch_l2_l1_merkle_root(*batch_number)
@@ -166,7 +175,9 @@ impl EventProcessor for BatchRootProcessor {
                 }
             });
 
-            for ((batch_number, _), base_proof) in chain_batches.iter().zip(batch_proofs) {
+            for ((batch_number, sl_block_number, _), base_proof) in
+                chain_batches.iter().zip(batch_proofs)
+            {
                 // The batch chain Merkle path for each batch number shares the same chain proof vector as it hashes to
                 // the same root on the L1
                 let mut batch_chain_proof = base_proof.clone();
@@ -179,12 +190,9 @@ impl EventProcessor for BatchRootProcessor {
 
                 // The local batch chain Merkle path for each batch number has different chain proof vector as it hashes to
                 // the root at the GW block number where the containing batch was executed
-                let sl_block_number =
-                    Self::get_sl_block_number_at_execute(&mut transaction, *batch_number).await?;
-                println!("gw_block_number: {}", sl_block_number);
                 let local_chain_agg_proof = self
                     .sl_l2_client
-                    .get_inner_chain_log_proof(sl_block_number, self.l2_chain_id)
+                    .get_inner_chain_log_proof(*sl_block_number, self.l2_chain_id)
                     .await?
                     .context("Missing Gateway chain log proof for finalized batch")?;
                 let local_chain_proof_vector =
@@ -236,36 +244,6 @@ impl BatchRootProcessor {
             .copy_from_slice(H256::from_low_u64_be(batch_number.0 as u64).as_bytes());
 
         full_preimage
-    }
-
-    async fn get_sl_block_number_at_execute(
-        storage: &mut Connection<'_, Core>,
-        l1_batch_number: L1BatchNumber,
-    ) -> Result<L2BlockNumber, EventProcessorError> {
-        let eth_tx_id = storage
-            .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_id_by_batch_and_op(
-                l1_batch_number,
-                L1BatchAggregatedActionType::Execute,
-            )
-            .await
-            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?
-            .expect("Execute tx not found");
-
-        let tx = storage
-            .eth_sender_dal()
-            .get_last_sent_and_confirmed_eth_storage_tx(eth_tx_id)
-            .await
-            .map_err(|err| anyhow::anyhow!("Execute tx not found: {}", err))?;
-
-        let Some(tx) = tx else {
-            return Err(EventProcessorError::Internal(anyhow::anyhow!(
-                "Execute tx not found"
-            )));
-        };
-        tx.confirmed_at_block
-            .map(|block| L2BlockNumber(block as u32))
-            .ok_or_else(|| EventProcessorError::Internal(anyhow::anyhow!("Execute tx not found")))
     }
 
     fn chain_proof_vector(

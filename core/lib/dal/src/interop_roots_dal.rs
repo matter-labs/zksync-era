@@ -1,6 +1,4 @@
-use itertools::Itertools;
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_multivm::{utils::get_bootloader_max_msg_roots_in_batch, VmVersion};
 use zksync_types::{h256_to_u256, InteropRoot, L1BatchNumber, L2BlockNumber, SLChainId, H256};
 
 use crate::Core;
@@ -48,9 +46,10 @@ impl InteropRootDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_new_interop_roots(&mut self) -> DalResult<Vec<InteropRoot>> {
-        let max_msg_roots_in_batch =
-            get_bootloader_max_msg_roots_in_batch(VmVersion::latest()) as i64;
+    pub async fn get_new_interop_roots(
+        &mut self,
+        number_of_roots: usize,
+    ) -> DalResult<Vec<InteropRoot>> {
         let records = sqlx::query!(
             r#"
             SELECT *
@@ -59,7 +58,7 @@ impl InteropRootDal<'_, '_> {
             ORDER BY received_timestamp, dependency_block_number
             LIMIT $1
             "#,
-            max_msg_roots_in_batch
+            number_of_roots as i64
         )
         .instrument("get_new_interop_roots")
         .fetch_all(self.storage)
@@ -128,6 +127,7 @@ impl InteropRootDal<'_, '_> {
         db_transaction.commit().await?;
         Ok(())
     }
+
     pub async fn get_interop_roots(
         &mut self,
         l2block_number: L2BlockNumber,
@@ -197,7 +197,6 @@ impl InteropRootDal<'_, '_> {
                 received_timestamp: rec.received_timestamp as u64,
             }
         })
-        .sorted_by_key(|root| root.received_timestamp)
         .collect();
 
         Ok(roots)

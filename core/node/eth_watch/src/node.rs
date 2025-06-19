@@ -70,6 +70,7 @@ impl EthWatchLayer {
             l1_ecosystem_contracts.bytecodes_supplier_addr,
             l1_ecosystem_contracts.wrapped_base_token_store,
             l1_ecosystem_contracts.shared_bridge,
+            l1_ecosystem_contracts.message_root,
             contracts.ecosystem_contracts.state_transition_proxy_addr,
             l1_ecosystem_contracts.chain_admin,
             l1_ecosystem_contracts.server_notifier_addr,

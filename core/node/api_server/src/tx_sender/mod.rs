@@ -78,8 +78,11 @@ pub async fn build_tx_sender(
     let max_concurrency = web3_json_config.vm_concurrency_limit;
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider =
-        ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
+    let batch_fee_input_provider = ApiFeeInputProvider::new(
+        batch_fee_model_input_provider,
+        replica_pool,
+        web3_json_config.gas_price_scale_factor_open_batch,
+    );
     let executor_options = SandboxExecutorOptions::new(
         tx_sender_config.chain_id,
         AccountTreeId::new(tx_sender_config.fee_account_addr),
@@ -720,7 +723,7 @@ impl TxSender {
         result.result.into_api_call_result()
     }
 
-    pub async fn gas_price(&self) -> anyhow::Result<u64> {
+    pub async fn gas_price_and_gas_per_pubdata(&self) -> anyhow::Result<(u64, u64)> {
         let mut connection = self.acquire_replica_connection().await?;
         let protocol_version = connection
             .blocks_dal()
@@ -729,11 +732,11 @@ impl TxSender {
             .context("failed obtaining pending protocol version")?;
         drop(connection);
 
-        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
             self.scaled_batch_fee_input().await?,
             protocol_version.into(),
         );
-        Ok(base_fee)
+        Ok((base_fee, gas_per_pubdata))
     }
 
     async fn ensure_tx_executable(

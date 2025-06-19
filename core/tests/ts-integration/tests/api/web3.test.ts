@@ -125,14 +125,6 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test some zks web3 methods', async () => {
-        // zks_getAllAccountBalances
-        // NOTE: `getAllBalances` will not work on external node,
-        // since TokenListFetcher is not running
-        if (testMaster.environment().nodeMode === NodeMode.Main) {
-            const balances = await alice.getAllBalances();
-            const tokenBalance = await alice.getBalance(l2Token);
-            expect(balances[l2Token.toLowerCase()] == tokenBalance);
-        }
         // zks_L1ChainId
         const l1ChainId = (await alice.providerL1!.getNetwork()).chainId;
         const l1ChainIdFromL2Provider = BigInt(await alice.provider.l1ChainId());

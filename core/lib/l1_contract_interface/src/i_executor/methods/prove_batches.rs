@@ -80,7 +80,7 @@ impl ProveBatches {
 
                 vec![prev_l1_batch_info, batches_arg, proof_input]
             } else {
-                let encoding_version = if protocol_version.is_pre_interop() {
+                let encoding_version = if protocol_version.is_pre_interop_fast_blocks() {
                     PRE_INTEROP_ENCODING_VERSION
                 } else {
                     SUPPORTED_ENCODING_VERSION
@@ -117,7 +117,7 @@ impl ProveBatches {
                 Token::Tuple(vec![Token::Array(vec![]), Token::Array(vec![])]),
             ]
         } else {
-            let encoding_version = if protocol_version.is_pre_interop() {
+            let encoding_version = if protocol_version.is_pre_interop_fast_blocks() {
                 PRE_INTEROP_ENCODING_VERSION
             } else {
                 SUPPORTED_ENCODING_VERSION

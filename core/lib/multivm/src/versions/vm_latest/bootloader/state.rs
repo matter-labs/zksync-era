@@ -100,7 +100,7 @@ impl BootloaderState {
             !last_block.txs.is_empty(),
             "Can not create new miniblocks on top of empty ones"
         );
-        assert_next_block(&last_block.l2_block(), &l2_block);
+        assert_next_block(&last_block.l2_block(), &l2_block, self.protocol_version);
         self.push_l2_block(l2_block);
     }
 
@@ -123,7 +123,7 @@ impl BootloaderState {
     }
 
     pub(crate) fn get_preexisting_blocks_number(&self) -> usize {
-        min(self.l2_blocks.len(), 1) - 1
+        min(self.l2_blocks.len(), 0)
     }
 
     pub(crate) fn push_tx(

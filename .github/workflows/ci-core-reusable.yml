@@ -488,6 +488,7 @@ jobs:
       - name: Run gateway
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
@@ -505,12 +506,10 @@ jobs:
         run: |
           ci_run zkstack dev test gateway-migration --from-gateway --chain era --no-deps
 
-      # `sleep 60` because we need to wait until server added all transactions
       - name: Migrate to gateway again
         if: matrix.use_gateway_chain == 'WITH_GATEWAY'
         run: |
           ci_run zkstack dev test gateway-migration --to-gateway --chain era --no-deps
-          ci_run sleep 60
           ci_run pkill -9 zksync_server
           ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
@@ -612,11 +611,12 @@ jobs:
           echo "Updating DA validator addresses on L1 and restarting the server"
           if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
             L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.validium_da_validator' "./chains/gateway/configs/gateway.yaml")
+            ci_run zkstack chain set-da-validator-pair --gateway --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000 
           else
             L1_DA_MIGRATION_VALIDATOR_ADDR=$(yq '.l1.no_da_validium_l1_validator_addr' "./chains/da_migration/configs/contracts.yaml")
+            ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000
           fi
           
-          ci_run zkstack chain set-da-validator-pair --chain da_migration $L1_DA_MIGRATION_VALIDATOR_ADDR 50000000000
           
           sudo yq -i '.da_dispatcher.inclusion_verification_transition_enabled = false' ./chains/da_migration/configs/general.yaml
           sudo yq -i '.state_keeper.pubdata_overhead_part = 0' ./chains/da_migration/configs/general.yaml

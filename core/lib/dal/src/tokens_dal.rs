@@ -56,25 +56,6 @@ impl TokensDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> DalResult<()> {
-        sqlx::query!(
-            r#"
-            UPDATE tokens
-            SET
-                well_known = TRUE,
-                updated_at = NOW()
-            WHERE
-                l1_address = $1
-            "#,
-            l1_address.as_bytes()
-        )
-        .instrument("mark_token_as_well_known")
-        .with_arg("l1_address", &l1_address)
-        .execute(self.storage)
-        .await?;
-        Ok(())
-    }
-
     pub async fn get_all_l2_token_addresses(&mut self) -> DalResult<Vec<Address>> {
         let rows = sqlx::query!(
             r#"
@@ -228,23 +209,6 @@ mod tests {
         assert_eq!(all_tokens.len(), 2);
         assert!(all_tokens.contains(&tokens[0]));
         assert!(all_tokens.contains(&tokens[1]));
-
-        for token in &tokens {
-            storage
-                .tokens_dal()
-                .mark_token_as_well_known(token.l1_address)
-                .await
-                .unwrap();
-        }
-
-        let well_known_tokens = storage
-            .tokens_web3_dal()
-            .get_well_known_tokens()
-            .await
-            .unwrap();
-        assert_eq!(well_known_tokens.len(), 2);
-        assert!(well_known_tokens.contains(&tokens[0]));
-        assert!(well_known_tokens.contains(&tokens[1]));
     }
 
     #[tokio::test]

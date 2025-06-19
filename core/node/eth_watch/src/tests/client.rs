@@ -573,7 +573,7 @@ fn batch_root_to_log(sl_block_number: u64, l2_batch_number: u64, batch_root: H25
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(sl_block_number.into()),
-        l1_batch_number: Some(sl_block_number.into()),
+        l1_batch_number: Some(l2_batch_number.into()),
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),

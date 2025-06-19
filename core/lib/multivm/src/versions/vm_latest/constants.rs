@@ -142,7 +142,7 @@ pub(crate) const fn get_interop_blocks_begin_offset(subversion: MultiVmSubversio
 
 /// The slot starting from which the interop roots are stored.
 pub(crate) const fn get_interop_root_offset(subversion: MultiVmSubversion) -> usize {
-    get_interop_blocks_begin_offset(subversion) + 100
+    get_interop_blocks_begin_offset(subversion) + MAX_MSG_ROOTS_IN_BATCH
 }
 
 pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 6;

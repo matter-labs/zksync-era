@@ -243,7 +243,7 @@ impl LocalL1BatchCommitData {
         self.l1_batch
             .header
             .protocol_version
-            .is_none_or(|version| version.is_pre_v29_interop())
+            .is_none_or(|version| version.is_pre_interop_fast_blocks())
     }
 
     /// All returned errors are validation errors.
