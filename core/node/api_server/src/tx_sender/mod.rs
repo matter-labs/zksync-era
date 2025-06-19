@@ -13,6 +13,8 @@ use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
+#[cfg(feature = "zkos")]
+use zksync_dal::DalError;
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };

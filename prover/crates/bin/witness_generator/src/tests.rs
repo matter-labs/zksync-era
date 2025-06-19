@@ -1,5 +1,3 @@
-use std::iter;
-
 use const_decoder::Decoder::Hex;
 use zkevm_test_harness::{
     kzg::KzgSettings,
@@ -191,7 +189,7 @@ fn provider_serialization() {
 fn initializing_provider_with_compacted_merkle_paths() {
     let mut provider = create_provider();
     for log in &mut provider.pending_leaves {
-        let empty_merkle_paths = iter::repeat([0; 32]).take(255);
+        let empty_merkle_paths = std::iter::repeat_n([0; 32], 255);
         log.merkle_paths.splice(0..0, empty_merkle_paths);
     }
 

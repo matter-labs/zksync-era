@@ -18,6 +18,8 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
+#[cfg(feature = "zkos")]
+use crate::utils::{AccountType, ExternalAccountType};
 // #[cfg(feature = "zkos")]
 // use {
 //     ruint::aliases::B160, zk_ee::common_structs::derive_flat_storage_key,
