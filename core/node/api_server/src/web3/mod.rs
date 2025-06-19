@@ -141,7 +141,8 @@ struct OptionalApiParams {
 #[derive(Debug)]
 pub struct ApiServer {
     pool: ConnectionPool<Core>,
-    health_updater: Arc<HealthUpdater>,
+    // INVARIANT: only taken out when the server is started.
+    health_updater: Option<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
@@ -316,7 +317,7 @@ impl ApiBuilder {
 
         Ok(ApiServer {
             pool: self.pool,
-            health_updater: Arc::new(health_updater),
+            health_updater: Some(health_updater),
             config: self.config,
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
@@ -341,7 +342,8 @@ impl ApiBuilder {
 
 impl ApiServer {
     pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.health_updater.subscribe()
+        // `unwrap()` is safe by construction; `health_updater` is only taken out when the server is getting started
+        self.health_updater.as_ref().unwrap().subscribe()
     }
 
     async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
@@ -534,7 +536,7 @@ impl ApiServer {
     }
 
     async fn run_jsonrpsee_server(
-        self,
+        mut self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
     ) -> anyhow::Result<()> {
@@ -575,7 +577,7 @@ impl ApiServer {
         let subscriptions_limit = self.optional.subscriptions_limit;
         let server_request_timeout = self.optional.request_timeout;
         let vm_barrier = self.optional.vm_barrier.clone();
-        let health_updater = self.health_updater.clone();
+        let health_updater = self.health_updater.take().expect("only taken here");
         let method_tracer = self.method_tracer.clone();
 
         let extended_tracing = self.optional.extended_tracing;
@@ -682,56 +684,50 @@ impl ApiServer {
         }));
         health_updater.update(health);
 
-        // We want to be able to immediately stop the server task if the server stops on its own for whatever reason.
-        // Hence, we monitor `stop_receiver` on a separate Tokio task.
         let close_handle = server_handle.clone();
-        let closing_vm_barrier = vm_barrier.clone();
-        // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
-        // TODO (QIT-26): While `Arc<HealthUpdater>` is stored in `self`, we rely on the fact that `self` is consumed and
-        // dropped by `self.build_rpc_module` above, so we should still have just one strong reference.
-        let closing_health_updater = Arc::downgrade(&health_updater);
+        let server_stopped_future = server_handle.stopped();
+        tokio::pin!(server_stopped_future);
 
-        tokio::spawn(async move {
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!(
-                    "Stop request sender for {transport_str} JSON-RPC server was dropped \
-                     without sending a signal"
-                );
+        tokio::select! {
+            _ = stop_receiver.changed() => {
+                // Handled below.
             }
-            if let Some(health_updater) = closing_health_updater.upgrade() {
-                health_updater.update(HealthStatus::ShuttingDown.into());
+            () = &mut server_stopped_future => {
+                // We cannot race with the other `select!` branch since its handler is the only trigger of the normal server shutdown
+                // via `close_handle.stop()`.
+                anyhow::bail!("{transport_str} JSON-RPC server unexpectedly stopped");
             }
-            tracing::info!(
-                "Stop request received, {transport_str} JSON-RPC server is shutting down"
+        }
+
+        health_updater.update(HealthStatus::ShuttingDown.into());
+        tracing::info!("Stop request received, {transport_str} JSON-RPC server is shutting down");
+
+        // Wait some time until the traffic to the server stops. This may be necessary if the API server
+        // is behind a load balancer which is not immediately aware of API server termination. In this case,
+        // the load balancer will continue directing traffic to the server for some time until it reads
+        // the server health (which *is* changed to "shutting down" immediately). Starting graceful server shutdown immediately
+        // would lead to all this traffic to get dropped.
+        //
+        // If the load balancer *is* aware of the API server termination, we'll wait for `SHUTDOWN_INTERVAL_WITHOUT_REQUESTS`,
+        // which is fairly short.
+        let wait_result = tokio::time::timeout(
+            NO_REQUESTS_WAIT_TIMEOUT,
+            traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
+        )
+        .await;
+
+        if wait_result.is_err() {
+            tracing::warn!(
+                "Timed out waiting {NO_REQUESTS_WAIT_TIMEOUT:?} for traffic to be stopped by load balancer"
             );
+        }
+        tracing::info!("Stopping serving new {transport_str} traffic");
+        if let Some(closing_vm_barrier) = &vm_barrier {
+            closing_vm_barrier.close();
+        }
+        close_handle.stop().ok();
+        server_stopped_future.await;
 
-            // Wait some time until the traffic to the server stops. This may be necessary if the API server
-            // is behind a load balancer which is not immediately aware of API server termination. In this case,
-            // the load balancer will continue directing traffic to the server for some time until it reads
-            // the server health (which *is* changed to "shutting down" immediately). Starting graceful server shutdown immediately
-            // would lead to all this traffic to get dropped.
-            //
-            // If the load balancer *is* aware of the API server termination, we'll wait for `SHUTDOWN_INTERVAL_WITHOUT_REQUESTS`,
-            // which is fairly short.
-            let wait_result = tokio::time::timeout(
-                NO_REQUESTS_WAIT_TIMEOUT,
-                traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
-            )
-            .await;
-
-            if wait_result.is_err() {
-                tracing::warn!(
-                    "Timed out waiting {NO_REQUESTS_WAIT_TIMEOUT:?} for traffic to be stopped by load balancer"
-                );
-            }
-            tracing::info!("Stopping serving new {transport_str} traffic");
-            if let Some(closing_vm_barrier) = closing_vm_barrier {
-                closing_vm_barrier.close();
-            }
-            close_handle.stop().ok();
-        });
-
-        server_handle.stopped().await;
         drop(health_updater);
         tracing::info!("{transport_str} JSON-RPC server stopped");
         if let Some(vm_barrier) = vm_barrier {
