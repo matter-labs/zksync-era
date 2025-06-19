@@ -147,7 +147,7 @@ where
         let call = self.method_tracer.new_call(method_name, observed_params);
         let mut future = WithMethodCall::new(self.inner.call(request), call);
         if TRACE_PARAMS {
-            future.alloc = Some(AllocationAccumulator::new(method_name)); // FIXME: use `rpc#` prefix or something
+            future.alloc = Some(AllocationAccumulator::new(method_name));
         }
         future
     }
@@ -159,7 +159,7 @@ pin_project! {
         #[pin]
         inner: F,
         call: MethodCall<'a>,
-        alloc: Option<AllocationAccumulator>,
+        alloc: Option<AllocationAccumulator<'static>>,
     }
 }
 
