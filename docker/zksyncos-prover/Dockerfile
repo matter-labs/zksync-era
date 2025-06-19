@@ -28,9 +28,9 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup install nightly-2024-09-01 && \
     rustup default nightly-2024-09-01
 
-RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \
-    chmod +x cmake-3.24.2-linux-x86_64.sh && \
-    ./cmake-3.24.2-linux-x86_64.sh --skip-license --prefix=/usr/local
+RUN curl -Lo cmake-3.30.0-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.30.0/cmake-3.30.0-linux-x86_64.sh && \
+    chmod +x cmake-3.30.0-linux-x86_64.sh && \
+    ./cmake-3.30.0-linux-x86_64.sh --skip-license --prefix=/usr/local
 
 # install sccache
 RUN curl -Lo sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz https://github.com/mozilla/sccache/releases/download/v0.8.1/sccache-v0.8.1-x86_64-unknown-linux-musl.tar.gz && \
