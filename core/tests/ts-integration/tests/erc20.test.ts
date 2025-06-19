@@ -119,7 +119,7 @@ describe('L1 ERC20 contract checks', () => {
 
         // Send transfer, it should revert due to lack of balance.
         await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeReverted([
-            noBalanceChange,
+            noBalanceChange
             // feeTaken
         ]);
     });
@@ -142,7 +142,7 @@ describe('L1 ERC20 contract checks', () => {
 
         // Send transfer, it should revert because transfers to zero address are not allowed.
         await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeReverted([
-            noBalanceChange,
+            noBalanceChange
             // feeTaken
         ]);
     });

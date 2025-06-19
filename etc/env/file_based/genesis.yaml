@@ -1,6 +1,6 @@
 # TODO(zk os): genesis data taken from server
 # note: this is not the root, but blake(root, index) - it's used in place of root in zksync os
-genesis_root: "0x6cb33fe2ef8c0d32e45f67478be35bdcd684baac2e57a659409faaa4faf3d963"
+genesis_root: "0x87242ff7f6a1c8b5533cadb2d8e2b0e974f34a03fca84511a41eca94f236b0f8"
 genesis_rollup_leaf_index: 0
 genesis_batch_commitment: 0x753b52ab98b0062963a4b2ea1c061c4ab522f53f50b8fefe0a52760cbcc9e183
 genesis_protocol_version: 28

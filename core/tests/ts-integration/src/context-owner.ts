@@ -510,7 +510,7 @@ export class TestContextOwner {
             gasPrice,
             this.reporter
         );
-        
+
         nonce += erc20Transfers.length;
         // Send ERC20 base token on L1.
         const baseErc20Transfers = await sendTransfers(
