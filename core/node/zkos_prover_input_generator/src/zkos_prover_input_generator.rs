@@ -13,6 +13,7 @@ use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree,
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::{batch_output_hash_as_register_values, batch_public_input};
 use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
+use zksync_object_store::ObjectStore;
 use zksync_types::{H256, L1BatchNumber, L2BlockNumber};
 use zksync_types::block::L2BlockHeader;
 use zksync_types::commitment::ZkosCommitment;
@@ -22,16 +23,19 @@ use crate::zkos_proof_data_server::run;
 pub struct ZkosProverInputGenerator {
     stop_receiver: watch::Receiver<bool>,
     pool: ConnectionPool<Core>,
+    object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 impl ZkosProverInputGenerator {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         pool: ConnectionPool<Core>,
+        object_store: Option<Arc<dyn ObjectStore>>,
     ) -> ZkosProverInputGenerator {
         Self {
             stop_receiver,
             pool,
+            object_store,
         }
     }
 
@@ -58,7 +62,7 @@ impl ZkosProverInputGenerator {
 
         // todo: should be a different layer
         tracing::info!("Starting HTTP server in a separate thread");
-        tokio::spawn(run(self.pool.clone()));
+        tokio::spawn(run(self.pool.clone(), self.object_store.clone()));
 
         let last_processed_block = connection.zkos_prover_dal().last_block_with_generated_input().await?;
 

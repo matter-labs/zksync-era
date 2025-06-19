@@ -22,6 +22,7 @@ zksync_vm_interface.workspace = true
 zksync_config.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_protobuf.workspace = true
+zksync_object_store.workspace = true
 # todo: maybe this dependency should be avoided
 zksync_l1_contract_interface.workspace = true
 
