@@ -1,5 +1,6 @@
 use anyhow::Context;
 use async_trait::async_trait;
+use serde_json::Value;
 use zk_os_basic_system::system_implementation::flat_storage_model::AccountProperties;
 use zk_os_forward_system::run::{ExecutionResult, PreimageSource};
 use zksync_web3_decl::jsonrpsee::core::RpcResult;
@@ -148,6 +149,17 @@ impl EthNamespace {
 
 #[async_trait]
 impl EthNamespaceServer for EthNamespace {
+    async fn block_replay(&self, block_number: u64) -> RpcResult<Value> {
+        let Some(replay_record) = self
+            .block_replay_storage
+            .get_replay_record(block_number)
+        else {
+            return Ok(Value::Null);
+        };
+
+        Ok(serde_json::to_value(replay_record).unwrap())
+    }
+
     async fn get_block_number(&self) -> RpcResult<U64> {
         // todo: really add plus one?
         let res = self.state_handle.last_canonized_block_number() + 1;

@@ -12,7 +12,7 @@ use zksync_web3_decl::{
 };
 use zksync_web3_decl::jsonrpsee::RpcModule;
 use zksync_web3_decl::jsonrpsee::server::{RpcServiceBuilder, ServerBuilder};
-use crate::{BLOCKS_TO_RETAIN, JSON_RPC_ADDR};
+use crate::{json_rpc_addr, BLOCKS_TO_RETAIN};
 use crate::api::eth_impl::EthNamespace;
 use crate::mempool::Mempool;
 use crate::storage::block_replay_storage::BlockReplayStorage;
@@ -25,7 +25,7 @@ pub async fn run_jsonrpsee_server(
     mempool: Mempool,
     block_replay_storage: BlockReplayStorage,
 ) -> anyhow::Result<()> {
-    tracing::info!("Starting JSON-RPC server at {}", JSON_RPC_ADDR);
+    tracing::info!("Starting JSON-RPC server at {}", json_rpc_addr());
 
     let mut rpc = RpcModule::new(());
     rpc.merge(EthNamespace::new(state_handle, mempool, block_replay_storage).into_rpc())?;
@@ -39,12 +39,12 @@ pub async fn run_jsonrpsee_server(
 
     let server = server_builder
         .http_only()
-        .build(JSON_RPC_ADDR)
+        .build(json_rpc_addr())
         .await
         .context("Failed building HTTP JSON-RPC server")?;
 
     let server_handle = server.start(rpc);
-    tracing::info!("Started JSON-RPC server at {}", JSON_RPC_ADDR);
+    tracing::info!("Started JSON-RPC server at {}", json_rpc_addr());
 
     Ok(server_handle.stopped().await)
 }

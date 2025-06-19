@@ -15,6 +15,7 @@ use std::pin::Pin;
 use std::ptr::null;
 use std::sync::Arc;
 use std::thread::sleep;
+use std::str::FromStr;
 use std::time::Duration;
 use futures::stream::{self, Stream, StreamExt, Fuse, Chain, TryStream, TryStreamExt};
 use futures::future::FutureExt;
@@ -22,7 +23,7 @@ use futures::pin_mut;
 use futures::stream::BoxStream;
 use zk_ee::utils::Bytes32;
 use zk_os_forward_system::run::{BatchContext, BatchOutput};
-use zksync_types::{Address, address_to_h256, H256};
+use zksync_types::{Address, address_to_h256, H256, L2ChainId};
 use crate::api::run_jsonrpsee_server;
 use crate::block_context_provider::BlockContextProvider;
 use crate::execution::block_executor::{execute_block};
@@ -37,7 +38,11 @@ use itertools::Itertools;
 use tokio::sync::broadcast::channel;
 use tokio::sync::watch;
 use zksync_storage::RocksDB;
+use zksync_types::url::SensitiveUrl;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
+use zksync_web3_decl::client::L2;
+use zksync_web3_decl::client::Client;
+use zksync_web3_decl::namespaces::EthNamespaceClient;
 use zksync_zk_os_merkle_tree::{MerkleTree, RocksDBWrapper};
 use crate::execution::metrics::{EXECUTION_METRICS};
 use crate::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
@@ -63,13 +68,60 @@ use crate::tree_manager::{MerkleTreeColumnFamily, TreeManager};
 const BLOCK_REPLAY_WAL_PATH: &str = "../chains/era/db/main/block_replay_wal";
 const STATE_STORAGE_PATH: &str = "../chains/era/db/main/state";
 const PREIMAGES_STORAGE_PATH: &str = "../chains/era/db/main/preimages";
+const TREE_PATH: &str = "../chains/era/db/main/tree";
 const CHAIN_ID: u64 = 270;
+
+const BLOCK_REPLAY_WAL_PATH_EN: &str = "../chains/era/db/main/block_replay_wal_en";
+const STATE_STORAGE_PATH_EN: &str = "../chains/era/db/main/state_en";
+const PREIMAGES_STORAGE_PATH_EN: &str = "../chains/era/db/main/preimages_en";
+const TREE_PATH_EN: &str = "../chains/era/db/main/tree_en";
 
 // Maximum number of per-block information stored in memory - and thus returned from API.
 // Older blocks are discarded (or, in case of state diffs, compacted)
 const BLOCKS_TO_RETAIN: usize = 512;
 
 const JSON_RPC_ADDR: &str = "127.0.0.1:3050";
+const JSON_RPC_ADDR_EN: &str = "127.0.0.1:3150";
+
+fn wal_path() -> &'static str {
+    if std::env::var("ERA_EN").is_ok() {
+        BLOCK_REPLAY_WAL_PATH_EN
+    } else {
+        BLOCK_REPLAY_WAL_PATH
+    }
+}
+
+fn state_storage_path() -> &'static str {
+    if std::env::var("ERA_EN").is_ok() {
+        STATE_STORAGE_PATH_EN
+    } else {
+        STATE_STORAGE_PATH
+    }
+}
+
+fn preimages_storage_path() -> &'static str {
+    if std::env::var("ERA_EN").is_ok() {
+        PREIMAGES_STORAGE_PATH_EN
+    } else {
+        PREIMAGES_STORAGE_PATH
+    }
+}
+
+fn json_rpc_addr() -> &'static str {
+    if std::env::var("ERA_EN").is_ok() {
+        JSON_RPC_ADDR_EN
+    } else {
+        JSON_RPC_ADDR
+    }
+}
+
+fn tree_path() -> &'static str {
+    if std::env::var("ERA_EN").is_ok() {
+        TREE_PATH_EN
+    } else {
+        TREE_PATH
+    }
+}
 
 const BLOCK_TIME_MS: u64 = 150;
 
@@ -91,18 +143,18 @@ pub async fn main() {
     tracing_subscriber::fmt().init();
         // .pretty()
 
-    let block_replay_storage_rocks_db = RocksDB::<BlockReplayColumnFamily>::new(Path::new(BLOCK_REPLAY_WAL_PATH))
+    let block_replay_storage_rocks_db = RocksDB::<BlockReplayColumnFamily>::new(Path::new(wal_path()))
         .expect("Failed to open BlockReplayWAL");
 
     let block_replay_storage = BlockReplayStorage::new(block_replay_storage_rocks_db);
 
-    let mut state_db = RocksDB::<StorageMapCF>::new(Path::new(STATE_STORAGE_PATH))
+    let mut state_db = RocksDB::<StorageMapCF>::new(Path::new(state_storage_path()))
         .expect("Failed to open State DB");
     // state_db = state_db.with_sync_writes();
     let persistent_storage_map = PersistentStorageMap::new(state_db);
 
 
-    let mut preimages_db = RocksDB::<PreimagesCF>::new(Path::new(PREIMAGES_STORAGE_PATH))
+    let mut preimages_db = RocksDB::<PreimagesCF>::new(Path::new(preimages_storage_path()))
         .expect("Failed to open Preimages DB");
     // preimages_db = preimages_db.with_sync_writes();
     let rocks_db_preimages = RocksDbPreimages::new(preimages_db);
@@ -129,7 +181,7 @@ pub async fn main() {
 
     // Sequencer will not run the tree - batcher will (other component, other machine)
     // running it for now just to test the performance
-    let tree_wrapper = RocksDBWrapper::new(Path::new("../chains/era/db/main/tree")).unwrap();
+    let tree_wrapper = RocksDBWrapper::new(Path::new(tree_path())).unwrap();
     let mut tree_manager = TreeManager::new(
         tree_wrapper,
         state_handle.clone(),
@@ -296,25 +348,48 @@ async fn run_sequencer_stream(
     Ok(())
 }
 
-fn command_source(block_replay_wal: &BlockReplayStorage, block_to_start: u64) -> Chain<BoxStream<BlockCommand>, BoxStream<BlockCommand>> {
+fn command_source(block_replay_wal: &BlockReplayStorage, block_to_start: u64) -> BoxStream<BlockCommand> {
 
     let last_block_in_wal = block_replay_wal.latest_block().unwrap_or(0);
     tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
+    tracing::info!(block_to_start, "block_to_start: {block_to_start}");
 
     // Stream of replay commands from WAL
-    let replay_stream: BoxStream<BlockCommand> = Box::pin(block_replay_wal.replay_commands_from(block_to_start));
+    let replay_wal_stream: BoxStream<BlockCommand> = Box::pin(block_replay_wal.replay_commands_from(block_to_start));
 
-    // Stream of produce commands: pull-based, fetch context on demand
-    let produce_stream: BoxStream<BlockCommand> =
-        futures::stream::unfold(last_block_in_wal + 1, move |block_number| {
-            async move {
-                Some((BlockContextProvider.get_produce_command(block_number).await, block_number + 1))
-            }
-        }).boxed();
 
     // Combined source: run WAL replay first, then produce blocks from mempool
-    let mut stream = replay_stream
-        .chain(produce_stream);
-    stream
+    let stream = if std::env::var("ERA_EN").is_ok() {
+        let client = Client::<L2>::http(SensitiveUrl::from_str("http://localhost:3050").unwrap()).unwrap().build();
+
+        let replay_stream: BoxStream<BlockCommand> =
+            futures::stream::unfold(last_block_in_wal + 1, move |block_number| {
+                let client = client.clone();
+                async move {
+                    loop {
+                        let value = client.block_replay(block_number).await.unwrap();
+                        if value.is_null() {
+                            continue;
+                        } else {
+                            let replay_record: ReplayRecord = serde_json::from_value(value).unwrap();
+                            break Some((BlockCommand::Replay(replay_record), block_number + 1));
+                        }
+                    }
+                }
+            }).boxed();
+
+        replay_wal_stream.chain(replay_stream)
+    } else {
+        // Stream of produce commands: pull-based, fetch context on demand
+        let produce_stream: BoxStream<BlockCommand> =
+            futures::stream::unfold(last_block_in_wal + 1, move |block_number| {
+                async move {
+                    Some((BlockContextProvider.get_produce_command(block_number).await, block_number + 1))
+                }
+            }).boxed();
+
+        replay_wal_stream.chain(produce_stream)
+    };
+    stream.boxed()
 }
 

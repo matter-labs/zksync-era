@@ -188,6 +188,11 @@ pub trait EthNamespace {
 
     #[method(name = "maxPriorityFeePerGas")]
     async fn max_priority_fee_per_gas(&self) -> RpcResult<U256>;
+
+    #[method(name = "blockReplay")]
+    async fn block_replay(&self, _block_number: u64) -> RpcResult<serde_json::Value> {
+        Ok(serde_json::Value::Null)
+    }
 }
 
 #[cfg(feature = "server")]
