@@ -79,7 +79,7 @@ impl TreeManager {
                     last_block_to_process
                 );
 
-            let diffs = self.state_handle.0.in_memory_storage.diffs_for_blocks(
+            let diffs = self.state_handle.0.in_memory_storage.collect_diffs_range(
                 self.last_processed_block + 1,
                 last_block_to_process,
             ).context("Failed to get diffs for block")?;

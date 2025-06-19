@@ -26,23 +26,17 @@ pub struct ExecutionMetrics {
 
 #[derive(Debug, Metrics)]
 pub struct StorageViewMetrics {
-    #[metrics(unit = Unit::Seconds, labels = ["source"], buckets = LATENCIES_FAST)]
+    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
     pub storage_access_latency: LabeledFamily<&'static str, Histogram<Duration>>,
 
-    #[metrics(unit = Unit::Seconds, labels = ["source"], buckets = LATENCIES_FAST)]
-    pub preimage_access_latency: LabeledFamily<&'static str, Histogram<Duration>>,
-
-    #[metrics(unit = Unit::Seconds, labels = ["source"], buckets = BLOCKS_SCANNED)]
-    pub storage_access_diffs_scanned: LabeledFamily<&'static str, Histogram<u64>>,
-
-    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
-    pub storage_add_diff: LabeledFamily<&'static str, Histogram<Duration>>,
-
-    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
-    pub storage_persistence: LabeledFamily<&'static str, Histogram<Duration>>,
+    #[metrics(buckets = BLOCKS_SCANNED)]
+    pub storage_access_diffs_scanned: Histogram<u64>,
 
     #[metrics(labels = ["outcome"])]
     pub storage_bloom_outcome: LabeledFamily<&'static str, Counter<u64>>,
+
+    #[metrics(unit = Unit::Seconds, buckets = LATENCIES_FAST)]
+    pub storage_add_diff: Histogram<Duration>,
 }
 
 #[derive(Debug, Metrics)]
@@ -51,11 +45,11 @@ pub struct StorageMapRocksDBMetrics {
     #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
     pub get: LabeledFamily<&'static str, Histogram<Duration>>,
 
-    #[metrics(unit = Unit::Seconds, labels = ["stage"], buckets = LATENCIES_FAST)]
-    pub compact: LabeledFamily<&'static str, Histogram<Duration>>,
+    #[metrics(unit = Unit::Seconds, buckets = LATENCIES_FAST)]
+    pub compact: Histogram<Duration>,
 
-    #[metrics(labels = ["stage"])]
-    pub compact_batch_size: LabeledFamily<&'static str, Counter<u64>>,
+    #[metrics(buckets = Buckets::exponential(1.0..=1000.0, 2.0))]
+    pub compact_batch_size: Histogram<u64>,
 }
 
 #[derive(Debug, Metrics)]

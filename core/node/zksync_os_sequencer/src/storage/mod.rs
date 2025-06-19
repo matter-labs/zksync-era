@@ -1,40 +1,43 @@
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
-use dashmap::DashMap;
-use itertools::Either;
-use zk_ee::common_structs::PreimageType;
-use zk_ee::utils::Bytes32;
-use zk_os_basic_system::system_implementation::flat_storage_model::{ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties};
-use zk_os_forward_system::run::{BatchOutput, PreimageSource, ReadStorage, ReadStorageTree};
-use zk_os_forward_system::run::output::TxResult;
-use zksync_storage::RocksDB;
-use zksync_types::{Address, api, h256_to_address, Transaction};
-use zksync_web3_decl::types::U256;
-use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
-use crate::{CHAIN_ID, STATE_STORAGE_PATH};
+use crate::execution::metrics::STORAGE_VIEW_METRICS;
 use crate::storage::in_memory_account_properties::InMemoryAccountProperties;
 use crate::storage::in_memory_block_receipts::InMemoryBlockReceipts;
 use crate::storage::in_memory_preimages::InMemoryPreimages;
-use crate::storage::storage_map::{Diff, StorageMap, StorageMapView};
 use crate::storage::in_memory_tx_receipts::InMemoryTxReceipts;
-use crate::tx_conversions::transaction_to_api_data;
-use crate::util::{bytes32_to_address};
-use crate::execution::metrics::{STORAGE_VIEW_METRICS};
 use crate::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
 use crate::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
+use crate::storage::storage_map::{Diff, StorageMap, StorageMapView};
 use crate::storage::storage_metrics::StorageMetrics;
+use crate::tx_conversions::transaction_to_api_data;
+use crate::util::bytes32_to_address;
+use crate::{CHAIN_ID, STATE_STORAGE_PATH};
+use dashmap::DashMap;
+use itertools::Either;
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use std::time::Instant;
+use zk_ee::common_structs::PreimageType;
+use zk_ee::utils::Bytes32;
+use zk_os_basic_system::system_implementation::flat_storage_model::{
+    AccountProperties, ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
+};
+use zk_os_forward_system::run::output::TxResult;
+use zk_os_forward_system::run::{BatchOutput, PreimageSource, ReadStorage, ReadStorageTree};
+use zksync_storage::RocksDB;
+use zksync_types::{api, h256_to_address, Address, Transaction};
+use zksync_web3_decl::types::U256;
+use zksync_zkos_vm_runner::zkos_conversions::h256_to_bytes32;
 
-pub mod storage_map;
 pub mod block_replay_storage;
-pub mod in_memory_preimages;
 pub mod in_memory_account_properties;
 pub mod in_memory_block_receipts;
+pub mod in_memory_preimages;
 pub mod in_memory_tx_receipts;
 pub mod persistent_storage_map;
 pub mod rocksdb_preimages;
+pub mod storage_map;
 mod storage_metrics;
 // This is a handle to the in-memory state of the sequencer.
 // It's composed of mulitple facets - note that they don't interact with each other, and we never lock them together.
@@ -50,7 +53,6 @@ pub struct StateHandle(pub Arc<StateHandleInner>);
 
 // todo: should probably also store the oldest block number that is guaranteed to be available in all the state facets
 // todo: we have Arcs above and incide each. check if needed.
-
 
 #[derive(Debug)]
 pub struct StateHandleInner {
@@ -88,16 +90,12 @@ pub struct StorageView {
     preimages: RocksDbPreimages,
 }
 
-
 impl StateHandle {
     /// Returns a `StorageView` for reading state at `block_number`.
     /// Contains changes from up to `block_number - 1`.
     /// todo: for now the caller must ensure `block_number >= base_block`
 
-    pub fn view_at(
-        &self,
-        block_number: u64,
-    ) -> anyhow::Result<StorageView> {
+    pub fn view_at(&self, block_number: u64) -> anyhow::Result<StorageView> {
         let last_block = self.0.last_pending_block_number.load(Ordering::SeqCst);
         // tracing::info!("Creating StorageView for block {} (last pending: {})", block_number, last_block);
         if block_number > last_block + 1 {
@@ -119,7 +117,7 @@ impl StateHandle {
     pub fn empty(
         starting_block: u64,
         persistent_storage_map: PersistentStorageMap,
-        rocks_db_preimages: RocksDbPreimages
+        rocks_db_preimages: RocksDbPreimages,
     ) -> StateHandle {
         let last_pending_block_number = Arc::new(AtomicU64::new(starting_block));
         let last_canonized_block_number = Arc::new(AtomicU64::new(starting_block));
@@ -135,12 +133,16 @@ impl StateHandle {
         }))
     }
 
-
     // Advances the last pending block number;
     // asserts that the new block number is next in sequence.
     pub fn advance_canonized_block(&self, new_canonized_block_number: u64) {
-        let prev_last_canonized_block_number = self.0.last_canonized_block_number.load(Ordering::Relaxed);
-        tracing::info!("Advancing canonized block from {} to {}", prev_last_canonized_block_number, new_canonized_block_number);
+        let prev_last_canonized_block_number =
+            self.0.last_canonized_block_number.load(Ordering::Relaxed);
+        tracing::info!(
+            "Advancing canonized block from {} to {}",
+            prev_last_canonized_block_number,
+            new_canonized_block_number
+        );
         assert_eq!(
             prev_last_canonized_block_number + 1,
             new_canonized_block_number,
@@ -150,10 +152,9 @@ impl StateHandle {
         );
 
         // Update the last canonized block number
-        self.0.last_canonized_block_number.store(
-            new_canonized_block_number,
-            Ordering::Relaxed,
-        );
+        self.0
+            .last_canonized_block_number
+            .store(new_canonized_block_number, Ordering::Relaxed);
     }
 
     pub fn handle_block_output(
@@ -216,73 +217,86 @@ impl StateHandle {
         ts = std::time::Instant::now();
 
         // Update the in-memory storage with the new state
-        self.0.in_memory_storage.add_diff(current_block_number, block_output.storage_writes.clone());
+        self.0
+            .in_memory_storage
+            .add_diff(current_block_number, block_output.storage_writes.clone());
 
         // tracing::info!("Block {} - saving - added to in_memory_storage in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();
         // Update the preimages
         self.0.rocks_db_preimages.add(
             current_block_number,
-            block_output.published_preimages.iter().map(|(hash, preimage, _)| (hash.clone(), preimage.clone()))
+            block_output
+                .published_preimages
+                .iter()
+                .map(|(hash, preimage, _)| (hash.clone(), preimage.clone())),
         );
 
         // tracing::info!("Block {} - saving - added to published_preimages in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();
 
-        self.0.account_property_history.add_diff(current_block_number, account_properties);
+        self.0
+            .account_property_history
+            .add_diff(current_block_number, account_properties);
 
         // tracing::info!("Block {} - saving - added to account_property_history in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();
-
 
         // Update transaction receipts
         // Note: race condition - we may expose transaction receipt before `last_canonized_block_number` is bumped
         for (index, tx) in transactions.iter().enumerate() {
             let api_tx = transaction_to_api_data(&block_output, index, &tx);
-            self.0.in_memory_tx_receipts.insert(h256_to_bytes32(tx.hash()), api_tx);
+            self.0
+                .in_memory_tx_receipts
+                .insert(h256_to_bytes32(tx.hash()), api_tx);
         }
 
         // tracing::info!("Block {} - saving - added to in_memory_tx_receipts in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();
 
         // Update block receipts
-        self.0.in_memory_block_receipts.insert(current_block_number, block_output);
+        self.0
+            .in_memory_block_receipts
+            .insert(current_block_number, block_output);
 
         // tracing::info!("Block {} - saving - added to in_memory_block_receipts in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();
 
-        tracing::info!("Advancing last pending block number from {} to {}", prev_last_block_number, current_block_number);
-        // Update the last pending block number
-        self.0.last_pending_block_number.store(
-            current_block_number,
-            Ordering::Relaxed,
+        tracing::info!(
+            "Advancing last pending block number from {} to {}",
+            prev_last_block_number,
+            current_block_number
         );
+        // Update the last pending block number
+        self.0
+            .last_pending_block_number
+            .store(current_block_number, Ordering::Relaxed);
     }
 
     pub fn last_canonized_block_number(&self) -> u64 {
-        self.0.last_canonized_block_number.load(std::sync::atomic::Ordering::Relaxed)
+        self.0
+            .last_canonized_block_number
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     fn extract_account_properties(
         &self,
-        block_output: &BatchOutput
+        block_output: &BatchOutput,
     ) -> HashMap<Address, AccountProperties> {
         let mut account_properties_preimages: HashMap<Bytes32, AccountProperties> = block_output
             .published_preimages
             .iter()
             .filter_map(|(hash, preimage, preimage_type)| match preimage_type {
                 PreimageType::Bytecode => None,
-                PreimageType::AccountData => Some(
-                    (
-                        hash.clone(),
-                        AccountProperties::decode(
-                            &preimage
-                                .clone()
-                                .try_into()
-                                .expect("Preimage should be exactly 124 bytes"),
-                        )
+                PreimageType::AccountData => Some((
+                    hash.clone(),
+                    AccountProperties::decode(
+                        &preimage
+                            .clone()
+                            .try_into()
+                            .expect("Preimage should be exactly 124 bytes"),
                     ),
-                )
+                )),
             })
             .collect();
 
@@ -301,7 +315,6 @@ impl StateHandle {
                         log.value,
                         ex.is_some()
                     );
-
                 }
             }
         }
@@ -312,15 +325,23 @@ impl StateHandle {
         return result;
     }
 
-    pub async fn collect_state_metrics(
-        &self,
-    ) {
-        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(1));
+    pub async fn collect_state_metrics(&self, period: Duration) {
+        let mut ticker = tokio::time::interval(period);
         let state_handle = self.clone();
         loop {
             ticker.tick().await;
             let m = StorageMetrics::collect_metrics(state_handle.clone());
             tracing::info!("{:?}", m);
+        }
+    }
+
+    pub async fn compact_periodically(&self, period: Duration) {
+        let mut ticker = tokio::time::interval(period);
+        let map = self.0.in_memory_storage.clone();
+        // can take more than `period` to comact - use proper scheduler
+        loop {
+            ticker.tick().await;
+            map.compact();
         }
     }
 }
@@ -336,7 +357,6 @@ impl PreimageSource for StorageView {
     }
 }
 
-
 /* ------------------------------------------------------------------ */
 /*  Dummy trait impls required by zk-OS                               */
 /* ------------------------------------------------------------------ */
@@ -351,4 +371,3 @@ impl ReadStorageTree for StorageView {
         unimplemented!()
     }
 }
-

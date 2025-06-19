@@ -66,7 +66,7 @@ pub const CHAIN_ID: u64 = 270;
 
 // Maximum number of per-block information stored in memory - and thus returned from API.
 // Older blocks are discarded (or, in case of state diffs, compacted)
-pub const BLOCKS_TO_RETAIN: usize = 512;
+pub const BLOCKS_TO_RETAIN: usize = 16;
 
 pub const JSON_RPC_ADDR: &str = "127.0.0.1:3050";
 
@@ -154,10 +154,10 @@ pub async fn run_sequencer_actor(
 // ) -> Result<()> {
 //     let last_block_in_wal = wal.latest_block().unwrap_or(0);
 //     tracing::info!(last_block_in_wal, "Last block in WAL: {last_block_in_wal}");
-// 
+//
 //     command_source(&wal, last_block_in_wal)
 //         .map(Ok)                                         // ⇒ TryStream<Item = BlockCommand, Error = _>
-// 
+//
 //         // ── Stage 1: execute_block ─────────────────────────────────────────
 //         .map_ok(|cmd| {
 //             let state = state.clone();
@@ -177,7 +177,7 @@ pub async fn run_sequencer_actor(
 //             }
 //         })
 //         .try_buffered(1)
-// 
+//
 //         // ── Stage 2: append_replay (canonise) ──────────────────────────────
 //         .map_ok(|(batch_out, replay)| {
 //             let wal = wal.clone();
@@ -188,7 +188,7 @@ pub async fn run_sequencer_actor(
 //                 tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "▶ advance_canonized_block");
 //                 state.advance_canonized_block(batch_out.header.number);
 //                 tracing::info!(block = batch_out.header.number, txs = replay.transactions.len(), "✔ done");
-// 
+//
 //                 Ok::<_, anyhow::Error>(())
 //             }
 //         })

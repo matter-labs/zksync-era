@@ -108,12 +108,12 @@ pub async fn main() {
         }
 
         // ── TREE task ────────────────────────────────────────────────
-        res = tree_manager.run_loop() => {
-            match res {
-                Ok(_)  => tracing::warn!("TREE server unexpectedly exited"),
-                Err(e) => tracing::error!("TREE server failed: {e:#}"),
-            }
-        }
+        // res = tree_manager.run_loop() => {
+        //     match res {
+        //         Ok(_)  => tracing::warn!("TREE server unexpectedly exited"),
+        //         Err(e) => tracing::error!("TREE server failed: {e:#}"),
+        //     }
+        // }
 
         // ── Sequencer task ───────────────────────────────────────────────
         res = run_sequencer_actor(
@@ -128,8 +128,11 @@ pub async fn main() {
             }
         }
 
-        res = state_handle.collect_state_metrics() => {
+        _ = state_handle.collect_state_metrics(Duration::from_secs(2)) => {
             tracing::warn!("collect_state_metrics unexpectedly exited")
+        }
+        _ = state_handle.compact_periodically(Duration::from_millis(100)) => {
+            tracing::warn!("compact_periodically unexpectedly exited")
         }
 
     }
