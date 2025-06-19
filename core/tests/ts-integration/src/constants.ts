@@ -31,7 +31,7 @@ export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout'
 
 export const INTEROP_CALL_ABI = 'tuple(bool directCall, address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
-    'tuple(uint256 destinationChainId, tuple(bool directCall, address to, address from, uint256 value, bytes data)[] calls, address executionAddress)';
+    'tuple(uint256 destinationChainId, uint256 sendingBlockNumber, tuple(bool shadowAccount, address to, address from, uint256 value, bytes data)[] calls, address executionAddress)';
 
 export const MESSAGE_INCLUSION_PROOF_ABI =
     'tuple(uint256 chainId, uint256 l1BatchNumber, uint256 l2MessageIndex, tuple(uint16 txNumberInBatch, address sender, bytes data) message, bytes32[] proof)';

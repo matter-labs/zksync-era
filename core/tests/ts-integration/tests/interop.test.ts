@@ -91,7 +91,7 @@ describe('Interop checks', () => {
         interop2InteropHandler = new zksync.Contract(
             L2_INTEROP_HANDLER_ADDRESS,
             ArtifactInteropHandler.abi,
-            interop2Provider
+            interop2RichWallet
         );
         interop1NativeTokenVault = new zksync.Contract(
             L2_NATIVE_TOKEN_VAULT_ADDRESS,
@@ -195,20 +195,20 @@ describe('Interop checks', () => {
                     nextContract: L2_ASSET_ROUTER_ADDRESS,
                     data: getTokenTransferSecondBridgeData(tokenA.assetId!, transferAmount, interop2RichWallet.address),
                     requestedInteropCallValue: 0n,
-                    attributes: [
-                        await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0n])
-                    ]
+                    attributes: [await erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [0n])]
                 }
             ]
         );
 
         // Broadcast interop transaction from Interop1 to Interop2
         // await readAndBroadcastInteropTx(tx.hash, interop1Provider, interop2Provider);
+        await readAndBroadcastInteropBundle(tx.hash, interop1Provider, interop2Provider);
 
-        // tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
-        // // console.log('Token A info:', tokenA);
+        await sleep(10000);
+        tokenA.l2AddressSecondChain = await interop2NativeTokenVault.tokenAddress(tokenA.assetId);
+        console.log('Token A info:', tokenA);
 
-        // // Assert that the token balance on chain2
+        // Assert that the token balance on chain2
         // const interop1WalletSecondChainBalance = await getTokenBalance({
         //     provider: interop2Provider,
         //     tokenAddress: tokenA.l2AddressSecondChain!,
@@ -226,20 +226,6 @@ describe('Interop checks', () => {
         attributes: string[];
     }
 
-    interface InteropCallRequest {
-        to: string;
-        value: bigint;
-        data: string;
-    }
-
-    // function getInteropCallRequest(interopCallStarter: InteropCallStarter): InteropCallRequest {
-    //     return {
-    //         to: interopCallStarter.nextContract,
-    //         value: interopCallStarter.requestedInteropCallValue,
-    //         data: interopCallStarter.data
-    //     };
-    // }
-
     /**
      * Sends a direct L2 transaction request on Interop1.
      * The function prepares the interop call input and populates the transaction before sending.
@@ -251,10 +237,7 @@ describe('Interop checks', () => {
         // note skipping feeCallStarters for now:
 
         const txFinalizeReceipt = (
-            await interop1InteropCenter.sendBundle(
-                (await interop2Provider.getNetwork()).chainId,
-                execCallStarters
-            )
+            await interop1InteropCenter.sendBundle((await interop2Provider.getNetwork()).chainId, execCallStarters)
         ).wait();
         return txFinalizeReceipt;
 
@@ -304,7 +287,7 @@ describe('Interop checks', () => {
         /// see hashProof in MessageHashing.sol for this logic.
         let gwProofIndex =
             1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
-        console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
+        // console.log('params', params, gwProofIndex, parseInt(params.proof[gwProofIndex].slice(2, 34), 16));
         return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
     }
 
@@ -336,6 +319,42 @@ describe('Interop checks', () => {
         console.log('Interop root is non-zero', currentRoot, l1BatchNumber);
     }
 
+    const GW_CHAIN_ID = 506n;
+
+    /**
+     * Reads an interop transaction from the sender chain, constructs a new transaction,
+     * and broadcasts it on the receiver chain.
+     */
+    async function readAndBroadcastInteropBundle(
+        txHash: string,
+        senderProvider: zksync.Provider,
+        receiverProvider: zksync.Provider
+    ) {
+        console.log('*Reading and broadcasting interop bundle initiated by txHash*', txHash);
+        const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, senderProvider);
+        const txReceipt = await senderProvider.getTransactionReceipt(txHash);
+        await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
+        /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
+        await sleep(100000);
+        // console.log((await senderProvider.getNetwork()).chainId);
+        // console.log((await senderProvider.getNetwork()).name)
+        // console.log(await senderUtilityWallet.getL2BridgeContracts())
+        const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
+        await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, GW_CHAIN_ID, getGWBlockNumber(params));
+
+        // Get interop trigger and bundle data from the sender chain.
+        const executionBundle = await getInteropBundleData(senderProvider, txHash, 0);
+        // console.log('executionBundle', executionBundle);
+        if (executionBundle.output == null) return;
+
+        const receipt = await interop2InteropHandler.executeBundle(
+            executionBundle.rawData,
+            executionBundle.proofDecoded
+        );
+        await receipt.wait();
+        console.log('receipt', receipt.hash);
+    }
+
     /**
      * Reads an interop transaction from the sender chain, constructs a new transaction,
      * and broadcasts it on the receiver chain.
@@ -353,7 +372,6 @@ describe('Interop checks', () => {
         /// kl todo figure out what we need to wait for here. Probably the fact that we need to wait for the GW block finalization.
         await sleep(25000);
         const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
-        const GW_CHAIN_ID = 506n;
         await waitForInteropRootNonZero(interop2Provider, interop2RichWallet, GW_CHAIN_ID, getGWBlockNumber(params));
 
         // Get interop trigger and bundle data from the sender chain.

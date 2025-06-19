@@ -18,6 +18,7 @@ export interface Output {
     l2TxNumberInBlock: number;
     l2MessageIndex: number;
     fullProof: string;
+    proofDecoded: any;
 }
 
 export async function getInteropBundleData(
@@ -33,29 +34,32 @@ export async function getInteropBundleData(
             l1BatchNumber: 0,
             l2TxNumberInBlock: 0,
             l2MessageIndex: 0,
-            fullProof: ''
+            fullProof: '',
+            proofDecoded: null
         };
     const { message } = response!;
 
     // Decode the interop message
     // console.log("message", message)
     const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_BUNDLE_ABI], '0x' + message.slice(4));
+
     let calls = [];
-    for (let i = 0; i < decodedRequest[0][1].length; i++) {
+    for (let i = 0; i < decodedRequest[0][2].length; i++) {
         calls.push({
-            directCall: decodedRequest[0][1][i][0],
-            to: decodedRequest[0][1][i][1],
-            from: decodedRequest[0][1][i][2],
-            value: decodedRequest[0][1][i][3],
-            data: decodedRequest[0][1][i][4]
+            directCall: decodedRequest[0][2][i][0],
+            to: decodedRequest[0][2][i][1],
+            from: decodedRequest[0][2][i][2],
+            value: decodedRequest[0][2][i][3],
+            data: decodedRequest[0][2][i][4]
         });
     }
     // console.log(decodedRequest);
 
     const xl2Input = {
         destinationChainId: decodedRequest[0][0],
+        sendingBlockNumber: decodedRequest[0][1],
         calls: calls,
-        executionAddress: decodedRequest[0][2]
+        executionAddress: decodedRequest[0][3]
     };
     // console.log("response.proof", proof_fee)
     const rawData = ethers.AbiCoder.defaultAbiCoder().encode([INTEROP_BUNDLE_ABI], [xl2Input]);
@@ -77,7 +81,14 @@ export async function getInteropBundleData(
         l1BatchNumber: response.l1BatchNumber,
         l2TxNumberInBlock: response.l2TxNumberInBlock,
         l2MessageIndex: response.l2MessageIndex,
-        fullProof: proofEncoded
+        fullProof: proofEncoded,
+        proofDecoded: {
+            chainId: (await provider.getNetwork()).chainId,
+            l1BatchNumber: response.l1BatchNumber,
+            l2MessageIndex: response.l2MessageIndex,
+            message: [response.l2TxNumberInBlock, L2_INTEROP_CENTER_ADDRESS, rawData],
+            proof: response.proof
+        }
     };
     return output;
 }
