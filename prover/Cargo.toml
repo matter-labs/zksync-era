@@ -117,3 +117,8 @@ zksync_proof_fri_compressor_service = { version = "=21.1.0", path = "crates/lib/
 [profile.perf]
 inherits = "release"
 debug = true
+
+# FIXME: use released version
+[patch.crates-io]
+vise = { git = "https://github.com/matter-labs/vise.git", rev = "20fe082d2cdf21963dd0a20213c77652251ecd2c" }
+vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "20fe082d2cdf21963dd0a20213c77652251ecd2c" }
