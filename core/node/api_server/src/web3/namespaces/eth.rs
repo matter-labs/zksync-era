@@ -27,7 +27,9 @@ use zksync_web3_decl::{
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::{fill_transaction_receipts, open_readonly_transaction, AccountType, ExternalAccountType},
+    utils::{
+        fill_transaction_receipts, open_readonly_transaction, AccountType, ExternalAccountType,
+    },
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 

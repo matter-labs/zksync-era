@@ -1,11 +1,14 @@
 use ruint::aliases::B160;
+use zk_ee::utils::Bytes32;
 use zk_os_forward_system::run::Log;
 use zksync_types::{
-    boojum_os::AccountProperties, bytecode::BytecodeHash, ethabi::{encode, Address, Token}, l2::TransactionType, ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256
+    boojum_os::AccountProperties,
+    bytecode::BytecodeHash,
+    ethabi::{encode, Address, Token},
+    l2::TransactionType,
+    ExecuteTransactionCommon, L1BatchNumber, Transaction, H256, U256,
 };
 use zksync_vm_interface::VmEvent;
-use zk_ee::utils::Bytes32;
-
 
 pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 

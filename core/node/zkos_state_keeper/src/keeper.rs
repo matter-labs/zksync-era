@@ -12,7 +12,8 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_state::{ArcOwnedStorage, BatchDiff, ReadStorageFactory};
 use zksync_state_keeper::seal_criteria::UnexecutableReason;
 use zksync_types::{
-    block::{L1BatchTreeData, UnsealedL1BatchHeader}, L2BlockNumber, Transaction, H256
+    block::{L1BatchTreeData, UnsealedL1BatchHeader},
+    L2BlockNumber, Transaction, H256,
 };
 use zksync_vm_interface::Halt;
 use zksync_zkos_vm_runner::zkos_conversions::{bytes32_to_h256, h256_to_bytes32};
