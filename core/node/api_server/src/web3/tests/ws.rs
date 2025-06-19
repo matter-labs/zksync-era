@@ -110,10 +110,9 @@ async fn notifiers_start_after_snapshot_recovery() {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
-    let mut subscribe_logic = EthSubscribe::new();
+    let mut subscribe_logic = EthSubscribe::new(Some(POLL_INTERVAL));
     subscribe_logic.set_events_sender(events_sender);
-    let notifier_handles =
-        subscribe_logic.spawn_notifiers(pool.clone(), POLL_INTERVAL, &stop_receiver);
+    let notifier_handles = subscribe_logic.spawn_notifiers(pool.clone(), &stop_receiver);
     assert!(!notifier_handles.is_empty());
 
     // Wait a little doing nothing and check that notifier tasks are still active (i.e., have not panicked).

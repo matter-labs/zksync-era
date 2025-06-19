@@ -51,7 +51,7 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
-    web3::backend_jsonrpsee::ServerTimeoutMiddleware,
+    web3::{backend_jsonrpsee::ServerTimeoutMiddleware, metrics::ApiTransportLabel},
 };
 
 pub mod backend_jsonrpsee;
@@ -145,7 +145,6 @@ pub struct ApiServer {
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
-    polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
     namespaces: Vec<Namespace>,
     method_tracer: Arc<MethodTracer>,
@@ -158,7 +157,6 @@ pub struct ApiServer {
 pub struct ApiBuilder {
     pool: ConnectionPool<Core>,
     config: InternalApiConfig,
-    polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
@@ -173,14 +171,12 @@ pub struct ApiBuilder {
 }
 
 impl ApiBuilder {
-    const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
     const DEFAULT_PRUNING_INFO_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
-    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
+    pub fn new(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
             pool,
             config,
-            polling_interval: Self::DEFAULT_POLLING_INTERVAL,
             pruning_info_refresh_interval: Self::DEFAULT_PRUNING_INFO_REFRESH_INTERVAL,
             transport: None,
             tx_sender: None,
@@ -248,11 +244,6 @@ impl ApiBuilder {
 
     pub fn with_sync_state(mut self, sync_state: SyncState) -> Self {
         self.optional.sync_state = Some(sync_state);
-        self
-    }
-
-    pub fn with_polling_interval(mut self, polling_interval: Duration) -> Self {
-        self.polling_interval = polling_interval;
         self
     }
 
@@ -329,7 +320,6 @@ impl ApiBuilder {
             config: self.config,
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
-            polling_interval: self.polling_interval,
             pruning_info_refresh_interval: self.pruning_info_refresh_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
@@ -548,18 +538,14 @@ impl ApiServer {
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
     ) -> anyhow::Result<()> {
+        const L1_BATCH_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
         let transport = self.transport;
         let (transport_str, is_http, addr) = match transport {
             ApiTransport::Http(addr) => ("HTTP", true, addr),
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
         };
-        let transport_label = (&transport).into();
-        API_METRICS.observe_config(
-            transport_label,
-            self.polling_interval,
-            &self.config,
-            &self.optional,
-        );
+        let transport_label = ApiTransportLabel::from(&transport);
 
         tracing::info!(
             "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
@@ -567,7 +553,7 @@ impl ApiServer {
         // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
         // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
         let earliest_l1_batch_number =
-            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver).await;
+            wait_for_l1_batch(&self.pool, L1_BATCH_POLL_INTERVAL, &mut stop_receiver).await;
         let earliest_l1_batch_number =
             try_stoppable!(earliest_l1_batch_number
                 .stop_context("error while waiting for L1 batch in Postgres"));

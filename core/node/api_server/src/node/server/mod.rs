@@ -78,9 +78,6 @@ impl Web3ServerOptionalConfig {
         if let Some(request_timeout) = self.request_timeout {
             api_builder = api_builder.with_request_timeout(request_timeout);
         }
-        if let Some(polling_interval) = self.polling_interval {
-            api_builder = api_builder.with_polling_interval(polling_interval);
-        }
         if let Some(pruning_info_refresh_interval) = self.pruning_info_refresh_interval {
             api_builder =
                 api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
@@ -230,42 +227,26 @@ impl WiringLayer for Web3ServerLayer {
             .namespaces
             .as_ref()
             .is_none_or(|namespaces| namespaces.contains(&Namespace::Pubsub));
-        let polling_interval = self
-            .optional_config
-            .polling_interval
-            .unwrap_or(Duration::from_millis(100)); // FIXME: don't use hard-coded default
         let enable_pub_sub = matches!(self.transport, Transport::Ws) && contains_pub_sub_namespace;
-        let pub_sub = enable_pub_sub.then(EthSubscribe::new);
-        let pub_sub_blocks_task = pub_sub.as_ref().map(|pub_sub| {
-            pub_sub.create_notifier(
-                SubscriptionType::Blocks,
-                replica_pool.clone(),
-                polling_interval,
-            )
-        });
-        let pub_sub_transactions_task = pub_sub.as_ref().map(|pub_sub| {
-            pub_sub.create_notifier(
-                SubscriptionType::Txs,
-                replica_pool.clone(),
-                polling_interval,
-            )
-        });
-        let pub_sub_logs_task = pub_sub.as_ref().map(|pub_sub| {
-            pub_sub.create_notifier(
-                SubscriptionType::Logs,
-                replica_pool.clone(),
-                polling_interval,
-            )
-        });
+        let polling_interval = self.optional_config.polling_interval;
+        let pub_sub = enable_pub_sub.then(|| EthSubscribe::new(polling_interval));
+        let pub_sub_blocks_task = pub_sub
+            .as_ref()
+            .map(|pub_sub| pub_sub.create_notifier(SubscriptionType::Blocks, replica_pool.clone()));
+        let pub_sub_transactions_task = pub_sub
+            .as_ref()
+            .map(|pub_sub| pub_sub.create_notifier(SubscriptionType::Txs, replica_pool.clone()));
+        let pub_sub_logs_task = pub_sub
+            .as_ref()
+            .map(|pub_sub| pub_sub.create_notifier(SubscriptionType::Logs, replica_pool.clone()));
 
         // Build server.
-        let mut api_builder =
-            ApiBuilder::jsonrpsee_backend(internal_api_config, replica_pool.clone())
-                .with_tx_sender(tx_sender)
-                .with_mempool_cache(mempool_cache)
-                .with_extended_tracing(self.optional_config.with_extended_tracing)
-                .with_sealed_l2_block_handle(sealed_l2_block_handle)
-                .with_bridge_addresses_handle(bridge_addresses);
+        let mut api_builder = ApiBuilder::new(internal_api_config, replica_pool.clone())
+            .with_tx_sender(tx_sender)
+            .with_mempool_cache(mempool_cache)
+            .with_extended_tracing(self.optional_config.with_extended_tracing)
+            .with_sealed_l2_block_handle(sealed_l2_block_handle)
+            .with_bridge_addresses_handle(bridge_addresses);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }

@@ -253,6 +253,7 @@ impl PubSubNotifier {
 /// Subscription support for Web3 APIs.
 #[derive(Debug)]
 pub(crate) struct EthSubscribe {
+    polling_interval: Duration,
     blocks: broadcast::Sender<Vec<PubSubResult>>,
     transactions: broadcast::Sender<Vec<PubSubResult>>,
     logs: broadcast::Sender<Vec<PubSubResult>>,
@@ -260,12 +261,15 @@ pub(crate) struct EthSubscribe {
 }
 
 impl EthSubscribe {
-    pub fn new() -> Self {
+    const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
+
+    pub fn new(polling_interval: Option<Duration>) -> Self {
         let (blocks, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (transactions, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         let (logs, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
 
         Self {
+            polling_interval: polling_interval.unwrap_or(Self::DEFAULT_POLLING_INTERVAL),
             blocks,
             transactions,
             logs,
@@ -273,7 +277,6 @@ impl EthSubscribe {
         }
     }
 
-    // FIXME: ???
     pub fn set_events_sender(&mut self, sender: mpsc::UnboundedSender<PubSubEvent>) {
         self.events_sender = Some(sender);
     }
@@ -449,7 +452,6 @@ impl EthSubscribe {
         &self,
         ty: SubscriptionType,
         connection_pool: ConnectionPool<Core>,
-        polling_interval: Duration,
     ) -> PubSubNotifier {
         let sender = match ty {
             SubscriptionType::Blocks => self.blocks.clone(),
@@ -461,7 +463,7 @@ impl EthSubscribe {
             ty,
             sender,
             connection_pool,
-            polling_interval,
+            polling_interval: self.polling_interval,
             events_sender: self.events_sender.clone(),
         }
     }
@@ -470,7 +472,6 @@ impl EthSubscribe {
     pub(crate) fn spawn_notifiers(
         &self,
         connection_pool: ConnectionPool<Core>,
-        polling_interval: Duration,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {
         [
@@ -480,7 +481,7 @@ impl EthSubscribe {
         ]
         .into_iter()
         .map(|ty| {
-            let notifier = self.create_notifier(ty, connection_pool.clone(), polling_interval);
+            let notifier = self.create_notifier(ty, connection_pool.clone());
             tokio::spawn(notifier.run(stop_receiver.clone()))
         })
         .collect()
