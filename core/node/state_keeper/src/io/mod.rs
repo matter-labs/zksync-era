@@ -37,8 +37,8 @@ mod tests;
 pub struct PendingBatchData {
     /// Data used to initialize the pending batch. We have to make sure that all the parameters
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
-    pub(crate) l1_batch_env: L1BatchEnv,
-    pub(crate) system_env: SystemEnv,
+    pub l1_batch_env: L1BatchEnv,
+    pub system_env: SystemEnv,
     pub(crate) pubdata_params: PubdataParams,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
@@ -225,4 +225,6 @@ pub trait StateKeeperIO: 'static + Send + Sync + fmt::Debug + IoSealCriteria {
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&self, number: L1BatchNumber) -> anyhow::Result<H256>;
+    /// TODO
+    fn set_is_active_leader(&mut self, _value: bool) {}
 }

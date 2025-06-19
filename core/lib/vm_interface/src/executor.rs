@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Factory of [`BatchExecutor`]s.
-pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
+pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + Sync + fmt::Debug {
     /// Initializes an executor for a batch with the specified params and using the provided storage.
     fn init_batch(
         &mut self,
@@ -30,7 +30,7 @@ pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
 /// The handle is parametric by the transaction execution output in order to be able to represent different
 /// levels of abstraction.
 #[async_trait]
-pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
+pub trait BatchExecutor<S>: 'static + Send + Sync + fmt::Debug {
     /// Executes a transaction.
     async fn execute_tx(
         &mut self,

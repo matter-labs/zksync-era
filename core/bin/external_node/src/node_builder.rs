@@ -12,8 +12,9 @@ use zksync_commitment_generator::node::CommitmentGeneratorLayer;
 use zksync_config::{
     configs::{
         api::{HealthCheckConfig, MerkleTreeApiConfig},
-        chain::TimestampAsserterConfig,
+        chain::{MempoolConfig, StateKeeperConfig, TimestampAsserterConfig},
         database::MerkleTreeMode,
+        wallets::AddressWallet,
         DataAvailabilitySecrets, DatabaseSecrets,
     },
     DAClientConfig, PostgresConfig,
@@ -33,12 +34,12 @@ use zksync_metadata_calculator::{
 };
 use zksync_node_api_server::{
     node::{
-        HealthCheckLayer, MempoolCacheLayer, PostgresStorageCachesConfig, ProxySinkLayer,
-        TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
+        HealthCheckLayer, MasterPoolSinkLayer, MempoolCacheLayer, PostgresStorageCachesConfig,
+        ProxySinkLayer, TxSenderLayer, Web3ServerLayer, Web3ServerOptionalConfig,
     },
     web3::{state::InternalApiConfigBase, Namespace},
 };
-use zksync_node_consensus::node::ExternalNodeConsensusLayer;
+use zksync_node_consensus::node::{ExternalNodeConsensusLayer, MainNodeConsensusLayer};
 use zksync_node_db_pruner::node::PruningLayer;
 use zksync_node_fee_model::node::MainNodeFeeParamsFetcherLayer;
 use zksync_node_framework::service::{ZkStackService, ZkStackServiceBuilder};
@@ -47,13 +48,16 @@ use zksync_node_storage_init::{
     SnapshotRecoveryConfig,
 };
 use zksync_node_sync::node::{
-    BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, ExternalIOLayer, SyncStateUpdaterLayer,
+    BatchStatusUpdaterLayer, DataAvailabilityFetcherLayer, LeaderIOLayer, SyncStateUpdaterLayer,
     TreeDataFetcherLayer, ValidateChainIdsLayer,
 };
 use zksync_reorg_detector::node::ReorgDetectorLayer;
 use zksync_state::RocksdbStorageOptions;
-use zksync_state_keeper::node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer};
-use zksync_types::L1BatchNumber;
+use zksync_state_keeper::{
+    node::{MainBatchExecutorLayer, OutputHandlerLayer, StateKeeperLayer},
+    RunMode,
+};
+use zksync_types::{commitment::PubdataType, L1BatchNumber};
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_web3_decl::node::{MainNodeClientLayer, QueryEthClientLayer};
 
@@ -207,7 +211,15 @@ impl<R> ExternalNodeBuilder<R> {
                     self.config.optional.protective_reads_persistence_enabled,
                 );
 
-        let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
+        let io_layer = LeaderIOLayer::new(
+            self.config.required.l2_chain_id,
+            StateKeeperConfig::for_tests(),
+            MempoolConfig::default(),
+            AddressWallet::from_address(Default::default()),
+            PubdataType::Rollup,
+            true,
+        );
+        // let io_layer = ExternalIOLayer::new(self.config.required.l2_chain_id);
 
         // We only need call traces on the external node if the `debug_` namespace is enabled.
         let save_call_traces = self
@@ -228,6 +240,7 @@ impl<R> ExternalNodeBuilder<R> {
         let state_keeper_layer = StateKeeperLayer::new(
             self.config.required.state_cache_path.clone(),
             rocksdb_options,
+            None,
         );
         self.node
             .add_layer(io_layer)
@@ -240,12 +253,12 @@ impl<R> ExternalNodeBuilder<R> {
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         let config = self.config.consensus.clone();
         let secrets = self.config.consensus_secrets.clone();
-        let layer = ExternalNodeConsensusLayer {
-            build_version: crate::metadata::SERVER_VERSION
-                .parse()
-                .context("CRATE_VERSION.parse()")?,
-            config,
-            secrets: Some(secrets),
+        let layer = MainNodeConsensusLayer {
+            // build_version: crate::metadata::SERVER_VERSION
+            //     .parse()
+            //     .context("CRATE_VERSION.parse()")?,
+            config: config.unwrap(),
+            secrets: secrets,
         };
         self.node.add_layer(layer);
         Ok(self)
@@ -594,7 +607,8 @@ impl ExternalNodeBuilder {
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
-        self.node.add_layer(ProxySinkLayer);
+        // self.node.add_layer(ProxySinkLayer);
+        self.node.add_layer(MasterPoolSinkLayer);
         self.node.add_layer(tx_sender_layer);
         Ok(self)
     }
@@ -636,7 +650,8 @@ impl ExternalNodeBuilder {
             .add_main_node_client_layer()?
             .add_query_eth_client_layer()?
             .add_settlement_layer_data()?
-            .add_reorg_detector_layer()?;
+            .add_reorg_detector_layer()?
+            .add_main_node_fee_params_fetcher_layer()?;
 
         #[cfg(not(target_env = "msvc"))]
         {
@@ -679,7 +694,6 @@ impl ExternalNodeBuilder {
                         .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
-                        .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?
                         .add_http_web3_api_layer()?;
                 }
@@ -689,7 +703,6 @@ impl ExternalNodeBuilder {
                         .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
-                        .add_main_node_fee_params_fetcher_layer()?
                         .add_tx_sender_layer()?
                         .add_ws_web3_api_layer()?;
                 }

@@ -37,7 +37,7 @@ use crate::{
     seal_criteria::{IoSealCriteria, SequencerSealer, UnexecutableReason},
     testonly::{successful_exec, BASE_SYSTEM_CONTRACTS},
     updates::UpdatesManager,
-    OutputHandler, StateKeeperBuilder, StateKeeperOutputHandler,
+    OutputHandler, RunMode, StateKeeperBuilder, StateKeeperOutputHandler,
 };
 
 pub const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -252,7 +252,9 @@ impl TestScenario {
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
         let sk_thread = tokio::spawn(async move {
             if block_numbers_to_rollback.is_empty() {
-                state_keeper.run(stop_receiver).await
+                state_keeper
+                    .run(RunMode::WithoutRollback, stop_receiver)
+                    .await
             } else {
                 state_keeper
                     .run_with_rollback_enabled(stop_receiver, block_numbers_to_rollback)

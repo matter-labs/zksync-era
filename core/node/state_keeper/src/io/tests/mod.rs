@@ -8,12 +8,14 @@ use zksync_multivm::{
     interface::{
         tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent, VmExecutionMetrics,
     },
-    utils::derive_base_fee_and_gas_per_pubdata,
+    utils::{
+        derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_gas_per_pubdata_byte,
+    },
 };
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
-    block::L2BlockHasher,
+    block::{L2BlockHasher, L2BlockHeader},
     bytecode::BytecodeHash,
     commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
@@ -253,6 +255,31 @@ fn create_block_seal_command(
     }
 }
 
+fn create_block_header(l2_block: L2BlockUpdates) -> L2BlockHeader {
+    let vm_version = l2_block.protocol_version.into();
+    L2BlockHeader {
+        number: l2_block.number,
+        hash: l2_block.get_l2_block_hash(),
+        l1_tx_count: l2_block.l1_tx_count as u16,
+        l2_tx_count: (l2_block.executed_transactions.len() - l2_block.l1_tx_count) as u16,
+        timestamp: l2_block.timestamp(),
+        fee_account_address: Address::repeat_byte(0x23),
+        batch_fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
+        base_fee_per_gas: 10,
+        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+        protocol_version: Some(ProtocolVersionId::latest()),
+        pubdata_params: PubdataParams::default(),
+        gas_limit: get_max_batch_gas_limit(vm_version),
+        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(vm_version),
+        virtual_blocks: l2_block.virtual_blocks,
+        logs_bloom: Default::default(),
+    }
+}
+
 #[tokio::test]
 async fn processing_storage_logs_when_sealing_l2_block() {
     let connection_pool =
@@ -314,6 +341,10 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         .unwrap();
     seal_command.seal(connection_pool.clone()).await.unwrap();
     let mut conn = connection_pool.connection().await.unwrap();
+    conn.blocks_dal()
+        .insert_l2_block(&create_block_header(l2_block))
+        .await
+        .unwrap();
 
     // Manually mark the L2 block as executed so that getting touched slots from it works
     conn.blocks_dal()
@@ -385,6 +416,10 @@ async fn processing_events_when_sealing_l2_block() {
         .unwrap();
     seal_command.seal(pool.clone()).await.unwrap();
     let mut conn = pool.connection().await.unwrap();
+    conn.blocks_dal()
+        .insert_l2_block(&create_block_header(l2_block))
+        .await
+        .unwrap();
 
     let logs = conn
         .events_web3_dal()

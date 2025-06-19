@@ -8,6 +8,7 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::Core;
 use zksync_node_sync::sync_action::ActionQueueSender;
 use zksync_shared_resources::api::SyncState;
+use zksync_state_keeper::StateKeeper;
 use zksync_web3_decl::client::{DynClient, L2};
 
 mod abi;
@@ -30,6 +31,9 @@ pub async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: zksync_dal::ConnectionPool<Core>,
+    sk: StateKeeper,
+    actions: ActionQueueSender,
+    sync_state: SyncState,
 ) -> anyhow::Result<()> {
     tracing::info!(
         is_validator = secrets.validator_key.is_some(),
@@ -38,7 +42,16 @@ pub async fn run_main_node(
 
     // For now in case of error we just log it and allow the server
     // to continue running.
-    if let Err(err) = mn::run_main_node(ctx, cfg, secrets, storage::ConnectionPool(pool)).await {
+    if let Err(err) = mn::run_main_node(
+        ctx,
+        cfg,
+        secrets,
+        storage::ConnectionPool(pool),
+        Some(sk),
+        Some((actions, sync_state)),
+    )
+    .await
+    {
         tracing::error!("Consensus actor failed: {err:#}");
     } else {
         tracing::info!("Consensus actor stopped");
