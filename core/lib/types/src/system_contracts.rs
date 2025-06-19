@@ -275,6 +275,24 @@ pub fn get_zk_os_system_smart_contracts() -> Vec<DeployedContract> {
         bytecode: read_l1_evm_contract("L2WrappedBaseToken"),
     });
 
+    // TODO: the below are temporary ones before we have force deploy enabled
+    system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(L2_BRIDGEHUB_ADDRESS),
+        bytecode: read_l1_evm_contract("L2Bridgehub"),
+    });
+    system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
+        bytecode: read_l1_evm_contract("L2MessageRoot"),
+    });
+    system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(L2_ASSET_ROUTER_ADDRESS),
+        bytecode: read_l1_evm_contract("L2AssetRouter"),
+    });
+    system_contracts.push(DeployedContract {
+        account_id: AccountTreeId::new(L2_NATIVE_TOKEN_VAULT_ADDRESS),
+        bytecode: read_l1_evm_contract("L2NativeTokenVaultZKOS"),
+    });
+
     system_contracts
 }
 

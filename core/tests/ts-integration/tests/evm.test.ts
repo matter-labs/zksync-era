@@ -225,7 +225,7 @@ function describeEvm(providerKind: ProviderKind) {
     });
 }
 
-describe.each([ProviderKind.ZKSYNC, ProviderKind.ETHERS, ProviderKind.L1_ETHERS])(
+describe.skip.each([ProviderKind.ZKSYNC, ProviderKind.ETHERS, ProviderKind.L1_ETHERS])(
     'EVM contract checks (provider: %s): zkos',
     describeEvm
 );

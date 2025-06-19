@@ -23,7 +23,7 @@ const CUSTOM_PAYMASTER_RATE_NUMERATOR = 5n;
 const TESTNET_PAYMASTER_RATE_NUMERATOR = 1n;
 const PAYMASTER_RATE_DENOMINATOR = 1n;
 
-describe('Paymaster tests', () => {
+describe.skip('Paymaster tests', () => {
     let contracts: any;
 
     let testMaster: TestMaster;

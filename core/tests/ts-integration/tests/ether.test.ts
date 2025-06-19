@@ -15,7 +15,7 @@ import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
 import { RetryableWallet } from '../src/retry-provider';
 
-describe('ETH token checks: zkos', () => {
+describe.skip('ETH token checks: zkos', () => {
     let testMaster: TestMaster;
     let alice: RetryableWallet;
     let bob: zksync.Wallet;

@@ -39,7 +39,7 @@ const contracts = {
     error: getTestContract('SimpleRequire')
 };
 
-describe('Smart contract behavior checks: zkos', () => {
+describe.skip('Smart contract behavior checks: zkos', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 

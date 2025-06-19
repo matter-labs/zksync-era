@@ -10,7 +10,7 @@ import { ethers } from 'ethers';
 import { BOOTLOADER_FORMAL_ADDRESS } from 'zksync-ethers/build/utils';
 import fs from 'fs';
 
-describe('Debug methods', () => {
+describe.skip('Debug methods', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;

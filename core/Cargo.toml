@@ -271,7 +271,7 @@ bellman = { package = "zksync_bellman", version = "=0.32.1" }
 #zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
 #zk_os_basic_system = { package = "basic_system", git = "https://github.com/matter-labs/zksync-os", branch = "main" }
 #zk_os_evm_interpreter = { package = "evm_interpreter", git = "https://github.com/matter-labs/zksync-os", branch = "main", features = ["evm-compatibility"] }
-zk_os_forward_system = { package = "forward_system", path = "../../zksync-os/forward_system", features = [] }
+zk_os_forward_system = { package = "forward_system", path = "../../zksync-os/forward_system", features = ["evm-compatibility"] }
 zk_ee = { package = "zk_ee", path = "../../zksync-os/zk_ee" }
 zk_os_basic_system = { package = "basic_system", path = "../../zksync-os//basic_system" }
 zk_os_evm_interpreter = { package = "evm_interpreter", path = "../../zksync-os//evm_interpreter", features = ["evm-compatibility"] }

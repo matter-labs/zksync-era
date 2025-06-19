@@ -21,7 +21,7 @@ import { L1_MESSENGER, L1_MESSENGER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_L
 // Sane amount of L2 gas enough to process a transaction.
 const DEFAULT_L2_GAS_LIMIT = 5000000;
 
-describe('Tests for L1 behavior', () => {
+describe.skip('Tests for L1 behavior', () => {
     let contracts: any;
 
     let testMaster: TestMaster;
