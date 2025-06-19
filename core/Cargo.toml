@@ -215,8 +215,8 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-vise = "0.3.1"
-vise-exporter = "0.3.1"
+vise = "0.3.2"
+vise-exporter = "0.3.2"
 smart-config = "=0.2.0-pre"
 smart-config-commands = "=0.2.0-pre"
 foundry-compilers = { version = "0.11.6", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "7c69695e5c75451f158dd2456bf8c94a7492ea0b" }
@@ -350,8 +350,3 @@ zksync_node_api_server = { version = "28.6.0-non-semver-compat", path = "node/ap
 zksync_base_token_adjuster = { version = "28.6.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "28.6.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "28.6.0-non-semver-compat", path = "node/gateway_migrator" }
-
-# FIXME: use released version
-[patch.crates-io]
-vise = { git = "https://github.com/matter-labs/vise.git", rev = "20fe082d2cdf21963dd0a20213c77652251ecd2c" }
-vise-exporter = { git = "https://github.com/matter-labs/vise.git", rev = "20fe082d2cdf21963dd0a20213c77652251ecd2c" }

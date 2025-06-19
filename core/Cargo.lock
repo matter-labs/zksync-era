@@ -10691,8 +10691,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vise"
-version = "0.3.1"
-source = "git+https://github.com/matter-labs/vise.git?rev=20fe082d2cdf21963dd0a20213c77652251ecd2c#20fe082d2cdf21963dd0a20213c77652251ecd2c"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cec485349f926890c1d90a27e8f3147b552bf16cfd80212cd5ff72e8645056fd"
 dependencies = [
  "compile-fmt",
  "ctor",
@@ -10704,8 +10705,9 @@ dependencies = [
 
 [[package]]
 name = "vise-exporter"
-version = "0.3.1"
-source = "git+https://github.com/matter-labs/vise.git?rev=20fe082d2cdf21963dd0a20213c77652251ecd2c#20fe082d2cdf21963dd0a20213c77652251ecd2c"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2f9be7083dca21a182f7ba0ec98f5e87dc9e47944f624443b4e7a6c9c911679"
 dependencies = [
  "http-body-util",
  "hyper 1.6.0",
@@ -10718,8 +10720,9 @@ dependencies = [
 
 [[package]]
 name = "vise-macros"
-version = "0.3.1"
-source = "git+https://github.com/matter-labs/vise.git?rev=20fe082d2cdf21963dd0a20213c77652251ecd2c#20fe082d2cdf21963dd0a20213c77652251ecd2c"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe466916e9bf50cc69aba41affc11970885e9dd2b9e448e20e1fb8fc726132ed"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
