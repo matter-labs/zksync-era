@@ -51,6 +51,7 @@ jobs:
           echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
+          echo RUSTFLAGS="" >> .env
 
       - name: Download contracts
         shell: bash
@@ -138,7 +139,7 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
-          zkstackup --local || true
+          RUSTFLAGS="" zkstackup --local || true
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
