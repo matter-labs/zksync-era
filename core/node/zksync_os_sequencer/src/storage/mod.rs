@@ -257,7 +257,7 @@ impl StateHandle {
         // Update block receipts
         self.0
             .in_memory_block_receipts
-            .insert(current_block_number, block_output);
+            .insert(current_block_number, block_output, transactions);
 
         // tracing::info!("Block {} - saving - added to in_memory_block_receipts in {:?},", current_block_number, ts.elapsed());
         ts = std::time::Instant::now();

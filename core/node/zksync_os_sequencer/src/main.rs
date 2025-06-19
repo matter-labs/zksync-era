@@ -3,6 +3,8 @@ use std::pin::Pin;
 use std::ptr::null;
 use std::sync::Arc;
 use std::time::Duration;
+use alloy::network::EthereumWallet;
+use alloy::providers::{DynProvider, ProviderBuilder};
 use futures::stream::{self, Stream, StreamExt, Fuse, Chain, TryStream, TryStreamExt};
 use futures::future::FutureExt;
 use futures::pin_mut;
@@ -22,8 +24,10 @@ use zksync_os_sequencer::{api::run_jsonrpsee_server, mempool::{forced_deposit_tr
     StateHandle,
 }, BLOCK_REPLAY_WAL_PATH, PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH, TREE_STORAGE_PATH};
 use zksync_os_sequencer::execution::block_executor::execute_block;
+use zksync_os_sequencer::l1_watcher::L1Watcher;
 use zksync_os_sequencer::model::{BlockCommand, ReplayRecord};
 use zksync_os_sequencer::tree_manager::TreeManager;
+use zksync_os_sequencer::zkstack_config::ZkstackConfig;
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_zk_os_merkle_tree::RocksDBWrapper;
@@ -96,6 +100,25 @@ pub async fn main() {
         // but we only use tree for performance measure so its ok
         state_handle.last_canonized_block_number()
     );
+    let zkstack_config = ZkstackConfig {
+        contracts: serde_yaml::from_slice(include_bytes!(
+            "../l1-data/configs/contracts.yaml"
+        )).unwrap(),
+        genesis: serde_yaml::from_slice(include_bytes!(
+            "../l1-data/configs/genesis.yaml"
+        )).unwrap(),
+        wallets: serde_yaml::from_slice(include_bytes!(
+            "../l1-data/configs/wallets.yaml"
+        )).unwrap(),
+    };
+    let blob_operator_wallet =
+        EthereumWallet::from(zkstack_config.wallets.blob_operator.private_key.clone());
+    // Use `anvil --load-state l1-data/zkos-l1-state.json --port 8545` to spin up pre-configured L1
+    let provider = DynProvider::new(ProviderBuilder::new()
+        .wallet(blob_operator_wallet)
+        .connect("http://localhost:8545")
+        .await.unwrap());
+    let l1_watcher = L1Watcher::new(&zkstack_config, provider, mempool.clone());
 
     tokio::select! {
         // todo: only start after sequence caught up?
@@ -114,6 +137,14 @@ pub async fn main() {
         //         Err(e) => tracing::error!("TREE server failed: {e:#}"),
         //     }
         // }
+
+        // ── L1 Watcher task ────────────────────────────────────────────────
+        res = l1_watcher.run() => {
+            match res {
+                Ok(_)  => tracing::warn!("L1 watcher unexpectedly exited"),
+                Err(e) => tracing::error!("L1 watcher failed: {e:#}"),
+            }
+        }
 
         // ── Sequencer task ───────────────────────────────────────────────
         res = run_sequencer_actor(

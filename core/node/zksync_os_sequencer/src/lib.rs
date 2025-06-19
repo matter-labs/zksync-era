@@ -9,6 +9,9 @@ pub mod storage;
 pub mod tree_manager;
 mod tx_conversions;
 mod util;
+pub mod l1_watcher;
+pub mod contracts;
+pub mod zkstack_config;
 
 use std::{path::Path, pin::Pin, ptr::null, sync::Arc, time::Duration};
 
