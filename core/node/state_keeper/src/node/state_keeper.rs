@@ -108,7 +108,8 @@ impl WiringLayer for StateKeeperLayer {
             sealer,
             Arc::new(storage_factory),
             input.shared_allow_list.map(DeploymentTxFilter::new),
-        );
+        )
+        .with_leader_rotation(true);
 
         input
             .app_health

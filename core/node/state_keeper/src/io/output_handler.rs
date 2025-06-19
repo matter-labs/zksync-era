@@ -18,26 +18,29 @@ pub trait StateKeeperOutputHandler: 'static + Send + Sync + fmt::Debug {
         Ok(())
     }
 
-    /// Handles an L2 block produced by the state keeper.
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
+    /// Handles an L2 block data (events, storage logs etc) produced by the state keeper.
+    async fn handle_l2_block_data(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()>;
+
+    /// Handles an L2 block header.
+    async fn handle_l2_block_header(&mut self, _header: &L2BlockHeader) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    /// Handles an L2 block data rollback.
+    async fn rollback_pending_l2_block_data(
+        &mut self,
+        _l2_block_to_rollback: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 
     /// Handles an L1 batch produced by the state keeper.
     async fn handle_l1_batch(
         &mut self,
         _updates_manager: Arc<UpdatesManager>,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    /// TODO
-    async fn handle_l2_block_header(&mut self, _header: &L2BlockHeader) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    /// TODO
-    async fn rollback_pending_l2_block(
-        &mut self,
-        _l2_block_to_rollback: L2BlockNumber,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -51,7 +54,13 @@ impl StateKeeperOutputHandler for SyncState {
         Ok(())
     }
 
-    async fn handle_l2_block(&mut self, _updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+    async fn handle_l2_block_data(
+        &mut self,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
+        if updates_manager.sync_block_data_and_header_persistence() {
+            self.set_local_block(updates_manager.last_pending_l2_block().number);
+        }
         Ok(())
     }
 
@@ -109,22 +118,22 @@ impl OutputHandler {
     }
 
     #[tracing::instrument(
-        name = "OutputHandler::handle_l2_block"
+        name = "OutputHandler::handle_l2_block_data"
         skip_all,
         fields(l2_block = %updates_manager.last_pending_l2_block().number)
     )]
-    pub(crate) async fn handle_l2_block(
+    pub(crate) async fn handle_l2_block_data(
         &mut self,
         updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
         for handler in &mut self.inner {
             handler
-                .handle_l2_block(updates_manager)
+                .handle_l2_block_data(updates_manager)
                 .await
                 .with_context(|| {
                     format!(
-                        "failed handling L2 block {:?} on handler {handler:?}",
-                        updates_manager.last_pending_l2_block().number
+                        "failed handling L2 block data {:?} on handler {handler:?}",
+                        updates_manager.last_pending_l2_block()
                     )
                 })?;
         }
@@ -145,26 +154,23 @@ impl OutputHandler {
                 .handle_l2_block_header(header)
                 .await
                 .with_context(|| {
-                    format!(
-                        "failed handling L2 block {:?} on handler {handler:?}",
-                        header.number
-                    )
+                    format!("failed handling L2 block header {header:?} on handler {handler:?}")
                 })?;
         }
         Ok(())
     }
 
     #[tracing::instrument(
-        name = "OutputHandler::rollback_pending_l2_block"
+        name = "OutputHandler::rollback_pending_l2_block_data"
         skip(self)
     )]
-    pub(crate) async fn rollback_pending_l2_block(
+    pub(crate) async fn rollback_pending_l2_block_data(
         &mut self,
         l2_block_to_rollback: L2BlockNumber,
     ) -> anyhow::Result<()> {
         for handler in &mut self.inner {
             handler
-                .rollback_pending_l2_block(l2_block_to_rollback)
+                .rollback_pending_l2_block_data(l2_block_to_rollback)
                 .await
                 .with_context(|| {
                     format!("failed handling L2 block rollback {l2_block_to_rollback} on handler {handler:?}")

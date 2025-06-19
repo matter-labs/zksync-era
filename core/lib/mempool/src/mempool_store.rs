@@ -344,3 +344,18 @@ impl MempoolStore {
             .map(|a| a.nonce())
     }
 }
+
+#[cfg(test)]
+impl MempoolStore {
+    pub fn next_priority_id(&self) -> PriorityOpId {
+        self.next_priority_id
+    }
+
+    pub fn l1_transactions(&self) -> &BTreeMap<PriorityOpId, L1Tx> {
+        &self.l1_transactions
+    }
+
+    pub fn l2_priority_queue(&self) -> &BTreeSet<MempoolScore> {
+        &self.l2_priority_queue
+    }
+}

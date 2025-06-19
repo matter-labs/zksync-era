@@ -30,7 +30,6 @@ pub struct L2BlockUpdates {
     pub l1_tx_count: usize,
     pub number: L2BlockNumber,
     pub prev_block_hash: H256,
-    pub prev_block_timestamp: Option<u64>,
     pub virtual_blocks: u32,
     pub protocol_version: ProtocolVersionId,
     timestamp_ms: u64,
@@ -41,7 +40,6 @@ impl L2BlockUpdates {
         timestamp_ms: u64,
         number: L2BlockNumber,
         prev_block_hash: H256,
-        prev_block_timestamp: Option<u64>,
         virtual_blocks: u32,
         protocol_version: ProtocolVersionId,
     ) -> Self {
@@ -59,7 +57,6 @@ impl L2BlockUpdates {
             timestamp_ms,
             number,
             prev_block_hash,
-            prev_block_timestamp,
             virtual_blocks,
             protocol_version,
         }
@@ -217,7 +214,6 @@ impl L2BlockUpdates {
             prev_block_hash: Default::default(),
             virtual_blocks: Default::default(),
             protocol_version: ProtocolVersionId::latest(),
-            prev_block_timestamp: None,
         }
     }
 
@@ -240,7 +236,6 @@ mod tests {
             0,
             L2BlockNumber(0),
             H256::random(),
-            None,
             0,
             ProtocolVersionId::latest(),
         );

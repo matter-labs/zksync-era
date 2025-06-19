@@ -1,4 +1,4 @@
-use std::{convert::Infallible, sync::Arc, time::Duration};
+use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -16,14 +16,9 @@ use zksync_multivm::{
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    block::{L2BlockExecutionData, L2BlockHeader},
-    commitment::PubdataParams,
-    l2::TransactionType,
-    protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId,
-    try_stoppable,
-    utils::display_timestamp,
-    L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
+    block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
+    protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
+    utils::display_timestamp, L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -134,6 +129,7 @@ pub struct StateKeeperBuilder {
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
+    leader_rotation: bool,
 }
 
 /// Helper struct that encapsulates some private state keeper methods.
@@ -146,6 +142,7 @@ pub(super) struct StateKeeperInner {
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
+    leader_rotation: bool,
 }
 
 impl From<StateKeeperBuilder> for StateKeeperInner {
@@ -158,6 +155,7 @@ impl From<StateKeeperBuilder> for StateKeeperInner {
             storage_factory: b.storage_factory,
             health_updater: b.health_updater,
             deployment_tx_filter: b.deployment_tx_filter,
+            leader_rotation: b.leader_rotation,
         }
     }
 }
@@ -179,7 +177,13 @@ impl StateKeeperBuilder {
             storage_factory,
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
             deployment_tx_filter,
+            leader_rotation: false,
         }
+    }
+
+    pub fn with_leader_rotation(mut self, leader_rotation: bool) -> Self {
+        self.leader_rotation = leader_rotation;
+        self
     }
 
     pub async fn build(
@@ -240,6 +244,7 @@ impl StateKeeperBuilder {
             previous_batch_protocol_version,
             cursor.prev_l1_batch_timestamp,
             None,
+            !inner.leader_rotation,
         );
         let protocol_upgrade_tx: Option<ProtocolUpgradeTx> = inner
             .load_protocol_upgrade_tx(
@@ -303,6 +308,7 @@ impl StateKeeperInner {
             previous_batch_protocol_version,
             cursor.prev_l1_batch_timestamp,
             Some(cursor.prev_l2_block_timestamp),
+            !self.leader_rotation,
         );
         let batch_executor = self
             .create_batch_executor(
@@ -555,7 +561,7 @@ impl StateKeeperInner {
     )]
     async fn seal_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         self.output_handler
-            .handle_l2_block(updates_manager)
+            .handle_l2_block_data(updates_manager)
             .await
             .with_context(|| {
                 format!(
@@ -824,7 +830,7 @@ impl StateKeeperInner {
 
                 let logs_to_apply_iter = tx_result.logs.storage_logs.iter();
                 let block_writes_metrics = updates_manager
-                    .storage_writes_deduplicator
+                    .storage_writes_deduplicator_mut()
                     .apply_and_rollback(logs_to_apply_iter.clone());
 
                 let tx_writes_metrics =
@@ -861,7 +867,7 @@ impl StateKeeperInner {
     }
 
     fn report_seal_criteria_capacity(&self, manager: &UpdatesManager) {
-        let block_writes_metrics = manager.storage_writes_deduplicator.metrics();
+        let block_writes_metrics = manager.storage_writes_deduplicator().metrics();
 
         let block_data = SealData {
             execution_metrics: manager.pending_execution_metrics(),
@@ -1031,19 +1037,9 @@ impl StateKeeper {
                         .is_some_and(|b| !b.executed_transactions.is_empty());
                     if !some_tx_was_processed {
                         if state.updates_manager.is_in_first_pending_block_state() {
-                            let pending_block = state.updates_manager.last_pending_l2_block();
-                            let cursor = IoCursor {
-                                next_l2_block: pending_block.number,
-                                prev_l2_block_hash: pending_block.prev_block_hash,
-                                prev_l2_block_timestamp: pending_block
-                                    .prev_block_timestamp
-                                    .unwrap(),
-                                l1_batch: state.updates_manager.l1_batch_number(),
-                                prev_l1_batch_timestamp: state
-                                    .updates_manager
-                                    .previous_batch_timestamp(),
-                            };
-                            self.batch_state = BatchState::Uninit(cursor);
+                            state.updates_manager.pop_last_pending_block();
+                            self.batch_state =
+                                BatchState::Uninit(state.updates_manager.io_cursor());
                         } else if state.updates_manager.has_next_block_params() {
                             state.updates_manager.reset_next_l2_block_params();
                         }
@@ -1250,20 +1246,21 @@ impl StateKeeper {
             // fictive block -> seal batch.
             self.seal_batch().await?;
         } else {
-            // non-fictive block -> finalize block sealing.
-            self.inner
-                .output_handler
-                .handle_l2_block_header(
-                    &batch_state.updates_manager.header_for_first_pending_block(),
-                )
-                .await?;
-            // Important: should come after header is sealed!
-            let mut iter = pending_block
-                .executed_transactions
-                .iter()
-                .map(|tx| &tx.transaction);
-            self.inner.io.advance_nonces(Box::new(&mut iter)).await;
-
+            if self.inner.leader_rotation {
+                // non-fictive block -> finalize block sealing.
+                self.inner
+                    .output_handler
+                    .handle_l2_block_header(
+                        &batch_state.updates_manager.header_for_first_pending_block(),
+                    )
+                    .await?;
+                // Important: should come after header is sealed!
+                let mut iter = pending_block
+                    .executed_transactions
+                    .iter()
+                    .map(|tx| &tx.transaction);
+                self.inner.io.advance_nonces(Box::new(&mut iter)).await;
+            }
             batch_state.updates_manager.commit_pending_block();
         }
 
@@ -1327,8 +1324,8 @@ impl StateKeeper {
     }
 
     pub async fn rollback(&mut self) -> anyhow::Result<()> {
-        let batch_data = self.batch_state.unwrap_init_mut();
-        let pending_block = batch_data.updates_manager.last_pending_l2_block();
+        let state = self.batch_state.unwrap_init_mut();
+        let pending_block = state.updates_manager.last_pending_l2_block();
         tracing::info!("Rolling back block #{}", pending_block.number);
 
         // Rollback postgres if block is non-fictive.
@@ -1336,38 +1333,67 @@ impl StateKeeper {
         if !pending_block.executed_transactions.is_empty() {
             self.inner
                 .output_handler
-                .rollback_pending_l2_block(pending_block.number)
+                .rollback_pending_l2_block_data(pending_block.number)
                 .await?;
         }
 
-        // Rollback mempool
+        // Rollback mempool.
         let txs = pending_block
             .executed_transactions
             .iter()
             .map(|tx| tx.transaction.clone())
             .collect();
-        self.inner.io.rollback_block(txs).await?;
+        self.inner.io.rollback_l2_block(txs).await?;
 
-        if batch_data.updates_manager.is_in_first_pending_block_state() {
-            let cursor = IoCursor {
-                next_l2_block: pending_block.number,
-                prev_l2_block_hash: pending_block.prev_block_hash,
-                prev_l2_block_timestamp: pending_block.prev_block_timestamp.unwrap(),
-                l1_batch: batch_data.updates_manager.l1_batch_number(),
-                prev_l1_batch_timestamp: batch_data.updates_manager.previous_batch_timestamp(),
-            };
-            self.batch_state = BatchState::Uninit(cursor);
+        if state.updates_manager.is_in_first_pending_block_state() {
+            // Rollback state to `Uninit`.
+            state.updates_manager.pop_last_pending_block();
+            self.batch_state = BatchState::Uninit(state.updates_manager.io_cursor());
         } else {
-            // No need to rollback upgrade tx, since it can only be in the first block and this is the branch for non-first blocks.
+            // No need to rollback `state.protocol_upgrade_tx`, since it's only changed in the first block and this is the branch for non-first blocks.
+            state.batch_executor.rollback_l2_block().await?;
+            // Reset `state.next_block_should_be_fictive` in case non-fictive block is rolled back.
+            if !state
+                .updates_manager
+                .last_pending_l2_block()
+                .executed_transactions
+                .is_empty()
+            {
+                state.next_block_should_be_fictive = false;
+            }
+            state.updates_manager.pop_last_pending_block();
+        }
 
-            // Rollback batch executor
-            let batch_executor = &mut batch_data.batch_executor;
-            batch_executor.rollback_l2_block().await?;
+        Ok(())
+    }
+}
 
-            // Rollback updates manager
-            let updates_manager = &mut batch_data.updates_manager;
+// Test only!!
+impl StateKeeper {
+    pub async fn run_with_rollback_enabled(
+        mut self,
+        mut stop_receiver: watch::Receiver<bool>,
+        mut block_numbers_to_rollback: VecDeque<L2BlockNumber>,
+    ) -> anyhow::Result<()> {
+        // Rollback is only enabled for leader rotation mode.
+        assert!(self.inner.leader_rotation);
 
-            updates_manager.pop_last_pending_block();
+        while !is_canceled(&stop_receiver) {
+            try_stoppable!(self.process_block(&mut stop_receiver, None).await);
+            self.seal_last_pending_block_data().await?;
+
+            let block_number = self
+                .batch_state
+                .unwrap_init_ref()
+                .updates_manager
+                .last_pending_l2_block()
+                .number;
+            if block_numbers_to_rollback.front().copied() == Some(block_number) {
+                block_numbers_to_rollback.pop_front();
+                self.rollback().await?;
+            } else {
+                self.commit_pending_block().await?;
+            }
         }
 
         Ok(())

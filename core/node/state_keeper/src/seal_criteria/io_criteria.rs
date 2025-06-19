@@ -337,6 +337,7 @@ mod tests {
             ProtocolVersionId::latest(),
             previous_batch_timestamp,
             None,
+            true,
         );
         // No txs, should not be sealed.
         let should_seal = sealer

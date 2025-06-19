@@ -161,9 +161,9 @@ impl StateKeeperIO for LeaderIO {
         io.rollback(tx).await
     }
 
-    async fn rollback_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
         let io = self.active_io_ref_mut();
-        io.rollback_block(txs).await
+        io.rollback_l2_block(txs).await
     }
 
     async fn advance_nonces(&mut self, txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {

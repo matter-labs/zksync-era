@@ -16,13 +16,14 @@ use zksync_types::{
     Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
 };
 
-pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
+pub(crate) use self::{committed_updates::CommittedUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
     io::{BatchInitParams, IoCursor, L2BlockParams},
     metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
+use crate::metrics::{L2BlockSealStage, L2_BLOCK_METRICS};
 
-pub mod l1_batch_updates;
+pub mod committed_updates;
 pub mod l2_block_updates;
 
 /// Most of the information needed to seal the l1 batch / L2 block is contained within the VM.
@@ -45,16 +46,17 @@ pub struct UpdatesManager {
     pubdata_params: PubdataParams,
     previous_batch_protocol_version: ProtocolVersionId,
     previous_batch_timestamp: u64,
+    sync_block_data_and_header_persistence: bool,
 
     // committed state
-    committed_updates: L1BatchUpdates,
+    committed_updates: CommittedUpdates,
     last_committed_l2_block_number: L2BlockNumber,
     last_committed_l2_block_timestamp: Option<u64>,
     last_committed_l2_block_hash: H256,
 
     // pending state
     pending_l2_blocks: VecDeque<L2BlockUpdates>,
-    pub storage_writes_deduplicator: StorageWritesDeduplicator,
+    storage_writes_deduplicator: StorageWritesDeduplicator,
     next_l2_block_params: Option<L2BlockParams>,
 }
 
@@ -64,6 +66,7 @@ impl UpdatesManager {
         previous_batch_protocol_version: ProtocolVersionId,
         previous_batch_timestamp: u64,
         previous_block_timestamp: Option<u64>,
+        sync_block_data_and_header_persistence: bool,
     ) -> Self {
         let protocol_version = batch_init_params.system_env.version;
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
@@ -85,7 +88,8 @@ impl UpdatesManager {
             pubdata_params: batch_init_params.pubdata_params,
             previous_batch_protocol_version,
             previous_batch_timestamp,
-            committed_updates: L1BatchUpdates::new(),
+            sync_block_data_and_header_persistence,
+            committed_updates: CommittedUpdates::new(),
             last_committed_l2_block_number: L2BlockNumber(
                 batch_init_params.l1_batch_env.first_l2_block.number,
             ) - 1,
@@ -101,7 +105,6 @@ impl UpdatesManager {
                     .l1_batch_env
                     .first_l2_block
                     .prev_block_hash,
-                previous_block_timestamp,
                 batch_init_params
                     .l1_batch_env
                     .first_l2_block
@@ -170,6 +173,8 @@ impl UpdatesManager {
             l2_legacy_shared_bridge_addr,
             pre_insert_txs,
             pubdata_params: self.pubdata_params,
+            insert_header: self.sync_block_data_and_header_persistence
+                || (tx_count_in_last_block == 0),
         }
     }
 
@@ -230,7 +235,6 @@ impl UpdatesManager {
             next_l2_block_params.timestamp_ms(),
             cursor.next_l2_block,
             cursor.prev_l2_block_hash,
-            Some(cursor.prev_l2_block_timestamp),
             next_l2_block_params.virtual_blocks(),
             self.protocol_version,
         );
@@ -311,6 +315,10 @@ impl UpdatesManager {
 
     pub(crate) fn header_for_first_pending_block(&self) -> L2BlockHeader {
         let block = self.first_pending_l2_block();
+        let progress = L2_BLOCK_METRICS.start(
+            L2BlockSealStage::CalculateLogsBloom,
+            !block.executed_transactions.is_empty(),
+        );
         let iter = block.events.iter().flat_map(|event| {
             event
                 .indexed_topics
@@ -319,6 +327,7 @@ impl UpdatesManager {
                 .chain([BloomInput::Raw(event.address.as_bytes())])
         });
         let logs_bloom = build_bloom(iter);
+        progress.observe(Some(block.events.len()));
         let definite_vm_version = self.protocol_version().into();
         L2BlockHeader {
             number: block.number,
@@ -391,7 +400,7 @@ impl UpdatesManager {
     }
 }
 
-// Getters
+// Simple getters
 impl UpdatesManager {
     pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
@@ -425,8 +434,20 @@ impl UpdatesManager {
         self.fee_account_address
     }
 
-    pub fn committed_updates(&self) -> &L1BatchUpdates {
+    pub fn committed_updates(&self) -> &CommittedUpdates {
         &self.committed_updates
+    }
+
+    pub fn storage_writes_deduplicator(&self) -> &StorageWritesDeduplicator {
+        &self.storage_writes_deduplicator
+    }
+
+    pub fn storage_writes_deduplicator_mut(&mut self) -> &mut StorageWritesDeduplicator {
+        &mut self.storage_writes_deduplicator
+    }
+
+    pub fn sync_block_data_and_header_persistence(&self) -> bool {
+        self.sync_block_data_and_header_persistence
     }
 }
 
@@ -447,6 +468,7 @@ pub struct L2BlockSealCommand {
     /// before they are included into L2 blocks.
     pub pre_insert_txs: bool,
     pub pubdata_params: PubdataParams,
+    pub insert_header: bool,
 }
 
 #[cfg(test)]

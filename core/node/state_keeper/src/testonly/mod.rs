@@ -76,7 +76,7 @@ impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
     }
 
     async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
-        Ok(())
+        panic!("unexpected l2 block rollback");
     }
 }
 

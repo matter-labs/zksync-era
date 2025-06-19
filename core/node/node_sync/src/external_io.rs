@@ -318,6 +318,15 @@ impl StateKeeperIO for ExternalIO {
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
+    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        self.actions.validate_ready_for_next_block();
+        Ok(())
+    }
+
+    async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
+        // Do nothing
+    }
+
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
         // We are replaying the already executed transactions so no rejections are expected to occur.
         anyhow::bail!(
@@ -325,9 +334,6 @@ impl StateKeeperIO for ExternalIO {
              This is not supported on external node",
             tx.hash()
         );
-    }
-
-    async fn advance_nonces(&mut self, _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>) {
     }
 
     async fn load_base_system_contracts(
@@ -377,11 +383,6 @@ impl StateKeeperIO for ExternalIO {
             .with_context(|| format!("error waiting for params for L1 batch #{l1_batch_number}"))?;
         wait_latency.observe();
         Ok(hash)
-    }
-
-    async fn rollback_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
-        assert!(self.actions.peeked_is_none());
-        Ok(())
     }
 }
 

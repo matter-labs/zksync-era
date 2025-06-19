@@ -150,8 +150,8 @@ impl ActionQueue {
         self.peeked.clone()
     }
 
-    pub(super) fn peeked_is_none(&self) -> bool {
-        self.peeked.is_none()
+    pub(super) fn validate_ready_for_next_block(&self) {
+        assert!(self.peeked.is_none());
     }
 }
 

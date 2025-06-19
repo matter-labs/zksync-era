@@ -251,6 +251,7 @@ fn create_block_seal_command(
         l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
         pubdata_params: PubdataParams::default(),
+        insert_header: true,
     }
 }
 
@@ -287,7 +288,6 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         0,
         L2BlockNumber(3),
         H256::zero(),
-        None,
         1,
         ProtocolVersionId::latest(),
     );
@@ -383,7 +383,6 @@ async fn processing_events_when_sealing_l2_block() {
         0,
         l2_block_number,
         H256::zero(),
-        None,
         1,
         ProtocolVersionId::latest(),
     );
@@ -464,7 +463,6 @@ async fn processing_dynamic_factory_deps_when_sealing_l2_block() {
         0,
         l2_block_number,
         H256::zero(),
-        None,
         1,
         ProtocolVersionId::latest(),
     );
@@ -602,6 +600,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         version,
         cursor.prev_l1_batch_timestamp,
         Some(cursor.prev_l2_block_timestamp),
+        true,
     );
 
     let tx_hash = tx.hash();
@@ -617,11 +616,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
             .await
             .unwrap();
     tokio::spawn(l2_block_sealer.run());
-    persistence.handle_l2_block(&updates).await.unwrap();
-    persistence
-        .handle_l2_block_header(&updates.header_for_first_pending_block())
-        .await
-        .unwrap();
+    persistence.handle_l2_block_data(&updates).await.unwrap();
 
     // Check that the L2 block is persisted and has correct data.
     let persisted_l2_block = storage

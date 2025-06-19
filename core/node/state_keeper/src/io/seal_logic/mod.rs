@@ -238,7 +238,7 @@ impl UpdatesManager {
         transaction.commit().await?;
         progress.observe(None);
 
-        let writes_metrics = self.storage_writes_deduplicator.metrics();
+        let writes_metrics = self.storage_writes_deduplicator().metrics();
         // Sanity check metrics.
         anyhow::ensure!(
             all_writes_len
@@ -356,7 +356,8 @@ impl L2BlockSealCommand {
         // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
-        if is_fictive {
+        // Header is only sealed if the block is fictive. Otherwise, header will be saved separately.
+        if self.insert_header {
             let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
             let iter = self.l2_block.events.iter().flat_map(|event| {
                 event

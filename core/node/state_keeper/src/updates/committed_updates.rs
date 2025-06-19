@@ -1,12 +1,12 @@
 use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
 use zksync_types::{
-    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, L1BatchNumber, H256,
+    priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, H256,
 };
 
 use crate::updates::l2_block_updates::L2BlockUpdates;
 
 #[derive(Debug)]
-pub struct L1BatchUpdates {
+pub struct CommittedUpdates {
     pub executed_transaction_hashes: Vec<H256>,
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     pub block_execution_metrics: VmExecutionMetrics,
@@ -15,7 +15,7 @@ pub struct L1BatchUpdates {
     pub finished: Option<FinishedL1Batch>,
 }
 
-impl L1BatchUpdates {
+impl CommittedUpdates {
     pub(crate) fn new() -> Self {
         Self {
             executed_transaction_hashes: vec![],
@@ -66,7 +66,6 @@ mod tests {
             0,
             L2BlockNumber(0),
             H256::zero(),
-            None,
             1,
             ProtocolVersionId::latest(),
         );
@@ -80,7 +79,7 @@ mod tests {
             vec![],
         );
 
-        let mut l1_batch_accumulator = L1BatchUpdates::new();
+        let mut l1_batch_accumulator = CommittedUpdates::new();
         l1_batch_accumulator.extend_from_sealed_l2_block(l2_block_accumulator);
 
         assert_eq!(l1_batch_accumulator.executed_transaction_hashes.len(), 1);

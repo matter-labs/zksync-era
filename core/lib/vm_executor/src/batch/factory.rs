@@ -402,18 +402,20 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
-                    if has_snapshot_before_tx {
-                        // Pop snapshot that was made before the previous tx.
-                        vm.pop_snapshot_no_rollback();
-                        has_snapshot_before_tx = false;
-                    }
-                    vm.make_snapshot();
+                    if self.fast_vm_mode == FastVmMode::Old {
+                        if has_snapshot_before_tx {
+                            // Pop snapshot that was made before the previous tx.
+                            vm.pop_snapshot_no_rollback();
+                            has_snapshot_before_tx = false;
+                        }
+                        vm.make_snapshot();
 
-                    block_snapshot_depth += 1;
-                    assert!(block_snapshot_depth <= MAX_BLOCK_ROLLBACK_DEPTH + 1);
-                    if block_snapshot_depth == MAX_BLOCK_ROLLBACK_DEPTH + 1 {
-                        vm.pop_front_snapshot_no_rollback();
-                        block_snapshot_depth -= 1;
+                        block_snapshot_depth += 1;
+                        assert!(block_snapshot_depth <= MAX_BLOCK_ROLLBACK_DEPTH + 1);
+                        if block_snapshot_depth == MAX_BLOCK_ROLLBACK_DEPTH + 1 {
+                            vm.pop_front_snapshot_no_rollback();
+                            block_snapshot_depth -= 1;
+                        }
                     }
 
                     vm.start_new_l2_block(l2_block_env);
@@ -430,6 +432,13 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     break;
                 }
                 Command::RollbackL2Block(resp) => {
+                    if self.fast_vm_mode != FastVmMode::Old {
+                        panic!(
+                            "RollbackL2Block is only supported for `FastVmMode::Old`, used: {:?}",
+                            self.fast_vm_mode
+                        );
+                    }
+
                     if has_snapshot_before_tx {
                         vm.pop_snapshot_no_rollback();
                         has_snapshot_before_tx = false;

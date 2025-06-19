@@ -288,7 +288,7 @@ impl StateKeeperIO for MempoolIO {
         Ok(())
     }
 
-    async fn rollback_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
+    async fn rollback_l2_block(&mut self, txs: Vec<Transaction>) -> anyhow::Result<()> {
         let mut to_add = Vec::with_capacity(txs.len());
         for tx in txs
             .into_iter()
