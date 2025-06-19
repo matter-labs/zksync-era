@@ -1,6 +1,6 @@
 //! State keeper persistence logic.
 
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -33,7 +33,7 @@ pub struct StateKeeperPersistence {
     pre_insert_txs: bool,
     insert_protective_reads: bool,
     commands_sender: mpsc::Sender<Completable<L2BlockSealCommand>>,
-    l2_block_completion: HashMap<L2BlockNumber, oneshot::Receiver<()>>,
+    l2_block_completion: BTreeMap<L2BlockNumber, oneshot::Receiver<()>>,
     latest_l2_block_submitted: Option<L2BlockNumber>,
     // If true, `submit_l2_block()` will wait for the operation to complete.
     is_sync: bool,
@@ -97,7 +97,7 @@ impl StateKeeperPersistence {
             pre_insert_txs: false,
             insert_protective_reads: true,
             commands_sender,
-            l2_block_completion: HashMap::new(),
+            l2_block_completion: BTreeMap::new(),
             latest_l2_block_submitted: None,
             is_sync,
         };
@@ -200,6 +200,9 @@ impl StateKeeperPersistence {
 
         let elapsed = start.elapsed();
         tracing::debug!("L2 block #{number} command is awaited (took {elapsed:?})");
+
+        // Drop old completion receivers to avoid memory leaks.
+        self.l2_block_completion = self.l2_block_completion.split_off(&(number + 1));
     }
 }
 
@@ -429,6 +432,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use futures::FutureExt;
+    use test_casing::{test_casing, Product};
     use zksync_dal::CoreDal;
     use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
@@ -448,6 +452,7 @@ mod tests {
     async fn test_l2_block_and_l1_batch_processing(
         pool: ConnectionPool<Core>,
         l2_block_sealer_capacity: usize,
+        sync_block_data_and_header_persistence: bool,
     ) {
         let mut storage = pool.connection().await.unwrap();
         insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -477,7 +482,12 @@ mod tests {
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
-        execute_mock_batch(&mut output_handler, &pool).await;
+        execute_mock_batch(
+            &mut output_handler,
+            &pool,
+            sync_block_data_and_header_persistence,
+        )
+        .await;
 
         // Check that L2 block #1 and L1 batch #1 are persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -529,6 +539,7 @@ mod tests {
     async fn execute_mock_batch(
         output_handler: &mut OutputHandler,
         pool: &ConnectionPool<Core>,
+        sync_block_data_and_header_persistence: bool,
     ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
         let previous_batch_timestamp = l1_batch_env.first_l2_block.timestamp - 1;
@@ -543,6 +554,7 @@ mod tests {
             ProtocolVersionId::latest(),
             previous_batch_timestamp,
             None,
+            sync_block_data_and_header_persistence,
         );
         pool.connection()
             .await
@@ -567,10 +579,13 @@ mod tests {
             vec![],
         );
         output_handler.handle_l2_block_data(&updates).await.unwrap();
-        output_handler
-            .handle_l2_block_header(&updates.header_for_first_pending_block())
-            .await
-            .unwrap();
+        if !sync_block_data_and_header_persistence {
+            // If we are not in sync mode, we need to handle the header separately.
+            output_handler
+                .handle_l2_block_header(&updates.header_for_first_pending_block())
+                .await
+                .unwrap();
+        }
         updates.commit_pending_block();
         updates.set_next_l2_block_params(L2BlockParams::new(1000));
         updates.push_l2_block();
@@ -602,16 +617,19 @@ mod tests {
         tx_hash
     }
 
+    #[test_casing(4, Product(([0, 1], [false, true])))]
     #[tokio::test]
-    async fn l2_block_and_l1_batch_processing() {
+    async fn l2_block_and_l1_batch_processing(
+        l2_block_sealer_capacity: usize,
+        sync_block_data_and_header_persistence: bool,
+    ) {
         let pool = ConnectionPool::constrained_test_pool(1).await;
-        test_l2_block_and_l1_batch_processing(pool, 1).await;
-    }
-
-    #[tokio::test]
-    async fn l2_block_and_l1_batch_processing_with_sync_sealer() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
-        test_l2_block_and_l1_batch_processing(pool, 0).await;
+        test_l2_block_and_l1_batch_processing(
+            pool,
+            l2_block_sealer_capacity,
+            sync_block_data_and_header_persistence,
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -637,7 +655,7 @@ mod tests {
         let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
 
-        let tx_hash = execute_mock_batch(&mut output_handler, &pool).await;
+        let tx_hash = execute_mock_batch(&mut output_handler, &pool, true).await;
 
         // Check that the transaction is persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -776,6 +794,7 @@ mod tests {
             ProtocolVersionId::latest(),
             previous_batch_timestamp,
             None,
+            false,
         );
         pool.connection()
             .await

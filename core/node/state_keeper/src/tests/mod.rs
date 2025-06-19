@@ -78,6 +78,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
         ProtocolVersionId::latest(),
         previous_batch_timestamp,
         None,
+        true,
     )
 }
 

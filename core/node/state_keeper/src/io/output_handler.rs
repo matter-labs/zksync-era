@@ -56,8 +56,11 @@ impl StateKeeperOutputHandler for SyncState {
 
     async fn handle_l2_block_data(
         &mut self,
-        _updates_manager: &UpdatesManager,
+        updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
+        if updates_manager.sync_block_data_and_header_persistence() {
+            self.set_local_block(updates_manager.last_pending_l2_block().number);
+        }
         Ok(())
     }
 

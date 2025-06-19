@@ -225,7 +225,7 @@ impl TestScenario {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor = TestBatchExecutorBuilder::new(&self);
-        let block_numbers_to_rollback = self
+        let block_numbers_to_rollback: VecDeque<_> = self
             .actions
             .iter()
             .filter_map(|item| {
@@ -238,7 +238,7 @@ impl TestScenario {
             .collect();
         let (stop_sender, stop_receiver) = watch::channel(false);
         let (io, output_handler) = TestIO::new(stop_sender, self);
-        let builder = StateKeeperBuilder::new(
+        let mut builder = StateKeeperBuilder::new(
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
@@ -246,10 +246,19 @@ impl TestScenario {
             Arc::new(MockReadStorageFactory),
             None,
         );
+        if !block_numbers_to_rollback.is_empty() {
+            builder = builder.with_leader_rotation(true);
+        }
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
-        let sk_thread = tokio::spawn(
-            state_keeper.run_with_rollback_enabled(stop_receiver, block_numbers_to_rollback),
-        );
+        let sk_thread = tokio::spawn(async move {
+            if block_numbers_to_rollback.is_empty() {
+                state_keeper.run(stop_receiver).await
+            } else {
+                state_keeper
+                    .run_with_rollback_enabled(stop_receiver, block_numbers_to_rollback)
+                    .await
+            }
+        });
 
         // We must assume that *theoretically* state keeper may ignore the stop request from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.

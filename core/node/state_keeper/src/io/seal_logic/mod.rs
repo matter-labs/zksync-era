@@ -357,7 +357,7 @@ impl L2BlockSealCommand {
         L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
         // Header is only sealed if the block is fictive. Otherwise, header will be saved separately.
-        if is_fictive {
+        if self.insert_header {
             let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
             let iter = self.l2_block.events.iter().flat_map(|event| {
                 event
