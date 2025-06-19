@@ -1,0 +1,87 @@
+name: Build and release zksync-os images
+on:
+  push:
+    branches:
+      - zksync-os-integration
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+
+jobs:
+  changed_files:
+    runs-on: ubuntu-latest
+    name: Test changed-files
+    outputs:
+      core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
+      prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
+      all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 2
+
+      - name: Get all test, doc and src files that have changed
+        id: changed-files-yaml
+        uses: tj-actions/changed-files@48566bbcc22ceb7c5809ebdd27377309f2c3de8c # v39
+        with:
+          files_yaml: |
+            # TODO: make it more granular, as already implemented in CI workflow
+            # We don't want to be rebuilding and redeploying all the Docker images when eg. only document have changed
+            prover:
+              - prover/**
+              - core/lib/**
+              - zkos_prover/**
+              - '!core/lib/zksync_core_leftovers/**'
+            core:
+              - core/**
+            all:
+              - '!core/**'
+              - '!prover/**'
+  setup:
+    name: Setup
+    runs-on: [ matterlabs-deployer-stage ]
+    outputs:
+      image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
+      prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Generate image tag suffix
+        id: generate-tag-suffix
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          ts=$(date +%s%N | cut -b1-13)
+          echo "image_tag_suffix=${sha}-${ts}" >> $GITHUB_OUTPUT
+
+      - name: Generate outputs with Prover FRI setup data keys IDs
+        id: extract-prover-fri-setup-key-ids
+        run: |
+          ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
+
+  build-push-core-images:
+    name: Build and push images
+    needs: [ setup, changed_files ]
+    uses: ./.github/workflows/build-core-template.yml
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "push"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+
+  build-push-prover-images:
+    name: Build and push images
+    needs: [ setup, changed_files ]
+    uses: ./.github/workflows/build-zksyncos-prover-template.yml
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      action: "push"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
