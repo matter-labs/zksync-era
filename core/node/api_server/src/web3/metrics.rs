@@ -3,17 +3,14 @@
 use std::{borrow::Cow, fmt, time::Duration};
 
 use vise::{
-    Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram,
-    Info, LabeledFamily, Metrics, MetricsFamily, Unit,
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    Metrics, MetricsFamily, Unit,
 };
 use zksync_instrument::filter::{report_filter, ReportFilter};
 use zksync_types::api;
 use zksync_web3_decl::error::Web3Error;
 
-use super::{
-    backend_jsonrpsee::MethodMetadata, ApiTransport, InternalApiConfig, OptionalApiParams,
-    TypedFilter,
-};
+use super::{backend_jsonrpsee::MethodMetadata, ApiTransport, TypedFilter};
 use crate::tx_sender::SubmitTxError;
 
 /// Observed version of RPC parameters. Have a bounded upper-limit size (256 bytes), so that we don't over-allocate.
@@ -223,21 +220,6 @@ struct SubmitErrorLabels {
     reason: &'static str,
 }
 
-#[derive(Debug, EncodeLabelSet)]
-struct Web3ConfigLabels {
-    #[metrics(unit = Unit::Seconds)]
-    polling_interval: DurationAsSecs,
-    req_entities_limit: usize,
-    fee_history_limit: u64,
-    filters_limit: Option<usize>,
-    subscriptions_limit: Option<usize>,
-    #[metrics(unit = Unit::Bytes)]
-    batch_request_size_limit: Option<usize>,
-    #[metrics(unit = Unit::Bytes)]
-    response_body_size_limit: Option<usize>,
-    websocket_requests_per_minute_limit: Option<u32>,
-}
-
 /// Roughly exponential buckets for the `web3_call_block_diff` metric. The distribution should be skewed towards lower values.
 const SMALL_COUNT_BUCKETS: Buckets = Buckets::values(&[
     0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0,
@@ -249,9 +231,6 @@ const RESPONSE_SIZE_BUCKETS: Buckets = Buckets::exponential(1.0..=1_048_576.0, 4
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api")]
 pub(crate) struct ApiMetrics {
-    /// Web3 server configuration.
-    web3_info: Family<ApiTransportLabel, Info<Web3ConfigLabels>>,
-
     /// Latency of a Web3 call. Calls that take block ID as an input have block ID and block diff
     /// labels (the latter is the difference between the latest sealed L2 block and the resolved L2 block).
     #[metrics(buckets = Buckets::LATENCIES)]
@@ -282,34 +261,6 @@ pub(crate) struct ApiMetrics {
 }
 
 impl ApiMetrics {
-    pub(super) fn observe_config(
-        &self,
-        transport: ApiTransportLabel,
-        polling_interval: Duration,
-        config: &InternalApiConfig,
-        optional: &OptionalApiParams,
-    ) {
-        let config_labels = Web3ConfigLabels {
-            polling_interval: polling_interval.into(),
-            req_entities_limit: config.req_entities_limit,
-            fee_history_limit: config.fee_history_limit,
-            filters_limit: optional.filters_limit,
-            subscriptions_limit: optional.subscriptions_limit,
-            batch_request_size_limit: optional.batch_request_size_limit,
-            response_body_size_limit: optional
-                .response_body_size_limit
-                .as_ref()
-                .map(|limit| limit.global),
-            websocket_requests_per_minute_limit: optional
-                .websocket_requests_per_minute_limit
-                .map(Into::into),
-        };
-        tracing::info!("{transport:?} Web3 server is configured with options: {config_labels:?}");
-        if self.web3_info[&transport].set(config_labels).is_err() {
-            tracing::warn!("Cannot set config labels for {transport:?} Web3 server");
-        }
-    }
-
     /// Observes latency of a finished RPC call.
     pub(super) fn observe_latency(
         &self,

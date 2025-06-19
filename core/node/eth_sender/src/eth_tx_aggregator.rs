@@ -145,7 +145,7 @@ impl EthTxAggregator {
         }
     }
 
-    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         self.health_updater
             .update(Health::from(HealthStatus::Ready));
 
@@ -155,22 +155,25 @@ impl EthTxAggregator {
         );
 
         let pool = self.pool.clone();
-        loop {
+        while !*stop_receiver.borrow() {
             let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
-
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
-                break;
-            }
-
             if let Err(err) = self.loop_iteration(&mut storage).await {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 tracing::warn!("eth_sender error {err:?}");
             }
+            drop(storage);
 
-            tokio::time::sleep(self.config.aggregate_tx_poll_period).await;
+            // The stop receiver status will be checked immediately in the loop condition.
+            tokio::time::timeout(
+                self.config.aggregate_tx_poll_period,
+                stop_receiver.changed(),
+            )
+            .await
+            .ok();
         }
+
+        tracing::info!("Stop request received, eth_tx_aggregator is shutting down");
         Ok(())
     }
 
