@@ -24,7 +24,7 @@ jobs:
 
       - name: Get all test, doc and src files that have changed
         id: changed-files-yaml
-        uses: tj-actions/changed-files@48566bbcc22ceb7c5809ebdd27377309f2c3de8c # v39
+        uses: tj-actions/changed-files@v41
         with:
           files_yaml: |
             # TODO: make it more granular, as already implemented in CI workflow
@@ -68,6 +68,7 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
+      zksync_os: true
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
