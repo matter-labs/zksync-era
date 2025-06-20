@@ -43,6 +43,8 @@ pub struct L1BatchEthSenderStats {
 pub struct StorageTxHistory {
     pub id: i32,
     pub eth_tx_id: i32,
+    pub tx_type: AggregatedActionType,
+    pub chain_id: Option<i64>,
     pub priority_fee_per_gas: i64,
     pub base_fee_per_gas: i64,
     pub tx_hash: String,
@@ -62,7 +64,7 @@ pub struct StorageTxHistory {
     pub max_gas_per_pubdata: Option<i64>,
     pub predicted_gas_limit: Option<i64>,
     pub sent_successfully: bool,
-    pub finality_status: Option<String>,
+    pub finality_status: String,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -93,6 +95,10 @@ impl From<StorageTxHistory> for TxHistory {
         TxHistory {
             id: history.id as u32,
             eth_tx_id: history.eth_tx_id as u32,
+            tx_type: history.tx_type,
+            chain_id: history
+                .chain_id
+                .map(|chain_id| SLChainId(chain_id.try_into().unwrap())),
             base_fee_per_gas: history.base_fee_per_gas as u64,
             priority_fee_per_gas: history.priority_fee_per_gas as u64,
             blob_base_fee_per_gas: history.blob_base_fee_per_gas.map(|v| v as u64),
@@ -104,10 +110,8 @@ impl From<StorageTxHistory> for TxHistory {
             sent_at_block: history.sent_at_block.map(|block| block as u32),
             max_gas_per_pubdata: history.max_gas_per_pubdata.map(|v| v as u64),
             sent_successfully: history.sent_successfully,
-            eth_tx_finality_status: history
-                .finality_status
-                .as_deref()
-                .and_then(|s| EthTxFinalityStatus::from_str(s).ok()),
+            eth_tx_finality_status: EthTxFinalityStatus::from_str(history.finality_status.as_ref())
+                .expect("Invalid finality status"),
         }
     }
 }
