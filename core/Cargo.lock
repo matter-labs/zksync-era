@@ -11663,7 +11663,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.152.3",
+ "zk_evm_abstractions 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
 ]
 
 [[package]]
@@ -11715,7 +11715,7 @@ dependencies = [
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.152.2",
+ "zkevm_opcode_defs 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -11727,19 +11727,7 @@ dependencies = [
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.152.3",
-]
-
-[[package]]
-name = "zk_evm_abstractions"
-version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 0.152.3",
+ "zkevm_opcode_defs 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
 ]
 
 [[package]]
@@ -11811,7 +11799,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 0.152.3",
+ "zkevm_opcode_defs 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "zksync_cs_derive",
 ]
 
@@ -11878,7 +11866,7 @@ dependencies = [
 name = "zkevm_opcode_defs"
 version = "0.152.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "117d135367b66f3c4dab8717113eb3898d514e8c3886ac3d4367919ae3f2824d"
+checksum = "04f02fb6f185df1aa4f33b18002024c50e73e3f701d25070e7da0c419bb93d77"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
@@ -12951,7 +12939,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.151.5",
+ "zk_evm 0.151.8",
  "zk_evm 0.152.3",
  "zksync_contracts",
  "zksync_eth_signer",
@@ -13820,8 +13808,8 @@ checksum = "43b3bc8ecfdfdc986aff5229f995340cad4c7c1967f0ad96ac870d354847925f"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.152.3",
- "zkevm_opcode_defs 0.152.3",
+ "zk_evm_abstractions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zkevm_opcode_defs 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "zksync_vm2_interface",
 ]
 

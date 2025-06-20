@@ -1213,7 +1213,20 @@ version = "0.152.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "558525d05da2dcb1a4953cc0ea80fe4bd57f9586b052db4660ec18962c4af8a5"
 dependencies = [
- "circuit_encodings",
+ "circuit_encodings 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "crossbeam",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+]
+
+[[package]]
+name = "circuit_definitions"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "circuit_encodings 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "crossbeam",
  "derivative",
  "seq-macro",
@@ -1229,8 +1242,19 @@ checksum = "a8381cbb52de325fb551347a7eb7af77c8b1df919da51c49405540f207c92313"
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.152.3",
- "zkevm_circuits",
+ "zk_evm 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zkevm_circuits 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "circuit_encodings"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
+ "zkevm_circuits 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
 ]
 
 [[package]]
@@ -1242,7 +1266,19 @@ dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.152.3",
+ "zk_evm 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zksync_bellman",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "derivative",
+ "rayon",
+ "serde",
+ "zk_evm 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "zksync_bellman",
 ]
 
@@ -2274,7 +2310,7 @@ checksum = "93315a9a11b4ff78c4e79d5f6a1aaf25880441e3d6394248d982f03fa832ee01"
 dependencies = [
  "bincode",
  "byteorder",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "fflonk",
  "rand 0.4.6",
@@ -5007,7 +5043,7 @@ dependencies = [
  "bincode",
  "byteorder",
  "cfg-if",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "fflonk-cuda",
  "serde",
  "serde_json",
@@ -5162,7 +5198,7 @@ dependencies = [
  "assert_cmd",
  "bincode",
  "chrono",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 4.5.37",
  "colored",
  "dialoguer",
@@ -6381,7 +6417,7 @@ dependencies = [
  "bincode",
  "boojum",
  "boojum-cuda",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative",
  "era_cudart",
  "era_cudart_sys",
@@ -8566,7 +8602,21 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.152.3",
+ "zk_evm_abstractions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zk_evm"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
 ]
 
 [[package]]
@@ -8618,7 +8668,19 @@ dependencies = [
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.152.3",
+ "zkevm_opcode_defs 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zk_evm_abstractions"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "anyhow",
+ "num_enum 0.6.1",
+ "serde",
+ "static_assertions",
+ "zkevm_opcode_defs 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
 ]
 
 [[package]]
@@ -8638,7 +8700,7 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror 1.0.69",
- "zkevm_opcode_defs 0.152.3",
+ "zkevm_opcode_defs 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -8659,7 +8721,28 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 0.152.3",
+ "zkevm_opcode_defs 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zksync_cs_derive",
+]
+
+[[package]]
+name = "zkevm_circuits"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "arrayvec 0.7.6",
+ "boojum",
+ "derivative",
+ "hex",
+ "itertools 0.10.5",
+ "lazy_static",
+ "rand 0.4.6",
+ "rand 0.8.5",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "zkevm_opcode_defs 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "zksync_cs_derive",
 ]
 
@@ -8741,15 +8824,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkevm_opcode_defs"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "bitflags 2.9.0",
+ "blake2 0.10.6",
+ "ethereum-types",
+ "k256 0.13.4",
+ "lazy_static",
+ "p256 0.13.2",
+ "serde",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "zksync_pairing",
+]
+
+[[package]]
 name = "zkevm_test_harness"
 version = "0.152.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad1ca25c6858c0b2f28efc577142e0d41554ac9234c5888a47fd7075acb99e24"
 dependencies = [
  "bincode",
- "circuit_definitions",
- "circuit_encodings",
- "circuit_sequencer_api",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "circuit_encodings 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "circuit_sequencer_api 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "codegen",
  "crossbeam",
  "derivative",
@@ -8766,7 +8866,7 @@ dependencies = [
  "test-log",
  "tracing",
  "zkevm-assembly",
- "zksync_kzg",
+ "zksync_kzg 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -9179,7 +9279,23 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "zkevm_circuits",
+ "zkevm_circuits 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zksync_kzg"
+version = "0.152.3"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
+dependencies = [
+ "boojum",
+ "derivative",
+ "hex",
+ "once_cell",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "zkevm_circuits 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
 ]
 
 [[package]]
@@ -9187,13 +9303,13 @@ name = "zksync_l1_contract_interface"
 version = "28.6.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "fflonk",
  "hex",
  "once_cell",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "zksync_kzg",
+ "zksync_kzg 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
  "zksync_types",
@@ -9213,7 +9329,7 @@ name = "zksync_multivm"
 version = "28.6.0-non-semver-compat"
 dependencies = [
  "anyhow",
- "circuit_sequencer_api",
+ "circuit_sequencer_api 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "ethabi",
  "hex",
  "itertools 0.13.0",
@@ -9226,7 +9342,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.151.8",
- "zk_evm 0.152.3",
+ "zk_evm 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
@@ -9429,7 +9545,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "21.1.0"
 dependencies = [
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -9450,7 +9566,7 @@ version = "28.6.0-non-semver-compat"
 dependencies = [
  "chrono",
  "ciborium",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702)",
  "fflonk",
  "serde",
  "serde_with",
@@ -9502,7 +9618,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "boojum-cuda",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "fflonk",
  "fflonk-cuda",
  "futures 0.3.31",
@@ -9624,7 +9740,7 @@ name = "zksync_vk_setup_data_generator_server_fri"
 version = "21.1.0"
 dependencies = [
  "anyhow",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 4.5.37",
  "indicatif",
  "proof-compression",
@@ -9673,8 +9789,8 @@ checksum = "43b3bc8ecfdfdc986aff5229f995340cad4c7c1967f0ad96ac870d354847925f"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.152.3",
- "zkevm_opcode_defs 0.152.3",
+ "zk_evm_abstractions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zkevm_opcode_defs 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "zksync_vm2_interface",
 ]
 
@@ -9730,7 +9846,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_definitions",
+ "circuit_definitions 0.152.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "const-decoder 0.3.0",
  "ctrlc",
  "futures 0.3.31",
