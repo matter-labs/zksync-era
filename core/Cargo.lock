@@ -2189,7 +2189,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -2202,7 +2202,7 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "derivative",
  "serde",
@@ -2213,7 +2213,7 @@ dependencies = [
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "derivative",
  "rayon",
@@ -11619,7 +11619,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -11685,7 +11685,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
@@ -11749,7 +11749,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -11847,7 +11847,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
@@ -12750,7 +12750,7 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.152.3"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#a8691e7cb068707cbb85ff793a840a2a38e0c2eb"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-7702#357c44e7ba221aac3462a37fc65cde822cf9c575"
 dependencies = [
  "boojum",
  "derivative",
