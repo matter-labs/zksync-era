@@ -56,7 +56,7 @@ Node.
 
 ## Logs
 
-_Note: logs with the `error` level are reported to Sentry if it's configured. If you notice unneeded alerts there that
+_Note: logs with the `error` level are reported to Sentry if it is configured. If you notice unneeded alerts there that
 you don't consider actionable, you may disable logs for a component by tweaking the configuration._
 
 | Level | Log substring                                         | Interpretation                                                                                           |
@@ -96,8 +96,9 @@ the last L1 batch to be retained by the node after the revert. The node will exe
 can be started normally.
 
 ```admonish warning
-Do not revert the node state by manually removing rows from Postgres. The node uses RocksDB instances (for the Merkle tree and state keeper cache)
+Do not revert the node state by manually removing rows from Postgres. The node uses RocksDB instances
+(for [the Merkle tree](06_components.md#merkle-tree) and [state keeper](06_components.md#state-keeper--vm) cache)
 besides Postgres, which are expected to be in sync with Postgres at all times.
-If this invariant breaks, the RocksDB instances may become irreperably broken, which would require rebuilding the Merkle tree / state keeper cache
+If this invariant breaks, the RocksDB instances may become irreparably broken, which would require rebuilding the Merkle tree / state keeper cache
 from scratch. This would result in significant performance degradation (for the cache) / delays in block processing (for the Merkle tree).
 ```

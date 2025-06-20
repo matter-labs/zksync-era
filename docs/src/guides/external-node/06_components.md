@@ -32,9 +32,25 @@ reducing the chances of a transaction not being included in a block.
 The State Keeper component serves as the "sequencer" part of the node. It shares most of its functionality with the main
 node, with one key distinction. The main node retrieves transactions from the mempool and has the authority to decide
 when a specific L2 block or L1 batch should be sealed. On the other hand, the Node retrieves transactions from the queue
-populated by the Fetcher and seals the corresponding blocks/batches based on the data obtained from the Fetcher queue.
+populated by the Fetcher and seals the corresponding blocks and batches based on the data obtained from the Fetcher
+queue.
 
-The actual execution of batches takes place within the VM, which is identical in both the Main and Nodes.
+The actual execution of batches takes place within the VM, which is identical with the main node.
+
+State keeper utilizes a RocksDB-based cache for the blockchain state (i.e., storage slots read / written by the VM).
+This provides a significant performance boost compared to using Postgres.
+
+## Merkle Tree
+
+The Merkle tree fulfils the same role as in Ethereum, committing to the blockchain state using an authenticated data
+structure. (The tree architecture differs from Ethereum; it is a single-level sparse Merkle tree of depth 256 using
+`blake2s-256` hash function.) RocksDB is used for tree persistence. The tree is updated with L1 batch granularity and is
+versioned (contains past versions for retrospective `zks_getProof` queries). Similar to Postgres storage, Merkle tree
+can be [pruned](08_pruning.md).
+
+For chains with large state and significant transaction throughput, Merkle tree is likely to consume significant RAM /
+storage. It is [possible](09_treeless_mode.md) to run a node without a tree, fetching L1 batch state root hashes from
+the main node instead.
 
 ## Reorg Detector
 
