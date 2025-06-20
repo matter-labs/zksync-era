@@ -9,6 +9,7 @@ use crate::implementations::layers::zkos_state_keeper::ZkOsStateKeeperTask;
 use crate::implementations::resources::fee_input::SequencerFeeInputResource;
 use crate::implementations::resources::state_keeper::{ZkOsConditionalSealerResource, ZkOsOutputHandlerResource, ZkOsStateKeeperIOResource};
 use crate::service::ShutdownHook;
+use crate::implementations::resources::object_store::ObjectStoreResource;
 
 #[derive(Debug)]
 pub struct ZkOsProverInputGeneratorLayer;
@@ -25,6 +26,7 @@ impl ZkOsProverInputGeneratorLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    object_store: ObjectStoreResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -37,6 +39,7 @@ pub struct Output {
 #[derive(Debug)]
 pub struct ZkOsProverInputGeneratorTask {
     pool: PoolResource<MasterPool>,
+    pub object_store: ObjectStoreResource,
 }
 
 #[async_trait::async_trait]
@@ -51,6 +54,7 @@ impl WiringLayer for ZkOsProverInputGeneratorLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let prover_input_generator_task = ZkOsProverInputGeneratorTask {
             pool: input.master_pool.clone(),
+            object_store: input.object_store,
         };
         Ok(Output {
             prover_input_generator_task,
@@ -66,10 +70,13 @@ impl Task for ZkOsProverInputGeneratorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let zkos_prover_input_generator = ZkosProverInputGenerator::new(
-            stop_receiver.0,
-            self.pool.get().await?,
-        );
+        let object_store = self.object_store.0;
+        let zkos_prover_input_generator =
+            ZkosProverInputGenerator::new(
+                stop_receiver.0,
+                self.pool.get().await?,
+                object_store,
+            );
         zkos_prover_input_generator.run().await
     }
 }

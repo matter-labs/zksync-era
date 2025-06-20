@@ -1,8 +1,9 @@
-use std::alloc::Global;
-use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
+use std::{
+    alloc::Global,
+    collections::{HashMap, VecDeque},
+    path::PathBuf,
+};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use anyhow::Context;
 use ruint::aliases::U256;
 use tokio::sync::watch;
@@ -11,27 +12,34 @@ use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zk_os_forward_system::run::{BatchContext, StorageCommitment};
 use zk_os_forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_l1_contract_interface::i_executor::{batch_output_hash_as_register_values, batch_public_input};
-use zksync_l1_contract_interface::zkos_commitment_to_vm_batch_output;
-use zksync_types::{H256, L1BatchNumber, L2BlockNumber};
-use zksync_types::block::L2BlockHeader;
-use zksync_types::commitment::ZkosCommitment;
+use zksync_l1_contract_interface::{
+    i_executor::{batch_output_hash_as_register_values, batch_public_input},
+    zkos_commitment_to_vm_batch_output,
+};
+use zksync_object_store::ObjectStore;
+use zksync_types::{
+    H256, L1BatchNumber, L2BlockNumber,
+    block::L2BlockHeader, commitment::ZkosCommitment,
+};
 use zksync_zkos_vm_runner::zkos_conversions::{h256_to_bytes32, tx_abi_encode};
 use crate::zkos_proof_data_server::run;
 
 pub struct ZkosProverInputGenerator {
     stop_receiver: watch::Receiver<bool>,
     pool: ConnectionPool<Core>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 impl ZkosProverInputGenerator {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         pool: ConnectionPool<Core>,
+        object_store: Arc<dyn ObjectStore>,
     ) -> ZkosProverInputGenerator {
         Self {
             stop_receiver,
             pool,
+            object_store,
         }
     }
 
@@ -58,7 +66,7 @@ impl ZkosProverInputGenerator {
 
         // todo: should be a different layer
         tracing::info!("Starting HTTP server in a separate thread");
-        tokio::spawn(run(self.pool.clone()));
+        tokio::spawn(run(self.pool.clone(), self.object_store.clone()));
 
         let last_processed_block = connection.zkos_prover_dal().last_block_with_generated_input().await?;
 

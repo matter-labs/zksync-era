@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router, serve,
 };
+use futures::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use axum::extract::{DefaultBodyLimit, Path};
@@ -14,6 +15,7 @@ use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_types::{L1BatchNumber, L2BlockNumber};
 use zksync_types::commitment::{L1BatchWithMetadata, ZkosCommitment};
 use crate::proof_verifier::verify_fri_proof;
@@ -34,11 +36,16 @@ struct AvailableProofsPayload {
     block_number: u32,
     available_proofs: Vec<String>,
 }
+
+struct AppState {
+    pool: Arc<ConnectionPool<Core>>,
+    object_store: Arc<dyn ObjectStore>,
+}
+
 /// Handler to fetch the next FRI block to prove
-async fn pick_fri_job(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
-) -> Response {
-    let mut conn = pool
+async fn pick_fri_job(State(state): State<Arc<AppState>>) -> Response {
+    let mut conn = state
+        .pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
@@ -69,10 +76,11 @@ async fn pick_fri_job(
 
 /// Handler to submit an FRI proof
 async fn submit_fri_proof(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<ProofPayload>,
 ) -> Result<Response, (StatusCode, String)> {
-    let mut conn = pool
+    let mut conn = state
+        .pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
@@ -109,6 +117,21 @@ async fn submit_fri_proof(
             (StatusCode::BAD_REQUEST, format!("FRI proof verification failed: {}", err))
         })?;
 
+    upload_proof_to_s3(
+        state.object_store.clone(),
+        "FRI",
+        L2BlockNumber(payload.block_number),
+        &proof_bytes,
+    )
+    .await
+    .map_err(|err| {
+        error!("Cannot upload to s3: {}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Cannot upload to S3: {}", err),
+        )
+    })?;
+
 
     conn.zkos_prover_dal()
         .save_fri_proof(L2BlockNumber(payload.block_number), proof_bytes)
@@ -120,10 +143,9 @@ async fn submit_fri_proof(
 }
 
 /// Handler to fetch the next SNARK block to prove
-async fn pick_snark_job(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
-) -> Response {
-    let mut conn = pool
+async fn pick_snark_job(State(state): State<Arc<AppState>>) -> Response {
+    let mut conn = state
+        .pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
@@ -154,11 +176,12 @@ async fn pick_snark_job(
 
 /// Handler to submit a SNARK proof (stub)
 async fn submit_snark_proof(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<ProofPayload>,
 ) -> Response {
     // TODO: implement save_snark_proof in DAL
-    let mut conn = pool
+    let mut conn = state
+        .pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
@@ -187,17 +210,14 @@ async fn submit_snark_proof(
 
 
 /// Handler to list blocks with available proofs
-async fn list_available_proofs(
-    State(pool): State<Arc<ConnectionPool<Core>>>,
-) -> Response {
-    let mut conn = pool
+async fn list_available_proofs(State(state): State<Arc<AppState>>) -> Response {
+    let mut conn = state
+        .pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
 
     info!("Fetching available proofs per block");
-    // TODO: implement `list_available_proofs` in DAL. Expected signature:
-    //   async fn list_available_proofs(&mut self) -> anyhow::Result<Vec<(L2BlockNumber, Vec<String>)>>
     match conn
         .zkos_prover_dal()
         .list_available_proofs()
@@ -223,9 +243,10 @@ async fn list_available_proofs(
 /// NEW: Handler to fetch a specific proof by type and block number
 async fn get_proof(
     Path((proof_type, block_number)): Path<(String, u32)>,
-    State(pool): State<Arc<ConnectionPool<Core>>>,
+    State(state): State<Arc<AppState>>,
 ) -> Response {
-    let mut conn = pool
+    let mut conn = state
+        .pool
         .connection_tagged("zkos_proof_data_server")
         .await
         .expect("Failed to get DB connection");
@@ -275,9 +296,45 @@ async fn get_proof(
     }
 }
 
+async fn upload_proof_to_s3(
+    object_store: Arc<dyn ObjectStore>,
+    proof_type: &str,
+    block_number: L2BlockNumber,
+    proof_bytes: &[u8],
+) -> anyhow::Result<()> {
+    let s3_key = format!("{}_proof_{}", proof_type.to_lowercase(), block_number.0);
+    info!("Uploading {} proof to S3 with key: {}", proof_type, s3_key);
+
+    match object_store
+        .put_raw(Bucket::ZkOSProofs, &s3_key, proof_bytes.to_vec())
+        .await
+    {
+        Ok(_) => {
+            info!(
+                "Successfully uploaded {} proof to S3 for block {}",
+                proof_type, block_number
+            );
+            Ok(())
+        }
+        Err(err) => {
+            error!(
+                "Failed to upload {} proof to S3 for block {}: {}",
+                proof_type, block_number, err
+            );
+            Err(anyhow::anyhow!("Failed to store proof: {}", err))
+        }
+    }
+}
+
 /// Create and run the HTTP server
-pub async fn run(pool: ConnectionPool<Core>) -> anyhow::Result<()> {
-    let shared_pool = Arc::new(pool);
+pub async fn run(
+    pool: ConnectionPool<Core>,
+    object_store: Arc<dyn ObjectStore>,
+) -> anyhow::Result<()> {
+    let state = Arc::new(AppState {
+        pool: Arc::new(pool),
+        object_store,
+    });
 
     let app = Router::new()
         // FRI proof routes
@@ -307,7 +364,7 @@ pub async fn run(pool: ConnectionPool<Core>) -> anyhow::Result<()> {
             get(get_proof),
         )
         .layer(axum::extract::DefaultBodyLimit::disable())
-        .with_state(shared_pool);
+        .with_state(state);
 
     let bind_address = SocketAddr::from(([0, 0, 0, 0], 3124));
     info!("Starting proof data handler server on {}", bind_address);
