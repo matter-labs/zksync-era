@@ -22,16 +22,15 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, FriProofWrapper,
 };
-use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchId,
 };
 
 use super::JobMetadata;
 use crate::{
-    artifacts::{ArtifactsManager, JobId},
+    artifact_manager::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::JobManager,
+    rounds::{JobManager, VerificationKeyManager},
     utils::SchedulerPartialInputWrapper,
 };
 
@@ -60,6 +59,7 @@ pub struct SchedulerWitnessGeneratorJob {
 pub struct SchedulerWitnessJobMetadata {
     pub batch_id: L1BatchId,
     pub recursion_tip_job_id: u32,
+    pub started_at: Instant,
 }
 
 pub struct Scheduler;
@@ -80,8 +80,8 @@ impl JobManager for Scheduler {
         job: SchedulerWitnessGeneratorJob,
         _object_store: Arc<dyn ObjectStore>,
         _max_circuits_in_flight: usize,
-        started_at: Instant,
     ) -> anyhow::Result<SchedulerArtifacts> {
+        let started_at = Instant::now();
         tracing::info!(
             "Starting fri witness generation of type {:?} for block {}",
             AggregationRound::Scheduler,
@@ -103,8 +103,6 @@ impl JobManager for Scheduler {
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
-            .observe(started_at.elapsed());
 
         tracing::info!(
             "Scheduler generation for block {} is complete in {:?}",
@@ -124,7 +122,7 @@ impl JobManager for Scheduler {
     async fn prepare_job(
         metadata: SchedulerWitnessJobMetadata,
         object_store: &dyn ObjectStore,
-        keystore: Keystore,
+        keystore: Arc<dyn VerificationKeyManager>,
     ) -> anyhow::Result<Self::Job> {
         let started_at = Instant::now();
         let wrapper = Self::get_artifacts(
@@ -142,7 +140,6 @@ impl JobManager for Scheduler {
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
             .observe(started_at.elapsed());
 
-        let started_at = Instant::now();
         let node_vk = keystore
             .load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
@@ -158,16 +155,15 @@ impl JobManager for Scheduler {
             .context("get_recursion_tip_vk()")?;
         scheduler_witness.proof_witnesses = vec![recursion_tip_proof].into();
 
-        let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
+        let leaf_vk_commits = keystore
+            .get_leaf_vk_params()
+            .context("get_leaf_vk_params()")?;
         let leaf_layer_parameters = leaf_vk_commits
             .iter()
             .map(|el| el.1.clone())
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-
-        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::Scheduler.into()]
-            .observe(started_at.elapsed());
 
         Ok(SchedulerWitnessGeneratorJob {
             batch_id: metadata.batch_id,
@@ -202,10 +198,12 @@ impl JobManager for Scheduler {
                 "could not find recursion tip proof for l1 batch {}",
                 l1_batch_id
             ))?;
+        let started_at = Instant::now();
 
         Ok(Some(SchedulerWitnessJobMetadata {
             batch_id: l1_batch_id,
             recursion_tip_job_id,
+            started_at,
         }))
     }
 }
@@ -213,5 +211,8 @@ impl JobManager for Scheduler {
 impl JobMetadata for SchedulerWitnessJobMetadata {
     fn job_id(&self) -> JobId {
         JobId::new(self.batch_id.batch_number().0, self.batch_id.chain_id())
+    }
+    fn started_at(&self) -> Instant {
+        self.started_at
     }
 }

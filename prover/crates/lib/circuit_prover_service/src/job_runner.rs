@@ -9,14 +9,16 @@ use zksync_prover_fri_types::{
     get_current_pod_name, ProverServiceDataKey,
 };
 use zksync_prover_job_processor::{Backoff, BackoffAndCancellable, JobRunner};
-use zksync_prover_keystore::GoldilocksGpuProverSetupData;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata};
 
 use crate::{
     gpu_circuit_prover::{
         GpuCircuitProverExecutor, GpuCircuitProverJobPicker, GpuCircuitProverJobSaver,
     },
-    types::witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
+    types::{
+        setup_data::GoldilocksGpuProverSetupData,
+        witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
+    },
     witness_vector_generator::{
         HeavyWitnessVectorMetadataLoader, LightWitnessVectorMetadataLoader,
         WitnessVectorGeneratorExecutor, WitnessVectorGeneratorJobPicker,

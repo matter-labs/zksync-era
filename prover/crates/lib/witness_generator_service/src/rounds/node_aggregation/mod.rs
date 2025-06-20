@@ -20,7 +20,6 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, FriProofWrapper,
 };
-use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::NodeAggregationJobMetadata, L1BatchId,
@@ -28,9 +27,9 @@ use zksync_types::{
 
 use super::JobMetadata;
 use crate::{
-    artifacts::{ArtifactsManager, JobId},
+    artifact_manager::{ArtifactsManager, JobId},
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::JobManager,
+    rounds::{JobManager, VerificationKeyManager},
     utils::{load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts},
 };
 mod artifacts;
@@ -61,7 +60,7 @@ pub struct NodeAggregation;
 #[async_trait]
 impl JobManager for NodeAggregation {
     type Job = NodeAggregationWitnessGeneratorJob;
-    type Metadata = NodeAggregationJobMetadata;
+    type Metadata = (NodeAggregationJobMetadata, Instant);
 
     const ROUND: AggregationRound = AggregationRound::NodeAggregation;
     const SERVICE_NAME: &'static str = "fri_node_aggregation_witness_generator";
@@ -74,8 +73,8 @@ impl JobManager for NodeAggregation {
         job: NodeAggregationWitnessGeneratorJob,
         object_store: Arc<dyn ObjectStore>,
         max_circuits_in_flight: usize,
-        started_at: Instant,
     ) -> anyhow::Result<NodeAggregationArtifacts> {
+        let started_at = Instant::now();
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
         tracing::info!(
             "Starting witness generation of type {:?} for block {} circuit id {} depth {}",
@@ -180,10 +179,6 @@ impl JobManager for NodeAggregation {
             recursive_circuit_ids_and_urls.extend(recursive_circuit_id_and_url);
         }
 
-        WITNESS_GENERATOR_METRICS.witness_generation_time
-            [&AggregationRound::NodeAggregation.into()]
-            .observe(started_at.elapsed());
-
         tracing::info!(
             "Node witness generation for block {} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
             job.batch_id,
@@ -204,20 +199,19 @@ impl JobManager for NodeAggregation {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % metadata.batch_id, circuit_id = % metadata.circuit_id)
+        fields(l1_batch = % metadata.0.batch_id, circuit_id = % metadata.0.circuit_id)
     )]
     async fn prepare_job(
         metadata: Self::Metadata,
         object_store: &dyn ObjectStore,
-        keystore: Keystore,
+        keystore: Arc<dyn VerificationKeyManager>,
     ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
-        let started_at = Instant::now();
+        let (metadata, started_at) = metadata;
         let artifacts = Self::get_artifacts(&metadata, object_store).await?;
 
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
 
-        let started_at = Instant::now();
         let leaf_vk = keystore
             .load_recursive_layer_verification_key(metadata.circuit_id)
             .context("get_recursive_layer_vk_for_circuit_type")?;
@@ -227,9 +221,6 @@ impl JobManager for NodeAggregation {
             )
             .context("get_recursive_layer_vk_for_circuit_type()")?;
 
-        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
-            .observe(started_at.elapsed());
-
         Ok(NodeAggregationWitnessGeneratorJob {
             circuit_id: metadata.circuit_id,
             batch_id: metadata.batch_id,
@@ -238,7 +229,8 @@ impl JobManager for NodeAggregation {
             proofs_ids: metadata.prover_job_ids_for_proofs,
             leaf_vk,
             node_vk,
-            all_leafs_layer_params: get_leaf_vk_params(&keystore)
+            all_leafs_layer_params: keystore
+                .get_leaf_vk_params()
                 .context("get_leaf_vk_params()")?,
         })
     }
@@ -257,13 +249,16 @@ impl JobManager for NodeAggregation {
         else {
             return Ok(None);
         };
-
-        Ok(Some(metadata))
+        let started_at = Instant::now();
+        Ok(Some((metadata, started_at)))
     }
 }
 
-impl JobMetadata for NodeAggregationJobMetadata {
+impl JobMetadata for (NodeAggregationJobMetadata, Instant) {
     fn job_id(&self) -> JobId {
-        JobId::new(self.id, self.batch_id.chain_id())
+        JobId::new(self.0.id, self.0.batch_id.chain_id())
+    }
+    fn started_at(&self) -> Instant {
+        self.1
     }
 }

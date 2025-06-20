@@ -27,7 +27,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchId, ProtocolVersionId, U256};
 
-use crate::artifacts::JobId;
+use crate::artifact_manager::JobId;
 
 // Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
 pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
