@@ -48,7 +48,7 @@ RUN cd zkos_prover && \
     cmake -Bbellman-cuda/build -Sbellman-cuda/ -DCMAKE_BUILD_TYPE=Release && \
     cmake --build bellman-cuda/build/
 
-RUN cd zkos_prover && BELLMAN_CUDA_DIR=$PWD/bellman-cuda cargo build --features "gpu" --release
+RUN cd zkos_prover && BELLMAN_CUDA_DIR=$PWD/bellman-cuda cargo build  --release
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
