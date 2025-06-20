@@ -23,7 +23,6 @@ use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::metrics::SERVER_METRICS;
 use zksync_witness_generator_service::{
     rounds::{BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler},
