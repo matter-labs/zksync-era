@@ -75,5 +75,3 @@ pub trait VerificationKeyManager: 'static + Send + Sync {
         &self,
     ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>>;
 }
-
-// TODO: implement SimpleKeystore for VerificationKeyManager
