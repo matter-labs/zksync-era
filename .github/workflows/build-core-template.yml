@@ -250,6 +250,7 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ inputs.zksync_os && 'zksync_os-' || '' }}latest
             matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
 
       - name: Push docker image
@@ -258,6 +259,7 @@ jobs:
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
           docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ inputs.zksync_os && 'zksync_os-' || '' }}latest
 
   create_manifest:
     name: Create release manifest

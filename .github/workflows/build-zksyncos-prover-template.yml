@@ -97,9 +97,11 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
             ghcr.io/${{ github.repository_owner }}/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
+            ghcr.io/${{ github.repository_owner }}/zksyncos-prover:latest
 
       - name: Push docker image
         if: ${{ inputs.action == 'push' }}
         run: |
           docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
           docker push ghcr.io/${{ github.repository_owner }}/zksyncos-prover:${{ env.IMAGE_TAG_SHA_TS }}
+          docker push ghcr.io/${{ github.repository_owner }}/zksyncos-prover:latest
