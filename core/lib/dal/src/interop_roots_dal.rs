@@ -3,6 +3,33 @@ use zksync_types::{h256_to_u256, InteropRoot, L1BatchNumber, L2BlockNumber, SLCh
 
 use crate::Core;
 
+#[derive(Debug, sqlx::FromRow)]
+pub(crate) struct StorageInteropRoot {
+    pub chain_id: i64,
+    pub dependency_block_number: i64,
+    pub interop_root_sides: Vec<Vec<u8>>,
+    pub received_timestamp: i64,
+}
+
+impl TryFrom<StorageInteropRoot> for InteropRoot {
+    type Error = sqlx::Error;
+
+    fn try_from(rec: StorageInteropRoot) -> Result<Self, Self::Error> {
+        let sides = rec
+            .interop_root_sides
+            .iter()
+            .map(|side| h256_to_u256(H256::from_slice(side)))
+            .collect::<Vec<_>>();
+
+        Ok(Self {
+            chain_id: rec.chain_id as u32,
+            block_number: rec.dependency_block_number as u32,
+            sides,
+            received_timestamp: rec.received_timestamp as u64,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct InteropRootDal<'a, 'c> {
     pub storage: &'a mut Connection<'c, Core>,
@@ -50,9 +77,14 @@ impl InteropRootDal<'_, '_> {
         &mut self,
         number_of_roots: usize,
     ) -> DalResult<Vec<InteropRoot>> {
-        let records = sqlx::query!(
+        let records = sqlx::query_as!(
+            StorageInteropRoot,
             r#"
-            SELECT *
+            SELECT
+                interop_roots.chain_id,
+                interop_roots.dependency_block_number,
+                interop_roots.interop_root_sides,
+                interop_roots.received_timestamp
             FROM interop_roots
             WHERE processed_block_number IS NULL
             ORDER BY received_timestamp, dependency_block_number
@@ -60,24 +92,11 @@ impl InteropRootDal<'_, '_> {
             "#,
             number_of_roots as i64
         )
+        .try_map(InteropRoot::try_from)
         .instrument("get_new_interop_roots")
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|rec| {
-            let sides = rec
-                .interop_root_sides
-                .iter()
-                .map(|side| h256_to_u256(H256::from_slice(side)))
-                .collect::<Vec<_>>();
-
-            InteropRoot {
-                chain_id: rec.chain_id as u32,
-                block_number: rec.dependency_block_number as u32,
-                sides,
-                received_timestamp: rec.received_timestamp as u64,
-            }
-        })
         .collect();
         Ok(records)
     }
@@ -132,33 +151,25 @@ impl InteropRootDal<'_, '_> {
         &mut self,
         l2block_number: L2BlockNumber,
     ) -> DalResult<Vec<InteropRoot>> {
-        let records = sqlx::query!(
+        let records = sqlx::query_as!(
+            StorageInteropRoot,
             r#"
-            SELECT *
+            SELECT
+                interop_roots.chain_id,
+                interop_roots.dependency_block_number,
+                interop_roots.interop_root_sides,
+                interop_roots.received_timestamp
             FROM interop_roots
             WHERE processed_block_number = $1
             ORDER BY received_timestamp, dependency_block_number;
             "#,
             l2block_number.0 as i32
         )
+        .try_map(InteropRoot::try_from)
         .instrument("get_interop_roots")
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|rec| {
-            let sides = rec
-                .interop_root_sides
-                .iter()
-                .map(|side| h256_to_u256(H256::from_slice(side)))
-                .collect::<Vec<_>>();
-
-            InteropRoot {
-                chain_id: rec.chain_id as u32,
-                block_number: rec.dependency_block_number as u32,
-                sides,
-                received_timestamp: rec.received_timestamp as u64,
-            }
-        })
         .collect();
         Ok(records)
     }
@@ -167,9 +178,14 @@ impl InteropRootDal<'_, '_> {
         &mut self,
         batch_number: L1BatchNumber,
     ) -> DalResult<Vec<InteropRoot>> {
-        let roots = sqlx::query!(
+        let roots = sqlx::query_as!(
+            StorageInteropRoot,
             r#"
-            SELECT *
+            SELECT
+                interop_roots.chain_id,
+                interop_roots.dependency_block_number,
+                interop_roots.interop_root_sides,
+                interop_roots.received_timestamp
             FROM interop_roots
             JOIN miniblocks
                 ON interop_roots.processed_block_number = miniblocks.number
@@ -178,25 +194,12 @@ impl InteropRootDal<'_, '_> {
             "#,
             i64::from(batch_number.0)
         )
+        .try_map(InteropRoot::try_from)
         .instrument("get_interop_roots_batch")
         .with_arg("batch_number", &batch_number)
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|rec| {
-            let sides = rec
-                .interop_root_sides
-                .iter()
-                .map(|side| h256_to_u256(H256::from_slice(side)))
-                .collect::<Vec<_>>();
-
-            InteropRoot {
-                chain_id: rec.chain_id as u32,
-                block_number: rec.dependency_block_number as u32,
-                sides,
-                received_timestamp: rec.received_timestamp as u64,
-            }
-        })
         .collect();
 
         Ok(roots)

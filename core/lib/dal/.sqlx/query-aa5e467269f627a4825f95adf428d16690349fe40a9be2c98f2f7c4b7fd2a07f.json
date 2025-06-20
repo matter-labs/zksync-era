@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM interop_roots\n            WHERE processed_block_number IS NULL\n            ORDER BY received_timestamp, dependency_block_number\n            LIMIT $1\n            ",
+  "query": "\n            SELECT\n                interop_roots.chain_id,\n                interop_roots.dependency_block_number,\n                interop_roots.interop_root_sides,\n                interop_roots.received_timestamp\n            FROM interop_roots\n            WHERE processed_block_number = $1\n            ORDER BY received_timestamp, dependency_block_number;\n            ",
   "describe": {
     "columns": [
       {
@@ -15,16 +15,11 @@
       },
       {
         "ordinal": 2,
-        "name": "processed_block_number",
-        "type_info": "Int8"
-      },
-      {
-        "ordinal": 3,
         "name": "interop_root_sides",
         "type_info": "ByteaArray"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "received_timestamp",
         "type_info": "Int8"
       }
@@ -37,10 +32,9 @@
     "nullable": [
       false,
       false,
-      true,
       false,
       false
     ]
   },
-  "hash": "88a8115c10af377290c8f77b4a38a549141b5edc28069f7651f0f46db439ec70"
+  "hash": "aa5e467269f627a4825f95adf428d16690349fe40a9be2c98f2f7c4b7fd2a07f"
 }
