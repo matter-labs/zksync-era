@@ -151,7 +151,7 @@ describe('Smart contract behavior checks', () => {
         // TODO: provide a proper error for transactions that consume too much gas.
         // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
         // ...and then an actual transaction
-        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeReverted([]);
+        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice, customData: { gasPerPubdata: 50_000n } })).toBeReverted([]);
     });
 
     test('Should test reverting storage logs', async () => {
@@ -161,7 +161,7 @@ describe('Smart contract behavior checks', () => {
 
         // We manually provide a gas limit and gas price, since otherwise the exception would be thrown
         // while querying zks_estimateFee.
-        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })).toBeReverted();
+        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice, customData: { gasPerPubdata: 50_000n } })).toBeReverted();
 
         // The tx has been reverted, so the value Should not have been changed:
         const newValue = await counterContract.get();
