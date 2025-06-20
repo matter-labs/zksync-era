@@ -15,8 +15,8 @@ use zksync_block_reverter::{
 };
 use zksync_config::{
     configs::{
-        wallets::Wallets, BasicWitnessInputProducerConfig, DatabaseSecrets, GenesisConfigWrapper,
-        L1Secrets, ProtectiveReadsWriterConfig,
+        wallets::Wallets, BasicWitnessInputProducerConfig, GenesisConfigWrapper, L1Secrets,
+        PostgresSecrets, ProtectiveReadsWriterConfig,
     },
     full_config_schema,
     sources::ConfigFilePaths,
@@ -132,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
         .observability()?
         .install_with_logs(zksync_vlog::Logs::disable_default_logs)?;
 
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
     let wallets_config: Option<Wallets> = repo.parse_opt()?;
     let genesis_config = repo.parse::<GenesisConfigWrapper>()?.genesis;
@@ -142,7 +142,7 @@ async fn main() -> anyhow::Result<()> {
     let basic_witness_input_producer_config: BasicWitnessInputProducerConfig = repo.parse()?;
     let contracts: ContractsConfig = repo.parse()?;
     let postgres_config: PostgresConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
     let l1_secrets: L1Secrets = repo.parse()?;
 
     let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;

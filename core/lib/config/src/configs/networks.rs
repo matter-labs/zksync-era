@@ -4,27 +4,51 @@ use smart_config::{
     de::{Optional, Serde},
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
+use zksync_basic_types::{url::SensitiveUrl, Address, L1ChainId, L2ChainId, SLChainId};
 
-/// Temporary config for initializing external node, will be completely replaced by consensus config later
+/// L1 contract configuration shared with the main node.
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct SharedL1ContractsConfig {
+    /// Address of the L1 diamond proxy. EN fetches most contract addresses from the L2 peer,
+    /// but the diamond proxy address is still available locally as the root of trust.
+    pub diamond_proxy_addr: Option<Address>,
+}
+
+/// Temporary config for initializing external node, will be completely replaced by consensus config later.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
-pub struct ENConfig {
-    // Genesis
+pub struct NetworksConfig {
+    /// Chain ID of the (L2) network that the node is a part of.
     #[config(with = Serde![int])]
     pub l2_chain_id: L2ChainId,
+    /// Chain ID of the L1 network (e.g., Ethereum mainnet).
     #[config(with = Serde![int])]
     pub l1_chain_id: L1ChainId,
-
-    // Main node configuration
-    #[config(secret, with = Serde![str])]
-    pub main_node_url: SensitiveUrl,
-    #[config(default_t = NonZeroUsize::new(100).unwrap())]
-    pub main_node_rate_limit_rps: NonZeroUsize,
-    #[config(secret, with = Optional(Serde![str]))]
-    pub gateway_url: Option<SensitiveUrl>,
-    pub bridge_addresses_refresh_interval: Option<Duration>,
+    /// Chain ID of the gateway network, if this network settles on one.
     #[config(with = Optional(Serde![int]))]
     pub gateway_chain_id: Option<SLChainId>,
+    /// URL of an L2 peer node used to sync from.
+    #[config(secret, with = Serde![str])]
+    pub main_node_url: SensitiveUrl,
+    /// Rate limiting configuration for the L2 peer node.
+    #[config(default_t = NonZeroUsize::new(100).unwrap())]
+    pub main_node_rate_limit_rps: NonZeroUsize,
+
+    #[config(default_t = Duration::from_secs(60))]
+    pub bridge_addresses_refresh_interval: Duration,
+}
+
+impl NetworksConfig {
+    pub fn for_tests() -> Self {
+        Self {
+            l2_chain_id: L2ChainId::default(),
+            l1_chain_id: L1ChainId(9),
+            main_node_url: "http://localhost:3050/".parse().unwrap(),
+            main_node_rate_limit_rps: 100.try_into().unwrap(),
+            bridge_addresses_refresh_interval: Duration::from_secs(60),
+            gateway_chain_id: None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -33,22 +57,21 @@ mod tests {
 
     use super::*;
 
-    fn expected_config() -> ENConfig {
-        ENConfig {
+    fn expected_config() -> NetworksConfig {
+        NetworksConfig {
             l2_chain_id: L2ChainId::from(271),
             l1_chain_id: L1ChainId(9),
             gateway_chain_id: Some(SLChainId(123)),
             main_node_url: "http://127.0.0.1:3050/".parse().unwrap(),
             main_node_rate_limit_rps: NonZeroUsize::new(200).unwrap(),
-            gateway_url: None,
-            bridge_addresses_refresh_interval: Some(Duration::from_secs(15)),
+            bridge_addresses_refresh_interval: Duration::from_secs(15),
         }
     }
 
     fn create_schema() -> ConfigSchema {
         let mut schema = ConfigSchema::default();
         schema
-            .insert(&ENConfig::DESCRIPTION, "external_node")
+            .insert(&NetworksConfig::DESCRIPTION, "external_node")
             .unwrap()
             .push_alias("")
             .unwrap();
@@ -71,7 +94,7 @@ mod tests {
 
         let schema = create_schema();
         let repo = ConfigRepository::new(&schema).with(env);
-        let config: ENConfig = repo.single().unwrap().parse().unwrap();
+        let config: NetworksConfig = repo.single().unwrap().parse().unwrap();
         assert_eq!(config, expected_config());
     }
 
@@ -90,7 +113,7 @@ mod tests {
 
         let schema = create_schema();
         let repo = ConfigRepository::new(&schema).with(yaml);
-        let config: ENConfig = repo.single().unwrap().parse().unwrap();
+        let config: NetworksConfig = repo.single().unwrap().parse().unwrap();
         assert_eq!(config, expected_config());
     }
 
@@ -110,7 +133,7 @@ mod tests {
 
         let schema = create_schema();
         let repo = ConfigRepository::new(&schema).with(yaml);
-        let config: ENConfig = repo.single().unwrap().parse().unwrap();
+        let config: NetworksConfig = repo.single().unwrap().parse().unwrap();
         assert_eq!(config, expected_config());
     }
 }
