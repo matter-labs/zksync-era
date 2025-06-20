@@ -93,6 +93,7 @@ impl Serialize for Port {
 impl<'de> Deserialize<'de> for Port {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Debug, Deserialize)]
+        #[serde(untagged)]
         enum SerdePort {
             Just(u16),
             Tcp(SocketAddr),
@@ -103,10 +104,16 @@ impl<'de> Deserialize<'de> for Port {
             SerdePort::Just(port) => port.into(),
             SerdePort::Tcp(addr) => addr.into(),
             SerdePort::String(s) => {
-                let s = s.strip_prefix("unix:").ok_or_else(|| {
-                    de::Error::invalid_value(de::Unexpected::Str(&s), &Self::EXPECTING)
-                })?;
-                Self::Unix(s.into())
+                if let Some(path) = s.strip_prefix("unix:") {
+                    Self::Unix(path.into())
+                } else if let Ok(port) = s.parse::<u16>() {
+                    Self::from(port) // Necessary to support parsing from env vars
+                } else {
+                    return Err(de::Error::invalid_value(
+                        de::Unexpected::Str(&s),
+                        &Self::EXPECTING,
+                    ));
+                }
             }
         })
     }
@@ -712,6 +719,44 @@ mod tests {
         let config = test::<HealthCheckConfig>(yaml).unwrap();
         assert_eq!(config.slow_time_limit, None);
         assert_eq!(config.hard_time_limit, None);
+    }
+
+    #[test]
+    fn parsing_full_address_binding() {
+        let yaml = r#"
+          port: 127.0.0.1:3050
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config = test::<HealthCheckConfig>(yaml).unwrap();
+        assert_eq!(config.port, Port::Tcp(([127, 0, 0, 1], 3050).into()));
+    }
+
+    #[test]
+    fn parsing_unix_domain_socket_binding() {
+        let yaml = r#"
+          port: unix:/var/era/health.sock
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+        let config = test::<HealthCheckConfig>(yaml).unwrap();
+        assert_eq!(config.port, Port::Unix("/var/era/health.sock".into()));
+    }
+
+    #[test]
+    fn port_roundtrip() {
+        let port = Port::from(3050);
+        let json = serde_json::to_value(port.clone()).unwrap();
+        assert_eq!(json, serde_json::json!(3050));
+        assert_eq!(serde_json::from_value::<Port>(json).unwrap(), port);
+
+        let port = Port::Tcp(([10, 10, 0, 1], 3050).into());
+        let json = serde_json::to_value(port.clone()).unwrap();
+        assert_eq!(json, serde_json::json!("10.10.0.1:3050"));
+        assert_eq!(serde_json::from_value::<Port>(json).unwrap(), port);
+
+        let port = Port::Unix("/var/node.sock".into());
+        let json = serde_json::to_value(port.clone()).unwrap();
+        assert_eq!(json, serde_json::json!("unix:/var/node.sock"));
+        assert_eq!(serde_json::from_value::<Port>(json).unwrap(), port);
     }
 
     #[test]
