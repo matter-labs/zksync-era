@@ -9279,6 +9279,7 @@ version = "21.1.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
+ "ctrlc",
  "proof-compression",
  "reqwest 0.12.9",
  "tokio",
