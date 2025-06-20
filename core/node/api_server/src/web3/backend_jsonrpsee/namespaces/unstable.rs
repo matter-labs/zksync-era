@@ -46,7 +46,7 @@ impl UnstableNamespaceServer for UnstableNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_inner_chain_log_proof(
+    async fn get_chain_log_proof_until_msg_root(
         &self,
         block_number: L2BlockNumber,
         chain_id: L2ChainId,
