@@ -109,7 +109,7 @@ impl CommitmentGenerator {
         let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let _entered_span = span.entered();
-                let _guard = AllocationGuard::new("commitment_generator#events");
+                let _guard = AllocationGuard::for_operation("commitment_generator#events");
                 let latency = METRICS.events_queue_commitment_latency.start();
                 let events_queue_commitment =
                     computer.events_queue_commitment(&events_queue, protocol_version)?;
@@ -123,7 +123,8 @@ impl CommitmentGenerator {
         let bootloader_memory_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let _entered_span = span.entered();
-                let _guard = AllocationGuard::new("commitment_generator#bootloader_memory");
+                let _guard =
+                    AllocationGuard::for_operation("commitment_generator#bootloader_memory");
                 let latency = METRICS.bootloader_content_commitment_latency.start();
                 let bootloader_initial_content_commitment = computer
                     .bootloader_initial_content_commitment(
