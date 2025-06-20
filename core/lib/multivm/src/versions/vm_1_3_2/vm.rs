@@ -228,4 +228,8 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, crate::vm_latest::Hist
     fn pop_snapshot_no_rollback(&mut self) {
         self.vm.pop_snapshot_no_rollback();
     }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        self.vm.pop_front_snapshot_no_rollback();
+    }
 }
