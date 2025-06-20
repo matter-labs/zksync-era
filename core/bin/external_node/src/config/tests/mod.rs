@@ -56,7 +56,7 @@ fn assert_common_prepared_env(config: &LocalConfig, observability: &Observabilit
 
     assert_eq!(config.api.web3_json_rpc.http_port, 3_060);
     assert_eq!(config.api.web3_json_rpc.ws_port, 3_061);
-    assert_eq!(config.api.healthcheck.port, 3_081);
+    assert_eq!(config.api.healthcheck.port, 3_081.into());
     assert_eq!(
         config.db.state_keeper_db_path.as_os_str(),
         "./db/ext-node/state_keeper"
@@ -375,7 +375,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let config: HealthCheckConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.slow_time_limit, Some(Duration::from_millis(75)));
     assert_eq!(config.hard_time_limit, Some(Duration::from_millis(2_500)));
-    assert_eq!(config.port, 2_952);
+    assert_eq!(config.port, 2_952.into());
 
     let config: MerkleTreeApiConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.port, 2955);

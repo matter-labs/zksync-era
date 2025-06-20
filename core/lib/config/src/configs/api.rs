@@ -2,7 +2,6 @@ use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     num::{NonZeroU32, NonZeroUsize},
-    path::PathBuf,
     str::FromStr,
     time::Duration,
 };
@@ -49,28 +48,32 @@ impl ApiConfig {
 
 /// Port binding specification.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Port {
+pub enum BindAddress {
     Tcp(SocketAddr),
-    Unix(PathBuf),
+    #[cfg(unix)]
+    Unix(std::path::PathBuf),
 }
 
-impl Port {
+impl BindAddress {
+    #[cfg(unix)]
     const EXPECTING: &'static str = "port number (to bind to 0.0.0.0), socket address or path to the unix socket prefixed by 'unix:'";
+    #[cfg(not(unix))]
+    const EXPECTING: &'static str = "port number (to bind to 0.0.0.0) or socket address";
 }
 
-impl From<u16> for Port {
+impl From<u16> for BindAddress {
     fn from(port: u16) -> Self {
         Self::Tcp(SocketAddr::new([0, 0, 0, 0].into(), port))
     }
 }
 
-impl From<SocketAddr> for Port {
+impl From<SocketAddr> for BindAddress {
     fn from(addr: SocketAddr) -> Self {
         Self::Tcp(addr)
     }
 }
 
-impl Serialize for Port {
+impl Serialize for BindAddress {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Tcp(addr) => {
@@ -80,6 +83,7 @@ impl Serialize for Port {
                     addr.serialize(serializer)
                 }
             }
+            #[cfg(unix)]
             Self::Unix(path) => {
                 let path = path
                     .to_str()
@@ -90,7 +94,7 @@ impl Serialize for Port {
     }
 }
 
-impl<'de> Deserialize<'de> for Port {
+impl<'de> Deserialize<'de> for BindAddress {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Debug, Deserialize)]
         #[serde(untagged)]
@@ -104,9 +108,12 @@ impl<'de> Deserialize<'de> for Port {
             SerdePort::Just(port) => port.into(),
             SerdePort::Tcp(addr) => addr.into(),
             SerdePort::String(s) => {
+                #[cfg(unix)]
                 if let Some(path) = s.strip_prefix("unix:") {
-                    Self::Unix(path.into())
-                } else if let Ok(port) = s.parse::<u16>() {
+                    return Ok(Self::Unix(path.into()));
+                }
+
+                if let Ok(port) = s.parse::<u16>() {
                     Self::from(port) // Necessary to support parsing from env vars
                 } else {
                     return Err(de::Error::invalid_value(
@@ -119,7 +126,7 @@ impl<'de> Deserialize<'de> for Port {
     }
 }
 
-impl WellKnown for Port {
+impl WellKnown for BindAddress {
     type Deserializer = Serde![int, str];
     const DE: Self::Deserializer = Serde![int, str];
 }
@@ -410,7 +417,7 @@ impl Web3JsonRpcConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct HealthCheckConfig {
     /// Port to which the healthcheck server is listening.
-    pub port: Port,
+    pub port: BindAddress,
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
     /// If not specified, the default value in the health check crate will be used.
     pub slow_time_limit: Option<Duration>,
@@ -728,9 +735,10 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test::<HealthCheckConfig>(yaml).unwrap();
-        assert_eq!(config.port, Port::Tcp(([127, 0, 0, 1], 3050).into()));
+        assert_eq!(config.port, BindAddress::Tcp(([127, 0, 0, 1], 3050).into()));
     }
 
+    #[cfg(unix)]
     #[test]
     fn parsing_unix_domain_socket_binding() {
         let yaml = r#"
@@ -738,25 +746,32 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config = test::<HealthCheckConfig>(yaml).unwrap();
-        assert_eq!(config.port, Port::Unix("/var/era/health.sock".into()));
+        assert_eq!(
+            config.port,
+            BindAddress::Unix("/var/era/health.sock".into())
+        );
     }
 
     #[test]
     fn port_roundtrip() {
-        let port = Port::from(3050);
+        let port = BindAddress::from(3050);
         let json = serde_json::to_value(port.clone()).unwrap();
         assert_eq!(json, serde_json::json!(3050));
-        assert_eq!(serde_json::from_value::<Port>(json).unwrap(), port);
+        assert_eq!(serde_json::from_value::<BindAddress>(json).unwrap(), port);
 
-        let port = Port::Tcp(([10, 10, 0, 1], 3050).into());
+        let port = BindAddress::Tcp(([10, 10, 0, 1], 3050).into());
         let json = serde_json::to_value(port.clone()).unwrap();
         assert_eq!(json, serde_json::json!("10.10.0.1:3050"));
-        assert_eq!(serde_json::from_value::<Port>(json).unwrap(), port);
+        assert_eq!(serde_json::from_value::<BindAddress>(json).unwrap(), port);
+    }
 
-        let port = Port::Unix("/var/node.sock".into());
+    #[cfg(unix)]
+    #[test]
+    fn unix_port_roundtrip() {
+        let port = BindAddress::Unix("/var/node.sock".into());
         let json = serde_json::to_value(port.clone()).unwrap();
         assert_eq!(json, serde_json::json!("unix:/var/node.sock"));
-        assert_eq!(serde_json::from_value::<Port>(json).unwrap(), port);
+        assert_eq!(serde_json::from_value::<BindAddress>(json).unwrap(), port);
     }
 
     #[test]

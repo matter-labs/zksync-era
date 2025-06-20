@@ -1,7 +1,8 @@
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 use tokio::sync::watch;
+use zksync_config::configs::api;
 use zksync_health_check::{AppHealth, AppHealthCheck};
 
 async fn check_health(
@@ -17,30 +18,51 @@ async fn check_health(
 }
 
 async fn run_server(
-    bind_address: &SocketAddr,
+    bind_address: api::BindAddress,
     app_health_check: Arc<AppHealthCheck>,
     mut stop_receiver: watch::Receiver<bool>,
 ) {
     tracing::debug!(
-        "Starting healthcheck server with checks {app_health_check:?} on {bind_address}"
+        "Starting healthcheck server with checks {app_health_check:?} on {bind_address:?}"
     );
 
     app_health_check.expose_metrics();
     let app = Router::new()
         .route("/health", get(check_health))
         .with_state(app_health_check);
-    let listener = tokio::net::TcpListener::bind(bind_address)
-        .await
-        .unwrap_or_else(|err| panic!("Failed binding healthcheck server to {bind_address}: {err}"));
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            if stop_receiver.changed().await.is_err() {
-                tracing::warn!("Stop request sender for healthcheck server was dropped without sending a request");
-            }
-            tracing::info!("Stop request received, healthcheck server is shutting down");
-        })
-        .await
-        .expect("Healthcheck server failed");
+    let graceful_shutdown = async move {
+        if stop_receiver.changed().await.is_err() {
+            tracing::warn!(
+                "Stop request sender for healthcheck server was dropped without sending a request"
+            );
+        }
+        tracing::info!("Stop request received, healthcheck server is shutting down");
+    };
+
+    match bind_address {
+        api::BindAddress::Tcp(addr) => {
+            let listener = tokio::net::TcpListener::bind(addr)
+                .await
+                .unwrap_or_else(|err| panic!("Failed binding healthcheck server to {addr}: {err}"));
+            axum::serve(listener, app)
+                .with_graceful_shutdown(graceful_shutdown)
+                .await
+                .expect("Healthcheck server failed");
+        }
+        #[cfg(unix)]
+        api::BindAddress::Unix(path) => {
+            let listener = tokio::net::UnixListener::bind(&path).unwrap_or_else(|err| {
+                panic!(
+                    "Failed binding healthcheck server to {path}: {err}",
+                    path = path.display()
+                )
+            });
+            axum::serve(listener, app)
+                .with_graceful_shutdown(graceful_shutdown)
+                .await
+                .expect("Healthcheck server failed");
+        }
+    }
     tracing::info!("Healthcheck server shut down");
 }
 
@@ -51,10 +73,10 @@ pub struct HealthCheckHandle {
 }
 
 impl HealthCheckHandle {
-    pub fn spawn_server(addr: SocketAddr, app_health_check: Arc<AppHealthCheck>) -> Self {
+    pub fn spawn_server(addr: api::BindAddress, app_health_check: Arc<AppHealthCheck>) -> Self {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let server = tokio::spawn(async move {
-            run_server(&addr, app_health_check, stop_receiver).await;
+            run_server(addr, app_health_check, stop_receiver).await;
         });
 
         Self {

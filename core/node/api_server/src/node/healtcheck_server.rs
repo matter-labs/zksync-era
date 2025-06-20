@@ -112,8 +112,7 @@ impl Task for HealthCheckTask {
             rust: RUST_METRICS.initialize(),
             git: GIT_METRICS.initialize(),
         });
-        let handle =
-            HealthCheckHandle::spawn_server(self.config.bind_addr(), self.app_health_check);
+        let handle = HealthCheckHandle::spawn_server(self.config.port, self.app_health_check);
         stop_receiver.0.changed().await?;
         handle.stop().await;
 

@@ -116,7 +116,7 @@ aws-config = { version = "1.1.7", default-features = false, features = [
 ] }
 aws-runtime = "1.5.5"
 aws-sdk-s3 = "1.76.0"
-axum = "0.7.5"
+axum = "0.8.4"
 backon = "0.4.4"
 bigdecimal = "0.4.5"
 bincode = "1"
@@ -158,7 +158,7 @@ octocrab = "0.41"
 once_cell = "1"
 opentelemetry = "0.24.0"
 opentelemetry_sdk = "0.24.0"
-opentelemetry-otlp = "0.17.0"
+opentelemetry-otlp = "0.17.0" # FIXME: update? (uses old axum via tonic)
 opentelemetry-semantic-conventions = "0.16.0"
 opentelemetry-appender-tracing = "0.5"
 pin-project-lite = "0.2.13"
