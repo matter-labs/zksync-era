@@ -7,7 +7,7 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{EcosystemConfig, GatewayChainConfigPatch};
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::{Address, U256};
+use zksync_basic_types::U256;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
@@ -136,8 +136,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         gw_bridgehub
             .get_zk_chain(chain_config.chain_id.as_u64().into())
             .await?,
-        // FIXME: no chain admin is supported here
-        Address::zero(),
         gateway_chain_id.into(),
     )?;
     gateway_chain_config.save().await?;

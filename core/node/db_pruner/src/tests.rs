@@ -12,7 +12,8 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, L2BlockNumber, ProtocolVersion, H256,
+    aggregated_operations::AggregatedActionType, eth_sender::EthTxFinalityStatus, L2BlockNumber,
+    ProtocolVersion, H256,
 };
 
 use super::*;
@@ -392,6 +393,7 @@ async fn mark_l1_batch_as_executed(storage: &mut Connection<'_, Core>, number: u
             H256::from_low_u64_be(number.into()),
             chrono::Utc::now(),
             None,
+            EthTxFinalityStatus::Finalized,
         )
         .await
         .unwrap();
@@ -555,8 +557,8 @@ async fn pruning_iteration_timely_shuts_down() {
     assert!(!pruning_handle.is_finished());
 
     stop_sender.send_replace(true);
-    let outcome = pruning_handle.await.unwrap().unwrap();
-    assert_matches!(outcome, PruningIterationOutcome::Interrupted);
+    let err = pruning_handle.await.unwrap().unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 }
 
 #[tokio::test]

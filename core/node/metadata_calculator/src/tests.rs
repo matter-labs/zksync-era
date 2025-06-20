@@ -7,8 +7,9 @@ use tempfile::TempDir;
 use test_casing::{test_casing, Product};
 use tokio::sync::{mpsc, watch};
 use zksync_config::configs::{
-    chain::{OperationsManagerConfig, StateKeeperConfig},
+    chain::{SharedStateKeeperConfig, StateKeeperConfig},
     database::{MerkleTreeConfig, MerkleTreeMode},
+    snapshot_recovery::TreeRecoveryConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, HealthStatus};
@@ -47,7 +48,7 @@ where
 
 pub(super) fn mock_config(db_path: &Path) -> MetadataCalculatorConfig {
     MetadataCalculatorConfig {
-        db_path: db_path.to_str().unwrap().to_owned(),
+        db_path: db_path.to_owned(),
         max_open_files: None,
         mode: MerkleTreeMode::Full,
         delay_interval: POLL_INTERVAL,
@@ -492,16 +493,14 @@ async fn running_metadata_calculator_with_additional_blocks(sealed_protective_re
 async fn shutting_down_calculator() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (merkle_tree_config, mut operation_config) =
-        create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
-    operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
+    let mut merkle_tree_config = create_config(temp_dir.path(), MerkleTreeMode::Lightweight);
+    merkle_tree_config.processing_delay = Duration::from_secs(30); // chosen to be larger than `RUN_TIMEOUT`
 
     let calculator = setup_calculator_with_options(
         &merkle_tree_config,
-        &operation_config,
-        &StateKeeperConfig {
+        &SharedStateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..Default::default()
+            ..SharedStateKeeperConfig::default()
         },
         pool.clone(),
         None,
@@ -643,13 +642,16 @@ pub(crate) async fn setup_calculator(
     sealed_protective_reads: bool,
 ) -> (MetadataCalculator, Arc<dyn ObjectStore>) {
     let store = MockObjectStore::arc();
-    let (merkle_tree_config, operation_manager) = create_config(db_path, MerkleTreeMode::Full);
+    let merkle_tree_config = create_config(db_path, MerkleTreeMode::Full);
+    let mut state_keeper_config = StateKeeperConfig::for_tests();
+    state_keeper_config
+        .shared
+        .protective_reads_persistence_enabled = sealed_protective_reads;
     let calculator = setup_calculator_with_options(
         &merkle_tree_config,
-        &operation_manager,
-        &StateKeeperConfig {
+        &SharedStateKeeperConfig {
             protective_reads_persistence_enabled: sealed_protective_reads,
-            ..Default::default()
+            ..SharedStateKeeperConfig::default()
         },
         pool,
         Some(store.clone()),
@@ -663,13 +665,12 @@ async fn setup_lightweight_calculator(
     pool: ConnectionPool<Core>,
     sealed_protective_reads: bool,
 ) -> MetadataCalculator {
-    let (db_config, operation_config) = create_config(db_path, MerkleTreeMode::Lightweight);
+    let db_config = create_config(db_path, MerkleTreeMode::Lightweight);
     setup_calculator_with_options(
         &db_config,
-        &operation_config,
-        &StateKeeperConfig {
+        &SharedStateKeeperConfig {
             protective_reads_persistence_enabled: sealed_protective_reads,
-            ..Default::default()
+            ..SharedStateKeeperConfig::default()
         },
         pool,
         None,
@@ -677,26 +678,17 @@ async fn setup_lightweight_calculator(
     .await
 }
 
-fn create_config(
-    db_path: &Path,
-    mode: MerkleTreeMode,
-) -> (MerkleTreeConfig, OperationsManagerConfig) {
-    let db_config = MerkleTreeConfig {
-        path: path_to_string(&db_path.join("new")),
+fn create_config(db_path: &Path, mode: MerkleTreeMode) -> MerkleTreeConfig {
+    MerkleTreeConfig {
         mode,
-        ..MerkleTreeConfig::default()
-    };
-
-    let operation_config = OperationsManagerConfig {
-        delay_interval: 50, // ms
-    };
-    (db_config, operation_config)
+        processing_delay: Duration::from_millis(50),
+        ..MerkleTreeConfig::for_tests(db_path.join("new"))
+    }
 }
 
 async fn setup_calculator_with_options(
     merkle_tree_config: &MerkleTreeConfig,
-    operation_config: &OperationsManagerConfig,
-    state_keeper_config: &StateKeeperConfig,
+    state_keeper_config: &SharedStateKeeperConfig,
     pool: ConnectionPool<Core>,
     object_store: Option<Arc<dyn ObjectStore>>,
 ) -> MetadataCalculator {
@@ -710,18 +702,14 @@ async fn setup_calculator_with_options(
     }
     drop(storage);
 
-    let calculator_config = MetadataCalculatorConfig::for_main_node(
+    let calculator_config = MetadataCalculatorConfig::from_configs(
         merkle_tree_config,
-        operation_config,
         state_keeper_config,
+        &TreeRecoveryConfig::default(),
     );
     MetadataCalculator::new(calculator_config, object_store, pool)
         .await
         .unwrap()
-}
-
-fn path_to_string(path: &Path) -> String {
-    path.to_str().unwrap().to_owned()
 }
 
 pub(crate) async fn run_calculator(mut calculator: MetadataCalculator) -> H256 {

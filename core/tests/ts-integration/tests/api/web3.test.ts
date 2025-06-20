@@ -125,14 +125,6 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test some zks web3 methods', async () => {
-        // zks_getAllAccountBalances
-        // NOTE: `getAllBalances` will not work on external node,
-        // since TokenListFetcher is not running
-        if (testMaster.environment().nodeMode === NodeMode.Main) {
-            const balances = await alice.getAllBalances();
-            const tokenBalance = await alice.getBalance(l2Token);
-            expect(balances[l2Token.toLowerCase()] == tokenBalance);
-        }
         // zks_L1ChainId
         const l1ChainId = (await alice.providerL1!.getNetwork()).chainId;
         const l1ChainIdFromL2Provider = BigInt(await alice.provider.l1ChainId());
@@ -183,7 +175,6 @@ describe('web3 API compatibility tests', () => {
         ['net_peerCount', [], '0x0'],
         ['net_listening', [], false],
         ['web3_clientVersion', [], 'zkSync/v2.0'],
-        ['eth_protocolVersion', [], 'zks/1'],
         ['eth_accounts', [], []],
         ['eth_coinbase', [], '0x0000000000000000000000000000000000000000'],
         ['eth_getCompilers', [], []],
@@ -199,6 +190,11 @@ describe('web3 API compatibility tests', () => {
         // This test can't be represented as a part of the table, since the input is dynamic.
         const firstBlockHash = (await alice.provider.getBlock(1)).hash;
         await expect(alice.provider.send('eth_getUncleCountByBlockHash', [firstBlockHash])).resolves.toEqual('0x0');
+    });
+
+    test('Should test current protocol version', async () => {
+        // Node should report well-formed semantic protocol version
+        await expect(alice.provider.send('eth_protocolVersion', [])).resolves.toMatch(/^zks\/0\.\d+\.\d+$/);
     });
 
     test('Should test web3 response extensions', async () => {

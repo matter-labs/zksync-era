@@ -181,22 +181,24 @@ pub async fn init(
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(
         shell,
-        ecosystem_config,
-        contracts_config.l1.chain_admin_addr,
-        &chain_config.get_wallets_config()?.governor,
-        contracts_config.l1.diamond_proxy_addr,
+        &init_args.forge_args,
+        &ecosystem_config.path_to_l1_foundry(),
+        crate::admin_functions::AdminScriptMode::Broadcast(
+            chain_config.get_wallets_config()?.governor,
+        ),
+        chain_config.chain_id.as_u64(),
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         l1_da_validator_addr,
         contracts_config
             .l2
             .da_validator_addr
             .context("da_validator_addr")?,
-        &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
     )
     .await?;
     spinner.finish();
 
-    if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+    if init_args.make_permanent_rollup {
         println!("Making permanent rollup!");
         make_permanent_rollup(
             shell,
@@ -253,10 +255,10 @@ pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::R
         L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
         L1BatchCommitmentMode::Validium => {
             let general_config = chain_config.get_general_config().await?;
-            match general_config.da_client_type() {
-                Some("avail") => contracts_config.l1.avail_l1_da_validator_addr,
-                Some("no_da") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
-                Some("eigen") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1
+            match general_config.da_client_type().as_deref() {
+                Some("Avail") => contracts_config.l1.avail_l1_da_validator_addr,
+                Some("NoDA") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
+                Some("Eigen") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1
                 Some(unsupported) => {
                     anyhow::bail!("DA client config is not supported: {unsupported:?}");
                 }

@@ -2,8 +2,7 @@ use std::{path::Path, time::Instant};
 
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_config::{configs::ObservabilityConfig, DBConfig};
-use zksync_env_config::FromEnv;
+use zksync_config::{full_config_schema, sources::ConfigFilePaths, DBConfig};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;
@@ -25,7 +24,7 @@ struct Cli {
 impl Cli {
     fn run(self, config: &DBConfig) -> anyhow::Result<()> {
         let db_path = &config.merkle_tree.path;
-        tracing::info!("Verifying consistency of Merkle tree at {db_path}");
+        tracing::info!("Verifying consistency of Merkle tree at {db_path:?}");
         let start = Instant::now();
         let db =
             RocksDB::new(Path::new(db_path)).context("failed initializing Merkle tree RocksDB")?;
@@ -52,10 +51,11 @@ impl Cli {
 }
 
 fn main() -> anyhow::Result<()> {
-    let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let _observability_guard = observability_config.install()?;
+    let config_sources = ConfigFilePaths::default().into_config_sources("ZKSYNC_")?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
+    let schema = full_config_schema();
+    let mut repo = config_sources.build_repository(&schema);
+    let db_config: DBConfig = repo.parse()?;
     Cli::parse().run(&db_config)
 }

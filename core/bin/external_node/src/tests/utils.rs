@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use tempfile::TempDir;
 use tokio::sync::oneshot;
-use zksync_dal::{ConnectionPoolBuilder, Core, CoreDal};
-use zksync_db_connection::connection_pool::TestTemplate;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_health_check::AppHealthCheck;
-use zksync_node_genesis::{insert_genesis_batch, GenesisBatchParams, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_types::{
     api, block::L2BlockHeader, ethabi, Address, L2BlockNumber, ProtocolVersionId, H256,
 };
@@ -23,11 +22,14 @@ pub(super) fn block_details_base(hash: H256) -> api::BlockDetailsBase {
         status: api::BlockStatus::Sealed,
         commit_tx_hash: None,
         committed_at: None,
+        commit_tx_finality: None,
         commit_chain_id: None,
         prove_tx_hash: None,
+        prove_tx_finality: None,
         proven_at: None,
         prove_chain_id: None,
         execute_tx_hash: None,
+        execute_tx_finality: None,
         executed_at: None,
         execute_chain_id: None,
         l1_gas_price: 0,
@@ -37,33 +39,45 @@ pub(super) fn block_details_base(hash: H256) -> api::BlockDetailsBase {
     }
 }
 
+pub(super) fn spawn_node(
+    node_fn: impl FnOnce() -> anyhow::Result<()> + Send + 'static,
+) -> JoinHandle<anyhow::Result<()>> {
+    tokio::task::spawn_blocking(|| std::thread::spawn(node_fn).join().unwrap())
+}
+
 #[derive(Debug)]
 pub(super) struct TestEnvironment {
     pub(super) sigint_receiver: oneshot::Receiver<()>,
     pub(super) app_health_sender: oneshot::Sender<Arc<AppHealthCheck>>,
     pub(super) components: ComponentsToRun,
     pub(super) config: ExternalNodeConfig,
-    pub(super) genesis_params: GenesisBatchParams,
+    pub(super) genesis_root_hash: H256,
     pub(super) genesis_l2_block: L2BlockHeader,
-    // We have to prevent object from dropping the temp dir, so we store it here.
-    _temp_dir: TempDir,
 }
 
 impl TestEnvironment {
-    pub async fn with_genesis_block(components_str: &str) -> (Self, TestEnvironmentHandles) {
-        // Generate a new environment with a genesis block.
-        let temp_dir = tempfile::TempDir::new().unwrap();
-
+    pub async fn with_genesis_block(
+        temp_dir: &TempDir,
+        connection_pool: &ConnectionPool<Core>,
+        components_str: &str,
+    ) -> (Self, TestEnvironmentHandles) {
         // Simplest case to mock: the EN already has a genesis L1 batch / L2 block, and it's the only L1 batch / L2 block
         // in the network.
-        let test_db: ConnectionPoolBuilder<Core> =
-            TestTemplate::empty().unwrap().create_db(100).await.unwrap();
-        let connection_pool = test_db.build().await.unwrap();
-        // let singleton_pool_builder = ConnectionPool::singleton(connection_pool.database_url().clone());
         let mut storage = connection_pool.connection().await.unwrap();
-        let genesis_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
-            .await
-            .unwrap();
+        let genesis_needed = storage.blocks_dal().is_genesis_needed().await.unwrap();
+        let genesis_root_hash = if genesis_needed {
+            insert_genesis_batch(&mut storage, &GenesisParams::mock())
+                .await
+                .unwrap()
+                .root_hash
+        } else {
+            storage
+                .blocks_dal()
+                .get_l1_batch_state_root(L1BatchNumber(0))
+                .await
+                .unwrap()
+                .expect("no genesis batch root hash")
+        };
         let genesis_l2_block = storage
             .blocks_dal()
             .get_l2_block_header(L2BlockNumber(0))
@@ -73,14 +87,12 @@ impl TestEnvironment {
         drop(storage);
 
         let components: ComponentsToRun = components_str.parse().unwrap();
-        let mut config = ExternalNodeConfig::mock(&temp_dir, &connection_pool);
+        let mut config = ExternalNodeConfig::mock(temp_dir, connection_pool);
         if components.0.contains(&Component::TreeApi) {
-            config.tree_component.api_port = Some(0);
+            config.local.api.merkle_tree.port = 0;
         }
-        drop(connection_pool);
 
         // Generate channels to control the node.
-
         let (sigint_sender, sigint_receiver) = oneshot::channel();
         let (app_health_sender, app_health_receiver) = oneshot::channel();
         let this = Self {
@@ -88,9 +100,8 @@ impl TestEnvironment {
             app_health_sender,
             components,
             config,
-            genesis_params,
+            genesis_root_hash,
             genesis_l2_block,
-            _temp_dir: temp_dir,
         };
         let handles = TestEnvironmentHandles {
             sigint_sender,
@@ -98,6 +109,28 @@ impl TestEnvironment {
         };
 
         (this, handles)
+    }
+
+    pub(super) fn spawn_node(self, l2_client: MockClient<L2>) -> JoinHandle<anyhow::Result<()>> {
+        let eth_client = mock_eth_client(
+            self.config.l1_diamond_proxy_address(),
+            self.config.remote.l1_bridgehub_proxy_addr.unwrap(),
+        );
+
+        spawn_node(move || {
+            let mut node = ExternalNodeBuilder::new(self.config)?;
+            inject_test_layers(
+                &mut node,
+                self.sigint_receiver,
+                self.app_health_sender,
+                eth_client,
+                l2_client,
+            );
+
+            let node = node.build(self.components.0.into_iter().collect())?;
+            node.run(())?;
+            Ok(())
+        })
     }
 }
 
@@ -168,12 +201,20 @@ pub(super) fn mock_eth_client(
                 .unwrap()
                 .short_signature();
 
+            let whitelisted_settlement_layer_sig = contract
+                .function("whitelistedSettlementLayers")
+                .unwrap()
+                .short_signature();
+
             match call_signature {
                 sig if sig == get_zk_chains => {
                     return ethabi::Token::Address(diamond_proxy_addr);
                 }
                 sig if sig == chain_type_manager_sig => {
                     return ethabi::Token::Address(chain_type_manager);
+                }
+                sig if sig == whitelisted_settlement_layer_sig => {
+                    return ethabi::Token::Bool(false);
                 }
                 _ => {}
             }
@@ -188,7 +229,7 @@ pub(super) fn mock_eth_client(
 
 /// Creates a mock L2 client with the genesis block information.
 pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
-    let genesis_root_hash = env.genesis_params.root_hash;
+    let genesis_root_hash = env.genesis_root_hash;
     let genesis_l2_block_hash = env.genesis_l2_block.hash;
 
     MockClient::builder(L2::default())

@@ -1,5 +1,5 @@
 //! Utilities for testing the consensus module.
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use rand::Rng;
@@ -7,14 +7,16 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_config::{
     configs,
     configs::{
-        chain::{OperationsManagerConfig, StateKeeperConfig},
+        chain::SharedStateKeeperConfig,
         consensus as config,
+        consensus::RpcConfig,
         database::{MerkleTreeConfig, MerkleTreeMode},
+        snapshot_recovery::TreeRecoveryConfig,
     },
 };
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
+use zksync_consensus_roles::{validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
@@ -23,9 +25,10 @@ use zksync_node_sync::{
     fetcher::{FetchedTransaction, IoCursorExt as _},
     sync_action::{ActionQueue, ActionQueueSender, SyncAction},
     testonly::MockMainNodeClient,
-    ExternalIO, MainNodeClient, SyncState,
+    ExternalIO, MainNodeClient,
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
+use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     executor::MainBatchExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams},
@@ -76,7 +79,7 @@ impl ConfigSet {
         let net = network::testonly::new_fullnode(rng, &self.net);
         ConfigSet {
             config: make_config(&net, None),
-            secrets: make_secrets(&net, None),
+            secrets: make_secrets(&net),
             net,
         }
     }
@@ -90,20 +93,11 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
         validators: setup
             .validator_keys
             .iter()
-            .map(|k| config::WeightedValidator {
-                key: config::ValidatorPublicKey(k.public().encode()),
-                weight: 1,
-            })
+            .map(|k| (config::ValidatorPublicKey(k.public().encode()), 1))
             .collect(),
-        attesters: setup
-            .attester_keys
-            .iter()
-            .map(|k| config::WeightedAttester {
-                key: config::AttesterPublicKey(k.public().encode()),
-                weight: 1,
-            })
-            .collect(),
-        leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
+        leader: Some(config::ValidatorPublicKey(
+            setup.validator_keys[0].public().encode(),
+        )),
         registry_address: None,
         seed_peers: net_cfgs[..seed_peers]
             .iter()
@@ -117,26 +111,18 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
     };
     net_cfgs
         .into_iter()
-        .enumerate()
-        .map(|(i, net)| ConfigSet {
+        .map(|net| ConfigSet {
             config: make_config(&net, Some(genesis_spec.clone())),
-            secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
+            secrets: make_secrets(&net),
             net,
         })
         .collect()
 }
 
-fn make_secrets(
-    cfg: &network::Config,
-    attester_key: Option<attester::SecretKey>,
-) -> config::ConsensusSecrets {
+fn make_secrets(cfg: &network::Config) -> config::ConsensusSecrets {
     config::ConsensusSecrets {
-        node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
-        validator_key: cfg
-            .validator_key
-            .as_ref()
-            .map(|k| config::ValidatorSecretKey(k.encode().into())),
-        attester_key: attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
+        node_key: Some(cfg.gossip.key.encode().into()),
+        validator_key: cfg.validator_key.as_ref().map(|k| k.encode().into()),
     }
 }
 
@@ -148,9 +134,9 @@ fn make_config(
         port: Some(cfg.server_addr.port()),
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
-        max_payload_size: usize::MAX,
-        max_batch_size: usize::MAX,
-        view_timeout: None,
+        max_payload_size: u64::MAX.into(),
+        max_batch_size: u64::MAX.into(),
+        view_timeout: Duration::from_secs(2),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
         gossip_static_inbound: cfg
             .gossip
@@ -170,7 +156,7 @@ fn make_config(
         // TODO: this might be misleading, so it would be better to write some more custom
         // genesis generator for zksync-era tests.
         genesis_spec,
-        rpc: None,
+        rpc: RpcConfig::default(),
         debug_page_addr: None,
     }
 }
@@ -218,25 +204,17 @@ impl StateKeeper {
 
         let rocksdb_dir = tempfile::tempdir().context("tempdir()")?;
         let merkle_tree_config = MerkleTreeConfig {
-            path: rocksdb_dir
-                .path()
-                .join("merkle_tree")
-                .to_string_lossy()
-                .into(),
             mode: MerkleTreeMode::Lightweight,
-            ..Default::default()
+            ..MerkleTreeConfig::for_tests(rocksdb_dir.path().join("merkle_tree"))
         };
-        let operation_manager_config = OperationsManagerConfig {
-            delay_interval: 100, //`100ms`
-        };
-        let state_keeper_config = StateKeeperConfig {
+        let state_keeper_config = SharedStateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..Default::default()
+            ..SharedStateKeeperConfig::default()
         };
-        let config = MetadataCalculatorConfig::for_main_node(
+        let config = MetadataCalculatorConfig::from_configs(
             &merkle_tree_config,
-            &operation_manager_config,
             &state_keeper_config,
+            &TreeRecoveryConfig::default(),
         );
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
@@ -280,10 +258,7 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
-                    first_l2_block: L2BlockParams {
-                        timestamp: self.last_timestamp,
-                        virtual_blocks: 1,
-                    },
+                    first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
@@ -293,10 +268,7 @@ impl StateKeeper {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::L2Block {
-                params: L2BlockParams {
-                    timestamp: self.last_timestamp,
-                    virtual_blocks: 0,
-                },
+                params: L2BlockParams::new(self.last_timestamp * 1000),
                 number: self.last_block,
             }
         }
@@ -363,15 +335,14 @@ impl StateKeeper {
         validator::BlockNumber(self.last_block.0.into())
     }
 
-    /// Batch of the `last_block`.
-    pub fn last_batch(&self) -> attester::BatchNumber {
-        attester::BatchNumber(self.last_batch.0.into())
-    }
-
     /// Last L1 batch that has been sealed and will have
     /// metadata computed eventually.
-    pub fn last_sealed_batch(&self) -> attester::BatchNumber {
-        attester::BatchNumber((self.last_batch.0 - (!self.batch_sealed) as u32).into())
+    pub fn last_sealed_batch(&self) -> L1BatchNumber {
+        if self.batch_sealed {
+            self.last_batch
+        } else {
+            self.last_batch - 1
+        }
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
@@ -558,11 +529,7 @@ impl StateKeeperRunner {
             // Caching shouldn't be needed for tests.
             let (async_cache, async_catchup_task) = AsyncRocksdbCache::new(
                 self.pool.0.clone(),
-                self.rocksdb_dir
-                    .path()
-                    .join("cache")
-                    .to_string_lossy()
-                    .into(),
+                self.rocksdb_dir.path().join("cache"),
                 Default::default(),
             );
             s.spawn_bg({
@@ -602,11 +569,12 @@ impl StateKeeperRunner {
             });
             s.spawn_bg(async {
                 // Spawn HTTP server.
+                let contracts_config = configs::ContractsConfig::for_tests();
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::AllContractsConfig::for_tests().settlement_layer_specific_contracts(),
-                    &configs::AllContractsConfig::for_tests().l1_specific_contracts(),
-                    &configs::AllContractsConfig::for_tests().l2_contracts(),
+                    &contracts_config.settlement_layer_specific_contracts(),
+                    &contracts_config.l1_specific_contracts(),
+                    &contracts_config.l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                     false,
                     SettlementLayer::for_tests(),
@@ -688,12 +656,12 @@ impl StateKeeperRunner {
             });
             s.spawn_bg(async {
                 // Spawn HTTP server.
-                let l1_specific = &configs::AllContractsConfig::for_tests().l1_specific_contracts();
+                let contracts_config = configs::ContractsConfig::for_tests();
                 let cfg = InternalApiConfig::new(
                     &configs::api::Web3JsonRpcConfig::for_tests(),
-                    &configs::AllContractsConfig::for_tests().settlement_layer_specific_contracts(),
-                    l1_specific,
-                    &configs::AllContractsConfig::for_tests().l2_contracts(),
+                    &contracts_config.settlement_layer_specific_contracts(),
+                    &contracts_config.l1_specific_contracts(),
+                    &contracts_config.l2_contracts(),
                     &configs::GenesisConfig::for_tests(),
                     false,
                     SettlementLayer::for_tests(),

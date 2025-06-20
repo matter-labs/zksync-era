@@ -4,7 +4,9 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_types::{u256_to_h256, L1BatchNumber, StorageKey, StorageValue, H256};
+use zksync_types::{
+    u256_to_h256, L1BatchNumber, OrStopped, StopContext, StorageKey, StorageValue, H256,
+};
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
@@ -87,31 +89,29 @@ impl CommonStorage<'static> {
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
+    #[tracing::instrument(level = "debug", skip_all, err, fields(l1_batch_number = l1_batch_number.0))]
     pub async fn rocksdb(
         connection: &mut Connection<'_, Core>,
         rocksdb: RocksdbStorage,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<Self>> {
+    ) -> Result<Self, OrStopped> {
         tracing::debug!("Catching up RocksDB synchronously");
         let rocksdb = rocksdb
             .synchronize(connection, stop_receiver, None)
             .await
-            .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
-        let Some(rocksdb) = rocksdb else {
-            tracing::info!("Synchronizing RocksDB interrupted");
-            return Ok(None);
-        };
+            .stop_context("Failed to catch up state keeper RocksDB storage to Postgres")?;
         let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
         if l1_batch_number + 1 != rocksdb_l1_batch_number {
-            anyhow::bail!(
+            let err = anyhow::anyhow!(
                 "RocksDB synchronized to L1 batch #{} while #{} was expected",
                 rocksdb_l1_batch_number,
                 l1_batch_number
             );
+            return Err(err.into());
         }
         tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
-        Ok(Some(rocksdb.into()))
+        Ok(rocksdb.into())
     }
 
     /// Returns a [`ReadStorage`] implementation backed by [`RocksDBWithMemory`].
@@ -335,13 +335,13 @@ pub trait ReadStorageFactory<S = OwnedStorage>: fmt::Debug + Send + Sync + 'stat
     /// Creates a storage instance, e.g. over a Postgres connection or a RocksDB instance.
     /// The specific criteria on which one are left up to the implementation.
     ///
-    /// Implementations may be cancel-aware and return `Ok(None)` iff `stop_receiver` receives
-    /// a stop signal; this is the only case in which `Ok(None)` should be returned.
+    /// Implementations may be stop-aware and return `Err(OrStopped::Stopped)` iff `stop_receiver` receives
+    /// a stop request.
     async fn access_storage(
         &self,
         stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<S>>;
+    ) -> Result<S, OrStopped>;
 }
 
 /// [`ReadStorageFactory`] producing Postgres-backed storage instances. Hence, it is slower than more advanced
@@ -352,10 +352,10 @@ impl ReadStorageFactory for ConnectionPool<Core> {
         &self,
         _stop_receiver: &watch::Receiver<bool>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<OwnedStorage>> {
+    ) -> Result<OwnedStorage, OrStopped> {
         let connection = self.connection().await?;
         let storage = OwnedStorage::postgres(connection, l1_batch_number).await?;
-        Ok(Some(storage.into()))
+        Ok(storage.into())
     }
 }
 
@@ -382,8 +382,7 @@ mod tests {
         drop(conn);
 
         let temp_dir = TempDir::new().unwrap();
-        let (task, rocksdb_cell) =
-            AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_str().unwrap().to_owned());
+        let (task, rocksdb_cell) = AsyncCatchupTask::new(pool.clone(), temp_dir.path().to_owned());
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let task_handle = tokio::spawn(task.run(stop_receiver));
         task_handle.await.unwrap().unwrap();

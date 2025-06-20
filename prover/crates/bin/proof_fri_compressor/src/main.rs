@@ -1,29 +1,36 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use clap::Parser;
-use tokio::sync::{oneshot, watch};
-use zksync_config::configs::FriProofCompressorConfig;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_env_config::object_store::ProverObjectStoreConfig;
+use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
+use zksync_config::{
+    configs::{FriProofCompressorConfig, GeneralConfig, PostgresSecrets},
+    full_config_schema,
+    sources::ConfigFilePaths,
+};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_proof_fri_compressor_service::proof_fri_compressor_runner;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-use zksync_prover_keystore::keystore::Keystore;
-use zksync_queued_job_processor::JobProcessor;
+use zksync_prover_keystore::{compressor::load_all_resources, keystore::Keystore};
 use zksync_task_management::ManagedTasks;
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 use crate::{
-    compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
+    initial_setup_keys::download_initial_setup_keys_if_not_present,
+    metrics::PROOF_FRI_COMPRESSOR_INSTANCE_METRICS,
 };
 
-mod compressor;
 mod initial_setup_keys;
 mod metrics;
+
+const GRACEFUL_SHUTDOWN_DURATION: Duration = Duration::from_secs(90);
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -42,45 +49,85 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
+
+    let cancellation_token = CancellationToken::new();
+    let mut managed_tasks = ManagedTasks::new(vec![]);
+    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
+
+    tokio::select! {
+        _ = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {},
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
+        }
+    }
+    let shutdown_time = Instant::now();
+    cancellation_token.cancel();
+    metrics_stop_sender
+        .send(true)
+        .context("failed to stop metrics")?;
+    managed_tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
+    Ok(())
+}
+
+async fn run_inner(
+    cancellation_token: CancellationToken,
+    metrics_stop_receiver: tokio::sync::watch::Receiver<bool>,
+    managed_tasks: &mut ManagedTasks,
+) -> anyhow::Result<()> {
+    let start_time = Instant::now();
     let opt = Cli::parse();
-
     let is_fflonk = opt.fflonk.unwrap_or(false);
+    let schema = full_config_schema();
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
 
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
+    let _observability_guard = config_sources.observability()?.install()?;
 
-    let observability_config = general_config
-        .observability
-        .expect("observability config")
-        .clone();
-    let _observability_guard = observability_config.install()?;
+    let mut repo = config_sources.build_repository(&schema);
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config
         .context("FriProofCompressorConfig")?;
+    let prover_config = general_config
+        .prover_config
+        .context("ProverConfig doesn't exist")?;
+    let object_store_config = prover_config.prover_object_store;
+
+    let prometheus_exporter_config = general_config
+        .prometheus_config
+        .build_exporter_config(config.prometheus_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
+
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(metrics_stop_receiver),
+    )];
+
     let pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;
-    let object_store_config = ProverObjectStoreConfig(
-        general_config
-            .prover_config
-            .clone()
-            .expect("ProverConfig")
-            .prover_object_store
-            .context("ProverObjectStoreConfig")?,
-    );
-    let blob_store = ObjectStoreFactory::new(object_store_config.0)
+
+    let blob_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await?;
-
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-
-    let prover_config = general_config
-        .prover_config
-        .expect("ProverConfig doesn't exist");
-    let keystore =
-        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
     let l1_verifier_config = pool
         .connection()
@@ -93,48 +140,29 @@ async fn main() -> anyhow::Result<()> {
         anyhow::bail!("There was no FFLONK verification hash found in the database while trying to run compressor in FFLONK mode, aborting");
     }
 
-    let proof_compressor = ProofCompressor::new(
-        blob_store,
-        pool,
-        config.max_attempts,
-        protocol_version,
-        keystore,
-        is_fflonk,
-    );
-
-    let (stop_sender, stop_receiver) = watch::channel(false);
-
-    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
-    let mut stop_signal_sender = Some(stop_signal_sender);
-    ctrlc::set_handler(move || {
-        if let Some(stop_signal_sender) = stop_signal_sender.take() {
-            stop_signal_sender.send(()).ok();
-        }
-    })
-    .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
-
     setup_crs_keys(&config);
 
-    tracing::info!("Starting proof compressor");
+    let keystore = Arc::new(keystore);
+    load_all_resources(&keystore, is_fflonk);
 
-    let prometheus_config = PrometheusExporterConfig::push(
-        config.prometheus_pushgateway_url,
-        Duration::from_millis(config.prometheus_push_interval_ms.unwrap_or(100)),
+    PROOF_FRI_COMPRESSOR_INSTANCE_METRICS
+        .startup_time
+        .set(start_time.elapsed());
+
+    let proof_fri_compressor_runner = proof_fri_compressor_runner(
+        pool,
+        blob_store,
+        protocol_version,
+        is_fflonk,
+        cancellation_token.clone(),
+        keystore,
     );
-    let tasks = vec![
-        tokio::spawn(prometheus_config.run(stop_receiver.clone())),
-        tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
-    ];
 
-    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
-    tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
-        }
-    };
-    stop_sender.send_replace(true);
-    tasks.complete(Duration::from_secs(5)).await;
+    tracing::info!("Starting proof compressor");
+    tasks.extend(proof_fri_compressor_runner.run());
+
+    *managed_tasks = ManagedTasks::new(tasks);
+    managed_tasks.wait_single().await;
     Ok(())
 }
 

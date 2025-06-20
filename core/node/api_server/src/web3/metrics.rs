@@ -6,6 +6,7 @@ use vise::{
     Buckets, Counter, DurationAsSecs, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram,
     Info, LabeledFamily, Metrics, MetricsFamily, Unit,
 };
+use zksync_instrument::filter::{report_filter, ReportFilter};
 use zksync_types::api;
 use zksync_web3_decl::error::Web3Error;
 
@@ -13,7 +14,7 @@ use super::{
     backend_jsonrpsee::MethodMetadata, ApiTransport, InternalApiConfig, OptionalApiParams,
     TypedFilter,
 };
-use crate::utils::ReportFilter;
+use crate::tx_sender::SubmitTxError;
 
 /// Observed version of RPC parameters. Have a bounded upper-limit size (256 bytes), so that we don't over-allocate.
 #[derive(Debug)]
@@ -101,6 +102,7 @@ enum BlockIdLabel {
     Hash,
     Committed,
     Finalized,
+    FastFinalized,
     Latest,
     L1Committed,
     Earliest,
@@ -139,6 +141,7 @@ impl From<&MethodMetadata> for MethodLabels {
             api::BlockId::Number(api::BlockNumber::Number(_)) => BlockIdLabel::Number,
             api::BlockId::Number(api::BlockNumber::Committed) => BlockIdLabel::Committed,
             api::BlockId::Number(api::BlockNumber::Finalized) => BlockIdLabel::Finalized,
+            api::BlockId::Number(api::BlockNumber::FastFinalized) => BlockIdLabel::FastFinalized,
             api::BlockId::Number(api::BlockNumber::Latest) => BlockIdLabel::Latest,
             api::BlockId::Number(api::BlockNumber::L1Committed) => BlockIdLabel::L1Committed,
             api::BlockId::Number(api::BlockNumber::Earliest) => BlockIdLabel::Earliest,
@@ -214,6 +217,12 @@ struct Web3ErrorLabels {
     kind: Web3ErrorKind,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct SubmitErrorLabels {
+    method: &'static str,
+    reason: &'static str,
+}
+
 #[derive(Debug, EncodeLabelSet)]
 struct Web3ConfigLabels {
     #[metrics(unit = Unit::Seconds)]
@@ -230,7 +239,7 @@ struct Web3ConfigLabels {
 }
 
 /// Roughly exponential buckets for the `web3_call_block_diff` metric. The distribution should be skewed towards lower values.
-const BLOCK_DIFF_BUCKETS: Buckets = Buckets::values(&[
+const SMALL_COUNT_BUCKETS: Buckets = Buckets::values(&[
     0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0,
 ]);
 
@@ -250,7 +259,7 @@ pub(crate) struct ApiMetrics {
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     web3_dropped_call_latency: Family<MethodLabels, Histogram<Duration>>,
     /// Difference between the latest sealed L2 block and the resolved L2 block for a web3 call.
-    #[metrics(buckets = BLOCK_DIFF_BUCKETS, labels = ["method"])]
+    #[metrics(buckets = SMALL_COUNT_BUCKETS, labels = ["method"])]
     web3_call_block_diff: LabeledFamily<&'static str, Histogram<u64>>,
     /// Serialized response size in bytes. Only recorded for successful responses.
     #[metrics(buckets = RESPONSE_SIZE_BUCKETS, labels = ["method"], unit = Unit::Bytes)]
@@ -262,8 +271,7 @@ pub(crate) struct ApiMetrics {
     /// Number of protocol errors grouped by error code and method name. Method name is not set for "method not found" errors.
     web3_rpc_errors: Family<ProtocolErrorLabels, Counter>,
     /// Number of transaction submission errors for a specific submission error reason.
-    #[metrics(labels = ["reason"])]
-    pub submit_tx_error: LabeledFamily<&'static str, Counter>,
+    submit_tx_error: Family<SubmitErrorLabels, Counter>,
 
     #[metrics(buckets = Buckets::exponential(1.0..=128.0, 2.0))]
     pub web3_in_flight_requests: Family<ApiTransportLabel, Histogram<usize>>,
@@ -412,6 +420,21 @@ impl ApiMetrics {
             );
         }
     }
+
+    pub(super) fn observe_submit_error(&self, method: &'static str, err: &SubmitTxError) {
+        static FILTER: ReportFilter = report_filter!(Duration::from_secs(5));
+
+        // All internal errors are reported anyway, so no need to log them here.
+        if !matches!(err, SubmitTxError::Internal(_)) && FILTER.should_report() {
+            tracing::info!("Observed submission error for method `{method}`: {err}");
+        }
+
+        let labels = SubmitErrorLabels {
+            method,
+            reason: err.prom_error_code(),
+        };
+        self.submit_tx_error[&labels].inc();
+    }
 }
 
 #[vise::register]
@@ -506,6 +529,34 @@ pub(super) struct MempoolCacheMetrics {
 
 #[vise::register]
 pub(super) static MEMPOOL_CACHE_METRICS: vise::Global<MempoolCacheMetrics> = vise::Global::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(super) enum TxReceiptStage {
+    AccountTypes,
+    StoredNonces,
+    DeploymentEvents,
+}
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_web3_tx_receipts")]
+pub(super) struct TxReceiptMetrics {
+    /// Total number of processed receipts per query.
+    #[metrics(buckets = SMALL_COUNT_BUCKETS)]
+    pub total_count: Histogram<usize>,
+    /// Number of distinct addresses queried.
+    #[metrics(buckets = SMALL_COUNT_BUCKETS)]
+    pub initiator_address_count: Histogram<usize>,
+    /// Number of receipts for which nonces should be computed, per query.
+    #[metrics(buckets = SMALL_COUNT_BUCKETS)]
+    pub unknown_nonces_count: Histogram<usize>,
+    /// Latency of a particular receipt processing stage.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub stage_latency: Family<TxReceiptStage, Histogram<Duration>>,
+}
+
+#[vise::register]
+pub(super) static TX_RECEIPT_METRICS: vise::Global<TxReceiptMetrics> = vise::Global::new();
 
 #[cfg(test)]
 mod tests {

@@ -272,7 +272,7 @@ pub struct MigrateToGatewayCalldataArgs {
     #[clap(long)]
     pub validator_2: Address,
     #[clap(long)]
-    pub min_validator_balance: U256,
+    pub min_validator_balance: u128,
     #[clap(long)]
     pub refund_recipient: Option<Address>,
 
@@ -303,7 +303,7 @@ impl MigrateToGatewayCalldataArgs {
             new_sl_da_validator: self.new_sl_da_validator,
             validator_1: self.validator_1,
             validator_2: self.validator_2,
-            min_validator_balance: self.min_validator_balance,
+            min_validator_balance: self.min_validator_balance.into(),
             refund_recipient: self.refund_recipient,
         }
     }
@@ -338,15 +338,23 @@ pub async fn run(shell: &Shell, params: MigrateToGatewayCalldataArgs) -> anyhow:
                 );
                 // It is the expected case, it will be handled later in the file
             }
-            GatewayMigrationProgressState::PendingManualFinalization => {
+            GatewayMigrationProgressState::PendingManualFinalization
+            | GatewayMigrationProgressState::AwaitingFinalization => {
                 unreachable!("`GatewayMigrationProgressState::PendingManualFinalization` should not be returned for migration to Gateway")
             }
-            _ => {
-                let msg = message_for_gateway_migration_progress_state(
+            GatewayMigrationProgressState::NotStarted
+            | GatewayMigrationProgressState::NotificationSent
+            | GatewayMigrationProgressState::NotificationReceived(_) => {
+                anyhow::bail!(message_for_gateway_migration_progress_state(
                     state,
                     MigrationDirection::ToGateway,
-                );
-                logger::info(&msg);
+                ));
+            }
+            GatewayMigrationProgressState::Finished => {
+                logger::info(message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::ToGateway,
+                ));
             }
         }
     }

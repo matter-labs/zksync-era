@@ -1,18 +1,19 @@
+#[cfg(feature = "v28_precompiles")]
 use std::path::Path;
 
+#[cfg(feature = "v28_precompiles")]
+use ethers::types::Bytes;
 use ethers::{
     abi::{decode, ParamType, Token},
-    types::Bytes,
     utils::hex,
 };
 use serde::Serialize;
+#[cfg(feature = "v28_precompiles")]
 use xshell::Shell;
+#[cfg(feature = "v28_precompiles")]
 use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_contracts::chain_admin_contract;
 use zksync_types::{ethabi, Address, U256};
-
-#[cfg(feature = "gateway")]
-use crate::admin_functions::prepare_upgrade_zk_chain_on_gateway;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
@@ -97,7 +98,7 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
+    #[cfg(feature = "v28_precompiles")]
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
@@ -115,7 +116,7 @@ impl AdminCallBuilder {
         upgrade_cut_data: Bytes,
         l1_rpc_url: String,
     ) {
-        let result = prepare_upgrade_zk_chain_on_gateway(
+        let result = crate::admin_functions::prepare_upgrade_zk_chain_on_gateway(
             shell,
             forge_args,
             foundry_contracts_path,

@@ -1,10 +1,11 @@
+use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
     api::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionExecutionInfo,
+        TransactionDetailedResult, TransactionExecutionInfo,
     },
     tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256,
+    web3, L1BatchNumber, L2ChainId, H256,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -71,6 +72,21 @@ impl UnstableNamespaceServer for UnstableNamespace {
 
     async fn gateway_migration_status(&self) -> RpcResult<GatewayMigrationStatus> {
         self.gateway_migration_status_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn send_raw_transaction_with_detailed_output(
+        &self,
+        tx_bytes: web3::Bytes,
+    ) -> RpcResult<TransactionDetailedResult> {
+        self.send_raw_transaction_with_detailed_output_impl(tx_bytes)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        self.gas_per_pubdata_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

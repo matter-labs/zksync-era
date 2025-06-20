@@ -39,7 +39,6 @@ impl FileArtifacts {
 #[derive(Debug)]
 pub struct EthSenderLimits {
     pub max_aggregated_tx_gas: u64,
-    pub max_eth_tx_data_size: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -100,15 +99,8 @@ impl GeneralConfig {
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
-    pub fn da_client_type(&self) -> Option<&str> {
-        self.0.get_raw("da_client").and_then(|val| {
-            let val = val.as_mapping()?;
-            if val.len() == 1 {
-                val.keys().next()?.as_str()
-            } else {
-                None
-            }
-        })
+    pub fn da_client_type(&self) -> Option<String> {
+        self.0.get_opt("da_client.client").unwrap_or(None)
     }
 
     pub fn test_core_database_url(&self) -> anyhow::Result<String> {
@@ -189,11 +181,9 @@ impl GeneralConfigPatch {
         self.0
             .insert("consensus.genesis_spec.chain_id", specs.chain_id.as_u64())?;
         self.0
-            .insert("consensus.genesis_spec.protocol_version", 1_u64)?;
+            .insert("consensus.genesis_spec.protocol_version", 1u64)?;
         self.0
             .insert_yaml("consensus.genesis_spec.validators", specs.validators)?;
-        self.0
-            .insert_yaml("consensus.genesis_spec.attesters", specs.attesters)?;
         self.0
             .insert("consensus.genesis_spec.leader", specs.leader)?;
         Ok(())
@@ -252,10 +242,6 @@ impl GeneralConfigPatch {
         self.0.insert(
             "eth.sender.max_aggregated_tx_gas",
             limits.max_aggregated_tx_gas,
-        )?;
-        self.0.insert(
-            "eth.sender.max_eth_tx_data_size",
-            limits.max_eth_tx_data_size,
         )
     }
 
@@ -264,7 +250,9 @@ impl GeneralConfigPatch {
     }
 
     pub fn set_avail_client(&mut self, client: &AvailConfig) -> anyhow::Result<()> {
-        self.0.insert_yaml("da_client.avail", client)
+        self.0.insert_yaml("da_client", client)?;
+        self.0.insert("da_client.client", "Avail")?;
+        Ok(())
     }
 
     fn set_object_store(&mut self, prefix: &str, config: &ObjectStoreConfig) -> anyhow::Result<()> {
@@ -274,8 +262,10 @@ impl GeneralConfigPatch {
             ObjectStoreMode::FileBacked {
                 file_backed_base_path,
             } => {
+                self.0
+                    .insert_yaml(&format!("{prefix}.mode"), "FileBacked")?;
                 self.0.insert_yaml(
-                    &format!("{prefix}.file_backed.file_backed_base_path"),
+                    &format!("{prefix}.file_backed_base_path"),
                     file_backed_base_path,
                 )?;
             }
@@ -283,12 +273,14 @@ impl GeneralConfigPatch {
                 bucket_base_url,
                 gcs_credential_file_path,
             } => {
+                self.0
+                    .insert(&format!("{prefix}.mode"), "GCSWithCredentialFile")?;
                 self.0.insert(
-                    &format!("{prefix}.gcs_with_credential_file.bucket_base_url"),
+                    &format!("{prefix}.bucket_base_url"),
                     bucket_base_url.clone(),
                 )?;
                 self.0.insert(
-                    &format!("{prefix}.gcs_with_credential_file.gcs_credential_file_path"),
+                    &format!("{prefix}.gcs_credential_file_path"),
                     gcs_credential_file_path.clone(),
                 )?;
             }
@@ -298,25 +290,6 @@ impl GeneralConfigPatch {
 
     pub fn set_prover_object_store(&mut self, config: &ObjectStoreConfig) -> anyhow::Result<()> {
         self.set_object_store("prover.prover_object_store", config)
-    }
-
-    pub fn set_public_prover_object_store(
-        &mut self,
-        config: &ObjectStoreConfig,
-    ) -> anyhow::Result<()> {
-        self.set_object_store("prover.public_object_store", config)
-    }
-
-    pub fn set_save_proofs_to_public_bucket(
-        &mut self,
-        save_to_public_bucket: bool,
-    ) -> anyhow::Result<()> {
-        self.0
-            .insert("prover.shall_save_to_public_bucket", save_to_public_bucket)
-    }
-
-    pub fn set_prover_cloud_type(&mut self, cloud_type: CloudConnectionMode) -> anyhow::Result<()> {
-        self.0.insert_yaml("prover.cloud_type", cloud_type)
     }
 
     pub async fn save(self) -> anyhow::Result<()> {
@@ -329,9 +302,13 @@ fn set_file_backed_path_if_selected(
     prefix: &str,
     path: &Path,
 ) -> anyhow::Result<()> {
-    let container = config.base().get_raw(&format!("{prefix}.file_backed"));
-    if matches!(container, Some(serde_yaml::Value::Mapping(_))) {
-        config.insert_path(&format!("{prefix}.file_backed.file_backed_base_path"), path)?;
+    let mode_path = format!("{prefix}.mode");
+    let mode = config.base().get_opt::<String>(&mode_path)?;
+    let is_file_backed = mode.as_ref().is_none_or(|mode| mode == "FileBacked");
+
+    if is_file_backed {
+        config.insert(&mode_path, "FileBacked")?;
+        config.insert_path(&format!("{prefix}.file_backed_base_path"), path)?;
     }
     Ok(())
 }

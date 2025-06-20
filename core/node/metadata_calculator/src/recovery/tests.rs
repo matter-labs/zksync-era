@@ -7,8 +7,9 @@ use tempfile::TempDir;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::configs::{
-    chain::{OperationsManagerConfig, StateKeeperConfig},
+    chain::SharedStateKeeperConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
+    snapshot_recovery::TreeRecoveryConfig,
 };
 use zksync_dal::{
     custom_genesis_export_dal::{GenesisState, StorageLogRow},
@@ -91,8 +92,7 @@ async fn basic_recovery_workflow() {
         let tree = tree
             .recover(init_params, recovery_options, &pool, &stop_receiver)
             .await
-            .unwrap()
-            .expect("Tree recovery unexpectedly aborted");
+            .unwrap();
 
         assert_eq!(tree.root_hash(), root_hash);
         let health = health_check.check_health().await;
@@ -180,8 +180,7 @@ async fn recovery_workflow_for_partial_pruning() {
             &stop_receiver,
         )
         .await
-        .unwrap()
-        .expect("Tree recovery unexpectedly aborted");
+        .unwrap();
 
     assert_eq!(tree.root_hash(), recovery_root_hash);
     drop(tree); // Release exclusive lock on RocksDB
@@ -286,11 +285,11 @@ async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
         .await
         .unwrap()
         .expect("no init params");
-    assert!(tree
+    let err = tree
         .recover(init_params, recovery_options, &pool, &stop_receiver)
         .await
-        .unwrap()
-        .is_none());
+        .unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 
     // Emulate a restart and recover 2 more chunks (or 1 + emulated persistence crash).
     let (mut tree, handle) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
@@ -316,7 +315,7 @@ async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
         let err = format!("{:#}", recovery_result.unwrap_err());
         assert!(err.contains("emulated persistence crash"), "{err}");
     } else {
-        assert!(recovery_result.unwrap().is_none());
+        assert_matches!(recovery_result.unwrap_err(), OrStopped::Stopped);
     }
 
     // Emulate another restart and recover remaining chunks.
@@ -334,8 +333,7 @@ async fn recovery_fault_tolerance(chunk_count: u64, case: FaultToleranceCase) {
     let tree = tree
         .recover(init_params, recovery_options, &pool, &stop_receiver)
         .await
-        .unwrap()
-        .expect("Tree recovery unexpectedly aborted");
+        .unwrap();
     assert_eq!(tree.root_hash(), root_hash);
 }
 
@@ -365,17 +363,14 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     .await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let merkle_tree_config = MerkleTreeConfig {
-        path: temp_dir.path().to_str().unwrap().to_owned(),
-        ..MerkleTreeConfig::default()
-    };
-    let calculator_config = MetadataCalculatorConfig::for_main_node(
+    let merkle_tree_config = MerkleTreeConfig::for_tests(temp_dir.path().to_owned());
+    let calculator_config = MetadataCalculatorConfig::from_configs(
         &merkle_tree_config,
-        &OperationsManagerConfig { delay_interval: 50 },
-        &StateKeeperConfig {
+        &SharedStateKeeperConfig {
             protective_reads_persistence_enabled: true,
-            ..Default::default()
+            ..SharedStateKeeperConfig::default()
         },
+        &TreeRecoveryConfig::default(),
     );
     let mut calculator = MetadataCalculator::new(calculator_config, None, pool.clone())
         .await
@@ -700,11 +695,11 @@ async fn fault_tolerance_for_large_genesis_state() {
         .await
         .unwrap()
         .expect("no init params");
-    assert!(tree
+    let err = tree
         .recover(init_params, recovery_options, &pool, &stop_receiver)
         .await
-        .unwrap()
-        .is_none());
+        .unwrap_err();
+    assert_matches!(err, OrStopped::Stopped);
 
     // Restart recovery and process the remaining chunks
     let (tree, _) = create_tree_recovery(temp_dir.path(), L1BatchNumber(0), &config).await;
@@ -719,6 +714,5 @@ async fn fault_tolerance_for_large_genesis_state() {
     };
     tree.recover(init_params, recovery_options, &pool, &stop_receiver)
         .await
-        .unwrap()
-        .expect("Tree recovery unexpectedly aborted");
+        .unwrap();
 }

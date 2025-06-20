@@ -12,28 +12,24 @@ categories.workspace = true
 publish = false
 
 [dependencies]
-zksync_core_leftovers.workspace = true
 zksync_commitment_generator.workspace = true
-zksync_dal.workspace = true
-zksync_db_connection.workspace = true
-zksync_config.workspace = true
-zksync_protobuf_config.workspace = true
-zksync_env_config.workspace = true
-zksync_eth_client.workspace = true
-zksync_storage.workspace = true
+zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_config = { workspace = true, features = ["observability_ext", "cli"] }
+zksync_eth_client = { workspace = true, features = ["node_framework"] }
 zksync_state.workspace = true
 zksync_contracts.workspace = true
-zksync_l1_contract_interface.workspace = true
 zksync_snapshots_applier.workspace = true
-zksync_object_store.workspace = true
-zksync_health_check.workspace = true
-zksync_web3_decl.workspace = true
+zksync_object_store = { workspace = true, features = ["node_framework"] }
+zksync_health_check = { workspace = true, features = ["node_framework"] }
+zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 zksync_types.workspace = true
 zksync_block_reverter.workspace = true
-zksync_node_genesis.workspace = true
+zksync_da_clients.workspace = true
+zksync_gateway_migrator.workspace = true
+zksync_logs_bloom_backfill.workspace = true
 zksync_node_fee_model.workspace = true
+zksync_node_storage_init.workspace = true
 zksync_node_db_pruner.workspace = true
-zksync_eth_sender.workspace = true
 zksync_state_keeper.workspace = true
 zksync_reorg_detector.workspace = true
 zksync_consistency_checker.workspace = true
@@ -42,28 +38,32 @@ zksync_node_sync.workspace = true
 zksync_node_api_server.workspace = true
 zksync_node_consensus.workspace = true
 zksync_node_framework.workspace = true
-zksync_vlog.workspace = true
+zksync_vlog = { workspace = true, features = ["node_framework"] }
 
-zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
 vise.workspace = true
+smart-config-commands.workspace = true
 
 async-trait.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 futures.workspace = true
 serde = { workspace = true, features = ["derive"] }
-envy.workspace = true
+smart-config.workspace = true
 url.workspace = true
 clap = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
 tracing.workspace = true
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator.workspace = true
+zksync_node_jemalloc.workspace = true
+# We don't use it directly, but want to enable Jemalloc profiling.
+zksync_instrument = { workspace = true, features = ["jemalloc"] }
 
 [dev-dependencies]
 assert_matches.workspace = true
+serde_yaml.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
-
-[build-dependencies]
-rustc_version.workspace = true
+zksync_node_genesis.workspace = true

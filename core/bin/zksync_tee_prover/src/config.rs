@@ -2,11 +2,13 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context as _;
 use secp256k1::SecretKey;
-use serde::Deserialize;
+use smart_config::{
+    de::Serde, ConfigRepository, ConfigSchema, DescribeConfig, DeserializeConfig, Environment, Json,
+};
 use url::Url;
 use zksync_basic_types::tee_types::TeeType;
 use zksync_config::configs::{ObservabilityConfig, PrometheusConfig};
-use zksync_env_config::FromEnv;
+use zksync_vlog::ObservabilityGuard;
 
 /// Configuration for the TEE prover.
 #[derive(Debug, Clone)]
@@ -18,98 +20,42 @@ pub(crate) struct TeeProverConfig {
 }
 
 /// Signing parameters passed via environment
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 pub(crate) struct TeeProverSigConfig {
     /// The private key used to sign the proofs.
+    #[config(secret, with = Serde![str])]
     pub signing_key: SecretKey,
     /// The path to the file containing the TEE quote.
     pub attestation_quote_file_path: PathBuf,
     /// Attestation quote file.
+    #[config(default_t = TeeType::Sgx, with = Serde![str])]
     pub tee_type: TeeType,
 }
 
 /// TEE proof data handler API parameter.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
 pub(crate) struct TeeProverApiConfig {
     /// TEE proof data handler API.
+    #[config(with = Serde![str])]
     pub api_url: Url,
     /// Number of retries for retriable errors before giving up on recovery (i.e., returning an error
     /// from [`Self::run()`]).
-    #[serde(default = "TeeProverApiConfig::default_max_retries")]
+    #[config(default_t = 5)]
     pub max_retries: usize,
     /// Initial back-off interval when retrying recovery on a retriable error. Each subsequent retry interval
     /// will be multiplied by [`Self.retry_backoff_multiplier`].
-    #[serde(default = "TeeProverApiConfig::default_initial_retry_backoff_sec")]
-    pub initial_retry_backoff_sec: u64,
+    #[config(default_t = Duration::from_secs(1))]
+    pub initial_retry_backoff: Duration,
     /// Multiplier for the back-off interval when retrying recovery on a retriable error.
-    #[serde(default = "TeeProverApiConfig::default_retry_backoff_multiplier")]
+    #[config(default_t = 2.0)]
     pub retry_backoff_multiplier: f32,
     /// Maximum back-off interval when retrying recovery on a retriable error.
-    #[serde(default = "TeeProverApiConfig::default_max_backoff_sec")]
-    pub max_backoff_sec: u64,
-}
-
-impl TeeProverApiConfig {
-    pub fn initial_retry_backoff(&self) -> Duration {
-        Duration::from_secs(self.initial_retry_backoff_sec)
-    }
-
-    pub fn max_backoff(&self) -> Duration {
-        Duration::from_secs(self.max_backoff_sec)
-    }
-
-    pub const fn default_max_retries() -> usize {
-        10
-    }
-
-    pub const fn default_initial_retry_backoff_sec() -> u64 {
-        1
-    }
-
-    pub const fn default_retry_backoff_multiplier() -> f32 {
-        2.0
-    }
-
-    pub const fn default_max_backoff_sec() -> u64 {
-        128
-    }
-}
-
-impl FromEnv for TeeProverApiConfig {
-    /// Constructs the TEE Prover API configuration from environment variables.
-    ///
-    /// Example usage of environment variables for tests:
-    /// ```
-    /// export TEE_PROVER_API_URL="http://127.0.0.1:4320"
-    /// export TEE_PROVER_MAX_RETRIES=10
-    /// export TEE_PROVER_INITIAL_RETRY_BACKOFF_SEC=1
-    /// export TEE_PROVER_RETRY_BACKOFF_MULTIPLIER=2.0
-    /// export TEE_PROVER_MAX_BACKOFF_SEC=128
-    /// ```
-    fn from_env() -> anyhow::Result<Self> {
-        let config = envy::prefixed("TEE_PROVER_").from_env()?;
-        Ok(config)
-    }
-}
-
-impl FromEnv for TeeProverSigConfig {
-    /// Constructs the TEE Prover signature configuration from environment variables.
-    ///
-    /// Example usage of environment variables for tests:
-    /// ```
-    /// export TEE_PROVER_SIGNING_KEY="b50b38c8d396c88728fc032ece558ebda96907a0b1a9340289715eef7bf29deb"
-    /// export TEE_PROVER_ATTESTATION_QUOTE_FILE_PATH="/tmp/test"  # run `echo test > /tmp/test` beforehand
-    /// export TEE_PROVER_TEE_TYPE="sgx"
-    /// ```
-    fn from_env() -> anyhow::Result<Self> {
-        let config = envy::prefixed("TEE_PROVER_").from_env()?;
-        Ok(config)
-    }
+    #[config(default_t = Duration::from_secs(128))]
+    pub max_backoff: Duration,
 }
 
 #[derive(Debug)]
 pub(crate) struct AppConfig {
-    pub observability: ObservabilityConfig,
     pub prometheus: PrometheusConfig,
     pub prover: TeeProverConfig,
 }
@@ -117,23 +63,27 @@ pub(crate) struct AppConfig {
 const DEFAULT_INSTANCE_METADATA_BASE_URL: &str =
     "http://metadata.google.internal/computeMetadata/v1/instance/attributes/container_config";
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct MetaConfig {
-    pub observability: ObservabilityConfig,
-    pub prometheus: PrometheusConfig,
-    pub prover_api: TeeProverApiConfig,
-}
-
 impl AppConfig {
-    pub(crate) async fn try_new() -> anyhow::Result<Self> {
-        let sig_conf = TeeProverSigConfig::from_env().context("TeeProverSigConfig::from_env()")?;
+    fn full_schema() -> ConfigSchema {
+        // `unwrap()`s are safe; we know that config locations don't conflict
+        let mut schema = ConfigSchema::new(&TeeProverSigConfig::DESCRIPTION, "tee_prover");
+        schema
+            .insert(&TeeProverApiConfig::DESCRIPTION, "tee_prover")
+            .unwrap()
+            .push_alias("prover_api")
+            .unwrap();
+        schema
+            .insert(&ObservabilityConfig::DESCRIPTION, "observability")
+            .unwrap();
+        schema
+            .insert(&PrometheusConfig::DESCRIPTION, "prometheus")
+            .unwrap();
+        schema
+    }
 
-        if std::env::var_os("GOOGLE_METADATA").is_some() {
-            let MetaConfig {
-                observability,
-                prometheus,
-                prover_api,
-            } = reqwest::Client::default()
+    pub(crate) async fn try_new() -> anyhow::Result<(Self, ObservabilityGuard)> {
+        let metadata = if std::env::var_os("GOOGLE_METADATA").is_some() {
+            let meta_config = reqwest::Client::default()
                 .get(DEFAULT_INSTANCE_METADATA_BASE_URL)
                 .header("Metadata-Flavor", "Google")
                 .send()
@@ -142,37 +92,49 @@ impl AppConfig {
                 .json()
                 .await
                 .context("convert metadata to config")?;
-
-            Ok(AppConfig {
-                observability,
-                prometheus,
-                prover: TeeProverConfig {
-                    sig_conf,
-                    prover_api,
-                },
-            })
+            Some(Json::new("google_metadata", meta_config))
         } else {
-            Ok(AppConfig {
-                observability: ObservabilityConfig::from_env()
-                    .context("ObservabilityConfig::from_env()")?,
-                prometheus: PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?,
-                prover: TeeProverConfig {
-                    sig_conf,
-                    prover_api: TeeProverApiConfig::from_env()
-                        .context("TeeProverApiConfig::from_env()")?,
-                },
-            })
+            None
+        };
+        Self::from_sources(Environment::prefixed(""), metadata)
+    }
+
+    fn from_sources(
+        env: Environment,
+        metadata: Option<Json>,
+    ) -> anyhow::Result<(Self, ObservabilityGuard)> {
+        let schema = Self::full_schema();
+        let mut config_repo = ConfigRepository::new(&schema).with(env);
+        if let Some(metadata) = metadata {
+            config_repo = config_repo.with(metadata);
         }
+        let mut config_repo = zksync_config::ConfigRepository::from(config_repo);
+
+        let observability_config: ObservabilityConfig = config_repo.parse()?;
+        let observability_guard = observability_config
+            .install()
+            .context("installing observability failed")?;
+
+        let this = Self {
+            prometheus: config_repo.parse()?,
+            prover: TeeProverConfig {
+                sig_conf: config_repo.parse()?,
+                prover_api: config_repo.parse()?,
+            },
+        };
+        Ok((this, observability_guard))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::MetaConfig;
+    use std::path::Path;
 
-    #[tokio::test]
+    use super::*;
+
+    #[tokio::test] // Observability can only be installed in the Tokio runtime context
     async fn test_response() {
-        // Create mock response data
+        // TODO: return OTel config once it doesn't hang up the test
         let mock_data = r#"{
           "telemetry" : {
             "otlp" : {
@@ -187,24 +149,41 @@ mod tests {
             }
           },
           "observability" : {
-            "opentelemetry" : {
-              "level": "trace",
-              "endpoint" : "http://127.0.0.1:4318",
-              "logs_endpoint" : "http://127.0.0.1:4318"
-            },
             "log_format" : "plain"
           },
           "prometheus" : {
             "listener_port": 3321
           },
           "prover_api" : {
-            "api_url" : "http://server-v2-proof-data-handler-internal.era-stage-proofs.matterlabs.corp",
+            "api_url" : "http://prover_api/",
             "max_retries" : 10,
             "initial_retry_backoff_sec" : 10,
             "retry_backoff_multiplier" : 2.0,
             "max_backoff_sec" : 128
           }
         }"#;
-        let _meta_config: MetaConfig = serde_json::from_str(mock_data).unwrap();
+        let json: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(mock_data).unwrap();
+        let json = Json::new("google_metadata", json);
+
+        let env = r#"
+            TEE_PROVER_SIGNING_KEY="b50b38c8d396c88728fc032ece558ebda96907a0b1a9340289715eef7bf29deb"
+            TEE_PROVER_ATTESTATION_QUOTE_FILE_PATH="/tmp/test"
+            TEE_PROVER_TEE_TYPE="sgx"
+        "#;
+        let env = Environment::from_dotenv("test.env", env).unwrap();
+
+        let (app_config, _guard) = AppConfig::from_sources(env, Some(json)).unwrap();
+        assert_eq!(
+            app_config.prover.prover_api.api_url.as_str(),
+            "http://prover_api/"
+        );
+        assert_eq!(app_config.prover.prover_api.max_retries, 10);
+        assert_eq!(app_config.prover.sig_conf.tee_type, TeeType::Sgx);
+        assert_eq!(
+            app_config.prover.sig_conf.attestation_quote_file_path,
+            Path::new("/tmp/test")
+        );
+        assert_eq!(app_config.prometheus.listener_port, Some(3_321));
     }
 }

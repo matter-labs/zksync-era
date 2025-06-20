@@ -1,70 +1,49 @@
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use smart_config::{
+    de::{FromSecretString, Optional},
+    metadata::TimeUnit,
+    DescribeConfig, DeserializeConfig,
+};
 use zksync_basic_types::secrets::{APIKey, SeedPhrase};
 
-pub const AVAIL_GAS_RELAY_CLIENT_NAME: &str = "GasRelay";
-pub const AVAIL_FULL_CLIENT_NAME: &str = "FullClient";
-
-pub const IN_BLOCK_FINALITY_STATE: &str = "inBlock";
-pub const FINALIZED_FINALITY_STATE: &str = "finalized";
-pub const DEFAULT_DISPATCH_TIMEOUT_MS: u64 = 180_000; // 3 minutes
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "avail_client")]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(tag = "avail_client_type")]
 pub enum AvailClientConfig {
     FullClient(AvailDefaultConfig),
     GasRelay(AvailGasRelayConfig),
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct AvailConfig {
     pub bridge_api_url: String,
-    pub timeout_ms: usize,
-    #[serde(flatten)]
+    #[config(default_t = Duration::from_secs(30))]
+    pub timeout: Duration,
+    #[config(flatten)]
     pub config: AvailClientConfig,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct AvailDefaultConfig {
     pub api_node_url: String,
     pub app_id: u32,
-    pub finality_state: Option<String>,
-    pub dispatch_timeout_ms: Option<u64>,
+    #[config(default_t = 3 * TimeUnit::Minutes)]
+    pub dispatch_timeout: Duration,
+    #[config(default_t = 5)]
+    pub max_blocks_to_look_back: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct AvailGasRelayConfig {
     pub gas_relay_api_url: String,
+    #[config(default_t = 5)]
     pub max_retries: usize,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, DescribeConfig, DeserializeConfig)]
 pub struct AvailSecrets {
+    #[config(with = Optional(FromSecretString))]
     pub seed_phrase: Option<SeedPhrase>,
+    #[config(with = Optional(FromSecretString))]
     pub gas_relay_api_key: Option<APIKey>,
-}
-
-impl AvailDefaultConfig {
-    pub fn finality_state(&self) -> anyhow::Result<String> {
-        match self.finality_state.clone() {
-            Some(finality_state) => match finality_state.as_str() {
-                IN_BLOCK_FINALITY_STATE | FINALIZED_FINALITY_STATE => Ok(finality_state),
-                _ => Err(anyhow::anyhow!(
-                    "Invalid finality state: {}. Supported values are: {}, {}",
-                    finality_state,
-                    IN_BLOCK_FINALITY_STATE,
-                    FINALIZED_FINALITY_STATE
-                )),
-            },
-            None => Ok(IN_BLOCK_FINALITY_STATE.to_string()),
-        }
-    }
-
-    pub fn dispatch_timeout(&self) -> Duration {
-        Duration::from_millis(
-            self.dispatch_timeout_ms
-                .unwrap_or(DEFAULT_DISPATCH_TIMEOUT_MS),
-        )
-    }
 }

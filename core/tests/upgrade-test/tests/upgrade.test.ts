@@ -488,7 +488,7 @@ describe('Upgrade test', function () {
                 [],
                 l1AdminGovWallet.provider!,
                 // It does not matter who is the refund recipient in this test
-                gatewayInfo.l2ChainAdmin
+                call.target
             );
         }
 
@@ -824,7 +824,7 @@ async function prepareGovernanceCalldata(
             factoryDeps,
             l1Provider,
             // It does not matter who is the refund recipient in this test
-            gatewayInfo.l2ChainAdmin
+            to
         );
     } else {
         call = {

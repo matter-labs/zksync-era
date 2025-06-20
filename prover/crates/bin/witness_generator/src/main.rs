@@ -9,8 +9,11 @@ use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
-use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_env_config::object_store::ProverObjectStoreConfig;
+use zksync_config::{
+    configs::{GeneralConfig, PostgresSecrets},
+    full_config_schema,
+    sources::ConfigFilePaths,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -18,7 +21,6 @@ use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_task_management::ManagedTasks;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
-use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
     metrics::SERVER_METRICS,
     rounds::{
@@ -92,56 +94,36 @@ async fn ensure_protocol_alignment(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let opt = Opt::from_args();
-
-    let general_config = load_general_config(opt.config_path).context("general config")?;
-
-    let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
-
-    let observability_config = general_config
-        .observability
-        .context("observability config")?;
-    let _observability_guard = observability_config.install()?;
-
     let started_at = Instant::now();
+    let opt = Opt::from_args();
+    let schema = full_config_schema();
+    let config_file_paths = ConfigFilePaths {
+        general: opt.config_path,
+        secrets: opt.secrets_path,
+        ..ConfigFilePaths::default()
+    };
+    let config_sources = config_file_paths.into_config_sources("ZKSYNC_")?;
+
+    let _observability_guard = config_sources.observability()?.install()?;
+
+    let mut repo = config_sources.build_repository(&schema);
+    let general_config: GeneralConfig = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let prover_config = general_config.prover_config.context("prover config")?;
-    let object_store_config = ProverObjectStoreConfig(
-        prover_config
-            .prover_object_store
-            .context("object store")?
-            .clone(),
-    );
-    let store_factory = ObjectStoreFactory::new(object_store_config.0);
+    let object_store_config = prover_config.prover_object_store;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
     let config = general_config
         .witness_generator_config
         .context("witness generator config")?
         .clone();
-    let keystore =
-        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let keystore = Keystore::locate().with_setup_path(Some(prover_config.setup_data_path));
 
-    let prometheus_config = general_config
+    let prometheus_exporter_config = general_config
         .prometheus_config
-        .context("missing prometheus config")?;
-
-    let prometheus_exporter_config = if prometheus_config.pushgateway_url.is_some() {
-        let url = prometheus_config
-            .gateway_endpoint()
-            .context("missing prometheus gateway endpoint")?;
-        tracing::info!("Using Prometheus push gateway: {}", url);
-        PrometheusExporterConfig::push(url, prometheus_config.push_interval())
-    } else {
-        let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
-            port
-        } else {
-            prometheus_config.listener_port
-        };
-        tracing::info!(
-            "Using Prometheus pull on port: {}",
-            prometheus_listener_port
-        );
-        PrometheusExporterConfig::pull(prometheus_listener_port)
-    };
+        .build_exporter_config(config.prometheus_listener_port)
+        .context("Failed to build Prometheus exporter configuration")?;
+    tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
     let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
         .build()
@@ -176,10 +158,9 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    let prometheus_task = prometheus_exporter_config.run(stop_receiver.clone());
-
-    let mut tasks = Vec::new();
-    tasks.push(tokio::spawn(prometheus_task));
+    let mut tasks = vec![tokio::spawn(
+        prometheus_exporter_config.run(stop_receiver.clone()),
+    )];
 
     for round in rounds {
         tracing::info!(
@@ -261,7 +242,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver.next() => {
-            tracing::info!("Stop signal received, shutting down");
+            tracing::info!("Stop request received, shutting down");
         }
     }
 

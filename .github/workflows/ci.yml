@@ -18,7 +18,6 @@ jobs:
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
-
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 2
@@ -37,7 +36,6 @@ jobs:
               - '!prover/extract-setup-data-keys.sh'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
-              - '.github/workflows/build-witness-generator-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
               - 'docker-compose-runner-nightly.yml'
               - '!**/*.md'
@@ -55,6 +53,7 @@ jobs:
               - './core/Cargo.toml'
               - './core/Cargo.lock'
               - 'zkstack_cli/**'
+              - 'private-rpc/**'
               - '!**/*.md'
               - '!**/*.MD'
               - 'docker-compose.yml'
@@ -102,13 +101,6 @@ jobs:
     if: needs.changed_files.outputs.docs == 'true'
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
-
-  # What needs to be ran for both core and prover
-  ci-for-common:
-    needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
-    name: CI for Common Components (prover or core)
-    uses: ./.github/workflows/ci-common-reusable.yml
 
   build-core-images:
     name: Build core images
@@ -159,25 +151,21 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-witness-generator-image-avx512:
-    name: Build prover images with avx512 instructions
-    needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
-    uses: ./.github/workflows/build-witness-generator-template.yml
-    with:
-      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
-      action: "build"
-      WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
   ci-success:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ ci-for-core-lint, ci-for-common, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-contract-verifier, build-prover-images, e2e-for-prover ]
+    needs:
+      [
+        ci-for-core-lint,
+        ci-for-core,
+        ci-for-prover,
+        ci-for-docs,
+        build-core-images,
+        build-contract-verifier,
+        build-prover-images,
+        e2e-for-prover,
+      ]
     steps:
       - name: Status
         run: |

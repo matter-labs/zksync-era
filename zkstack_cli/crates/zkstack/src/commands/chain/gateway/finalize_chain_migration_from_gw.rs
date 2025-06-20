@@ -69,7 +69,7 @@ pub async fn run(
                 .clone()
                 .context("L2 RPC URL must be provided for cross checking")?,
             params.gateway_rpc_url.clone(),
-            MigrationDirection::ToGateway,
+            MigrationDirection::FromGateway,
         )
         .await?;
 
@@ -78,11 +78,10 @@ pub async fn run(
                 logger::info("The chain migration to Gateway has been finalized on the Gateway side. Finalizing the migration...");
             }
             _ => {
-                let msg = message_for_gateway_migration_progress_state(
+                anyhow::bail!(message_for_gateway_migration_progress_state(
                     state,
                     MigrationDirection::FromGateway,
-                );
-                logger::info(&msg);
+                ));
             }
         }
     }

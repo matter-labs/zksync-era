@@ -11,6 +11,7 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
+use zksync_shared_resources::api::SyncState;
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
@@ -40,10 +41,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             validation_computational_gas_limit: u32::MAX,
             operator_address: OPERATOR_ADDRESS,
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            first_l2_block: L2BlockParams {
-                timestamp,
-                virtual_blocks: 1,
-            },
+            first_l2_block: L2BlockParams::new(timestamp * 1000),
             pubdata_params: Default::default(),
         },
         number: L1BatchNumber(number),
@@ -78,13 +76,13 @@ impl MockMainNodeClient {
         }
     }
 
-    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
+    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersionInfo) {
         self.system_contracts
-            .insert(version.bootloader_code_hash.unwrap(), vec![]);
+            .insert(version.bootloader_code_hash, vec![]);
         self.system_contracts
-            .insert(version.default_account_code_hash.unwrap(), vec![]);
+            .insert(version.default_account_code_hash, vec![]);
         self.protocol_versions
-            .insert(version.minor_version.unwrap(), version);
+            .insert(version.minor_version, version);
     }
 }
 
@@ -149,6 +147,7 @@ impl StateKeeperHandles {
 
     /// Waits for the given condition.
     pub async fn wait_for_local_block(mut self, want: L2BlockNumber) {
+        let mut sync_state_sub = self.sync_state.subscribe();
         tokio::select! {
             task_result = &mut self.task => {
                 match task_result {
@@ -160,7 +159,7 @@ impl StateKeeperHandles {
             () = tokio::time::sleep(TEST_TIMEOUT) => {
                 panic!("Timed out waiting for L2 block to be sealed");
             }
-            () = self.sync_state.wait_for_local_block(want) => {
+            _ = sync_state_sub.wait_for(|state| state.local_block() >= Some(want)) => {
                 self.stop_sender.send_replace(true);
                 self.task.await.unwrap().unwrap();
             }
@@ -305,13 +304,13 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
-    let next_protocol_version = api::ProtocolVersion {
-        minor_version: Some(ProtocolVersionId::next() as u16),
+    let next_protocol_version = api::ProtocolVersionInfo {
+        minor_version: ProtocolVersionId::next() as u16,
         timestamp: snapshot.l2_block_timestamp + 1,
-        bootloader_code_hash: Some(H256::repeat_byte(1)),
-        default_account_code_hash: Some(H256::repeat_byte(1)),
+        bootloader_code_hash: H256::repeat_byte(1),
+        default_account_code_hash: H256::repeat_byte(1),
         evm_emulator_code_hash: Some(H256::repeat_byte(1)),
-        ..api::ProtocolVersion::default()
+        l2_system_upgrade_tx_hash: None,
     };
     client.insert_protocol_version(next_protocol_version.clone());
 
@@ -343,13 +342,13 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         persisted_protocol_version
             .base_system_contracts_hashes
             .bootloader,
-        next_protocol_version.bootloader_code_hash.unwrap()
+        next_protocol_version.bootloader_code_hash
     );
     assert_eq!(
         persisted_protocol_version
             .base_system_contracts_hashes
             .default_aa,
-        next_protocol_version.default_account_code_hash.unwrap()
+        next_protocol_version.default_account_code_hash
     );
 
     assert_eq!(
@@ -397,10 +396,7 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
         .collect();
 
     let open_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp: snapshot.l2_block_timestamp + 2,
-            virtual_blocks: 1,
-        },
+        params: L2BlockParams::new((snapshot.l2_block_timestamp + 2) * 1000),
         number: snapshot.l2_block_number + 2,
     };
     let more_txs = (0..3).map(|_| {
@@ -497,15 +493,14 @@ async fn test_external_io_recovery(
     // Check that the state keeper state is restored.
     state_keeper
         .sync_state
-        .wait_for_local_block(snapshot.l2_block_number + 2)
-        .await;
+        .subscribe()
+        .wait_for(|state| state.local_block() >= Some(snapshot.l2_block_number + 2))
+        .await
+        .unwrap();
 
     // Send new actions and wait until the new L2 block is sealed.
     let open_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp: snapshot.l2_block_timestamp + 3,
-            virtual_blocks: 1,
-        },
+        params: L2BlockParams::new((snapshot.l2_block_timestamp + 3) * 1000),
         number: snapshot.l2_block_number + 3,
     };
     let actions = vec![open_l2_block, new_tx.into(), SyncAction::SealL2Block];
@@ -573,10 +568,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     let first_l1_batch_actions = vec![l1_batch, first_tx.into(), SyncAction::SealL2Block];
 
     let fictive_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp: snapshot.l2_block_timestamp + 2,
-            virtual_blocks: 0,
-        },
+        params: L2BlockParams::new((snapshot.l2_block_timestamp + 2) * 1000),
         number: snapshot.l2_block_number + 2,
     };
     let fictive_l2_block_actions = vec![fictive_l2_block, SyncAction::SealBatch];
@@ -698,10 +690,7 @@ async fn external_io_empty_unsealed_batch() {
     let tx = FetchedTransaction::new(tx.into());
     let open_batch_two = open_l1_batch(2, 2, 3);
     let fictive_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp: 2,
-            virtual_blocks: 0,
-        },
+        params: L2BlockParams::new(2000),
         number: L2BlockNumber(2),
     };
     let actions1 = vec![open_batch_one, tx.into(), SyncAction::SealL2Block];
@@ -734,10 +723,7 @@ async fn external_io_empty_unsealed_batch() {
     let tx_hash = tx.hash();
     let tx = FetchedTransaction::new(tx.into());
     let fictive_l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp: 4,
-            virtual_blocks: 0,
-        },
+        params: L2BlockParams::new(4000),
         number: L2BlockNumber(4),
     };
     let actions1 = vec![open_batch_two, tx.into(), SyncAction::SealL2Block];
