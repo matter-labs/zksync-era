@@ -1,12 +1,9 @@
 use std::time::Duration;
 
-use serde::Deserialize;
 use smart_config::{de::FromSecretString, DescribeConfig, DeserializeConfig};
 use zksync_basic_types::secrets::PrivateKey;
 
-// TODO: remove `#[derive(Deserialize)]` once env-based config in EN is reworked
-
-#[derive(Clone, Debug, PartialEq, Deserialize, DescribeConfig, DeserializeConfig)]
+#[derive(Clone, Debug, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct CelestiaConfig {
     // gRPC URL for celestia-app instance
     pub api_node_url: String,

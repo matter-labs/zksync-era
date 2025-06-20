@@ -11,7 +11,7 @@ use clap::Parser;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use zksync_config::{
-    configs::{DatabaseSecrets, FriProofCompressorConfig, GeneralConfig},
+    configs::{FriProofCompressorConfig, GeneralConfig, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
@@ -49,10 +49,44 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .context("Error setting Ctrl+C handler")?;
+
+    let cancellation_token = CancellationToken::new();
+    let mut managed_tasks = ManagedTasks::new(vec![]);
+    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
+
+    tokio::select! {
+        _ = run_inner(cancellation_token.clone(), metrics_stop_receiver, &mut managed_tasks) => {},
+        _ = stop_signal_receiver => {
+            tracing::info!("Stop request received, shutting down");
+        }
+    }
+    let shutdown_time = Instant::now();
+    cancellation_token.cancel();
+    metrics_stop_sender
+        .send(true)
+        .context("failed to stop metrics")?;
+    managed_tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
+    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
+    Ok(())
+}
+
+async fn run_inner(
+    cancellation_token: CancellationToken,
+    metrics_stop_receiver: tokio::sync::watch::Receiver<bool>,
+    managed_tasks: &mut ManagedTasks,
+) -> anyhow::Result<()> {
     let start_time = Instant::now();
     let opt = Cli::parse();
     let is_fflonk = opt.fflonk.unwrap_or(false);
-    let schema = full_config_schema(false);
+    let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,
         secrets: opt.secrets_path,
@@ -64,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut repo = config_sources.build_repository(&schema);
     let general_config: GeneralConfig = repo.parse()?;
-    let database_secrets: DatabaseSecrets = repo.parse()?;
+    let database_secrets: PostgresSecrets = repo.parse()?;
 
     let config = general_config
         .proof_compressor_config
@@ -80,7 +114,6 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed to build Prometheus exporter configuration")?;
     tracing::info!("Using Prometheus exporter with {prometheus_exporter_config:?}");
 
-    let (metrics_stop_sender, metrics_stop_receiver) = tokio::sync::watch::channel(false);
     let mut tasks = vec![tokio::spawn(
         prometheus_exporter_config.run(metrics_stop_receiver),
     )];
@@ -112,20 +145,9 @@ async fn main() -> anyhow::Result<()> {
     let keystore = Arc::new(keystore);
     load_all_resources(&keystore, is_fflonk);
 
-    let cancellation_token = CancellationToken::new();
-
     PROOF_FRI_COMPRESSOR_INSTANCE_METRICS
         .startup_time
         .set(start_time.elapsed());
-
-    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
-    let mut stop_signal_sender = Some(stop_signal_sender);
-    ctrlc::set_handler(move || {
-        if let Some(sender) = stop_signal_sender.take() {
-            sender.send(()).ok();
-        }
-    })
-    .context("Error setting Ctrl+C handler")?;
 
     let proof_fri_compressor_runner = proof_fri_compressor_runner(
         pool,
@@ -137,23 +159,10 @@ async fn main() -> anyhow::Result<()> {
     );
 
     tracing::info!("Starting proof compressor");
-
     tasks.extend(proof_fri_compressor_runner.run());
 
-    let mut tasks = ManagedTasks::new(tasks);
-    tokio::select! {
-        _ = tasks.wait_single() => {},
-        _ = stop_signal_receiver => {
-            tracing::info!("Stop request received, shutting down");
-        }
-    }
-    let shutdown_time = Instant::now();
-    cancellation_token.cancel();
-    metrics_stop_sender
-        .send(true)
-        .context("failed to stop metrics")?;
-    tasks.complete(GRACEFUL_SHUTDOWN_DURATION).await;
-    tracing::info!("Tasks completed in {:?}.", shutdown_time.elapsed());
+    *managed_tasks = ManagedTasks::new(tasks);
+    managed_tasks.wait_single().await;
     Ok(())
 }
 
