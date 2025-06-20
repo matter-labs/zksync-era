@@ -492,9 +492,9 @@ async fn test_batch_root_processor_from_genesis() {
         .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
-    let inner_chain_log_proofs = inner_chain_log_proofs();
+    let chain_log_proofs_until_msg_root = chain_log_proofs_until_msg_root();
     sl_client
-        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .add_chain_log_proofs_until_msg_root(chain_log_proofs_until_msg_root)
         .await;
 
     sl_client.set_last_finalized_block_number(5).await;
@@ -592,9 +592,9 @@ async fn test_batch_root_processor_restart() {
         .await;
     let chain_log_proofs = chain_log_proofs();
     sl_client.add_chain_log_proofs(chain_log_proofs).await;
-    let inner_chain_log_proofs = inner_chain_log_proofs();
+    let chain_log_proofs_until_msg_root = chain_log_proofs_until_msg_root();
     sl_client
-        .add_inner_chain_log_proofs(inner_chain_log_proofs)
+        .add_chain_log_proofs_until_msg_root(chain_log_proofs_until_msg_root)
         .await;
 
     sl_client.set_last_finalized_block_number(14).await;
@@ -807,7 +807,7 @@ fn chain_log_proofs() -> Vec<(L1BatchNumber, ChainAggProof)> {
     ]
 }
 
-fn inner_chain_log_proofs() -> Vec<(L2BlockNumber, ChainAggProof)> {
+fn chain_log_proofs_until_msg_root() -> Vec<(L2BlockNumber, ChainAggProof)> {
     vec![
         (
             L2BlockNumber(5),

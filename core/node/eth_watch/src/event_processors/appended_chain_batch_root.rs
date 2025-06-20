@@ -192,9 +192,9 @@ impl EventProcessor for BatchRootProcessor {
                 // the root at the GW block number where the containing batch was executed
                 let local_chain_agg_proof = self
                     .sl_l2_client
-                    .get_inner_chain_log_proof(*sl_block_number, self.l2_chain_id)
+                    .get_chain_log_proof_until_msg_root(*sl_block_number, self.l2_chain_id)
                     .await?
-                    .context("Missing Gateway chain log proof for finalized batch")?;
+                    .context("Missing chain log proof until msg root for finalized batch")?;
                 let local_chain_proof_vector =
                     Self::chain_proof_vector(sl_block_number.0, local_chain_agg_proof, sl_chain_id);
 
