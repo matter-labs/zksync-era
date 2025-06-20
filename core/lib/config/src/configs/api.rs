@@ -2,12 +2,13 @@ use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     num::{NonZeroU32, NonZeroUsize},
+    path::PathBuf,
     str::FromStr,
     time::Duration,
 };
 
 use anyhow::Context as _;
-use serde::{Deserialize, Serialize};
+use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
 use smart_config::{
     de::{Delimited, Entries, NamedEntries, OrString, Serde, ToEntries, WellKnown},
     metadata::{SizeUnit, TimeUnit},
@@ -36,7 +37,7 @@ impl ApiConfig {
         Self {
             web3_json_rpc: Web3JsonRpcConfig::default(),
             healthcheck: HealthCheckConfig {
-                port: 3052,
+                port: 3052.into(),
                 slow_time_limit: None,
                 hard_time_limit: None,
                 expose_config: false,
@@ -44,6 +45,76 @@ impl ApiConfig {
             merkle_tree: MerkleTreeApiConfig { port: 3053 },
         }
     }
+}
+
+/// Port binding specification.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Port {
+    Tcp(SocketAddr),
+    Unix(PathBuf),
+}
+
+impl Port {
+    const EXPECTING: &'static str = "port number (to bind to 0.0.0.0), socket address or path to the unix socket prefixed by 'unix:'";
+}
+
+impl From<u16> for Port {
+    fn from(port: u16) -> Self {
+        Self::Tcp(SocketAddr::new([0, 0, 0, 0].into(), port))
+    }
+}
+
+impl From<SocketAddr> for Port {
+    fn from(addr: SocketAddr) -> Self {
+        Self::Tcp(addr)
+    }
+}
+
+impl Serialize for Port {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Tcp(addr) => {
+                if addr.ip().is_unspecified() {
+                    addr.port().serialize(serializer)
+                } else {
+                    addr.serialize(serializer)
+                }
+            }
+            Self::Unix(path) => {
+                let path = path
+                    .to_str()
+                    .ok_or_else(|| ser::Error::custom("path cannot be encoded to UTF-8"))?;
+                format!("unix:{path}").serialize(serializer)
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Port {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Debug, Deserialize)]
+        enum SerdePort {
+            Just(u16),
+            Tcp(SocketAddr),
+            String(String),
+        }
+
+        Ok(match SerdePort::deserialize(deserializer)? {
+            SerdePort::Just(port) => port.into(),
+            SerdePort::Tcp(addr) => addr.into(),
+            SerdePort::String(s) => {
+                let s = s.strip_prefix("unix:").ok_or_else(|| {
+                    de::Error::invalid_value(de::Unexpected::Str(&s), &Self::EXPECTING)
+                })?;
+                Self::Unix(s.into())
+            }
+        })
+    }
+}
+
+impl WellKnown for Port {
+    type Deserializer = Serde![int, str];
+    const DE: Self::Deserializer = Serde![int, str];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -332,7 +403,7 @@ impl Web3JsonRpcConfig {
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct HealthCheckConfig {
     /// Port to which the healthcheck server is listening.
-    pub port: u16,
+    pub port: Port,
     /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
     /// If not specified, the default value in the health check crate will be used.
     pub slow_time_limit: Option<Duration>,
@@ -342,12 +413,6 @@ pub struct HealthCheckConfig {
     /// Expose config parameters as the `config` component. Mostly useful for debugging purposes, automations or end-to-end testing.
     #[config(default)]
     pub expose_config: bool,
-}
-
-impl HealthCheckConfig {
-    pub fn bind_addr(&self) -> SocketAddr {
-        SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
-    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -447,7 +512,7 @@ mod tests {
                 gas_price_scale_factor_open_batch: Some(1.3),
             },
             healthcheck: HealthCheckConfig {
-                port: 8081,
+                port: 8081.into(),
                 slow_time_limit: Some(Duration::from_millis(250)),
                 hard_time_limit: Some(Duration::from_millis(2_000)),
                 expose_config: true,
