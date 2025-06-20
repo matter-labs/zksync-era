@@ -1990,37 +1990,6 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18e0fa0f7432d59891db755b883f4a70d5f0fa42b63a6b9c0a440563d59dfa39"
-dependencies = [
- "base64 0.22.1",
- "bech32",
- "bitvec",
- "blockstore",
- "bytes",
- "celestia-proto",
- "cid",
- "const_format",
- "enum_dispatch",
- "leopard-codec",
- "libp2p-identity",
- "multiaddr",
- "multihash",
- "nmt-rs",
- "prost 0.13.5",
- "ruint",
- "serde",
- "serde_repr",
- "sha2 0.10.8",
- "tendermint",
- "tendermint-proto",
- "thiserror 1.0.69",
- "time",
-]
-
-[[package]]
-name = "celestia-types"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f06856e4cbee22b12ca4098196c930660b528921fb819158fe6837974afd8478"
@@ -3331,16 +3300,13 @@ dependencies = [
 
 [[package]]
 name = "eq-common"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6bf51718c05e6c94a7c420b51918071876aba1bea720660e3473e514a1a9f6d"
+checksum = "7079165dc44ef550a98d34df009eac50d02b16b6b69b5032df8ff65a662c1467"
 dependencies = [
- "bincode",
- "celestia-types 0.10.1",
- "nmt-rs",
+ "celestia-types",
  "prost 0.12.6",
  "serde",
- "sha3 0.10.8",
  "thiserror 2.0.12",
  "tonic 0.11.0",
  "tonic-build",
@@ -3348,14 +3314,13 @@ dependencies = [
 
 [[package]]
 name = "eq-sdk"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e156b1d9bb93a0a31a2fe9f91de5fcd62ced5884db60c86cf2a3e3beab87f76"
+checksum = "aa109512921a257a40f7f7227bc0848f86e74d4e407541ec2ac7e71c69ef3b5e"
 dependencies = [
  "base64 0.22.1",
- "celestia-types 0.10.1",
+ "celestia-types",
  "eq-common",
- "log",
  "serde",
  "tokio",
  "tonic 0.11.0",
@@ -10075,9 +10040,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.44.2"
+version = "1.45.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6b88822cbe49de4185e3a4cbf8321dd487cf5fe0c5c65695fef6346371e9c48"
+checksum = "75ef51a33ef1da925cea3e4eb122833cb377c61439ca401b770f54902b806779"
 dependencies = [
  "backtrace",
  "bytes",
@@ -12453,7 +12418,7 @@ dependencies = [
  "blake2 0.10.6",
  "blake2b_simd",
  "bytes",
- "celestia-types 0.11.2",
+ "celestia-types",
  "chrono",
  "eq-sdk",
  "flate2",
