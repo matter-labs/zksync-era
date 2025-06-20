@@ -66,14 +66,6 @@ jobs:
             echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
           fi
 
-      - name: Hack to set env vars inside docker container
-        shell: bash
-        run: |
-          sed -i '/^FROM matterlabs\/zksync-build-base:latest as builder/a ENV SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage\nENV SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com\nENV SCCACHE_GCS_RW_MODE=READ_WRITE\nENV RUSTC_WRAPPER=sccache' ./docker/zksyncos-prover/Dockerfile
-          #TODO: remove AS version =)
-          sed -i '/^FROM matterlabs\/zksync-build-base:latest AS builder/a ENV SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage\nENV SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com\nENV SCCACHE_GCS_RW_MODE=READ_WRITE\nENV RUSTC_WRAPPER=sccache' ./docker/zksyncos-prover/Dockerfile
-          cat ./docker/zksyncos-prover/Dockerfile
-
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         shell: bash
