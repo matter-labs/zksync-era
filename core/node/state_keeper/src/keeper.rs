@@ -13,7 +13,7 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         Halt, L1BatchEnv, SystemEnv,
     },
-    utils::{get_bootloader_max_msg_roots_in_batch, StorageWritesDeduplicator},
+    utils::StorageWritesDeduplicator,
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};

@@ -11,7 +11,10 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_multivm::{
+    interface::Halt,
+    utils::{derive_base_fee_and_gas_per_pubdata, get_bootloader_max_msg_roots_in_batch},
+};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
     block::UnsealedL1BatchHeader,
@@ -214,8 +217,12 @@ impl StateKeeperIO for MempoolIO {
             return Ok(None);
         };
 
+        let limit = get_bootloader_max_msg_roots_in_batch(protocol_version.into());
         let mut storage = self.pool.connection_tagged("state_keeper").await?;
-        let interop_roots = storage.interop_root_dal().get_new_interop_roots().await?;
+        let interop_roots = storage
+            .interop_root_dal()
+            .get_new_interop_roots(limit)
+            .await?;
         Ok(Some(L2BlockParams::new_raw(
             timestamp_ms,
             // This value is effectively ignored by the protocol.
