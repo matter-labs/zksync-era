@@ -112,6 +112,7 @@ describe('L1 ERC20 contract checks', () => {
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert due to lack of balance.
+        // FIXME: passing gasPerPubdata on purpose to avoid calling zks_estimateFee; to be removed after zksync-ethers stops using it
         await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice, customData: { gasPerPubdata: 50_000n } })).toBeReverted([
             noBalanceChange,
             feeTaken
@@ -134,6 +135,7 @@ describe('L1 ERC20 contract checks', () => {
         const feeTaken = await shouldOnlyTakeFee(alice);
 
         // Send transfer, it should revert because transfers to zero address are not allowed.
+        // FIXME: passing gasPerPubdata on purpose to avoid calling zks_estimateFee; to be removed after zksync-ethers stops using it
         await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice, customData: { gasPerPubdata: 50_000n } })).toBeReverted([
             noBalanceChange,
             feeTaken
