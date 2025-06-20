@@ -326,8 +326,6 @@ impl Aggregator {
                 .await
                 .unwrap()
                 .filter(|id| *id >= priority_tree_start_index);
-            // TODO: zk os kludge
-            first_priority_op_id_option = None;
 
             let count = batch.header.l1_tx_count as usize;
             if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {

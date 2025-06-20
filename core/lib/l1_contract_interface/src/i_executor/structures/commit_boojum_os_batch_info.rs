@@ -79,3 +79,9 @@ impl Tokenize for CommitBoojumOSBatchInfo {
         ]
     }
 }
+
+impl CommitBoojumOSBatchInfo {
+    pub fn into_token(self) -> Token {
+        Token::Array(vec![Token::Tuple(self.into_tokens())])
+    }
+}

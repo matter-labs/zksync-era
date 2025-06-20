@@ -78,6 +78,7 @@ pub(crate) fn build_commit_tx_input_data(
         l1_batches: batches,
         pubdata_da: PubdataSendingMode::Calldata,
         mode,
+        chain_id: Default::default(),
     }
     .into_tokens();
 

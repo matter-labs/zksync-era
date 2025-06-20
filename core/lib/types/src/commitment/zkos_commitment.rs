@@ -1,5 +1,5 @@
 use blake2::{Blake2s256, Digest};
-use zksync_basic_types::web3::keccak256;
+use zksync_basic_types::{web3::keccak256, L2ChainId};
 
 use crate::{
     commitment::L1BatchWithMetadata, priority_op_onchain_data::PriorityOpOnchainData, H256,
@@ -94,8 +94,15 @@ impl ZkosCommitment {
     }
 }
 
-impl From<&L1BatchWithMetadata> for ZkosCommitment {
-    fn from(batch: &L1BatchWithMetadata) -> Self {
+impl ZkosCommitment {
+    pub fn new(batch: &L1BatchWithMetadata, chain_id: L2ChainId) -> Self {
+        // We instantiate the l2 chain id only after the first block, the zero batch is always 271
+        let chain_id = if batch.header.number.0 == 0 {
+            L2ChainId::default()
+        } else {
+            chain_id
+        };
+
         ZkosCommitment {
             batch_number: batch.header.number.0,
             block_timestamp: batch.header.timestamp,
@@ -106,7 +113,7 @@ impl From<&L1BatchWithMetadata> for ZkosCommitment {
             priority_ops_onchain_data: batch.header.priority_ops_onchain_data.clone(),
             l2_to_l1_logs_root_hash: batch.metadata.l2_l1_merkle_root,
             pubdata: batch.header.pubdata_input.clone().unwrap(),
-            chain_id: 271,
+            chain_id: chain_id.as_u64() as u32,
         }
     }
 }
