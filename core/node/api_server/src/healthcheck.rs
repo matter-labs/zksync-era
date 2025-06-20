@@ -18,12 +18,13 @@ async fn check_health(
 }
 
 async fn run_server(
-    bind_address: api::BindAddress,
+    bind_address: &api::BindAddress,
     app_health_check: Arc<AppHealthCheck>,
     mut stop_receiver: watch::Receiver<bool>,
 ) {
-    tracing::debug!(
-        "Starting healthcheck server with checks {app_health_check:?} on {bind_address:?}"
+    tracing::info!(
+        ?bind_address,
+        "Starting healthcheck server with checks {app_health_check:?}"
     );
 
     app_health_check.expose_metrics();
@@ -51,7 +52,7 @@ async fn run_server(
         }
         #[cfg(unix)]
         api::BindAddress::Unix(path) => {
-            let listener = tokio::net::UnixListener::bind(&path).unwrap_or_else(|err| {
+            let listener = tokio::net::UnixListener::bind(path).unwrap_or_else(|err| {
                 panic!(
                     "Failed binding healthcheck server to {path}: {err}",
                     path = path.display()
@@ -64,6 +65,14 @@ async fn run_server(
         }
     }
     tracing::info!("Healthcheck server shut down");
+
+    #[cfg(unix)]
+    if let api::BindAddress::Unix(path) = bind_address {
+        tracing::info!(path = %path.display(), "Removing Unix domain socket");
+        if let Err(err) = tokio::fs::remove_file(path).await {
+            tracing::error!(path = %path.display(), %err, "Failed removing Unix domain socket");
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -76,7 +85,7 @@ impl HealthCheckHandle {
     pub fn spawn_server(addr: api::BindAddress, app_health_check: Arc<AppHealthCheck>) -> Self {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let server = tokio::spawn(async move {
-            run_server(addr, app_health_check, stop_receiver).await;
+            run_server(&addr, app_health_check, stop_receiver).await;
         });
 
         Self {
