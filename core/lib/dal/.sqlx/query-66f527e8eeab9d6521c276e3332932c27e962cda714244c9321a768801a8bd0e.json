@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM interop_roots\n            JOIN miniblocks\n                ON interop_roots.processed_block_number = miniblocks.number\n            WHERE l1_batch_number = $1\n            ORDER BY received_timestamp, dependency_block_number;\n            ",
+  "query": "\n            SELECT *\n            FROM interop_roots\n            JOIN miniblocks\n                ON interop_roots.processed_block_number = miniblocks.number\n            WHERE l1_batch_number = $1\n            ORDER BY chain_id, dependency_block_number;\n            ",
   "describe": {
     "columns": [
       {
@@ -186,5 +186,5 @@
       false
     ]
   },
-  "hash": "09affc9f484906eadf7190225a64e1a67bbd59f77d926a28342bb9f2de3bcc6b"
+  "hash": "66f527e8eeab9d6521c276e3332932c27e962cda714244c9321a768801a8bd0e"
 }

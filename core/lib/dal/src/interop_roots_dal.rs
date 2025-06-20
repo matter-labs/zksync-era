@@ -57,7 +57,7 @@ impl InteropRootDal<'_, '_> {
             SELECT *
             FROM interop_roots
             WHERE processed_block_number IS NULL
-            ORDER BY received_timestamp, dependency_block_number
+            ORDER BY chain_id, dependency_block_number
             LIMIT $1
             "#,
             number_of_roots as i64
@@ -197,7 +197,7 @@ impl InteropRootDal<'_, '_> {
             SELECT *
             FROM interop_roots
             WHERE processed_block_number = $1
-            ORDER BY received_timestamp, dependency_block_number;
+            ORDER BY chain_id, dependency_block_number;
             "#,
             l2block_number.0 as i32
         )
@@ -234,7 +234,7 @@ impl InteropRootDal<'_, '_> {
             JOIN miniblocks
                 ON interop_roots.processed_block_number = miniblocks.number
             WHERE l1_batch_number = $1
-            ORDER BY received_timestamp, dependency_block_number;
+            ORDER BY chain_id, dependency_block_number;
             "#,
             i64::from(batch_number.0)
         )
