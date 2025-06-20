@@ -1,7 +1,9 @@
+use std::cmp::Ordering;
+
 use zksync_multivm::utils::get_bootloader_max_txs_in_batch;
 use zksync_types::ProtocolVersionId;
 
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, StateKeeperConfig};
+use crate::seal_criteria::{L1BatchSealConfig, SealCriterion, SealData, SealResolution};
 
 /// Checks whether we should seal the block because we've run out of transaction slots.
 #[derive(Debug)]
@@ -10,7 +12,7 @@ pub struct SlotsCriterion;
 impl SealCriterion for SlotsCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         tx_count: usize,
         _l1_tx_count: usize,
         _block_data: &SealData,
@@ -24,16 +26,16 @@ impl SealCriterion for SlotsCriterion {
             config.transaction_slots, max_txs_in_batch, protocol_version as u16
         );
 
-        if tx_count >= config.transaction_slots {
-            SealResolution::IncludeAndSeal
-        } else {
-            SealResolution::NoSeal
+        match tx_count.cmp(&config.transaction_slots) {
+            Ordering::Greater => SealResolution::ExcludeAndSeal,
+            Ordering::Equal => SealResolution::IncludeAndSeal,
+            Ordering::Less => SealResolution::NoSeal,
         }
     }
 
     fn capacity_filled(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         tx_count: usize,
         _l1_tx_count: usize,
         _block_data: &SealData,
@@ -54,9 +56,9 @@ mod tests {
     #[test]
     fn test_slots_seal_criterion() {
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
+        let config = L1BatchSealConfig {
             transaction_slots: 2,
-            ..StateKeeperConfig::for_tests()
+            ..L1BatchSealConfig::for_tests()
         };
 
         let criterion = SlotsCriterion;

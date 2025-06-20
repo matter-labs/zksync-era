@@ -63,9 +63,18 @@ impl From<OutputHandler> for OutputHandlerResource {
     }
 }
 
-impl Resource<resource::Shared> for dyn ConditionalSealer {
+#[derive(Debug, Clone)]
+pub struct ConditionalSealerResource(pub Unique<Box<dyn ConditionalSealer>>);
+
+impl Resource for ConditionalSealerResource {
     fn name() -> String {
         "state_keeper/conditional_sealer".into()
+    }
+}
+
+impl From<Box<dyn ConditionalSealer>> for ConditionalSealerResource {
+    fn from(r: Box<dyn ConditionalSealer>) -> Self {
+        Self(Unique::new(r))
     }
 }
 

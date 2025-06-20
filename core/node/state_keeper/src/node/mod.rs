@@ -5,7 +5,8 @@ pub use self::{
     mempool_io::MempoolIOLayer,
     output_handler::OutputHandlerLayer,
     resources::{
-        BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource, StateKeeperResource,
+        BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
+        StateKeeperIOResource, StateKeeperResource,
     },
     state_keeper::StateKeeperLayer,
 };

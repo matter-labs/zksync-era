@@ -8,7 +8,11 @@ use std::fmt;
 
 use async_trait::async_trait;
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_multivm::interface::TransactionExecutionMetrics;
+use zksync_multivm::{
+    interface::TransactionExecutionMetrics,
+    utils::{get_bootloader_max_txs_in_batch, get_max_batch_base_layer_circuits},
+    vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
+};
 use zksync_types::{ProtocolVersionId, Transaction};
 use zksync_vm_executor::interface::TransactionFilter;
 
@@ -36,16 +40,67 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> Vec<(&'static str, f64)>;
+
+    fn use_propose_mode(&mut self) {}
+
+    fn use_verify_mode(&mut self) {}
+
+    fn set_protocol_version(&mut self, _protocol_version: ProtocolVersionId) {}
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct L1BatchSealConfig {
+    pub max_circuits_per_batch: usize,
+    pub max_pubdata_per_batch: usize,
+    pub transaction_slots: usize,
+    pub close_block_at_geometry_percentage: f64,
+    pub reject_tx_at_geometry_percentage: f64,
+    pub close_block_at_eth_params_percentage: f64,
+    pub reject_tx_at_eth_params_percentage: f64,
+}
+
+impl From<StateKeeperConfig> for L1BatchSealConfig {
+    fn from(config: StateKeeperConfig) -> Self {
+        Self {
+            max_circuits_per_batch: config.max_circuits_per_batch,
+            max_pubdata_per_batch: config.max_pubdata_per_batch.0 as usize,
+            transaction_slots: config.transaction_slots,
+            close_block_at_geometry_percentage: config.close_block_at_geometry_percentage,
+            reject_tx_at_geometry_percentage: config.reject_tx_at_geometry_percentage,
+            close_block_at_eth_params_percentage: config.close_block_at_eth_params_percentage,
+            reject_tx_at_eth_params_percentage: config.reject_tx_at_eth_params_percentage,
+        }
+    }
+}
+
+impl L1BatchSealConfig {
+    pub fn max(protocol_version: ProtocolVersionId) -> Self {
+        Self {
+            max_circuits_per_batch: get_max_batch_base_layer_circuits(protocol_version.into()),
+            max_pubdata_per_batch: MAX_VM_PUBDATA_PER_BATCH, // TODO
+            transaction_slots: get_bootloader_max_txs_in_batch(protocol_version.into()),
+            close_block_at_geometry_percentage: 1.0,
+            reject_tx_at_geometry_percentage: 1.0,
+            close_block_at_eth_params_percentage: 1.0,
+            reject_tx_at_eth_params_percentage: 1.0,
+        }
+    }
+
+    pub fn for_tests() -> Self {
+        StateKeeperConfig::for_tests().into()
+    }
 }
 
 /// Implementation of [`ConditionalSealer`] used by the main node.
 /// Internally uses a set of [`SealCriterion`]s to determine whether the batch should be sealed.
 ///
-/// The checks are deterministic, i.e., should depend solely on execution metrics and [`StateKeeperConfig`].
+/// The checks are deterministic, i.e., should depend solely on execution metrics and [`L1BatchSealConfig`].
 /// Non-deterministic seal criteria are expressed using [`IoSealCriteria`](super::IoSealCriteria).
 #[derive(Debug)]
 pub struct SequencerSealer {
-    config: StateKeeperConfig,
+    local_config: L1BatchSealConfig,
+    current_config: Option<L1BatchSealConfig>,
+    in_verify_mode: bool,
     sealers: Vec<Box<dyn SealCriterion>>,
 }
 
@@ -53,7 +108,9 @@ pub struct SequencerSealer {
 impl SequencerSealer {
     pub(crate) fn for_tests() -> Self {
         Self {
-            config: StateKeeperConfig::for_tests(),
+            local_config: L1BatchSealConfig::for_tests(),
+            current_config: Some(L1BatchSealConfig::for_tests()),
+            in_verify_mode: false,
             sealers: vec![],
         }
     }
@@ -71,7 +128,7 @@ impl TransactionFilter for SequencerSealer {
             const TX_COUNT: usize = 1;
 
             let resolution = sealer.should_seal(
-                &self.config,
+                &self.current_config.unwrap(),
                 TX_COUNT,
                 TX_COUNT,
                 &data,
@@ -106,7 +163,7 @@ impl ConditionalSealer for SequencerSealer {
         let mut final_seal_resolution = SealResolution::NoSeal;
         for sealer in &self.sealers {
             let seal_resolution = sealer.should_seal(
-                &self.config,
+                &self.current_config.unwrap(),
                 tx_count,
                 l1_tx_count,
                 block_data,
@@ -143,7 +200,7 @@ impl ConditionalSealer for SequencerSealer {
             .iter()
             .filter_map(|s| {
                 let filled = s.capacity_filled(
-                    &self.config,
+                    &self.current_config.unwrap(),
                     tx_count,
                     l1_tx_count,
                     block_data,
@@ -153,28 +210,55 @@ impl ConditionalSealer for SequencerSealer {
             })
             .collect()
     }
+
+    fn use_propose_mode(&mut self) {
+        self.in_verify_mode = false;
+        self.current_config = Some(self.local_config);
+    }
+
+    fn use_verify_mode(&mut self) {
+        self.in_verify_mode = true;
+        // Config will be set in `set_protocol_version` later.
+        self.current_config = None;
+    }
+
+    fn set_protocol_version(&mut self, protocol_version: ProtocolVersionId) {
+        if self.in_verify_mode {
+            self.current_config = Some(L1BatchSealConfig::max(protocol_version));
+        }
+    }
 }
 
 impl SequencerSealer {
-    pub fn new(config: StateKeeperConfig) -> Self {
-        let sealers = Self::default_sealers(&config);
-        Self { config, sealers }
+    pub fn new(sk_config: StateKeeperConfig) -> Self {
+        let config: L1BatchSealConfig = sk_config.into();
+        let sealers = Self::default_sealers();
+        Self {
+            local_config: config,
+            current_config: Some(config),
+            in_verify_mode: false,
+            sealers,
+        }
     }
 
     #[cfg(test)]
     pub(crate) fn with_sealers(
-        config: StateKeeperConfig,
+        sk_config: StateKeeperConfig,
         sealers: Vec<Box<dyn SealCriterion>>,
     ) -> Self {
-        Self { config, sealers }
+        let config: L1BatchSealConfig = sk_config.into();
+        Self {
+            local_config: config,
+            current_config: Some(config),
+            in_verify_mode: false,
+            sealers,
+        }
     }
 
-    fn default_sealers(config: &StateKeeperConfig) -> Vec<Box<dyn SealCriterion>> {
+    fn default_sealers() -> Vec<Box<dyn SealCriterion>> {
         vec![
             Box::new(criteria::SlotsCriterion),
-            Box::new(criteria::PubDataBytesCriterion {
-                max_pubdata_per_batch: config.max_pubdata_per_batch.0,
-            }),
+            Box::new(criteria::PubDataBytesCriterion),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
             Box::new(criteria::GasForBatchTipCriterion),

@@ -2,7 +2,7 @@ use zksync_multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    L1BatchSealConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -11,7 +11,7 @@ pub struct TxEncodingSizeCriterion;
 impl SealCriterion for TxEncodingSizeCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -40,7 +40,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -66,10 +66,10 @@ mod tests {
             get_bootloader_encoding_space(ProtocolVersionId::latest().into());
 
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
+        let config = L1BatchSealConfig {
             reject_tx_at_geometry_percentage: 0.95,
             close_block_at_geometry_percentage: 0.95,
-            ..StateKeeperConfig::for_tests()
+            ..L1BatchSealConfig::for_tests()
         };
 
         let criterion = TxEncodingSizeCriterion;

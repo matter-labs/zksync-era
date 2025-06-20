@@ -14,8 +14,9 @@ use zksync_node_framework::{
 };
 use zksync_shared_resources::{api::SyncState, contracts::L2ContractsResource};
 use zksync_state_keeper::{
-    node::StateKeeperIOResource, seal_criteria::ConditionalSealer, MempoolFetcher, MempoolGuard,
-    MempoolIO, SequencerSealer,
+    node::{ConditionalSealerResource, StateKeeperIOResource},
+    seal_criteria::ConditionalSealer,
+    MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
 };
 use zksync_types::{commitment::PubdataType, L2ChainId};
 
@@ -46,7 +47,7 @@ pub struct Output {
     sync_state: Option<SyncState>,
     action_queue_sender: ActionQueueSenderResource,
     io: StateKeeperIOResource,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: ConditionalSealerResource,
     #[context(task)]
     pub mempool_fetcher: MempoolFetcher,
 }
@@ -132,7 +133,8 @@ impl WiringLayer for LeaderIOLayer {
         )?;
 
         // Create sealer.
-        let sealer = SequencerSealer::new(self.state_keeper_config);
+        let sealer: Box<dyn ConditionalSealer> =
+            Box::new(SequencerSealer::new(self.state_keeper_config));
 
         // Create `SyncState` resource.
         let sync_state = if self.create_sync_state {
@@ -160,7 +162,7 @@ impl WiringLayer for LeaderIOLayer {
             sync_state,
             action_queue_sender: action_queue_sender.into(),
             io: io.into(),
-            sealer: Arc::new(sealer),
+            sealer: sealer.into(),
             mempool_fetcher,
         })
     }

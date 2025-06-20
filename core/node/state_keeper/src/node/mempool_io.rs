@@ -19,7 +19,8 @@ use zksync_vm_executor::node::ApiTransactionFilter;
 
 use super::resources::StateKeeperIOResource;
 use crate::{
-    seal_criteria::ConditionalSealer, MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
+    node::ConditionalSealerResource, seal_criteria::ConditionalSealer, MempoolFetcher,
+    MempoolGuard, MempoolIO, SequencerSealer,
 };
 
 /// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
@@ -56,7 +57,7 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     state_keeper_io: StateKeeperIOResource,
-    conditional_sealer: Arc<dyn ConditionalSealer>,
+    conditional_sealer: ConditionalSealerResource,
     api_transaction_filter: ApiTransactionFilter,
     #[context(task)]
     mempool_fetcher: MempoolFetcher,
@@ -141,12 +142,14 @@ impl WiringLayer for MempoolIOLayer {
         )?;
 
         // Create sealer.
-        let sealer = Arc::new(SequencerSealer::new(self.state_keeper_config));
+        let sealer: Box<dyn ConditionalSealer> =
+            Box::new(SequencerSealer::new(self.state_keeper_config.clone()));
+        let api_sealer = Arc::new(SequencerSealer::new(self.state_keeper_config));
 
         Ok(Output {
             state_keeper_io: io.into(),
-            conditional_sealer: sealer.clone(),
-            api_transaction_filter: ApiTransactionFilter(sealer),
+            conditional_sealer: sealer.into(),
+            api_transaction_filter: ApiTransactionFilter(api_sealer),
             mempool_fetcher,
         })
     }

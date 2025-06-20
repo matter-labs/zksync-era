@@ -543,7 +543,7 @@ impl StateKeeperRunner {
                 Box::new(executor_factory),
                 OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                     .with_handler(Box::new(self.sync_state.clone())),
-                Arc::new(NoopSealer),
+                Box::new(NoopSealer),
                 Arc::new(async_cache),
                 None,
             )
@@ -637,7 +637,7 @@ impl StateKeeperRunner {
                 OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                     .with_handler(Box::new(tree_writes_persistence))
                     .with_handler(Box::new(self.sync_state.clone())),
-                Arc::new(NoopSealer),
+                Box::new(NoopSealer),
                 Arc::new(MockReadStorageFactory),
                 None,
             )

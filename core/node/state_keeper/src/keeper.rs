@@ -128,7 +128,7 @@ pub struct StateKeeperBuilder {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: Box<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
@@ -141,7 +141,7 @@ pub(super) struct StateKeeperInner {
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
     batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
-    sealer: Arc<dyn ConditionalSealer>,
+    sealer: Box<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
@@ -168,7 +168,7 @@ impl StateKeeperBuilder {
         sequencer: Box<dyn StateKeeperIO>,
         batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
         output_handler: OutputHandler,
-        sealer: Arc<dyn ConditionalSealer>,
+        sealer: Box<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
         deployment_tx_filter: Option<DeploymentTxFilter>,
     ) -> Self {
@@ -330,6 +330,9 @@ impl StateKeeperInner {
         } else {
             None
         };
+
+        self.sealer
+            .set_protocol_version(batch_init_params.system_env.version);
 
         Ok(InitializedBatchState {
             updates_manager,
@@ -1276,6 +1279,8 @@ impl StateKeeper {
         ctx: Option<&ctx::Ctx>,
     ) -> Result<Payload, OrStopped> {
         self.inner.io.set_is_active_leader(true);
+        self.inner.sealer.use_propose_mode();
+
         self.process_block(stop_receiver, ctx).await?;
         self.seal_last_pending_block_data().await?;
 
@@ -1290,6 +1295,13 @@ impl StateKeeper {
         stop_receiver: &mut watch::Receiver<bool>,
     ) -> Result<(), OrStopped> {
         self.inner.io.set_is_active_leader(false);
+        self.inner.sealer.use_verify_mode();
+        if let BatchState::Init(state) = &mut self.batch_state {
+            self.inner
+                .sealer
+                .set_protocol_version(state.updates_manager.protocol_version());
+        }
+
         self.process_block(stop_receiver, None).await?;
         self.seal_last_pending_block_data().await?;
 

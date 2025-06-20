@@ -242,7 +242,7 @@ impl TestScenario {
             Box::new(io),
             Box::new(batch_executor),
             output_handler,
-            Arc::new(sealer),
+            Box::new(sealer),
             Arc::new(MockReadStorageFactory),
             None,
         );

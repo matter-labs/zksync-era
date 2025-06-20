@@ -1,11 +1,12 @@
-use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::utils::{
     circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
 };
 use zksync_types::ProtocolVersionId;
 
 // Local uses
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution, UnexecutableReason};
+use crate::seal_criteria::{
+    L1BatchSealConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
+};
 
 // Collected vm execution metrics should fit into geometry limits.
 // Otherwise witness generation will fail and proof won't be generated.
@@ -17,7 +18,7 @@ pub struct CircuitsCriterion;
 impl SealCriterion for CircuitsCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -71,7 +72,7 @@ impl SealCriterion for CircuitsCriterion {
 
     fn capacity_filled(
         &self,
-        config: &StateKeeperConfig,
+        config: &L1BatchSealConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
         block_data: &SealData,
@@ -97,12 +98,12 @@ mod tests {
 
     const MAX_CIRCUITS_PER_BATCH: usize = 27_000;
 
-    fn get_config() -> StateKeeperConfig {
-        StateKeeperConfig {
+    fn get_config() -> L1BatchSealConfig {
+        L1BatchSealConfig {
             close_block_at_geometry_percentage: 0.9,
             reject_tx_at_geometry_percentage: 0.9,
             max_circuits_per_batch: MAX_CIRCUITS_PER_BATCH,
-            ..StateKeeperConfig::for_tests()
+            ..L1BatchSealConfig::for_tests()
         }
     }
 

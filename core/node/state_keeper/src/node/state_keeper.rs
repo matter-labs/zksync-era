@@ -16,7 +16,8 @@ use super::resources::{
     BatchExecutorResource, OutputHandlerResource, StateKeeperIOResource, StateKeeperResource,
 };
 use crate::{
-    keeper::RunMode, seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperBuilder,
+    keeper::RunMode, node::ConditionalSealerResource, seal_criteria::ConditionalSealer,
+    AsyncRocksdbCache, StateKeeperBuilder,
 };
 
 /// Wiring layer for the state keeper.
@@ -32,7 +33,7 @@ pub struct Input {
     state_keeper_io: StateKeeperIOResource,
     batch_executor: BatchExecutorResource,
     output_handler: OutputHandlerResource,
-    conditional_sealer: Arc<dyn ConditionalSealer>,
+    conditional_sealer: ConditionalSealerResource,
     master_pool: PoolResource<MasterPool>,
     replica_pool: PoolResource<ReplicaPool>,
     shared_allow_list: Option<SharedAllowList>,
@@ -89,7 +90,11 @@ impl WiringLayer for StateKeeperLayer {
             .0
             .take()
             .context("HandleStateKeeperOutput was provided but taken by another task")?;
-        let sealer = input.conditional_sealer;
+        let sealer = input
+            .conditional_sealer
+            .0
+            .take()
+            .context("ConditionalSealer was provided but taken by another task")?;
         let master_pool = input.master_pool;
 
         let (storage_factory, mut rocksdb_catchup) = AsyncRocksdbCache::new(
