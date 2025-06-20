@@ -11,7 +11,14 @@ underscores `_`, capitalizing and prepending the `EN_` prefix. For example, `db.
 `EN_DB_MERKLE_TREE_PATH`. Some params have aliases or fallbacks (generally, non-prefixed env variables); these are
 exhaustively documented [in the config help](#getting-help-on-configuration-params). For example, the
 `EN_MERKLE_TREE_PATH` env var (or `merkle_tree.path`) is a deprecated alias for the aforementioned `db.merkle_tree.path`
-param.
+param. If a deprecated alias is used, a warning is logged with the `smart_config` target. It is recommended (but not
+immediately required) to convert config sources to use a canonical param path, which is output as a part of the warning.
+
+```admonish tip
+To output all config params in canonical formats / locations with node v${FIXME_VERSION}+, run the node binary
+with `config print` command-line args, or `config print --diff` to only output non-default param valuess.
+See the `config print --help` docs for more options.
+```
 
 To streamline the config setup, we provide prepared configs for ZKsync Era – for both
 [mainnet](prepared_configs/mainnet-config.env) and [testnet](prepared_configs/testnet-sepolia-config.env). You can use
@@ -83,7 +90,8 @@ The node provides info on params as `DEBUG` logs with the `zksync_config` target
   is_default=true
 ```
 
-Naturally, value for the secret params are not exposed; instead, `is_secret` is set to `true`.
+Naturally, value for the secret params are not exposed; instead, `is_secret` is set to `true`. Some additional logging
+happens inside the config library (i.e., with `smart_config::*` targets).
 
 If configuration parsing fails, the node will print exhaustive failure reason(s) with rich context:
 
@@ -235,10 +243,11 @@ long-term commitment or irreversible decisions, unlike enabling pruning for a no
 
 ### Logging and observability
 
-- `MISC_LOG_FORMAT` defines the format in which logs are shown: `plain` corresponds to the human-readable format, while
-  the other option is `json` (recommended for deployments).
-- `RUST_LOG` variable allows you to set up the logs granularity (e.g. make the Node emit fewer logs). You can read about
-  the format [here](https://docs.rs/env_logger/0.10.0/env_logger/#enabling-logging).
-- `MISC_SENTRY_URL` and `MISC_OTLP_URL` variables can be configured to set up Sentry and OpenTelemetry exporters.
+- `EN_LOG_FORMAT` env var (deprecated alias `MISC_LOG_FORMAT`) defines the format in which logs are shown. `plain`
+  corresponds to the human-readable format, while the other option is `json` (recommended for deployments).
+- `EN_LOG_DIRECTIVES` env var (also read from `RUST_LOG`) allows you to set up the logs granularity (e.g. make the Node
+  emit fewer logs). You can read about the format
+  [here](https://docs.rs/env_logger/0.10.0/env_logger/#enabling-logging).
+- `EN_SENTRY_URL` env var (deprecated alias `MISC_SENTRY_URL`) can be configured to set up a Sentry exporter.
 - If Sentry is configured, you also have to set `EN_SENTRY_ENVIRONMENT` variable to configure the environment in events
-  reported to sentry.
+  reported to Sentry.
