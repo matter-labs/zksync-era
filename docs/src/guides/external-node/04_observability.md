@@ -19,8 +19,7 @@ By default, latency histograms are distributed in the following buckets (in seco
 Node exposes a lot of metrics, a significant amount of which aren't interesting outside the development flow. This
 section's purpose is to highlight metrics that may be worth observing in the external setup.
 
-If you are not planning to scrape Prometheus metrics, please unset `EN_PROMETHEUS_PORT` environment variable to prevent
-memory leaking.
+If you are not planning to scrape Prometheus metrics, you can unset the `EN_PROMETHEUS_PORT` environment variable.
 
 | Metric name                                    | Type      | Labels                                | Description                                                        |
 | ---------------------------------------------- | --------- | ------------------------------------- | ------------------------------------------------------------------ |
@@ -39,4 +38,4 @@ memory leaking.
 | `sql_connection_acquire`                       | Histogram | -                                     | Time to get an SQL connection from the connection pool             |
 
 Metrics can be used to detect anomalies in configuration, which is described in more detail in the
-[next section](05_troubleshooting.md).
+[_Troubleshooting_ section](05_troubleshooting.md).
